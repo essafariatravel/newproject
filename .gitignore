@@ -1,0 +1,36 @@
+node_modules
+.next
+out
+build
+dist
+coverage
+*.tsbuildinfo
+next-env.d.ts
+
+# environment — never commit secrets
+.env
+.env.local
+.env.preview
+.env.production
+.env*.local
+
+# local databases / embedded postgres data
+.pglite
+.embedded-pg
+*.db
+*.sqlite
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea
+.vscode
+
+# logs
+npm-debug.log*
+*.log
+
+# packaging artifacts
+ESSAFARIA-VISA-OS-FINAL.zip
+SHA256SUMS.txt
+tests/.pgdata-test/
