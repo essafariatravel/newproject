@@ -129,7 +129,7 @@ function UploadFormInline(props: {
         name="file"
         required
         accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
-        className="max-w-full text-xs file:mr-2 file:rounded-md file:border-0 file:bg-navy-900 file:px-2.5 file:py-1.5 file:text-xs file:text-white"
+        className="max-w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-2.5 file:py-1.5 file:text-xs file:text-white"
       />
       {props.applicants.length > 1 ? (
         <select name="applicantId" className="input max-w-[180px] py-1.5 text-xs">
@@ -237,7 +237,7 @@ export function DocumentList(props: {
                 name="file"
                 required
                 accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
-                className="text-xs file:mr-2 file:rounded-md file:border-0 file:bg-navy-900 file:px-2.5 file:py-1.5 file:text-xs file:text-white"
+                className="text-xs file:mr-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-2.5 file:py-1.5 file:text-xs file:text-white"
               />
               <SubmitButton className="btn-gold btn-sm" pendingLabel="Submitting…">Resubmit corrected file</SubmitButton>
             </form>

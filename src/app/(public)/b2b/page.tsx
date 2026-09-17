@@ -29,13 +29,21 @@ export default async function B2BPage() {
 
   return (
     <>
-      <section className="bg-navy-950">
-        <div className="ess-container py-20">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold-400">For the travel trade</p>
-          <h1 className="mt-3 max-w-3xl font-serif text-4xl leading-tight text-white">
-            Run your entire visa desk on ESSAFARIA
+      <section className="relative overflow-hidden">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(680px 320px at 78% 0%, rgb(130 144 230 / 0.2), transparent 62%), radial-gradient(520px 280px at 2% 100%, rgb(203 178 135 / 0.16), transparent 58%)",
+          }}
+        />
+        <div className="ess-container relative py-20">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-iris-600">For the travel trade</p>
+          <h1 className="mt-3 max-w-3xl font-serif text-4xl leading-tight text-navy-900">
+            Run your entire visa desk on <span className="italic text-gold-600">ESSAFARIA</span>
           </h1>
-          <p className="mt-4 max-w-2xl text-lg leading-relaxed text-slate-300">
+          <p className="mt-4 max-w-2xl text-lg leading-relaxed text-slate-500">
             Travel agencies, wholesalers, tour operators and corporate travel partners use ESSAFARIA VISA OS
             to submit, track and bill visa applications at scale — with a dedicated processing team behind
             every file.
@@ -54,7 +62,7 @@ export default async function B2BPage() {
         </div>
       </section>
 
-      <section id="partner" className="border-y border-navy-900/10 bg-white">
+      <section id="partner" className="border-y border-line/70 bg-white/70">
         <div className="ess-container grid grid-cols-1 gap-10 py-14 lg:grid-cols-2">
           <div>
             <h2 className="font-serif text-2xl text-navy-900">How onboarding works</h2>

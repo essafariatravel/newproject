@@ -1,32 +1,54 @@
 @import "tailwindcss";
 
 @theme {
-  /* ESSAFARIA design tokens — deep navy, ivory, slate, muted gold, subtle teal */
-  --color-navy-950: #081322;
-  --color-navy-900: #0d1c33;
-  --color-navy-800: #132946;
-  --color-navy-700: #1c3a61;
-  --color-navy-600: #274d7a;
-  --color-navy-500: #3a6797;
+  /* ESSAFARIA "Aurora Porcelain" design tokens — soft, airy, premium.
+     Ink navy for text, soft iris for interaction, champagne gold for accents,
+     porcelain surfaces with diffuse layered shadows and generous radii. */
 
-  --color-ivory-50: #faf8f3;
-  --color-ivory-100: #f4f0e7;
-  --color-ivory-200: #e9e2d2;
+  --color-navy-950: #151b36;
+  --color-navy-900: #1d2547;
+  --color-navy-800: #2b3563;
+  --color-navy-700: #3d4a85;
+  --color-navy-600: #5160a8;
+  --color-navy-500: #737fbe;
+  --color-navy-100: #e9ecf8;
+  --color-navy-50: #f3f5fb;
 
-  --color-gold-600: #9a7a32;
-  --color-gold-500: #b08d3e;
-  --color-gold-400: #c9a961;
-  --color-gold-100: #f1e8d2;
+  --color-iris-700: #3f4fbe;
+  --color-iris-600: #4a5bd0;
+  --color-iris-500: #5b6cda;
+  --color-iris-400: #8290e6;
+  --color-iris-200: #d6daf6;
+  --color-iris-100: #e9ebfb;
+  --color-iris-50: #f2f3fd;
 
-  --color-teal-700: #1d5563;
-  --color-teal-600: #23606f;
-  --color-teal-500: #2e7687;
-  --color-teal-100: #d9eaee;
+  --color-ivory-50: #f5f6fa;
+  --color-ivory-100: #eef0f6;
+  --color-ivory-200: #e3e6ef;
 
-  --font-serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  --color-line: #eaecf4;
 
-  --shadow-card: 0 1px 2px rgb(13 28 51 / 0.05), 0 1px 3px rgb(13 28 51 / 0.06);
-  --shadow-pop: 0 4px 16px rgb(13 28 51 / 0.10);
+  --color-gold-700: #7e6539;
+  --color-gold-600: #977a47;
+  --color-gold-500: #b2945e;
+  --color-gold-400: #cbb287;
+  --color-gold-100: #f4edde;
+  --color-gold-50: #faf6ec;
+
+  --color-teal-700: #23685c;
+  --color-teal-600: #2e7d6e;
+  --color-teal-500: #469184;
+  --color-teal-100: #deefea;
+  --color-teal-50: #edf6f4;
+
+  --font-sans: "Manrope", "Nunito Sans", ui-rounded, "SF Pro Rounded", ui-sans-serif, system-ui,
+    -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "Fraunces", "Playfair Display", "Iowan Old Style", "Palatino Linotype", Palatino,
+    Georgia, "Times New Roman", serif;
+
+  --shadow-card: 0 1px 2px rgb(23 30 63 / 0.04), 0 14px 36px -24px rgb(23 30 63 / 0.18);
+  --shadow-soft: 0 2px 10px -4px rgb(23 30 63 / 0.10);
+  --shadow-pop: 0 28px 70px -30px rgb(23 30 63 / 0.32);
 }
 
 html {
@@ -34,18 +56,29 @@ html {
 }
 
 body {
-  @apply bg-ivory-50 text-slate-800 antialiased;
+  @apply font-sans text-slate-600 antialiased;
   font-feature-settings: "kern";
+  background-color: var(--color-ivory-50);
+  background-image:
+    radial-gradient(1100px 480px at 88% -220px, rgb(130 144 230 / 0.16), transparent 62%),
+    radial-gradient(900px 420px at -12% -200px, rgb(203 178 135 / 0.13), transparent 58%);
+  background-repeat: no-repeat;
+}
+
+h1, h2, h3 {
+  @apply text-navy-900;
+  letter-spacing: -0.01em;
 }
 
 ::selection {
-  background: var(--color-gold-100);
+  background: var(--color-iris-100);
+  color: var(--color-navy-900);
 }
 
 /* thin, calm scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-color: #c9cfdf transparent;
 }
 
 /* ---------- shared utility classes ---------- */
@@ -59,49 +92,70 @@ body {
 .btn-gold,
 .btn-secondary,
 .btn-danger {
-  @apply inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors
-         focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy-600
-         disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-full text-sm font-semibold
+         transition duration-200 active:scale-[0.98]
+         focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-iris-500
+         disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
 }
+
 .btn-primary {
-  @apply bg-navy-900 px-4 py-2 text-white hover:bg-navy-800 active:bg-navy-950;
+  @apply bg-gradient-to-b from-iris-500 to-iris-600 px-5 py-2.5 text-white
+         shadow-[0_10px_24px_-10px_rgb(74_91_208/0.55)]
+         hover:from-iris-400 hover:to-iris-500 hover:shadow-[0_12px_28px_-10px_rgb(74_91_208/0.6)]
+         active:from-iris-600 active:to-iris-700;
 }
+
 .btn-gold {
-  @apply bg-gold-500 px-4 py-2 text-white hover:bg-gold-600 active:bg-gold-600;
+  @apply bg-gold-600 px-5 py-2.5 text-white shadow-[0_10px_24px_-12px_rgb(151_122_71/0.6)]
+         hover:bg-gold-500 active:bg-gold-700;
 }
+
 .btn-secondary {
-  @apply border border-slate-300 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50;
+  @apply border border-ivory-200 bg-white px-5 py-2.5 text-navy-800 shadow-[0_1px_2px_rgb(23_30_63/0.05)]
+         hover:border-iris-200 hover:bg-ivory-50 hover:text-navy-900;
 }
+
 .btn-danger {
-  @apply border border-red-200 bg-white px-4 py-2 text-red-700 hover:bg-red-50;
+  @apply border border-red-100 bg-red-50 px-5 py-2.5 text-red-700 hover:bg-red-100;
 }
+
 .btn-sm {
-  @apply px-2.5 py-1.5 text-xs;
+  @apply px-3.5 py-1.5 text-[13px];
 }
 
 .input {
-  @apply w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900
-         placeholder:text-slate-400 focus:border-navy-600 focus:outline-none focus:ring-2 focus:ring-navy-600/15
-         disabled:bg-slate-50 disabled:text-slate-400;
+  @apply w-full rounded-xl border border-ivory-200 bg-white px-3.5 py-2.5 text-sm text-navy-900
+         shadow-[0_1px_2px_rgb(23_30_63/0.04)]
+         placeholder:text-slate-400
+         focus:border-iris-400 focus:outline-none focus:ring-4 focus:ring-iris-500/10
+         disabled:bg-ivory-50 disabled:text-slate-400;
 }
+
 .label {
-  @apply mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500;
+  @apply mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500;
 }
 
 .card {
-  @apply rounded-lg border border-slate-200 bg-white shadow-[var(--shadow-card)];
+  @apply rounded-[1.25rem] border border-line bg-white shadow-[var(--shadow-card)];
 }
 
 .th {
-  @apply px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500;
+  @apply px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400;
 }
+
 .td {
-  @apply px-3 py-2.5 text-sm text-slate-700 align-middle;
+  @apply px-4 py-3 text-sm text-slate-600 align-middle;
 }
+
 .tr-hover {
-  @apply transition-colors hover:bg-ivory-50/70;
+  @apply transition-colors hover:bg-ivory-50/80;
 }
 
 .badge {
-  @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap;
+  @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap;
+}
+
+/* soft pill page-tab / segmented control helper */
+.ess-segment {
+  @apply inline-flex gap-1 rounded-full bg-ivory-100/80 p-1;
 }

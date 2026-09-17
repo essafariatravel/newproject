@@ -24,25 +24,25 @@ export default async function PublicLayout({ children }: { children: ReactNode }
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-40 border-b border-navy-900/10 bg-ivory-50/90 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-line/70 bg-white/70 backdrop-blur-xl">
         <div className="ess-container flex h-16 items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2.5">
             <BrandMark />
             <span className="leading-tight">
-              <span className="block font-serif text-[15px] font-semibold tracking-wide text-navy-900">
+              <span className="block text-[15px] font-bold tracking-[0.04em] text-navy-900">
                 {brandName}
               </span>
-              <span className="block text-[10px] uppercase tracking-[0.18em] text-gold-600">
+              <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-600">
                 Visa Operations
               </span>
             </span>
           </Link>
-          <nav className="hidden items-center gap-6 lg:flex">
+          <nav className="hidden items-center gap-1 lg:flex">
             {NAV.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="text-sm text-slate-600 transition-colors hover:text-navy-900"
+                className="rounded-full px-3.5 py-1.5 text-sm font-medium text-slate-500 transition-colors hover:bg-ivory-100 hover:text-navy-900"
               >
                 {item.label}
               </Link>
@@ -57,9 +57,9 @@ export default async function PublicLayout({ children }: { children: ReactNode }
             </Link>
           </div>
         </div>
-        <nav className="flex gap-4 overflow-x-auto border-t border-navy-900/5 px-4 py-2 lg:hidden">
+        <nav className="flex gap-4 overflow-x-auto border-t border-line/70 bg-white/60 px-4 py-2.5 lg:hidden">
           {NAV.map((item) => (
-            <Link key={item.href} href={item.href} className="whitespace-nowrap text-xs text-slate-600">
+            <Link key={item.href} href={item.href} className="whitespace-nowrap text-xs font-medium text-slate-500">
               {item.label}
             </Link>
           ))}
@@ -68,33 +68,33 @@ export default async function PublicLayout({ children }: { children: ReactNode }
 
       <main className="flex-1">{children}</main>
 
-      <footer className="mt-16 bg-navy-950 text-slate-300">
+      <footer className="mt-20 border-t border-line/80 bg-white/70">
         <div className="ess-container grid grid-cols-1 gap-10 py-12 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <p className="font-serif text-lg text-white">{brandName}</p>
-            <p className="mt-2 max-w-xs text-sm leading-relaxed text-slate-400">{tagline}</p>
+            <p className="text-lg font-bold tracking-[0.04em] text-navy-900">{brandName}</p>
+            <p className="mt-2 max-w-xs text-sm leading-relaxed text-slate-500">{tagline}</p>
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Platform</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">Platform</p>
             <ul className="mt-3 space-y-2 text-sm">
-              <li><Link className="hover:text-white" href="/visas">Visa Services</Link></li>
-              <li><Link className="hover:text-white" href="/countries">Destinations</Link></li>
-              <li><Link className="hover:text-white" href="/b2b">B2B Partnership</Link></li>
-              <li><Link className="hover:text-white" href="/login">Agency & Staff Login</Link></li>
+              <li><Link className="text-slate-600 transition-colors hover:text-navy-900" href="/visas">Visa Services</Link></li>
+              <li><Link className="text-slate-600 transition-colors hover:text-navy-900" href="/countries">Destinations</Link></li>
+              <li><Link className="text-slate-600 transition-colors hover:text-navy-900" href="/b2b">B2B Partnership</Link></li>
+              <li><Link className="text-slate-600 transition-colors hover:text-navy-900" href="/login">Agency & Staff Login</Link></li>
             </ul>
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Company</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">Company</p>
             <ul className="mt-3 space-y-2 text-sm">
-              <li><Link className="hover:text-white" href="/about">About ESSAFARIA</Link></li>
-              <li><Link className="hover:text-white" href="/contact">Contact</Link></li>
-              <li><Link className="hover:text-white" href="/privacy">Privacy Notice</Link></li>
-              <li><Link className="hover:text-white" href="/terms">Terms of Service</Link></li>
+              <li><Link className="text-slate-600 transition-colors hover:text-navy-900" href="/about">About ESSAFARIA</Link></li>
+              <li><Link className="text-slate-600 transition-colors hover:text-navy-900" href="/contact">Contact</Link></li>
+              <li><Link className="text-slate-600 transition-colors hover:text-navy-900" href="/privacy">Privacy Notice</Link></li>
+              <li><Link className="text-slate-600 transition-colors hover:text-navy-900" href="/terms">Terms of Service</Link></li>
             </ul>
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Contact</p>
-            <ul className="mt-3 space-y-2 text-sm text-slate-400">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">Contact</p>
+            <ul className="mt-3 space-y-2 text-sm text-slate-500">
               <li>{email}</li>
               <li>{phone}</li>
               <li>{address}</li>
@@ -104,7 +104,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
                 {Object.entries(social)
                   .filter(([, url]) => url)
                   .map(([name, url]) => (
-                    <a key={name} href={url} target="_blank" rel="noopener noreferrer" className="capitalize hover:text-white">
+                    <a key={name} href={url} target="_blank" rel="noopener noreferrer" className="capitalize text-slate-600 transition-colors hover:text-navy-900">
                       {name}
                     </a>
                   ))}
@@ -112,8 +112,8 @@ export default async function PublicLayout({ children }: { children: ReactNode }
             ) : null}
           </div>
         </div>
-        <div className="border-t border-white/10">
-          <div className="ess-container flex flex-wrap items-center justify-between gap-2 py-4 text-xs text-slate-500">
+        <div className="border-t border-line/80">
+          <div className="ess-container flex flex-wrap items-center justify-between gap-2 py-4 text-xs text-slate-400">
             <span>© {new Date().getFullYear()} {brandName}. All rights reserved.</span>
             <span>Professional B2B visa operations platform.</span>
           </div>

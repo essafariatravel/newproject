@@ -9,9 +9,9 @@ export function PageHeader(props: {
   actions?: ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+    <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="font-serif text-2xl text-navy-900">{props.title}</h1>
+        <h1 className="font-serif text-[1.75rem] leading-tight text-navy-900">{props.title}</h1>
         {props.subtitle ? <p className="mt-1 text-sm text-slate-500">{props.subtitle}</p> : null}
       </div>
       {props.actions ? <div className="flex flex-wrap items-center gap-2">{props.actions}</div> : null}
@@ -25,10 +25,10 @@ export function Card(props: { children: ReactNode; className?: string }) {
 
 export function CardHeader(props: { title: string; actions?: ReactNode; subtitle?: string }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/70 px-5 py-3.5">
       <div>
-        <h2 className="text-sm font-semibold text-navy-900">{props.title}</h2>
-        {props.subtitle ? <p className="mt-0.5 text-xs text-slate-500">{props.subtitle}</p> : null}
+        <h2 className="text-sm font-bold text-navy-900">{props.title}</h2>
+        {props.subtitle ? <p className="mt-0.5 text-xs text-slate-400">{props.subtitle}</p> : null}
       </div>
       {props.actions ? <div className="flex items-center gap-2">{props.actions}</div> : null}
     </div>
@@ -42,23 +42,23 @@ export function StatCard(props: {
   href?: string;
   tone?: "default" | "gold" | "teal" | "navy";
 }) {
-  const toneRing =
+  const toneClass =
     props.tone === "gold"
-      ? "border-gold-400/40"
+      ? "border-gold-100 bg-gradient-to-b from-gold-50/80 to-white"
       : props.tone === "teal"
-        ? "border-teal-500/30"
+        ? "border-teal-100 bg-gradient-to-b from-teal-50/70 to-white"
         : props.tone === "navy"
-          ? "border-navy-700/30"
-          : "border-slate-200";
+          ? "border-iris-100 bg-gradient-to-b from-iris-50/70 to-white"
+          : "";
   const body = (
-    <div className={`card h-full border ${toneRing} px-4 py-3.5`}>
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{props.label}</p>
-      <p className="mt-1 font-serif text-2xl text-navy-900 tabular-nums">{props.value}</p>
-      {props.hint ? <p className="mt-1 text-xs text-slate-500">{props.hint}</p> : null}
+    <div className={`card h-full border px-5 py-4 ${toneClass}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">{props.label}</p>
+      <p className="mt-1.5 font-serif text-[1.65rem] leading-snug text-navy-900 tabular-nums">{props.value}</p>
+      {props.hint ? <p className="mt-1 text-xs text-slate-400">{props.hint}</p> : null}
     </div>
   );
   return props.href ? (
-    <Link href={props.href} className="block transition-transform hover:-translate-y-px">
+    <Link href={props.href} className="block transition-transform hover:-translate-y-0.5">
       {body}
     </Link>
   ) : (
@@ -69,25 +69,25 @@ export function StatCard(props: {
 /* -------------------------------- badges -------------------------------- */
 
 const STATUS_STYLES: Record<string, string> = {
-  DRAFT: "bg-slate-100 text-slate-600",
-  SUBMITTED: "bg-teal-100 text-teal-700",
-  DOCUMENTS_REQUIRED: "bg-amber-100 text-amber-800",
-  UNDER_REVIEW: "bg-sky-100 text-sky-800",
-  PROCESSING: "bg-indigo-100 text-indigo-800",
-  EMBASSY_SUBMISSION: "bg-purple-100 text-purple-800",
-  AWAITING_DECISION: "bg-fuchsia-100 text-fuchsia-800",
-  APPROVED: "bg-emerald-100 text-emerald-800",
-  REFUSED: "bg-red-100 text-red-700",
-  COMPLETED: "bg-navy-800/10 text-navy-800",
-  CANCELLED: "bg-slate-200 text-slate-600",
+  DRAFT: "bg-ivory-100 text-slate-500",
+  SUBMITTED: "bg-teal-50 text-teal-700",
+  DOCUMENTS_REQUIRED: "bg-amber-50 text-amber-700",
+  UNDER_REVIEW: "bg-sky-50 text-sky-700",
+  PROCESSING: "bg-iris-50 text-iris-700",
+  EMBASSY_SUBMISSION: "bg-purple-50 text-purple-700",
+  AWAITING_DECISION: "bg-fuchsia-50 text-fuchsia-700",
+  APPROVED: "bg-emerald-50 text-emerald-700",
+  REFUSED: "bg-red-50 text-red-700",
+  COMPLETED: "bg-navy-50 text-navy-700",
+  CANCELLED: "bg-ivory-100 text-slate-500",
 };
 
 const DOC_STATUS_STYLES: Record<string, string> = {
-  UPLOADED: "bg-slate-100 text-slate-600",
-  UNDER_REVIEW: "bg-sky-100 text-sky-800",
-  ACCEPTED: "bg-emerald-100 text-emerald-800",
-  REJECTED: "bg-red-100 text-red-700",
-  RESUBMISSION_REQUIRED: "bg-amber-100 text-amber-800",
+  UPLOADED: "bg-ivory-100 text-slate-500",
+  UNDER_REVIEW: "bg-sky-50 text-sky-700",
+  ACCEPTED: "bg-emerald-50 text-emerald-700",
+  REJECTED: "bg-red-50 text-red-700",
+  RESUBMISSION_REQUIRED: "bg-amber-50 text-amber-700",
 };
 
 function titleize(code: string): string {
@@ -100,7 +100,7 @@ function titleize(code: string): string {
 
 export function StatusBadge({ code, name }: { code: string; name?: string }) {
   return (
-    <span className={`badge ${STATUS_STYLES[code] ?? "bg-slate-100 text-slate-600"}`}>
+    <span className={`badge ${STATUS_STYLES[code] ?? "bg-ivory-100 text-slate-500"}`}>
       {name ?? titleize(code)}
     </span>
   );
@@ -108,7 +108,7 @@ export function StatusBadge({ code, name }: { code: string; name?: string }) {
 
 export function DocStatusBadge({ status }: { status: string }) {
   return (
-    <span className={`badge ${DOC_STATUS_STYLES[status] ?? "bg-slate-100 text-slate-600"}`}>
+    <span className={`badge ${DOC_STATUS_STYLES[status] ?? "bg-ivory-100 text-slate-500"}`}>
       {titleize(status)}
     </span>
   );
@@ -117,16 +117,16 @@ export function DocStatusBadge({ status }: { status: string }) {
 export function PriorityBadge({ name, weight }: { name: string; weight: number }) {
   const style =
     weight >= 10
-      ? "bg-red-100 text-red-700"
+      ? "bg-red-50 text-red-700"
       : weight >= 5
-        ? "bg-amber-100 text-amber-800"
-        : "bg-slate-100 text-slate-600";
+        ? "bg-amber-50 text-amber-700"
+        : "bg-ivory-100 text-slate-500";
   return <span className={`badge ${style}`}>{name}</span>;
 }
 
 export function ActiveBadge({ active }: { active: boolean }) {
   return (
-    <span className={`badge ${active ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-500"}`}>
+    <span className={`badge ${active ? "bg-emerald-50 text-emerald-700" : "bg-ivory-100 text-slate-400"}`}>
       {active ? "Active" : "Inactive"}
     </span>
   );
@@ -136,10 +136,12 @@ export function ActiveBadge({ active }: { active: boolean }) {
 
 export function EmptyState(props: { title: string; body?: string; action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 px-6 py-14 text-center">
-      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-ivory-100 text-lg">◦</div>
-      <p className="text-sm font-medium text-navy-900">{props.title}</p>
-      {props.body ? <p className="max-w-sm text-xs text-slate-500">{props.body}</p> : null}
+    <div className="flex flex-col items-center justify-center gap-2.5 px-6 py-16 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ivory-100 text-lg text-gold-500">
+        ✦
+      </div>
+      <p className="text-sm font-semibold text-navy-900">{props.title}</p>
+      {props.body ? <p className="max-w-sm text-xs leading-relaxed text-slate-400">{props.body}</p> : null}
       {props.action ? <div className="mt-2">{props.action}</div> : null}
     </div>
   );
@@ -150,10 +152,10 @@ export function Flash(props: { error?: string; success?: string }) {
   return (
     <div
       role="status"
-      className={`mb-4 rounded-md border px-3.5 py-2.5 text-sm ${
+      className={`mb-5 rounded-2xl border px-4 py-3 text-sm ${
         props.error
-          ? "border-red-200 bg-red-50 text-red-700"
-          : "border-emerald-200 bg-emerald-50 text-emerald-800"
+          ? "border-red-100 bg-red-50 text-red-700"
+          : "border-emerald-100 bg-emerald-50 text-emerald-700"
       }`}
     >
       {props.error ?? props.success}
@@ -173,13 +175,13 @@ export function Progress(props: { done: number; total: number }) {
   const pct = props.total === 0 ? 100 : Math.round((props.done / props.total) * 100);
   return (
     <div className="flex items-center gap-2">
-      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-200">
+      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-ivory-200">
         <div
-          className="h-full rounded-full bg-teal-600 transition-all"
+          className="h-full rounded-full bg-gradient-to-r from-iris-400 to-iris-600 transition-all"
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="text-xs tabular-nums text-slate-500">
+      <span className="text-xs tabular-nums text-slate-400">
         {props.done}/{props.total}
       </span>
     </div>
@@ -188,15 +190,15 @@ export function Progress(props: { done: number; total: number }) {
 
 export function Tabs(props: { tabs: Array<{ id: string; label: string; href: string }>; current: string }) {
   return (
-    <div className="mb-5 flex gap-1 overflow-x-auto border-b border-slate-200">
+    <div className="ess-segment mb-6 max-w-full overflow-x-auto">
       {props.tabs.map((t) => (
         <Link
           key={t.id}
           href={t.href}
-          className={`whitespace-nowrap border-b-2 px-3.5 py-2.5 text-sm transition-colors ${
+          className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm transition-colors ${
             t.id === props.current
-              ? "border-gold-500 font-medium text-navy-900"
-              : "border-transparent text-slate-500 hover:text-navy-900"
+              ? "bg-white font-semibold text-navy-900 shadow-[0_1px_3px_rgb(23_30_63/0.08)]"
+              : "text-slate-500 hover:text-navy-900"
           }`}
         >
           {t.label}
@@ -208,11 +210,11 @@ export function Tabs(props: { tabs: Array<{ id: string; label: string; href: str
 
 export function KeyValue(props: { items: Array<{ label: string; value: ReactNode }> }) {
   return (
-    <dl className="grid grid-cols-1 gap-x-6 gap-y-3 px-4 py-4 sm:grid-cols-2 lg:grid-cols-3">
+    <dl className="grid grid-cols-1 gap-x-6 gap-y-4 px-5 py-5 sm:grid-cols-2 lg:grid-cols-3">
       {props.items.map((item) => (
         <div key={item.label}>
-          <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{item.label}</dt>
-          <dd className="mt-0.5 text-sm text-slate-800">{item.value ?? "—"}</dd>
+          <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">{item.label}</dt>
+          <dd className="mt-0.5 text-sm font-medium text-navy-900">{item.value ?? "—"}</dd>
         </div>
       ))}
     </dl>
