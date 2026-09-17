@@ -9,7 +9,7 @@
 
 | Gate | Result |
 |---|---|
-| `npm run test` | **11 files / 61 tests passed** on a real PostgreSQL 17 server |
+| `npm run test` | **12 files / 67 tests passed** on a real PostgreSQL 17 server |
 | `npm run typecheck` | clean (strict + `noUncheckedIndexedAccess`) |
 | `npm run lint` | 0 problems (ESLint 9 flat config) |
 | `npm run build` | success (all routes) |
@@ -21,6 +21,7 @@
 - **Public website (9 routes):** `/` `/visas` `/countries` `/about` `/contact` `/b2b` `/login` `/privacy` `/terms` — catalogue is DB-driven.
 - **Admin Back Office:** dashboard; applications (search/filter/pagination + detail with checklist, documents, history, messages, charge, gate, assignment, internal notes); applicants; document queues; agencies & agency users (create/suspend/reset); staff users; full visa configuration — countries, currencies, categories, visa types (fees/processing/requirements), document types, statuses + transitions, priorities; wallet & billing (manual CREDIT/DEBIT with reason, ledger); communications; notifications; reports; audit log; site settings/CMS.
 - **Agency Portal:** dashboard; application wizard; applications list/detail; applicants; documents (upload/replace/track); wallet; transactions; notifications; communications; profile.
+- **White-label branding:** Brand Studio (live colors, logo, typography, shapes — whole platform re-tints at runtime) + per-agency logos (staff or agency-admin upload).
 - **Core engines:** snapshot-based application creation; checklist from requirements; submission gate; atomic wallet charge; configured status workflow; versioned secure document store; per-application communications (INTERNAL/AGENCY); event notifications; audit trail; site settings.
 
 ## 3. Fixed field list

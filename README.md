@@ -54,6 +54,19 @@ have one. `npm run db:reset` re-applies migrations and re-seeds.
 `/` `/visas` `/countries` `/about` `/contact` `/b2b` `/login` `/privacy` `/terms` — visa
 catalogue rendered from the live configuration database.
 
+### White-label branding (Brand Studio, `/admin/settings`)
+The super admin can restyle the **entire platform** live from the Back Office — no rebuild, no code:
+- **Colors**: primary / accent / ink drive the whole UI via CSS custom properties (Tailwind v4 tokens are re-tinted at runtime, including gradients, badges and charts).
+- **Logo**: upload a PNG/JPEG/WebP (≤2 MB) shown on the public site, portals and sign-in; remove to restore the built-in monogram.
+- **Shape**: corner style presets (soft pills / balanced / crisp editorial).
+- **Typography**: aurora (rounded sans + display serif) / modern sans / classic serif.
+- **Identity & content**: brand name, tagline, contact details, social links, legal copy.
+- A live preview renders buttons, badges, cards and progress in the chosen palette before saving.
+
+Every **agency gets its own logo too** — uploaded by staff on the agency page (or by the
+agency's own admin from the portal profile) and displayed across the Agency Portal.
+All branding changes are audited; logo storage uses the same pluggable provider as documents.
+
 ### Admin Back Office (`/admin`, staff roles)
 - Dashboard, applications (search / filter / paginate), applicant & document queues
 - Full DB-driven visa configuration: countries, visa categories, visa types (+ fees,

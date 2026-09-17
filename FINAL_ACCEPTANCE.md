@@ -40,6 +40,10 @@ Nothing is marked YES on trust. Evidence commands are runnable from the repo roo
 | Reports | Reports from real data (volumes, decisions, revenue) | YES | `/admin/reports` smoke 200 | aggregates over live tables, no fixtures |
 | Search | Server-side search/filter/pagination (applications, users, docs, ledger, audit) | YES | page smoke 200s + query tests | PAGE_SIZE 20 |
 | CMS/Settings | Site settings/branding DB-driven | YES | `/admin/settings` + public render | seed-provided defaults |
+| Branding | Brand Studio: live colors/typography/shapes re-tint whole platform | YES | HTTP E2E: settings → `--color-iris-600` etc. present in rendered `<head>` | CSS-var override layer, no rebuild |
+| Branding | Platform logo upload/remove served publicly w/ ETag + nosniff | YES | `GET /api/branding/logo` 200 image/png; 404 when unset | PNG/JPEG/WebP ≤2MB, audited |
+| Branding | Per-agency logo: staff upload + agency-admin self-service, portal topbar render | YES | `GET /api/agencies/[id]/logo` 200; portal HTML references it | UUID-guarded 404s; audited |
+| Branding | Branding validation & fallbacks (bad hex/oversize/SVG rejected) | YES | tests/branding.test.ts (6 tests) | total suite now 67 tests |
 | Security headers | X-Frame-Options DENY, nosniff, no-store on app areas | YES | smoke (headers asserted) | next.config.ts |
 | HTTP smoke | All public/admin/portal pages, tenant probes, UUID guards | YES | `npx tsx scripts/smoke.ts` → all pass | run against `next start` production build |
 | Production deploy (Vercel) | Real deployment | NOT VERIFIED | `DEPLOYMENT.md` prepared | intentionally not auto-deployed, per instruction |

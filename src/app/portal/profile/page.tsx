@@ -10,6 +10,9 @@ import { Card, CardHeader, Flash, KeyValue, PageHeader, TableWrap } from "@/comp
 import { hasPermission } from "@/lib/rbac";
 import { formatAmount } from "@/lib/format";
 import { getBalance } from "@/lib/wallet";
+import BrandMark from "@/components/brand-mark";
+import { agencyLogoUrl } from "@/lib/branding";
+import { uploadOwnAgencyLogoAction, removeOwnAgencyLogoAction } from "@/app/actions/branding";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +41,45 @@ export default async function PortalProfilePage({
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="xl:col-span-2 space-y-4">
+          <Card>
+            <CardHeader
+              title="Agency logo"
+              subtitle={
+                user.role === "AGENCY_ADMIN"
+                  ? "Shown on your portal. PNG, JPEG or WebP up to 2 MB."
+                  : "Only the agency administrator can change the logo."
+              }
+            />
+            <div className="flex flex-wrap items-center gap-4 px-5 py-5">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-ivory-200 bg-ivory-50">
+                <BrandMark className="h-11 w-11" src={agencyLogoUrl(agency)} alt={agency.tradingName ?? agency.legalName} />
+              </div>
+              {user.role === "AGENCY_ADMIN" ? (
+                <>
+                  {agency.logoKey ? (
+                    <form action={removeOwnAgencyLogoAction}>
+                      <SubmitButton className="btn-danger btn-sm" pendingLabel="Removing…">Remove logo</SubmitButton>
+                    </form>
+                  ) : null}
+                  <form action={uploadOwnAgencyLogoAction} encType="multipart/form-data" className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="file"
+                      name="logo"
+                      accept="image/png,image/jpeg,image/webp"
+                      required
+                      className="max-w-full text-xs file:mr-2 file:cursor-pointer file:rounded-full file:border-0 file:bg-iris-600 file:px-3.5 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+                    />
+                    <SubmitButton className="btn-secondary btn-sm" pendingLabel="Uploading…">
+                      {agency.logoKey ? "Replace logo" : "Upload logo"}
+                    </SubmitButton>
+                  </form>
+                </>
+              ) : (
+                <p className="text-xs text-slate-400">{agency.logoKey ? "Uploaded." : "No logo uploaded yet."}</p>
+              )}
+            </div>
+          </Card>
+
           <Card>
             <CardHeader title="Agency details" subtitle="Contact details are maintained by ESSAFARIA. Write to your account manager for changes." />
             <KeyValue

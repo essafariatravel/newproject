@@ -60,6 +60,10 @@ export const agencies = pgTable(
     billingName: text("billing_name"),
     billingEmail: text("billing_email"),
     billingTaxId: text("billing_tax_id"),
+    /** White-label agency logo (storage key resolved through the storage provider). */
+    logoKey: text("logo_key"),
+    logoMime: text("logo_mime"),
+    logoUploadedAt: timestamp("logo_uploaded_at", { withTimezone: true }),
     notes: text("notes"),
     ...timestamps,
   },

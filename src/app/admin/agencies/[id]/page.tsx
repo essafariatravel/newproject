@@ -11,6 +11,9 @@ import { formatAmount, formatDateTime } from "@/lib/format";
 import { adjustWalletAction, toggleAgencyStatusAction, updateAgencyAction, createUserAction } from "@/app/actions/admin";
 import { searchApplications } from "@/lib/queries";
 import { SubmitButton } from "@/components/forms";
+import BrandMark from "@/components/brand-mark";
+import { agencyLogoUrl } from "@/lib/branding";
+import { uploadAgencyLogoAction, removeAgencyLogoAction } from "@/app/actions/branding";
 import { ActiveBadge, Card, CardHeader, Flash, KeyValue, PageHeader, StatCard, StatusBadge, TableWrap } from "@/components/ui";
 import { WALLET_MANAGE_ROLES } from "@/lib/types";
 
@@ -67,6 +70,40 @@ export default async function AdminAgencyDetailPage({
 
       <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="space-y-4 xl:col-span-2">
+          <Card>
+            <CardHeader title="Agency logo" subtitle="Shown across the agency portal and partner surfaces." />
+            <div className="flex flex-wrap items-center gap-4 px-5 py-5">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-ivory-200 bg-ivory-50">
+                <BrandMark className="h-11 w-11" src={agencyLogoUrl(agency)} alt={agency.tradingName ?? agency.legalName} />
+              </div>
+              {canManage ? (
+                <>
+                  {agency.logoKey ? (
+                    <form action={removeAgencyLogoAction}>
+                      <input type="hidden" name="agencyId" value={id} />
+                      <SubmitButton className="btn-danger btn-sm" pendingLabel="Removing…">Remove logo</SubmitButton>
+                    </form>
+                  ) : null}
+                  <form action={uploadAgencyLogoAction} encType="multipart/form-data" className="flex flex-wrap items-center gap-2">
+                    <input type="hidden" name="agencyId" value={id} />
+                    <input
+                      type="file"
+                      name="logo"
+                      accept="image/png,image/jpeg,image/webp"
+                      required
+                      className="max-w-full text-xs file:mr-2 file:cursor-pointer file:rounded-full file:border-0 file:bg-iris-600 file:px-3.5 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+                    />
+                    <SubmitButton className="btn-secondary btn-sm" pendingLabel="Uploading…">
+                      {agency.logoKey ? "Replace logo" : "Upload logo"}
+                    </SubmitButton>
+                  </form>
+                </>
+              ) : (
+                <p className="text-xs text-slate-400">{agency.logoKey ? "Uploaded." : "No logo uploaded yet."}</p>
+              )}
+            </div>
+          </Card>
+
           {canManage ? (
             <Card>
               <CardHeader

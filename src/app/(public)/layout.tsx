@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { getSiteSettings, settingObject, settingString } from "@/lib/settings";
 import BrandMark from "@/components/brand-mark";
+import { readBranding, brandLogoUrl } from "@/lib/branding";
 
 export const dynamic = "force-dynamic";
 
@@ -21,13 +22,15 @@ export default async function PublicLayout({ children }: { children: ReactNode }
   const phone = settingString(settings, "site.contactPhone");
   const address = settingString(settings, "site.address");
   const social = settingObject(settings, "site.social");
+  const branding = await readBranding();
+  const logoUrl = brandLogoUrl(branding);
 
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-40 border-b border-line/70 bg-white/70 backdrop-blur-xl">
         <div className="ess-container flex h-16 items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2.5">
-            <BrandMark />
+            <BrandMark src={logoUrl} alt={branding.name} />
             <span className="leading-tight">
               <span className="block text-[15px] font-bold tracking-[0.04em] text-navy-900">
                 {brandName}

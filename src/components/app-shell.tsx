@@ -12,6 +12,7 @@ export function AppShell(props: {
   user: AuthUser;
   nav: NavSection[];
   brandSuffix: string;
+  agencyLogoUrl?: string | null;
   children: ReactNode;
 }) {
   const { user } = props;
@@ -85,7 +86,16 @@ export function AppShell(props: {
           </div>
           <div className="flex items-center gap-2.5">
             {user.agencyName ? (
-              <span className="badge max-w-[180px] truncate bg-ivory-100 text-navy-800">{user.agencyName}</span>
+              <span className="badge max-w-[220px] truncate bg-ivory-100 text-navy-800">
+                {props.agencyLogoUrl ? (
+                    <img
+                    src={props.agencyLogoUrl}
+                    alt=""
+                    className="h-4 w-4 shrink-0 rounded-[30%] object-contain"
+                  />
+                ) : null}
+                {user.agencyName}
+              </span>
             ) : null}
             <span className="badge bg-gold-100 text-gold-700 hidden sm:inline-flex">
               {user.role.replaceAll("_", " ")}

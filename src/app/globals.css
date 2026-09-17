@@ -92,7 +92,7 @@ h1, h2, h3 {
 .btn-gold,
 .btn-secondary,
 .btn-danger {
-  @apply inline-flex items-center justify-center gap-2 rounded-full text-sm font-semibold
+  @apply inline-flex items-center justify-center gap-2 rounded-[var(--radius-btn,999px)] text-sm font-semibold
          transition duration-200 active:scale-[0.98]
          focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-iris-500
          disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
@@ -136,7 +136,7 @@ h1, h2, h3 {
 }
 
 .card {
-  @apply rounded-[1.25rem] border border-line bg-white shadow-[var(--shadow-card)];
+  @apply rounded-[var(--radius-card,1.25rem)] border border-line bg-white shadow-[var(--shadow-card)];
 }
 
 .th {

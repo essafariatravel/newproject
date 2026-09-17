@@ -8,6 +8,8 @@ import { createAgencyAction } from "@/app/actions/admin";
 import { FilterBar } from "@/components/app-widgets";
 import { SubmitButton } from "@/components/forms";
 import { ActiveBadge, EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
+import BrandMark from "@/components/brand-mark";
+import { agencyLogoUrl } from "@/lib/branding";
 
 export const dynamic = "force-dynamic";
 
@@ -56,10 +58,19 @@ export default async function AdminAgenciesPage({
             {rows.map(({ agency, userCount, applicationCount }) => (
               <tr key={agency.id} className="tr-hover">
                 <td className="td">
-                  <Link href={`/admin/agencies/${agency.id}`} className="font-medium text-navy-900 hover:underline">
-                    {agency.tradingName ?? agency.legalName}
-                  </Link>
-                  <span className="block text-xs text-slate-400">{agency.email}</span>
+                  <div className="flex items-center gap-2.5">
+                    <BrandMark
+                      className="h-8 w-8 shrink-0"
+                      src={agencyLogoUrl(agency)}
+                      alt={agency.tradingName ?? agency.legalName}
+                    />
+                    <span className="min-w-0">
+                      <Link href={`/admin/agencies/${agency.id}`} className="block truncate font-medium text-navy-900 hover:underline">
+                        {agency.tradingName ?? agency.legalName}
+                      </Link>
+                      <span className="block truncate text-xs text-slate-400">{agency.email}</span>
+                    </span>
+                  </div>
                 </td>
                 <td className="td">{agency.country ?? "—"}</td>
                 <td className="td"><ActiveBadge active={agency.status === "ACTIVE"} /></td>

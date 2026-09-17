@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { getSiteSettings, settingString } from "@/lib/settings";
+import { readBranding, brandingCssOverride } from "@/lib/branding";
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +22,17 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Branding can fail before the DB exists (first boot/migrations) — fall back to defaults.
+  let cssOverride = "";
+  try {
+    cssOverride = brandingCssOverride(await readBranding());
+  } catch {
+    cssOverride = "";
+  }
   return (
     <html lang="en">
+      <head>{cssOverride ? <style dangerouslySetInnerHTML={{ __html: cssOverride }} /> : null}</head>
       <body>{children}</body>
     </html>
   );
