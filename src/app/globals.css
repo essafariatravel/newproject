@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+@theme {
+  /* ESSAFARIA design tokens — deep navy, ivory, slate, muted gold, subtle teal */
+  --color-navy-950: #081322;
+  --color-navy-900: #0d1c33;
+  --color-navy-800: #132946;
+  --color-navy-700: #1c3a61;
+  --color-navy-600: #274d7a;
+  --color-navy-500: #3a6797;
+
+  --color-ivory-50: #faf8f3;
+  --color-ivory-100: #f4f0e7;
+  --color-ivory-200: #e9e2d2;
+
+  --color-gold-600: #9a7a32;
+  --color-gold-500: #b08d3e;
+  --color-gold-400: #c9a961;
+  --color-gold-100: #f1e8d2;
+
+  --color-teal-700: #1d5563;
+  --color-teal-600: #23606f;
+  --color-teal-500: #2e7687;
+  --color-teal-100: #d9eaee;
+
+  --font-serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+
+  --shadow-card: 0 1px 2px rgb(13 28 51 / 0.05), 0 1px 3px rgb(13 28 51 / 0.06);
+  --shadow-pop: 0 4px 16px rgb(13 28 51 / 0.10);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-ivory-50 text-slate-800 antialiased;
+  font-feature-settings: "kern";
+}
+
+::selection {
+  background: var(--color-gold-100);
+}
+
+/* thin, calm scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+/* ---------- shared utility classes ---------- */
+
+.ess-container {
+  @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
+}
+
+.btn,
+.btn-primary,
+.btn-gold,
+.btn-secondary,
+.btn-danger {
+  @apply inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors
+         focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy-600
+         disabled:cursor-not-allowed disabled:opacity-50;
+}
+.btn-primary {
+  @apply bg-navy-900 px-4 py-2 text-white hover:bg-navy-800 active:bg-navy-950;
+}
+.btn-gold {
+  @apply bg-gold-500 px-4 py-2 text-white hover:bg-gold-600 active:bg-gold-600;
+}
+.btn-secondary {
+  @apply border border-slate-300 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50;
+}
+.btn-danger {
+  @apply border border-red-200 bg-white px-4 py-2 text-red-700 hover:bg-red-50;
+}
+.btn-sm {
+  @apply px-2.5 py-1.5 text-xs;
+}
+
+.input {
+  @apply w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900
+         placeholder:text-slate-400 focus:border-navy-600 focus:outline-none focus:ring-2 focus:ring-navy-600/15
+         disabled:bg-slate-50 disabled:text-slate-400;
+}
+.label {
+  @apply mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500;
+}
+
+.card {
+  @apply rounded-lg border border-slate-200 bg-white shadow-[var(--shadow-card)];
+}
+
+.th {
+  @apply px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500;
+}
+.td {
+  @apply px-3 py-2.5 text-sm text-slate-700 align-middle;
+}
+.tr-hover {
+  @apply transition-colors hover:bg-ivory-50/70;
+}
+
+.badge {
+  @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap;
+}
