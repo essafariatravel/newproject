@@ -1,3 +1,6 @@
+> Historical handoff. For current Supabase/Preview environment and safe migration instructions,
+> follow [DEPLOYMENT.md](DEPLOYMENT.md). Do not follow historical production demo-seed advice.
+
 # FINAL HANDOFF — ESSAFARIA VISA OS
 
 **Date:** 2026-09-17 · **Repo:** `essafariatravel/newproject` · **Branch:** `arena/01a0b16c-newproject`

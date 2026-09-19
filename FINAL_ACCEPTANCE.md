@@ -1,3 +1,6 @@
+> Historical handoff. For current Supabase/Preview environment and safe migration instructions,
+> follow [DEPLOYMENT.md](DEPLOYMENT.md). Do not follow historical production demo-seed advice.
+
 # FINAL ACCEPTANCE — ESSAFARIA VISA OS
 
 Legend: **YES** = verified in this workspace by an automated test or repeatable command.

@@ -11,8 +11,8 @@
  * DEMO DATA IS CLEARLY SEPARATED FROM PRODUCTION: run this only in
  * development/demo environments.
  */
-import { loadEnvConfig } from "@next/env";
-loadEnvConfig(process.cwd());
+import "./lib/load-env";
+import { databaseUrl } from "../src/lib/database-config";
 import { hashPassword } from "../src/lib/crypto";
 import { createDraftApplication, submitApplication } from "../src/lib/applications";
 import { adjustWallet } from "../src/lib/wallet";
@@ -334,6 +334,16 @@ async function ensureAgency(a: {
 }
 
 async function main() {
+  if (process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production") {
+    throw new Error("Demo seeding is disabled in Production.");
+  }
+  const host = new URL(databaseUrl()).hostname;
+  const local = ["localhost", "127.0.0.1", "[::1]"].includes(host);
+  if (!local && (process.env.ALLOW_DEMO_SEED !== "true" ||
+      !process.env.SEED_ADMIN_PASSWORD || !process.env.SEED_AGENCY_PASSWORD ||
+      process.env.SEED_ADMIN_PASSWORD === "Admin!2345" || process.env.SEED_AGENCY_PASSWORD === "Agency!2345")) {
+    throw new Error("Remote demo seeding requires explicit ALLOW_DEMO_SEED=true and non-default SEED_ADMIN_PASSWORD / SEED_AGENCY_PASSWORD. Review the full demo dataset first.");
+  }
   const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "Admin!2345";
   const agencyPassword = process.env.SEED_AGENCY_PASSWORD ?? "Agency!2345";
 

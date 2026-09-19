@@ -1,54 +1,25 @@
-/**
- * Migration runner — applies SQL migrations in order, exactly once.
- * Usage: npm run db:migrate
- */
+/** Apply the repository SQL files once. No reset, seed, or destructive repair. */
 import { loadEnvConfig } from "@next/env";
-loadEnvConfig(process.cwd());
-import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { Pool } from "pg";
+import { databasePoolConfig } from "../src/lib/database-config";
+import { applyMigrations } from "./lib/migrations";
+
+loadEnvConfig(process.cwd());
 
 async function main() {
-  const connectionString =
-    process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/essafaria";
-  const pool = new Pool({ connectionString });
+  // Optional direct/session connection for DDL; DATABASE_URL remains canonical at runtime.
+  const pool = new Pool(databasePoolConfig(process.env, true));
   try {
-    await pool.query(
-      `create table if not exists schema_migrations (
-         name text primary key,
-         applied_at timestamptz not null default now()
-       )`,
-    );
-    const dir = path.join(process.cwd(), "migrations");
-    const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
-    for (const file of files) {
-      const applied = await pool.query("select 1 from schema_migrations where name = $1", [file]);
-      if (applied.rowCount && applied.rowCount > 0) {
-        console.log(`= ${file} (already applied)`);
-        continue;
-      }
-      const sqlText = await readFile(path.join(dir, file), "utf8");
-      const client = await pool.connect();
-      try {
-        await client.query("begin");
-        await client.query(sqlText);
-        await client.query("insert into schema_migrations (name) values ($1)", [file]);
-        await client.query("commit");
-        console.log(`+ ${file} applied`);
-      } catch (err) {
-        await client.query("rollback");
-        throw err;
-      } finally {
-        client.release();
-      }
-    }
-    console.log("Migrations complete.");
+    const applied = await applyMigrations(pool, path.join(process.cwd(), "migrations"));
+    for (const file of applied) console.log(`+ ${file} applied`);
+    console.log(applied.length ? "Migrations complete." : "Migrations already up to date.");
   } finally {
     await pool.end();
   }
 }
 
-main().catch((err) => {
-  console.error("Migration failed:", err);
-  process.exit(1);
+main().catch(() => {
+  console.error("Migration failed; transaction rolled back. Check database access and migration history. No reset or seed was attempted.");
+  process.exitCode = 1;
 });
