@@ -5,12 +5,22 @@ import { sql } from "drizzle-orm";
 
 export type SiteSettingsMap = Record<string, unknown>;
 
-/** Load all site settings (per-request cached). */
+/**
+ * Load all site settings (per-request cached).
+ *
+ * Public pages use these values for optional copy and branding. A database
+ * connection failure must not turn those pages into a 500, especially during
+ * the first deployment before migrations have completed.
+ */
 export const getSiteSettings = cache(async (): Promise<SiteSettingsMap> => {
-  const rows = await db.select().from(siteSettings);
-  const map: SiteSettingsMap = {};
-  for (const row of rows) map[row.key] = row.value;
-  return map;
+  try {
+    const rows = await db.select().from(siteSettings);
+    const map: SiteSettingsMap = {};
+    for (const row of rows) map[row.key] = row.value;
+    return map;
+  } catch {
+    return {};
+  }
 });
 
 export function settingString(map: SiteSettingsMap, key: string, fallback = ""): string {

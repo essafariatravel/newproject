@@ -33,24 +33,32 @@ const PROCESS = [
   { step: "04", title: "Submit & track", body: "Your wallet is charged, and the file moves through our workflow in real time." },
 ];
 
+async function getFeaturedVisas() {
+  try {
+    return await db
+      .select({
+        countryName: countries.name,
+        visaName: visaTypes.name,
+        fee: visaTypes.fee,
+        currency: visaTypes.currency,
+        minDays: visaTypes.processingMinDays,
+        maxDays: visaTypes.processingMaxDays,
+      })
+      .from(visaTypes)
+      .innerJoin(countries, eq(visaTypes.countryId, countries.id))
+      .where(eq(visaTypes.active, true))
+      .orderBy(asc(countries.sortOrder))
+      .limit(6);
+  } catch {
+    // The brochure-style homepage remains useful while the catalogue is unavailable.
+    return [];
+  }
+}
+
 export default async function HomePage() {
   const settings = await getSiteSettings();
   const brandName = settingString(settings, "brand.name", "ESSAFARIA TRAVEL");
-
-  const featured = await db
-    .select({
-      countryName: countries.name,
-      visaName: visaTypes.name,
-      fee: visaTypes.fee,
-      currency: visaTypes.currency,
-      minDays: visaTypes.processingMinDays,
-      maxDays: visaTypes.processingMaxDays,
-    })
-    .from(visaTypes)
-    .innerJoin(countries, eq(visaTypes.countryId, countries.id))
-    .where(eq(visaTypes.active, true))
-    .orderBy(asc(countries.sortOrder))
-    .limit(6);
+  const featured = await getFeaturedVisas();
 
   return (
     <>
