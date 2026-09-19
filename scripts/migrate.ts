@@ -3,6 +3,7 @@ import { loadEnvConfig } from "@next/env";
 import path from "node:path";
 import { Pool } from "pg";
 import { databasePoolConfig } from "../src/lib/database-config";
+import { safeErrorCode, safeErrorText } from "../src/lib/safe-error";
 import { applyMigrations } from "./lib/migrations";
 
 loadEnvConfig(process.cwd());
@@ -19,7 +20,10 @@ async function main() {
   }
 }
 
-main().catch(() => {
-  console.error("Migration failed; transaction rolled back. Check database access and migration history. No reset or seed was attempted.");
+main().catch((error) => {
+  // The real reason, safely redacted (PostgreSQL errors never contain the
+  // password; anything resembling a connection URI is stripped).
+  console.error(`Migration failed; transaction rolled back${safeErrorCode(error) ? ` (code ${safeErrorCode(error)})` : ""}: ${safeErrorText(error)}`);
+  console.error("No reset or seed was attempted. Check database access and migration history.");
   process.exitCode = 1;
 });

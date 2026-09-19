@@ -4,6 +4,7 @@ import { Pool } from "pg";
 import { getTableColumns, getTableName, is, Table } from "drizzle-orm";
 import * as schema from "../src/db/schema";
 import { databasePoolConfig, databaseUrl, targetsSupabaseProject } from "../src/lib/database-config";
+import { safeErrorCode, safeErrorText } from "../src/lib/safe-error";
 
 const EXPECTED_PROJECT = "xgetzgixalrsmuvfthpf";
 const quote = (identifier: string) => `"${identifier.replaceAll('"', '""')}"`;
@@ -44,7 +45,10 @@ async function main() {
   }
 }
 
-main().catch(() => {
-  console.error("Database verification FAILED. Check the target, credentials, network, and migration history. No data was changed.");
+main().catch((error) => {
+  // The real reason, safely redacted (PostgreSQL errors never contain the
+  // password; anything resembling a connection URI is stripped).
+  console.error(`Database verification FAILED${safeErrorCode(error) ? ` (code ${safeErrorCode(error)})` : ""}: ${safeErrorText(error)}`);
+  console.error("No data was changed.");
   process.exitCode = 1;
 });

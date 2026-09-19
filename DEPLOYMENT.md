@@ -109,6 +109,26 @@ After changing environment variables in Vercel you must create a new deployment
 (Redeploy the latest Preview, or push a new commit) — existing deployments keep the
 values they were built with.
 
+## Runtime verification: `/api/health`
+
+`GET /api/health` on any deployment reports, without ever exposing credentials:
+
+- `database.configured` — whether THIS deployment actually received `DATABASE_URL`
+  (a changed Vercel setting is invisible until a new deployment is created);
+- `database.host/port/name/ssl/mode` and whether it targets the intended Supabase
+  project `xgetzgixalrsmuvfthpf` (hostname only — never username or password);
+- `database.connected` + `latencyMs` — whether a real PostgreSQL connection succeeds;
+- `database.error.code/message` — the exact PostgreSQL error when it does not
+  (defensively redacted of anything resembling a connection URI);
+- `schema.requiredTables` (users, site_settings, visa_types, countries,
+  schema_migrations), the migration ledger, and whether accounts/catalogue data exist.
+
+Interpreting it: `ok: true` means the database path is fully working. `configured:
+false` means the environment variable did not reach this deployment. `configured:
+true` with `connected: false` means the URI/credentials/network failed — the error
+code says which (e.g. `28P01` authentication, `ECONNREFUSED`/`ENOTFOUND`/timeout
+network, `42P01` missing table). The endpoint never throws and never returns a 500.
+
 
 `db:verify` is read-only. It checks the requested project routing, queries all application
 columns/tables, reports empty versus populated (no user records), and checks migration
