@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/db/schema";
 import { authenticate, createSession, destroySession, setSessionCookie } from "@/lib/auth";
-import { isAgencyRole, type AuthUser, type Role } from "@/lib/types";
+import { AppError, isAgencyRole, type AuthUser, type Role } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
 import type { ActionState } from "@/components/forms";
 
@@ -20,11 +20,30 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   try {
     user = await authenticate(email, password);
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Sign-in failed." };
+    // Never expose raw database errors (e.g. Failed query: select ... from users) to the user.
+    if (err instanceof AppError) {
+      return { error: err.message };
+    }
+    console.error("[auth] loginAction authenticate failed", err);
+    return { error: "Service temporarily unavailable. Please try again." };
   }
-  const { token, expiresAt } = await createSession(user.id);
-  await setSessionCookie(token, expiresAt);
-  await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+  let token: string;
+  let expiresAt: Date;
+  try {
+    const session = await createSession(user.id);
+    token = session.token;
+    expiresAt = session.expiresAt;
+    await setSessionCookie(token, expiresAt);
+  } catch (err) {
+    console.error("[auth] createSession failed", err);
+    return { error: "Service temporarily unavailable. Please try again." };
+  }
+  try {
+    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+  } catch (err) {
+    // Non-critical: login should succeed even if last_login_at update fails.
+    console.error("[auth] lastLoginAt update failed", err);
+  }
 
   const authUser: AuthUser = {
     id: user.id,
@@ -37,14 +56,19 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
     agencyName: null,
   };
   const hdrs = await headers();
-  await recordAudit({
-    actor: authUser,
-    action: "USER_LOGIN",
-    entity: "user",
-    entityId: user.id,
-    agencyId: user.agencyId,
-    ipAddress: hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
-  });
+  try {
+    await recordAudit({
+      actor: authUser,
+      action: "USER_LOGIN",
+      entity: "user",
+      entityId: user.id,
+      agencyId: user.agencyId,
+      ipAddress: hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+    });
+  } catch (err) {
+    console.error("[auth] recordAudit failed", err);
+    // Not fatal for login.
+  }
   redirect(isAgencyRole(user.role) ? "/portal" : "/admin");
 }
 

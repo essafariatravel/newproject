@@ -9,19 +9,25 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Destinations — ESSAFARIA TRAVEL" };
 
 export default async function CountriesPage() {
-  const rows = await db
-    .select({
-      id: countries.id,
-      name: countries.name,
-      region: countries.region,
-      iso2: countries.iso2,
-      visaCount: sql<number>`count(${visaTypes.id})::int`,
-    })
-    .from(countries)
-    .leftJoin(visaTypes, and(eq(visaTypes.countryId, countries.id), eq(visaTypes.active, true)))
-    .where(eq(countries.active, true))
-    .groupBy(countries.id)
-    .orderBy(asc(countries.name));
+  let rows: Array<{ id: string; name: string; region: string | null; iso2: string; visaCount: number }> = [];
+  try {
+    rows = await db
+      .select({
+        id: countries.id,
+        name: countries.name,
+        region: countries.region,
+        iso2: countries.iso2,
+        visaCount: sql<number>`count(${visaTypes.id})::int`,
+      })
+      .from(countries)
+      .leftJoin(visaTypes, and(eq(visaTypes.countryId, countries.id), eq(visaTypes.active, true)))
+      .where(eq(countries.active, true))
+      .groupBy(countries.id)
+      .orderBy(asc(countries.name));
+  } catch (err) {
+    console.error("[countries] catalogue unavailable", err);
+    rows = [];
+  }
 
   const regions = new Map<string, typeof rows>();
   for (const row of rows) {
