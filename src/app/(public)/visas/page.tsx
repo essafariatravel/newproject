@@ -9,17 +9,23 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Visa Services — ESSAFARIA TRAVEL" };
 
 export default async function VisasPage() {
-  const rows = await db
-    .select({
-      visa: visaTypes,
-      countryName: countries.name,
-      categoryName: visaCategories.name,
-    })
-    .from(visaTypes)
-    .innerJoin(countries, eq(visaTypes.countryId, countries.id))
-    .innerJoin(visaCategories, eq(visaTypes.categoryId, visaCategories.id))
-    .where(and(eq(visaTypes.active, true), eq(countries.active, true)))
-    .orderBy(asc(countries.name), asc(visaCategories.name));
+  let rows: Array<{ visa: typeof visaTypes.$inferSelect; countryName: string; categoryName: string }> = [];
+  try {
+    rows = await db
+      .select({
+        visa: visaTypes,
+        countryName: countries.name,
+        categoryName: visaCategories.name,
+      })
+      .from(visaTypes)
+      .innerJoin(countries, eq(visaTypes.countryId, countries.id))
+      .innerJoin(visaCategories, eq(visaTypes.categoryId, visaCategories.id))
+      .where(and(eq(visaTypes.active, true), eq(countries.active, true)))
+      .orderBy(asc(countries.name), asc(visaCategories.name));
+  } catch (err) {
+    console.error("[visas] catalogue unavailable", err);
+    rows = [];
+  }
 
   const byCountry = new Map<string, typeof rows>();
   for (const row of rows) {

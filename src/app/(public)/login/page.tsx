@@ -1,17 +1,29 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
-import { readBranding, brandLogoUrl } from "@/lib/branding";
+import { readBranding, brandLogoUrl, BRANDING_DEFAULTS } from "@/lib/branding";
 import BrandMark from "@/components/brand-mark";
 import { LoginForm } from "./login-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
-  // Already signed in → straight to the right workspace.
-  const user = await getSessionUser();
+  // Already signed in → straight to the right workspace. Never 500 if DB is temporarily unavailable.
+  let user: Awaited<ReturnType<typeof getSessionUser>> = null;
+  try {
+    user = await getSessionUser();
+  } catch (err) {
+    console.error("[login] getSessionUser failed", err);
+    user = null;
+  }
   if (user) redirect("/"); // authenticated users land on their workspace via home routing
 
-  const branding = await readBranding();
+  let branding: Awaited<ReturnType<typeof readBranding>>;
+  try {
+    branding = await readBranding();
+  } catch (err) {
+    console.error("[login] readBranding failed", err);
+    branding = BRANDING_DEFAULTS;
+  }
   const logoUrl = brandLogoUrl(branding);
 
   return (

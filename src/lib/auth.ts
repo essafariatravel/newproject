@@ -41,36 +41,47 @@ export async function createSession(
 
 /** Resolve the current authenticated user, or null. Verifies session + user + agency state. */
 export async function getSessionUser(): Promise<AuthUser | null> {
-  const jar = await cookies();
-  const token = jar.get(SESSION_COOKIE)?.value;
+  let token: string | undefined;
+  try {
+    const jar = await cookies();
+    token = jar.get(SESSION_COOKIE)?.value;
+  } catch {
+    return null;
+  }
   if (!token) return null;
   const tokenHash = hashToken(token);
-  const rows = await db
-    .select({
-      user: users,
-      agencyStatus: agencies.status,
-      agencyName: agencies.legalName,
-      sessionExpired: sql<boolean>`(${sessions.expiresAt} < now())`,
-    })
-    .from(sessions)
-    .innerJoin(users, eq(sessions.userId, users.id))
-    .leftJoin(agencies, eq(users.agencyId, agencies.id))
-    .where(and(eq(sessions.tokenHash, tokenHash), gt(sessions.expiresAt, new Date())))
-    .limit(1);
-  const row = rows[0];
-  if (!row) return null;
-  if (row.user.status !== "ACTIVE") return null;
-  if (row.agencyStatus !== null && row.agencyStatus !== "ACTIVE") return null;
-  return {
-    id: row.user.id,
-    email: row.user.email,
-    name: row.user.name,
-    role: row.user.role as Role,
-    agencyId: row.user.agencyId,
-    userStatus: row.user.status,
-    agencyStatus: row.agencyStatus,
-    agencyName: row.agencyName,
-  };
+  try {
+    const rows = await db
+      .select({
+        user: users,
+        agencyStatus: agencies.status,
+        agencyName: agencies.legalName,
+        sessionExpired: sql<boolean>`(${sessions.expiresAt} < now())`,
+      })
+      .from(sessions)
+      .innerJoin(users, eq(sessions.userId, users.id))
+      .leftJoin(agencies, eq(users.agencyId, agencies.id))
+      .where(and(eq(sessions.tokenHash, tokenHash), gt(sessions.expiresAt, new Date())))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    if (row.user.status !== "ACTIVE") return null;
+    if (row.agencyStatus !== null && row.agencyStatus !== "ACTIVE") return null;
+    return {
+      id: row.user.id,
+      email: row.user.email,
+      name: row.user.name,
+      role: row.user.role as Role,
+      agencyId: row.user.agencyId,
+      userStatus: row.user.status,
+      agencyStatus: row.agencyStatus,
+      agencyName: row.agencyName,
+    };
+  } catch (err) {
+    // Database temporarily unavailable (e.g. missing migrations on Preview) must not become a 500.
+    console.error("[auth] getSessionUser failed", err);
+    return null;
+  }
 }
 
 /** Require an authenticated user or throw a user-safe error. */
@@ -120,7 +131,11 @@ export async function destroySession(): Promise<void> {
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
   if (token) {
-    await db.delete(sessions).where(eq(sessions.tokenHash, hashToken(token)));
+    try {
+      await db.delete(sessions).where(eq(sessions.tokenHash, hashToken(token)));
+    } catch (err) {
+      console.error("[auth] destroySession failed", err);
+    }
   }
   await clearSessionCookie();
 }
@@ -128,12 +143,19 @@ export async function destroySession(): Promise<void> {
 /** Authenticate by email + password. Returns the user row. */
 export async function authenticate(email: string, password: string): Promise<User> {
   const { verifyPassword } = await import("@/lib/crypto");
-  const rows = await db
-    .select()
-    .from(users)
-    .where(sql`lower(${users.email}) = lower(${email})`)
-    .limit(1);
-  const user = rows[0];
+  let user: User | undefined;
+  try {
+    const rows = await db
+      .select()
+      .from(users)
+      .where(sql`lower(${users.email}) = lower(${email})`)
+      .limit(1);
+    user = rows[0] as User | undefined;
+  } catch (err) {
+    // Hide raw database errors (e.g. missing table / connection failure) from the user.
+    console.error("[auth] authenticate query failed", err);
+    throw new AppError("SERVICE_UNAVAILABLE", "Service temporarily unavailable. Please try again.");
+  }
   if (!user) {
     // Perform a dummy verification to keep timing uniform.
     await verifyPassword(password, "scrypt$00$00");
@@ -145,13 +167,19 @@ export async function authenticate(email: string, password: string): Promise<Use
     throw new AppError("USER_SUSPENDED", "This account has been suspended. Contact ESSAFARIA support.");
   }
   if (user.agencyId) {
-    const agency = await db
-      .select({ status: agencies.status })
-      .from(agencies)
-      .where(eq(agencies.id, user.agencyId))
-      .limit(1);
-    if (agency[0]?.status !== "ACTIVE") {
-      throw new AppError("AGENCY_SUSPENDED", "Your agency account is currently suspended.");
+    try {
+      const agency = await db
+        .select({ status: agencies.status })
+        .from(agencies)
+        .where(eq(agencies.id, user.agencyId))
+        .limit(1);
+      if (agency[0]?.status !== "ACTIVE") {
+        throw new AppError("AGENCY_SUSPENDED", "Your agency account is currently suspended.");
+      }
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      console.error("[auth] authenticate agency lookup failed", err);
+      throw new AppError("SERVICE_UNAVAILABLE", "Service temporarily unavailable. Please try again.");
     }
   }
   return user;
