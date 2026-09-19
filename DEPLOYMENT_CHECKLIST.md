@@ -10,26 +10,27 @@ Work top-to-bottom. Do not skip lines marked **[SECURITY]**.
       all pass locally on the commit being deployed.
 - [ ] Supabase (or managed PG) project created; region chosen.
 - [ ] `DATABASE_URL` (pooled, port 6543) works: `DATABASE_URL=… npm run db:migrate` succeeds.
-- [ ] Seed executed with production-intent passwords:
-      `SEED_ADMIN_PASSWORD=<secret> SEED_AGENCY_PASSWORD=<secret> DATABASE_URL=… npm run db:seed`
-- [ ] `SESSION_SECRET` generated (`openssl rand -base64 48`) and stored in the password manager.
+- [ ] `npm run db:verify` confirms the intended Supabase project, schema, and migration history.
+- [ ] Existing business data inspected. Any missing account/configuration creation explicitly approved; no automatic demo seed.
 - [ ] Storage decision made: `STORAGE_PROVIDER=db` (default) or `supabase` (+ bucket + service key).
 
 ## B. Vercel
 
 - [ ] Project imported from Git; framework preset Next.js; no custom build overrides.
-- [ ] Environment variables set for **Production** and **Preview**: `DATABASE_URL`,
-      `SESSION_SECRET`, `STORAGE_PROVIDER` (+ Supabase vars if used).
-      **[SECURITY]** `SESSION_SECRET` is unique per environment and never reused from dev.
+- [ ] **Preview only**: one canonical `DATABASE_URL`, `STORAGE_PROVIDER` (+ Supabase storage vars if used).
+      Production unchanged; branch overrides checked. `SESSION_SECRET` / `JWT_SECRET` are not used.
+- [ ] **[SECURITY]** Database URI and service-role keys are server-only, never `NEXT_PUBLIC_*`.
 - [ ] First deploy succeeds; deployment logs show no warnings about missing env.
 - [ ] Custom domain attached; HTTPS active; HTTP→HTTPS redirect works.
 
-## C. Post-deploy verification (run on the production URL)
+## C. Post-deploy verification (run on the actual Preview URL)
 
 - [ ] `/` renders; `/visas` and `/countries` show the live catalogue.
 - [ ] `/privacy` and `/terms` render with final legal texts (edit in `/admin/settings`).
 - [ ] Login works for one staff account and one agency account.
-- [ ] **[SECURITY]** All seeded demo passwords changed (`/admin/users`).
+- [ ] **[SECURITY]** No demo users/passwords inserted into the real database.
+- [ ] Login creates a hashed session, updates last_login_at and records USER_LOGIN.
+- [ ] No SQL leak, HTTP 500 or database connection errors in actual Preview responses/logs.
 - [ ] Staff: create/inspect one application through the full lifecycle
       (submit → documents → review → decision) on a test agency.
 - [ ] Agency: submit an application with missing required document → blocked;

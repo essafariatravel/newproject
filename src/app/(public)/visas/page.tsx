@@ -10,6 +10,7 @@ export const metadata = { title: "Visa Services — ESSAFARIA TRAVEL" };
 
 export default async function VisasPage() {
   let rows: Array<{ visa: typeof visaTypes.$inferSelect; countryName: string; categoryName: string }> = [];
+  let catalogueUnavailable = false;
   try {
     rows = await db
       .select({
@@ -23,8 +24,11 @@ export default async function VisasPage() {
       .where(and(eq(visaTypes.active, true), eq(countries.active, true)))
       .orderBy(asc(countries.name), asc(visaCategories.name));
   } catch (err) {
+    // Keep the page alive, but say the truth: this is a temporary database
+    // problem, not an empty catalogue.
     console.error("[visas] catalogue unavailable", err);
     rows = [];
+    catalogueUnavailable = true;
   }
 
   const byCountry = new Map<string, typeof rows>();
@@ -45,7 +49,14 @@ export default async function VisasPage() {
 
       {rows.length === 0 ? (
         <div className="mt-10 card">
-          <EmptyState title="No visa programmes published yet" body="Please check back soon or contact our partnerships team." />
+          {catalogueUnavailable ? (
+            <EmptyState
+              title="Service catalogue temporarily unavailable"
+              body="We cannot reach the live visa catalogue right now. Please try again in a few moments."
+            />
+          ) : (
+            <EmptyState title="No visa programmes published yet" body="Please check back soon or contact our partnerships team." />
+          )}
         </div>
       ) : (
         <div className="mt-10 space-y-10">

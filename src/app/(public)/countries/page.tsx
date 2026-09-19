@@ -10,6 +10,7 @@ export const metadata = { title: "Destinations — ESSAFARIA TRAVEL" };
 
 export default async function CountriesPage() {
   let rows: Array<{ id: string; name: string; region: string | null; iso2: string; visaCount: number }> = [];
+  let catalogueUnavailable = false;
   try {
     rows = await db
       .select({
@@ -27,6 +28,7 @@ export default async function CountriesPage() {
   } catch (err) {
     console.error("[countries] catalogue unavailable", err);
     rows = [];
+    catalogueUnavailable = true;
   }
 
   const regions = new Map<string, typeof rows>();
@@ -48,7 +50,14 @@ export default async function CountriesPage() {
 
       {rows.length === 0 ? (
         <div className="mt-10 card">
-          <EmptyState title="No destinations published yet" />
+          {catalogueUnavailable ? (
+            <EmptyState
+              title="Destinations temporarily unavailable"
+              body="We cannot reach the live destinations list right now. Please try again in a few moments."
+            />
+          ) : (
+            <EmptyState title="No destinations published yet" />
+          )}
         </div>
       ) : (
         <div className="mt-10 space-y-10">

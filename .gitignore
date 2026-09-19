@@ -9,10 +9,9 @@ next-env.d.ts
 
 # environment — never commit secrets
 .env
-.env.local
-.env.preview
-.env.production
-.env*.local
+.env.*
+!.env.example
+.vercel
 
 # local databases / embedded postgres data
 .pglite

@@ -1,99 +1,177 @@
-# DEPLOYMENT — ESSAFARIA VISA OS on Vercel
+# ESSAFARIA — Supabase / Vercel Preview deployment
 
-This application deploys to Vercel as a standard Next.js 16 project with a managed
-PostgreSQL database (Supabase recommended). Follow every step; do not skip the checklist
-in `DEPLOYMENT_CHECKLIST.md`.
+This is the current deployment guide; it supersedes the older deployment notes in
+`FINAL_HANDOFF.md` and `FINAL_ACCEPTANCE.md`. Never run a database reset to deploy.
 
-## 0. Prerequisites
+## Architecture and environment audit
 
-- A Vercel account (Pro or higher recommended for production workloads).
-- A Supabase project (or any managed PostgreSQL 14+).
-- Node.js 20+ locally.
-- This repository pushed to GitHub/GitLab/Bitbucket. **Verify no `.env*` file is committed.**
+- Next.js server components/actions → Drizzle → `pg.Pool` → PostgreSQL.
+- Schema: `src/db/schema.ts`. Migrations: hand-authored SQL in `migrations/`.
+  There is no Drizzle Kit config or Supabase JavaScript SDK, and neither is required.
+- Authentication: scrypt passwords in `public.users`, random opaque cookies, SHA-256
+  token hashes in `public.sessions`. This is not Supabase Auth or JWT authentication.
+- `SESSION_SECRET` and `JWT_SECRET` are not consumed by the application.
+- Normal queries, auth, settings, seed, documents and catalogue share `src/lib/db.ts`.
+- `scripts/migrate.ts` uses the shared connection configuration with an optional DDL URL.
+- The legacy `scripts/smoke.ts` uses `DATABASE_URL`, assumes demo accounts and creates
+  sessions directly; it does NOT prove password authentication. Do not use it blindly
+  against the real database. `scripts/reset.ts` is destructive and is NOT a deployment tool.
 
-## 1. Database (Supabase)
+| Variable | Requirement / scope |
+| --- | --- |
+| `DATABASE_URL` | Required server-only PostgreSQL URI; one canonical Preview value. Supabase transaction pooler, port 6543, recommended for Vercel. |
+| `MIGRATION_DATABASE_URL` | Optional server-only CLI override for migrations; direct connection or session pooler on 5432. Runtime never reads this override. |
+| `STORAGE_PROVIDER` | Optional; defaults to `db` (documents in PostgreSQL). |
+| `SUPABASE_URL` | Only required for `STORAGE_PROVIDER=supabase`. HTTPS API URL, NOT a database connection string. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Only required for Supabase document storage; server-only. |
+| `SUPABASE_STORAGE_BUCKET` | Optional with Supabase storage; defaults to `visa-documents`; bucket must be private. |
+| `NODE_ENV`, `VERCEL`, `VERCEL_ENV` | Platform-managed; do not set `NODE_ENV=preview`. Vercel Preview runs Next.js in production mode. |
+| `ALLOW_DEMO_SEED`, `SEED_ADMIN_PASSWORD`, `SEED_AGENCY_PASSWORD` | Demo data only; never required by the app itself. `ALLOW_DEMO_SEED=true` (Preview scope) additionally opts a Preview BUILD into the guarded demo seed; remote databases also require non-default `SEED_*_PASSWORD` values. |
+| `BASE_URL` | Legacy smoke-test CLI only. |
 
-1. Create a project in Supabase; wait for it to be provisioned. Note the region — pick the
-   one closest to your users.
-2. Go to **Project Settings → Database → Connection string → URI** and copy the
-   **connection pooling** string (port `6543`). It looks like:
-   ```
-   postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
-   ```
-3. From your machine, apply the schema and seed data:
-   ```bash
-   DATABASE_URL="<pooled-url>" npm run db:migrate
-   DATABASE_URL="<pooled-url>" npm run db:seed
-   ```
-   `db:seed` creates the demo/starter accounts listed in `README.md`. **Change their
-   passwords immediately after first login** (or re-seed with your own `SEED_*_PASSWORD`
-   values before running it).
+No `NEXT_PUBLIC_*` database password, service key or session/JWT secret is permitted.
+Supabase anon/publishable keys and `POSTGRES_*` aliases do not configure this app.
+Keep TLS verification enabled and preserve provider-supplied connection options.
 
-> The app uses one pool of plain PG connections; the transaction-mode pooler (6543) is fine.
-> Do **not** use the direct (5432) URL in Vercel — connection counts will exhaust.
+## Intended project and Preview configuration
 
-## 2. Document storage
+Project reference: `xgetzgixalrsmuvfthpf`.
+API URL: `https://xgetzgixalrsmuvfthpf.supabase.co`.
+The API URL alone cannot authenticate a PostgreSQL connection. Obtain the actual URI
+from this project's Supabase **Connect** dialog; do not guess its pooler hostname/region.
 
-Two supported providers (chosen by `STORAGE_PROVIDER`):
+1. Authorize Vercel access and link the existing ESSAFARIA project, not a new project.
+2. Inspect environment variable NAMES and scopes without printing values. Select
+   **Preview only**. Leave Production unchanged.
+3. Update the existing Preview `DATABASE_URL`, or create it once if absent. If a variable
+   covers both Preview and Production, preserve Production's value when separating the
+   scopes. Check branch-specific overrides as well as project-wide Preview values.
+4. Use the transaction-pooler URI (6543) for runtime. The pool uses at most three
+   connections per Vercel instance and no named prepared statements.
+5. If needed for migration tooling, use the direct URI or session pooler (5432) as
+   `MIGRATION_DATABASE_URL`. Direct Supabase hosts may require IPv6. Our runner also
+   works on the transaction pooler: it uses one transaction and a transaction-level lock.
+6. Do not automatically change storage providers on a database containing documents.
+   `db` needs no service-role key; existing Supabase storage requires its existing bucket/key.
+7. New environment settings require a new Preview deployment. Do not promote to Production.
 
-- `db` (default, zero-setup): documents are stored as `bytea` in PostgreSQL with a
-  `document_blobs` table. Works on Supabase out of the box. Suitable up to moderate
-  volumes; remember Supabase DB size limits.
-- `supabase`: create a **private** bucket (e.g. `visa-documents`) and a service role key.
-  The app uploads/downloads server-side only; clients never get bucket URLs.
+Never paste credentials into chat, commit environment files, put them in shell command
+arguments, or log their values. `.env.*` and `.vercel/` are ignored (except `.env.example`).
 
-Start with `db`; switching later is a one-line env change plus a data migration.
+## Safe schema initialization
 
-## 3. Vercel project
+Load credentials securely into the CLI environment, then:
 
-1. Push this repository to your Git provider.
-2. In Vercel: **Add New → Project → Import** the repository.
-3. Framework preset: **Next.js** (build `next build`, install `npm ci`). Defaults are fine.
-4. Set **Environment Variables** (Production *and* Preview):
+```sh
+npm ci
+npm run db:migrate
+npm run db:verify
+```
 
-   | Variable                    | Value                                                        |
-   | --------------------------- | ------------------------------------------------------------ |
-   | `DATABASE_URL`              | Supabase **pooled** URI from step 1                           |
-   | `SESSION_SECRET`            | `openssl rand -base64 48` — long random string                |
-   | `STORAGE_PROVIDER`          | `db` (or `supabase`)                                          |
-   | `SUPABASE_URL`              | only if `STORAGE_PROVIDER=supabase`                           |
-   | `SUPABASE_SERVICE_ROLE_KEY` | only if `STORAGE_PROVIDER=supabase` (server-side, secret)     |
-   | `SUPABASE_STORAGE_BUCKET`   | only if `STORAGE_PROVIDER=supabase` (e.g. `visa-documents`)   |
-   | `NODE_ENV`                  | `production` (Vercel sets this automatically)                 |
+Confirm the target before running migrations. If supplying two connection URIs, verify
+BOTH refer to `xgetzgixalrsmuvfthpf`. Do not assume a Preview-only Vercel setting means the
+database is separate from Production; the real database may be shared.
 
-5. Deploy. First deploy compiles from scratch (~2–3 minutes).
+The runner applies the unchanged repository migrations:
 
-## 4. Post-deploy verification
+- `0001_init.sql`: 23 application tables including users, agencies, sessions,
+  site_settings, countries, visa catalogue/requirements, workflow, applications,
+  documents, wallets, notifications, communications and audit logs.
+- `0002_branding.sql`: additive agency branding columns.
 
-1. Open `https://<your-domain>/` — homepage renders.
-2. Log in at `/login` with a seeded staff account; confirm `/admin` loads.
-3. Change the seeded passwords (Back Office → Users).
-4. In Site Settings (`/admin/settings`) set the production site name/branding and disable
-   any demo content if configured.
-5. Run through `DEPLOYMENT_CHECKLIST.md` end-to-end on production.
+`public.schema_migrations` tracks applied files. A transaction-level advisory lock
+serializes concurrent invocations; SQL and migration history commit atomically. Repeated
+runs skip applied files. No reset, truncate, seed, or data deletion occurs. If a database
+already has tables but no matching migration ledger, the runner fails safely: inspect
+schema/history manually rather than dropping tables or falsely marking migrations applied.
 
-## 5. Domain, HTTPS and email
+## Automated Preview build behaviour
 
-- Add your custom domain in **Vercel → Settings → Domains**; HTTPS is automatic.
-- The contact form stores enquiries as notifications/communications inside the app. There
-  is **no outbound email integration by design** (no SMTP/Gmail). Staff monitor the Back
-  Office notification centre. If you later add transactional email, it is future work.
+`npm run build` runs `scripts/build.ts`, which guarantees:
 
-## 6. Backups & operations
+- **The build never requires `DATABASE_URL`.** `next build` imports route modules while
+  collecting page data; a missing variable is logged loudly and every database query
+  then fails fast at runtime, where handlers already answer with a safe
+  "Service temporarily unavailable" message. (An earlier revision threw at import time,
+  which is exactly what failed the Preview build of commit `73bbb7e`.)
+- **Vercel Preview builds with `DATABASE_URL` apply the migrations automatically**
+  (idempotent, ledger-guarded, advisory-lock serialized) before `next build`. Nobody
+  has to run SQL by hand to make a fresh Supabase project usable.
+- **Optional Preview demo seed**: runs only when `ALLOW_DEMO_SEED=true`, and the seed
+  script still enforces its own guardrails (Production hard-blocked; non-local
+  databases additionally require non-default `SEED_ADMIN_PASSWORD`/`SEED_AGENCY_PASSWORD`).
+- **Production builds never run migrations or seeding** (`VERCEL_ENV=production` skips
+  all database steps).
+- **A failed database step never fails the build** — the reason is printed to the build
+  log and the Preview still deploys with graceful degradation.
 
-- Supabase performs automatic daily backups on paid plans — verify and, if needed, add
-  `pg_dump` cron: `pg_dump "$DATABASE_URL" > backup-$(date +%F).sql`.
-- Monitor: Vercel Analytics / logs; Supabase → Database → Logs.
-- Database migrations are plain SQL files under `migrations/`; new ones are applied with
-  `npm run db:migrate` (idempotent tracking table `schema_migrations`).
+After changing environment variables in Vercel you must create a new deployment
+(Redeploy the latest Preview, or push a new commit) — existing deployments keep the
+values they were built with.
 
-## 7. Rollback
+## Runtime verification: `/api/health`
 
-Redeploy the previous Git commit in Vercel (Deployments → … → Promote). Migrations are
-additive; rolling back app code does not require rolling back the schema.
+`GET /api/health` on any deployment reports, without ever exposing credentials:
 
-## Explicitly out of scope for deployment
+- `database.configured` — whether THIS deployment actually received `DATABASE_URL`
+  (a changed Vercel setting is invisible until a new deployment is created);
+- `database.host/port/name/ssl/mode` and whether it targets the intended Supabase
+  project `xgetzgixalrsmuvfthpf` (hostname only — never username or password);
+- `database.connected` + `latencyMs` — whether a real PostgreSQL connection succeeds;
+- `database.error.code/message` — the exact PostgreSQL error when it does not
+  (defensively redacted of anything resembling a connection URI);
+- `schema.requiredTables` (users, site_settings, visa_types, countries,
+  schema_migrations), the migration ledger, and whether accounts/catalogue data exist.
 
-- **No payment gateway** — wallets are funded manually by ACCOUNTING staff; no PCI scope.
-- **No Gmail/SMTP integration** — notifications are in-app only (FUTURE work).
-- **No AI features** — none included (FUTURE work).
+Interpreting it: `ok: true` means the database path is fully working. `configured:
+false` means the environment variable did not reach this deployment. `configured:
+true` with `connected: false` means the URI/credentials/network failed — the error
+code says which (e.g. `28P01` authentication, `ECONNREFUSED`/`ENOTFOUND`/timeout
+network, `42P01` missing table). The endpoint never throws and never returns a 500.
+
+
+`db:verify` is read-only. It checks the requested project routing, queries all application
+columns/tables, reports empty versus populated (no user records), and checks migration
+history. A successful build or fallback homepage is NOT proof of a database connection.
+
+## Seed/data decision — approval required
+
+Migrations create structure, not accounts, settings or catalogue records. Existing data
+must be inspected first. Demo data is unnecessary if usable staff accounts and business
+configuration already exist. An empty database needs an approved staff account and real
+configuration; do not automatically substitute demo data.
+
+The existing demo seed would insert currencies, countries, visa categories, document
+types, eight sample visa programmes with sample fees/requirements, workflow statuses and
+transitions, priorities, sample branding/contact/legal settings, four staff users, two
+demo agencies, three agency users, a EUR 2,000 wallet funding entry, one submitted France
+application with a fictional applicant, and related checklist/history/ledger/audit/
+notification records. It can update existing status definitions. It is not a real-business
+onboarding script and is not a fully transactional recovery tool.
+
+It is never run during builds or migrations. Production-mode seeding is blocked; remote
+demo seeding additionally requires explicit opt-in and non-default passwords. Do not
+bypass the guard for a shared Production database. Nothing has been seeded into Supabase
+by these repository changes.
+
+## Live acceptance (must be done on the actual Preview URL)
+
+1. Confirm Vercel reports a successful **Preview** deployment for the pushed commit.
+2. GET `/`, `/login`, `/visas`, `/countries`: correct app content; no Vercel protection
+   screen mistaken for the application, no 500 or SQL/connection error text.
+3. Verify populated catalogue and settings against the read-only database check, not
+   fallback branding or empty-state HTML.
+4. With an authorized staff account, submit the actual login form. Confirm secure,
+   HttpOnly session cookie; authenticated `/admin`, settings and catalogue routes.
+5. In the database, confirm the corresponding hashed session, updated `last_login_at`,
+   and `USER_LOGIN` audit record. Then confirm the session persists on a second request.
+6. Verify an authorized agency account can use `/portal`, cannot access staff data, and
+   cannot access another agency's records. Unauthenticated routes redirect to `/login`.
+7. Check deployment logs for database errors and scan delivered frontend assets for
+   actual credential values without printing the values. Do not expose a public
+   diagnostic endpoint or bypass Preview deployment protection.
+
+Local automated tests use a separate embedded PostgreSQL database only. They verify
+migration idempotence/rollback/concurrency, password login, session lookup, last-login
+updates, audit records, tenant isolation and safe login error messages. They do not
+replace the above Supabase/Preview acceptance checks.

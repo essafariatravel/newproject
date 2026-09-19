@@ -25,14 +25,17 @@ gateway** — these are documented as future work in `FINAL_HANDOFF.md`.
 
 ```bash
 npm install
-cp .env.example .env.local          # edit DATABASE_URL + SESSION_SECRET
+cp .env.example .env.local          # edit local DATABASE_URL
 npm run db:migrate                  # apply migrations
 npm run db:seed                     # demo catalogue + demo users
 npm run dev                         # http://localhost:3000
 ```
 
 `npm run db:up` starts a local throwaway PostgreSQL 17 (no Docker needed) if you do not
-have one. `npm run db:reset` re-applies migrations and re-seeds.
+have one. `npm run db:reset` is destructive and is for disposable local databases only.
+For real Supabase/Vercel deployments use [DEPLOYMENT.md](DEPLOYMENT.md) — never reset a
+real database; demo-seeding a Preview is strictly opt-in (`ALLOW_DEMO_SEED`, see
+DEPLOYMENT.md) and blocked for Production.
 
 ### Seeded demo accounts (development only)
 
@@ -45,8 +48,8 @@ have one. `npm run db:reset` re-applies migrations and re-seeds.
 | AGENCY_ADMIN | `admin@horizonvoyages.example`  | `Agency!2345`         |
 | AGENCY_USER  | `user@atlascgroup.example`     | `Agency!2345`         |
 
-> Change all seeded passwords before any real deployment (`npm run db:reset` after editing
-> `SEED_*_PASSWORD`, or update the users from the Back Office).
+> Never use these demo accounts on a real database. Do not run `db:reset` against
+> Supabase. Existing account passwords must be changed through the Back Office.
 
 ## What's inside
 

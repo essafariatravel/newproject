@@ -2,11 +2,12 @@
  * Test PostgreSQL lifecycle: a dedicated embedded PostgreSQL instance on port
  * 5434, fresh schema, migrations applied once per run.
  */
-import { readdir, readFile, rm } from "node:fs/promises";
+import { rm } from "node:fs/promises";
 import path from "node:path";
 import { Pool } from "pg";
 
 import EmbeddedPostgres from "embedded-postgres";
+import { applyMigrations } from "../../scripts/lib/migrations";
 
 const PORT = 5434;
 const DATA_DIR = path.join(process.cwd(), "tests", ".pgdata-test");
@@ -14,15 +15,6 @@ const DATA_DIR = path.join(process.cwd(), "tests", ".pgdata-test");
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let pg: any = null;
 let ready: Promise<void> | null = null;
-
-async function applyMigrations(pool: Pool) {
-  const dir = path.join(process.cwd(), "migrations");
-  const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
-  for (const file of files) {
-    const sql = await readFile(path.join(dir, file), "utf8");
-    await pool.query(sql);
-  }
-}
 
 async function start(): Promise<void> {
   await rm(DATA_DIR, { recursive: true, force: true });
@@ -37,7 +29,7 @@ async function start(): Promise<void> {
   await pg.start();
   await pg.createDatabase("essafaria_test");
   const admin = new Pool({ connectionString: `postgresql://postgres:postgres@localhost:${PORT}/essafaria_test` });
-  await applyMigrations(admin);
+  await applyMigrations(admin, path.join(process.cwd(), "migrations"));
   await admin.end();
 }
 
