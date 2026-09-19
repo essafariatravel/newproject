@@ -26,7 +26,7 @@ This is the current deployment guide; it supersedes the older deployment notes i
 | `SUPABASE_SERVICE_ROLE_KEY` | Only required for Supabase document storage; server-only. |
 | `SUPABASE_STORAGE_BUCKET` | Optional with Supabase storage; defaults to `visa-documents`; bucket must be private. |
 | `NODE_ENV`, `VERCEL`, `VERCEL_ENV` | Platform-managed; do not set `NODE_ENV=preview`. Vercel Preview runs Next.js in production mode. |
-| `ALLOW_DEMO_SEED`, `SEED_ADMIN_PASSWORD`, `SEED_AGENCY_PASSWORD` | Demo CLI only; never required by the app or normal deployment. |
+| `ALLOW_DEMO_SEED`, `SEED_ADMIN_PASSWORD`, `SEED_AGENCY_PASSWORD` | Demo data only; never required by the app itself. `ALLOW_DEMO_SEED=true` (Preview scope) additionally opts a Preview BUILD into the guarded demo seed; remote databases also require non-default `SEED_*_PASSWORD` values. |
 | `BASE_URL` | Legacy smoke-test CLI only. |
 
 No `NEXT_PUBLIC_*` database password, service key or session/JWT secret is permitted.
@@ -84,6 +84,31 @@ serializes concurrent invocations; SQL and migration history commit atomically. 
 runs skip applied files. No reset, truncate, seed, or data deletion occurs. If a database
 already has tables but no matching migration ledger, the runner fails safely: inspect
 schema/history manually rather than dropping tables or falsely marking migrations applied.
+
+## Automated Preview build behaviour
+
+`npm run build` runs `scripts/build.ts`, which guarantees:
+
+- **The build never requires `DATABASE_URL`.** `next build` imports route modules while
+  collecting page data; a missing variable is logged loudly and every database query
+  then fails fast at runtime, where handlers already answer with a safe
+  "Service temporarily unavailable" message. (An earlier revision threw at import time,
+  which is exactly what failed the Preview build of commit `73bbb7e`.)
+- **Vercel Preview builds with `DATABASE_URL` apply the migrations automatically**
+  (idempotent, ledger-guarded, advisory-lock serialized) before `next build`. Nobody
+  has to run SQL by hand to make a fresh Supabase project usable.
+- **Optional Preview demo seed**: runs only when `ALLOW_DEMO_SEED=true`, and the seed
+  script still enforces its own guardrails (Production hard-blocked; non-local
+  databases additionally require non-default `SEED_ADMIN_PASSWORD`/`SEED_AGENCY_PASSWORD`).
+- **Production builds never run migrations or seeding** (`VERCEL_ENV=production` skips
+  all database steps).
+- **A failed database step never fails the build** — the reason is printed to the build
+  log and the Preview still deploys with graceful degradation.
+
+After changing environment variables in Vercel you must create a new deployment
+(Redeploy the latest Preview, or push a new commit) — existing deployments keep the
+values they were built with.
+
 
 `db:verify` is read-only. It checks the requested project routing, queries all application
 columns/tables, reports empty versus populated (no user records), and checks migration

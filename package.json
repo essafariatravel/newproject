@@ -2,10 +2,10 @@
   "name": "essafaria-visa-os",
   "version": "1.0.0",
   "private": true,
-  "description": "ESSAFARIA VISA OS \u2014 B2B visa operations platform for ESSAFARIA TRAVEL",
+  "description": "ESSAFARIA VISA OS — B2B visa operations platform for ESSAFARIA TRAVEL",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "tsx scripts/build.ts",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",

@@ -2,13 +2,29 @@ import type { PoolConfig } from "pg";
 
 type Environment = Record<string, string | undefined>;
 const LOCAL_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/essafaria";
+// Used only when a deployed environment has no DATABASE_URL: nothing listens on
+// 127.0.0.1:1, so the first query fails immediately (ECONNREFUSED) instead of
+// hanging on a 10s connection timeout, and every handler already maps database
+// failures to a safe "Service temporarily unavailable" message.
+const UNCONFIGURED_DATABASE_URL = "postgresql://127.0.0.1:1/essafaria";
 
 /** Shared by the server and CLI tools. Never import into a client component. */
 export function databaseUrl(env: Environment = process.env, migration = false): string {
   const value = (migration ? env.MIGRATION_DATABASE_URL : undefined) || env.DATABASE_URL;
   if (!value) {
     if (env.NODE_ENV === "production" || env.VERCEL) {
-      throw new Error("DATABASE_URL is required for deployed environments.");
+      // Never throw here. `next build` imports every route module while
+      // collecting page data, and VERCEL=1 is set during builds: throwing at
+      // import time fails the whole Vercel build whenever DATABASE_URL is not
+      // available to that branch's Preview (e.g. branch-scoped variables).
+      // Log the misconfiguration once per process and defer the failure to
+      // query time, where it is already handled safely.
+      console.error(
+        "[database] DATABASE_URL is not configured for this deployment; database queries will fail. " +
+          "Vercel: Settings → Environment Variables → DATABASE_URL → make sure the Preview environment " +
+          "covers this branch (no branch filter), then redeploy.",
+      );
+      return UNCONFIGURED_DATABASE_URL;
     }
     return LOCAL_DATABASE_URL;
   }

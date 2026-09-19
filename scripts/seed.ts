@@ -334,8 +334,11 @@ async function ensureAgency(a: {
 }
 
 async function main() {
-  if (process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production") {
-    throw new Error("Demo seeding is disabled in Production.");
+  // VERCEL_ENV is the reliable production indicator: NODE_ENV is "production"
+  // during EVERY Vercel build (Preview builds included), so checking NODE_ENV
+  // here would also block the explicitly opted-in Preview demo seed.
+  if (process.env.VERCEL_ENV === "production") {
+    throw new Error("Demo seeding is disabled for Production deployments.");
   }
   const host = new URL(databaseUrl()).hostname;
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(host);

@@ -33,7 +33,9 @@ npm run dev                         # http://localhost:3000
 
 `npm run db:up` starts a local throwaway PostgreSQL 17 (no Docker needed) if you do not
 have one. `npm run db:reset` is destructive and is for disposable local databases only.
-For real Supabase/Vercel deployments use [DEPLOYMENT.md](DEPLOYMENT.md), never reset or demo-seed.
+For real Supabase/Vercel deployments use [DEPLOYMENT.md](DEPLOYMENT.md) — never reset a
+real database; demo-seeding a Preview is strictly opt-in (`ALLOW_DEMO_SEED`, see
+DEPLOYMENT.md) and blocked for Production.
 
 ### Seeded demo accounts (development only)
 

@@ -1,11 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { databasePoolConfig, databaseUrl, targetsSupabaseProject } from "../src/lib/database-config";
 
 describe("database configuration", () => {
-  it("allows localhost fallback only outside deployments", () => {
+  it("fails safe (no throw) when a deployment lacks DATABASE_URL", () => {
     expect(databaseUrl({})).toContain("localhost");
-    expect(() => databaseUrl({ NODE_ENV: "production" })).toThrow("DATABASE_URL is required");
-    expect(() => databaseUrl({ VERCEL: "1" })).toThrow("DATABASE_URL is required");
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Never throws: `next build` imports route modules with VERCEL=1 while
+    // collecting page data, so an import-time throw fails Preview builds.
+    for (const env of [{ NODE_ENV: "production" }, { VERCEL: "1" }]) {
+      expect(databaseUrl(env)).toMatch(/^postgresql:\/\/127\.0\.0\.1:1\//);
+    }
+    expect(databaseUrl({ VERCEL: "1" }, true)).toMatch(/^postgresql:\/\/127\.0\.0\.1:1\//);
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 
   it("keeps DATABASE_URL canonical and migration credentials CLI-only", () => {
