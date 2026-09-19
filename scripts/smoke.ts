@@ -1,3 +1,4 @@
+import { qualifiedTable } from "../src/lib/database-schema";
 /**
  * Authenticated end-to-end HTTP smoke test against a running server.
  * Creates DB sessions directly, then verifies page rendering, tenant
@@ -23,8 +24,8 @@ function tokenFor(): { raw: string; hash: string } {
 async function createSession(email: string): Promise<string> {
   const { raw, hash } = tokenFor();
   const res = await pool.query<{ id: string }>(
-    `insert into sessions (user_id, token_hash, expires_at)
-     select id, $2, now() + interval '1 day' from users where lower(email) = lower($1)
+    `insert into ${qualifiedTable("sessions")} (user_id, token_hash, expires_at)
+     select id, $2, now() + interval '1 day' from ${qualifiedTable("users")} where lower(email) = lower($1)
      returning id`,
     [email, hash],
   );
@@ -116,8 +117,8 @@ async function main() {
 
   // 4. tenant isolation (IDOR): find an application of agency A, access as agency B
   const appA = await pool.query<{ id: string; agency_id: string }>(
-    `select a.id, a.agency_id from applications a
-       join users u on u.agency_id = a.agency_id
+    `select a.id, a.agency_id from ${qualifiedTable("applications")} a
+       join ${qualifiedTable("users")} u on u.agency_id = a.agency_id
       where lower(u.email) = 'admin@horizonvoyages.example' limit 1`,
   );
   const appIdA = appA.rows[0]?.id;
@@ -136,9 +137,9 @@ async function main() {
 
   // 5. document download isolation
   const docA = await pool.query<{ id: string }>(
-    `select d.id from documents d
-       join applications a on a.id = d.application_id
-       join users u on u.agency_id = a.agency_id
+    `select d.id from ${qualifiedTable("documents")} d
+       join ${qualifiedTable("applications")} a on a.id = d.application_id
+       join ${qualifiedTable("users")} u on u.agency_id = a.agency_id
       where lower(u.email) = 'admin@horizonvoyages.example' limit 1`,
   );
   if (docA.rows[0]) {

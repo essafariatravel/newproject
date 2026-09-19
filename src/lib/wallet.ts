@@ -1,3 +1,4 @@
+import { qualifiedTable } from "./database-schema";
 /**
  * Wallet service — the only code path that mutates an agency balance.
  *
@@ -62,11 +63,11 @@ export async function adjustWallet(params: {
     // Lock the agency row; conditional update guards against negative balances.
     const upd = await client.query<{ balance_after: string; balance_before: string }>(
       credit
-        ? `update agencies
+        ? `update ${qualifiedTable("agencies")}
              set balance = balance + $2::numeric, updated_at = now()
            where id = $1
            returning balance::text as balance_after, (balance - $2::numeric)::text as balance_before`
-        : `update agencies
+        : `update ${qualifiedTable("agencies")}
              set balance = balance - $2::numeric, updated_at = now()
            where id = $1 and balance >= $2::numeric
            returning balance::text as balance_after, (balance + $2::numeric)::text as balance_before`,
@@ -75,7 +76,7 @@ export async function adjustWallet(params: {
     if (!upd.rows[0]) {
       await client.query("rollback");
       const agency = await client.query<{ balance: string; currency: string }>(
-        "select balance::text as balance, currency from agencies where id = $1",
+        `select balance::text as balance, currency from ${qualifiedTable("agencies")} where id = $1`,
         [params.agencyId],
       );
       if (!agency.rows[0]) throw new AppError("NOT_FOUND", "Agency not found.");
@@ -86,9 +87,9 @@ export async function adjustWallet(params: {
     }
     const { balance_before, balance_after } = upd.rows[0];
     const tx = await client.query<{ id: string }>(
-      `insert into wallet_transactions
+      `insert into ${qualifiedTable("wallet_transactions")}
          (agency_id, type, amount, currency, balance_before, balance_after, reason, actor_id)
-       values ($1, $2, $3, (select currency from agencies where id = $1), $4, $5, $6, $7)
+       values ($1, $2, $3, (select currency from ${qualifiedTable("agencies")} where id = $1), $4, $5, $6, $7)
        returning id`,
       [params.agencyId, type, amountAbs, balance_before, balance_after, params.reason, params.actor.id],
     );
@@ -151,7 +152,7 @@ export async function chargeApplicationSubmission(params: {
       status_id: string;
     }>(
       `select id, agency_id, fee::text as fee, currency, reference, status_id
-         from applications where id = $1 for update`,
+         from ${qualifiedTable("applications")} where id = $1 for update`,
       [params.applicationId],
     );
     const app = appRes.rows[0];
@@ -169,7 +170,7 @@ export async function chargeApplicationSubmission(params: {
 
     // Debit the wallet. The row lock on agencies serializes concurrent spenders.
     const upd = await client.query<{ balance_after: string; balance_before: string }>(
-      `update agencies
+      `update ${qualifiedTable("agencies")}
          set balance = balance - $2::numeric, updated_at = now()
        where id = $1 and balance >= $2::numeric
        returning balance::text as balance_after, (balance + $2::numeric)::text as balance_before`,
@@ -178,7 +179,7 @@ export async function chargeApplicationSubmission(params: {
     if (!upd.rows[0]) {
       await client.query("rollback");
       const bal = await client.query<{ balance: string; currency: string }>(
-        "select balance::text as balance, currency from agencies where id = $1",
+        `select balance::text as balance, currency from ${qualifiedTable("agencies")} where id = $1`,
         [app.agency_id],
       );
       const cur = bal.rows[0]?.currency ?? "";
@@ -191,7 +192,7 @@ export async function chargeApplicationSubmission(params: {
 
     // Ledger insert — the partial unique index makes double charges impossible.
     const txRes = await client.query<{ id: string }>(
-      `insert into wallet_transactions
+      `insert into ${qualifiedTable("wallet_transactions")}
          (agency_id, application_id, type, amount, currency, balance_before, balance_after, reason, actor_id)
        values ($1, $2, 'APPLICATION_CHARGE', $3, $4, $5, $6, $7, $8)
        returning id`,
@@ -209,13 +210,13 @@ export async function chargeApplicationSubmission(params: {
     const txId = txRes.rows[0]!.id;
 
     await client.query(
-      `update applications
+      `update ${qualifiedTable("applications")}
          set status_id = $2, submitted_at = now(), updated_at = now()
        where id = $1`,
       [app.id, params.submittedStatusId],
     );
     await client.query(
-      `insert into application_status_history
+      `insert into ${qualifiedTable("application_status_history")}
          (application_id, from_status_id, to_status_id, changed_by, reason)
        values ($1, $2, $3, $4, 'Application submitted')`,
       [app.id, params.draftStatusId, params.submittedStatusId, params.actorId],

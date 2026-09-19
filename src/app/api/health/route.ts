@@ -18,6 +18,9 @@ import { NextResponse } from "next/server";
 import { Pool } from "pg";
 import { databasePoolConfig, databaseUrl, targetsSupabaseProject } from "@/lib/database-config";
 import { safeErrorCode, safeErrorText } from "@/lib/safe-error";
+import { databaseSchema, qualifiedTable } from "@/lib/database-schema";
+import { getTableColumns, getTableName, is, Table } from "drizzle-orm";
+import * as applicationSchema from "@/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +48,8 @@ export async function GET() {
       error: null as { code: string | null; message: string } | null,
     },
     schema: {
+      name: databaseSchema(),
+      columnsValid: false,
       requiredTables: {} as Record<string, boolean>,
       migrationLedger: [] as string[],
       hasUserAccounts: null as boolean | null,
@@ -106,25 +111,31 @@ export async function GET() {
       report.database.latencyMs = Date.now() - startedAt;
       try {
         for (const table of REQUIRED_TABLES) {
-          const res = await client.query("select to_regclass($1) is not null as present", [`public.${table}`]);
+          const res = await client.query("select to_regclass($1) is not null as present", [qualifiedTable(table)]);
           report.schema.requiredTables[table] = Boolean(res.rows[0]?.present);
         }
         if (report.schema.requiredTables.schema_migrations) {
-          const ledger = await client.query("select name from public.schema_migrations order by name");
+          const ledger = await client.query(`select name from ${qualifiedTable("schema_migrations")} order by name`);
           report.schema.migrationLedger = ledger.rows.map((row) => String(row.name));
         }
         if (report.schema.requiredTables.users) {
-          const users = await client.query("select exists(select 1 from public.users) as any");
+          const users = await client.query(`select exists(select 1 from ${qualifiedTable("users")}) as any`);
           report.schema.hasUserAccounts = Boolean(users.rows[0]?.any);
         }
         if (report.schema.requiredTables.visa_types) {
-          const visas = await client.query("select count(*)::int as n from public.visa_types where active");
+          const visas = await client.query(`select count(*)::int as n from ${qualifiedTable("visa_types")} where active`);
           report.schema.visaProgrammes = Number(visas.rows[0]?.n ?? 0);
         }
         if (report.schema.requiredTables.countries) {
-          const countries = await client.query("select count(*)::int as n from public.countries where active");
+          const countries = await client.query(`select count(*)::int as n from ${qualifiedTable("countries")} where active`);
           report.schema.countries = Number(countries.rows[0]?.n ?? 0);
         }
+        for (const table of Object.values(applicationSchema)) {
+          if (!is(table, Table)) continue;
+          const columns = Object.values(getTableColumns(table)).map((column) => `"${column.name.replaceAll('"', '""')}"`);
+          await client.query(`select ${columns.join(", ")} from ${qualifiedTable(getTableName(table))} limit 0`);
+        }
+        report.schema.columnsValid = true;
       } finally {
         client.release();
       }
@@ -136,7 +147,8 @@ export async function GET() {
   }
 
   const tablesOk = REQUIRED_TABLES.every((table) => report.schema.requiredTables[table] === true);
-  report.ok = report.database.connected && tablesOk;
+  report.ok = report.database.connected && !report.database.error && tablesOk && report.schema.columnsValid &&
+    ["0001_init.sql", "0002_branding.sql"].every((name) => report.schema.migrationLedger.includes(name));
 
   if (report.database.configured && !report.database.connected) {
     report.notes.push("DATABASE_URL is set but the connection failed — see database.error for the PostgreSQL error code.");

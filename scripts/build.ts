@@ -14,12 +14,13 @@
  *   the seed script itself still enforces its own production/remote
  *   guardrails (non-default passwords required for non-local databases).
  * - PRODUCTION builds never run migrations or seeding.
- * - A failed database step logs the reason and never fails the build.
+ * - Configured Preview database failures fail the deployment, rather than
+ *   marking a broken login/catalogue as ready.
  */
 import { spawnSync } from "node:child_process";
 
-function run(command: string, args: string[]): number {
-  const result = spawnSync(command, args, { stdio: "inherit" });
+function run(script: string, args: string[]): number {
+  const result = spawnSync(process.execPath, [script, ...args], { stdio: "inherit" });
   return result.status ?? 1;
 }
 
@@ -29,21 +30,21 @@ function main(): void {
 
   if (isVercelPreview && hasDatabaseUrl) {
     console.log("[build] Vercel Preview build with DATABASE_URL: applying migrations if any are outstanding.");
-    if (run("npm", ["run", "db:migrate"]) !== 0) {
-      console.warn(
-        "[build] Migration step failed (details above). Continuing the build: the application serves " +
-          "safe errors while the database is unavailable. Nothing was reset, repaired or seeded.",
-      );
+    if (run("node_modules/tsx/dist/cli.mjs", ["scripts/migrate.ts"]) !== 0) {
+      console.error("[build] Migration failed. Deployment stopped; no seed will run.");
+      process.exit(1);
     }
     if (process.env.ALLOW_DEMO_SEED === "true") {
       console.log("[build] ALLOW_DEMO_SEED=true: running the demo seed for this Preview database.");
-      if (run("npm", ["run", "db:seed"]) !== 0) {
-        console.warn("[build] Demo seed failed (details above). Continuing the build.");
+      if (run("node_modules/tsx/dist/cli.mjs", ["scripts/seed.ts"]) !== 0) {
+        console.error("[build] Demo seed failed. Deployment stopped.");
+        process.exit(1);
       }
     }
     console.log("[build] Read-only database verification (result goes to the build log only):");
-    if (run("npm", ["run", "db:verify"]) !== 0) {
-      console.warn("[build] Verification failed (details above). Continuing the build.");
+    if (run("node_modules/tsx/dist/cli.mjs", ["scripts/verify-db.ts"]) !== 0) {
+      console.error("[build] Database verification failed. Deployment stopped.");
+      process.exit(1);
     }
   } else if (isVercelPreview) {
     console.warn(
@@ -53,7 +54,7 @@ function main(): void {
     );
   }
 
-  process.exit(run("npx", ["next", "build"]));
+  process.exit(run("node_modules/next/dist/bin/next", ["build"]));
 }
 
 main();

@@ -5,6 +5,7 @@ import { getTableColumns, getTableName, is, Table } from "drizzle-orm";
 import * as schema from "../src/db/schema";
 import { databasePoolConfig, databaseUrl, targetsSupabaseProject } from "../src/lib/database-config";
 import { safeErrorCode, safeErrorText } from "../src/lib/safe-error";
+import { qualifiedTable } from "../src/lib/database-schema";
 
 const EXPECTED_PROJECT = "xgetzgixalrsmuvfthpf";
 const quote = (identifier: string) => `"${identifier.replaceAll('"', '""')}"`;
@@ -26,11 +27,11 @@ async function main() {
         const name = getTableName(table);
         const columns = Object.values(getTableColumns(table)).map((column) => quote(column.name));
         // Check every application column, not merely that a table exists.
-        await client.query(`select ${columns.join(", ")} from public.${quote(name)} limit 0`);
-        const result = await client.query(`select exists(select 1 from public.${quote(name)}) as populated`);
+        await client.query(`select ${columns.join(", ")} from ${qualifiedTable(name)} limit 0`);
+        const result = await client.query(`select exists(select 1 from ${qualifiedTable(name)}) as populated`);
         console.log(`${name}: readable; ${result.rows[0].populated ? "contains data" : "empty"}`);
       }
-      const ledger = await client.query("select name from public.schema_migrations order by name");
+      const ledger = await client.query(`select name from ${qualifiedTable("schema_migrations")} order by name`);
       const applied = new Set(ledger.rows.map((row) => row.name));
       if (!["0001_init.sql", "0002_branding.sql"].every((name) => applied.has(name))) {
         throw new Error("Migration ledger incomplete");

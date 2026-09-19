@@ -10,6 +10,32 @@ import { applyMigrations } from "../scripts/lib/migrations";
 suiteSetup();
 
 describe("safe migrations against isolated test PostgreSQL", () => {
+  it("creates an isolated application without modifying public tables", async () => {
+    const pool = new Pool({ connectionString: testConnectionString() });
+    try {
+      const before = await pool.query("select id from public.users order by id");
+      const directory = path.join(process.cwd(), "migrations");
+      expect(await applyMigrations(pool, directory, "visa_os_preview")).toEqual(["0001_init.sql", "0002_branding.sql"]);
+      expect(await applyMigrations(pool, directory, "visa_os_preview")).toEqual([]);
+      await pool.query("select password_hash, name, role from visa_os_preview.users limit 0");
+      expect((await pool.query("select id from public.users order by id")).rows).toEqual(before.rows);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it("refuses an unrelated users table and rolls back its ledger", async () => {
+    const pool = new Pool({ connectionString: testConnectionString() });
+    try {
+      await pool.query("create schema legacy_app; create table legacy_app.users (id int); insert into legacy_app.users values (1)");
+      await expect(applyMigrations(pool, path.join(process.cwd(), "migrations"), "legacy_app"))
+        .rejects.toThrow("Existing users table");
+      expect((await pool.query("select * from legacy_app.users")).rows).toEqual([{ id: 1 }]);
+      expect((await pool.query("select to_regclass('legacy_app.schema_migrations') as name")).rows[0].name).toBeNull();
+    } finally {
+      await pool.end();
+    }
+  });
   it("repeated and concurrent runs skip applied migrations and preserve user data", async () => {
     const pool = new Pool({ connectionString: testConnectionString() });
     try {

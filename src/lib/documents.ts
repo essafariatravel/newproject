@@ -1,3 +1,4 @@
+import { qualifiedTable } from "./database-schema";
 /**
  * Document service — secure upload, review workflow, tenant-safe retrieval.
  *
@@ -77,7 +78,7 @@ export async function listDocumentsForApplication(applicationId: string) {
       doc: documents,
       documentTypeName: documentTypes.name,
       applicantName: sql<string | null>`(
-        select a.first_name || ' ' || a.last_name from applicants a where a.id = documents.applicant_id
+        select a.first_name || ' ' || a.last_name from ${sql.raw(qualifiedTable("applicants"))} a where a.id = documents.applicant_id
       )`,
     })
     .from(documents)

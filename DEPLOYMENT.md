@@ -1,3 +1,38 @@
+# September 19 repair: shared Supabase schema
+
+The live `xgetzgixalrsmuvfthpf` database contains a legacy application in
+`public`. Its `users` table has `full_name` and `role_id`, but no
+`password_hash`, `name`, or `role`; `site_settings` is absent. Do not reset,
+rename, or retrofit those tables to install Visa OS.
+
+Set `DATABASE_SCHEMA=visa_os_preview` in Preview and `DATABASE_SCHEMA=visa_os`
+in Production. Runtime ORM queries and raw SQL explicitly qualify this schema,
+including wallet transactions and subqueries; they do not rely on persistent
+connection state through the transaction pooler. Keep the schema out of the
+Supabase exposed Data API schemas. The backend database role owns its tables;
+do not grant `anon` or `authenticated` access.
+
+Run `npm run db:migrate` with the same schema and the appropriate database
+connection before deployment. Preview builds perform this automatically when
+configured. A configured Preview now **fails** on migration, seed, or schema
+verification errors. A build with no database URL can still compile, but is not
+an operational deployment. Production builds still do not migrate or seed.
+
+Only initialize demo accounts in Preview with the existing guarded seed and
+non-default passwords. Do not copy demonstration users, balances, or visa fees
+into Production. Production account/catalogue provisioning remains required.
+
+`/api/health` now checks all application columns and migration entries as well
+as table names. HTTP 200 alone is insufficient: inspect `ok`, `schema.name`,
+`schema.columnsValid`, and `database.error`, then test browser login and portals.
+
+This repair was validated locally. No live migration or new Vercel deployment
+was performed: Git push authentication is absent and the connected Vercel
+tools cannot deploy or access protected runtime diagnostics. This section
+supersedes older statements below about continuing builds after DB failure.
+
+---
+
 # ESSAFARIA — Supabase / Vercel Preview deployment
 
 This is the current deployment guide; it supersedes the older deployment notes in

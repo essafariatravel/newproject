@@ -1,11 +1,38 @@
 import { describe, expect, it } from "vitest";
 import { suiteSetup } from "./helpers/global-state";
+import { Pool } from "pg";
+import { testConnectionString } from "./helpers/pg";
 
 suiteSetup();
 
 import { GET as healthGET } from "../src/app/api/health/route";
 
 describe("GET /api/health (deployment diagnostics, never a 500, never secrets)", () => {
+  it("does not report healthy when table names exist but columns are incompatible", async () => {
+    const pool = new Pool({ connectionString: testConnectionString() });
+    const previous = process.env.DATABASE_SCHEMA;
+    try {
+      await pool.query(`create schema incompatible;
+        create table incompatible.agencies (id integer);
+        create table incompatible.users (id integer);
+        create table incompatible.site_settings (id integer);
+        create table incompatible.visa_types (id integer, active boolean);
+        create table incompatible.countries (id integer, active boolean);
+        create table incompatible.schema_migrations (name text);
+        insert into incompatible.schema_migrations values ('0001_init.sql'), ('0002_branding.sql');`);
+      process.env.DATABASE_SCHEMA = "incompatible";
+      const body = await (await healthGET()).json();
+      expect(body.database.connected).toBe(true);
+      expect(Object.values(body.schema.requiredTables).every(Boolean)).toBe(true);
+      expect(body.schema.columnsValid).toBe(false);
+      expect(body.database.error.code).toBe("42703");
+      expect(body.ok).toBe(false);
+    } finally {
+      if (previous === undefined) delete process.env.DATABASE_SCHEMA;
+      else process.env.DATABASE_SCHEMA = previous;
+      await pool.end();
+    }
+  });
   it("reports a connected, fully migrated database", async () => {
     const res = await healthGET();
     expect(res.status).toBe(200);

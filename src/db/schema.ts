@@ -19,13 +19,20 @@ import {
   integer,
   jsonb,
   numeric,
-  pgTable,
+  pgTable as publicTable,
+  pgSchema,
+  type PgTableFn,
   primaryKey,
   text,
   timestamp,
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+import { databaseSchema } from "../lib/database-schema";
+
+const schemaName = databaseSchema();
+// Explicit qualification is safe with transaction poolers: no session search_path.
+const pgTable: PgTableFn<string | undefined> = schemaName === "public" ? publicTable : pgSchema(schemaName).table;
 
 /* ------------------------------------------------------------------ */
 /* Shared column helpers                                               */

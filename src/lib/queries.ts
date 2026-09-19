@@ -1,3 +1,4 @@
+import { qualifiedTable } from "./database-schema";
 /**
  * Read-model queries with server-side filtering and pagination.
  * Every query takes the authenticated user and enforces tenant scope.
@@ -44,12 +45,12 @@ const applicationSelection = {
   statusName: statuses.name,
   priorityName: priorities.name,
   priorityWeight: priorities.weight,
-  agencyName: sql<string>`(select coalesce(a.trading_name, a.legal_name) from agencies a where a.id = applications.agency_id)`,
+  agencyName: sql<string>`(select coalesce(a.trading_name, a.legal_name) from ${sql.raw(qualifiedTable("agencies"))} a where a.id = applications.agency_id)`,
   applicantSummary: sql<string>`(
-    select string_agg(p.first_name || ' ' || p.last_name, ', ') from applicants p where p.application_id = applications.id
+    select string_agg(p.first_name || ' ' || p.last_name, ', ') from ${sql.raw(qualifiedTable("applicants"))} p where p.application_id = applications.id
   )`,
-  applicantCount: sql<number>`(select count(*)::int from applicants p where p.application_id = applications.id)`,
-  documentCount: sql<number>`(select count(*)::int from documents d where d.application_id = applications.id)`,
+  applicantCount: sql<number>`(select count(*)::int from ${sql.raw(qualifiedTable("applicants"))} p where p.application_id = applications.id)`,
+  documentCount: sql<number>`(select count(*)::int from ${sql.raw(qualifiedTable("documents"))} d where d.application_id = applications.id)`,
 };
 
 export async function searchApplications(user: AuthUser, filters: ApplicationFilters) {
@@ -77,7 +78,7 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
         ilike(applications.reference, term),
         ilike(applications.visaTypeName, term),
         ilike(applications.countryName, term),
-        sql`exists (select 1 from applicants p where p.application_id = applications.id
+        sql`exists (select 1 from ${sql.raw(qualifiedTable("applicants"))} p where p.application_id = applications.id
               and (p.first_name || ' ' || p.last_name ilike ${term} or p.passport_number ilike ${term}))`,
       )!,
     );
@@ -368,7 +369,7 @@ export async function recentCommunications(limit = 30) {
       authorName: users.name,
       applicationReference: applications.reference,
       applicationId: applications.id,
-      agencyName: sql<string>`(select coalesce(a.trading_name, a.legal_name) from agencies a where a.id = applications.agency_id)`,
+      agencyName: sql<string>`(select coalesce(a.trading_name, a.legal_name) from ${sql.raw(qualifiedTable("agencies"))} a where a.id = applications.agency_id)`,
     })
     .from(communications)
     .innerJoin(users, eq(communications.authorId, users.id))
@@ -436,8 +437,8 @@ export async function listAgencies(q?: string) {
   return db
     .select({
       agency: agencies,
-      userCount: sql<number>`(select count(*)::int from users u where u.agency_id = agencies.id)`,
-      applicationCount: sql<number>`(select count(*)::int from applications ap where ap.agency_id = agencies.id)`,
+      userCount: sql<number>`(select count(*)::int from ${sql.raw(qualifiedTable("users"))} u where u.agency_id = agencies.id)`,
+      applicationCount: sql<number>`(select count(*)::int from ${sql.raw(qualifiedTable("applications"))} ap where ap.agency_id = agencies.id)`,
     })
     .from(agencies)
     .where(conditions.length ? and(...conditions) : undefined)
@@ -454,7 +455,7 @@ export async function listUsers(q?: string, agencyId?: string) {
   return db
     .select({
       user: users,
-      agencyName: sql<string | null>`(select coalesce(a.trading_name, a.legal_name) from agencies a where a.id = users.agency_id)`,
+      agencyName: sql<string | null>`(select coalesce(a.trading_name, a.legal_name) from ${sql.raw(qualifiedTable("agencies"))} a where a.id = users.agency_id)`,
     })
     .from(users)
     .where(conditions.length ? and(...conditions) : undefined)
@@ -475,7 +476,7 @@ export async function listAuditLogs(filters: { q?: string; agencyId?: string; ac
   const rows = await db
     .select({
       log: auditLogs,
-      agencyName: sql<string | null>`(select coalesce(a.trading_name, a.legal_name) from agencies a where a.id = audit_logs.agency_id)`,
+      agencyName: sql<string | null>`(select coalesce(a.trading_name, a.legal_name) from ${sql.raw(qualifiedTable("agencies"))} a where a.id = audit_logs.agency_id)`,
     })
     .from(auditLogs)
     .where(where)
@@ -495,7 +496,7 @@ export async function listWalletTransactions(filters: { agencyId?: string; page?
   const rows = await db
     .select({
       tx: walletTransactions,
-      agencyName: sql<string>`(select coalesce(a.trading_name, a.legal_name) from agencies a where a.id = wallet_transactions.agency_id)`,
+      agencyName: sql<string>`(select coalesce(a.trading_name, a.legal_name) from ${sql.raw(qualifiedTable("agencies"))} a where a.id = wallet_transactions.agency_id)`,
       applicationReference: applications.reference,
     })
     .from(walletTransactions)
@@ -523,9 +524,9 @@ export async function listAllDocuments(filters: { status?: string; q?: string; p
     .select({
       doc: documents,
       applicationReference: applications.reference,
-      agencyName: sql<string>`(select coalesce(a.trading_name, a.legal_name) from agencies a where a.id = applications.agency_id)`,
+      agencyName: sql<string>`(select coalesce(a.trading_name, a.legal_name) from ${sql.raw(qualifiedTable("agencies"))} a where a.id = applications.agency_id)`,
       documentTypeName: documentTypes.name,
-      reviewerName: sql<string | null>`(select u.name from users u where u.id = documents.reviewed_by)`,
+      reviewerName: sql<string | null>`(select u.name from ${sql.raw(qualifiedTable("users"))} u where u.id = documents.reviewed_by)`,
     })
     .from(documents)
     .innerJoin(applications, eq(documents.applicationId, applications.id))
@@ -559,7 +560,7 @@ export async function listApplicants(filters: { q?: string; page?: number; agenc
       applicant: applicants,
       applicationReference: applications.reference,
       applicationId: applications.id,
-      agencyName: sql<string>`(select coalesce(a.trading_name, a.legal_name) from agencies a where a.id = applications.agency_id)`,
+      agencyName: sql<string>`(select coalesce(a.trading_name, a.legal_name) from ${sql.raw(qualifiedTable("agencies"))} a where a.id = applications.agency_id)`,
     })
     .from(applicants)
     .innerJoin(applications, eq(applicants.applicationId, applications.id))

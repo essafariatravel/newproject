@@ -1,3 +1,4 @@
+import { qualifiedTable } from "../src/lib/database-schema";
 /**
  * Deterministic, idempotent demo/development seed.
  *
@@ -442,7 +443,7 @@ async function main() {
   await ensureUser({ email: "admin@atlascgroup.example", password: agencyPassword, name: "James Whitfield", role: "AGENCY_ADMIN", agencyId: agencyB.id });
 
   // --- demo data: fund wallet + one submitted application (via real services) ---
-  const demoRefExists = await db.execute(sql`select 1 from applications where reference = 'EVT-DEMO-0001' limit 1`);
+  const demoRefExists = await db.execute(sql`select 1 from ${sql.raw(qualifiedTable("applications"))} where reference = 'EVT-DEMO-0001' limit 1`);
   if (demoRefExists.rows.length === 0) {
     const superAdmin = (await db.select().from(users).where(sql`lower(${users.email}) = lower(${"superadmin@essafaria.example"})`).limit(1))[0]!;
     const visaType = (await db.select().from(visaTypes).where(eq(visaTypes.code, "FR-SCH-TOUR")).limit(1))[0]!;
@@ -476,7 +477,7 @@ async function main() {
       overrideReason: "Demo seed dataset: showcase application created without physical document files.",
     });
     await db.update(applications).set({ reference: "EVT-DEMO-0001" }).where(eq(applications.id, app.id));
-    await db.execute(sql`update wallet_transactions set reason = 'Visa application EVT-DEMO-0001' where application_id = ${app.id}`);
+    await db.execute(sql`update ${sql.raw(qualifiedTable("wallet_transactions"))} set reason = 'Visa application EVT-DEMO-0001' where application_id = ${app.id}`);
   }
 
   console.log("Seed complete.");

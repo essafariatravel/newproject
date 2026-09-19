@@ -1,3 +1,4 @@
+import { qualifiedTable } from "./database-schema";
 /**
  * Application service — creation, checklist, submission gate, status workflow.
  * All business rules execute server-side; callers are authenticated+authorized.
@@ -136,7 +137,7 @@ export async function checklistProgress(applicationId: string): Promise<Checklis
       required: checklistItems.required,
       active: checklistItems.active,
       docStatus: sql<string | null>`(
-        select d.status from documents d
+        select d.status from ${sql.raw(qualifiedTable("documents"))} d
         where d.checklist_item_id = checklist_items.id
           and d.status in ('UPLOADED','UNDER_REVIEW','ACCEPTED')
         order by case d.status when 'ACCEPTED' then 0 when 'UNDER_REVIEW' then 1 else 2 end
@@ -265,7 +266,7 @@ export async function getApplicationForUser(applicationId: string, user: AuthUse
       app: applications,
       status: statuses,
       priority: priorities,
-      agencyName: sql<string>`(select coalesce(trading_name, legal_name) from agencies where agencies.id = ${applications.agencyId})`,
+      agencyName: sql<string>`(select coalesce(trading_name, legal_name) from ${sql.raw(qualifiedTable("agencies"))} where agencies.id = ${applications.agencyId})`,
     })
     .from(applications)
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
@@ -289,7 +290,7 @@ export async function getSubmissionGate(applicationId: string) {
     .select({
       item: checklistItems,
       docCount: sql<number>`(
-        select count(*)::int from documents d
+        select count(*)::int from ${sql.raw(qualifiedTable("documents"))} d
         where d.checklist_item_id = checklist_items.id
           and d.status in ('UPLOADED','UNDER_REVIEW','ACCEPTED')
       )`,
@@ -565,8 +566,8 @@ export async function listTransitions() {
       scope: statusTransitions.scope,
     })
     .from(statusTransitions)
-    .innerJoin(sql`statuses f`, sql`f.id = ${statusTransitions.fromStatusId}`)
-    .innerJoin(sql`statuses t`, sql`t.id = ${statusTransitions.toStatusId}`)
+    .innerJoin(sql`${sql.raw(qualifiedTable("statuses"))} f`, sql`f.id = ${statusTransitions.fromStatusId}`)
+    .innerJoin(sql`${sql.raw(qualifiedTable("statuses"))} t`, sql`t.id = ${statusTransitions.toStatusId}`)
     .orderBy(asc(sql`f.sort_order`), asc(sql`t.sort_order`));
 }
 
