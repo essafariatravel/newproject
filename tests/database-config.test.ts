@@ -2,6 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { databasePoolConfig, databaseUrl, targetsSupabaseProject } from "../src/lib/database-config";
 
 describe("database configuration", () => {
+  it("enables verified TLS for Supabase URLs without SSL parameters", () => {
+    expect(databasePoolConfig({ DATABASE_URL: "postgresql://postgres.example:secret@aws-1-us-east-1.pooler.supabase.com:6543/postgres" }).ssl)
+      .toEqual({ rejectUnauthorized: true });
+    expect(databasePoolConfig({ DATABASE_URL: "postgresql://postgres:secret@localhost:5432/postgres" }).ssl).toBeUndefined();
+  });
   it("fails safe (no throw) when a deployment lacks DATABASE_URL", () => {
     expect(databaseUrl({})).toContain("localhost");
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});

@@ -41,8 +41,15 @@ export function databaseUrl(env: Environment = process.env, migration = false): 
 }
 
 export function databasePoolConfig(env: Environment = process.env, migration = false): PoolConfig {
+  const connectionString = databaseUrl(env, migration);
+  const url = new URL(connectionString);
+  const supabase = url.hostname.endsWith(".pooler.supabase.com") || url.hostname.endsWith(".supabase.co");
   return {
-    connectionString: databaseUrl(env, migration),
+    connectionString,
+    // Supabase enforces TLS even when a manually copied URI omits sslmode.
+    // Keep certificate verification enabled; never fall back to plaintext.
+    ...(supabase && !url.searchParams.has("sslmode") && !url.searchParams.has("ssl")
+      ? { ssl: { rejectUnauthorized: true } } : {}),
     // Each Vercel function instance owns a pool; keep per-instance usage small.
     max: migration ? 1 : env.VERCEL ? 3 : 10,
     idleTimeoutMillis: 30_000,

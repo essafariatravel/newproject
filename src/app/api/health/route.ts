@@ -72,7 +72,7 @@ export async function GET() {
       report.database.port = url.port || "5432";
       report.database.name = url.pathname.slice(1);
       const sslmode = url.searchParams.get("sslmode");
-      report.database.ssl = sslmode ?? (url.searchParams.get("ssl") === "true" ? "require" : null);
+      report.database.ssl = sslmode ?? (databasePoolConfig().ssl ? "verify-full" : null);
       const isPooler = url.hostname.includes(".pooler.");
       report.database.mode = isPooler
         ? url.port === "6543"
