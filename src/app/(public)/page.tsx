@@ -1,3 +1,4 @@
+import { formatProcessingDays } from "@/lib/format";
 import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
@@ -105,7 +106,7 @@ export default async function HomePage() {
                     <div>
                       <p className="text-sm font-semibold text-navy-900">{v.countryName}</p>
                       <p className="text-xs text-slate-400">
-                        {v.minDays}–{v.maxDays} days processing
+                        {formatProcessingDays(v.minDays, v.maxDays)}
                       </p>
                     </div>
                     <span className="badge bg-gold-100 text-gold-700 tabular-nums">
@@ -178,7 +179,7 @@ export default async function HomePage() {
                 <p className="mt-1 font-serif text-lg text-navy-900 group-hover:text-iris-700">{v.visaName}</p>
                 <div className="mt-3 flex items-center justify-between text-sm">
                   <span className="text-slate-500">
-                    {v.minDays}–{v.maxDays} days
+                    {formatProcessingDays(v.minDays, v.maxDays)}
                   </span>
                   <span className="font-semibold tabular-nums text-teal-600">
                     from {formatAmount(v.fee, v.currency)}

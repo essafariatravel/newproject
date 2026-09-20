@@ -24,6 +24,11 @@ export function formatAmount(amount: string | number, currency: string): string 
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n);
 }
 
+/** Zero denotes an unpublished processing estimate, never an immediate turnaround. */
+export function formatProcessingDays(min: number, max: number): string {
+  return min > 0 && max > 0 ? `${min}–${max} working days` : "On request";
+}
+
 export function titleize(code: string): string {
   return code
     .toLowerCase()

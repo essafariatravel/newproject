@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
+import { isAgencyRole } from "@/lib/types";
 import { readBranding, brandLogoUrl, BRANDING_DEFAULTS } from "@/lib/branding";
 import BrandMark from "@/components/brand-mark";
 import { LoginForm } from "./login-form";
@@ -15,7 +16,7 @@ export default async function LoginPage() {
     console.error("[login] getSessionUser failed", err);
     user = null;
   }
-  if (user) redirect("/"); // authenticated users land on their workspace via home routing
+  if (user) redirect(isAgencyRole(user.role) ? "/portal" : "/admin");
 
   let branding: Awaited<ReturnType<typeof readBranding>>;
   try {

@@ -1,3 +1,4 @@
+import { formatProcessingDays } from "@/lib/format";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
@@ -178,7 +179,7 @@ export default async function VisaTypeDetailPage({
               items={[
                 { label: "Code", value: vt.code },
                 { label: "Fee", value: formatAmount(vt.fee, vt.currency) },
-                { label: "Processing", value: `${vt.processingMinDays}–${vt.processingMaxDays} days` },
+                { label: "Processing", value: formatProcessingDays(vt.processingMinDays, vt.processingMaxDays) },
                 { label: "Description", value: vt.description ?? "—" },
               ]}
             />
@@ -206,12 +207,12 @@ export default async function VisaTypeDetailPage({
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="label" htmlFor="e-min">Min days *</label>
-                    <input id="e-min" name="processingMinDays" type="number" min="1" required defaultValue={vt.processingMinDays} className="input" />
+                    <label className="label" htmlFor="e-min">Min days (0 = on request) *</label>
+                    <input id="e-min" name="processingMinDays" type="number" min="0" required defaultValue={vt.processingMinDays} className="input" />
                   </div>
                   <div>
-                    <label className="label" htmlFor="e-max">Max days *</label>
-                    <input id="e-max" name="processingMaxDays" type="number" min="1" required defaultValue={vt.processingMaxDays} className="input" />
+                    <label className="label" htmlFor="e-max">Max days (0 = on request) *</label>
+                    <input id="e-max" name="processingMaxDays" type="number" min="0" required defaultValue={vt.processingMaxDays} className="input" />
                   </div>
                 </div>
                 <div>

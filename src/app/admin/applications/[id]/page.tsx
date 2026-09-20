@@ -1,3 +1,4 @@
+import { formatProcessingDays } from "@/lib/format";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
@@ -127,7 +128,7 @@ export default async function AdminApplicationDetailPage({
                   { label: "Visa type", value: `${app.visaTypeName} (${app.visaTypeCode})` },
                   { label: "Category", value: app.categoryName },
                   { label: "Fee (snapshot)", value: `${app.fee} ${app.currency}` },
-                  { label: "Processing time", value: `${app.processingMinDays}–${app.processingMaxDays} days` },
+                  { label: "Processing time", value: formatProcessingDays(app.processingMinDays, app.processingMaxDays) },
                   { label: "Created", value: formatDateTime(app.createdAt) },
                   { label: "Submitted", value: formatDateTime(app.submittedAt) },
                   { label: "Applicants", value: String(applicants.length) },

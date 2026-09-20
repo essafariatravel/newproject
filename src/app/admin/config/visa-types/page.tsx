@@ -1,3 +1,4 @@
+import { formatProcessingDays } from "@/lib/format";
 import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
@@ -62,7 +63,7 @@ export default async function VisaTypesConfigPage({
               <td className="td">{countryName}</td>
               <td className="td">{categoryName}</td>
               <td className="td whitespace-nowrap tabular-nums">{formatAmount(vt.fee, vt.currency)}</td>
-              <td className="td whitespace-nowrap text-xs">{vt.processingMinDays}–{vt.processingMaxDays} days</td>
+              <td className="td whitespace-nowrap text-xs">{formatProcessingDays(vt.processingMinDays, vt.processingMaxDays)}</td>
               <td className="td"><ActiveBadge active={vt.active} /></td>
               <td className="td text-right">
                 {canManage ? (
@@ -126,12 +127,12 @@ export default async function VisaTypesConfigPage({
               <input id="fee" name="fee" type="number" step="0.01" min="0" required className="input" placeholder="120.00" />
             </div>
             <div>
-              <label className="label" htmlFor="minDays">Processing min days *</label>
-              <input id="minDays" name="processingMinDays" type="number" min="1" required className="input" defaultValue={5} />
+              <label className="label" htmlFor="minDays">Processing min days (0 = on request) *</label>
+              <input id="minDays" name="processingMinDays" type="number" min="0" required className="input" defaultValue={5} />
             </div>
             <div>
-              <label className="label" htmlFor="maxDays">Processing max days *</label>
-              <input id="maxDays" name="processingMaxDays" type="number" min="1" required className="input" defaultValue={15} />
+              <label className="label" htmlFor="maxDays">Processing max days (0 = on request) *</label>
+              <input id="maxDays" name="processingMaxDays" type="number" min="0" required className="input" defaultValue={15} />
             </div>
             <div className="sm:col-span-3">
               <label className="label" htmlFor="description">Description</label>

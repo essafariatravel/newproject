@@ -1,3 +1,4 @@
+import { formatProcessingDays } from "@/lib/format";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { portalPageUser } from "@/lib/page-auth";
@@ -109,7 +110,7 @@ export default async function PortalApplicationDetailPage({
                   { label: "Category", value: app.categoryName },
                   { label: "Country", value: app.countryName },
                   { label: "Fee", value: `${app.fee} ${app.currency}` },
-                  { label: "Processing time", value: `${app.processingMinDays}–${app.processingMaxDays} days` },
+                  { label: "Processing time", value: formatProcessingDays(app.processingMinDays, app.processingMaxDays) },
                   { label: "Applicants", value: String(applicants.length) },
                   { label: "Required documents", value: `${progress.requiredComplete}/${progress.requiredTotal} provided` },
                   { label: "Created", value: formatDateTime(app.createdAt) },
@@ -128,7 +129,7 @@ export default async function PortalApplicationDetailPage({
                 <div className="px-4 py-4">
                   <dl className="mb-4 grid grid-cols-1 gap-x-6 gap-y-2 rounded-md bg-ivory-50 p-4 text-sm sm:grid-cols-2">
                     <div className="flex justify-between gap-2"><dt className="text-slate-500">Visa type</dt><dd className="font-medium">{app.visaTypeName}</dd></div>
-                    <div className="flex justify-between gap-2"><dt className="text-slate-500">Processing time</dt><dd className="font-medium">{app.processingMinDays}–{app.processingMaxDays} days</dd></div>
+                    <div className="flex justify-between gap-2"><dt className="text-slate-500">Processing time</dt><dd className="font-medium">{formatProcessingDays(app.processingMinDays, app.processingMaxDays)}</dd></div>
                     <div className="flex justify-between gap-2"><dt className="text-slate-500">Applicants</dt><dd className="font-medium">{applicants.length}</dd></div>
                     <div className="flex justify-between gap-2"><dt className="text-slate-500">Required documents</dt><dd className="font-medium">{progress.requiredComplete}/{progress.requiredTotal} provided</dd></div>
                     <div className="flex justify-between gap-2"><dt className="text-slate-500">Fee</dt><dd className="font-medium tabular-nums">{formatMoney(app.fee, app.currency)}</dd></div>

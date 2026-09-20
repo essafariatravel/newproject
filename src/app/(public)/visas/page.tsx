@@ -1,3 +1,4 @@
+import { formatProcessingDays } from "@/lib/format";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { countries, visaCategories, visaTypes } from "@/db/schema";
@@ -78,7 +79,7 @@ export default async function VisasPage() {
                     <p className="mt-2 text-sm leading-relaxed text-slate-600">{v.visa.description}</p>
                     <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-500">
                       <span>
-                        Processing: <strong className="text-slate-700">{v.visa.processingMinDays}–{v.visa.processingMaxDays} working days</strong>
+                        Processing: <strong className="text-slate-700">{formatProcessingDays(v.visa.processingMinDays, v.visa.processingMaxDays)}</strong>
                       </span>
                       <span>
                         Code: <strong className="text-slate-700">{v.visa.code}</strong>

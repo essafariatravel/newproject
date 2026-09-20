@@ -132,12 +132,12 @@ const visaTypeSchema = z.object({
   name: z.string().trim().min(2).max(120),
   code: codeSchema,
   description: z.string().trim().max(1000).optional().nullable(),
-  processingMinDays: z.coerce.number().int().min(1).max(365),
-  processingMaxDays: z.coerce.number().int().min(1).max(365),
+  processingMinDays: z.coerce.number().int().min(0).max(365),
+  processingMaxDays: z.coerce.number().int().min(0).max(365),
   fee: z.coerce.number().min(0).max(100000),
   currency: z.string().trim().length(3).transform((v) => v.toUpperCase()),
-}).refine((d) => d.processingMinDays <= d.processingMaxDays, {
-  message: "Minimum processing days cannot exceed maximum.",
+}).refine((d) => d.processingMinDays <= d.processingMaxDays && (d.processingMinDays > 0 || d.processingMaxDays === 0), {
+  message: "Enter a valid range, or use zero for both values for an estimate on request.",
   path: ["processingMinDays"],
 });
 
