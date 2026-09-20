@@ -1,4 +1,6 @@
 import type { PoolConfig } from "pg";
+import { rootCertificates } from "node:tls";
+import { SUPABASE_CA } from "./supabase-ca";
 
 type Environment = Record<string, string | undefined>;
 const LOCAL_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/essafaria";
@@ -49,7 +51,7 @@ export function databasePoolConfig(env: Environment = process.env, migration = f
     // Supabase enforces TLS even when a manually copied URI omits sslmode.
     // Keep certificate verification enabled; never fall back to plaintext.
     ...(supabase && !url.searchParams.has("sslmode") && !url.searchParams.has("ssl")
-      ? { ssl: { rejectUnauthorized: true } } : {}),
+      ? { ssl: { rejectUnauthorized: true, ca: [...rootCertificates, SUPABASE_CA] } } : {}),
     // Each Vercel function instance owns a pool; keep per-instance usage small.
     max: migration ? 1 : env.VERCEL ? 3 : 10,
     idleTimeoutMillis: 30_000,
