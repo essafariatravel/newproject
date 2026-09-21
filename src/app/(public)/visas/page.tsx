@@ -1,97 +1,104 @@
-import { formatProcessingDays } from "@/lib/format";
-import { and, asc, eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { countries, visaCategories, visaTypes } from "@/db/schema";
-import { formatAmount } from "@/lib/format";
-import { EmptyState } from "@/components/ui";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Visa Services — ESSAFARIA TRAVEL" };
 
-export default async function VisasPage() {
-  let rows: Array<{ visa: typeof visaTypes.$inferSelect; countryName: string; categoryName: string }> = [];
-  let catalogueUnavailable = false;
-  try {
-    rows = await db
-      .select({
-        visa: visaTypes,
-        countryName: countries.name,
-        categoryName: visaCategories.name,
-      })
-      .from(visaTypes)
-      .innerJoin(countries, eq(visaTypes.countryId, countries.id))
-      .innerJoin(visaCategories, eq(visaTypes.categoryId, visaCategories.id))
-      .where(and(eq(visaTypes.active, true), eq(countries.active, true)))
-      .orderBy(asc(countries.name), asc(visaCategories.name));
-  } catch (err) {
-    // Keep the page alive, but say the truth: this is a temporary database
-    // problem, not an empty catalogue.
-    console.error("[visas] catalogue unavailable", err);
-    rows = [];
-    catalogueUnavailable = true;
-  }
+/**
+ * PUBLIC marketing page — deliberately DB-free.
+ *
+ * Phase 2.1 change: visa programmes, categories and PRICES are private B2B
+ * information served only inside the authenticated Agency Portal. This page
+ * must never query the visa catalogue: anonymous visitors see only what
+ * ESSAFARIA does, never a price list.
+ */
 
-  const byCountry = new Map<string, typeof rows>();
-  for (const row of rows) {
-    const list = byCountry.get(row.countryName) ?? [];
-    list.push(row);
-    byCountry.set(row.countryName, list);
-  }
+const SERVICE_LINES = [
+  {
+    title: "Tourist & visitor visas",
+    body: "Multi-destination short-stay processing with destination-specific checklists, form preparation and embassy submission.",
+  },
+  {
+    title: "Business travel",
+    body: "Corporate itineraries, conference and trade travel with priority handling and dedicated case officers.",
+  },
+  {
+    title: "Family & group files",
+    body: "Coordinated multi-applicant dossiers with shared prerequisite tracking so families move through review together.",
+  },
+  {
+    title: "Medical & long-stay support",
+    body: "Sensitive long-stay, treatment and study files prepared with the extra evidence those destinations require.",
+  },
+];
 
+const PILLARS = [
+  { title: "Document checklists", body: "Generated per destination and per traveller, so your files arrive complete the first time." },
+  { title: "Embassy workflows", body: "Appointments, submission windows and follow-ups run by our operations team end-to-end." },
+  { title: "Live status tracking", body: "Every file moves through a transparent pipeline you and your client can monitor in real time." },
+  { title: "Quality review", body: "Experienced visa officers review every dossier before it reaches an embassy counter." },
+];
+
+export default function VisasPage() {
   return (
     <div className="ess-container py-14">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold-600">Service catalogue</p>
-      <h1 className="mt-2 font-serif text-3xl text-navy-900">Visa services</h1>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold-600">What we operate</p>
+      <h1 className="mt-2 font-serif text-3xl text-navy-900">Visa services for professional partners</h1>
       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-        Current programmes operated by ESSAFARIA. Fees and processing times are maintained centrally and
-        updated by our operations team; partner agencies always quote from the live catalogue.
+        ESSAFARIA runs complete visa operations for travel agencies, wholesalers and tour operators:
+        document preparation, embassy workflows and transparent tracking — all through one partner platform.
       </p>
 
-      {rows.length === 0 ? (
-        <div className="mt-10 card">
-          {catalogueUnavailable ? (
-            <EmptyState
-              title="Service catalogue temporarily unavailable"
-              body="We cannot reach the live visa catalogue right now. Please try again in a few moments."
-            />
-          ) : (
-            <EmptyState title="No visa programmes published yet" body="Please check back soon or contact our partnerships team." />
-          )}
-        </div>
-      ) : (
-        <div className="mt-10 space-y-10">
-          {[...byCountry.entries()].map(([country, visas]) => (
-            <section key={country}>
-              <h2 className="border-b border-slate-200 pb-2 font-serif text-xl text-navy-900">{country}</h2>
-              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                {visas.map((v) => (
-                  <div key={v.visa.id} className="card p-5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="badge bg-ivory-100 text-slate-600">{v.categoryName}</p>
-                        <h3 className="mt-2 font-serif text-lg text-navy-900">{v.visa.name}</h3>
-                      </div>
-                      <span className="whitespace-nowrap text-sm font-semibold tabular-nums text-teal-700">
-                        {formatAmount(v.visa.fee, v.visa.currency)}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm leading-relaxed text-slate-600">{v.visa.description}</p>
-                    <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-500">
-                      <span>
-                        Processing: <strong className="text-slate-700">{formatProcessingDays(v.visa.processingMinDays, v.visa.processingMaxDays)}</strong>
-                      </span>
-                      <span>
-                        Code: <strong className="text-slate-700">{v.visa.code}</strong>
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
+      <section className="mt-10">
+        <h2 className="border-b border-slate-200 pb-2 font-serif text-xl text-navy-900">Services we deliver</h2>
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {SERVICE_LINES.map((s) => (
+            <div key={s.title} className="card p-6">
+              <h3 className="font-serif text-lg text-navy-900">{s.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">{s.body}</p>
+            </div>
           ))}
         </div>
-      )}
+      </section>
+
+      <section className="mt-10">
+        <h2 className="border-b border-slate-200 pb-2 font-serif text-xl text-navy-900">
+          What working with us looks like
+        </h2>
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {PILLARS.map((p) => (
+            <div key={p.title} className="card p-5">
+              <h3 className="text-sm font-semibold text-navy-900">{p.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">{p.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-12 card bg-navy-900 !text-white">
+        <div className="flex flex-col items-start gap-4 p-8 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-serif text-2xl">Catalogue access is reserved for partner agencies.</h2>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-300">
+              Current programmes, processing times and partner pricing are maintained by our operations team and
+              served live inside the Agency Portal to authorized partners.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Link href="/agency/register" className="btn-cta btn-sm !bg-white !text-navy-900 !border-white">
+              Register your Agency
+            </Link>
+            <Link href="/login" className="btn-secondary btn-sm !bg-transparent !text-white !border-white/40 hover:!bg-white/10">
+              Partner sign-in
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <p className="mt-8 text-xs text-slate-400">
+        Scoping something unusual for a client? <Link className="text-iris-600 underline" href="/contact">Talk to our partnerships team</Link>.
+      </p>
     </div>
   );
 }
+

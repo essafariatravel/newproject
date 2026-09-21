@@ -1,10 +1,5 @@
-import { formatProcessingDays } from "@/lib/format";
 import Link from "next/link";
-import { asc, eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { countries, visaTypes } from "@/db/schema";
 import { getSiteSettings, settingString } from "@/lib/settings";
-import { formatAmount } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -34,32 +29,14 @@ const PROCESS = [
   { step: "04", title: "Submit & track", body: "Your wallet is charged, and the file moves through our workflow in real time." },
 ];
 
-async function getFeaturedVisas() {
-  try {
-    return await db
-      .select({
-        countryName: countries.name,
-        visaName: visaTypes.name,
-        fee: visaTypes.fee,
-        currency: visaTypes.currency,
-        minDays: visaTypes.processingMinDays,
-        maxDays: visaTypes.processingMaxDays,
-      })
-      .from(visaTypes)
-      .innerJoin(countries, eq(visaTypes.countryId, countries.id))
-      .where(eq(visaTypes.active, true))
-      .orderBy(asc(countries.sortOrder))
-      .limit(6);
-  } catch {
-    // The brochure-style homepage remains useful while the catalogue is unavailable.
-    return [];
-  }
-}
+// Phase 2.1: the public homepage no longer queries or renders the visa
+// catalogue. Visa categories and partner pricing are private B2B information
+// (Agency Portal only), so the previous "Live operational snapshot" and
+// "Popular visa programmes" price lists were removed — not merely hidden.
 
 export default async function HomePage() {
   const settings = await getSiteSettings();
   const brandName = settingString(settings, "brand.name", "ESSAFARIA TRAVEL");
-  const featured = await getFeaturedVisas();
 
   return (
     <>
@@ -98,25 +75,28 @@ export default async function HomePage() {
           <div className="hidden items-center lg:flex">
             <div className="w-full rounded-[1.5rem] border border-white/70 bg-white/70 p-6 shadow-[var(--shadow-pop)] backdrop-blur-xl">
               <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
-                Live operational snapshot
+                Built for professional visa operations
               </p>
               <div className="mt-4 space-y-3.5">
-                {featured.slice(0, 4).map((v) => (
-                  <div key={v.visaName} className="flex items-center justify-between gap-3 border-b border-line/70 pb-3.5 last:border-0 last:pb-0">
-                    <div>
-                      <p className="text-sm font-semibold text-navy-900">{v.countryName}</p>
-                      <p className="text-xs text-slate-400">
-                        {formatProcessingDays(v.minDays, v.maxDays)}
-                      </p>
-                    </div>
-                    <span className="badge bg-gold-100 text-gold-700 tabular-nums">
-                      {formatAmount(v.fee, v.currency)}
+                {[
+                  ["Checklists", "Destination-accurate document lists per traveller."],
+                  ["Embassy desk", "Submission, appointments and follow-up handled."],
+                  ["Live tracking", "Every file visible through the full pipeline."],
+                  ["Partner billing", "Transparent prepaid wallet per agency."],
+                ].map(([a, b]) => (
+                  <div key={a} className="flex items-start gap-3 border-b border-line/70 pb-3.5 last:border-0 last:pb-0">
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-iris-100 text-[11px] font-bold text-iris-700">
+                      ✓
                     </span>
+                    <div>
+                      <p className="text-sm font-semibold text-navy-900">{a}</p>
+                      <p className="text-xs text-slate-400">{b}</p>
+                    </div>
                   </div>
                 ))}
               </div>
               <p className="mt-4 text-[11px] text-slate-400">
-                Fees shown from the live service catalogue. Final charge is always calculated server-side.
+                Catalogue and partner pricing are served live inside the Agency Portal.
               </p>
             </div>
           </div>
@@ -156,35 +136,32 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Destinations */}
+      {/* Destinations — coverage marketing, no catalogue/pricing */}
       <section className="py-16">
         <div className="ess-container">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-iris-600">Destinations</p>
-              <h2 className="mt-2 font-serif text-3xl text-navy-900">Popular visa programmes</h2>
+              <h2 className="mt-2 font-serif text-3xl text-navy-900">Coverage across four regions</h2>
             </div>
             <Link href="/countries" className="btn-secondary btn-sm">
               All destinations →
             </Link>
           </div>
-          <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {featured.map((v) => (
+          <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ["Europe", "Schengen and UK corridors with consolidated checklists."],
+              ["Americas", "US, Canada and regional visitor programmes."],
+              ["Middle East", "GCC destinations with fast-track handling."],
+              ["Asia", "High-volume visitor and business corridors."],
+            ].map(([region, blurb]) => (
               <Link
-                key={v.visaName}
-                href="/visas"
+                key={region}
+                href="/countries"
                 className="card tr-hover group p-5 transition duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-pop)]"
               >
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{v.countryName}</p>
-                <p className="mt-1 font-serif text-lg text-navy-900 group-hover:text-iris-700">{v.visaName}</p>
-                <div className="mt-3 flex items-center justify-between text-sm">
-                  <span className="text-slate-500">
-                    {formatProcessingDays(v.minDays, v.maxDays)}
-                  </span>
-                  <span className="font-semibold tabular-nums text-teal-600">
-                    from {formatAmount(v.fee, v.currency)}
-                  </span>
-                </div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{region}</p>
+                <p className="mt-1 text-sm leading-relaxed text-slate-600 group-hover:text-navy-900">{blurb}</p>
               </Link>
             ))}
           </div>
