@@ -7,7 +7,7 @@ import { AppShell, type NavSection } from "@/components/app-shell";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { agencies } from "@/db/schema";
-import { agencyLogoUrl } from "@/lib/branding";
+import { agencyLogoUrl, brandLogoUrl, readBranding } from "@/lib/branding";
 
 export const dynamic = "force-dynamic";
 
@@ -52,8 +52,17 @@ export default async function PortalLayout({ children }: { children: ReactNode }
     },
   ];
 
+  const platformBranding = await readBranding().catch(() => null);
+
   return (
-    <AppShell user={user} nav={nav} brandSuffix="Agency Portal" agencyLogoUrl={agencyLogo}>
+    <AppShell
+      user={user}
+      nav={nav}
+      brandSuffix="Agency Portal"
+      agencyLogoUrl={agencyLogo}
+      platformLogoUrl={platformBranding ? brandLogoUrl(platformBranding) : null}
+      brandName={platformBranding?.name}
+    >
       {children}
     </AppShell>
   );

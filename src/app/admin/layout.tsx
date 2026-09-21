@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/rbac";
 import { unreadNotificationCount } from "@/lib/queries";
 import { pendingRegistrationCount } from "@/lib/registrations";
 import { AppShell, type NavSection } from "@/components/app-shell";
+import { readBranding, brandLogoUrl } from "@/lib/branding";
 
 export const dynamic = "force-dynamic";
 
@@ -70,8 +71,16 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     },
   ];
 
+  const platformBranding = await readBranding().catch(() => null);
+
   return (
-    <AppShell user={user} nav={nav} brandSuffix="Back Office">
+    <AppShell
+      user={user}
+      nav={nav}
+      brandSuffix="Back Office"
+      platformLogoUrl={platformBranding ? brandLogoUrl(platformBranding) : null}
+      brandName={platformBranding?.name}
+    >
       {children}
     </AppShell>
   );

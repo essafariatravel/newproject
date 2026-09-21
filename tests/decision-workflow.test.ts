@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { suiteSetup } from "./helpers/global-state";
-import { agencyByEmail, authUser, userByEmail } from "./helpers/fixtures";
+import { agencyByEmail, userByEmail } from "./helpers/fixtures";
 import { db } from "@/lib/db";
 import {
   applicants as applicantsTb,
