@@ -891,7 +891,7 @@ export async function approveRegistration(params: {
       `insert into ${q("agencies")}
          (legal_name, trading_name, email, phone, address_line, city, country,
           status, currency, billing_name, billing_email, billing_tax_id)
-       values ($1,$2,$3,$4,$5,$6,$7,'ACTIVE','EUR',$8,$9,$10)
+       values ($1,$2,$3,$4,$5,$6,$7,'ACTIVE','DZD',$8,$9,$10)
        returning id`,
       [
         reg.legal_name,

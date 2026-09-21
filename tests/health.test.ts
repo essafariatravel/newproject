@@ -52,6 +52,7 @@ describe("GET /api/health (deployment diagnostics, never a 500, never secrets)",
       "0001_init.sql",
       "0002_branding.sql",
       "0003_agency_registrations.sql",
+      "0004_phase2_1.sql",
     ]);
     // The report must never contain a connection URI (credentials).
     expect(JSON.stringify(body)).not.toMatch(/postgres(ql)?:\/\//i);

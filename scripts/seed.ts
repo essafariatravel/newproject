@@ -87,6 +87,9 @@ const TRANSITIONS: Array<[string, string, "STAFF" | "AGENCY" | "BOTH"]> = [
 ];
 
 const CURRENCIES = [
+  // DZD is the default wallet currency for NEW agencies (Phase 2.1);
+  // existing records are never converted.
+  { code: "DZD", name: "Algerian Dinar", symbol: "دج", sortOrder: 5 },
   { code: "EUR", name: "Euro", symbol: "€", sortOrder: 10 },
   { code: "USD", name: "US Dollar", symbol: "$", sortOrder: 20 },
   { code: "GBP", name: "British Pound", symbol: "£", sortOrder: 30 },

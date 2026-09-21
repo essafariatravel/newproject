@@ -115,12 +115,13 @@ export default async function AdminAgenciesPage({
             </div>
             <div>
               <label className="label" htmlFor="currency">Wallet currency</label>
-              <select id="currency" name="currency" className="input" defaultValue="EUR">
-                <option value="EUR">EUR</option>
-                <option value="USD">USD</option>
-                <option value="GBP">GBP</option>
-                <option value="AED">AED</option>
-                <option value="SAR">SAR</option>
+              <select id="currency" name="currency" className="input" defaultValue="DZD">
+                <option value="DZD">DZD — Algerian Dinar (default)</option>
+                <option value="EUR">EUR — Euro</option>
+                <option value="USD">USD — US Dollar</option>
+                <option value="GBP">GBP — British Pound</option>
+                <option value="AED">AED — UAE Dirham</option>
+                <option value="SAR">SAR — Saudi Riyal</option>
               </select>
             </div>
             <div>

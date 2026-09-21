@@ -46,7 +46,7 @@ export async function createAgencyAction(formData: FormData): Promise<void> {
     if (dup[0]) throw new AppError("DUPLICATE", "An agency with this legal name already exists.");
     const inserted = await db
       .insert(agencies)
-      .values({ ...data, currency: data.currency ?? "EUR", billingName: data.billingName ?? data.legalName, billingEmail: data.billingEmail ?? data.email })
+      .values({ ...data, currency: data.currency ?? "DZD", billingName: data.billingName ?? data.legalName, billingEmail: data.billingEmail ?? data.email })
       .returning();
     await recordAudit({ actor: staff, action: "AGENCY_CREATED", entity: "agency", entityId: inserted[0]!.id, metadata: { legalName: data.legalName } });
     revalidatePath("/admin/agencies");

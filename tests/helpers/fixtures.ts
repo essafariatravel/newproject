@@ -5,6 +5,7 @@
 import { db } from "@/lib/db";
 import {
   agencies,
+  currencies,
   countries,
   documentTypes,
   priorities,
@@ -28,6 +29,7 @@ export const STATUS_CODES = {
   embassy: "EMBASSY_SUBMISSION",
   awaiting: "AWAITING_DECISION",
   approved: "APPROVED",
+  rejected: "REJECTED",
   refused: "REFUSED",
   completed: "COMPLETED",
   cancelled: "CANCELLED",
@@ -42,7 +44,7 @@ export async function seedFixtures(): Promise<void> {
         code,
         name: code.replaceAll("_", " "),
         sortOrder: (i + 1) * 10,
-        isTerminal: ["REFUSED", "COMPLETED", "CANCELLED"].includes(code),
+        isTerminal: ["REFUSED", "REJECTED", "COMPLETED", "CANCELLED"].includes(code),
         isDraft: code === "DRAFT",
       })),
     )
@@ -64,11 +66,19 @@ export async function seedFixtures(): Promise<void> {
     ["PROCESSING", "REFUSED", "STAFF"],
     ["AWAITING_DECISION", "APPROVED", "STAFF"],
     ["AWAITING_DECISION", "REFUSED", "STAFF"],
+    ["PROCESSING", "REJECTED", "STAFF"],
+    ["AWAITING_DECISION", "REJECTED", "STAFF"],
+    ["REJECTED", "COMPLETED", "STAFF"],
     ["APPROVED", "COMPLETED", "STAFF"],
   ];
   await db.insert(statusTransitions).values(
     transitions.map(([f, t, scope]) => ({ fromStatusId: byCode.get(f)!.id, toStatusId: byCode.get(t)!.id, scope })),
   );
+
+  await db.insert(currencies).values([
+    { code: "DZD", name: "Algerian Dinar", symbol: "دج", sortOrder: 5 },
+    { code: "EUR", name: "Euro", symbol: "€", sortOrder: 10 },
+  ]);
 
   await db.insert(priorities).values([
     { code: "STANDARD", name: "Standard", weight: 0, sortOrder: 10 },
@@ -99,6 +109,8 @@ export async function seedFixtures(): Promise<void> {
       { name: "Flight Reservation", code: "FLIGHT_RESERVATION", sortOrder: 40 },
       { name: "Hotel Reservation", code: "HOTEL_RESERVATION", sortOrder: 50 },
       { name: "Travel Insurance", code: "INSURANCE", sortOrder: 60 },
+      { name: "Issued Visa / Approval Decision", code: "DECISION_VISA_APPROVAL", sortOrder: 900 },
+      { name: "Refusal / Rejection Decision Letter", code: "DECISION_REFUSAL_LETTER", sortOrder: 910 },
     ])
     .returning();
   const docByCode = new Map(docTypeRows.map((d) => [d.code, d]));

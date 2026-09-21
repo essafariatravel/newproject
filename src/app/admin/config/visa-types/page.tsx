@@ -114,7 +114,8 @@ export default async function VisaTypesConfigPage({
             </div>
             <div>
               <label className="label" htmlFor="currency">Fee currency *</label>
-              <select id="currency" name="currency" required className="input" defaultValue="EUR">
+              <select id="currency" name="currency" required className="input" defaultValue="DZD">
+                <option value="DZD">DZD — Algerian Dinar (default)</option>
                 <option value="EUR">EUR</option>
                 <option value="USD">USD</option>
                 <option value="GBP">GBP</option>
