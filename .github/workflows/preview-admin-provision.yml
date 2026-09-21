@@ -39,6 +39,10 @@ jobs:
       && github.ref == 'refs/heads/arena/01a0c3b8-newproject'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # GitHub Environment "Preview": environment-scoped secrets
+    # (PREVIEW_ADMIN_BOOTSTRAP / PREVIEW_ADMIN_EMAIL / PREVIEW_ADMIN_PASSWORD)
+    # only resolve for jobs targeting this environment by name.
+    environment: Preview
     env:
       BOOTSTRAP: ${{ secrets.PREVIEW_ADMIN_BOOTSTRAP }}
       ADMIN_EMAIL: ${{ secrets.PREVIEW_ADMIN_EMAIL }}
