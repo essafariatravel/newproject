@@ -16,7 +16,91 @@ Production was not modified.
 | `npm run typecheck` (`tsc --noEmit`) | clean |
 | `npm run lint` (ESLint flat config) | clean |
 | `npm run build` (production) | compiles; all new routes present |
-| Live HTTP verification (dev server + embedded PG, demo data) | all checks below pass |
+| Local live HTTP verification (dev server + embedded PG, demo data) | all checks pass |
+| Hosted Vercel Preview verification (GitHub Actions, real HTTP) | **PASS 15 / FAIL 0 / SKIP 13** (see §11) |
+
+---
+
+## 11. Hosted Preview evidence (2026-09-21)
+
+**Preview deployment:** https://newproject-p3vm1nx81-essafaria-travel-s-projects.vercel.app
+(Vercel deployment `6568845431`, environment *Preview*, state *success*, built from
+app commit `7d89360`; tip commit `5f9bfcf` adds **only** `scripts/hosted-verify.sh`
+and `.github/workflows/preview-verify.yml` — no application-code change, and its own
+Preview build `6569743291` also succeeded.)
+
+**Preview database:** Supabase transaction pooler, schema `visa_os_preview` (Production
+`visa_os` untouched). Proven by the hosted `/api/health` payload from that deployment:
+
+```json
+{"ok": true, "deployment": {"environment": "preview"},
+ "database": {"configured": true, "connected": true, "intendedSupabaseProject": true,
+              "ssl": "verify-full", "error": null},
+ "schema": {"name": "visa_os_preview", "columnsValid": true,
+            "migrationLedger": ["0001_init.sql", "0002_branding.sql",
+                                "0003_agency_registrations.sql"],
+            "hasUserAccounts": true, "visaProgrammes": 8, "countries": 16}}
+```
+
+Migration `0003_agency_registrations.sql` is applied in the **Preview** ledger — the
+build-time migrator ran on the Preview schema only, exactly as designed.
+
+### Hosted run — GitHub Actions run `35607168970` (branch `arena/01a0c3b8-newproject`)
+
+`scripts/hosted-verify.sh` executes a real browser-style journey with curl
+(progressive-enhancement form posts, cookie jars, multipart upload) against the live
+Preview URL from a clean GitHub-hosted runner. Full log excerpt:
+
+```
+== Phase 2 hosted verification ==
+Target: https://newproject-p3vm1nx81-essafaria-travel-s-projects.vercel.app
+-- [0] Health check
+PASS  health: ok=true, columnsValid=true, database.error=null (200)
+PASS  health: agency_registrations table present
+-- [1] Trilingual registration page
+PASS  EN registration page (CTA + partnership disclaimer, 200)
+PASS  FR registration page (200)
+PASS  AR registration page + RTL (200)
+PASS  homepage header CTA present
+-- [2] Public submission EN + PDF upload + mass-assignment junk
+PASS  submission redirects to success (http 303 → /agency/register/success?ref=AGR-2026-XZUC2H&lang=en);
+      mass-assignment junk fields ignored
+PASS  success page: review-before-access message + reference (AGR-2026-XZUC2H)
+-- [3] Duplicate + invalid-email probes
+PASS  duplicate contact email blocked politely (http 200, no success redirect)
+PASS  invalid email rejected with localized FR error (http 200)
+-- [4] Second submission (AR locale) — subject for the REJECTION path
+PASS  AR-locale submission accepted (AGR-2026-8Z7K6B)
+-- [5] Anonymous document access denied
+PASS  anonymous document download denied (401)
+SKIP  (13 staff-side items — needs PREVIEW_VERIFY_STAFF_EMAIL/PASSWORD repo secrets)
+-- [11.5] Honeypot + rate limiting
+PASS  honeypot submission silently swallowed (no reference issued)
+PASS  rate limiting kicks in on rapid repeated submissions
+-- [12] Final health re-check
+PASS  final health check ok (200)
+== Summary ==  PASS: 15  FAIL: 0  SKIP: 13
+```
+
+The Preview is seeded with a **non-default** staff password (repo policy: remote demo
+seeds refuse default credentials). That secret lives in Vercel env and was never
+available to this sandbox — by design. The 13 staff-side hosted checks therefore show
+SKIP until the repository secrets `PREVIEW_VERIFY_STAFF_EMAIL` /
+`PREVIEW_VERIFY_STAFF_PASSWORD` are set (workflow re-runs on demand). Meanwhile those
+exact flows are proven by:
+
+- **Same harness, local hosted run:** identical script against a local Vite-free dev
+  build + embedded PG with demo credentials → **PASS 36 / FAIL 0 / SKIP 1** covering
+  staff login, pending counter, reference search, review → info-request → approve,
+  provisioning, activation link extract from the 303, agency password set → session →
+  `/portal`, wallet zero invariant, staff PDF download, anonymous 401, rejection with
+  retention + no-account proof, cross-tenant read denial, health re-check.
+- **Automated suite:** 115/115 vitest tests on real PostgreSQL 17 incl. the full E2E
+  flow with tenant isolation (`tests/registration-e2e.test.ts`).
+
+**Not modified / not deployed:** Production (`visa_os`, production alias, production
+build pipeline) — the git integration shipped Preview deployments only, and no merge to
+`main` was performed.
 
 ---
 
