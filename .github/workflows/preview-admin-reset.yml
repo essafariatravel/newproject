@@ -1,0 +1,117 @@
+name: One-shot Preview SUPER_ADMIN reset
+
+# Provisions (or rotates the password of) ONE dedicated SUPER_ADMIN on the
+# Vercel PREVIEW database (schema visa_os_preview strictly; the script hard-
+# refuses Production's visa_os and any other remote schema).
+#
+# It executes ONLY when ALL of the following are true:
+#   1. the push lands on the Phase 2 branch, AND
+#   2. the pushed commit message contains the marker [reset-preview-admin], AND
+#   3. repository secrets are set:
+#        PREVIEW_DATABASE_URL   — the Supabase transaction-pooler URI used by
+#                                 the Vercel Preview env (Settings → Env Vars)
+#        PREVIEW_ADMIN_EMAIL    — the account email to create/rotate
+#        PREVIEW_ADMIN_PASSWORD — the NEW password (never stored in git/source)
+#
+# After the write, the job replays the real hosted sign-in flow with curl
+# (progressive-enhancement form POST) and asserts: session cookie issued,
+# redirect into /admin, and Admin Back Office HTTP 200. Only PASS/FAIL lines
+# are printed; secrets are masked by GitHub automatically.
+
+on:
+  push:
+    branches:
+      - arena/01a0c3b8-newproject
+  workflow_dispatch:
+
+concurrency:
+  group: preview-admin-reset
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  reset:
+    name: Reset dedicated Preview SUPER_ADMIN + verify hosted sign-in
+    if: >-
+      contains(github.event.head_commit.message, '[reset-preview-admin]')
+      && github.ref == 'refs/heads/arena/01a0c3b8-newproject'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      BASE_URL: https://newproject-p3vm1nx81-essafaria-travel-s-projects.vercel.app
+      DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+      RESET_ADMIN_EMAIL: ${{ secrets.PREVIEW_ADMIN_EMAIL }}
+      RESET_ADMIN_PASSWORD: ${{ secrets.PREVIEW_ADMIN_PASSWORD }}
+      RESET_ADMIN_NAME: Preview Administrator
+      DATABASE_SCHEMA: visa_os_preview
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Guard: secrets present
+        run: |
+          for v in DATABASE_URL RESET_ADMIN_EMAIL RESET_ADMIN_PASSWORD; do
+            if [ -z "${!v}" ]; then
+              echo "MISSING secret for $v — set repository secrets PREVIEW_DATABASE_URL," \
+                   "PREVIEW_ADMIN_EMAIL, PREVIEW_ADMIN_PASSWORD (Settings → Secrets and variables → Actions)."
+              exit 1
+            fi
+          done
+          echo "secrets present (values masked by GitHub)."
+
+      - name: Guard java: DATABASE_SCHEMA pinned to Preview
+        run: |
+          [ "$DATABASE_SCHEMA" = "visa_os_preview" ] || { echo "schema pin violated"; exit 1; }
+          echo "schema pin OK: visa_os_preview"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Provision / rotate the dedicated Preview SUPER_ADMIN
+        env:
+          CONFIRM_PREVIEW_ADMIN_RESET: "yes"
+        run: npx tsx scripts/reset-preview-admin.ts
+
+      - name: Verify hosted sign-in (real HTTP, progressive-enhancement login)
+        run: |
+          set -u
+          WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
+          curl -s -c "$WORK/jar.txt" "$BASE_URL/login" -o "$WORK/login.html"
+          python3 - "$WORK/login.html" <<'PY' > "$WORK/fields.txt"
+          import re, html, sys
+          src = open(sys.argv[1], encoding="utf-8").read()
+          chosen = None
+          for f in re.findall(r"<form\b[^>]*>.*?</form>", src, re.S):
+              if "Sign in" in f:
+                  chosen = f; break
+          assert chosen, "login form not found"
+          for m in re.finditer(r"<input\b[^>]*>", chosen):
+              t = m.group(0)
+              if 'type="hidden"' not in t: continue
+              n = re.search(r'name="([^"]*)"', t); v = re.search(r'value="([^"]*)"', t)
+              if n: print(n.group(1) + "=" + (html.unescape(v.group(1)) if v else ""))
+          PY
+          ARGS=(); while IFS= read -r l; do ARGS+=(-F "$l"); done < "$WORK/fields.txt"
+          ARGS+=(-F "email=$RESET_ADMIN_EMAIL" -F "password=$RESET_ADMIN_PASSWORD")
+          CODE=$(curl -s -b "$WORK/jar.txt" -c "$WORK/jar.txt" -D "$WORK/h.txt" -o /dev/null -w "%{http_code}" \
+            -H "Origin: $BASE_URL" --max-time 60 -X POST "$BASE_URL/login" "${ARGS[@]}")
+          LOC=$(grep -i '^location:' "$WORK/h.txt" | tr -d '\r' | cut -d' ' -f2)
+          if ! grep -qi 'set-cookie:.*evos_session=' "$WORK/h.txt"; then echo "PREVIEW LOGIN VERIFIED: NO (no session cookie, http $CODE)"; exit 1; fi
+          echo "$LOC" | grep -q "/admin" || { echo "PREVIEW LOGIN VERIFIED: NO (redirect: ${LOC:-none})"; exit 1; }
+          echo "PREVIEW LOGIN VERIFIED: YES (session cookie + redirect $LOC)"
+
+          CODE_A=$(curl -s -b "$WORK/jar.txt" -o "$WORK/admin.html" -w "%{http_code}" --max-time 60 "$BASE_URL/admin")
+          [ "$CODE_A" = "200" ] && grep -qiE "Admin|Dashboard|Registrations" "$WORK/admin.html" \
+            && echo "ADMIN BACK OFFICE VERIFIED: YES (GET /admin → 200)" \
+            || { echo "ADMIN BACK OFFICE VERIFIED: NO ($CODE_A)"; exit 1; }
+
+          # leave no session behind on the hosted environment
+          curl -s -b "$WORK/jar.txt" -c "$WORK/jar.txt" "$BASE_URL/logout" -o /dev/null || true
+          echo "verification complete."
