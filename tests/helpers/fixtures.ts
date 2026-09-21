@@ -48,8 +48,13 @@ export async function seedFixtures(): Promise<void> {
         isDraft: code === "DRAFT",
       })),
     )
+    .onConflictDoNothing({ target: statuses.code })
     .returning();
-  const byCode = new Map(statusRows.map((s) => [s.code, s]));
+  void statusRows;
+  // Rows skipped by conflicts (concurrent boots) must still be resolvable —
+  // always re-read the canonical set after the idempotent insert.
+  const allStatuses = await db.select().from(statuses);
+  const byCode = new Map(allStatuses.map((s) => [s.code, s]));
   const transitions: Array<[string, string, "STAFF" | "AGENCY" | "BOTH"]> = [
     ["DRAFT", "SUBMITTED", "BOTH"],
     ["DRAFT", "CANCELLED", "AGENCY"],
@@ -75,10 +80,13 @@ export async function seedFixtures(): Promise<void> {
     transitions.map(([f, t, scope]) => ({ fromStatusId: byCode.get(f)!.id, toStatusId: byCode.get(t)!.id, scope })),
   );
 
-  await db.insert(currencies).values([
-    { code: "DZD", name: "Algerian Dinar", symbol: "دج", sortOrder: 5 },
-    { code: "EUR", name: "Euro", symbol: "€", sortOrder: 10 },
-  ]);
+  await db
+    .insert(currencies)
+    .values([
+      { code: "DZD", name: "Algerian Dinar", symbol: "دج", sortOrder: 5 },
+      { code: "EUR", name: "Euro", symbol: "€", sortOrder: 10 },
+    ])
+    .onConflictDoNothing({ target: currencies.code });
 
   await db.insert(priorities).values([
     { code: "STANDARD", name: "Standard", weight: 0, sortOrder: 10 },
