@@ -16,6 +16,8 @@ export function AppShell(props: {
   /** Uploaded platform logo + brand identity (from /admin/settings branding). */
   platformLogoUrl?: string | null;
   brandName?: string;
+  /** Extra controls rendered in the top header cluster (e.g. language switcher). */
+  headerExtras?: ReactNode;
   children: ReactNode;
 }) {
   const { user } = props;
@@ -88,6 +90,7 @@ export function AppShell(props: {
             </span>
           </div>
           <div className="flex items-center gap-2.5">
+            {props.headerExtras}
             {user.agencyName ? (
               <span className="badge max-w-[220px] truncate bg-ivory-100 text-navy-800">
                 {props.agencyLogoUrl ? (

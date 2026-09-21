@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { getUiLocale, isUiRtl } from "@/lib/ui-i18n";
 import { getSiteSettings, settingString } from "@/lib/settings";
 import { readBranding, brandingCssOverride } from "@/lib/branding";
 
@@ -30,8 +31,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   } catch {
     cssOverride = "";
   }
+  const locale = await getUiLocale();
   return (
-    <html lang="en">
+    <html lang={locale} dir={isUiRtl(locale) ? "rtl" : "ltr"}>
       <head>{cssOverride ? <style dangerouslySetInnerHTML={{ __html: cssOverride }} /> : null}</head>
       <body>{children}</body>
     </html>

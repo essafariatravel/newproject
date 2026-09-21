@@ -6,6 +6,8 @@ import { unreadNotificationCount } from "@/lib/queries";
 import { pendingRegistrationCount } from "@/lib/registrations";
 import { AppShell, type NavSection } from "@/components/app-shell";
 import { readBranding, brandLogoUrl } from "@/lib/branding";
+import { chromeT, getUiLocale } from "@/lib/ui-i18n";
+import { UiLanguageSwitcher } from "@/components/ui-language-switcher";
 
 export const dynamic = "force-dynamic";
 
@@ -19,54 +21,56 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const pendingRegistrations = hasPermission(user, "registrations.view")
     ? await pendingRegistrationCount().catch(() => 0)
     : 0;
+  const locale = await getUiLocale();
+  const tr = chromeT(locale);
 
   const nav: NavSection[] = [
     {
-      title: "Overview",
+      title: tr("Overview"),
       items: [
-        { href: "/admin", label: "Dashboard" },
-        { href: "/admin/notifications", label: "Notifications", badge: unread },
+        { href: "/admin", label: tr("Dashboard")},
+        { href: "/admin/notifications", label: tr("Notifications"), badge: unread },
       ],
     },
     {
-      title: "Operations",
+      title: tr("Operations"),
       items: [
-        { href: "/admin/applications", label: "Applications" },
-        { href: "/admin/applicants", label: "Applicants" },
-        { href: "/admin/documents", label: "Documents" },
-        { href: "/admin/communications", label: "Communications" },
+        { href: "/admin/applications", label: tr("Applications")},
+        { href: "/admin/applicants", label: tr("Applicants")},
+        { href: "/admin/documents", label: tr("Documents")},
+        { href: "/admin/communications", label: tr("Communications")},
       ],
     },
     {
-      title: "Partners",
+      title: tr("Partners"),
       items: [
-        { href: "/admin/registrations", label: "Agency Registrations", badge: pendingRegistrations },
-        { href: "/admin/agencies", label: "Agencies" },
-        { href: "/admin/users", label: "Users" },
+        { href: "/admin/registrations", label: tr("Agency Registrations"), badge: pendingRegistrations },
+        { href: "/admin/agencies", label: tr("Agencies")},
+        { href: "/admin/users", label: tr("Users")},
       ],
     },
     {
-      title: "Finance",
-      items: [{ href: "/admin/billing", label: "Wallets & Billing" }],
+      title: tr("Finance"),
+      items: [{ href: "/admin/billing", label: tr("Wallets & Billing")}],
     },
     {
-      title: "Configuration",
+      title: tr("Configuration"),
       items: [
-        { href: "/admin/config/countries", label: "Countries" },
-        { href: "/admin/config/visa-categories", label: "Visa Categories" },
-        { href: "/admin/config/visa-types", label: "Visa Types" },
-        { href: "/admin/config/document-types", label: "Document Types" },
-        { href: "/admin/config/currencies", label: "Currencies" },
-        { href: "/admin/config/statuses", label: "Statuses & Transitions" },
-        { href: "/admin/config/priorities", label: "Priorities" },
+        { href: "/admin/config/countries", label: tr("Countries")},
+        { href: "/admin/config/visa-categories", label: tr("Visa Categories")},
+        { href: "/admin/config/visa-types", label: tr("Visa Types")},
+        { href: "/admin/config/document-types", label: tr("Document Types")},
+        { href: "/admin/config/currencies", label: tr("Currencies")},
+        { href: "/admin/config/statuses", label: tr("Statuses & Transitions")},
+        { href: "/admin/config/priorities", label: tr("Priorities")},
       ],
     },
     {
-      title: "Insights",
+      title: tr("Insights"),
       items: [
-        { href: "/admin/reports", label: "Reports" },
-        { href: "/admin/audit", label: "Audit Logs" },
-        { href: "/admin/settings", label: "Settings" },
+        { href: "/admin/reports", label: tr("Reports")},
+        { href: "/admin/audit", label: tr("Audit Logs")},
+        { href: "/admin/settings", label: tr("Settings")},
       ],
     },
   ];
@@ -80,6 +84,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       brandSuffix="Back Office"
       platformLogoUrl={platformBranding ? brandLogoUrl(platformBranding) : null}
       brandName={platformBranding?.name}
+      headerExtras={<UiLanguageSwitcher locale={locale} compact />}
     >
       {children}
     </AppShell>

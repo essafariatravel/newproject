@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { getSiteSettings, settingObject, settingString } from "@/lib/settings";
 import BrandMark from "@/components/brand-mark";
 import { readBranding, brandLogoUrl } from "@/lib/branding";
+import { chromeT, getUiLocale } from "@/lib/ui-i18n";
+import { UiLanguageSwitcher } from "@/components/ui-language-switcher";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +26,8 @@ export default async function PublicLayout({ children }: { children: ReactNode }
   const social = settingObject(settings, "site.social");
   const branding = await readBranding();
   const logoUrl = brandLogoUrl(branding);
+  const locale = await getUiLocale();
+  const tr = chromeT(locale);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -36,7 +40,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
                 {brandName}
               </span>
               <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-600">
-                Visa Operations
+                {tr("B2B Agency Portal")}
               </span>
             </span>
           </Link>
@@ -47,30 +51,31 @@ export default async function PublicLayout({ children }: { children: ReactNode }
                 href={item.href}
                 className="rounded-full px-3.5 py-1.5 text-sm font-medium text-slate-500 transition-colors hover:bg-ivory-100 hover:text-navy-900"
               >
-                {item.label}
+                {tr(item.label)}
               </Link>
             ))}
           </nav>
           <div className="flex items-center gap-2">
+            <UiLanguageSwitcher locale={locale} compact />
             <Link href="/login" className="btn-secondary btn-sm sm:px-4 sm:py-2 sm:text-sm">
-              Sign in
+              {tr("Sign in")}
             </Link>
             <Link href="/agency/register" className="btn-cta btn-sm sm:px-4 sm:py-2 sm:text-sm">
-              Register your Agency
+              {tr("Register your agency")}
             </Link>
           </div>
         </div>
         <nav className="flex gap-4 overflow-x-auto border-t border-line/70 bg-white/60 px-4 py-2.5 lg:hidden">
           {NAV.map((item) => (
             <Link key={item.href} href={item.href} className="whitespace-nowrap text-xs font-medium text-slate-500">
-              {item.label}
+              {tr(item.label)}
             </Link>
           ))}
           <Link
             href="/agency/register"
             className="whitespace-nowrap rounded-full bg-navy-900 px-3 py-1 text-xs font-semibold text-gold-100"
           >
-            Register your Agency
+            {tr("Register your agency")}
           </Link>
         </nav>
       </header>
@@ -84,16 +89,16 @@ export default async function PublicLayout({ children }: { children: ReactNode }
             <p className="mt-2 max-w-xs text-sm leading-relaxed text-slate-500">{tagline}</p>
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">Platform</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">{tr("Platform")}</p>
             <ul className="mt-3 space-y-2 text-sm">
-              <li><Link className="text-slate-600 transition-colors hover:text-navy-900" href="/visas">Visa Services</Link></li>
-              <li><Link className="text-slate-600 transition-colors hover:text-navy-900" href="/countries">Destinations</Link></li>
-              <li><Link className="text-slate-600 transition-colors hover:text-navy-900" href="/b2b">B2B Partnership</Link></li>
+              <li><Link className="text-slate-600 transition-colors hover:text-navy-900" href="/visas">{tr("Visa Services")}</Link></li>
+              <li><Link className="text-slate-600 transition-colors hover:text-navy-900" href="/countries">{tr("Destinations")}</Link></li>
+              <li><Link className="text-slate-600 transition-colors hover:text-navy-900" href="/b2b">{tr("B2B Services")}</Link></li>
               <li><Link className="text-slate-600 transition-colors hover:text-navy-900" href="/login">Agency & Staff Login</Link></li>
             </ul>
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">Company</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">{tr("Company")}</p>
             <ul className="mt-3 space-y-2 text-sm">
               <li><Link className="text-slate-600 transition-colors hover:text-navy-900" href="/about">About ESSAFARIA</Link></li>
               <li><Link className="text-slate-600 transition-colors hover:text-navy-900" href="/contact">Contact</Link></li>
@@ -123,7 +128,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
         </div>
         <div className="border-t border-line/80">
           <div className="ess-container flex flex-wrap items-center justify-between gap-2 py-4 text-xs text-slate-400">
-            <span>© {new Date().getFullYear()} {brandName}. All rights reserved.</span>
+            <span>© {new Date().getFullYear()} {brandName}. {tr("All rights reserved.")}</span>
             <span>Professional B2B visa operations platform.</span>
           </div>
         </div>

@@ -8,6 +8,8 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { agencies } from "@/db/schema";
 import { agencyLogoUrl, brandLogoUrl, readBranding } from "@/lib/branding";
+import { chromeT, getUiLocale } from "@/lib/ui-i18n";
+import { UiLanguageSwitcher } from "@/components/ui-language-switcher";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,8 @@ export default async function PortalLayout({ children }: { children: ReactNode }
   if (!user.agencyId) redirect("/login");
 
   const unread = await unreadNotificationCount(user.id);
+  const locale = await getUiLocale();
+  const tr = chromeT(locale);
   const agencyRows = await db
     .select({ logoKey: agencies.logoKey, logoUploadedAt: agencies.logoUploadedAt })
     .from(agencies)
@@ -31,23 +35,23 @@ export default async function PortalLayout({ children }: { children: ReactNode }
     {
       title: "Your agency",
       items: [
-        { href: "/portal", label: "Dashboard" },
-        { href: "/portal/applications", label: "Applications" },
-        { href: "/portal/applications/new", label: "New Application" },
-        { href: "/portal/applicants", label: "Applicants" },
-        { href: "/portal/documents", label: "Documents" },
+        { href: "/portal", label: tr("Dashboard")},
+        { href: "/portal/applications", label: tr("Applications")},
+        { href: "/portal/applications/new", label: tr("New Application")},
+        { href: "/portal/applicants", label: tr("Applicants")},
+        { href: "/portal/documents", label: tr("Documents")},
       ],
     },
     {
       title: "Finance",
-      items: [{ href: "/portal/wallet", label: "Wallet & Transactions" }],
+      items: [{ href: "/portal/wallet", label: tr("Wallet & Transactions")}],
     },
     {
       title: "Workspace",
       items: [
-        { href: "/portal/notifications", label: "Notifications", badge: unread },
-        { href: "/portal/communications", label: "Communications" },
-        { href: "/portal/profile", label: "Profile" },
+        { href: "/portal/notifications", label: tr("Notifications"), badge: unread },
+        { href: "/portal/communications", label: tr("Communications")},
+        { href: "/portal/profile", label: tr("Profile")},
       ],
     },
   ];
@@ -62,6 +66,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
       agencyLogoUrl={agencyLogo}
       platformLogoUrl={platformBranding ? brandLogoUrl(platformBranding) : null}
       brandName={platformBranding?.name}
+      headerExtras={<UiLanguageSwitcher locale={locale} compact />}
     >
       {children}
     </AppShell>
