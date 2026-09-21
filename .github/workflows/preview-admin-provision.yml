@@ -122,7 +122,8 @@ jobs:
           fi
           [ "$CODE" = "200" ] || { echo "bootstrap failed"; exit 1; }
           grep -q '"ok":true' "$RUNNER_TEMP/bootstrap.json" || { echo "unexpected bootstrap response"; exit 1; }
-          echo "bootstrap provisioning: OK"
+          BOOT_EMAIL=$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/bootstrap.json"))["email"])' 2>/dev/null || echo "(unreadable)")
+          echo "bootstrap provisioning: OK (email=$BOOT_EMAIL)"
 
       - name: Verify hosted SUPER_ADMIN login + Admin Back Office
         run: |
@@ -163,5 +164,5 @@ jobs:
           PROD=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=Production" \
             --jq "[.[] | select(.sha == \"$GITHUB_SHA\")] | length")
           [ "$PROD" = "0" ] || { echo "PRODUCTION TOUCHED: YES — abort"; exit 1; }
-          LATEST=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=Production" --jq '.[0] | \(.sha[0:7]) \(.created_at)')
-          echo "PRODUCTION TOUCHED: NO (latest Production deployment: $LATEST — predates Phase 2)"
+          LATEST=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=Production" --jq '.[0] | (.sha[0:7] + " " + .created_at)')
+          echo "PRODUCTION TOUCHED: NO (latest Production deployment: $LATEST)"
