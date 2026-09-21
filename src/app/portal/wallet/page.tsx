@@ -4,6 +4,7 @@ import { flashFrom } from "@/lib/action-helpers";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { Pagination } from "@/components/app-widgets";
 import { Card, EmptyState, Flash, PageHeader, StatCard, TableWrap } from "@/components/ui";
+import { WalletStatementForm } from "@/components/wallet-statement-form";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,15 @@ export default async function PortalWalletPage({
           tone="navy"
         />
       </div>
+
+      {user.role === "AGENCY_ADMIN" ? (
+        <div className="mt-6">
+          <WalletStatementForm
+            today={new Date().toISOString().slice(0, 10)}
+            defaultFrom={new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)}
+          />
+        </div>
+      ) : null}
 
       <div className="mt-6">
         {visible.length === 0 ? (
