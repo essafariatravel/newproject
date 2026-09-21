@@ -1,0 +1,155 @@
+name: Provision Preview SUPER_ADMIN (one-shot, marker-gated)
+
+# Drives the token-gated bootstrap endpoint to create/rotate ONE dedicated
+# SUPER_ADMIN on the Vercel PREVIEW database (visa_os_preview), then verifies
+# on the hosted Preview: real SUPER_ADMIN login, /admin Back Office access,
+# and that no Production deployment touched this commit. Prints PASS/FAIL only.
+#
+# Executes ONLY when the pushed commit message contains [provision-preview-admin]
+# AND these repository secrets exist:
+#   PREVIEW_ADMIN_BOOTSTRAP — the same value you set as a PREVIEW-scope-only
+#                             Vercel env var (min length 16; e.g. a random string)
+#   PREVIEW_ADMIN_EMAIL     — dedicated account email (chosen by you)
+#   PREVIEW_ADMIN_PASSWORD  — temporary password (chosen by you, ≥12 chars;
+#                             encrypted in GitHub secrets, masked in logs,
+#                             never written to source/git)
+#
+# To retire the bootstrap afterwards: delete the PREVIEW_ADMIN_BOOTSTRAP
+# Vercel Preview env var (and the three GitHub secrets), then redeploy.
+
+on:
+  push:
+    branches:
+      - arena/01a0c3b8-newproject
+  workflow_dispatch:
+
+concurrency:
+  group: preview-admin-provision
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  deployments: read
+
+jobs:
+  provision:
+    name: Bootstrap + verify hosted SUPER_ADMIN sign-in
+    if: >-
+      contains(github.event.head_commit.message, '[provision-preview-admin]')
+      && github.ref == 'refs/heads/arena/01a0c3b8-newproject'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BOOTSTRAP: ${{ secrets.PREVIEW_ADMIN_BOOTSTRAP }}
+      ADMIN_EMAIL: ${{ secrets.PREVIEW_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.PREVIEW_ADMIN_PASSWORD }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Guard: secrets present and deployment is Preview-only
+        run: |
+          for v in BOOTSTRAP ADMIN_EMAIL ADMIN_PASSWORD; do
+            [ -n "${!v:-}" ] || { echo "MISSING repo secret for $v (see workflow header)."; exit 1; }
+          done
+          [ "${#BOOTSTRAP}" -ge 16 ] || { echo "PREVIEW_ADMIN_BOOTSTRAP must be ≥16 chars."; exit 1; }
+          [ "${#ADMIN_PASSWORD}" -ge 12 ] || { echo "PREVIEW_ADMIN_PASSWORD must be ≥12 chars."; exit 1; }
+          echo "guards OK (values masked)."
+
+      - name: Discover the Preview deployment URL for this commit
+        run: |
+          SHA="${GITHUB_SHA}"
+          echo "resolving Preview deployment for $SHA"
+          for i in $(seq 1 40); do
+            DEP=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?sha=$SHA" --jq 'sort_by(.created_at)|reverse|[0].id')
+            if [ -n "$DEP" ] && [ "$DEP" != "null" ]; then
+              ST=$(gh api "repos/${GITHUB_REPOSITORY}/deployments/$DEP/statuses" --jq '.[0].state')
+              URL=$(gh api "repos/${GITHUB_REPOSITORY}/deployments/$DEP/statuses" --jq '.[0].environment_url // empty')
+              ENVNAME=$(gh api "repos/${GITHUB_REPOSITORY}/deployments/$DEP" --jq '.environment')
+              echo "attempt $i: dep=$DEP env=$ENVNAME state=$ST"
+              if [ "$ST" = "success" ] && [ -n "$URL" ]; then
+                [ "$ENVNAME" = "Preview" ] || { echo "refusing: deployment environment is '$ENVNAME'"; exit 1; }
+                echo "BASE_URL=$URL" >> "$GITHUB_ENV"
+                exit 0
+              fi
+            fi
+            sleep 15
+          done
+          echo "deployment for this commit never became ready"
+          exit 1
+
+      - name: Wait for health (app must include the bootstrap route)
+        run: |
+          for i in $(seq 1 30); do
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$BASE_URL/api/health" || true)
+            echo "attempt $i: $CODE"
+            [ "$CODE" = "200" ] && break
+            sleep 10
+          done
+          HEALTH=$(curl -s "$BASE_URL/api/health")
+          echo "$HEALTH" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d.get('schema',{}).get('name') == 'visa_os_preview', d.get('schema')
+assert d.get('ok') is True
+print('schema pin verified on hosted preview: visa_os_preview')"
+
+      - name: Bootstrap the dedicated SUPER_ADMIN
+        run: |
+          CODE=$(curl -s -o "$RUNNER_TEMP/bootstrap.json" -w "%{http_code}" --max-time 60 \
+            -X POST "$BASE_URL/api/internal/preview-admin-bootstrap" \
+            -H "content-type: application/json" \
+            -H "x-admin-bootstrap-token: $BOOTSTRAP" \
+            --data-binary @- <<EOF
+          {"email": "$ADMIN_EMAIL", "password": "$ADMIN_PASSWORD", "name": "Preview Administrator"}
+EOF
+          )
+          echo "bootstrap http=$CODE"
+          if [ "$CODE" = "404" ]; then
+            echo "Route dormant: set Vercel env var PREVIEW_ADMIN_BOOTSTRAP (Preview scope ONLY, ≥16 chars)" \
+                 "to the SAME value as the GitHub secret, wait for a new Preview build, then re-run."
+            exit 1
+          fi
+          [ "$CODE" = "200" ] || { echo "bootstrap failed"; exit 1; }
+          grep -q '"ok":true' "$RUNNER_TEMP/bootstrap.json" || { echo "unexpected bootstrap response"; exit 1; }
+          echo "bootstrap provisioning: OK"
+
+      - name: Verify hosted SUPER_ADMIN login + Admin Back Office
+        run: |
+          WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
+          curl -s -c "$WORK/jar.txt" "$BASE_URL/login" -o "$WORK/login.html"
+          python3 - "$WORK/login.html" <<'PY' > "$WORK/fields.txt"
+          import re, html, sys
+          src = open(sys.argv[1], encoding="utf-8").read()
+          chosen = None
+          for f in re.findall(r"<form\b[^>]*>.*?</form>", src, re.S):
+              if "Sign in" in f:
+                  chosen = f; break
+          assert chosen, "login form not found"
+          for m in re.finditer(r"<input\b[^>]*>", chosen):
+              t = m.group(0)
+              if 'type="hidden"' not in t: continue
+              n = re.search(r'name="([^"]*)"', t); v = re.search(r'value="([^"]*)"', t)
+              if n: print(n.group(1) + "=" + (html.unescape(v.group(1)) if v else ""))
+          PY
+          ARGS=(); while IFS= read -r l; do ARGS+=(-F "$l"); done < "$WORK/fields.txt"
+          ARGS+=(-F "email=$ADMIN_EMAIL" -F "password=$ADMIN_PASSWORD")
+          CODE=$(curl -s -b "$WORK/jar.txt" -c "$WORK/jar.txt" -D "$WORK/h.txt" -o /dev/null -w "%{http_code}" \
+            -H "Origin: $BASE_URL" --max-time 60 -X POST "$BASE_URL/login" "${ARGS[@]}")
+          LOC=$(grep -i '^location:' "$WORK/h.txt" | tr -d '\r' | cut -d' ' -f2)
+          grep -qi 'set-cookie:.*evos_session=' "$WORK/h.txt" && echo "$LOC" | grep -q "/admin" \
+            && echo "HOSTED LOGIN VERIFIED: YES (http $CODE → $LOC, session cookie issued)" \
+            || { echo "HOSTED LOGIN VERIFIED: NO (http $CODE, location: ${LOC:-none})"; exit 1; }
+
+          CODE_A=$(curl -s -b "$WORK/jar.txt" -o "$WORK/admin.html" -w "%{http_code}" --max-time 60 "$BASE_URL/admin")
+          [ "$CODE_A" = "200" ] && grep -qiE "Admin|Dashboard|Agency Registrations" "$WORK/admin.html" \
+            && echo "ADMIN ACCESS VERIFIED: YES (GET /admin → 200 on hosted Preview)" \
+            || { echo "ADMIN ACCESS VERIFIED: NO ($CODE_A)"; exit 1; }
+
+          curl -s -b "$WORK/jar.txt" -c "$WORK/jar.txt" "$BASE_URL/logout" -o /dev/null 2>/dev/null || true
+
+      - name: Verify Production untouched (deployment ledger)
+        run: |
+          PROD=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=Production" \
+            --jq "[.[] | select(.sha == \"$GITHUB_SHA\")] | length")
+          [ "$PROD" = "0" ] || { echo "PRODUCTION TOUCHED: YES — abort"; exit 1; }
+          LATEST=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=Production" --jq '.[0] | \(.sha[0:7]) \(.created_at)')
+          echo "PRODUCTION TOUCHED: NO (latest Production deployment: $LATEST — predates Phase 2)"
