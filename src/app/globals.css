@@ -110,6 +110,15 @@ h1, h2, h3 {
          hover:bg-gold-500 active:bg-gold-700;
 }
 
+/* High-contrast primary CTA reserved for top-level navigation (e.g. the
+   public header "Register your Agency"): deep ink background keeps it clearly
+   visible on the light header in every locale; gold accent keeps it on-brand. */
+.btn-cta {
+  @apply border border-navy-900 bg-navy-900 px-5 py-2.5 text-gold-100
+         shadow-[0_10px_24px_-12px_rgb(23_30_63/0.65)]
+         hover:bg-navy-800 hover:text-white active:bg-navy-950;
+}
+
 .btn-secondary {
   @apply border border-ivory-200 bg-white px-5 py-2.5 text-navy-800 shadow-[0_1px_2px_rgb(23_30_63/0.05)]
          hover:border-iris-200 hover:bg-ivory-50 hover:text-navy-900;
@@ -158,4 +167,20 @@ h1, h2, h3 {
 /* soft pill page-tab / segmented control helper */
 .ess-segment {
   @apply inline-flex gap-1 rounded-full bg-ivory-100/80 p-1;
+}
+
+/* ------------------------------------------------------------------ */
+/* RTL + motion helpers (Phase 2.1)                                    */
+/* ------------------------------------------------------------------ */
+
+/* Off-canvas mobile sidebar: slides in from the inline-start edge under
+   both writing modes (LTR: from the left, RTL: from the right). */
+.mobnav-panel {
+  transform: translateX(-100%);
+}
+[dir="rtl"] .mobnav-panel {
+  transform: translateX(100%);
+}
+.peer:checked ~ .mobnav-panel {
+  transform: none;
 }

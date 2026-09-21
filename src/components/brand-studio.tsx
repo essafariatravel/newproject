@@ -98,60 +98,74 @@ export function BrandStudio(props: {
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_360px]">
       {/* -------- editor -------- */}
       <div className="space-y-4">
-        <div className="card p-5">
-          <h2 className="text-sm font-bold text-navy-900">Colors</h2>
-          <p className="mt-0.5 text-xs text-slate-400">
-            The whole interface — buttons, badges, gradients, charts — re-tints from these three colors.
-          </p>
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <ColorField name="brand.primary" label="Primary" hint="Actions, links, active states" value={primary} onChange={setPrimary} />
-            <ColorField name="brand.accent" label="Accent" hint="Highlights, roles, eyebrows" value={accent} onChange={setAccent} />
-            <ColorField name="brand.ink" label="Ink" hint="Headings & deep surfaces" value={ink} onChange={setInk} />
-          </div>
-        </div>
+        {/*
+         * The Save form wraps every persisted input (colors, radius, fonts,
+         * identity copy). Regression guard: PREVIOUSLY the inputs and the
+         * "Save branding" button were rendered WITHOUT any <form>, so the
+         * live preview changed but nothing was ever posted → nothing saved.
+         */}
+        <form action={props.saveAction}>
+          <div className="space-y-4">
+            <div className="card p-5">
+              <h2 className="text-sm font-bold text-navy-900">Colors</h2>
+              <p className="mt-0.5 text-xs text-slate-400">
+                The whole interface — buttons, badges, gradients, charts — re-tints from these three colors.
+              </p>
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <ColorField name="brand.primary" label="Primary" hint="Actions, links, active states" value={primary} onChange={setPrimary} />
+                <ColorField name="brand.accent" label="Accent" hint="Highlights, roles, eyebrows" value={accent} onChange={setAccent} />
+                <ColorField name="brand.ink" label="Ink" hint="Headings & deep surfaces" value={ink} onChange={setInk} />
+              </div>
+            </div>
 
-        <div className="card p-5">
-          <h2 className="text-sm font-bold text-navy-900">Shape & type</h2>
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="label" htmlFor="brand.radius">Corner style</label>
-              <select
-                id="brand.radius"
-                name="brand.radius"
-                value={radius}
-                onChange={(e) => setRadius(e.target.value as Branding["radius"])}
-                className="input"
-              >
-                <option value="soft">Soft — pill buttons, 20px cards</option>
-                <option value="balanced">Balanced — 14px corners</option>
-                <option value="crisp">Crisp — tight, editorial 9px</option>
-              </select>
+            <div className="card p-5">
+              <h2 className="text-sm font-bold text-navy-900">Shape & type</h2>
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="label" htmlFor="brand.radius">Corner style</label>
+                  <select
+                    id="brand.radius"
+                    name="brand.radius"
+                    value={radius}
+                    onChange={(e) => setRadius(e.target.value as Branding["radius"])}
+                    className="input"
+                  >
+                    <option value="soft">Soft — pill buttons, 20px cards</option>
+                    <option value="balanced">Balanced — 14px corners</option>
+                    <option value="crisp">Crisp — tight, editorial 9px</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label" htmlFor="brand.fonts">Typography</label>
+                  <select
+                    id="brand.fonts"
+                    name="brand.fonts"
+                    value={fonts}
+                    onChange={(e) => setFonts(e.target.value as Branding["fonts"])}
+                    className="input"
+                  >
+                    <option value="aurora">Aurora — rounded sans + soft display serif</option>
+                    <option value="modern">Modern — clean system sans throughout</option>
+                    <option value="classic">Classic — serif throughout</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label" htmlFor="brand.name">Brand name</label>
+                  <input id="brand.name" name="brand.name" defaultValue={props.initial.name} className="input" maxLength={80} />
+                </div>
+                <div>
+                  <label className="label" htmlFor="brand.tagline">Tagline</label>
+                  <input id="brand.tagline" name="brand.tagline" defaultValue={props.initial.tagline} className="input" maxLength={160} />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="label" htmlFor="brand.fonts">Typography</label>
-              <select
-                id="brand.fonts"
-                name="brand.fonts"
-                value={fonts}
-                onChange={(e) => setFonts(e.target.value as Branding["fonts"])}
-                className="input"
-              >
-                <option value="aurora">Aurora — rounded sans + soft display serif</option>
-                <option value="modern">Modern — clean system sans throughout</option>
-                <option value="classic">Classic — serif throughout</option>
-              </select>
-            </div>
-            <div>
-              <label className="label" htmlFor="brand.name">Brand name</label>
-              <input id="brand.name" name="brand.name" defaultValue={props.initial.name} className="input" maxLength={80} />
-            </div>
-            <div>
-              <label className="label" htmlFor="brand.tagline">Tagline</label>
-              <input id="brand.tagline" name="brand.tagline" defaultValue={props.initial.tagline} className="input" maxLength={160} />
-            </div>
-          </div>
-        </div>
 
+            <SubmitButton className="btn-primary" pendingLabel="Saving…">Save branding</SubmitButton>
+          </div>
+        </form>
+
+        {/* Logo upload/remove are deliberately OUTSIDE the Save form — HTML
+            forbids nested forms and each action has its own payload. */}
         <div className="card p-5">
           <h2 className="text-sm font-bold text-navy-900">Platform logo</h2>
           <p className="mt-0.5 text-xs text-slate-400">
@@ -179,8 +193,6 @@ export function BrandStudio(props: {
             </form>
           </div>
         </div>
-
-        <SubmitButton className="btn-primary" pendingLabel="Saving…">Save branding</SubmitButton>
       </div>
 
       {/* -------- live preview -------- */}

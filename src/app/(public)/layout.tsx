@@ -30,7 +30,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
       <header className="sticky top-0 z-40 border-b border-line/70 bg-white/70 backdrop-blur-xl">
         <div className="ess-container flex h-16 items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2.5">
-            <BrandMark src={logoUrl} alt={branding.name} />
+            <BrandMark className={logoUrl ? "h-11 w-11" : undefined} src={logoUrl} alt={branding.name} />
             <span className="leading-tight">
               <span className="block text-[15px] font-bold tracking-[0.04em] text-navy-900">
                 {brandName}
@@ -55,7 +55,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
             <Link href="/login" className="btn-secondary btn-sm sm:px-4 sm:py-2 sm:text-sm">
               Sign in
             </Link>
-            <Link href="/agency/register" className="btn-gold btn-sm sm:px-4 sm:py-2 sm:text-sm">
+            <Link href="/agency/register" className="btn-cta btn-sm sm:px-4 sm:py-2 sm:text-sm">
               Register your Agency
             </Link>
           </div>
@@ -66,7 +66,10 @@ export default async function PublicLayout({ children }: { children: ReactNode }
               {item.label}
             </Link>
           ))}
-          <Link href="/agency/register" className="whitespace-nowrap text-xs font-semibold text-gold-600">
+          <Link
+            href="/agency/register"
+            className="whitespace-nowrap rounded-full bg-navy-900 px-3 py-1 text-xs font-semibold text-gold-100"
+          >
             Register your Agency
           </Link>
         </nav>
