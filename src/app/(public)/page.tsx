@@ -87,8 +87,8 @@ export default async function HomePage() {
               one platform for applications, documents, checklists, wallets and embassy workflows.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/b2b" className="btn-primary px-6 py-3">
-                Become a partner agency
+              <Link href="/agency/register" className="btn-primary px-6 py-3">
+                Register your Agency
               </Link>
               <Link href="/visas" className="btn-secondary px-6 py-3">
                 Explore visa services
@@ -226,8 +226,8 @@ export default async function HomePage() {
                 Join the agencies and wholesalers running their entire visa desk on {brandName}.
               </p>
             </div>
-            <Link href="/b2b#partner" className="btn bg-white px-6 py-3 text-navy-900 shadow-[0_14px_30px_-12px_rgb(0_0_0/0.45)] hover:bg-gold-50">
-              Start a partnership
+            <Link href="/agency/register" className="btn bg-white px-6 py-3 text-navy-900 shadow-[0_14px_30px_-12px_rgb(0_0_0/0.45)] hover:bg-gold-50">
+              Register your Agency
             </Link>
           </div>
         </div>

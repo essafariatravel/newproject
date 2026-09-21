@@ -13,7 +13,11 @@ type NotificationType =
   | "WALLET_ADJUSTED"
   | "APPLICATION_CREATED"
   | "APPLICATION_ASSIGNED"
-  | "MESSAGE_POSTED";
+  | "MESSAGE_POSTED"
+  | "REGISTRATION_SUBMITTED"
+  | "REGISTRATION_APPROVED"
+  | "REGISTRATION_REJECTED"
+  | "AGENCY_ONBOARDED";
 
 /**
  * Insert a notification row per recipient user.

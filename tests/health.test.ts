@@ -48,7 +48,11 @@ describe("GET /api/health (deployment diagnostics, never a 500, never secrets)",
       countries: true,
       schema_migrations: true,
     });
-    expect(body.schema.migrationLedger).toEqual(["0001_init.sql", "0002_branding.sql"]);
+    expect(body.schema.migrationLedger).toEqual([
+      "0001_init.sql",
+      "0002_branding.sql",
+      "0003_agency_registrations.sql",
+    ]);
     // The report must never contain a connection URI (credentials).
     expect(JSON.stringify(body)).not.toMatch(/postgres(ql)?:\/\//i);
   });

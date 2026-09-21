@@ -9,6 +9,8 @@ export type Permission =
   | "admin.access"
   | "agencies.manage"
   | "agencies.view"
+  | "registrations.view"
+  | "registrations.manage"
   | "users.manage"
   | "users.view"
   | "config.manage"
@@ -48,6 +50,8 @@ const PERMISSIONS: Record<Role, readonly Permission[]> = {
     "admin.access",
     "agencies.manage",
     "agencies.view",
+    "registrations.view",
+    "registrations.manage",
     "users.manage",
     "users.view",
     "config.manage",
@@ -74,6 +78,8 @@ const PERMISSIONS: Record<Role, readonly Permission[]> = {
     "admin.access",
     "agencies.manage",
     "agencies.view",
+    "registrations.view",
+    "registrations.manage",
     "users.manage",
     "users.view",
     "config.manage",
@@ -99,6 +105,7 @@ const PERMISSIONS: Record<Role, readonly Permission[]> = {
   VISA_AGENT: [
     "admin.access",
     "agencies.view",
+    "registrations.view",
     "users.view",
     "config.view",
     "reports.view",

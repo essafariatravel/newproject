@@ -49,6 +49,8 @@ export async function resetData(): Promise<void> {
       application_status_history, applications,
       visa_requirements, visa_types, document_types, visa_categories, countries,
       status_transitions, statuses, priorities, currencies,
+      account_activation_tokens, agency_registration_history,
+      agency_registration_documents, agency_registrations,
       sessions, users, agencies, site_settings
     restart identity cascade
   `);

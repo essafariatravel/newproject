@@ -36,6 +36,16 @@ export default async function AdminDashboardPage() {
         <StatCard label="Active agencies" value={`${data.agencyAgg.active}/${data.agencyAgg.total}`} href="/admin/agencies" />
       </div>
 
+      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard
+          label="Agency registrations"
+          value={data.pendingRegistrations}
+          hint={`${data.registrationsInReview} in review · partnership applications awaiting decision`}
+          href="/admin/registrations"
+          tone="gold"
+        />
+      </div>
+
       <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="xl:col-span-2">
           <Card>

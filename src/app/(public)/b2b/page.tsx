@@ -48,6 +48,14 @@ export default async function B2BPage() {
             to submit, track and bill visa applications at scale — with a dedicated processing team behind
             every file.
           </p>
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <Link href="/agency/register" className="btn-primary px-6 py-3">
+              Register your Agency
+            </Link>
+            <span className="max-w-xs text-xs leading-relaxed text-slate-400">
+              Online partnership application — reviewed by ESSAFARIA before any access is activated.
+            </span>
+          </div>
         </div>
       </section>
 
@@ -68,9 +76,9 @@ export default async function B2BPage() {
             <h2 className="font-serif text-2xl text-navy-900">How onboarding works</h2>
             <ol className="mt-6 space-y-5">
               {[
-                ["Talk to us", "Tell us about your agency, destinations and monthly volumes."],
-                ["Agreement & rates", "We sign the partnership agreement and configure your wholesale rates."],
-                ["Portal provisioning", "Your agency workspace is created; administrators invite your users."],
+                ["Apply online", "Submit your agency details and company documents through the partnership application."],
+                ["ESSAFARIA review", "Our team verifies your information and may request additional documents."],
+                ["Approval & activation", "On approval, your agency workspace is created and your administrator activates their account securely."],
                 ["Fund & operate", "Fund your wallet and submit your first files the same day."],
               ].map(([t, b], i) => (
                 <li key={t} className="flex gap-4">
@@ -84,14 +92,20 @@ export default async function B2BPage() {
             </ol>
           </div>
           <div className="card flex flex-col justify-center p-8">
-            <h2 className="font-serif text-xl text-navy-900">Start a conversation</h2>
+            <h2 className="font-serif text-xl text-navy-900">Apply for partnership</h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              Partnership enquiries are handled by our commercial team. Write to us with your agency name,
-              markets and expected volumes, and we will come back within one business day.
+              Register your agency online: tell us about your company, markets and volumes, and attach your
+              registration documents. Every application is reviewed by ESSAFARIA before any portal access
+              is activated — applying does not create an account.
             </p>
-            <a href={`mailto:${email}?subject=B2B%20Partnership%20Enquiry`} className="btn-gold mt-5 self-start px-5 py-2.5">
-              Email the partnerships team
-            </a>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <Link href="/agency/register" className="btn-gold px-5 py-2.5">
+                Register your Agency
+              </Link>
+              <a href={`mailto:${email}?subject=B2B%20Partnership%20Enquiry`} className="text-sm font-medium text-navy-700 underline underline-offset-2 hover:text-navy-900">
+                Email the partnerships team
+              </a>
+            </div>
             <p className="mt-4 text-xs text-slate-500">
               Already a partner? <Link href="/login" className="text-navy-700 underline underline-offset-2">Sign in to your portal</Link>.
             </p>

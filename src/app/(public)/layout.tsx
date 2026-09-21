@@ -55,8 +55,8 @@ export default async function PublicLayout({ children }: { children: ReactNode }
             <Link href="/login" className="btn-secondary btn-sm sm:px-4 sm:py-2 sm:text-sm">
               Sign in
             </Link>
-            <Link href="/b2b#partner" className="btn-primary btn-sm sm:px-4 sm:py-2 sm:text-sm">
-              Partner with us
+            <Link href="/agency/register" className="btn-gold btn-sm sm:px-4 sm:py-2 sm:text-sm">
+              Register your Agency
             </Link>
           </div>
         </div>
@@ -66,6 +66,9 @@ export default async function PublicLayout({ children }: { children: ReactNode }
               {item.label}
             </Link>
           ))}
+          <Link href="/agency/register" className="whitespace-nowrap text-xs font-semibold text-gold-600">
+            Register your Agency
+          </Link>
         </nav>
       </header>
 

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { getSessionUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/rbac";
 import { unreadNotificationCount } from "@/lib/queries";
+import { pendingRegistrationCount } from "@/lib/registrations";
 import { AppShell, type NavSection } from "@/components/app-shell";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     redirect("/portal"); // agency users go to their portal instead
   }
   const unread = await unreadNotificationCount(user.id);
+  const pendingRegistrations = hasPermission(user, "registrations.view")
+    ? await pendingRegistrationCount().catch(() => 0)
+    : 0;
 
   const nav: NavSection[] = [
     {
@@ -35,6 +39,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     {
       title: "Partners",
       items: [
+        { href: "/admin/registrations", label: "Agency Registrations", badge: pendingRegistrations },
         { href: "/admin/agencies", label: "Agencies" },
         { href: "/admin/users", label: "Users" },
       ],

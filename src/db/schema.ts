@@ -526,6 +526,147 @@ export const auditLogs = pgTable(
 );
 
 /* ------------------------------------------------------------------ */
+/* Phase 2 — Public agency registration & approval workflow            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * An APPLICATION FOR PARTNERSHIP. Never grants access by itself:
+ * agency_id / admin_user_id are written ONLY by the privileged,
+ * transactional admin approval (see src/lib/registrations.ts).
+ * Domain enums live in the dependency-free src/lib/registration-constants.ts
+ * so client components can share them; they are re-exported here.
+ */
+export {
+  REGISTRATION_STATUSES,
+  REGISTRATION_BUSINESS_TYPES,
+  REGISTRATION_DOCUMENT_CATEGORIES,
+  type RegistrationStatus,
+  type RegistrationBusinessType,
+  type RegistrationDocumentCategory,
+} from "../lib/registration-constants";
+
+export const agencyRegistrations = pgTable(
+  "agency_registrations",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    reference: text("reference").notNull().unique(),
+    locale: text("locale").notNull().default("en"), // en | fr | ar
+    /* company */
+    legalName: text("legal_name").notNull(),
+    tradingName: text("trading_name"),
+    country: text("country").notNull(),
+    region: text("region"),
+    city: text("city").notNull(),
+    addressLine: text("address_line").notNull(),
+    phone: text("phone").notNull(),
+    email: text("email").notNull(), // normalized lowercase
+    website: text("website"),
+    commercialRegistrationNumber: text("commercial_registration_number").notNull(),
+    taxId: text("tax_id"),
+    licenceNumber: text("licence_number"),
+    /* primary contact */
+    contactFirstName: text("contact_first_name").notNull(),
+    contactLastName: text("contact_last_name").notNull(),
+    contactPosition: text("contact_position").notNull(),
+    contactEmail: text("contact_email").notNull(), // normalized lowercase
+    contactPhone: text("contact_phone").notNull(),
+    /* business profile */
+    businessType: text("business_type").notNull(),
+    monthlyVolume: text("monthly_volume"),
+    mainMarkets: text("main_markets"),
+    message: text("message"),
+    /* consent */
+    termsAccepted: boolean("terms_accepted").notNull().default(false),
+    privacyAcknowledged: boolean("privacy_acknowledged").notNull().default(false),
+    infoConfirmed: boolean("info_confirmed").notNull().default(false),
+    consentedAt: timestamp("consented_at", { withTimezone: true }),
+    /* workflow */
+    status: text("status").notNull().default("PENDING"),
+    internalNotes: text("internal_notes"),
+    rejectionReason: text("rejection_reason"),
+    /* set ONLY by the privileged approval transaction */
+    agencyId: uuid("agency_id").references(() => agencies.id),
+    adminUserId: uuid("admin_user_id").references(() => users.id),
+    reviewedBy: uuid("reviewed_by").references(() => users.id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    decidedBy: uuid("decided_by").references(() => users.id),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    ipAddress: text("ip_address"),
+    ...timestamps,
+  },
+  (t) => [
+    check(
+      "agency_registrations_status_check",
+      sql`${t.status} in ('PENDING','UNDER_REVIEW','MORE_INFORMATION_REQUIRED','APPROVED','REJECTED')`,
+    ),
+    check(
+      "agency_registrations_consent_check",
+      sql`${t.termsAccepted} and ${t.privacyAcknowledged} and ${t.infoConfirmed}`,
+    ),
+    index("agency_registrations_status_idx").on(t.status),
+    index("agency_registrations_created_idx").on(t.createdAt),
+  ],
+);
+
+export const agencyRegistrationDocuments = pgTable(
+  "agency_registration_documents",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    registrationId: uuid("registration_id")
+      .notNull()
+      .references(() => agencyRegistrations.id),
+    category: text("category").notNull(),
+    originalFilename: text("original_filename").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    storageKey: text("storage_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      "agency_registration_documents_category_check",
+      sql`${t.category} in ('COMMERCIAL_REGISTRATION','AGENCY_LICENCE','TAX_DOCUMENT','OTHER')`,
+    ),
+    index("agency_registration_documents_registration_idx").on(t.registrationId),
+  ],
+);
+
+export const agencyRegistrationHistory = pgTable(
+  "agency_registration_history",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    registrationId: uuid("registration_id")
+      .notNull()
+      .references(() => agencyRegistrations.id),
+    kind: text("kind").notNull().default("STATUS"), // STATUS | NOTE | INFO_REQUEST
+    fromStatus: text("from_status"),
+    toStatus: text("to_status"),
+    actorId: uuid("actor_id").references(() => users.id),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("agency_registration_history_registration_idx").on(t.registrationId, t.createdAt)],
+);
+
+/** Single-use, expiring, hashed activation tokens (set-password flow). */
+export const accountActivationTokens = pgTable(
+  "account_activation_tokens",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    purpose: text("purpose").notNull().default("AGENCY_ADMIN_ACTIVATION"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("account_activation_tokens_user_idx").on(t.userId)],
+);
+
+/* ------------------------------------------------------------------ */
 /* CMS / site settings                                                 */
 /* ------------------------------------------------------------------ */
 
@@ -580,4 +721,8 @@ export type WalletTransaction = typeof walletTransactions.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type Communication = typeof communications.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
+export type AgencyRegistration = typeof agencyRegistrations.$inferSelect;
+export type AgencyRegistrationDocument = typeof agencyRegistrationDocuments.$inferSelect;
+export type AgencyRegistrationHistoryEntry = typeof agencyRegistrationHistory.$inferSelect;
+export type AccountActivationToken = typeof accountActivationTokens.$inferSelect;
 export type SiteSetting = typeof siteSettings.$inferSelect;

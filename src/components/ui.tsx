@@ -80,6 +80,10 @@ const STATUS_STYLES: Record<string, string> = {
   REFUSED: "bg-red-50 text-red-700",
   COMPLETED: "bg-navy-50 text-navy-700",
   CANCELLED: "bg-ivory-100 text-slate-500",
+  // agency registration workflow
+  PENDING: "bg-amber-50 text-amber-700",
+  MORE_INFORMATION_REQUIRED: "bg-orange-50 text-orange-700",
+  REJECTED: "bg-red-50 text-red-700",
 };
 
 const DOC_STATUS_STYLES: Record<string, string> = {

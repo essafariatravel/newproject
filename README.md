@@ -53,9 +53,16 @@ DEPLOYMENT.md) and blocked for Production.
 
 ## What's inside
 
-### Public website
+### Public website & agency onboarding
 `/` `/visas` `/countries` `/about` `/contact` `/b2b` `/login` `/privacy` `/terms` — visa
 catalogue rendered from the live configuration database.
+
+Agencies apply from **"Register your Agency"** (`/agency/register`, trilingual EN/FR/AR
+RTL): company + primary contact + business profile + documents (private storage) +
+consents, with honeypot/rate-limit/duplicate protection. Every application is reviewed
+by staff in **Admin → Agency Registrations** — approval transactionally provisions the
+agency + first `AGENCY_ADMIN` and issues a single-use activation link (set-password);
+rejection keeps the record for audit. Registration never grants access by itself.
 
 ### White-label branding (Brand Studio, `/admin/settings`)
 The super admin can restyle the **entire platform** live from the Back Office — no rebuild, no code:
@@ -76,6 +83,9 @@ All branding changes are audited; logo storage uses the same pluggable provider 
   processing times, document requirements), document types, currencies, statuses,
   transitions, priorities
 - Agencies & agency users (create/suspend/reset), staff user management
+- **Agency Registrations queue** (`/admin/registrations`): pending counter, search,
+  status filters, internal notes, document preview/download, Start review → Approve /
+  Reject / More information required — approve+reject behind confirmation
 - Wallet & billing: manual CREDIT/DEBIT adjustments with mandatory reason, full ledger
 - Communications (per-application threads, internal vs agency-visible), notifications,
 - Reports from real data, audit log of sensitive actions, site settings/CMS
@@ -103,6 +113,12 @@ All branding changes are audited; logo storage uses the same pluggable provider 
   transitions are rejected; every change writes status history + notifications + audit.
 - **Documents** — 10 MB limit, MIME whitelist (pdf/jpeg/png/webp/doc/docx), versioned,
   tenant-verified download path; review actions are staff-only with mandatory reason.
+- **Agency registration** — public submissions are whitelisted server-side (mass-assignment
+  safe by construction), honeypot + in-memory rate limit, normalized-email/company
+  duplicate detection, sanitized names (control chars stripped); approval runs in **one
+  transaction** (agency + admin user + history + audit + notification + links) and is
+  idempotent — concurrent or repeated approvals create exactly one agency. Registration
+  never sets roles, agency ids, approval state, or wallet balance.
 - **Audit log** — sensitive actions (auth events, wallet moves, overrides, config edits,
   reviews) are recorded with actor, IP and user agent. Recording never breaks a request.
 - **Communications** — per-application threads with `INTERNAL` (staff-only) vs `AGENCY`
@@ -126,10 +142,14 @@ All branding changes are audited; logo storage uses the same pluggable provider 
 
 ## Testing
 
-61 tests across 11 suites run against a **real PostgreSQL 17** (embedded, ephemeral):
+115 tests across 20 suites run against a **real PostgreSQL 17** (embedded, ephemeral):
 auth, RBAC, tenant isolation (A→B denied), wallet ledger integrity, submission gate +
 charging, concurrency (parallel submits cannot overdraw; duplicate submits charge once),
-status workflow, document lifecycle, config snapshot integrity, audit logging.
+status workflow, document lifecycle, config snapshot integrity, audit logging —
+plus the **agency registration & approval lifecycle**: public submission validation,
+honeypot/rate-limit, duplicate detection, role-injection rejection, document-upload
+validation, staff authorization, transactional agency provisioning, idempotent approval,
+conflict rollback, activation-token security and a full end-to-end onboarding flow.
 
 ```bash
 npm run test
@@ -139,11 +159,13 @@ npm run test
 
 ```
 src/
-  app/            routes: public, admin/, portal/, api/documents/[id]
-    actions/      "use server" action modules (auth, admin, applications, config, documents, communications)
+  app/            routes: public, agency/register, admin/, portal/, activate/[token], api/…
+    actions/      "use server" action modules (auth, admin, applications, config, documents,
+                  communications, registrations, activation, registration-admin)
   components/     UI kit, application detail, shell/nav
   db/             schema.ts (Drizzle) — migrations in migrations/
-  lib/            auth, rbac, wallet, applications, documents, queries, audit, settings, storage…
+  lib/            auth, rbac, wallet, applications, documents, queries, audit, settings, storage,
+                  registrations, i18n, account-activation, registration-constants…
 tests/            vitest suites + embedded-PG harness (helpers/)
 scripts/          migrate / seed / reset / dev-db / smoke
 ```

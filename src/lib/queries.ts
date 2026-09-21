@@ -7,6 +7,7 @@ import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, sql } from "dr
 import { db } from "@/lib/db";
 import {
   agencies,
+  agencyRegistrations,
   applicants,
   applications,
   auditLogs,
@@ -187,6 +188,13 @@ export async function adminDashboard() {
     .from(documents)
     .where(inArray(documents.status, ["UPLOADED", "UNDER_REVIEW"]));
 
+  const [pendingRegs] = await db
+    .select({
+      pending: sql<number>`count(*) filter (where ${agencyRegistrations.status} = 'PENDING')::int`,
+      inReview: sql<number>`count(*) filter (where ${agencyRegistrations.status} in ('UNDER_REVIEW','MORE_INFORMATION_REQUIRED'))::int`,
+    })
+    .from(agencyRegistrations);
+
   return {
     statusCounts,
     totals: totals!,
@@ -195,6 +203,8 @@ export async function adminDashboard() {
     recentApplications,
     recentAudit,
     documentsInReview: Number(reviewQueue[0]?.total ?? 0),
+    pendingRegistrations: Number(pendingRegs?.pending ?? 0),
+    registrationsInReview: Number(pendingRegs?.inReview ?? 0),
   };
 }
 

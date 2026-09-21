@@ -24,6 +24,8 @@ export const WALLET_MANAGE_ROLES: readonly string[] = ["SUPER_ADMIN", "ADMIN", "
 export const DOCUMENT_REVIEW_ROLES: readonly string[] = ["SUPER_ADMIN", "ADMIN", "VISA_AGENT"];
 /** Roles allowed to submit with gate override. */
 export const OVERRIDE_ROLES: readonly string[] = ["SUPER_ADMIN", "ADMIN", "VISA_AGENT"];
+/** Roles authorized to decide (approve / reject / review) agency registrations. */
+export const REGISTRATION_DECIDE_ROLES: readonly string[] = ["SUPER_ADMIN", "ADMIN"];
 
 export const DOCUMENT_STATUSES = [
   "UPLOADED",
@@ -48,6 +50,19 @@ export const ALLOWED_MIME_TYPES: readonly string[] = [
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
+
+/**
+ * MIME types accepted for agency-registration company documents (KYC).
+ * Stricter than visa documents: PDF and images only, verified by magic bytes.
+ */
+export const REGISTRATION_MIME_TYPES: readonly string[] = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+];
+export const REGISTRATION_MAX_UPLOAD_BYTES = MAX_UPLOAD_BYTES; // 10 MB
+export const REGISTRATION_MAX_DOCUMENTS = 4;
 
 export const SESSION_COOKIE = "evos_session";
 export const SESSION_TTL_DAYS = 7;

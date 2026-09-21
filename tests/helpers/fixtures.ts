@@ -16,6 +16,8 @@ import {
   visaTypes,
 } from "@/db/schema";
 import { hashPassword } from "@/lib/crypto";
+import type { RegistrationData, RegistrationFileInput } from "@/lib/registrations";
+import type { RegistrationDocumentCategory } from "@/db/schema";
 
 export const STATUS_CODES = {
   draft: "DRAFT",
@@ -205,4 +207,61 @@ export async function userByEmail(email: string) {
 export async function agencyByEmail(email: string) {
   const rows = await db.select().from(agencies);
   return rows.find((a) => a.email === email)!;
+}
+
+/* ------------------------------------------------------------------ */
+/* Phase 2 — agency registration fixtures                              */
+/* ------------------------------------------------------------------ */
+
+let registrationSeq = 0;
+
+/** Unique-per-call valid registration payload (already validated shape). */
+export function registrationData(overrides: Partial<RegistrationData> = {}): RegistrationData {
+  registrationSeq += 1;
+  const n = registrationSeq;
+  return {
+    legalName: `Voyageurs Monde ${n} SARL`,
+    tradingName: `Voyageurs Monde ${n}`,
+    country: "Algeria",
+    region: "Alger",
+    city: "Algiers",
+    addressLine: `${10 + n} Rue Didouche Mourad`,
+    phone: "+213 21 00 00 00",
+    email: `ops@voyageurs-${n}.example`,
+    website: `https://www.voyageurs-${n}.example`,
+    commercialRegistrationNumber: `RC-16-${90000 + n}`,
+    taxId: `NIF-${90000 + n}`,
+    licenceNumber: `LIC-${2020 + n}`,
+    contactFirstName: "Amine",
+    contactLastName: `Benali${n}`,
+    contactPosition: "General Manager",
+    contactEmail: `amine.benali${n}@voyageurs-${n}.example`,
+    contactPhone: "+213 550 00 00 00",
+    businessType: "TRAVEL_AGENCY",
+    monthlyVolume: "11-50",
+    mainMarkets: "Schengen, United Kingdom",
+    message: "Growing agency seeking wholesale visa processing.",
+    terms: "true",
+    privacy: "true",
+    accuracy: "true",
+    locale: "en",
+    ...overrides,
+  };
+}
+
+/** A magic-bytes-valid PDF registration document. */
+export function registrationPdf(
+  category: RegistrationDocumentCategory = "COMMERCIAL_REGISTRATION",
+  name = "registre-commerce.pdf",
+): RegistrationFileInput {
+  const data = Buffer.from("%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n");
+  return { category, name, type: "application/pdf", size: data.length, data };
+}
+
+let ipSeq = 0;
+
+/** Unique source IP per call — keeps rate-limit heuristics isolated per test. */
+export function nextIp(): string {
+  ipSeq += 1;
+  return `10.77.${Math.floor(ipSeq / 240)}.${ipSeq % 240}`;
 }
