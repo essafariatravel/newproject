@@ -19,10 +19,12 @@ import {
   visaRequirements,
   visaTypes,
 } from "@/db/schema";
-import { AppError, OVERRIDE_ROLES, type AuthUser } from "@/lib/types";
+import { AppError, OVERRIDE_ROLES, type AuthUser, ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES } from "@/lib/types";
 import { chargeApplicationSubmission } from "@/lib/wallet";
 import { recordAudit } from "@/lib/audit";
 import { agencyUserIds, staffUserIds, notifyUsers } from "@/lib/notifications";
+import { buildStorageKey, storageProvider } from "@/lib/storage";
+import { documents } from "@/db/schema";
 
 /* ------------------------------------------------------------------ */
 /* Status helpers                                                      */
@@ -431,8 +433,17 @@ export async function submitApplication(params: {
 const TERMINAL_TIMESTAMP_FIELDS: Record<string, "completedAt" | "decisionAt"> = {
   APPROVED: "decisionAt",
   REFUSED: "decisionAt",
+  REJECTED: "decisionAt",
   COMPLETED: "completedAt",
 };
+
+/**
+ * PHASE 2.1: final outcomes (APPROVED / REFUSED / REJECTED) may ONLY be
+ * reached through `recordApplicationDecision` — the canonical workflow that
+ * uploads the decision document and transitions the application in one
+ * atomic operation. Direct status changes are hard-rejected here.
+ */
+const DECISION_LOCKED_STATUSES = new Set(["APPROVED", "REFUSED", "REJECTED"]);
 
 export async function changeApplicationStatus(params: {
   applicationId: string;
@@ -440,6 +451,8 @@ export async function changeApplicationStatus(params: {
   reason?: string | null;
   actor: AuthUser;
   ipAddress?: string | null;
+  /** internal: set by the decision workflow only */
+  viaDecision?: boolean;
 }) {
   const { actor } = params;
   const row = await getApplicationForUser(params.applicationId, actor);
@@ -452,6 +465,13 @@ export async function changeApplicationStatus(params: {
   const to = await getStatusByCode(params.toStatusCode);
   if (from.id === to.id) {
     throw new AppError("INVALID_TRANSITION", "Application is already in that status.");
+  }
+
+  if (!params.viaDecision && DECISION_LOCKED_STATUSES.has(to.code)) {
+    throw new AppError(
+      "DECISION_REQUIRED",
+      `${to.name} outcomes must be recorded through the final-decision panel: upload the decision document first.`,
+    );
   }
 
   const transition = await db
@@ -538,6 +558,204 @@ export async function changeApplicationStatus(params: {
     });
   }
   return { from: from.code, to: to.code };
+}
+
+/* ------------------------------------------------------------------ */
+/* Final decisions (PHASE 2.1)                                         */
+/* ------------------------------------------------------------------ */
+
+export type DecisionOutcome = "APPROVED" | "REFUSED" | "REJECTED";
+
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+export const DECISION_DOC_TYPE_CODES = ["DECISION_VISA_APPROVAL", "DECISION_REFUSAL_LETTER"] as const;
+
+/**
+ * From-statuses allowed for each outcome. Final outcomes can only be recorded
+ * while the application is in genuine production; anything earlier is a bad
+ * state and anything later (terminal) is finished. APPROVED additionally
+ * stays double-gated by workflow CONFIG: if the app isn't awaiting decision
+ * on paper yet, the approver moves it there first.
+ */
+const DECISION_SOURCES: Record<string, DecisionOutcome[]> = {
+  PROCESSING: ["REFUSED", "REJECTED"],
+  AWAITING_DECISION: ["APPROVED", "REFUSED", "REJECTED"],
+  EMBASSY_SUBMISSION: ["REJECTED"],
+};
+
+/** Outcomes the admin UI is allowed to offer for a given status code. */
+export function decisionOutcomesForStatus(statusCode: string): DecisionOutcome[] {
+  return DECISION_SOURCES[statusCode] ?? [];
+}
+
+function documentTypeForOutcome(outcome: DecisionOutcome): string {
+  return outcome === "APPROVED" ? "DECISION_VISA_APPROVAL" : "DECISION_REFUSAL_LETTER";
+}
+
+/** Decision documents recorded for an application (for admin + portal views). */
+export async function getDecisionDocuments(applicationId: string) {
+  return db
+    .select({
+      id: documents.id,
+      originalFilename: documents.originalFilename,
+      mimeType: documents.mimeType,
+      sizeBytes: documents.sizeBytes,
+      status: documents.status,
+      createdAt: documents.createdAt,
+      typeCode: documentTypes.code,
+      typeName: documentTypes.name,
+    })
+    .from(documents)
+    .innerJoin(documentTypes, eq(documents.documentTypeId, documentTypes.id))
+    .where(and(eq(documents.applicationId, applicationId), inArray(documentTypes.code, [...DECISION_DOC_TYPE_CODES])))
+    .orderBy(desc(documents.createdAt));
+}
+
+/**
+ * Canonical final-decision workflow. Atomically (single DB transaction):
+ * stores the validated decision document as an ACCEPTED system document
+ * (decision-specific document type, no applicant/checklist linkage) and
+ * transitions the application to the agreed outcome, stamping decision_at
+ * and the status-history trail. Storage pre-stages the blob first so a
+ * failed transaction never leaves a half-visible decision; retry is safe.
+ */
+export async function recordApplicationDecision(params: {
+  applicationId: string;
+  outcome: DecisionOutcome;
+  actor: AuthUser;
+  file: { name: string; type: string; size: number; data: Buffer };
+  ipAddress?: string | null;
+}): Promise<{ documentId: string; statusCode: string }> {
+  const { actor } = params;
+  if (!["SUPER_ADMIN", "ADMIN", "VISA_AGENT"].includes(actor.role)) {
+    throw new AppError("FORBIDDEN", "Only ESSAFARIA staff can record application decisions.");
+  }
+  if (!["APPROVED", "REFUSED", "REJECTED"].includes(params.outcome)) {
+    throw new AppError("VALIDATION", "Outcome must be APPROVED, REFUSED or REJECTED.");
+  }
+
+  // validate the file hard server-side: size, mime allowlist, magic bytes
+  const f = params.file;
+  if (!f || f.size === 0) throw new AppError("NO_FILE", "The decision document is required before a decision can be recorded.");
+  if (f.size > MAX_UPLOAD_BYTES) throw new AppError("UPLOAD_TOO_LARGE", `The file exceeds the ${Math.floor(MAX_UPLOAD_BYTES / 1024 / 1024)} MB limit.`);
+  if (!ALLOWED_MIME_TYPES.includes(f.type)) throw new AppError("UPLOAD_TYPE", "Only PDF, JPG or PNG decision documents are accepted.");
+  const isPdf = f.type === "application/pdf";
+  const isImage = f.type === "image/jpeg" || f.type === "image/png";
+  if (!isPdf && !isImage) throw new AppError("UPLOAD_TYPE", "Decisions embed PDF or JPG/PNG scans of the embassy outcome.");
+  const magicOk =
+    (isPdf && f.data.subarray(0, 4).toString("latin1") === "%PDF") ||
+    (isImage && (f.data.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])) || f.data.subarray(0, 8).equals(PNG_MAGIC)));
+  if (!magicOk) throw new AppError("UPLOAD_TYPE", "The file content does not match its declared type.");
+
+  const row = await getApplicationForUser(params.applicationId, actor);
+  const app = row.app;
+  const fromRows = await db.select().from(statuses).where(eq(statuses.id, app.statusId)).limit(1);
+  const from = fromRows[0];
+  if (!from) throw new AppError("CONFIG_ERROR", "Current status is not configured.");
+  const allowed = DECISION_SOURCES[from.code] ?? [];
+  if (!allowed.includes(params.outcome)) {
+    const terminal = boolToTerminal(from.code);
+    throw new AppError(
+      "BAD_STATE",
+      terminal
+        ? `${params.outcome} cannot be recorded: the application already finished at ${from.name}.`
+        : params.outcome === "APPROVED"
+          ? `Approvals are double-gated: move the application to Awaiting Decision first (currently: ${from.name}).`
+          : `A final ${params.outcome} decision requires a production status (currently: ${from.name}).`,
+    );
+  }
+
+  const to = await getStatusByCode(params.outcome);
+
+  const typeRows = await db
+    .select({ id: documentTypes.id, active: documentTypes.active })
+    .from(documentTypes)
+    .where(eq(documentTypes.code, documentTypeForOutcome(params.outcome)))
+    .limit(1);
+  const dt = typeRows[0];
+  if (!dt?.active) throw new AppError("CONFIG_ERROR", "Decision document types are not configured—run migrations.");
+
+  const documentId = crypto.randomUUID();
+  const storageKey = buildStorageKey(app.id, documentId);
+  // Pre-stage the blob first: if the DB transaction below fails, a retry is
+  // safe — the worst case is an orphaned blob, never a half-visible decision.
+  await storageProvider().put(storageKey, f.data, f.type);
+
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    await tx.insert(documents).values({
+      id: documentId,
+      applicationId: app.id,
+      applicantId: null,
+      checklistItemId: null,
+      documentTypeId: dt.id,
+      originalFilename: f.name,
+      mimeType: f.type,
+      sizeBytes: f.size,
+      storageKey,
+      status: "ACCEPTED",
+      uploadedBy: actor.id,
+      version: 1,
+      reviewedBy: actor.id,
+      reviewedAt: now,
+      reviewNotes: "System decision document (auto-accepted by the decision workflow).",
+    });
+    await tx
+      .update(applications)
+      .set({ statusId: to.id, decisionAt: now, updatedAt: now })
+      .where(eq(applications.id, app.id));
+    await tx.insert(applicationStatusHistory).values({
+      applicationId: app.id,
+      fromStatusId: from.id,
+      toStatusId: to.id,
+      changedBy: actor.id,
+      reason: `Final decision recorded: ${to.name} (decision document ${documentId}).`,
+    });
+  });
+
+  await recordAudit({
+    actor,
+    action: "APPLICATION_DECISION_RECORDED",
+    entity: "application",
+    entityId: app.id,
+    agencyId: app.agencyId,
+    metadata: { outcome: params.outcome, documentId, filename: f.name, sizeBytes: f.size, from: from.code },
+    ipAddress: params.ipAddress ?? null,
+  });
+
+  const firstApplicant = (
+    await db
+      .select({ firstName: applicants.firstName, lastName: applicants.lastName })
+      .from(applicants)
+      .where(eq(applicants.applicationId, app.id))
+      .orderBy(asc(applicants.createdAt))
+      .limit(1)
+  )[0];
+  const applicantName = firstApplicant ? `${firstApplicant.firstName} ${firstApplicant.lastName}`.trim() : null;
+  const applicantLine = applicantName ? ` for ${applicantName}` : "";
+  await notifyUsers(await agencyUserIds(app.agencyId), {
+    type: "APPLICATION_DECISION",
+    title: `Application ${app.reference}: ${to.name}`,
+    body: `The final decision${applicantLine} is ${to.name}. The decision document is available in the application file.`,
+    link: `/portal/applications/${app.id}`,
+    agencyId: app.agencyId,
+    applicationId: app.id,
+  });
+  const sIds = (await staffUserIds()).filter((id) => id !== actor.id);
+  await notifyUsers(sIds, {
+    type: "APPLICATION_DECISION",
+    title: `Application ${app.reference}: ${to.name}`,
+    body: `${actor.name ?? actor.email} recorded the final ${to.name} decision.`,
+    link: `/admin/applications/${app.id}`,
+    agencyId: app.agencyId,
+    applicationId: app.id,
+  });
+
+  return { documentId, statusCode: to.code };
+}
+
+function boolToTerminal(code: string): boolean {
+  return ["APPROVED", "REFUSED", "REJECTED", "COMPLETED", "CANCELLED"].includes(code);
 }
 
 /* ------------------------------------------------------------------ */

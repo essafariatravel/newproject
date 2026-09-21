@@ -17,7 +17,9 @@ import {
   createDraftApplication,
   getStatusHistory,
   getSubmissionGate,
+  recordApplicationDecision,
   submitApplication,
+  type DecisionOutcome,
 } from "@/lib/applications";
 import { runAction } from "@/lib/action-helpers";
 import { recordAudit } from "@/lib/audit";
@@ -255,6 +257,38 @@ export async function changeStatusAction(formData: FormData): Promise<void> {
     revalidatePath("/admin");
     revalidatePath(`/portal/applications/${applicationId}`);
     return `Status changed ${result.from} → ${result.to}.`;
+  });
+}
+
+/* ------------------------ final decision (staff) ------------------------ */
+
+export async function recordDecisionAction(formData: FormData): Promise<void> {
+  const applicationId = idSchema.parse(formData.get("applicationId"));
+  const back = String(formData.get("back") ?? `/admin/applications/${applicationId}`);
+  await runAction(back, async () => {
+    const user = await requireUser();
+    const outcomeRaw = String(formData.get("outcome") ?? "");
+    if (!["APPROVED", "REFUSED", "REJECTED"].includes(outcomeRaw)) {
+      throw new AppError("VALIDATION", "Choose a decision outcome (Approved / Refused / Rejected).");
+    }
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size === 0) {
+      throw new AppError("NO_FILE", "Upload the decision document (visa copy or refusal letter) before recording the decision.");
+    }
+    const buf = Buffer.from(await file.arrayBuffer());
+    const result = await recordApplicationDecision({
+      applicationId,
+      outcome: outcomeRaw as DecisionOutcome,
+      actor: user,
+      file: { name: file.name || "decision.pdf", type: file.type || "application/octet-stream", size: file.size, data: buf },
+      ipAddress: clientIp(await headersOf()),
+    });
+    revalidatePath(back);
+    revalidatePath("/admin");
+    revalidatePath(`/portal/applications/${applicationId}`);
+    revalidatePath("/admin/documents");
+    revalidatePath("/portal/documents");
+    return `Decision recorded (${result.statusCode}) — document accepted and visible to the agency.`;
   });
 }
 

@@ -18,6 +18,7 @@ import {
   allowedNextStatuses,
   changeApplicationStatus,
   createDraftApplication,
+  recordApplicationDecision,
   submitApplication,
 } from "@/lib/applications";
 import { uploadDocument } from "@/lib/documents";
@@ -70,9 +71,9 @@ describe("application status workflow", () => {
   it("invalid transitions are rejected", async () => {
     const { app } = await submittedApp();
     const agent = await userByEmailSafe("agent@test.example");
-    // SUBMITTED → APPROVED is not a configured transition
+    // SUBMITTED → EMBASSY_SUBMISSION is not a configured transition
     await expect(
-      changeApplicationStatus({ applicationId: app.id, toStatusCode: "APPROVED", actor: agent }),
+      changeApplicationStatus({ applicationId: app.id, toStatusCode: "EMBASSY_SUBMISSION", actor: agent }),
     ).rejects.toMatchObject({ code: "INVALID_TRANSITION" });
   });
 
@@ -113,9 +114,17 @@ describe("application status workflow", () => {
   it("full lifecycle to COMPLETED", async () => {
     const { app } = await submittedApp();
     const agent = await userByEmailSafe("agent@test.example");
-    for (const code of ["UNDER_REVIEW", "PROCESSING", "EMBASSY_SUBMISSION", "AWAITING_DECISION", "APPROVED", "COMPLETED"]) {
+    // PHASE 2.1: APPROVED is only reachable through the decision workflow
+    for (const code of ["UNDER_REVIEW", "PROCESSING", "EMBASSY_SUBMISSION", "AWAITING_DECISION"]) {
       await changeApplicationStatus({ applicationId: app.id, toStatusCode: code, actor: agent });
     }
+    await recordApplicationDecision({
+      applicationId: app.id,
+      outcome: "APPROVED",
+      actor: agent,
+      file: { name: "visa.pdf", type: "application/pdf", size: 68, data: Buffer.from("%PDF-1.5 visa copy issued by embassy") },
+    });
+    await changeApplicationStatus({ applicationId: app.id, toStatusCode: "COMPLETED", actor: agent });
     const final = (await db.select().from(applications).where(eq(applications.id, app.id)))[0]!;
     expect(final.completedAt).not.toBeNull();
     expect(final.decisionAt).not.toBeNull();

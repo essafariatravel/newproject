@@ -1,15 +1,15 @@
 import { formatProcessingDays } from "@/lib/format";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
-import { db } from "@/lib/db";
 import { applicants as applicantsTb } from "@/db/schema";
 import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
 import { getApplicationDetail } from "@/lib/queries";
 import {
   allowedNextStatuses,
+  decisionOutcomesForStatus,
   getChecklist,
+  getDecisionDocuments,
   getStatusByCode,
   getStatusHistory,
 } from "@/lib/applications";
@@ -23,6 +23,7 @@ import { staffDirectory } from "@/app/actions/communications";
 import {
   assignOfficerAction,
   changeStatusAction,
+  recordDecisionAction,
   submissionGateFor,
   updateInternalNotesAction,
 } from "@/app/actions/applications";
@@ -44,7 +45,6 @@ import {
   CommunicationsPanel,
   DocumentList,
 } from "@/components/application-detail";
-import { documentTypes } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +74,7 @@ export default async function AdminApplicationDetailPage({
   const app = detail.app;
 
   const back = `/admin/applications/${id}`;
-  const [applicants, docs, checklist, history, messages, charge, gate, nextStatuses, draftStatus, officers] =
+  const [applicants, docs, checklist, history, messages, charge, gate, nextStatuses, draftStatus, officers, decisionDocs] =
     await Promise.all([
       listApplicantsForApplication(id),
       listDocumentsForApplication(id),
@@ -86,10 +86,12 @@ export default async function AdminApplicationDetailPage({
       allowedNextStatuses(app.statusId, user.role),
       getStatusByCode("DRAFT"),
       hasPermission(user, "applications.assign") ? staffDirectory() : Promise.resolve([]),
-      hasPermission(user, "admin.access")
-        ? db.select().from(documentTypes).where(eq(documentTypes.active, true)).orderBy(documentTypes.sortOrder)
-        : Promise.resolve([]),
+      getDecisionDocuments(id),
     ]);
+  // PHASE 2.1: final outcomes are never offered as bare status changes —
+  // they require the decision-document workflow below.
+  const selectableStatuses = nextStatuses.filter((s) => !["APPROVED", "REFUSED", "REJECTED"].includes(s.status.code));
+  const allowedDecisionOutcomes = decisionOutcomesForStatus(detail.statusCode);
   const isDraft = app.statusId === draftStatus.id;
   const canStatusChange = hasPermission(user, "applications.status.change");
   const canReview = hasPermission(user, "applications.review");
@@ -157,8 +159,8 @@ export default async function AdminApplicationDetailPage({
                   <div>
                     <label className="label" htmlFor="toStatus">Change status to</label>
                     <select id="toStatus" name="toStatusCode" className="input w-56" required>
-                      {nextStatuses.length === 0 ? <option value="">No transitions available</option> : null}
-                      {nextStatuses.map((s) => (
+                      {selectableStatuses.length === 0 ? <option value="">No routine transitions available</option> : null}
+                      {selectableStatuses.map((s) => (
                         <option key={s.status.id} value={s.status.code}>
                           {s.status.name}
                         </option>
@@ -188,6 +190,57 @@ export default async function AdminApplicationDetailPage({
                   </div>
                   <SubmitButton className="btn-gold" pendingLabel="Submitting…">Submit with override</SubmitButton>
                 </form>
+              </Card>
+            ) : null}
+
+            {canReview ? (
+              <Card className="border-navy-200">
+                <CardHeader
+                  title="Final decision"
+                  subtitle="Upload the embassy outcome and record it atomically: accepted document + status change + agency notification. This is the only path to approved/refused/rejected."
+                />
+                {decisionDocs.length > 0 ? (
+                  <ul className="space-y-2 px-4 py-3 text-sm">
+                    {decisionDocs.map((d) => (
+                      <li key={d.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-ivory-50/60 px-3 py-2">
+                        <div>
+                          <p className="font-medium text-navy-900">{d.typeName}</p>
+                          <p className="text-xs text-slate-500">
+                            {formatDateTime(d.createdAt)} · <span className="badge bg-emerald-100 text-emerald-800">{d.status}</span>
+                          </p>
+                        </div>
+                        <a href={`/api/documents/${d.id}`} className="btn-secondary btn-sm">Download PDF/document</a>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="px-4 pt-1 text-xs text-slate-500">No decision document recorded yet.</p>
+                )}
+                {canReview && allowedDecisionOutcomes.length > 0 ? (
+                  <form action={recordDecisionAction} className="flex flex-wrap items-end gap-3 px-4 py-4">
+                    <input type="hidden" name="applicationId" value={id} />
+                    <input type="hidden" name="back" value={back} />
+                    <div>
+                      <label className="label" htmlFor="outcome">Outcome</label>
+                      <select id="outcome" name="outcome" className="input w-44" required>
+                        {allowedDecisionOutcomes.map((o) => (
+                          <option key={o} value={o}>{o === "APPROVED" ? "Approved" : o === "REFUSED" ? "Refused" : "Rejected"}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="min-w-[260px] flex-1">
+                      <label className="label" htmlFor="decision-file">Decision document (PDF/JPG/PNG, mandatory)</label>
+                      <input id="decision-file" name="file" type="file" accept="application/pdf,image/jpeg,image/png" required className="input" />
+                    </div>
+                    <SubmitButton className="btn-primary" pendingLabel="Recording decision…">Record decision</SubmitButton>
+                  </form>
+                ) : (
+                  <p className="px-4 pb-4 text-xs text-slate-500">
+                    {["APPROVED", "REFUSED", "REJECTED", "COMPLETED", "CANCELLED"].includes(detail.statusCode)
+                      ? "The file is closed — no further decision can be recorded."
+                      : "Decisions unlock once the file is in Processing / Awaiting Decision. Approvals are double-gated: move the file to Awaiting Decision first."}
+                  </p>
+                )}
               </Card>
             ) : null}
 

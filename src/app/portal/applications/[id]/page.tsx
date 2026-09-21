@@ -7,6 +7,7 @@ import {
   allowedNextStatuses,
   checklistProgress,
   getChecklist,
+  getDecisionDocuments,
   getStatusByCode,
   getStatusHistory,
 } from "@/lib/applications";
@@ -61,7 +62,7 @@ export default async function PortalApplicationDetailPage({
   const app = detail.app;
   const back = `/portal/applications/${id}`;
 
-  const [applicants, docs, checklist, history, messages, charge, gate, draftStatus, wallet, progress, nextStatuses] =
+  const [applicants, docs, checklist, history, messages, charge, gate, draftStatus, wallet, progress, nextStatuses, decisionDocs] =
     await Promise.all([
       listApplicantsForApplication(id),
       listDocumentsForApplication(id),
@@ -74,6 +75,7 @@ export default async function PortalApplicationDetailPage({
       getBalance(user.agencyId),
       checklistProgress(id),
       allowedNextStatuses(app.statusId, user.role),
+      getDecisionDocuments(id),
     ]);
   const isDraft = app.statusId === draftStatus.id;
   const flash = flashFrom(sp);
@@ -119,6 +121,29 @@ export default async function PortalApplicationDetailPage({
                 ]}
               />
             </Card>
+
+            {decisionDocs.length > 0 ? (
+              <Card className="border-emerald-200">
+                <CardHeader
+                  title="Official decision"
+                  subtitle="Issued after submission and review — the embassy outcome, accepted and downloadable as PDF."
+                />
+                <ul className="space-y-2 px-4 py-4 text-sm">
+                  {decisionDocs.map((d) => (
+                    <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-100 bg-emerald-50/50 px-3 py-2.5">
+                      <div>
+                        <p className="font-medium text-navy-900">{d.typeName}</p>
+                        <p className="text-xs text-slate-500">
+                          {formatDateTime(d.createdAt)} ·{" "}
+                          <span className="badge bg-emerald-100 text-emerald-800">{d.status}</span>
+                        </p>
+                      </div>
+                      <a href={`/api/documents/${d.id}`} className="btn-primary btn-sm">Download</a>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            ) : null}
 
             {isDraft ? (
               <Card>
