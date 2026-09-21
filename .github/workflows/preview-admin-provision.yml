@@ -63,8 +63,9 @@ jobs:
           SHA="${GITHUB_SHA}"
           echo "resolving Preview deployment for $SHA"
           for i in $(seq 1 40); do
-            DEP=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?sha=$SHA" --jq 'sort_by(.created_at)|reverse|[0].id')
-            if [ -n "$DEP" ] && [ "$DEP" != "null" ]; then
+            RAW=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?sha=$SHA" 2>/dev/null || echo '[]')
+            DEP=$(printf '%s' "$RAW" | python3 -c 'import json,sys; d=json.load(sys.stdin); d = d if isinstance(d, list) else []; d.sort(key=lambda x: x.get("created_at", "")); print(d[-1]["id"] if d else "")' 2>/dev/null || echo '')
+            if [ -n "$DEP" ]; then
               ST=$(gh api "repos/${GITHUB_REPOSITORY}/deployments/$DEP/statuses" --jq '.[0].state')
               URL=$(gh api "repos/${GITHUB_REPOSITORY}/deployments/$DEP/statuses" --jq '.[0].environment_url // empty')
               ENVNAME=$(gh api "repos/${GITHUB_REPOSITORY}/deployments/$DEP" --jq '.environment')
