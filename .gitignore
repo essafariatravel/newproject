@@ -33,3 +33,4 @@ npm-debug.log*
 ESSAFARIA-VISA-OS-FINAL.zip
 SHA256SUMS.txt
 tests/.pgdata-test/
+pnpm-lock.yaml
