@@ -1,0 +1,48 @@
+name: Hosted Phase-2 Preview verification
+
+# Runs the pure-HTTP hosted verification harness against the consolidated
+# Vercel Preview deployment. Executes on every push to the Phase 2 branch;
+# also callable via Actions → "Hosted Phase-2 Preview verification" when the
+# workflow file exists on the default branch.
+on:
+  push:
+    branches:
+      - arena/01a0c3b8-newproject
+    paths:
+      - .github/workflows/preview-verify.yml
+      - scripts/hosted-verify.sh
+  workflow_dispatch:
+
+concurrency:
+  group: preview-verify-${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify hosted Preview (Phase 2 flows over real HTTP)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BASE_URL: https://newproject-p3vm1nx81-essafaria-travel-s-projects.vercel.app
+      PREVIEW_VERIFY_STAFF_EMAIL: ${{ secrets.PREVIEW_VERIFY_STAFF_EMAIL }}
+      PREVIEW_VERIFY_STAFF_PASSWORD: ${{ secrets.PREVIEW_VERIFY_STAFF_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Wait for deployment to answer
+        run: |
+          for i in $(seq 1 30); do
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$BASE_URL/api/health" || true)
+            echo "attempt $i: $CODE"
+            [ "$CODE" = "200" ] && exit 0
+            sleep 10
+          done
+          echo "deployment never became reachable (protection enabled or URL stale?)"
+          exit 1
+
+      - name: Run hosted end-to-end verification
+        run: bash scripts/hosted-verify.sh
