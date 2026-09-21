@@ -45,7 +45,7 @@ jobs:
       ADMIN_PASSWORD: ${{ secrets.PREVIEW_ADMIN_PASSWORD }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Guard: secrets present and deployment is Preview-only
+      - name: "Guard — secrets and length checks"
         run: |
           for v in BOOTSTRAP ADMIN_EMAIL ADMIN_PASSWORD; do
             [ -n "${!v:-}" ] || { echo "MISSING repo secret for $v (see workflow header)."; exit 1; }
@@ -84,24 +84,31 @@ jobs:
             [ "$CODE" = "200" ] && break
             sleep 10
           done
-          HEALTH=$(curl -s "$BASE_URL/api/health")
-          echo "$HEALTH" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-assert d.get('schema',{}).get('name') == 'visa_os_preview', d.get('schema')
-assert d.get('ok') is True
-print('schema pin verified on hosted preview: visa_os_preview')"
+          curl -s "$BASE_URL/api/health" | python3 -c '
+          import json,sys
+          d=json.load(sys.stdin)
+          assert d.get("schema",{}).get("name") == "visa_os_preview", d.get("schema")
+          assert d.get("ok") is True
+          print("schema pin verified on hosted preview: visa_os_preview")
+          '
 
       - name: Bootstrap the dedicated SUPER_ADMIN
         run: |
+          python3 - <<'PYJSON'
+          import json, os
+          body = json.dumps({
+              "email": os.environ["ADMIN_EMAIL"],
+              "password": os.environ["ADMIN_PASSWORD"],
+              "name": "Preview Administrator",
+          })
+          open(os.environ["RUNNER_TEMP"] + "/bootstrap-body.json", "w").write(body)
+          PYJSON
           CODE=$(curl -s -o "$RUNNER_TEMP/bootstrap.json" -w "%{http_code}" --max-time 60 \
             -X POST "$BASE_URL/api/internal/preview-admin-bootstrap" \
             -H "content-type: application/json" \
             -H "x-admin-bootstrap-token: $BOOTSTRAP" \
-            --data-binary @- <<EOF
-          {"email": "$ADMIN_EMAIL", "password": "$ADMIN_PASSWORD", "name": "Preview Administrator"}
-EOF
-          )
+            --data-binary "@$RUNNER_TEMP/bootstrap-body.json")
+          rm -f "$RUNNER_TEMP/bootstrap-body.json"
           echo "bootstrap http=$CODE"
           if [ "$CODE" = "404" ]; then
             echo "Route dormant: set Vercel env var PREVIEW_ADMIN_BOOTSTRAP (Preview scope ONLY, ≥16 chars)" \

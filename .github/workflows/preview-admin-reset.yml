@@ -50,7 +50,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Guard: secrets present
+      - name: "Guard — secrets present"
         run: |
           for v in DATABASE_URL RESET_ADMIN_EMAIL RESET_ADMIN_PASSWORD; do
             if [ -z "${!v}" ]; then
@@ -61,7 +61,7 @@ jobs:
           done
           echo "secrets present (values masked by GitHub)."
 
-      - name: Guard java: DATABASE_SCHEMA pinned to Preview
+      - name: "Guard — DATABASE_SCHEMA pinned to Preview"
         run: |
           [ "$DATABASE_SCHEMA" = "visa_os_preview" ] || { echo "schema pin violated"; exit 1; }
           echo "schema pin OK: visa_os_preview"
