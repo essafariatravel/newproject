@@ -1,6 +1,6 @@
 # ESSAFARIA VISA OS — PHASE 2 FINAL RELEASE REPORT
 
-**Branch:** `arena/01a0c3b8-newproject` · **BASE SHA:** `3cacdd9` · **Release HEAD:** `b754d2b` · **Migration head:** `0010_simplified_applicant.sql`
+**Branch:** `arena/01a0c3b8-newproject` · **BASE SHA:** `3cacdd9` · **Release HEAD:** `1f2aeb9` · **Migration head:** `0010_simplified_applicant.sql`
 **Preview deployment under test:** `https://newproject-jjk0vp0d1-essafaria-travel-s-projects.vercel.app` (auto-resolved per push SHA by the gate workflow)
 **Local verification DB:** embedded PG (fresh schema, migrations 0001–0010, fixtures) · **Preview schema/DB:** `visa_os_preview` (Vercel integration + GitHub Action gate) · **Production schema/DB:** `visa_os` (only after gate + safety checks)
 
@@ -24,7 +24,7 @@ Legend: PASS / FAIL / NOT VERIFIED / SKIPPED.
 
 | GATE | RESULT | DETAIL |
 |------|--------|--------|
-| Automated test suite | **PASS** | 39 files / **277 tests** green (was 252; request-23 evolved to final flow, phase2-final suite added: 24 focused tests) |
+| Automated test suite | **PASS** | 39 files / **277 tests** green (was 252; request-23 evolved to final flow, phase2-final suite added: 24 focused tests); re-attested at final `1f2aeb9` in a rebuilt sandbox |
 | TypeScript `tsc --noEmit` | **PASS** | 0 errors |
 | ESLint | **PASS** | 0 errors/warnings |
 | Production build (`pnpm build`) | **PASS** | next build exit 0, static generation OK |
@@ -60,6 +60,16 @@ STATUS matrix per section above.
 | 6 | Wallet / credentials / branding integrity | post-migration read-only probes on `visa_os` | ≥ baseline | **NOT RUN (blocked)** |
 | 7 | Forward-safe migrations | 0010 is additive (ALTER … DROP NOT NULL, ADD COLUMN IF NOT EXISTS) — idempotent re-run | applies cleanly twice | LOCAL-PASS (migrations suite) |
 | 8 | Backup/rollback path | Vercel instant rollback + DB PITR | confirm at deploy time | **NOT RUN (blocked)** |
+
+## 4b. MERGE DRY-RUN PROOF (preflight for the eventual `main` merge)
+
+| CHECK | METHOD | RESULT |
+|-------|--------|--------|
+| unrelated-histories merge is clean | `git merge --no-commit --no-ff --allow-unrelated-histories -X theirs 1f2aeb9` inside a throwaway worktree detached at `main` (`d1f149d`) | RC=0, no conflicts needing manual fixes |
+| merged content == audited branch content (zero delta) | `git write-tree` on merged index == `git rev-parse 1f2aeb9^{tree}` | both = `c0d6a6d1ea4d9f50b74f7b1ce120653886bfd4d8`; `git diff branch -- .` = 0 lines |
+| production baseline linkage | `main^{tree}` = `55b9272acc9c2dd2ee1123aad61b6107435bbb7e` (the prior production baseline — branch fully supersedes it) | confirmed |
+
+⇒ When the gate is unblocked, merging `main` introduces **no content delta** beyond the reviewed branch; it only links history for auditability.
 
 ## 5. PRODUCTION DEPLOYMENT (order, all after Preview gate PASS)
 
