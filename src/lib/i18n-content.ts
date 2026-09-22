@@ -217,10 +217,17 @@ const CONTENT: Record<string, Entry> = {
   "Saving…": { fr: "Enregistrement…", ar: "جارٍ الحفظ…" },
 
   "Creating…": { fr: "Création…", ar: "جارٍ الإنشاء…" },
+  "Creating draft…": { fr: "Création du brouillon…", ar: "جارٍ إنشاء المسودة…" },
   "Balance after charge": { fr: "Solde après prélèvement", ar: "الرصيد بعد الخصم" },
   "Effective price": { fr: "Prix effectif", ar: "السعر الفعلي" },
   "Commercial discount/refund": { fr: "Remise commerciale/remboursement", ar: "خصم تجاري/استرداد" },
   "Commercial surcharge": { fr: "Supplément commercial", ar: "رسوم إضافية تجارية" },
+  "Choose visa": { fr: "Choisir le visa", ar: "اختيار التأشيرة" },
+  "Applicant info": { fr: "Infos voyageur", ar: "معلومات المسافر" },
+  "Upload documents": { fr: "Téléverser les documents", ar: "رفع المستندات" },
+  "Four steps: choose the visa, add applicants, upload the required documents, review and submit.": { fr: "Quatre étapes : choisir le visa, ajouter les voyageurs, téléverser les documents requis, vérifier et soumettre.", ar: "أربع خطوات: اختر التأشيرة، أضف المسافرين، ارفع المستندات المطلوبة، ثم راجع وأرسل." },
+  "Continue to applicant info": { fr: "Continuer vers les infos voyageur", ar: "متابعة إلى معلومات المسافر" },
+
   "City": { fr: "Ville", ar: "المدينة" },
   "Date of birth": { fr: "Date de naissance", ar: "تاريخ الميلاد" },
   "Female": { fr: "Femme", ar: "أنثى" },

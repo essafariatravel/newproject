@@ -19,6 +19,7 @@ import { getUiLocale, localizedDocTypeName } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { getApplicationPricing } from "@/lib/price-adjustments";
 import { PriceAdjustmentHistory } from "@/components/application-detail";
+import { WizardSteps } from "@/components/wizard-steps";
 import { DatePicker } from "@/components/date-picker";
 import { formatDate, formatDateTime, personName } from "@/lib/format";
 import {
@@ -88,6 +89,15 @@ export default async function PortalApplicationDetailPage({
   const uiLocale = await getUiLocale();
   const ct = contentT(uiLocale);
   const pricing = app.submittedAt ? await getApplicationPricing(id) : null;
+  // §5 — wizard rail (draft stage): step 2 needs applicants, step 3 needs the
+  // required documents, step 4 is the review & submit action.
+  const wizardCurrent = !applicants.length ? 2 : !gate.ok ? 3 : 4;
+  const wizardSteps = [
+    { id: 1, label: ct("Choose visa"), href: undefined },
+    { id: 2, label: ct("Applicant info"), href: `${back}?tab=applicants` },
+    { id: 3, label: ct("Upload documents"), href: `${back}?tab=checklist` },
+    { id: 4, label: ct("Review & submit"), href: `${back}?tab=overview`, hint: `${progress.requiredComplete}/${progress.requiredTotal}` },
+  ];
   const fee = Number(app.fee);
   const balance = Number(wallet.balance);
   const canAfford = balance >= fee;
@@ -106,6 +116,8 @@ export default async function PortalApplicationDetailPage({
         }
       />
       <Flash {...flash} />
+
+            {isDraft ? <WizardSteps steps={wizardSteps} current={wizardCurrent} /> : null}
 
       <Tabs tabs={TABS.map((t) => ({ ...t, href: `${back}?tab=${t.id}` }))} current={tab} />
 

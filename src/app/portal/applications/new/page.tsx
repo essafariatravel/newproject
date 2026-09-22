@@ -8,6 +8,7 @@ import { createApplicationAction } from "@/app/actions/applications";
 import { SubmitButton } from "@/components/forms";
 import { Card, CardHeader, Flash, PageHeader } from "@/components/ui";
 import { getUiLocale } from "@/lib/ui-i18n";
+import { WizardSteps } from "@/components/wizard-steps";
 import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
@@ -32,9 +33,19 @@ export default async function NewApplicationPage({
     <>
       <PageHeader
         title={ct("New application")}
-        subtitle={ct("Step 1 — choose the visa. Applicants, documents, review and submission follow on the application page.")}
+        subtitle={ct("Four steps: choose the visa, add applicants, upload the required documents, review and submit.")}
       />
       <Flash {...flash} />
+
+      <WizardSteps
+        current={1}
+        steps={[
+          { id: 1, label: ct("Choose visa") },
+          { id: 2, label: ct("Applicant info") },
+          { id: 3, label: ct("Upload documents") },
+          { id: 4, label: ct("Review & submit") },
+        ]}
+      />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="xl:col-span-2">
@@ -73,8 +84,8 @@ export default async function NewApplicationPage({
               </div>
             </div>
             <div className="mt-5">
-              <SubmitButton className="btn-primary" pendingLabel="Creating draft…">
-                {ct("Create draft application")}
+              <SubmitButton className="btn-primary" pendingLabel={ct("Creating draft…")}>
+                {ct("Continue to applicant info")}
               </SubmitButton>
             </div>
           </form>
