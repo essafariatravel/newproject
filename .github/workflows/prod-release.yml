@@ -65,9 +65,20 @@ jobs:
             fi
           done
           if [ -z "$PICKED" ]; then
-            echo "MISSING Production database connection secret. Tried (all empty/masked): PRODUCTION_DATABASE_URL, DATABASE_URL, SUPABASE_DATABASE_URL, SUPABASE_DB_URL, POSTGRES_URL_POSTGRES."
-            echo "→ Repo Settings → Environments → Production → 'Add environment secret', name PRODUCTION_DATABASE_URL, value = the Supabase pooler URI that the visa.essafariavoyages.com deployment itself uses (it clearly exists on Vercel)."
-            echo "READ-ONLY audit refused; nothing was attempted."
+            {
+              echo '### Production release — AUDIT report'
+              echo
+              echo '```'
+              echo "GUARD: MISSING Production database connection secret in the 'Production' GitHub environment."
+              echo "Tried (all empty/masked): PRODUCTION_DATABASE_URL, DATABASE_URL, SUPABASE_DATABASE_URL, SUPABASE_DB_URL, POSTGRES_URL_POSTGRES."
+              echo "→ Settings → Environments → Production → 'Add environment secret':"
+              echo "   name  = PRODUCTION_DATABASE_URL"
+              echo "   value = the same Supabase pooler URI the visa.essafariavoyages.com deployment uses on Vercel"
+              echo "           (Vercel → Project → Settings → Environment Variables → DATABASE_URL (Production) → copy)."
+              echo "READ-ONLY audit refused; the database was never contacted."
+              echo '```'
+            } > /tmp/prod-release-report.md
+            echo "read-only audit refused; see report"
             exit 1
           fi
           echo "audit_ran=true" >> "$GITHUB_OUTPUT"
