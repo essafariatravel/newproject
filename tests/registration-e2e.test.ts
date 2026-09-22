@@ -155,7 +155,7 @@ describe("Phase 2 E2E — registration to portal", () => {
     expect(sessionUser!.agencyId).toBe(agency.id);
 
     /* 6 — PORTAL: dashboard renders own-tenant data only */
-    const dash = await agencyDashboard(agency.id);
+    const dash = await agencyDashboard(agency.id, sessionUser!.id);
     expect(dash.wallet!.balance).toBe("0.00");
     const ownApps = await searchApplications(sessionUser!, {});
     expect(ownApps.total).toBe(0);

@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function PortalDashboardPage() {
   const user = await portalPageUser();
   const ct = contentT(await getUiLocale());
-  const data = await agencyDashboard(user.agencyId);
+  const data = await agencyDashboard(user.agencyId, user.id);
   const { totals, wallet } = data;
 
   return (
@@ -35,7 +35,7 @@ export default async function PortalDashboardPage() {
           label={ct("Wallet balance")}
           value={formatAmount(wallet.balance, wallet.currency)}
           href="/portal/wallet"
-          hint={`${data.unreadNotifications} unread notifications`}
+          hint={data.unreadNotifications === 0 ? ct("No unread notifications") : `${data.unreadNotifications} ${ct("unread notifications")}`}
         />
       </div>
 

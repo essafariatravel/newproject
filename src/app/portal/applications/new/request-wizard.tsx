@@ -1,29 +1,40 @@
 "use client";
 
 /**
- * Phase 2.3 §5–§12 — the 3-step visa request wizard.
- *
- * ONE mounted form, three sections shown one at a time:
- *   1. CHOOSE VISA (+ traveller info inline)
+ * Phase 2-Final — the 3-step visa request wizard (final UX):
+ *   1. CHOOSE VISA  — country-first: destination countries (only active
+ *      destinations with active visa types), then that country's visa types
+ *      as selectable CARDS (name/category/price/currency/processing time).
+ *      The single applicant is collected inline: Full Name + Nationality
+ *      (country selector, default Algeria) — nothing else.
  *   2. UPLOAD DOCUMENTS (checklist loaded from the visa configuration)
- *   3. PREVIEW, CONFIRM & SUBMIT (atomic server transaction)
+ *   3. PREVIEW, CONFIRM & SUBMIT (one atomic server transaction)
  * Nothing is persisted before the final confirm: no draft, no reference.
  */
 
 import { useMemo, useRef, useState } from "react";
-import { DatePicker } from "@/components/date-picker";
 import { submitRequestAction } from "@/app/actions/applications";
 
 export interface WizardVisaOption {
   id: string;
-  label: string;
-  countryName: string;
-  categoryName: string;
+  countryId: string;
   name: string;
+  categoryName: string;
   fee: string;
   currency: string;
   minDays: number;
   maxDays: number;
+}
+
+export interface WizardCountry {
+  id: string;
+  name: string;
+  visaTypes: WizardVisaOption[];
+}
+
+export interface WizardNationality {
+  code: string;
+  label: string;
 }
 
 export interface WizardRequirement {
@@ -38,28 +49,19 @@ export interface WizardLabels {
   stepChoose: string;
   stepUpload: string;
   stepPreview: string;
-  visaProgramme: string;
+  chooseCountry: string;
+  selectCountry: string;
+  chooseVisa: string;
   selectVisa: string;
-  noVisaSelected: string;
   fee: string;
   processing: string;
   days: string;
   priority: string;
   notes: string;
   notesPlaceholder: string;
-  travellers: string;
-  traveller: string;
-  addTraveller: string;
-  removeTraveller: string;
-  firstName: string;
-  lastName: string;
-  dateOfBirth: string;
+  applicant: string;
+  fullName: string;
   nationality: string;
-  passportNumber: string;
-  passportIssueDate: string;
-  passportExpiryDate: string;
-  email: string;
-  phone: string;
   next: string;
   back: string;
   required: string;
@@ -75,15 +77,19 @@ export interface WizardLabels {
   confirmSubmit: string;
   submitting: string;
   missingPrefix: string;
-  summaryTravellers: string;
+  summaryApplicant: string;
   summaryDocuments: string;
   noDocumentsRequired: string;
+  validationChooseCountry: string;
   validationChooseVisa: string;
-  validationTraveller: string;
+  validationApplicant: string;
+  searchNationality: string;
 }
 
 interface Props {
-  visaOptions: WizardVisaOption[];
+  countries: WizardCountry[];
+  nationalities: WizardNationality[];
+  defaultNationality: string;
   priorities: { code: string; name: string }[];
   requirementsByVisaType: Record<string, WizardRequirement[]>;
   walletBalance: string;
@@ -98,8 +104,8 @@ const MAX_FILE_BYTES = 2 * 1024 * 1024;
 export function RequestWizard(props: Props) {
   const { labels: t } = props;
   const [step, setStep] = useState(1);
+  const [countryId, setCountryId] = useState("");
   const [visaTypeId, setVisaTypeId] = useState("");
-  const [travellerCount, setTravellerCount] = useState(1);
   const [fileError, setFileError] = useState<string>("");
   const [files, setFiles] = useState<Record<string, File[]>>({});
   const [pending, setPending] = useState(false);
@@ -107,31 +113,18 @@ export function RequestWizard(props: Props) {
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const formRef = useRef<HTMLFormElement>(null);
 
-  const visa = useMemo(() => props.visaOptions.find((v) => v.id === visaTypeId) ?? null, [props.visaOptions, visaTypeId]);
+  const country = useMemo(() => props.countries.find((c) => c.id === countryId) ?? null, [props.countries, countryId]);
+  const visa = useMemo(() => country?.visaTypes.find((v) => v.id === visaTypeId) ?? null, [country, visaTypeId]);
   const requirements = useMemo(() => (visaTypeId ? (props.requirementsByVisaType[visaTypeId] ?? []) : []), [props.requirementsByVisaType, visaTypeId]);
-
-  function sectionEl(n: number): HTMLElement | null {
-    return formRef.current?.querySelector<HTMLElement>(`[data-wizard-section="${n}"]`) ?? null;
-  }
 
   function validateStep(n: number): boolean {
     setClientError("");
     if (n === 1) {
-      if (!visaTypeId) {
-        setClientError(t.validationChooseVisa);
-        return false;
-      }
-      const section = sectionEl(1);
-      if (section) {
-        const inputs = Array.from(section.querySelectorAll<HTMLInputElement>("input[required]"));
-        for (const input of inputs) {
-          if (!input.value.trim()) {
-            setClientError(t.validationTraveller);
-            input.focus();
-            return false;
-          }
-        }
-      }
+      if (!countryId) { setClientError(t.validationChooseCountry); return false; }
+      if (!visaTypeId) { setClientError(t.validationChooseVisa); return false; }
+      const fullName = formRef.current?.querySelector<HTMLInputElement>(`input[name="t0_fullName"]`)?.value.trim() ?? "";
+      const nationality = formRef.current?.querySelector<HTMLSelectElement>(`select[name="t0_nationality"]`)?.value.trim() ?? "";
+      if (!fullName || !nationality) { setClientError(t.validationApplicant); return false; }
     }
     if (n === 2) {
       const missing = requirements.filter((r) => r.required && (files[r.documentTypeId]?.length ?? 0) === 0);
@@ -159,17 +152,13 @@ export function RequestWizard(props: Props) {
     setFiles((prev) => ({ ...prev, [documentTypeId]: picked }));
   }
 
-  function travellerSummary(): string[] {
+  function applicantSummary(): string {
     const fd = formRef.current ? new FormData(formRef.current) : null;
-    if (!fd) return [];
-    const out: string[] = [];
-    for (let i = 0; i < travellerCount; i++) {
-      const first = String(fd.get(`t${i}_firstName`) ?? "").trim();
-      const last = String(fd.get(`t${i}_lastName`) ?? "").trim();
-      const pp = String(fd.get(`t${i}_passportNumber`) ?? "").trim();
-      if (first || last) out.push(`${first} ${last} — ${pp}`);
-    }
-    return out;
+    if (!fd) return "—";
+    const full = String(fd.get("t0_fullName") ?? "").trim();
+    const nat = String(fd.get("t0_nationality") ?? "").trim();
+    const label = props.nationalities.find((n) => n.code === nat)?.label ?? nat;
+    return full ? `${full} — ${label}` : "—";
   }
 
   return (
@@ -187,9 +176,10 @@ export function RequestWizard(props: Props) {
       className="space-y-4"
     >
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+      <input type="hidden" name="countryId" value={countryId} />
 
-      {/* Step rail */}
-      <ol className="flex flex-wrap items-center gap-2 text-sm">
+      {/* Step rail — exactly THREE steps */}
+      <ol className="flex flex-wrap items-center gap-2 text-sm" data-testid="wizard-steps">
         {[
           { n: 1, label: t.stepChoose },
           { n: 2, label: t.stepUpload },
@@ -215,116 +205,103 @@ export function RequestWizard(props: Props) {
         </div>
       )}
 
-      {/* ---------------------------- STEP 1: CHOOSE VISA ---------------------------- */}
+      {/* ------------------ STEP 1: COUNTRY → VISA TYPE → APPLICANT ------------------ */}
       <section data-wizard-section="1" hidden={step !== 1}>
         <div className="card p-5 space-y-5">
           <div>
-            <h2 className="font-serif text-lg text-navy-900">{t.visaProgramme}</h2>
-            {!visa ? <p className="mt-1 text-xs text-slate-500">{t.selectVisa}</p> : null}
+            <h2 className="font-serif text-lg text-navy-900">{t.chooseCountry}</h2>
+            {!country ? <p className="mt-1 text-xs text-slate-500">{t.selectCountry}</p> : null}
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {props.visaOptions.map((v) => (
-              <label
-                key={v.id}
-                className={`cursor-pointer rounded-2xl border p-4 transition ${
-                  visaTypeId === v.id ? "border-iris-500 bg-iris-50/60 ring-2 ring-iris-200" : "border-slate-200 hover:border-iris-300"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="visaTypeId"
-                  value={v.id}
-                  className="sr-only"
-                  checked={visaTypeId === v.id}
-                  onChange={() => setVisaTypeId(v.id)}
-                />
-                <span className="block font-semibold text-navy-900">{v.name}</span>
-                <span className="mt-0.5 block text-xs text-slate-500">
-                  {v.countryName} · {v.categoryName}
-                </span>
-                <span className="mt-2 block text-sm font-medium text-iris-700">
-                  {v.fee} {v.currency} <span className="text-xs text-slate-400">· {v.minDays}–{v.maxDays} {t.days}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="label" htmlFor="priorityCode">{t.priority}</label>
-              <select id="priorityCode" name="priorityCode" className="input" defaultValue="STANDARD">
-                {props.priorities.map((p) => (
-                  <option key={p.code} value={p.code}>{p.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="sm:col-span-2">
-              <label className="label" htmlFor="agencyNotes">{t.notes}</label>
-              <textarea id="agencyNotes" name="agencyNotes" rows={2} className="input" placeholder={t.notesPlaceholder} />
-            </div>
-          </div>
-
-          <div className="space-y-3 border-t border-slate-100 pt-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-navy-900">{t.travellers}</h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" role="group" aria-label={t.chooseCountry}>
+            {props.countries.map((c) => (
               <button
                 type="button"
-                onClick={() => setTravellerCount((c) => Math.min(25, c + 1))}
-                className="btn-secondary btn-sm"
+                key={c.id}
+                data-testid="wizard-country"
+                onClick={() => { setCountryId(c.id); setVisaTypeId(""); }}
+                className={`rounded-2xl border p-4 text-start transition ${
+                  countryId === c.id ? "border-iris-500 bg-iris-50/60 ring-2 ring-iris-200" : "border-slate-200 hover:border-iris-300"
+                }`}
               >
-                + {t.addTraveller}
+                <span className="block font-semibold text-navy-900">{c.name}</span>
+                <span className="mt-0.5 block text-xs text-slate-500">
+                  {c.visaTypes.length} {c.visaTypes.length === 1 ? "visa" : "visas"}
+                </span>
               </button>
-            </div>
-            {Array.from({ length: travellerCount }, (_, i) => (
-              <fieldset key={i} className="rounded-2xl border border-slate-200 p-4">
-                <legend className="px-1 text-xs font-semibold text-slate-500">
-                  {t.traveller} {i + 1}
-                  {i > 0 ? (
-                    <button type="button" onClick={() => setTravellerCount((c) => Math.max(1, c - 1))} className="ms-2 text-rose-500 hover:underline">
-                      {t.removeTraveller}
-                    </button>
-                  ) : null}
-                </legend>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="label" htmlFor={`t${i}_firstName`}>{t.firstName} *</label>
-                    <input id={`t${i}_firstName`} name={`t${i}_firstName`} required className="input" />
-                  </div>
-                  <div>
-                    <label className="label" htmlFor={`t${i}_lastName`}>{t.lastName} *</label>
-                    <input id={`t${i}_lastName`} name={`t${i}_lastName`} required className="input" />
-                  </div>
-                  <div>
-                    <label className="label">{t.dateOfBirth} *</label>
-                    <DatePicker name={`t${i}_dateOfBirth`} required locale={props.locale} max={new Date().toISOString().slice(0, 10)} placeholder={t.dateOfBirth} />
-                  </div>
-                  <div>
-                    <label className="label" htmlFor={`t${i}_nationality`}>{t.nationality} *</label>
-                    <input id={`t${i}_nationality`} name={`t${i}_nationality`} required className="input" />
-                  </div>
-                  <div>
-                    <label className="label" htmlFor={`t${i}_passportNumber`}>{t.passportNumber} *</label>
-                    <input id={`t${i}_passportNumber`} name={`t${i}_passportNumber`} required className="input" />
-                  </div>
-                  <div>
-                    <label className="label">{t.passportExpiryDate} *</label>
-                    <DatePicker name={`t${i}_passportExpiryDate`} required locale={props.locale} min={new Date().toISOString().slice(0, 10)} placeholder={t.passportExpiryDate} />
-                  </div>
-                  <div>
-                    <label className="label">{t.passportIssueDate}</label>
-                    <DatePicker name={`t${i}_passportIssueDate`} locale={props.locale} placeholder={t.passportIssueDate} />
-                  </div>
-                  <div>
-                    <label className="label" htmlFor={`t${i}_email`}>{t.email}</label>
-                    <input id={`t${i}_email`} name={`t${i}_email`} type="email" className="input" />
-                  </div>
-                  <div>
-                    <label className="label" htmlFor={`t${i}_phone`}>{t.phone}</label>
-                    <input id={`t${i}_phone`} name={`t${i}_phone`} className="input" />
-                  </div>
-                </div>
-              </fieldset>
             ))}
+          </div>
+
+          {country ? (
+            <div>
+              <h3 className="mb-2 font-serif text-base text-navy-900">{t.chooseVisa}</h3>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" role="radiogroup" aria-label={t.chooseVisa}>
+                {country.visaTypes.map((v) => (
+                  <label
+                    key={v.id}
+                    data-testid="wizard-visa-type"
+                    className={`cursor-pointer rounded-2xl border p-4 transition ${
+                      visaTypeId === v.id ? "border-iris-500 bg-iris-50/60 ring-2 ring-iris-200" : "border-slate-200 hover:border-iris-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="visaTypeId"
+                      value={v.id}
+                      className="sr-only"
+                      checked={visaTypeId === v.id}
+                      onChange={() => setVisaTypeId(v.id)}
+                    />
+                    <span className="block font-semibold text-navy-900">{v.name}</span>
+                    <span className="mt-0.5 block text-xs text-slate-500">{v.categoryName}</span>
+                    <span className="mt-2 block text-sm font-medium text-iris-700">
+                      {v.fee} {v.currency} <span className="text-xs text-slate-400">· {t.processing} {v.minDays}–{v.maxDays} {t.days}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400">{t.selectVisa}</p>
+          )}
+
+          <div className="space-y-4 border-t border-slate-100 pt-4">
+            <h3 className="font-semibold text-navy-900">{t.applicant}</h3>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="label" htmlFor="t0_fullName">{t.fullName} *</label>
+                <input id="t0_fullName" name="t0_fullName" required autoComplete="name" className="input" data-testid="wizard-full-name" />
+              </div>
+              <div>
+                <label className="label" htmlFor="t0_nationality">{t.nationality} *</label>
+                <select
+                  id="t0_nationality"
+                  name="t0_nationality"
+                  required
+                  defaultValue={props.defaultNationality}
+                  className="input"
+                  data-testid="wizard-nationality"
+                  aria-label={t.searchNationality}
+                >
+                  {props.nationalities.map((n) => (
+                    <option key={n.code} value={n.code}>{n.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="label" htmlFor="priorityCode">{t.priority}</label>
+                <select id="priorityCode" name="priorityCode" className="input" defaultValue="STANDARD">
+                  {props.priorities.map((p) => (
+                    <option key={p.code} value={p.code}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="label" htmlFor="agencyNotes">{t.notes}</label>
+                <textarea id="agencyNotes" name="agencyNotes" rows={2} className="input" placeholder={t.notesPlaceholder} />
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -392,8 +369,12 @@ export function RequestWizard(props: Props) {
           </div>
           <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
             <div className="flex justify-between gap-3 rounded-xl bg-ivory-50 px-3 py-2">
-              <dt className="text-slate-500">{t.visaProgramme}</dt>
-              <dd className="font-medium text-navy-900">{visa ? `${visa.name} (${visa.countryName})` : "—"}</dd>
+              <dt className="text-slate-500">{t.chooseCountry}</dt>
+              <dd className="font-medium text-navy-900">{country?.name ?? "—"}</dd>
+            </div>
+            <div className="flex justify-between gap-3 rounded-xl bg-ivory-50 px-3 py-2">
+              <dt className="text-slate-500">{t.chooseVisa}</dt>
+              <dd className="font-medium text-navy-900">{visa?.name ?? "—"}</dd>
             </div>
             <div className="flex justify-between gap-3 rounded-xl bg-ivory-50 px-3 py-2">
               <dt className="text-slate-500">{t.fee}</dt>
@@ -403,23 +384,21 @@ export function RequestWizard(props: Props) {
               <dt className="text-slate-500">{t.processing}</dt>
               <dd className="font-medium text-navy-900">{visa ? `${visa.minDays}–${visa.maxDays} ${t.days}` : "—"}</dd>
             </div>
-            <div className="flex justify-between gap-3 rounded-xl bg-ivory-50 px-3 py-2">
+            <div className="flex justify-between gap-3 rounded-xl bg-ivory-50 px-3 py-2 sm:col-span-2">
+              <dt className="text-slate-500">{t.summaryApplicant}</dt>
+              <dd className="font-medium text-navy-900">{step === 3 ? applicantSummary() : "—"}</dd>
+            </div>
+            <div className="flex justify-between gap-3 rounded-xl bg-ivory-50 px-3 py-2 sm:col-span-2">
               <dt className="text-slate-500">{t.walletBalance}</dt>
               <dd className="font-medium text-navy-900">{props.walletBalance} {props.walletCurrency}</dd>
             </div>
           </dl>
           <div>
-            <h3 className="mb-1 text-sm font-semibold text-navy-900">{t.summaryTravellers}</h3>
-            <ul className="list-inside list-disc text-sm text-slate-600">
-              {step === 3 ? travellerSummary().map((line, idx) => <li key={idx}>{line}</li>) : null}
-            </ul>
-          </div>
-          <div>
             <h3 className="mb-1 text-sm font-semibold text-navy-900">{t.summaryDocuments}</h3>
             <ul className="list-inside list-disc text-sm text-slate-600">
               {requirements.map((r) => (
                 <li key={r.documentTypeId}>
-                  {r.name}: {(files[r.documentTypeId] ?? []).length} {(files[r.documentTypeId] ?? []).length === 1 ? "file" : "files"}
+                  {r.name}: {(files[r.documentTypeId] ?? []).length}
                 </li>
               ))}
             </ul>

@@ -335,12 +335,14 @@ export const applicants = pgTable(
     firstName: text("first_name").notNull(),
     middleName: text("middle_name"),
     lastName: text("last_name").notNull(),
-    dateOfBirth: date("date_of_birth").notNull(),
+    /** Phase 2-Final: single display name for the simplified request flow (optional, forward-only) */
+    fullName: text("full_name"),
+    dateOfBirth: date("date_of_birth"), // optional since migration 0010
     gender: text("gender"), // MALE | FEMALE | OTHER
     nationality: text("nationality").notNull(),
-    passportNumber: text("passport_number").notNull(),
+    passportNumber: text("passport_number"), // optional since migration 0010
     passportIssueDate: date("passport_issue_date"),
-    passportExpiryDate: date("passport_expiry_date").notNull(),
+    passportExpiryDate: date("passport_expiry_date"), // optional since migration 0010
     email: text("email"),
     phone: text("phone"),
     addressLine: text("address_line"),

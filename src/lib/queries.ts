@@ -47,8 +47,11 @@ const applicationSelection = {
   priorityName: priorities.name,
   priorityWeight: priorities.weight,
   agencyName: sql<string>`(select coalesce(a.trading_name, a.legal_name) from ${sql.raw(qualifiedTable("agencies"))} a where a.id = applications.agency_id)`,
+  // One application = one applicant (Phase 2-Final). Prefer the new
+  // full_name column; legacy rows fall back to first/last composition.
   applicantSummary: sql<string>`(
-    select string_agg(p.first_name || ' ' || p.last_name, ', ') from ${sql.raw(qualifiedTable("applicants"))} p where p.application_id = applications.id
+    select coalesce(nullif(p.full_name, ''), nullif(concat_ws(' ', nullif(p.first_name, ''), nullif(p.last_name, '')), ''), '—')
+      from ${sql.raw(qualifiedTable("applicants"))} p where p.application_id = applications.id limit 1
   )`,
   applicantCount: sql<number>`(select count(*)::int from ${sql.raw(qualifiedTable("applicants"))} p where p.application_id = applications.id)`,
   documentCount: sql<number>`(select count(*)::int from ${sql.raw(qualifiedTable("documents"))} d where d.application_id = applications.id)`,
@@ -87,7 +90,8 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
         ilike(applications.visaTypeName, term),
         ilike(applications.countryName, term),
         sql`exists (select 1 from ${sql.raw(qualifiedTable("applicants"))} p where p.application_id = applications.id
-              and (p.first_name || ' ' || p.last_name ilike ${term} or p.passport_number ilike ${term}))`,
+              and (coalesce(nullif(p.full_name, ''), p.first_name || ' ' || p.last_name) ilike ${term}
+                or p.passport_number ilike ${term}))`,
       )!,
     );
   }
@@ -215,7 +219,7 @@ export async function adminDashboard() {
   };
 }
 
-export async function agencyDashboard(agencyId: string) {
+export async function agencyDashboard(agencyId: string, userId: string) {
   const [totals] = await db
     .select({
       total: count(),
@@ -250,17 +254,18 @@ export async function agencyDashboard(agencyId: string) {
     .orderBy(desc(applications.createdAt))
     .limit(6);
 
-  const [notifAgg] = await db
-    .select({ unread: sql<number>`count(*) filter (where ${notifications.readAt} is null)::int` })
-    .from(notifications)
-    .where(eq(notifications.agencyId, agencyId));
+  // Correction 1 (Phase 2-Final): ONE authoritative unread-count source —
+  // unread notifications addressed to THIS USER (the same query that drives
+  // the sidebar badge). The old agency-wide aggregate diverged from the
+  // per-user mark-all-read action and could show stale counters.
+  const unread = await unreadNotificationCount(userId);
 
   return {
     totals: totals!,
     wallet: wallet!,
     recentTx,
     recentApplications,
-    unreadNotifications: Number(notifAgg?.unread ?? 0),
+    unreadNotifications: unread,
   };
 }
 

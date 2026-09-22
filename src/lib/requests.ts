@@ -35,17 +35,25 @@ import {
 import type { AuthUser } from "@/lib/types";
 import { AppError, ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES } from "@/lib/types";
 import { buildStorageKey, storageProvider } from "@/lib/storage";
+import { isValidNationality } from "@/lib/nationalities";
 
+/**
+ * Phase 2-Final: exactly ONE applicant per request — the portal collects
+ * only Full Name + Nationality (stable ISO code, correction 6). The
+ * passport/DOB/contact fields are optional for legacy compatibility but
+ * the simplified flow never sends them.
+ */
 export interface RequestTraveller {
-  firstName: string;
-  lastName: string;
-  dateOfBirth: string; // ISO yyyy-mm-dd
+  fullName?: string;
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string | null;
   nationality: string;
-  passportNumber: string;
-  passportIssueDate: string | null;
-  passportExpiryDate: string; // ISO yyyy-mm-dd
-  email: string | null;
-  phone: string | null;
+  passportNumber?: string | null;
+  passportIssueDate?: string | null;
+  passportExpiryDate?: string | null;
+  email?: string | null;
+  phone?: string | null;
 }
 
 export interface RequestDocument {
@@ -56,6 +64,8 @@ export interface RequestDocument {
 export interface SubmitVisaRequestInput {
   actor: AuthUser;
   idempotencyKey: string;
+  /** Phase 2-Final: the country the user picked in step 1 (correction 3). */
+  countryId: string;
   visaTypeId: string;
   priorityCode?: string | null;
   agencyNotes?: string | null;
@@ -81,13 +91,14 @@ export const REQUEST_VALIDATION_CODES = [
   "VISA_TYPE_REQUIRED",
   "VISA_TYPE_INVALID",
   "PRIORITY_INVALID",
-  "TRAVELLER_REQUIRED",
-  "TRAVELLER_LIMIT",
-  "TRAVELLER_NAME",
-  "TRAVELLER_BIRTH_DATE",
-  "TRAVELLER_NATIONALITY",
-  "TRAVELLER_PASSPORT",
-  "TRAVELLER_PASSPORT_EXPIRY",
+  "COUNTRY_REQUIRED",
+  "COUNTRY_INVALID",
+  "COUNTRY_VISA_MISMATCH",
+  "APPLICANT_REQUIRED",
+  "APPLICANT_LIMIT",
+  "APPLICANT_FULL_NAME",
+  "APPLICANT_NATIONALITY",
+  "APPLICANT_NATIONALITY_INVALID",
   "NOTES_TOO_LONG",
   "REQUIRED_DOCUMENT_MISSING",
   "EMPTY_FILE",
@@ -98,14 +109,14 @@ export const REQUEST_VALIDATION_CODES = [
 
 export type RequestValidationCode = (typeof REQUEST_VALIDATION_CODES)[number];
 
-export const MAX_TRAVELLERS_PER_REQUEST = 25;
+export const MAX_TRAVELLERS_PER_REQUEST = 1;
+export const MAX_APPLICANTS_PER_REQUEST = 1;
 export const MAX_FILES_PER_REQUIREMENT = 3;
 export const MAX_NOTES_LENGTH = 1000;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-const PASSPORT_RX = /^[A-Za-z0-9 -]{4,20}$/;
 
-function validDate(s: string): boolean {
+function _validDate(s: string): boolean {
   if (!ISO_DATE.test(s)) return false;
   const d = new Date(`${s}T00:00:00Z`);
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
@@ -184,25 +195,23 @@ function validateRequest(
   if (!cfg) err("VISA_TYPE_INVALID", "Visa type not found or inactive.");
   if (!priorityOk) err("PRIORITY_INVALID", "Priority is not available.");
 
-  const travellers = input.travellers;
-  if (!travellers || travellers.length === 0) err("TRAVELLER_REQUIRED", "Add at least one traveller.");
-  if (travellers.length > MAX_TRAVELLERS_PER_REQUEST) {
-    err("TRAVELLER_LIMIT", `A single request is limited to ${MAX_TRAVELLERS_PER_REQUEST} travellers.`);
+  if (!input.countryId?.trim()) err("COUNTRY_REQUIRED", "Choose a destination country.");
+  if (!cfg) void 0; // narrowing — already handled above
+  if (cfg && input.countryId.trim() !== cfg.countryId) {
+    err("COUNTRY_VISA_MISMATCH", "The selected visa type does not belong to the selected country.");
   }
-  const today = new Date().toISOString().slice(0, 10);
-  for (const t of travellers) {
-    if (!t.firstName?.trim() || !t.lastName?.trim()) err("TRAVELLER_NAME", "Every traveller needs a first and last name.");
-    if (!validDate(t.dateOfBirth) || t.dateOfBirth >= today) err("TRAVELLER_BIRTH_DATE", "Date of birth must be a valid past date.");
-    if (!t.nationality?.trim()) err("TRAVELLER_NATIONALITY", "Every traveller needs a nationality.");
-    if (!t.passportNumber?.trim() || !PASSPORT_RX.test(t.passportNumber.trim())) {
-      err("TRAVELLER_PASSPORT", "Passport number must be 4–20 letters/digits.");
-    }
-    if (!validDate(t.passportExpiryDate) || t.passportExpiryDate <= today) {
-      err("TRAVELLER_PASSPORT_EXPIRY", "Passport expiry must be a valid future date.");
-    }
-    if (t.passportIssueDate && !validDate(t.passportIssueDate)) {
-      err("TRAVELLER_PASSPORT_EXPIRY", "Passport issue date must be valid.");
-    }
+
+  const travellers = input.travellers;
+  if (!travellers || travellers.length === 0) err("APPLICANT_REQUIRED", "Provide the applicant's full name and nationality.");
+  if (travellers.length > MAX_TRAVELLERS_PER_REQUEST) {
+    err("APPLICANT_LIMIT", "One application carries exactly one applicant.");
+  }
+  const t = travellers[0]!;
+  const fullName = (t.fullName ?? `${t.firstName ?? ""} ${t.lastName ?? ""}`).trim();
+  if (!fullName) err("APPLICANT_FULL_NAME", "The applicant's full name is required.");
+  if (!t.nationality?.trim()) err("APPLICANT_NATIONALITY", "The applicant's nationality is required.");
+  if (!isValidNationality(t.nationality.trim())) {
+    err("APPLICANT_NATIONALITY_INVALID", "Choose a nationality from the list.");
   }
 
   const notes = input.agencyNotes?.trim() ?? "";
@@ -283,7 +292,7 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
     .from(visaTypes)
     .innerJoin(countries, eq(visaTypes.countryId, countries.id))
     .innerJoin(visaCategories, eq(visaTypes.categoryId, visaCategories.id))
-    .where(and(eq(visaTypes.id, input.visaTypeId), eq(visaTypes.active, true)))
+    .where(and(eq(visaTypes.id, input.visaTypeId), eq(visaTypes.active, true), eq(countries.active, true)))
     .limit(1);
   const cfg = cfgRows[0];
 
@@ -414,20 +423,16 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
     );
     const itemByType = new Map(checklist.rows.map((r) => [r.document_type_id, r.id]));
 
-    // Travellers.
-    for (const t of input.travellers) {
-      await client.query(
-        `insert into ${qualifiedTable("applicants")}
-           (application_id, first_name, last_name, date_of_birth, nationality,
-            passport_number, passport_issue_date, passport_expiry_date, email, phone)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-        [
-          applicationId, t.firstName.trim(), t.lastName.trim(), t.dateOfBirth, t.nationality.trim(),
-          t.passportNumber.trim().toUpperCase(), t.passportIssueDate || null, t.passportExpiryDate,
-          t.email?.trim() || null, t.phone?.trim() || null,
-        ],
-      );
-    }
+    // The single applicant (full name + nationality code).
+    const t = input.travellers[0]!;
+    const fullName = (t.fullName ?? `${t.firstName ?? ""} ${t.lastName ?? ""}`).trim();
+    await client.query(
+      `insert into ${qualifiedTable("applicants")}
+         (application_id, first_name, last_name, full_name, date_of_birth, nationality,
+          passport_number, passport_issue_date, passport_expiry_date, email, phone)
+       values ($1,$2,'',$3,null,$4,null,null,null,null,null)`,
+      [applicationId, fullName, fullName, t.nationality.trim().toUpperCase()],
+    );
 
     // Document records (blobs are already in storage).
     for (const d of docRows) {

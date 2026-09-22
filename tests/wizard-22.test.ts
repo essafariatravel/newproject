@@ -9,7 +9,7 @@ import path from "path";
  */
 const NEW_PAGE = readFileSync(path.join(__dirname, "..", "src/app/portal/applications/new/page.tsx"), "utf8");
 const DETAIL = readFileSync(path.join(__dirname, "..", "src/app/portal/applications/[id]/page.tsx"), "utf8");
-const WIZARD = readFileSync(path.join(__dirname, "..", "src/components/wizard-steps.tsx"), "utf8");
+const _WIZARD = readFileSync(path.join(__dirname, "..", "src/components/wizard-steps.tsx"), "utf8");
 
 describe("Phase 2.2 §5 — 4-step request wizard (new-page superseded by Phase 2.3 3-step flow; legacy-draft rail retained)", () => {
   it("the legacy new page was replaced by the Phase 2.3 3-step atomic request wizard", () => {

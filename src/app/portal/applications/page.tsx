@@ -79,8 +79,8 @@ export default async function PortalApplicationsPage({
             <thead className="border-b border-slate-100 bg-ivory-50/60">
               <tr>
                 <th className="th">{ct("Reference")}</th>
+                <th className="th">{ct("Applicant")}</th>
                 <th className="th">{ct("Visa / Country")}</th>
-                <th className="th">{ct("Applicants")}</th>
                 <th className="th">{ct("Documents")}</th>
                 <th className="th">{ct("Fee")}</th>
                 <th className="th">{ct("Status")}</th>
@@ -97,11 +97,13 @@ export default async function PortalApplicationsPage({
                         {r.app.reference}
                       </Link>
                     </td>
+                    {/* Phase 2-Final Correction 7: APPLICANT (full name)
+                        immediately after REFERENCE. */}
+                    <td className="td font-medium text-navy-900">{r.applicantSummary ?? "—"}</td>
                     <td className="td">
                       {r.app.countryName}
                       <span className="block text-xs text-slate-400">{r.app.visaTypeName}</span>
                     </td>
-                    <td className="td tabular-nums">{r.applicantCount}</td>
                     <td className="td">{p ? <Progress done={p.done} total={p.total} /> : "—"}</td>
                     <td className="td whitespace-nowrap tabular-nums">{r.app.fee} {r.app.currency}</td>
                     <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>

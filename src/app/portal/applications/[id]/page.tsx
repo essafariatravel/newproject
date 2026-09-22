@@ -22,6 +22,7 @@ import { PriceAdjustmentHistory } from "@/components/application-detail";
 import { WizardSteps } from "@/components/wizard-steps";
 import { DatePicker } from "@/components/date-picker";
 import { formatDate, formatDateTime, personName } from "@/lib/format";
+import { nationalityLabel } from "@/lib/nationalities";
 import {
   addApplicantAction,
   cancelDraftAction,
@@ -266,8 +267,8 @@ export default async function PortalApplicationDetailPage({
           {applicants.map((a) => (
             <Card key={a.id}>
               <CardHeader
-                title={personName(a)}
-                subtitle={`Passport ${a.passportNumber}`}
+                title={a.fullName || personName(a)}
+                subtitle={a.passportNumber ? `Passport ${a.passportNumber}` : undefined}
                 actions={
                   isDraft ? (
                     <form action={removeApplicantAction}>
@@ -287,7 +288,7 @@ export default async function PortalApplicationDetailPage({
                   <div><label className="label">{ct("First name")}</label><input name="firstName" defaultValue={a.firstName} required className="input" /></div>
                   <div><label className="label">{ct("Middle name")}</label><input name="middleName" defaultValue={a.middleName ?? ""} className="input" /></div>
                   <div><label className="label">{ct("Last name")}</label><input name="lastName" defaultValue={a.lastName} required className="input" /></div>
-                  <div><label className="label">{ct("Date of birth")}</label><DatePicker name="dateOfBirth" defaultValue={a.dateOfBirth} required locale={uiLocale} placeholder={ct("Date of birth")} /></div>
+                  <div><label className="label">{ct("Date of birth")}</label><DatePicker name="dateOfBirth" defaultValue={a.dateOfBirth ?? ""} locale={uiLocale} placeholder={ct("Date of birth")} /></div>
                   <div>
                     <label className="label">{ct("Gender")}</label>
                     <select name="gender" defaultValue={a.gender ?? ""} className="input">
@@ -298,9 +299,9 @@ export default async function PortalApplicationDetailPage({
                     </select>
                   </div>
                   <div><label className="label">{ct("Nationality")}</label><input name="nationality" defaultValue={a.nationality} required className="input" /></div>
-                  <div><label className="label">{ct("Passport number")}</label><input name="passportNumber" defaultValue={a.passportNumber} required className="input" /></div>
+                  <div><label className="label">{ct("Passport number")}</label><input name="passportNumber" defaultValue={a.passportNumber ?? ""} className="input" /></div>
                   <div><label className="label">{ct("Passport issue date")}</label><DatePicker name="passportIssueDate" defaultValue={a.passportIssueDate ?? ""} locale={uiLocale} placeholder={ct("Passport issue date")} /></div>
-                  <div><label className="label">{ct("Passport expiry")}</label><DatePicker name="passportExpiryDate" defaultValue={a.passportExpiryDate} required locale={uiLocale} placeholder={ct("Passport expiry")} /></div>
+                  <div><label className="label">{ct("Passport expiry")}</label><DatePicker name="passportExpiryDate" defaultValue={a.passportExpiryDate ?? ""} locale={uiLocale} placeholder={ct("Passport expiry")} /></div>
                   <div><label className="label">{ct("Email")}</label><input name="email" type="email" defaultValue={a.email ?? ""} className="input" /></div>
                   <div><label className="label">{ct("Phone")}</label><input name="phone" defaultValue={a.phone ?? ""} className="input" /></div>
                   <div><label className="label">{ct("City")}</label><input name="city" defaultValue={a.city ?? ""} className="input" /></div>
@@ -311,12 +312,12 @@ export default async function PortalApplicationDetailPage({
               ) : (
                 <KeyValue
                   items={[
-                    { label: "Date of birth", value: formatDate(a.dateOfBirth) },
-                    { label: "Gender", value: a.gender ?? "—" },
-                    { label: "Nationality", value: a.nationality },
-                    { label: "Passport expiry", value: formatDate(a.passportExpiryDate) },
-                    { label: "Email", value: a.email ?? "—" },
-                    { label: "Phone", value: a.phone ?? "—" },
+                    { label: "Nationality", value: nationalityLabel(a.nationality, uiLocale) },
+                    ...(a.dateOfBirth ? [{ label: "Date of birth", value: formatDate(a.dateOfBirth) }] : []),
+                    ...(a.gender ? [{ label: "Gender", value: a.gender }] : []),
+                    ...(a.passportExpiryDate ? [{ label: "Passport expiry", value: formatDate(a.passportExpiryDate) }] : []),
+                    ...(a.email ? [{ label: "Email", value: a.email }] : []),
+                    ...(a.phone ? [{ label: "Phone", value: a.phone }] : []),
                   ]}
                 />
               )}

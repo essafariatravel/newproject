@@ -357,29 +357,17 @@ export async function submitRequestAction(formData: FormData): Promise<void> {
   type RequestTraveller = import("@/lib/requests").RequestTraveller;
 
   const idempotencyKey = String(formData.get("idempotencyKey") ?? "");
+  const countryId = String(formData.get("countryId") ?? "");
   const visaTypeId = String(formData.get("visaTypeId") ?? "");
   const priorityCode = String(formData.get("priorityCode") ?? "") || null;
   const agencyNotes = String(formData.get("agencyNotes") ?? "") || null;
 
+  // Phase 2-Final: ONE applicant — full name + nationality only.
   const travellers: RequestTraveller[] = [];
-  for (let i = 0; i < 25; i++) {
-    const firstName = formData.get(`t${i}_firstName`);
-    const lastName = formData.get(`t${i}_lastName`);
-    if (!firstName && !lastName) {
-      if (i === 0) continue;
-      break;
-    }
-    travellers.push({
-      firstName: String(firstName ?? ""),
-      lastName: String(lastName ?? ""),
-      dateOfBirth: String(formData.get(`t${i}_dateOfBirth`) ?? ""),
-      nationality: String(formData.get(`t${i}_nationality`) ?? ""),
-      passportNumber: String(formData.get(`t${i}_passportNumber`) ?? ""),
-      passportIssueDate: String(formData.get(`t${i}_passportIssueDate`) ?? "") || null,
-      passportExpiryDate: String(formData.get(`t${i}_passportExpiryDate`) ?? ""),
-      email: String(formData.get(`t${i}_email`) ?? "") || null,
-      phone: String(formData.get(`t${i}_phone`) ?? "") || null,
-    });
+  const fullName = String(formData.get("t0_fullName") ?? "").trim();
+  const nationality = String(formData.get("t0_nationality") ?? "").trim();
+  if (fullName || nationality) {
+    travellers.push({ fullName, nationality });
   }
 
   // Files: every entry named file_<documentTypeId> (multiple allowed).
@@ -401,6 +389,7 @@ export async function submitRequestAction(formData: FormData): Promise<void> {
     const result = await submitVisaRequest({
       actor: user,
       idempotencyKey,
+      countryId,
       visaTypeId,
       priorityCode,
       agencyNotes,

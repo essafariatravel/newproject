@@ -3,7 +3,7 @@ import { getBalance, getTransactions } from "@/lib/wallet";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { Pagination } from "@/components/app-widgets";
-import { Card, EmptyState, Flash, PageHeader, StatCard, TableWrap } from "@/components/ui";
+import { Card, EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
 import { WalletStatementForm } from "@/components/wallet-statement-form";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
@@ -34,18 +34,18 @@ export default async function PortalWalletPage({
       <PageHeader title={ct("Wallet & Transactions")} subtitle={`${user.agencyName} — prepaid balance and complete ledger.`} />
       <Flash {...flash} />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label={ct("Current balance")} value={formatAmount(balance.balance, balance.currency)} tone="gold" />
-        <StatCard label={ct("Transactions")} value={txs.length} />
-        <StatCard
-          label={ct("Total credited")}
-          value={formatAmount(txs.filter((t) => t.tx.type === "CREDIT").reduce((s, t) => s + Number(t.tx.amount), 0).toFixed(2), balance.currency)}
-        />
-        <StatCard
-          label={ct("Total charged")}
-          value={formatAmount(txs.filter((t) => t.tx.type === "APPLICATION_CHARGE").reduce((s, t) => s + Number(t.tx.amount), 0).toFixed(2), balance.currency)}
-          tone="navy"
-        />
+      {/* Phase 2-Final Correction 2: the agency-facing summary shows ONLY the
+          available balance. Aggregates (credited/debited/entry counts) stay
+          available to Staff/Admin/Accounting surfaces (admin/billing) — the
+          immutable ledger below is unchanged. */}
+      <div className="card flex flex-col items-start gap-1 p-6 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{ct("Available balance")}</p>
+          <p className="mt-1 font-serif text-4xl text-navy-900 tabular-nums">{formatAmount(balance.balance, balance.currency)}</p>
+        </div>
+        <p className="max-w-md text-sm text-slate-500">
+          {ct("Your wallet stays prepaid — each confirmed visa request is debited automatically and shown in the ledger below.")}
+        </p>
       </div>
 
       {user.role === "AGENCY_ADMIN" ? (

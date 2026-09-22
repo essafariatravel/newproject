@@ -83,7 +83,7 @@ describe("DatePicker Bug 4 — direct year/month navigation (Phase 2.3)", () => 
     // clicking ‹ in years view jumps 12 YEARS each: 2026→(2014)→(2002)→(1980) = 3 clicks + 1 click on 1981.
     let pivot = 2026;
     let clicks = 0;
-    while (![yearRangeWindow(pivot).start, yearRangeWindow(pivot).end].some((e) => 1981 >= yearRangeWindow(pivot).start && 1981 <= yearRangeWindow(pivot).end)) {
+    while (![yearRangeWindow(pivot).start, yearRangeWindow(pivot).end].some(() => 1981 >= yearRangeWindow(pivot).start && 1981 <= yearRangeWindow(pivot).end)) {
       pivot -= 12; clicks++;
       if (clicks > 10) break;
     }
