@@ -44,7 +44,7 @@ async function statusIdOf(code: string): Promise<string> {
 }
 
 /** Build a submitted application owned by Agency B and choose its status. */
-async function appAt(statusAfterSubmit: "PROCESSING" | "AWAITING_DECISION" | "EMBASSY_SUBMISSION" = "AWAITING_DECISION") {
+async function appAt(statusAfterSubmit: "IN_PROCESS" | "EMBASSY_SENT" = "IN_PROCESS") {
   const agency = await agencyByEmail("ops@agencyb.example");
   const staffB = await userByEmail("b-admin@test.example");
   const superAdmin = await userByEmail("superadmin@test.example");
@@ -77,14 +77,51 @@ async function appAt(statusAfterSubmit: "PROCESSING" | "AWAITING_DECISION" | "EM
   }
   await submitApplication({ applicationId: app.id, actor: staffB });
   const PATH: Record<string, string[]> = {
-    PROCESSING: ["UNDER_REVIEW", "PROCESSING"],
-    AWAITING_DECISION: ["UNDER_REVIEW", "PROCESSING", "AWAITING_DECISION"],
-    EMBASSY_SUBMISSION: ["UNDER_REVIEW", "PROCESSING", "EMBASSY_SUBMISSION"],
+    IN_PROCESS: ["DOCUMENTS_CHECKING", "IN_PROCESS"],
+    EMBASSY_SENT: ["DOCUMENTS_CHECKING", "IN_PROCESS", "EMBASSY_SENT"],
   };
   for (const s of PATH[statusAfterSubmit] ?? []) {
     await changeApplicationStatus({ applicationId: app.id, toStatusCode: s, actor: staff });
   }
   return { app, agency, staffB, staff };
+}
+
+/** Freshly SUBMITTED app without any walk (documents-stage assertions). */
+async function submittedAppForDecision() {
+  const agency = await agencyByEmail("ops@agencyb.example");
+  const staffB = await userByEmail("b-admin@test.example");
+  const superAdmin = await userByEmail("superadmin@test.example");
+  const staff = await particularStaff();
+  await adjustWallet({ agencyId: agency.id, amount: 250, reason: "decision funding", actor: superAdmin });
+  const visaTypeId = ((
+    await db.execute(sql`select id from visa_types where code='JP-BUS'`)
+  ).rows[0] as { id: string }).id;
+  const app = await createDraftApplication({ agencyId: agency.id, visaTypeId, createdBy: staffB });
+  await db.insert(applicantsTb).values({
+    applicationId: app.id,
+    firstName: "Early",
+    lastName: "Decide",
+    dateOfBirth: "1990-01-01",
+    nationality: "Japanese",
+    passportNumber: "JP5543210",
+    passportExpiryDate: "2034-01-01",
+  });
+  const required = await db
+    .select()
+    .from(checklistItems)
+    .where(sql`${checklistItems.applicationId} = ${app.id} and ${checklistItems.required} = true`);
+  for (const item of required) {
+    const rows = (await db.execute(sql`select id from document_types where code=${item.documentTypeCode}`)).rows as Array<{ id: string }>;
+    void rows; // uploads go through the checklist item directly
+    await uploadDocument({
+      applicationId: app.id,
+      actor: staffB,
+      file: { name: `${item.documentTypeCode}.pdf`, type: "application/pdf", size: 512, data: PDF },
+      checklistItemId: item.id,
+    });
+  }
+  await submitApplication({ applicationId: app.id, actor: staffB });
+  return { app, staff };
 }
 
 async function currentStatus(applicationId: string): Promise<string> {
@@ -98,7 +135,7 @@ async function currentStatus(applicationId: string): Promise<string> {
 
 describe("decision workflow — direct final outcomes are locked", () => {
   it("changeApplicationStatus to APPROVED/REJECTED throws DECISION_REQUIRED", async () => {
-    const { app, staff } = await appAt("PROCESSING");
+    const { app, staff } = await appAt("IN_PROCESS");
     for (const to of ["APPROVED", "REJECTED"]) {
       await expect(
         changeApplicationStatus({ applicationId: app.id, toStatusCode: to, actor: staff }),
@@ -107,18 +144,23 @@ describe("decision workflow — direct final outcomes are locked", () => {
   });
 
   it("decisionOutcomesForStatus only offers outcomes in production statuses", () => {
-    expect(decisionOutcomesForStatus("UNDER_REVIEW")).toEqual([]);
+    expect(decisionOutcomesForStatus("DRAFT")).toEqual([]);
     expect(decisionOutcomesForStatus("SUBMITTED")).toEqual([]);
-    expect(decisionOutcomesForStatus("COMPLETED")).toEqual([]);
-    expect(decisionOutcomesForStatus("AWAITING_DECISION")).toEqual(["APPROVED", "REJECTED"]);
-    expect(decisionOutcomesForStatus("PROCESSING")).toEqual(["REJECTED"]);
-    expect(decisionOutcomesForStatus("EMBASSY_SUBMISSION")).toEqual(["REJECTED"]);
+    expect(decisionOutcomesForStatus("DOCUMENTS_CHECKING")).toEqual([]);
+    expect(decisionOutcomesForStatus("DOCUMENTS_REQUESTED")).toEqual([]);
+    // EMBASSY_SENT is OPTIONAL: finals reachable directly from IN_PROCESS
+    expect(decisionOutcomesForStatus("IN_PROCESS")).toEqual(["APPROVED", "REJECTED"]);
+    expect(decisionOutcomesForStatus("EMBASSY_SENT")).toEqual(["APPROVED", "REJECTED"]);
+    // retired codes never offer outcomes anymore
+    expect(decisionOutcomesForStatus("AWAITING_DECISION")).toEqual([]);
+    expect(decisionOutcomesForStatus("PROCESSING")).toEqual([]);
+    expect(decisionOutcomesForStatus("EMBASSY_SUBMISSION")).toEqual([]);
   });
 });
 
 describe("decision workflow — audit-proof success paths", () => {
   it("APPROVED decision: document stored + typed + ACCEPTED, status+decisionAt stamped, history+audit+notifications written", async () => {
-    const { app, agency, staff } = await appAt("AWAITING_DECISION");
+    const { app, agency, staff } = await appAt("IN_PROCESS");
     const result = await recordApplicationDecision({
       applicationId: app.id,
       outcome: "APPROVED",
@@ -162,7 +204,7 @@ describe("decision workflow — audit-proof success paths", () => {
   });
 
   it("REJECTED decision uses the refusal-letter document type and stamps decisionAt", async () => {
-    const { app, staff } = await appAt("AWAITING_DECISION");
+    const { app, staff } = await appAt("IN_PROCESS");
     const result = await recordApplicationDecision({
       applicationId: app.id,
       outcome: "REJECTED",
@@ -179,7 +221,7 @@ describe("decision workflow — audit-proof success paths", () => {
   });
 
   it("decision documents appear via getDecisionDocuments and are downloadable server-side with full tenant isolation", async () => {
-    const { app, staff } = await appAt("AWAITING_DECISION");
+    const { app, staff } = await appAt("IN_PROCESS");
     const { documentId } = await recordApplicationDecision({
       applicationId: app.id,
       outcome: "REJECTED",
@@ -203,7 +245,7 @@ describe("decision workflow — audit-proof success paths", () => {
 
 describe("decision workflow — validation and bad states", () => {
   it("rejects missing files and unsupported types/content", async () => {
-    const { app, staff } = await appAt("AWAITING_DECISION");
+    const { app, staff } = await appAt("IN_PROCESS");
     await expect(
       recordApplicationDecision({
         applicationId: app.id,
@@ -229,14 +271,14 @@ describe("decision workflow — validation and bad states", () => {
       }),
     ).rejects.toMatchObject({ code: "UPLOAD_TYPE" });
     // nothing half-written: still awaiting decision, zero decision docs
-    expect(await currentStatus(app.id)).toBe("AWAITING_DECISION");
+    expect(await currentStatus(app.id)).toBe("IN_PROCESS");
     expect((await getDecisionDocuments(app.id)).length).toBe(0);
   });
 
   it("blocks decisions from wrong statuses and from finished applications", async () => {
-    const { app, staff } = await appAt("AWAITING_DECISION");
+    const { app, staff } = await appAt("IN_PROCESS");
     // submitted-level app: walk back? Instead build a fresh pre-decision scenario:
-    // this app is AWAITING_DECISION; first close it, then attempt again
+    // this app is IN_PROCESS; first close it, then attempt again
     await recordApplicationDecision({ applicationId: app.id, outcome: "APPROVED", actor: staff, file: { name: "ok.pdf", type: "application/pdf", size: PDF.length, data: PDF } });
     await expect(
       recordApplicationDecision({ applicationId: app.id, outcome: "REJECTED", actor: staff, file: { name: "late.pdf", type: "application/pdf", size: PDF.length, data: PDF } }),
@@ -245,20 +287,52 @@ describe("decision workflow — validation and bad states", () => {
     expect((await getDecisionDocuments(app.id)).length).toBe(1);
   });
 
-  it("APPROVED is double-gated (must pass Awaiting Decision)", async () => {
-    const { app, staff } = await appAt("PROCESSING");
+  it("IN_PROCESS → APPROVED directly is valid (EMBASSY_SENT remains optional, Phase 2.2)", async () => {
+    const { app, staff } = await appAt("IN_PROCESS");
+    const res = await recordApplicationDecision({
+      applicationId: app.id,
+      outcome: "APPROVED",
+      actor: staff,
+      file: { name: "visa-direct.pdf", type: "application/pdf", size: PDF.length, data: PDF },
+    });
+    expect(res.statusCode).toBe("APPROVED");
+    expect(await currentStatus(app.id)).toBe("APPROVED");
+  });
+
+  it("IN_PROCESS → REJECTED directly is valid without touching the embassy", async () => {
+    const { app, staff } = await appAt("IN_PROCESS");
+    // never walked through EMBASSY_SENT — the direct decision must succeed
+    await recordApplicationDecision({
+      applicationId: app.id,
+      outcome: "REJECTED",
+      actor: staff,
+      file: { name: "refusal-direct.pdf", type: "application/pdf", size: PDF.length, data: PDF },
+    });
+    expect(await currentStatus(app.id)).toBe("REJECTED");
+    const history = await db
+      .select({ code: statuses.code })
+      .from(applicationStatusHistory)
+      .innerJoin(statuses, eq(statuses.id, applicationStatusHistory.toStatusId))
+      .where(eq(applicationStatusHistory.applicationId, app.id));
+    expect(history.some((h) => h.code === "EMBASSY_SENT")).toBe(false);
+  });
+
+  it("rejections from DOCUMENTS_CHECKING are still impossible (finals need IN_PROCESS+)", async () => {
+    const { app, staff } = await submittedAppForDecision();
+    await changeApplicationStatus({ applicationId: app.id, toStatusCode: "DOCUMENTS_CHECKING", actor: staff });
     await expect(
       recordApplicationDecision({
         applicationId: app.id,
         outcome: "APPROVED",
         actor: staff,
-        file: { name: "jump.pdf", type: "application/pdf", size: PDF.length, data: PDF },
+        file: { name: "early.pdf", type: "application/pdf", size: PDF.length, data: PDF },
       }),
     ).rejects.toMatchObject({ code: "BAD_STATE" });
+    expect((await getDecisionDocuments(app.id)).length).toBe(0);
   });
 
   it("rejects agency actors entirely (staff-only workflow)", async () => {
-    const { app, staffB } = await appAt("AWAITING_DECISION");
+    const { app, staffB } = await appAt("IN_PROCESS");
     await expect(
       recordApplicationDecision({
         applicationId: app.id,
@@ -273,7 +347,7 @@ describe("decision workflow — validation and bad states", () => {
 
 describe("canonical decision model — duplicate Refused/Rejected eliminated", () => {
   it("legacy REFUSED outcome is no longer accepted by the decision workflow", async () => {
-    const { app, staff } = await appAt("AWAITING_DECISION");
+    const { app, staff } = await appAt("IN_PROCESS");
     await expect(
       recordApplicationDecision({
         applicationId: app.id,
@@ -297,10 +371,10 @@ describe("canonical decision model — duplicate Refused/Rejected eliminated", (
     expect((edges.rows[0] as { n: number }).n).toBe(0);
   });
 
-  it("APPROVED is reachable only from AWAITING_DECISION in workflow config", async () => {
+  it("APPROVED is reachable only from IN_PROCESS and EMBASSY_SENT in workflow config", async () => {
     const edges = await db.execute(
       sql`select f.code as from_code from status_transitions t join statuses f on f.id=t.from_status_id join statuses tt on tt.id=t.to_status_id where tt.code='APPROVED' order by 1`,
     );
-    expect((edges.rows as Array<{ from_code: string }>).map((r) => r.from_code)).toEqual(["AWAITING_DECISION"]);
+    expect((edges.rows as Array<{ from_code: string }>).map((r) => r.from_code)).toEqual(["EMBASSY_SENT", "IN_PROCESS"]);
   });
 });

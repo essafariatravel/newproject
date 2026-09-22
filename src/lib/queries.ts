@@ -144,11 +144,11 @@ export async function adminDashboard() {
   const [totals] = await db
     .select({
       total: count(),
-      pending: sql<number>`count(*) filter (where ${statuses.code} in ('SUBMITTED','DOCUMENTS_REQUIRED','UNDER_REVIEW'))::int`,
-      processing: sql<number>`count(*) filter (where ${statuses.code} in ('PROCESSING','EMBASSY_SUBMISSION','AWAITING_DECISION'))::int`,
+      pending: sql<number>`count(*) filter (where ${statuses.code} in ('SUBMITTED','DOCUMENTS_REQUESTED','DOCUMENTS_CHECKING'))::int`,
+      processing: sql<number>`count(*) filter (where ${statuses.code} in ('IN_PROCESS','EMBASSY_SENT'))::int`,
       completed: sql<number>`count(*) filter (where ${statuses.code} in ('APPROVED','COMPLETED'))::int`,
       refused: sql<number>`count(*) filter (where ${statuses.code} in ('REJECTED','REFUSED'))::int`,
-      missingDocs: sql<number>`count(*) filter (where ${statuses.code} = 'DOCUMENTS_REQUIRED')::int`,
+      missingDocs: sql<number>`count(*) filter (where ${statuses.code} = 'DOCUMENTS_REQUESTED')::int`,
       last30: sql<number>`count(*) filter (where ${applications.createdAt} > now() - interval '30 days')::int`,
     })
     .from(applications)
@@ -212,11 +212,11 @@ export async function agencyDashboard(agencyId: string) {
   const [totals] = await db
     .select({
       total: count(),
-      active: sql<number>`count(*) filter (where ${statuses.code} not in ('COMPLETED','CANCELLED','REJECTED','REFUSED') and ${statuses.code} <> 'DRAFT')::int`,
+      active: sql<number>`count(*) filter (where ${statuses.code} not in ('APPROVED','COMPLETED','CANCELLED','REJECTED','REFUSED') and ${statuses.code} <> 'DRAFT')::int`,
       drafts: sql<number>`count(*) filter (where ${statuses.code} = 'DRAFT')::int`,
       completed: sql<number>`count(*) filter (where ${statuses.code} in ('APPROVED','COMPLETED'))::int`,
       refused: sql<number>`count(*) filter (where ${statuses.code} in ('REJECTED','REFUSED'))::int`,
-      missingDocs: sql<number>`count(*) filter (where ${statuses.code} = 'DOCUMENTS_REQUIRED')::int`,
+      missingDocs: sql<number>`count(*) filter (where ${statuses.code} = 'DOCUMENTS_REQUESTED')::int`,
     })
     .from(applications)
     .innerJoin(statuses, eq(applications.statusId, statuses.id))

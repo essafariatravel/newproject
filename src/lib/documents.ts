@@ -130,7 +130,7 @@ export async function uploadDocument(input: UploadDocumentInput) {
     // allowed
   } else if (input.actor.agencyId) {
     // agency can still upload when documents were requested / resubmission needed
-    if (!["DOCUMENTS_REQUIRED", "UNDER_REVIEW", "SUBMITTED", "PROCESSING"].includes(access.statusCode)) {
+    if (!["DOCUMENTS_REQUESTED", "DOCUMENTS_CHECKING", "SUBMITTED", "IN_PROCESS"].includes(access.statusCode)) {
       throw new AppError("UPLOAD_NOT_ALLOWED", "Documents cannot be uploaded in this status.");
     }
   }

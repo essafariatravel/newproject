@@ -20,19 +20,30 @@ import { hashPassword } from "@/lib/crypto";
 import type { RegistrationData, RegistrationFileInput } from "@/lib/registrations";
 import type { RegistrationDocumentCategory } from "@/db/schema";
 
+/** Canonical Phase 2.2 workflow: 8 default statuses (+ CANCELLED). */
 export const STATUS_CODES = {
   draft: "DRAFT",
   submitted: "SUBMITTED",
-  docsRequired: "DOCUMENTS_REQUIRED",
-  underReview: "UNDER_REVIEW",
-  processing: "PROCESSING",
-  embassy: "EMBASSY_SUBMISSION",
-  awaiting: "AWAITING_DECISION",
+  docsChecking: "DOCUMENTS_CHECKING",
+  docsRequested: "DOCUMENTS_REQUESTED",
+  inProcess: "IN_PROCESS",
+  embassySent: "EMBASSY_SENT",
   approved: "APPROVED",
   rejected: "REJECTED",
-  completed: "COMPLETED",
   cancelled: "CANCELLED",
 } as const;
+
+const STATUS_LABELS_FIXTURE: Record<string, { fr: string; ar: string }> = {
+  DRAFT: { fr: "Brouillon", ar: "مسودة" },
+  SUBMITTED: { fr: "Soumis", ar: "مقدَّم" },
+  DOCUMENTS_CHECKING: { fr: "Vérification des documents", ar: "فحص المستندات" },
+  DOCUMENTS_REQUESTED: { fr: "Documents demandés", ar: "مستندات مطلوبة" },
+  IN_PROCESS: { fr: "En cours", ar: "قيد المعالجة" },
+  EMBASSY_SENT: { fr: "Envoyé à l'ambassade", ar: "أُرسل إلى السفارة" },
+  APPROVED: { fr: "Approuvé", ar: "مقبول" },
+  REJECTED: { fr: "Refusé", ar: "مرفوض" },
+  CANCELLED: { fr: "Annulé", ar: "ملغى" },
+};
 
 export async function seedFixtures(): Promise<void> {
   // workflow config
@@ -41,9 +52,11 @@ export async function seedFixtures(): Promise<void> {
     .values(
       Object.values(STATUS_CODES).map((code, i) => ({
         code,
+        nameFr: STATUS_LABELS_FIXTURE[code]?.fr ?? null,
+        nameAr: STATUS_LABELS_FIXTURE[code]?.ar ?? null,
         name: code.replaceAll("_", " "),
         sortOrder: (i + 1) * 10,
-        isTerminal: ["REJECTED", "COMPLETED", "CANCELLED"].includes(code),
+        isTerminal: ["APPROVED", "REJECTED", "CANCELLED"].includes(code),
         isDraft: code === "DRAFT",
       })),
     )
@@ -57,20 +70,17 @@ export async function seedFixtures(): Promise<void> {
   const transitions: Array<[string, string, "STAFF" | "AGENCY" | "BOTH"]> = [
     ["DRAFT", "SUBMITTED", "BOTH"],
     ["DRAFT", "CANCELLED", "AGENCY"],
-    ["SUBMITTED", "DOCUMENTS_REQUIRED", "STAFF"],
-    ["SUBMITTED", "UNDER_REVIEW", "STAFF"],
     ["SUBMITTED", "CANCELLED", "STAFF"],
-    ["DOCUMENTS_REQUIRED", "UNDER_REVIEW", "STAFF"],
-    ["UNDER_REVIEW", "DOCUMENTS_REQUIRED", "STAFF"],
-    ["UNDER_REVIEW", "PROCESSING", "STAFF"],
-    ["PROCESSING", "EMBASSY_SUBMISSION", "STAFF"],
-    ["EMBASSY_SUBMISSION", "AWAITING_DECISION", "STAFF"],
-    ["PROCESSING", "AWAITING_DECISION", "STAFF"],
-    ["AWAITING_DECISION", "APPROVED", "STAFF"],
-    ["PROCESSING", "REJECTED", "STAFF"],
-    ["AWAITING_DECISION", "REJECTED", "STAFF"],
-    ["REJECTED", "COMPLETED", "STAFF"],
-    ["APPROVED", "COMPLETED", "STAFF"],
+    ["SUBMITTED", "DOCUMENTS_CHECKING", "STAFF"],
+    ["DOCUMENTS_CHECKING", "DOCUMENTS_REQUESTED", "STAFF"],
+    ["DOCUMENTS_CHECKING", "IN_PROCESS", "STAFF"],
+    ["DOCUMENTS_REQUESTED", "DOCUMENTS_CHECKING", "STAFF"],
+    ["IN_PROCESS", "EMBASSY_SENT", "STAFF"],
+    // finals: graph-valid, but reachable ONLY via the decision workflow
+    ["IN_PROCESS", "APPROVED", "STAFF"],
+    ["IN_PROCESS", "REJECTED", "STAFF"],
+    ["EMBASSY_SENT", "APPROVED", "STAFF"],
+    ["EMBASSY_SENT", "REJECTED", "STAFF"],
   ];
   await db.insert(statusTransitions).values(
     transitions.map(([f, t, scope]) => ({ fromStatusId: byCode.get(f)!.id, toStatusId: byCode.get(t)!.id, scope })),

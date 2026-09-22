@@ -4,11 +4,13 @@
  * Configuration management actions (ESSAFARIA staff only).
  * Every mutation is validated, permission-checked and audited.
  */
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import {
+  applicationStatusHistory,
+  applications,
   countries,
   currencies,
   documentTypes,
@@ -340,6 +342,8 @@ export async function createStatusAction(formData: FormData): Promise<void> {
       .object({
         code: codeSchema,
         name: z.string().trim().min(2).max(60),
+        nameFr: z.string().trim().max(80).optional().nullable(),
+        nameAr: z.string().trim().max(80).optional().nullable(),
         description: z.string().trim().max(300).optional().nullable(),
         sortOrder: z.coerce.number().int().min(0).max(999).default(0),
         isTerminal: z.boolean().default(false),
@@ -348,6 +352,8 @@ export async function createStatusAction(formData: FormData): Promise<void> {
       .parse({
         code: formData.get("code"),
         name: formData.get("name"),
+        nameFr: formData.get("nameFr") || null,
+        nameAr: formData.get("nameAr") || null,
         description: formData.get("description") || null,
         sortOrder: formData.get("sortOrder") ?? 0,
         isTerminal: formData.get("isTerminal") === "on",
@@ -367,6 +373,10 @@ export async function updateStatusAction(formData: FormData): Promise<void> {
     requirePermission(staff, "config.manage");
     const id = idSchema.parse(formData.get("id"));
     if (formData.get("toggle")) {
+      const st = (await db.select().from(statuses).where(eq(statuses.id, id)))[0];
+      if (!st) throw new AppError("NOT_FOUND", "Status not found");
+      // Q12 — terminal statuses are locked and cannot be deactivated
+      if (st.isTerminal && st.active) throw new AppError("FORBIDDEN", "Terminal statuses (APPROVED / REJECTED / CANCELLED) cannot be deactivated.");
       await db.update(statuses).set({ active: sql`not ${statuses.active}`, updatedAt: new Date() }).where(eq(statuses.id, id));
       await recordAudit({ actor: staff, action: "CONFIG_STATUS_TOGGLED", entity: "status", entityId: id });
       revalidatePath("/admin/config/statuses");
@@ -393,11 +403,15 @@ export async function updateStatusAction(formData: FormData): Promise<void> {
     const data = z
       .object({
         name: z.string().trim().min(2).max(60),
+        nameFr: z.string().trim().max(80).optional().nullable(),
+        nameAr: z.string().trim().max(80).optional().nullable(),
         description: z.string().trim().max(300).optional().nullable(),
         sortOrder: z.coerce.number().int().min(0).max(999),
       })
       .parse({
         name: formData.get("name"),
+        nameFr: formData.get("nameFr") || null,
+        nameAr: formData.get("nameAr") || null,
         description: formData.get("description") || null,
         sortOrder: formData.get("sortOrder"),
       });
@@ -405,6 +419,51 @@ export async function updateStatusAction(formData: FormData): Promise<void> {
     await recordAudit({ actor: staff, action: "CONFIG_STATUS_UPDATED", entity: "status", entityId: id });
     revalidatePath("/admin/config/statuses");
     return "Status saved.";
+  });
+}
+
+/**
+ * Delete a status safely. History preservation is the rule:
+ *  - if the status was never referenced by an application or status-history
+ *    row → hard delete (its transition edges go with it);
+ *  - if anything references it → DEACTIVATE it instead and strip its
+ *    transition edges so it can no longer be selected; the row, label and
+ *    historical meaning stay intact.
+ */
+export async function deleteStatusAction(formData: FormData): Promise<void> {
+  await runAction("/admin/config/statuses", async () => {
+    const staff = await requireStaff();
+    requirePermission(staff, "config.manage");
+    const id = idSchema.parse(formData.get("id"));
+    const rows = await db.select().from(statuses).where(eq(statuses.id, id)).limit(1);
+    const status = rows[0];
+    if (!status) throw new AppError("NOT_FOUND", "Status not found.");
+
+    const appRef = await db.select({ id: applications.id }).from(applications).where(eq(applications.statusId, id)).limit(1);
+    const histRef = await db
+      .select({ id: applicationStatusHistory.id })
+      .from(applicationStatusHistory)
+      .where(or(eq(applicationStatusHistory.fromStatusId, id), eq(applicationStatusHistory.toStatusId, id)))
+      .limit(1);
+    const referenced = appRef.length > 0 || histRef.length > 0;
+
+    // transition edges are always stripped — an inactive/deleted status must
+    // never stay selectable.
+    await db
+      .delete(statusTransitions)
+      .where(or(eq(statusTransitions.fromStatusId, id), eq(statusTransitions.toStatusId, id)));
+
+    if (!referenced) {
+      await db.delete(statuses).where(eq(statuses.id, id));
+      await recordAudit({ actor: staff, action: "CONFIG_STATUS_DELETED", entity: "status", entityId: id, metadata: { code: status.code, mode: "hard" } });
+      revalidatePath("/admin/config/statuses");
+      return `Status "${status.name}" deleted (it was never referenced).`;
+    }
+
+    await db.update(statuses).set({ active: false, updatedAt: new Date() }).where(eq(statuses.id, id));
+    await recordAudit({ actor: staff, action: "CONFIG_STATUS_DELETED", entity: "status", entityId: id, metadata: { code: status.code, mode: "deactivated-referenced" } });
+    revalidatePath("/admin/config/statuses");
+    return `Status "${status.name}" is referenced by historical records — deactivated instead of deleted so history stays interpretable.`;
   });
 }
 

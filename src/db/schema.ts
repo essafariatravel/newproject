@@ -226,7 +226,11 @@ export const currencies = pgTable("currencies", {
 export const statuses = pgTable("statuses", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   code: text("code").notNull().unique(),
+  /** EN display label (configurable). */
   name: text("name").notNull(),
+  /** Optional configured FR/AR display labels (null → canonical dictionary). */
+  nameFr: text("name_fr"),
+  nameAr: text("name_ar"),
   description: text("description"),
   sortOrder: integer("sort_order").notNull().default(0),
   isTerminal: boolean("is_terminal").notNull().default(false),

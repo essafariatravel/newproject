@@ -64,27 +64,27 @@ describe("application status workflow", () => {
   it("agency cannot perform staff-only transitions", async () => {
     const { app, staffB } = await submittedApp();
     await expect(
-      changeApplicationStatus({ applicationId: app.id, toStatusCode: "UNDER_REVIEW", actor: staffB }),
+      changeApplicationStatus({ applicationId: app.id, toStatusCode: "DOCUMENTS_CHECKING", actor: staffB }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("invalid transitions are rejected", async () => {
     const { app } = await submittedApp();
     const agent = await userByEmailSafe("agent@test.example");
-    // SUBMITTED → EMBASSY_SUBMISSION is not a configured transition
+    // SUBMITTED → EMBASSY_SENT is not a configured transition (documents come first)
     await expect(
-      changeApplicationStatus({ applicationId: app.id, toStatusCode: "EMBASSY_SUBMISSION", actor: agent }),
+      changeApplicationStatus({ applicationId: app.id, toStatusCode: "EMBASSY_SENT", actor: agent }),
     ).rejects.toMatchObject({ code: "INVALID_TRANSITION" });
   });
 
-  it("staff transition SUBMITTED → UNDER_REVIEW writes history, audit and agency notifications", async () => {
+  it("staff transition SUBMITTED → DOCUMENTS_CHECKING writes history, audit and agency notifications", async () => {
     const { app, agency } = await submittedApp();
     const agent = await userByEmailSafe("agent@test.example");
 
     const before = (await db.select().from(applications).where(eq(applications.id, app.id)))[0]!;
     await changeApplicationStatus({
       applicationId: app.id,
-      toStatusCode: "UNDER_REVIEW",
+      toStatusCode: "DOCUMENTS_CHECKING",
       reason: "Documents verified",
       actor: agent,
     });
@@ -95,7 +95,7 @@ describe("application status workflow", () => {
       .select()
       .from(applicationStatusHistory)
       .where(eq(applicationStatusHistory.applicationId, app.id));
-    expect(history.length).toBe(2); // submitted + under review
+    expect(history.length).toBe(2); // submitted + documents checking
     expect(history.some((h) => h.reason === "Documents verified")).toBe(true);
 
     const agencyNotifs = await db
@@ -111,11 +111,11 @@ describe("application status workflow", () => {
     expect(audits.length).toBeGreaterThan(0);
   });
 
-  it("full lifecycle to COMPLETED", async () => {
+  it("full lifecycle to APPROVED (embassy branch optional; decision from EMBASSY_SENT)", async () => {
     const { app } = await submittedApp();
     const agent = await userByEmailSafe("agent@test.example");
-    // PHASE 2.1: APPROVED is only reachable through the decision workflow
-    for (const code of ["UNDER_REVIEW", "PROCESSING", "EMBASSY_SUBMISSION", "AWAITING_DECISION"]) {
+    // canonical path: CHECKING → IN_PROCESS → EMBASSY_SENT (optional) → APPROVED via decision
+    for (const code of ["DOCUMENTS_CHECKING", "IN_PROCESS", "EMBASSY_SENT"]) {
       await changeApplicationStatus({ applicationId: app.id, toStatusCode: code, actor: agent });
     }
     await recordApplicationDecision({
@@ -124,15 +124,13 @@ describe("application status workflow", () => {
       actor: agent,
       file: { name: "visa.pdf", type: "application/pdf", size: 68, data: Buffer.from("%PDF-1.5 visa copy issued by embassy") },
     });
-    await changeApplicationStatus({ applicationId: app.id, toStatusCode: "COMPLETED", actor: agent });
     const final = (await db.select().from(applications).where(eq(applications.id, app.id)))[0]!;
-    expect(final.completedAt).not.toBeNull();
     expect(final.decisionAt).not.toBeNull();
     const history = await db
       .select()
       .from(applicationStatusHistory)
       .where(eq(applicationStatusHistory.applicationId, app.id));
-    expect(history.length).toBe(7); // submitted + 6 transitions
+    expect(history.length).toBe(5); // submitted + 4 canonical transitions
   });
 
   it("agency-visible cancellation path exists from DRAFT only for agency roles", async () => {

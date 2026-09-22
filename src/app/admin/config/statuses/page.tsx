@@ -2,7 +2,7 @@ import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
 import { listStatuses, listTransitions } from "@/lib/applications";
 import { flashFrom } from "@/lib/action-helpers";
-import { addTransitionAction, createStatusAction } from "@/app/actions/config";
+import { addTransitionAction, createStatusAction, deleteStatusAction, updateStatusAction } from "@/app/actions/config";
 import { SubmitButton } from "@/components/forms";
 import { ActiveBadge, Card, CardHeader, EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
 import { StatusBadge } from "@/components/badges";
@@ -53,6 +53,7 @@ export default async function StatusesConfigPage({
                 <th className="th">Code</th>
                 <th className="th">Flags</th>
                 <th className="th">Status</th>
+                {canManage ? <th className="th">Actions</th> : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -65,6 +66,33 @@ export default async function StatusesConfigPage({
                     {s.isDraft ? <span className="badge bg-ivory-100 text-slate-600">Draft-like</span> : null}
                   </td>
                   <td className="td"><ActiveBadge active={s.active} /></td>
+                  {canManage ? (
+                    <td className="td">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <form action={updateStatusAction}>
+                          <input type="hidden" name="id" value={s.id} />
+                          <input type="hidden" name="toggle" value="1" />
+                          <SubmitButton className="btn-secondary btn-xs" pendingLabel="…">
+                            {s.active ? "Deactivate" : "Activate"}
+                          </SubmitButton>
+                        </form>
+                        <details className="relative">
+                          <summary className="btn-danger btn-xs cursor-pointer list-none">Delete</summary>
+                          <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-red-100 bg-white p-3 shadow-lg">
+                            <p className="text-xs text-navy-800">
+                              Delete <strong>{s.name}</strong> (<code>{s.code}</code>)? Referenced statuses are deactivated instead of deleted.
+                            </p>
+                            <form action={deleteStatusAction} className="mt-2">
+                              <input type="hidden" name="id" value={s.id} />
+                              <SubmitButton className="btn-danger btn-xs" pendingLabel="…">
+                                Confirm delete
+                              </SubmitButton>
+                            </form>
+                          </div>
+                        </details>
+                      </div>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
@@ -95,6 +123,43 @@ export default async function StatusesConfigPage({
       </div>
 
       {canManage ? (
+        <div className="mt-4">
+          <Card>
+            <CardHeader title="Edit status labels & ordering" subtitle="EN label + FR / AR display labels. Codes never change; business logic uses codes." />
+            <TableWrap>
+              <thead className="border-b border-slate-100 bg-ivory-50/60">
+                <tr>
+                  <th className="th">Code</th>
+                  <th className="th">EN label</th>
+                  <th className="th">FR label</th>
+                  <th className="th">AR label</th>
+                  <th className="th">Order</th>
+                  <th className="th"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rows.map((s) => (
+                  <tr key={s.id} className="tr-hover align-middle">
+                    <td className="td text-xs text-slate-500">{s.code}</td>
+                    <form action={updateStatusAction}>
+                      <input type="hidden" name="id" value={s.id} />
+                      <td className="td py-2"><input name="name" defaultValue={s.name} required className="input input-sm w-44" /></td>
+                      <td className="td py-2"><input name="nameFr" defaultValue={s.nameFr ?? ""} className="input input-sm w-44" /></td>
+                      <td className="td py-2" dir="rtl"><input name="nameAr" defaultValue={s.nameAr ?? ""} className="input input-sm w-44" /></td>
+                      <td className="td py-2"><input name="sortOrder" type="number" defaultValue={s.sortOrder} className="input input-sm w-20" /></td>
+                      <td className="td py-2">
+                        <SubmitButton className="btn-primary btn-xs" pendingLabel="…">Save</SubmitButton>
+                      </td>
+                    </form>
+                  </tr>
+                ))}
+              </tbody>
+            </TableWrap>
+          </Card>
+        </div>
+      ) : null}
+
+      {canManage ? (
         <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Card>
             <CardHeader title="Add status" />
@@ -118,6 +183,14 @@ export default async function StatusesConfigPage({
                 <label className="flex items-center gap-1.5">
                   <input type="checkbox" name="isDraft" className="h-3.5 w-3.5" /> Draft-like
                 </label>
+              </div>
+              <div>
+                <label className="label" htmlFor="s-name-fr">Label FR</label>
+                <input id="s-name-fr" name="nameFr" className="input" placeholder="Ex. Visa délivré" />
+              </div>
+              <div dir="rtl">
+                <label className="label" htmlFor="s-name-ar">Label AR</label>
+                <input id="s-name-ar" name="nameAr" className="input" placeholder="مثال: تأشيرة صادرة" />
               </div>
               <div className="sm:col-span-2">
                 <label className="label" htmlFor="s-desc">Description</label>

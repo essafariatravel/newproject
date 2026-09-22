@@ -50,7 +50,7 @@ describe("audit logging", () => {
     }
     await submitApplication({ applicationId: app.id, actor: staffA });
     const agent = await userByEmail("agent@test.example");
-    await changeApplicationStatus({ applicationId: app.id, toStatusCode: "UNDER_REVIEW", actor: agent });
+    await changeApplicationStatus({ applicationId: app.id, toStatusCode: "DOCUMENTS_CHECKING", actor: agent });
 
     const actions = (await db.select().from(auditLogs)).map((a) => a.action);
     expect(actions).toContain("WALLET_CREDIT");

@@ -4,8 +4,13 @@ import { titleize } from "@/components/ui";
 const STATUS_STYLES: Record<string, string> = {
   DRAFT: "bg-ivory-100 text-slate-500",
   SUBMITTED: "bg-teal-50 text-teal-700",
-  DOCUMENTS_REQUIRED: "bg-amber-50 text-amber-700",
+  DOCUMENTS_CHECKING: "bg-sky-50 text-sky-700",
+  DOCUMENTS_REQUESTED: "bg-amber-50 text-amber-700",
+  IN_PROCESS: "bg-iris-50 text-iris-700",
+  EMBASSY_SENT: "bg-purple-50 text-purple-700",
+  // legacy (deactivated) codes still render correctly for historical rows
   UNDER_REVIEW: "bg-sky-50 text-sky-700",
+  DOCUMENTS_REQUIRED: "bg-amber-50 text-amber-700",
   PROCESSING: "bg-iris-50 text-iris-700",
   EMBASSY_SUBMISSION: "bg-purple-50 text-purple-700",
   AWAITING_DECISION: "bg-fuchsia-50 text-fuchsia-700",
@@ -27,9 +32,19 @@ const DOC_STATUS_STYLES: Record<string, string> = {
   RESUBMISSION_REQUIRED: "bg-amber-50 text-amber-700",
 };
 
-export async function StatusBadge({ code, name }: { code: string; name?: string }) {
+export async function StatusBadge({
+  code,
+  name,
+  nameFr,
+  nameAr,
+}: {
+  code: string;
+  name?: string;
+  nameFr?: string | null;
+  nameAr?: string | null;
+}) {
   const locale = await getUiLocale();
-  const label = localizedStatusName(code, name ?? titleize(code), locale);
+  const label = localizedStatusName(code, name ?? titleize(code), locale, nameFr, nameAr);
   return <span className={`badge ${STATUS_STYLES[code] ?? "bg-ivory-100 text-slate-500"}`}>{label}</span>;
 }
 

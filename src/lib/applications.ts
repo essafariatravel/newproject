@@ -539,7 +539,7 @@ export async function changeApplicationStatus(params: {
     agencyId: app.agencyId,
     applicationId: app.id,
   });
-  if (to.code === "DOCUMENTS_REQUIRED") {
+  if (to.code === "DOCUMENTS_REQUESTED") {
     await notifyUsers(aIds, {
       type: "DOCUMENTS_REQUIRED",
       title: `Documents required for ${app.reference}`,
@@ -581,9 +581,8 @@ export const DECISION_DOC_TYPE_CODES = ["DECISION_VISA_APPROVAL", "DECISION_REFU
  * on paper yet, the approver moves it there first.
  */
 const DECISION_SOURCES: Record<string, DecisionOutcome[]> = {
-  PROCESSING: ["REJECTED"],
-  AWAITING_DECISION: ["APPROVED", "REJECTED"],
-  EMBASSY_SUBMISSION: ["REJECTED"],
+  IN_PROCESS: ["APPROVED", "REJECTED"],
+  EMBASSY_SENT: ["APPROVED", "REJECTED"],
 };
 
 /** Outcomes the admin UI is allowed to offer for a given status code. */
@@ -662,9 +661,7 @@ export async function recordApplicationDecision(params: {
       "BAD_STATE",
       terminal
         ? `A ${params.outcome} decision cannot be recorded: the application already finished at ${from.name}.`
-        : params.outcome === "APPROVED"
-          ? `Approvals are double-gated: move the application to Awaiting Decision first (currently: ${from.name}).`
-          : `A final ${params.outcome} decision requires a production status (currently: ${from.name}).`,
+        : `A final ${params.outcome} decision requires the application to be In Process (or at the Embassy); it is currently ${from.name}.`,
     );
   }
 

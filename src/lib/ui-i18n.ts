@@ -205,22 +205,41 @@ export const ALL_CHROME_KEYS: ChromeKey[] = [
  * module instead of DB columns — user-entered/configured names untouched).
  */
 const STATUS_LABELS: Record<string, Record<UiLocale, string>> = {
+  // canonical default workflow (Phase 2.2)
   DRAFT: { en: "Draft", fr: "Brouillon", ar: "مسودة" },
   SUBMITTED: { en: "Submitted", fr: "Soumis", ar: "مقدَّم" },
-  UNDER_REVIEW: { en: "Under Review", fr: "En cours d'examen", ar: "قيد المراجعة" },
-  DOCUMENTS_REQUIRED: { en: "Documents Required", fr: "Documents requis", ar: "مستندات مطلوبة" },
-  PROCESSING: { en: "Processing", fr: "En traitement", ar: "قيد المعالجة" },
-  EMBASSY_SUBMISSION: { en: "Embassy Submission", fr: "Déposé à l'ambassade", ar: "مقدَّم للسفارة" },
-  AWAITING_DECISION: { en: "Awaiting Decision", fr: "En attente de décision", ar: "بانتظار القرار" },
+  DOCUMENTS_CHECKING: { en: "Documents Checking", fr: "Vérification des documents", ar: "فحص المستندات" },
+  DOCUMENTS_REQUESTED: { en: "Documents Requested", fr: "Documents demandés", ar: "مستندات مطلوبة" },
+  IN_PROCESS: { en: "In Process", fr: "En cours", ar: "قيد المعالجة" },
+  EMBASSY_SENT: { en: "Sent to Embassy", fr: "Envoyé à l'ambassade", ar: "أُرسل إلى السفارة" },
   APPROVED: { en: "Approved", fr: "Approuvé", ar: "مقبول" },
   REJECTED: { en: "Rejected", fr: "Refusé", ar: "مرفوض" },
-  REFUSED: { en: "Rejected (legacy)", fr: "Refusé (héritage)", ar: "مرفوض (قديم)" },
-  COMPLETED: { en: "Completed", fr: "Terminé", ar: "مكتمل" },
   CANCELLED: { en: "Cancelled", fr: "Annulé", ar: "ملغى" },
+  // legacy (deactivated) — preserved so historical records stay readable
+  UNDER_REVIEW: { en: "Under Review (legacy)", fr: "En cours d'examen (hérité)", ar: "قيد المراجعة (قديم)" },
+  DOCUMENTS_REQUIRED: { en: "Documents Required (legacy)", fr: "Documents requis (hérité)", ar: "مستندات مطلوبة (قديم)" },
+  PROCESSING: { en: "Processing (legacy)", fr: "En traitement (hérité)", ar: "قيد المعالجة (قديم)" },
+  EMBASSY_SUBMISSION: { en: "Embassy Submission (legacy)", fr: "Déposé à l'ambassade (hérité)", ar: "مقدَّم للسفارة (قديم)" },
+  AWAITING_DECISION: { en: "Awaiting Decision (legacy)", fr: "En attente de décision (hérité)", ar: "بانتظار القرار (قديم)" },
+  REFUSED: { en: "Rejected (legacy)", fr: "Refusé (héritage)", ar: "مرفوض (قديم)" },
+  COMPLETED: { en: "Completed (legacy)", fr: "Terminé (hérité)", ar: "مكتمل (قديم)" },
 };
 
-/** Localized status label by canonical code; unknown codes keep the DB name. */
-export function localizedStatusName(code: string, dbName: string, locale: UiLocale): string {
+/**
+ * Localized status label by stable code.
+ * Resolution: configured DB label for the locale (name_fr / name_ar when set)
+ * → canonical dictionary → the EN/DB display name. Codes, never translated
+ * labels, drive all business logic.
+ */
+export function localizedStatusName(
+  code: string,
+  dbName: string,
+  locale: UiLocale,
+  dbLabelFr?: string | null,
+  dbLabelAr?: string | null,
+): string {
+  if (locale === "fr" && dbLabelFr?.trim()) return dbLabelFr;
+  if (locale === "ar" && dbLabelAr?.trim()) return dbLabelAr;
   return STATUS_LABELS[code]?.[locale] ?? dbName;
 }
 
