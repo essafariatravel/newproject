@@ -15,6 +15,7 @@ import { listApplicantsForApplication, listDocumentsForApplication } from "@/lib
 import { findTransactionByApplication, getBalance, formatMoney } from "@/lib/wallet";
 import { listCommunications } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
+import { getUiLocale, localizedDocTypeName } from "@/lib/ui-i18n";
 import { formatDate, formatDateTime, personName } from "@/lib/format";
 import {
   addApplicantAction,
@@ -79,6 +80,7 @@ export default async function PortalApplicationDetailPage({
     ]);
   const isDraft = app.statusId === draftStatus.id;
   const flash = flashFrom(sp);
+  const uiLocale = await getUiLocale();
   const fee = Number(app.fee);
   const balance = Number(wallet.balance);
   const canAfford = balance >= fee;
@@ -132,7 +134,7 @@ export default async function PortalApplicationDetailPage({
                   {decisionDocs.map((d) => (
                     <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-100 bg-emerald-50/50 px-3 py-2.5">
                       <div>
-                        <p className="font-medium text-navy-900">{d.typeName}</p>
+                        <p className="font-medium text-navy-900">{localizedDocTypeName(d.typeCode, d.typeName, uiLocale)}</p>
                         <p className="text-xs text-slate-500">
                           {formatDateTime(d.createdAt)} ·{" "}
                           <span className="badge bg-emerald-100 text-emerald-800">{d.status}</span>

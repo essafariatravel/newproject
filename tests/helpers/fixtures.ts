@@ -30,7 +30,6 @@ export const STATUS_CODES = {
   awaiting: "AWAITING_DECISION",
   approved: "APPROVED",
   rejected: "REJECTED",
-  refused: "REFUSED",
   completed: "COMPLETED",
   cancelled: "CANCELLED",
 } as const;
@@ -44,7 +43,7 @@ export async function seedFixtures(): Promise<void> {
         code,
         name: code.replaceAll("_", " "),
         sortOrder: (i + 1) * 10,
-        isTerminal: ["REFUSED", "REJECTED", "COMPLETED", "CANCELLED"].includes(code),
+        isTerminal: ["REJECTED", "COMPLETED", "CANCELLED"].includes(code),
         isDraft: code === "DRAFT",
       })),
     )
@@ -67,10 +66,7 @@ export async function seedFixtures(): Promise<void> {
     ["PROCESSING", "EMBASSY_SUBMISSION", "STAFF"],
     ["EMBASSY_SUBMISSION", "AWAITING_DECISION", "STAFF"],
     ["PROCESSING", "AWAITING_DECISION", "STAFF"],
-    ["PROCESSING", "APPROVED", "STAFF"],
-    ["PROCESSING", "REFUSED", "STAFF"],
     ["AWAITING_DECISION", "APPROVED", "STAFF"],
-    ["AWAITING_DECISION", "REFUSED", "STAFF"],
     ["PROCESSING", "REJECTED", "STAFF"],
     ["AWAITING_DECISION", "REJECTED", "STAFF"],
     ["REJECTED", "COMPLETED", "STAFF"],

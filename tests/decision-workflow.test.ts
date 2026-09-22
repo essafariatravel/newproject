@@ -97,9 +97,9 @@ async function currentStatus(applicationId: string): Promise<string> {
 }
 
 describe("decision workflow — direct final outcomes are locked", () => {
-  it("changeApplicationStatus to APPROVED/REFUSED/REJECTED throws DECISION_REQUIRED", async () => {
+  it("changeApplicationStatus to APPROVED/REJECTED throws DECISION_REQUIRED", async () => {
     const { app, staff } = await appAt("PROCESSING");
-    for (const to of ["APPROVED", "REFUSED", "REJECTED"]) {
+    for (const to of ["APPROVED", "REJECTED"]) {
       await expect(
         changeApplicationStatus({ applicationId: app.id, toStatusCode: to, actor: staff }),
       ).rejects.toMatchObject({ code: "DECISION_REQUIRED" });
@@ -110,8 +110,8 @@ describe("decision workflow — direct final outcomes are locked", () => {
     expect(decisionOutcomesForStatus("UNDER_REVIEW")).toEqual([]);
     expect(decisionOutcomesForStatus("SUBMITTED")).toEqual([]);
     expect(decisionOutcomesForStatus("COMPLETED")).toEqual([]);
-    expect(decisionOutcomesForStatus("AWAITING_DECISION")).toEqual(["APPROVED", "REFUSED", "REJECTED"]);
-    expect(decisionOutcomesForStatus("PROCESSING")).toEqual(["REFUSED", "REJECTED"]);
+    expect(decisionOutcomesForStatus("AWAITING_DECISION")).toEqual(["APPROVED", "REJECTED"]);
+    expect(decisionOutcomesForStatus("PROCESSING")).toEqual(["REJECTED"]);
     expect(decisionOutcomesForStatus("EMBASSY_SUBMISSION")).toEqual(["REJECTED"]);
   });
 });
@@ -182,7 +182,7 @@ describe("decision workflow — audit-proof success paths", () => {
     const { app, staff } = await appAt("AWAITING_DECISION");
     const { documentId } = await recordApplicationDecision({
       applicationId: app.id,
-      outcome: "REFUSED",
+      outcome: "REJECTED",
       actor: staff,
       file: { name: "refusal.pdf", type: "application/pdf", size: PDF.length, data: PDF },
     });
@@ -239,7 +239,7 @@ describe("decision workflow — validation and bad states", () => {
     // this app is AWAITING_DECISION; first close it, then attempt again
     await recordApplicationDecision({ applicationId: app.id, outcome: "APPROVED", actor: staff, file: { name: "ok.pdf", type: "application/pdf", size: PDF.length, data: PDF } });
     await expect(
-      recordApplicationDecision({ applicationId: app.id, outcome: "REFUSED", actor: staff, file: { name: "late.pdf", type: "application/pdf", size: PDF.length, data: PDF } }),
+      recordApplicationDecision({ applicationId: app.id, outcome: "REJECTED", actor: staff, file: { name: "late.pdf", type: "application/pdf", size: PDF.length, data: PDF } }),
     ).rejects.toMatchObject({ code: "BAD_STATE" });
     // still exactly one decision document (nothing partial)
     expect((await getDecisionDocuments(app.id)).length).toBe(1);
@@ -268,5 +268,39 @@ describe("decision workflow — validation and bad states", () => {
       }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect((await getDecisionDocuments(app.id)).length).toBe(0);
+  });
+});
+
+describe("canonical decision model — duplicate Refused/Rejected eliminated", () => {
+  it("legacy REFUSED outcome is no longer accepted by the decision workflow", async () => {
+    const { app, staff } = await appAt("AWAITING_DECISION");
+    await expect(
+      recordApplicationDecision({
+        applicationId: app.id,
+        // @ts-expect-error REFUSED is not a canonical outcome anymore
+        outcome: "REFUSED",
+        actor: staff,
+        file: { name: "legacy.pdf", type: "application/pdf", size: PDF.length, data: PDF },
+      }),
+    ).rejects.toMatchObject({ code: "VALIDATION" });
+    expect((await getDecisionDocuments(app.id)).length).toBe(0);
+  });
+
+  it("legacy REFUSED status, if present, is inactive with no transitions", async () => {
+    const refusedRows = await db.select().from(statuses).where(eq(statuses.code, "REFUSED"));
+    if (refusedRows.length) {
+      expect(refusedRows[0]!.active).toBe(false);
+    }
+    const edges = await db.execute(
+      sql`select count(*)::int as n from status_transitions t join statuses f on f.id=t.from_status_id join statuses tt on tt.id=t.to_status_id where f.code='REFUSED' or tt.code='REFUSED'`,
+    );
+    expect((edges.rows[0] as { n: number }).n).toBe(0);
+  });
+
+  it("APPROVED is reachable only from AWAITING_DECISION in workflow config", async () => {
+    const edges = await db.execute(
+      sql`select f.code as from_code from status_transitions t join statuses f on f.id=t.from_status_id join statuses tt on tt.id=t.to_status_id where tt.code='APPROVED' order by 1`,
+    );
+    expect((edges.rows as Array<{ from_code: string }>).map((r) => r.from_code)).toEqual(["AWAITING_DECISION"]);
   });
 });

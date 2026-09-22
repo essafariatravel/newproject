@@ -268,8 +268,8 @@ export async function recordDecisionAction(formData: FormData): Promise<void> {
   await runAction(back, async () => {
     const user = await requireUser();
     const outcomeRaw = String(formData.get("outcome") ?? "");
-    if (!["APPROVED", "REFUSED", "REJECTED"].includes(outcomeRaw)) {
-      throw new AppError("VALIDATION", "Choose a decision outcome (Approved / Refused / Rejected).");
+    if (!["APPROVED", "REJECTED"].includes(outcomeRaw)) {
+      throw new AppError("VALIDATION", "Choose a decision outcome (Approved / Rejected).");
     }
     const file = formData.get("file");
     if (!(file instanceof File) || file.size === 0) {

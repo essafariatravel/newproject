@@ -194,3 +194,50 @@ export const ALL_CHROME_KEYS: ChromeKey[] = [
   "Countries", "Visa Categories", "Visa Types", "Document Types", "Currencies",
   "Statuses & Transitions", "Priorities", "Reports", "Audit Logs", "Settings",
 ];
+
+/* ------------------------------------------------------------------ */
+/* Workflow status + decision labels (config-driven codes, EN/FR/AR)  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Stable canonical status codes carry localized display labels here (the
+ * architecture stores config-driven codes; display localization lives in this
+ * module instead of DB columns — user-entered/configured names untouched).
+ */
+const STATUS_LABELS: Record<string, Record<UiLocale, string>> = {
+  DRAFT: { en: "Draft", fr: "Brouillon", ar: "مسودة" },
+  SUBMITTED: { en: "Submitted", fr: "Soumis", ar: "مقدَّم" },
+  UNDER_REVIEW: { en: "Under Review", fr: "En cours d'examen", ar: "قيد المراجعة" },
+  DOCUMENTS_REQUIRED: { en: "Documents Required", fr: "Documents requis", ar: "مستندات مطلوبة" },
+  PROCESSING: { en: "Processing", fr: "En traitement", ar: "قيد المعالجة" },
+  EMBASSY_SUBMISSION: { en: "Embassy Submission", fr: "Déposé à l'ambassade", ar: "مقدَّم للسفارة" },
+  AWAITING_DECISION: { en: "Awaiting Decision", fr: "En attente de décision", ar: "بانتظار القرار" },
+  APPROVED: { en: "Approved", fr: "Approuvé", ar: "مقبول" },
+  REJECTED: { en: "Rejected", fr: "Refusé", ar: "مرفوض" },
+  REFUSED: { en: "Rejected (legacy)", fr: "Refusé (héritage)", ar: "مرفوض (قديم)" },
+  COMPLETED: { en: "Completed", fr: "Terminé", ar: "مكتمل" },
+  CANCELLED: { en: "Cancelled", fr: "Annulé", ar: "ملغى" },
+};
+
+/** Localized status label by canonical code; unknown codes keep the DB name. */
+export function localizedStatusName(code: string, dbName: string, locale: UiLocale): string {
+  return STATUS_LABELS[code]?.[locale] ?? dbName;
+}
+
+const DECISION_DOC_TYPE_LABELS: Record<string, Record<UiLocale, string>> = {
+  DECISION_VISA_APPROVAL: {
+    en: "Issued Visa / Approval Decision",
+    fr: "Visa délivré / Décision d'approbation",
+    ar: "التأشيرة الصادرة / قرار الموافقة",
+  },
+  DECISION_REFUSAL_LETTER: {
+    en: "Refusal / Rejection Decision Letter",
+    fr: "Lettre de refus / Décision de refus",
+    ar: "خطاب الرفض / قرار الرفض",
+  },
+};
+
+/** Localized decision-document-type label by code; unknown codes keep DB name. */
+export function localizedDocTypeName(code: string, dbName: string, locale: UiLocale): string {
+  return DECISION_DOC_TYPE_LABELS[code]?.[locale] ?? dbName;
+}

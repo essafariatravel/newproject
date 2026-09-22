@@ -17,6 +17,7 @@ import { listApplicantsForApplication, listDocumentsForApplication } from "@/lib
 import { findTransactionByApplication } from "@/lib/wallet";
 import { listCommunications } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
+import { getUiLocale, localizedStatusName, localizedDocTypeName } from "@/lib/ui-i18n";
 import { formatDate, formatDateTime, personName } from "@/lib/format";
 import { OVERRIDE_ROLES, type AuthUser } from "@/lib/types";
 import { staffDirectory } from "@/app/actions/communications";
@@ -90,13 +91,14 @@ export default async function AdminApplicationDetailPage({
     ]);
   // PHASE 2.1: final outcomes are never offered as bare status changes —
   // they require the decision-document workflow below.
-  const selectableStatuses = nextStatuses.filter((s) => !["APPROVED", "REFUSED", "REJECTED"].includes(s.status.code));
+  const selectableStatuses = nextStatuses.filter((s) => !["APPROVED", "REJECTED"].includes(s.status.code));
   const allowedDecisionOutcomes = decisionOutcomesForStatus(detail.statusCode);
   const isDraft = app.statusId === draftStatus.id;
   const canStatusChange = hasPermission(user, "applications.status.change");
   const canReview = hasPermission(user, "applications.review");
   const canOverride = hasPermission(user, "applications.submit.override") && OVERRIDE_ROLES.includes(user.role);
   const flash = flashFrom(sp);
+  const uiLocale = await getUiLocale();
 
   return (
     <>
@@ -204,7 +206,7 @@ export default async function AdminApplicationDetailPage({
                     {decisionDocs.map((d) => (
                       <li key={d.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-ivory-50/60 px-3 py-2">
                         <div>
-                          <p className="font-medium text-navy-900">{d.typeName}</p>
+                          <p className="font-medium text-navy-900">{localizedDocTypeName(d.typeCode, d.typeName, uiLocale)}</p>
                           <p className="text-xs text-slate-500">
                             {formatDateTime(d.createdAt)} · <span className="badge bg-emerald-100 text-emerald-800">{d.status}</span>
                           </p>
@@ -224,7 +226,7 @@ export default async function AdminApplicationDetailPage({
                       <label className="label" htmlFor="outcome">Outcome</label>
                       <select id="outcome" name="outcome" className="input w-44" required>
                         {allowedDecisionOutcomes.map((o) => (
-                          <option key={o} value={o}>{o === "APPROVED" ? "Approved" : o === "REFUSED" ? "Refused" : "Rejected"}</option>
+                          <option key={o} value={o}>{localizedStatusName(o, o, uiLocale)}</option>
                         ))}
                       </select>
                     </div>
@@ -236,7 +238,7 @@ export default async function AdminApplicationDetailPage({
                   </form>
                 ) : (
                   <p className="px-4 pb-4 text-xs text-slate-500">
-                    {["APPROVED", "REFUSED", "REJECTED", "COMPLETED", "CANCELLED"].includes(detail.statusCode)
+                    {["APPROVED", "REJECTED", "COMPLETED", "CANCELLED"].includes(detail.statusCode)
                       ? "The file is closed — no further decision can be recorded."
                       : "Decisions unlock once the file is in Processing / Awaiting Decision. Approvals are double-gated: move the file to Awaiting Decision first."}
                   </p>

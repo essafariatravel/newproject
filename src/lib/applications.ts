@@ -432,18 +432,21 @@ export async function submitApplication(params: {
 
 const TERMINAL_TIMESTAMP_FIELDS: Record<string, "completedAt" | "decisionAt"> = {
   APPROVED: "decisionAt",
-  REFUSED: "decisionAt",
   REJECTED: "decisionAt",
   COMPLETED: "completedAt",
+  // REFUSED is a legacy status (phase 2.1 canonical model kept the row for
+  // history, transitioned nothing new into it).
 };
 
 /**
- * PHASE 2.1: final outcomes (APPROVED / REFUSED / REJECTED) may ONLY be
- * reached through `recordApplicationDecision` — the canonical workflow that
- * uploads the decision document and transitions the application in one
- * atomic operation. Direct status changes are hard-rejected here.
+ * PHASE 2.1: final outcomes (APPROVED / REJECTED) may ONLY be reached
+ * through `recordApplicationDecision` — the canonical workflow that uploads
+ * the decision document and transitions the application in one atomic
+ * operation. Direct status changes are hard-rejected here.
+ * (REFUSED is a deactivated legacy status — the canonical negative outcome
+ * is REJECTED.)
  */
-const DECISION_LOCKED_STATUSES = new Set(["APPROVED", "REFUSED", "REJECTED"]);
+const DECISION_LOCKED_STATUSES = new Set(["APPROVED", "REJECTED"]);
 
 export async function changeApplicationStatus(params: {
   applicationId: string;
@@ -564,7 +567,7 @@ export async function changeApplicationStatus(params: {
 /* Final decisions (PHASE 2.1)                                         */
 /* ------------------------------------------------------------------ */
 
-export type DecisionOutcome = "APPROVED" | "REFUSED" | "REJECTED";
+export type DecisionOutcome = "APPROVED" | "REJECTED";
 
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -578,8 +581,8 @@ export const DECISION_DOC_TYPE_CODES = ["DECISION_VISA_APPROVAL", "DECISION_REFU
  * on paper yet, the approver moves it there first.
  */
 const DECISION_SOURCES: Record<string, DecisionOutcome[]> = {
-  PROCESSING: ["REFUSED", "REJECTED"],
-  AWAITING_DECISION: ["APPROVED", "REFUSED", "REJECTED"],
+  PROCESSING: ["REJECTED"],
+  AWAITING_DECISION: ["APPROVED", "REJECTED"],
   EMBASSY_SUBMISSION: ["REJECTED"],
 };
 
@@ -630,8 +633,8 @@ export async function recordApplicationDecision(params: {
   if (!["SUPER_ADMIN", "ADMIN", "VISA_AGENT"].includes(actor.role)) {
     throw new AppError("FORBIDDEN", "Only ESSAFARIA staff can record application decisions.");
   }
-  if (!["APPROVED", "REFUSED", "REJECTED"].includes(params.outcome)) {
-    throw new AppError("VALIDATION", "Outcome must be APPROVED, REFUSED or REJECTED.");
+  if (!["APPROVED", "REJECTED"].includes(params.outcome)) {
+    throw new AppError("VALIDATION", "Outcome must be APPROVED or REJECTED.");
   }
 
   // validate the file hard server-side: size, mime allowlist, magic bytes
@@ -658,7 +661,7 @@ export async function recordApplicationDecision(params: {
     throw new AppError(
       "BAD_STATE",
       terminal
-        ? `${params.outcome} cannot be recorded: the application already finished at ${from.name}.`
+        ? `A ${params.outcome} decision cannot be recorded: the application already finished at ${from.name}.`
         : params.outcome === "APPROVED"
           ? `Approvals are double-gated: move the application to Awaiting Decision first (currently: ${from.name}).`
           : `A final ${params.outcome} decision requires a production status (currently: ${from.name}).`,
@@ -755,7 +758,7 @@ export async function recordApplicationDecision(params: {
 }
 
 function boolToTerminal(code: string): boolean {
-  return ["APPROVED", "REFUSED", "REJECTED", "COMPLETED", "CANCELLED"].includes(code);
+  return ["APPROVED", "REFUSED", "REJECTED", "COMPLETED", "CANCELLED"].includes(code); // REFUSED kept: legacy terminal
 }
 
 /* ------------------------------------------------------------------ */
