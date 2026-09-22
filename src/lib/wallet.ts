@@ -211,7 +211,8 @@ export async function chargeApplicationSubmission(params: {
 
     await client.query(
       `update ${qualifiedTable("applications")}
-         set status_id = $2, submitted_at = now(), updated_at = now()
+         set status_id = $2, submitted_at = now(), updated_at = now(),
+             submitted_price = fee, submitted_currency = currency, effective_price = fee
        where id = $1`,
       [app.id, params.submittedStatusId],
     );

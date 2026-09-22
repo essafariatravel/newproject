@@ -84,16 +84,26 @@ export default async function PortalWalletPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {visible.map(({ tx, applicationReference }) => (
+                {visible.map(({ tx, applicationReference }) => {
+                  // §18 — direction from the actual balance movement; compensating
+                  // commercial credits display "+", never as debits.
+                  const creditEffect = Number(tx.balanceAfter) > Number(tx.balanceBefore);
+                  const typeLabel =
+                    tx.type === "COMMERCIAL_DISCOUNT"
+                      ? ct("Commercial discount/refund")
+                      : tx.type === "COMMERCIAL_SURCHARGE"
+                        ? ct("Commercial surcharge")
+                        : tx.type.replaceAll("_", " ");
+                  return (
                   <tr key={tx.id} className="tr-hover">
                     <td className="td whitespace-nowrap text-xs">{formatDateTime(tx.createdAt)}</td>
                     <td className="td">
-                      <span className={`badge ${tx.type === "CREDIT" ? "bg-emerald-100 text-emerald-800" : tx.type === "DEBIT" ? "bg-red-100 text-red-700" : "bg-navy-900/5 text-navy-800"}`}>
-                        {tx.type.replaceAll("_", " ")}
+                      <span className={`badge ${creditEffect ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}`}>
+                        {typeLabel}
                       </span>
                     </td>
-                    <td className={`td whitespace-nowrap font-medium tabular-nums ${tx.type === "CREDIT" ? "text-emerald-700" : "text-red-700"}`}>
-                      {tx.type === "CREDIT" ? "+" : "−"}{formatAmount(tx.amount, tx.currency)}
+                    <td className={`td whitespace-nowrap font-medium tabular-nums ${creditEffect ? "text-emerald-700" : "text-red-700"}`}>
+                      {creditEffect ? "+" : "−"}{formatAmount(tx.amount, tx.currency)}
                     </td>
                     <td className="td whitespace-nowrap tabular-nums text-xs">{tx.balanceBefore} → {tx.balanceAfter} {tx.currency}</td>
                     <td className="td text-xs">
@@ -105,7 +115,8 @@ export default async function PortalWalletPage({
                     </td>
                     <td className="td max-w-[260px] truncate text-xs text-slate-500" title={tx.reason}>{tx.reason}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </TableWrap>
             <Pagination page={page} pageCount={pageCount} total={txs.length} basePath="/portal/wallet" />

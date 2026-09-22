@@ -375,3 +375,59 @@ export function ActivityTimeline(props: {
     </div>
   );
 }
+
+/* -------------------- Phase 2.2 §17 — staff price adjustments -------------------- */
+
+import type { ApplicationPricing } from "@/lib/price-adjustments";
+
+/**
+ * Read-only pricing dossier (original + history + effective) shared by the
+ * admin Billing tab and the portal "effective price" block.
+ */
+export function PriceAdjustmentHistory(props: {
+  pricing: ApplicationPricing;
+  formatLabel?: (t: "DISCOUNT" | "SURCHARGE" | "REFUND") => string;
+}) {
+  const p = props.pricing;
+  if (!p.submittedPrice) return null;
+  const currency = p.submittedCurrency ?? "";
+  const label = props.formatLabel ?? ((t: "DISCOUNT" | "SURCHARGE" | "REFUND") => t.replace("_", " "));
+  return (
+    <div className="card">
+      <div className="border-b border-slate-100 px-4 py-3">
+        <h2 className="text-sm font-semibold text-navy-900">Price snapshot &amp; adjustments</h2>
+      </div>
+      <div className="space-y-2 px-4 py-4 text-sm">
+        <div className="flex items-center justify-between">
+          <span className="text-slate-500">Original submitted price</span>
+          <span className="font-medium tabular-nums">{formatAmount(p.submittedPrice, currency)}</span>
+        </div>
+        {p.adjustments.length === 0 ? (
+          <p className="rounded-md bg-ivory-100 px-3 py-2 text-xs text-slate-500">
+            No commercial adjustment on this application.
+          </p>
+        ) : (
+          <>
+            {p.adjustments.map((a) => (
+              <div key={a.id} className="flex items-center justify-between gap-3 border-t border-slate-100 pt-2">
+                <div>
+                  <span className={`badge ${a.type === "SURCHARGE" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-800"}`}>
+                    {label(a.type)}
+                  </span>
+                  <span className="ml-2 text-xs text-slate-400">{a.reason}</span>
+                </div>
+                <span className={`whitespace-nowrap tabular-nums ${a.type === "SURCHARGE" ? "text-red-700" : "text-emerald-700"}`}>
+                  {a.type === "SURCHARGE" ? "+" : "−"}{Number(a.amount).toFixed(2)} {a.currency}
+                </span>
+              </div>
+            ))}
+          </>
+        )}
+        <div className="flex items-center justify-between border-t border-slate-200 pt-2 font-semibold text-navy-900">
+          <span>Effective price</span>
+          <span className="tabular-nums">{p.effectivePrice ? formatAmount(p.effectivePrice, currency) : "—"}</span>
+        </div>
+      </div>
+    </div>
+  );
+}

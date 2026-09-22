@@ -135,9 +135,14 @@ export async function getAgencyWalletStatement(params: {
     // Direction comes from the ledger movement itself, never from a type-name guess.
     const credit = Number(r.balanceAfter) > Number(r.balanceBefore);
     const desc = [r.reason, r.applRef ? `Application ${r.applRef}` : null].filter(Boolean).join(" — ") || null;
+    // §18 — commercial adjustments carry their statement label from the spec
+    const displayType =
+      r.type === "COMMERCIAL_DISCOUNT" ? "Commercial discount/refund"
+      : r.type === "COMMERCIAL_SURCHARGE" ? "Commercial surcharge"
+      : r.type;
     const tx: StatementTx = {
       createdAt: r.createdAt,
-      type: r.type,
+      type: displayType,
       direction: credit ? "CREDIT" : "DEBIT",
       amount: Number(r.amount),
       description: desc,

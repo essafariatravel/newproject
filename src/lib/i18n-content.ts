@@ -218,6 +218,9 @@ const CONTENT: Record<string, Entry> = {
 
   "Creating…": { fr: "Création…", ar: "جارٍ الإنشاء…" },
   "Balance after charge": { fr: "Solde après prélèvement", ar: "الرصيد بعد الخصم" },
+  "Effective price": { fr: "Prix effectif", ar: "السعر الفعلي" },
+  "Commercial discount/refund": { fr: "Remise commerciale/remboursement", ar: "خصم تجاري/استرداد" },
+  "Commercial surcharge": { fr: "Supplément commercial", ar: "رسوم إضافية تجارية" },
   "City": { fr: "Ville", ar: "المدينة" },
   "Date of birth": { fr: "Date de naissance", ar: "تاريخ الميلاد" },
   "Female": { fr: "Femme", ar: "أنثى" },

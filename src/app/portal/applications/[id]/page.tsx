@@ -17,6 +17,8 @@ import { listCommunications } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
 import { getUiLocale, localizedDocTypeName } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
+import { getApplicationPricing } from "@/lib/price-adjustments";
+import { PriceAdjustmentHistory } from "@/components/application-detail";
 import { DatePicker } from "@/components/date-picker";
 import { formatDate, formatDateTime, personName } from "@/lib/format";
 import {
@@ -85,6 +87,7 @@ export default async function PortalApplicationDetailPage({
   const flash = flashFrom(sp);
   const uiLocale = await getUiLocale();
   const ct = contentT(uiLocale);
+  const pricing = app.submittedAt ? await getApplicationPricing(id) : null;
   const fee = Number(app.fee);
   const balance = Number(wallet.balance);
   const canAfford = balance >= fee;
@@ -118,6 +121,9 @@ export default async function PortalApplicationDetailPage({
                   { label: ct("Category"), value: app.categoryName },
                   { label: ct("Country"), value: app.countryName },
                   { label: ct("Fee"), value: `${app.fee} ${app.currency}` },
+                  ...(pricing && pricing.effectivePrice && pricing.effectivePrice !== pricing.submittedPrice
+                    ? [{ label: ct("Effective price"), value: `${pricing.effectivePrice} ${pricing.submittedCurrency}` }]
+                    : []),
                   { label: ct("Processing time"), value: formatProcessingDays(app.processingMinDays, app.processingMaxDays) },
                   { label: ct("Applicants"), value: String(applicants.length) },
                   { label: ct("Required documents"), value: `${progress.requiredComplete}/${progress.requiredTotal} ${ct("provided")}` },
@@ -127,6 +133,10 @@ export default async function PortalApplicationDetailPage({
                 ]}
               />
             </Card>
+
+            {pricing && pricing.submittedPrice && pricing.adjustments.length > 0 ? (
+              <PriceAdjustmentHistory pricing={pricing} />
+            ) : null}
 
             {decisionDocs.length > 0 ? (
               <Card className="border-emerald-200">

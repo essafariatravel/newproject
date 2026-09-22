@@ -38,7 +38,10 @@ import {
   ChecklistTable,
   CommunicationsPanel,
   DocumentList,
+  PriceAdjustmentHistory,
 } from "@/components/application-detail";
+import { getApplicationPricing } from "@/lib/price-adjustments";
+import { applyPriceAdjustmentAction } from "@/app/actions/pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -67,8 +70,13 @@ export default async function AdminApplicationDetailPage({
   if (!detail) notFound();
   const app = detail.app;
 
+  const canAdjustPrice = hasPermission(user, "applications.pricing.adjust");
+  // A fresh key per render: retrying the SAME rendered form replays safely;
+  // a NEW action must use a new key (double-submit protection).
+  const idempotencyKey = `adj-${id}-${Math.random().toString(36).slice(2, 14)}`;
+
   const back = `/admin/applications/${id}`;
-  const [applicants, docs, checklist, history, messages, charge, gate, nextStatuses, draftStatus, officers, decisionDocs] =
+  const [applicants, docs, checklist, history, messages, charge, gate, nextStatuses, draftStatus, officers, decisionDocs, pricing] =
     await Promise.all([
       listApplicantsForApplication(id),
       listDocumentsForApplication(id),
@@ -81,6 +89,7 @@ export default async function AdminApplicationDetailPage({
       getStatusByCode("DRAFT"),
       hasPermission(user, "applications.assign") ? staffDirectory() : Promise.resolve([]),
       getDecisionDocuments(id),
+      getApplicationPricing(id),
     ]);
   // PHASE 2.1: final outcomes are never offered as bare status changes —
   // they require the decision-document workflow below.
@@ -302,6 +311,46 @@ export default async function AdminApplicationDetailPage({
       {tab === "billing" ? (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <BillingSummary application={app} charge={charge} />
+          {pricing ? <PriceAdjustmentHistory pricing={pricing} /> : null}
+          {canAdjustPrice && pricing && pricing.submittedPrice ? (
+            <div className="lg:col-span-2">
+              <Card>
+                <CardHeader
+                  title="Adjust price / Apply discount"
+                  subtitle="Creates an immutable adjustment row and a compensating wallet entry — the original charge is never modified. Multiple adjustments are preserved."
+                />
+                <form action={applyPriceAdjustmentAction} className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
+                  <input type="hidden" name="applicationId" value={id} />
+                  <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+                  <div>
+                    <label className="label" htmlFor="adj-type">Type *</label>
+                    <select id="adj-type" name="type" required className="input" defaultValue="DISCOUNT">
+                      <option value="DISCOUNT">Commercial discount</option>
+                      <option value="REFUND">Refund (partial / full)</option>
+                      <option value="SURCHARGE">Surcharge</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label" htmlFor="adj-amount">Amount ({pricing.submittedCurrency}) *</label>
+                    <input id="adj-amount" name="amount" required inputMode="decimal" pattern="\d+(\.\d{1,2})?" className="input" placeholder="2000.00" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="label" htmlFor="adj-reason">Reason * (min 8 chars)</label>
+                    <input id="adj-reason" name="reason" required minLength={8} className="input" placeholder="Loyalty discount agreed with the client" />
+                  </div>
+                  <div className="sm:col-span-2 lg:col-span-3 flex items-center gap-2">
+                    <input id="adj-confirm" name="confirm" type="checkbox" required className="h-4 w-4 rounded border-slate-300 text-iris-600" />
+                    <label htmlFor="adj-confirm" className="text-sm text-slate-700">
+                      I confirm this commercial adjustment — original price {pricing.submittedPrice} {pricing.submittedCurrency} → new effective price is computed server-side and written to the wallet immediately.
+                    </label>
+                  </div>
+                  <div className="flex items-end">
+                    <SubmitButton className="btn-primary" pendingLabel="Applying…">Apply adjustment</SubmitButton>
+                  </div>
+                </form>
+              </Card>
+            </div>
+          ) : null}
           {app.overrideReason ? (
             <Card>
               <CardHeader title="Submission override" />

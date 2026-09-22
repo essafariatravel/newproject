@@ -23,6 +23,7 @@ describe("safe migrations against isolated test PostgreSQL", () => {
         "0005_canonical_decision_model.sql",
       "0006_simplified_status_model.sql",
       "0007_must_change_password.sql",
+      "0008_application_price_adjustments.sql",
       ]);
       expect(await applyMigrations(pool, directory, "visa_os_preview")).toEqual([]);
       await pool.query("select password_hash, name, role from visa_os_preview.users limit 0");
@@ -61,6 +62,7 @@ describe("safe migrations against isolated test PostgreSQL", () => {
           { name: "0005_canonical_decision_model.sql" },
           { name: "0006_simplified_status_model.sql" },
           { name: "0007_must_change_password.sql" },
+          { name: "0008_application_price_adjustments.sql" },
         ]);
     } finally {
       await pool.end();

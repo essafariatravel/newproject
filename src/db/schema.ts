@@ -297,6 +297,10 @@ export const applications = pgTable(
     categoryName: text("category_name").notNull(),
     countryName: text("country_name").notNull(),
     fee: money("fee").notNull(),
+    /** §17 — snapshot of the submitted price + the live effective price (after adjustments). */
+    submittedPrice: money("submitted_price"),
+    submittedCurrency: char("submitted_currency", { length: 3 }),
+    effectivePrice: money("effective_price"),
     currency: char("currency", { length: 3 }).notNull(),
     processingMinDays: integer("processing_min_days").notNull(),
     processingMaxDays: integer("processing_max_days").notNull(),
@@ -425,7 +429,7 @@ export const walletTransactions = pgTable(
     applicationId: uuid("application_id").references(() => applications.id, {
       onDelete: "set null",
     }),
-    /** CREDIT | DEBIT | APPLICATION_CHARGE */
+    /** CREDIT | DEBIT | APPLICATION_CHARGE | COMMERCIAL_DISCOUNT | COMMERCIAL_SURCHARGE */
     type: text("type").notNull(),
     amount: money("amount").notNull(),
     currency: char("currency", { length: 3 }).notNull(),
@@ -440,12 +444,39 @@ export const walletTransactions = pgTable(
     check("wallet_tx_amount_positive", sql`${t.amount} > 0`),
     check(
       "wallet_tx_type_check",
-      sql`${t.type} in ('CREDIT','DEBIT','APPLICATION_CHARGE')`,
+      sql`${t.type} in ('CREDIT','DEBIT','APPLICATION_CHARGE','COMMERCIAL_DISCOUNT','COMMERCIAL_SURCHARGE')`,
     ),
   ],
 );
 
 /** Partial unique index created in migration: one APPLICATION_CHARGE per application. */
+
+/** §17 — immutable staff price adjustments linked to their compensating wallet entries. */
+export const applicationPriceAdjustments = pgTable(
+  "application_price_adjustments",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    applicationId: uuid("application_id")
+      .notNull()
+      .references(() => applications.id),
+    /** DISCOUNT | SURCHARGE | REFUND */
+    type: text("type").notNull(),
+    amount: money("amount").notNull(),
+    currency: char("currency", { length: 3 }).notNull(),
+    reason: text("reason").notNull(),
+    effectiveBefore: money("effective_before").notNull(),
+    effectiveAfter: money("effective_after").notNull(),
+    walletTransactionId: uuid("wallet_transaction_id")
+      .notNull()
+      .references(() => walletTransactions.id),
+    actorId: uuid("actor_id")
+      .notNull()
+      .references(() => users.id),
+    idempotencyKey: text("idempotency_key"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("price_adjustments_application_idx").on(t.applicationId, t.createdAt)],
+);
 
 export const applicationStatusHistory = pgTable(
   "application_status_history",

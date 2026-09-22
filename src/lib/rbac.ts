@@ -25,6 +25,7 @@ export type Permission =
   | "applications.status.change"
   | "applications.submit.override"
   | "applications.assign"
+  | "applications.pricing.adjust"
   // applicants
   | "applicants.view.all"
   // documents
@@ -64,6 +65,7 @@ const PERMISSIONS: Record<Role, readonly Permission[]> = {
     "applications.status.change",
     "applications.submit.override",
     "applications.assign",
+    "applications.pricing.adjust",
     "applicants.view.all",
     "documents.view.all",
     "documents.review",
@@ -92,6 +94,7 @@ const PERMISSIONS: Record<Role, readonly Permission[]> = {
     "applications.status.change",
     "applications.submit.override",
     "applications.assign",
+    "applications.pricing.adjust",
     "applicants.view.all",
     "documents.view.all",
     "documents.review",
@@ -114,6 +117,7 @@ const PERMISSIONS: Record<Role, readonly Permission[]> = {
     "applications.status.change",
     "applications.submit.override",
     "applications.assign",
+    "applications.pricing.adjust",
     "applicants.view.all",
     "documents.view.all",
     "documents.review",
@@ -128,6 +132,7 @@ const PERMISSIONS: Record<Role, readonly Permission[]> = {
     "config.view",
     "reports.view",
     "applications.view.all",
+    "applications.pricing.adjust",
     "applicants.view.all",
     "documents.view.all",
     "wallet.view.all",
