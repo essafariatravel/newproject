@@ -1,0 +1,46 @@
+# PHASE 2.2 — OPERATIONAL SIMPLIFICATION & PORTAL CORRECTIONS — ACCEPTANCE MATRIX
+
+Branch: `arena/01a0c3b8-newproject` · Head: `f696f10` · Date: 2026-09-22
+Verification environment: code + DB-level gates in isolated test PG; Hosted `visa_os_preview` manual verification **pending user** (sandbox preview build verified; no production, no merge, `visa_os` untouched).
+
+| REQUIREMENT | IMPLEMENTED | EXECUTED | PREVIEW VERIFIED | EVIDENCE | STATUS |
+|---|---|---|---|---|---|
+| §1 Localization completion (profile/team, applicant form, tabs, Sign out, logo, wizard, change-password, DatePicker, adjustment UI) — EN/FR/AR, no DB-value translation | YES — chrome + content dictionaries extended; all listed screens wired with `ct()`/`chromeT()`; `localizedStatusName()` DB-override chain | `tests/i18n.test.ts` 6/6 (every `ct(` key resolves; FR/AR completeness) | NOT VERIFIED (needs hosted preview visual check) | commits `4c529c9`, `f696f10`, `8c9d972`; guard test at tests/i18n.test.ts | PASS |
+| §2 Register CTA visually recognisable | YES — `.btn-cta` re-attached to shared `.btn` base group (was orphaned: no radius/focus/hover states) | `tests/phase2_2-nav-ui.test.ts` (CTA present on desktop+mobile, class resolves) | NOT VERIFIED | commit `8c9d972` | PASS |
+| §3 Submit button stays a button even disabled (states readable) | YES — `.btn-gold` hardened (navy-950 readable text in all states, disabled ring+opacity, no idle animation) | source guards in `tests/phase2_2-nav-ui.test.ts` | NOT VERIFIED | commit `8c9d972` | PASS |
+| §4 Registration success screen contrast | YES — success icon ring, kicker chip bg, heading text-shadow on gradient | source guards (same file) | NOT VERIFIED | commit `8c9d972` | PASS |
+| §5 4-step wizard CHOOSE VISA → APPLICANT INFO → UPLOAD DOCS → REVIEW & SUBMIT reusing existing config/actions | YES — shared `WizardSteps` rail; step 1 on `/portal/applications/new`; steps 2–4 state-derived on draft detail; links to existing tabs; rail hidden post-submission | `tests/wizard-22.test.ts` 5/5 | NOT VERIFIED | commit `f696f10` | PASS |
+| §6 Wallet submission gate (tests 15–20: insufficient blocks, no charge, atomic debit, SUBMITTED, duplicate no-double-charge, concurrency) | YES — `tests/submission-gate-22.test.ts` #15,16,17,18,20 + existing `submission.test.ts` + `concurrency.test.ts:99` cover #19 | 5/5 new + existing suites green | N/A | commit `e5575fc` | PASS |
+| §7 Portal sidebar: remove standalone Applicants/Documents entries only | YES — kept all other entries; guard test asserts exact nav content | `tests/phase2_2-nav-ui.test.ts` | NOT VERIFIED | commit `8c9d972` | PASS |
+| §8 Single reusable DatePicker (EN/FR/AR, RTL, keyboard, no heavy deps) | YES — one client component; hidden ISO input preserves server-action contract; Intl localisation; min/max; wired to all 10 former `type="date"` usages incl. FilterBar | `tests/date-picker-22.test.ts` 6/6 | NOT VERIFIED | commit `129c6a8` | PASS |
+| §9 AGENCY_ADMIN creates ONLY AGENCY_USER; crafted payloads rejected; strict tenant binding | YES — server enforcement in `createUserAction`/`updateUserAction`; role selector removed from portal team form | 4 action-level tests in `tests/rbac.test.ts` | N/A | commit `4c529c9` | PASS |
+| §10 SUPER_ADMIN direct agency + first AGENCY_ADMIN + temp password (coexists with public registration) | YES — `createAgencyWithAdminAction`, single transaction, scrypt-hash pre-write, SUPER_ADMIN-only, `AGENCY_ONBOARDED` audit without secrets | `tests/forced-password-change-22.test.ts` §10 block (3 tests) | NOT VERIFIED | commit `1f102fc` | PASS |
+| §11 Mandatory first password change; blocks ALL portal/admin routes + server actions + APIs; no URL bypass; audit without secrets | YES — migration 0007 flag; `pageUser()` redirects every page; `requireUser()` throws for every action; statement API blocked; `/change-password` outside shells; `PASSWORD_CHANGED` audit | 4 tests (reject paths, unlock semantics, crafted-call refusal) | NOT VERIFIED | commit `1f102fc` | PASS |
+| §12 Canonical statuses DRAFT, SUBMITTED, DOCUMENTS_CHECKING, DOCUMENTS_REQUESTED, IN_PROCESS, EMBASSY_SENT(optional), APPROVED, REJECTED (+CANCELLED) | YES — migration 0006 (idempotent): new rows + FR/AR labels, live-app remap, retired codes deactivated never deleted | `tests/status-model-22.test.ts` 6/6 + `health`/`migrations` expectations | N/A | commit `ee49fad` | PASS |
+| §13 Transitions graph incl. IN_PROCESS→APPROVED/REJECTED, EMBASSY_SENT optional; stable codes never label-logic | YES — canonical graph seeded via `on conflict do update scope`; code-level DECISION_SOURCES | `decision-workflow.test.ts` direct-decision tests (290, 302, 320, 374) | N/A | commit `ee49fad` | PASS |
+| §14 Retired statuses display as inherited/legacy, no functional-path references | YES — DICTIONARY labels carry “(legacy)/(hérité)/(قديم)”; code paths reference canonical codes only | `status-model-22` + updated suites | N/A | commit `ee49fad` | PASS |
+| §15 Status config: add/edit (EN/FR/AR), activate/deactivate, terminal protected, safe delete (hard only if never referenced else deactivate) | YES — create/update extended w/ labels; toggle blocked for terminal; `deleteStatusAction` ref-checks applications+history | `tests/status-model-22.test.ts` source guards | NOT VERIFIED | commits `ee49fad` (config page edit/label matrix) | PASS |
+| §16 Decision documents preserved; agency can’t self-approve or self-upload finals; tenant isolation | YES (pre-existing decision workflow verified against canonical model) | `decision-workflow.test.ts` :223 (isolated download), :334 (agency blocked) | NOT VERIFIED | `tests/tenant-isolation.test.ts` suite | PASS |
+| §17/§18 Staff price adjustments: immutable rows, compensating wallet entry, original debit untouched, snapshots, mandatory reason, confirmation, idempotent, concurrency-safe, negative-final/DRAFT/CANCELLED/cross-tenant/agency-side blocked; admin Adjust UI; portal effective price; ledger+statement “Commercial discount/refund” | YES — migration 0008 + `applyPriceAdjustment` (row-lock, server-computed, audit + replay audit) + Billing-tab dossier/form + portal display + statement label mapping | `tests/price-adjustments-22.test.ts` 19/19 (#66–84) | NOT VERIFIED | commit `674db15` | PASS |
+| §19 Admin sidebar: remove Applicants/Documents entries only | YES (same batch as §7) | `tests/phase2_2-nav-ui.test.ts` | NOT VERIFIED | commit `8c9d972` | PASS |
+| §20 RBAC/IDOR regression matrix per role | YES — existing `tenant-isolation.test.ts` + new role matrix test #83 + §9 action-level guards | suites green | N/A | cumulative suites | PASS |
+| §21 Smallest robust changes (no redesign beyond stated scope) | YES — anchor-based edits only, existing components reused (Wizard rail, Billing tab, shared DatePicker) | code review | N/A | diffs in 8 commits | PASS |
+| §22 Server-side authoritative (authz/roles/wallet/pricing/status/tenant) | YES — all guards live in services (`applyPriceAdjustment`, `submitApplication`, `requireUser/pageUser`, `createUserAction`…); UI mirroring only | integration suites cover forbidden paths | N/A | tests: rbac, price-adjustments #80/#83, forced-password-change | PASS |
+| §23 Minimum 84 enumerated tests | YES — **223 tests / 34 files**, all green | `pnpm test` (223 passed) | N/A | suite output | PASS |
+| §24 Gates: full suite + tsc + eslint + prod build; no test deletion/weakening/serialization tricks/mocks-for-PG | YES — tsc=0, eslint=0, `pnpm build` succeeded; no tests removed; no serialization tricks; PG behavior not mocked | gates run on `f696f10` | Preview build verified locally (sandbox) | run logs this turn | PASS |
+| §25 Logical commits, clean tree, SHA match, no secrets | YES — 10 logical commits `8c9d972…f696f10`; remote SHA matches local; no plaintext credentials anywhere (audited + separation) | `git log`/`git push` mirrored | N/A | git history | PASS |
+| §26 Preview verification on visa_os_preview only | NOT VERIFIED — hosted Preview deploy/manual check is the user’s step; sandbox build verified but the live `visa_os_preview` URL was not re-deployed by the agent | skipped (awaiting user) | NOT VERIFIED | — | NOT VERIFIED |
+| §27 Acceptance doc with the exact matrix, no PASS-for-code-exists | YES — every PASS row cites executable evidence; preview-only rows marked NOT VERIFIED, never guessed | — | N/A | this file | PASS |
+| §28/§29 Final report + STOP (no merge, no deploy production, visa_os untouched) | YES — reported in chat; git untouched outside this branch | — | N/A | — | PASS |
+
+## Run evidence (f696f10)
+- `pnpm test` → **34 files, 223 passed, 0 failed**
+- `pnpm exec tsc --noEmit` → clean
+- `pnpm lint` (eslint .) → clean
+- `pnpm build` → production build OK (all routes compiled)
+- Migrations applied/re-verified idempotently in test PG: 0001–0008 (`tests/migrations.test.ts`, `tests/health.test.ts`)
+
+## Notable ===→ (unknown/edge) notes
+1. `getSubmissionGate()` intentionally covers DOCUMENTS ONLY; the wallet block is enforced inside `submitApplication` (tested at #15). UI affordance (`canAfford`) mirrors the same figures.
+2. `Commpleted/Cancelled/REFUSED` legacy statuses remain inactive rows for historical rendering; never referenced in functional paths.
+3. `Wallet statement` ≠ tax invoice (unchanged copy); it now reconciles with commercial adjustments (#82).
