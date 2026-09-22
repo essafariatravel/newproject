@@ -10,6 +10,18 @@ import { isAgencyRole, type AuthUser } from "@/lib/types";
 export async function pageUser(): Promise<AuthUser> {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  // Phase 2.2 §11 — every authenticated page funnels through pageUser(), so
+  // a forced password change blocks ALL portal/admin routes (no URL bypass:
+  // direct URLs redirect here server-side; the change screen lives outside
+  // both shells and uses pageUserForPasswordChange()).
+  if (user.mustChangePassword) redirect("/change-password");
+  return user;
+}
+
+/** Auth for the /change-password page itself — exempt from the §11 lock. */
+export async function pageUserForPasswordChange(): Promise<AuthUser> {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
   return user;
 }
 

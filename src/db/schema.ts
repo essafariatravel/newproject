@@ -92,6 +92,7 @@ export const users = pgTable(
     agencyId: uuid("agency_id").references(() => agencies.id),
     status: text("status").notNull().default("ACTIVE"), // ACTIVE | SUSPENDED
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
     ...timestamps,
   },
   (t) => [

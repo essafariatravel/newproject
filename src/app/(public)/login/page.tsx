@@ -19,7 +19,10 @@ export default async function LoginPage() {
     console.error("[login] getSessionUser failed", err);
     user = null;
   }
-  if (user) redirect(isAgencyRole(user.role) ? "/portal" : "/admin");
+  if (user) {
+    if (user.mustChangePassword) redirect("/change-password");
+    redirect(isAgencyRole(user.role) ? "/portal" : "/admin");
+  }
 
   let branding: Awaited<ReturnType<typeof readBranding>>;
   try {

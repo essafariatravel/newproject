@@ -76,6 +76,7 @@ export async function getSessionUser(): Promise<AuthUser | null> {
       userStatus: row.user.status,
       agencyStatus: row.agencyStatus,
       agencyName: row.agencyName,
+      mustChangePassword: row.user.mustChangePassword,
     };
   } catch (err) {
     // Database temporarily unavailable (e.g. missing migrations on Preview) must not become a 500.
@@ -88,6 +89,20 @@ export async function getSessionUser(): Promise<AuthUser | null> {
 export async function requireUser(): Promise<AuthUser> {
   const user = await getSessionUser();
   if (!user) throw new AppError("UNAUTHENTICATED", "Please sign in to continue.");
+  // Phase 2.2 §11 — server-authoritative: no server action while a forced
+  // password change is pending (the change-password action uses
+  // requirePasswordChangeSession(), which deliberately bypasses this guard).
+  if (user.mustChangePassword) {
+    throw new AppError("PASSWORD_CHANGE_REQUIRED", "You must set a new password before continuing.");
+  }
+  return user;
+}
+
+/** Session for the password-change screen ONLY — bypasses the §11 lock. */
+export async function requirePasswordChangeSession(): Promise<AuthUser> {
+  const user = await getSessionUser();
+  if (!user) throw new AppError("UNAUTHENTICATED", "Please sign in to continue.");
+  if (!user.mustChangePassword) throw new AppError("BAD_STATE", "No password change is pending.");
   return user;
 }
 

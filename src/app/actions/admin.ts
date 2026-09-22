@@ -86,6 +86,86 @@ export async function toggleAgencyStatusAction(formData: FormData): Promise<void
   });
 }
 
+/* ------------------------- Phase 2.2 §10 — agency + first admin ------------------------- */
+
+const createAgencyWithAdminSchema = agencySchema.omit({ billingName: true, billingEmail: true, notes: true }).extend({
+  adminName: z.string().trim().min(2, "Administrator name is required.").max(120),
+  adminEmail: z.string().trim().toLowerCase().email("A valid administrator email is required."),
+  adminPassword: z
+    .string()
+    .min(10, "Temporary password must be at least 10 characters.")
+    .max(200),
+});
+
+/**
+ * SUPER_ADMIN creates an agency AND its first AGENCY_ADMIN in one transaction.
+ * Coexists with the public /agency/register flow. The temporary password is
+ * hashed with the same scrypt KDF as logins, NEVER returned after hash time,
+ * NEVER written to audit/log output, and forces a password change at first
+ * login (§11). Auditing records only the admin email + agency id.
+ */
+export async function createAgencyWithAdminAction(formData: FormData): Promise<void> {
+  await runAction("/admin/agencies", async () => {
+    const staff = await requireStaff();
+    requirePermission(staff, "agencies.manage");
+    requirePermission(staff, "users.manage");
+    const data = createAgencyWithAdminSchema.parse(Object.fromEntries(formData));
+    if (staff.role !== "SUPER_ADMIN") {
+      // §10 — this one-shot onboarding flow is reserved for SUPER_ADMIN;
+      // delegated roles keep the separate agency/user dashboards.
+      throw new AppError("FORBIDDEN", "Only SUPER_ADMIN can onboard an agency with its first administrator.");
+    }
+    const dupAgency = await db.select({ id: agencies.id }).from(agencies).where(sql`lower(${agencies.legalName}) = lower(${data.legalName})`).limit(1);
+    if (dupAgency[0]) throw new AppError("DUPLICATE", "An agency with this legal name already exists.");
+    const dupUser = await db.select({ id: users.id }).from(users).where(sql`lower(${users.email}) = lower(${data.adminEmail})`).limit(1);
+    if (dupUser[0]) throw new AppError("DUPLICATE", "A user with this email already exists.");
+    const passwordHash = await hashPassword(data.adminPassword); // hashed before any DB write
+    const created = await db.transaction(async (tx) => {
+      const agency = (
+        await tx
+          .insert(agencies)
+          .values({
+            ...data,
+            currency: data.currency ?? "DZD",
+            billingName: data.legalName,
+            billingEmail: data.email,
+          })
+          .returning()
+      )[0]!;
+      const admin = (
+        await tx
+          .insert(users)
+          .values({
+            name: data.adminName,
+            email: data.adminEmail,
+            passwordHash,
+            role: "AGENCY_ADMIN",
+            agencyId: agency.id,
+            mustChangePassword: true,
+          })
+          .returning()
+      )[0]!;
+      return { agency, admin };
+    });
+    await recordAudit({
+      actor: staff,
+      action: "AGENCY_ONBOARDED",
+      entity: "agency",
+      entityId: created.agency.id,
+      agencyId: created.agency.id,
+      metadata: {
+        legalName: data.legalName,
+        adminEmail: data.adminEmail, // email only — never the password
+        firstAdminUserId: created.admin.id,
+        mustChangePassword: true,
+      },
+    });
+    revalidatePath("/admin/agencies");
+    revalidatePath("/admin");
+    return `Agency "${data.legalName}" created with administrator ${data.adminEmail} (password change required at first login).`;
+  });
+}
+
 /* -------------------------------- users -------------------------------- */
 
 const createUserSchema = z.object({
@@ -131,7 +211,7 @@ export async function createUserAction(formData: FormData): Promise<void> {
     const passwordHash = await hashPassword(data.password);
     const inserted = await db
       .insert(users)
-      .values({ name: data.name, email: data.email, passwordHash, role: data.role, agencyId })
+      .values({ name: data.name, email: data.email, passwordHash, role: data.role, agencyId, mustChangePassword: true })
       .returning();
     await recordAudit({ actor: staff, action: "USER_CREATED", entity: "user", entityId: inserted[0]!.id, agencyId, metadata: { email: data.email, role: data.role } });
     revalidatePath(back);
@@ -188,6 +268,7 @@ export async function updateUserAction(formData: FormData): Promise<void> {
     if (data.password) {
       if (data.password.length < 10) throw new AppError("VALIDATION", "Password must be at least 10 characters.");
       patch.passwordHash = await hashPassword(data.password);
+      patch.mustChangePassword = true; // §11 — a staff-set reset also forces a change at next login
     }
     await db.update(users).set(patch).where(eq(users.id, id));
     await recordAudit({ actor: staff, action: "USER_UPDATED", entity: "user", entityId: id, agencyId: target.agencyId, metadata: { role: data.role, passwordReset: Boolean(data.password) } });

@@ -77,6 +77,8 @@ export interface AuthUser {
   userStatus: string;
   agencyStatus: string | null;
   agencyName: string | null;
+  /** Phase 2.2 §11 — when true, only the password-change screen is reachable. */
+  mustChangePassword?: boolean;
 }
 
 /** Error carrying a user-safe message; never leaks internals. */

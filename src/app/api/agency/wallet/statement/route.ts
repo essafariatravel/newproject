@@ -15,6 +15,10 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     const user = await getSessionUser();
+    // Phase 2.2 §11 — API routes are covered by the forced-password-change lock too
+    if (user?.mustChangePassword) {
+      return NextResponse.json({ error: "You must set a new password before continuing.", code: "PASSWORD_CHANGE_REQUIRED" }, { status: 403 });
+    }
     const url = new URL(request.url);
     const statement = await getAgencyWalletStatement({
       actor: user ?? undefined,

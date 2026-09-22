@@ -4,7 +4,7 @@ import { hasPermission } from "@/lib/rbac";
 import { listAgencies } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatAmount } from "@/lib/format";
-import { createAgencyAction } from "@/app/actions/admin";
+import { createAgencyAction, createAgencyWithAdminAction } from "@/app/actions/admin";
 import { FilterBar } from "@/components/app-widgets";
 import { SubmitButton } from "@/components/forms";
 import { ActiveBadge, EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
@@ -130,6 +130,75 @@ export default async function AdminAgenciesPage({
             </div>
             <div className="flex items-end lg:col-span-3">
               <SubmitButton className="btn-primary" pendingLabel="Creating…">Create agency</SubmitButton>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      {/* Phase 2.2 §10 — SUPER_ADMIN one-shot onboarding: agency + first AGENCY_ADMIN with a temporary password (forced change at first login). Coexists with public /agency/register. */}
+      {user.role === "SUPER_ADMIN" ? (
+        <div className="mt-8">
+          <h2 className="mb-1 font-serif text-xl text-navy-900">Onboard agency + first administrator</h2>
+          <p className="mb-3 text-xs text-slate-500">
+            One step: the agency is created together with its AGENCY_ADMIN. The administrator receives the temporary password outside this app; the system forces a new password at first login.
+          </p>
+          <form action={createAgencyWithAdminAction} className="card grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <label className="label" htmlFor="ob-legalName">Legal name *</label>
+              <input id="ob-legalName" name="legalName" required className="input" />
+            </div>
+            <div>
+              <label className="label" htmlFor="ob-tradingName">Trading name</label>
+              <input id="ob-tradingName" name="tradingName" className="input" />
+            </div>
+            <div>
+              <label className="label" htmlFor="ob-email">Agency email *</label>
+              <input id="ob-email" name="email" type="email" required className="input" />
+            </div>
+            <div>
+              <label className="label" htmlFor="ob-phone">Phone</label>
+              <input id="ob-phone" name="phone" className="input" />
+            </div>
+            <div>
+              <label className="label" htmlFor="ob-city">City</label>
+              <input id="ob-city" name="city" className="input" />
+            </div>
+            <div>
+              <label className="label" htmlFor="ob-country">Country</label>
+              <input id="ob-country" name="country" className="input" />
+            </div>
+            <div>
+              <label className="label" htmlFor="ob-currency">Wallet currency</label>
+              <select id="ob-currency" name="currency" className="input" defaultValue="DZD">
+                <option value="DZD">DZD — Algerian Dinar (default)</option>
+                <option value="EUR">EUR — Euro</option>
+                <option value="USD">USD — US Dollar</option>
+                <option value="GBP">GBP — British Pound</option>
+                <option value="AED">AED — UAE Dirham</option>
+                <option value="SAR">SAR — Saudi Riyal</option>
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="ob-billingTaxId">Billing tax ID</label>
+              <input id="ob-billingTaxId" name="billingTaxId" className="input" />
+            </div>
+            <div className="sm:col-span-2 lg:col-span-3 mt-2 border-t border-ivory-200 pt-4">
+              <p className="mb-3 text-sm font-medium text-navy-800">First administrator</p>
+            </div>
+            <div>
+              <label className="label" htmlFor="ob-adminName">Administrator name *</label>
+              <input id="ob-adminName" name="adminName" required className="input" />
+            </div>
+            <div>
+              <label className="label" htmlFor="ob-adminEmail">Administrator email *</label>
+              <input id="ob-adminEmail" name="adminEmail" type="email" required className="input" />
+            </div>
+            <div>
+              <label className="label" htmlFor="ob-adminPassword">Temporary password * (min 10)</label>
+              <input id="ob-adminPassword" name="adminPassword" type="password" required minLength={10} className="input" autoComplete="new-password" />
+            </div>
+            <div className="flex items-end lg:col-span-3">
+              <SubmitButton className="btn-primary" pendingLabel="Onboarding…">Onboard agency + administrator</SubmitButton>
             </div>
           </form>
         </div>
