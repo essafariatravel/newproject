@@ -19,19 +19,37 @@ concurrency:
 
 permissions:
   contents: read
+  deployments: read
 
 jobs:
   verify:
-    name: Verify hosted Preview (Phase 2 flows over real HTTP)
+    name: Verify hosted Preview (Phase 2 flows + Phase 2-Final gate over real HTTP)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
-      BASE_URL: https://newproject-p3vm1nx81-essafaria-travel-s-projects.vercel.app
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PREVIEW_VERIFY_STAFF_EMAIL: ${{ secrets.PREVIEW_VERIFY_STAFF_EMAIL }}
       PREVIEW_VERIFY_STAFF_PASSWORD: ${{ secrets.PREVIEW_VERIFY_STAFF_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Resolve the CURRENT Vercel Preview deployment URL for this commit
+        run: |
+          # Deployment URLs rotate per deployment; resolve the success deployment
+          # of THIS push SHA from the GitHub Deployments API (repo: deployments:read).
+          BASE_URL=""
+          for i in $(seq 1 30); do
+            DEP_ID=$(gh api "repos/${{ github.repository }}/deployments"               -q "[.[] | select(.sha=="${{ github.sha }}" and .environment=="Preview")][0].id" 2>/dev/null || true)
+            if [ -n "$DEP_ID" ]; then
+              URL=$(gh api "repos/${{ github.repository }}/deployments/$DEP_ID/statuses"                 -q "[.[] | select(.state=="success")][0].environment_url" 2>/dev/null || true)
+              if [ -n "$URL" ] && [ "$URL" != "null" ]; then BASE_URL="$URL"; break; fi
+            fi
+            echo "attempt $i: deployment not ready yet"; sleep 10
+          done
+          [ -n "$BASE_URL" ] || { echo "No successful Preview deployment URL for ${{ github.sha }}"; exit 1; }
+          echo "BASE_URL=$BASE_URL" >> "$GITHUB_ENV"
+          echo "Resolved Preview deployment: $BASE_URL"
 
       - name: Wait for deployment to answer
         run: |

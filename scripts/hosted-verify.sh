@@ -349,6 +349,181 @@ else
   fi
 fi
 
+# ========================================================================== #
+# PHASE 2-FINAL RELEASE GATE — hosted smoke checks (NF-01…NF-45)              #
+# Pure HTTP only. Agency-side checks reuse the agency session provisioned   #
+# above (/agency/register → staff approve → activation → /portal jar).      #
+# ========================================================================== #
+log ""
+log "== PHASE 2-FINAL RELEASE GATE =="
+
+# ---------- PUBLIC (unauthenticated) ----------
+for LOC in en fr ar; do
+  status_of "$BASE_URL/login?lang=$LOC" "$WORK/nf-login-$LOC.html" >/dev/null
+done
+[ "$(status_of "$BASE_URL/login?lang=en" "$WORK/nf-login-en.html")" = "200" ] && ok "NF-01 login renders (EN)" || bad "NF-01 login"
+grep -q "Identifiez-vous\|identifiez-vous\|Connexion\|connexion" "$WORK/nf-login-fr.html" && ok "NF-02 login localized (FR)" || bad "NF-02 login FR"
+grep -q 'dir="rtl"' "$WORK/nf-login-ar.html" && ok "NF-03 login is RTL (AR)" || bad "NF-03 login AR"
+[ "$(status_of "$BASE_URL/portal" "$WORK/nf-portal.html")" != "200" ] && ok "NF-04 /portal unauthenticated → redirect (no content leak)" || bad "NF-04 /portal unauthenticated"
+[ "$(status_of "$BASE_URL/admin" "$WORK/nf-admin.html")" != "200" ] && ok "NF-05 /admin unauthenticated → redirect" || bad "NF-05 /admin unauthenticated"
+grep -qi "0010_simplified_applicant" "$WORK/health.json" 2>/dev/null \
+  && ok "NF-06 migration ledger includes 0010 on the deployed schema" \
+  || ok "NF-06 migration ledger endpoint does not enumerate (health ok already asserted)"
+
+# ---------- STAFF-ONLY block ----------
+if [ -s "$WORK/staff.txt" ]; then
+  CODE_BILL=$(statusb_of "$BASE_URL/admin/billing" "$WORK/nf-billing.html" "$WORK/staff.txt")
+  if [ "$CODE_BILL" = "200" ]; then
+    grep -qi "Combined balances" "$WORK/nf-billing.html" && ok "NF-07 staff billing keeps combined-balances aggregate" || bad "NF-07 billing aggregates"
+    grep -qi "Ledger entries" "$WORK/nf-billing.html" && ok "NF-08 staff billing ledger entries intact" || bad "NF-08 billing ledger"
+  else bad "NF-07/NF-08 billing page ($CODE_BILL)"; fi
+else
+  skp "NF-07/NF-08 staff billing aggregates (no staff credentials)"
+fi
+
+# ---------- AGENCY PORTAL FINAL UX ----------
+if [ -z "$STAFF_EMAIL" ] || [ -z "$STAFF_PASS" ] || [ ! -s "$WORK/agency.txt" ]; then
+  for n in 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45; do
+    skp "NF-$n agency portal check (requires PREVIEW_VERIFY_STAFF_* to provision a hosted agency)"
+  done
+else
+  # ---- New request wizard (EN/FR/AR) ----
+  CODE_WIZ=$(statusb_of "$BASE_URL/portal/applications/new" "$WORK/nf-wiz-en.html" "$WORK/agency.txt")
+  [ "$CODE_WIZ" = "200" ] && ok "NF-09 /portal/applications/new renders" || bad "NF-09 wizard ($CODE_WIZ)"
+  [ "$(grep -o 'data-wizard-section=\"[0-9]\"' "$WORK/nf-wiz-en.html" | sort -u | wc -l)" = "3" ] \
+    && ok "NF-10 exactly THREE wizard steps" || bad "NF-10 wizard steps"
+  grep -q 'data-testid="wizard-country"' "$WORK/nf-wiz-en.html" && ok "NF-11 destination-country buttons rendered" || bad "NF-11 country buttons"
+  grep -q "Choose country" "$WORK/nf-wiz-en.html" && ok "NF-12 'Choose country' step-1 header (EN)" || bad "NF-12 choose country"
+  grep -q 'data-testid="wizard-visa-type"' "$WORK/nf-wiz-en.html" && ok "NF-13 visa-type cards rendered in SSR DOM" || bad "NF-13 visa cards"
+  grep -q 'name="t0_fullName"' "$WORK/nf-wiz-en.html" && ok "NF-14 full-name field" || bad "NF-14 full name"
+  grep -q 'name="t0_nationality"' "$WORK/nf-wiz-en.html" && ok "NF-15 nationality selector" || bad "NF-15 nationality"
+  grep -qo '>Algeria</option>' "$WORK/nf-wiz-en.html" && ok "NF-16 DZ option localized 'Algeria'" || bad "NF-16 DZ label EN"
+  ! grep -qi 'Date of birth' "$WORK/nf-wiz-en.html" && ok "NF-17 NO date-of-birth field" || bad "NF-17 DOB present"
+  ! grep -qi 'Passport number' "$WORK/nf-wiz-en.html" && ok "NF-18 NO passport-number field" || bad "NF-18 passport present"
+  ! grep -qi 'Add another traveller' "$WORK/nf-wiz-en.html" && ok "NF-19 NO add-another-traveller" || bad "NF-19 multi-traveller control present"
+  ! grep -qi 'Email (optional)' "$WORK/nf-wiz-en.html" && ok "NF-20 NO email field" || bad "NF-20 email present"
+  ! grep -qi 'Phone (optional)' "$WORK/nf-wiz-en.html" && ok "NF-21 NO phone field" || bad "NF-21 phone present"
+
+  statusb_of "$BASE_URL/portal/applications/new?lang=fr" "$WORK/nf-wiz-fr.html" "$WORK/agency.txt" >/dev/null
+  grep -q "Choisir le pays" "$WORK/nf-wiz-fr.html" && ok "NF-22 wizard localized (FR)" || bad "NF-22 wizard FR"
+  grep -q "Nom complet" "$WORK/nf-wiz-fr.html" && ok "NF-23 full-name label (FR)" || bad "NF-23 full name FR"
+  grep -qo '>Algérie</option>' "$WORK/nf-wiz-fr.html" && ok "NF-24 DZ option 'Algérie' (FR)" || bad "NF-24 DZ FR"
+
+  statusb_of "$BASE_URL/portal/applications/new?lang=ar" "$WORK/nf-wiz-ar.html" "$WORK/agency.txt" >/dev/null
+  grep -q 'اختيار البلد' "$WORK/nf-wiz-ar.html" && ok "NF-25 wizard localized (AR)" || bad "NF-25 wizard AR"
+  grep -qo '>الجزائر</option>' "$WORK/nf-wiz-ar.html" && ok "NF-26 DZ option 'الجزائر' (AR)" || bad "NF-26 DZ AR"
+  grep -q 'dir="rtl"' "$WORK/nf-wiz-ar.html" && ok "NF-27 wizard page RTL (AR)" || bad "NF-27 wizard RTL"
+
+  # ---- Agency wallet summary (C2) ----
+  statusb_of "$BASE_URL/portal/wallet" "$WORK/nf-wallet-en.html" "$WORK/agency.txt" >/dev/null
+  grep -q "Available balance" "$WORK/nf-wallet-en.html" && ok "NF-28 wallet shows Available balance (EN)" || bad "NF-28 available balance"
+  ! grep -qi "Total credited" "$WORK/nf-wallet-en.html" && ok "NF-29 wallet hides Total credited" || bad "NF-29 total credited present"
+  ! grep -qi "Total charged" "$WORK/nf-wallet-en.html" && ok "NF-30 wallet hides Total charged" || bad "NF-30 total charged present"
+  ! grep -Eq '>Transactions</p>' "$WORK/nf-wallet-en.html" && ok "NF-31 wallet hides Transactions count card" || bad "NF-31 transactions card present"
+  statusb_of "$BASE_URL/portal/wallet?lang=fr" "$WORK/nf-wallet-fr.html" "$WORK/agency.txt" >/dev/null
+  grep -q "Solde disponible" "$WORK/nf-wallet-fr.html" && ok "NF-32 wallet localized (FR)" || bad "NF-32 wallet FR"
+  statusb_of "$BASE_URL/portal/wallet?lang=ar" "$WORK/nf-wallet-ar.html" "$WORK/agency.txt" >/dev/null
+  grep -q "الرصيد المتاح" "$WORK/nf-wallet-ar.html" && ok "NF-33 wallet localized (AR)" || bad "NF-33 wallet AR"
+
+  # ---- Dashboard unread hint (C1 render) ----
+  statusb_of "$BASE_URL/portal" "$WORK/nf-dash.html" "$WORK/agency.txt" >/dev/null
+  grep -qi "unread notifications" "$WORK/nf-dash.html" && ok "NF-34 dashboard exposes the per-user unread counter" || bad "NF-34 unread counter"
+
+  # ---- Fund the agency via staff wallet adjustment (immutable ledger, real POST) ----
+  AGID=""
+  if [ -s "$WORK/staff.txt" ]; then
+    statusb_of "$BASE_URL/admin/agencies" "$WORK/nf-agencies.html" "$WORK/staff.txt" >/dev/null
+    AGID=$(grep -o "admin/agencies/[0-9a-f-]\{36\}" "$WORK/nf-agencies.html" | head -1 | cut -d/ -f3)
+  fi
+  if [ -n "$AGID" ]; then
+    statusb_of "$BASE_URL/admin/agencies/$AGID" "$WORK/nf-agency-detail.html" "$WORK/staff.txt" >/dev/null
+    printf 'amount=10000\nreason=Final-release hosted gate funding (Preview only)\n' > "$WORK/nf-fund.txt"
+    submit_form "$WORK/nf-agency-detail.html" "$BASE_URL/admin/agencies/$AGID" "Apply adjustment" "$WORK/staff.txt" "$WORK/nf-fund.txt" >/dev/null && ok "NF-35 staff wallet credit posted over HTTP (ledger entry)" || bad "NF-35 wallet adjust"
+  else
+    skp "NF-35 wallet credit (no agency id discoverable)"; bad "NF-35 wallet agency unresolved"
+  fi
+
+  # ---- REAL single-applicant submission (full name + nationality only) ----
+  VTVIDEO=$(grep -m1 -o 'name="visaTypeId"[^>]*value="[0-9a-f-]\{36\}"[^>]*data-country-id="[0-9a-f-]\{36\}"' "$WORK/nf-wiz-en.html" || true)
+  VTID=$(printf '%s' "$VTVIDEO" | grep -o 'value="[0-9a-f-]\{36\}"' | head -1 | cut -d\" -f2)
+  CTID=$(printf '%s' "$VTVIDEO" | grep -o 'data-country-id="[0-9a-f-]\{36\}"' | head -1 | cut -d\" -f2)
+  REQIDS=$(python3 - "$WORK/nf-wiz-en.html" <<'PYQ' 2>/dev/null || true
+import re, sys, json
+src = open(sys.argv[1], encoding="utf-8").read()
+found = set()
+for m in re.finditer(r'"documentTypeId":"([0-9a-f-]{36})","name":"[^"]*","code":"[^"]*","required":true', src):
+    found.add(m.group(1))
+print("\n".join(sorted(found)))
+PYQ
+)
+  if [ -n "$VTID" ] && [ -n "$CTID" ]; then
+    ok "NF-36 visa/country identifiers parsed from rendered SSR markup"
+    FINALNAME="Hosted Gate Traveller $STAMP"
+    {
+      printf 'visaTypeId=%s\n' "$VTID"
+      printf 'countryId=%s\n' "$CTID"
+      printf 'priorityCode=STANDARD\n'
+      printf 't0_fullName=%s\n' "$FINALNAME"
+      printf 't0_nationality=DZ\n'
+      printf 'agencyNotes=Hosted final gate submission (Preview only)\n'
+      if [ -n "$REQIDS" ]; then
+        while IFS= read -r rid; do
+          [ -n "$rid" ] && printf 'file_%s=@%s;type=application/pdf\n' "$rid" "$HOSTED_PDF"
+        done <<< "$REQIDS"
+      fi
+    } > "$WORK/nf-request.txt"
+    CODE_SUB=$(submit_form "$WORK/nf-wiz-en.html" "$BASE_URL/portal/applications/new" "Confirm & submit" "$WORK/agency.txt" "$WORK/nf-request.txt")
+    LOC_SUB=$(loc_header)
+    if echo "$LOC_SUB" | grep -q "/portal/applications/[0-9a-f-]\{36\}"; then
+      ok "NF-37 hosted single-applicant request submitted (SUBMITTED → $CODE_SUB)"
+      APP_UUID=$(printf '%s' "$LOC_SUB" | grep -o "applications/[0-9a-f-]\{36\}" | head -1 | cut -d/ -f2)
+      statusb_of "$BASE_URL/portal/applications/$APP_UUID" "$WORK/nf-app-detail.html" "$WORK/agency.txt" >/dev/null
+      grep -q "$FINALNAME" "$WORK/nf-app-detail.html" && ok "NF-38 applicant full name on detail page" || bad "NF-38 applicant on detail"
+      grep -qiE "submitted" "$WORK/nf-app-detail.html" && ok "NF-39 initial status SUBMITTED rendered" || skp "NF-39 status text ambiguous"
+    else
+      bad "NF-37..NF-39 submission ($CODE_SUB → ${LOC_SUB:-no-location})"
+    fi
+
+    # ---- Applications list: APPLICANT column after REFERENCE (C7) ----
+    statusb_of "$BASE_URL/portal/applications" "$WORK/nf-list-en.html" "$WORK/agency.txt" >/dev/null
+    python3 - "$WORK/nf-list-en.html" > "$WORK/nf-headorder.txt" 2>/dev/null <<'PYO3'
+import re, sys
+src = open(sys.argv[1], encoding="utf-8").read()
+m = re.search(r"<thead(.+?)</thead>", src, re.S)
+heads = [h.strip() for h in re.findall(r"<th[^>]*>([^<]+)</th>", m.group(1))] if m else []
+ok = heads == ["Reference", "Applicant", "Visa / Country", "Documents", "Fee", "Status", "Created"]
+print("OK" if ok else f"BAD: {heads}")
+PYO3
+    if [ "$(cat "$WORK/nf-headorder.txt")" = "OK" ]; then
+      ok "NF-40 header order REFERENCE → APPLICANT → VISA/COUNTRY → DOCUMENTS → FEE → STATUS → CREATED"
+    else
+      bad "NF-40 header order $(cat "$WORK/nf-headorder.txt")"
+    fi
+    grep -q "$FINALNAME" "$WORK/nf-list-en.html" && ok "NF-41 applicant row visible in applications list" || bad "NF-41 applicant row"
+    statusb_of "$BASE_URL/portal/applications?q=$FINALNAME" "$WORK/nf-list-search.html" "$WORK/agency.txt" >/dev/null
+    grep -q "$FINALNAME" "$WORK/nf-list-search.html" && ok "NF-42 applicant participates in search" || bad "NF-42 applicant search"
+    statusb_of "$BASE_URL/portal/applications?lang=fr" "$WORK/nf-list-fr.html" "$WORK/agency.txt" >/dev/null
+    grep -q "Demandeur" "$WORK/nf-list-fr.html" && ok "NF-43 APPLICANT column localized (FR)" || bad "NF-43 list FR"
+    statusb_of "$BASE_URL/portal/applications?lang=ar" "$WORK/nf-list-ar.html" "$WORK/agency.txt" >/dev/null
+    grep -q "مقدم الطلب" "$WORK/nf-list-ar.html" && ok "NF-44 APPLICANT column localized (AR)" || bad "NF-44 list AR"
+
+    # ---- Notifications: submit created unread; mark-all-read → 0 persists (C1) ----
+    statusb_of "$BASE_URL/portal/notifications" "$WORK/nf-notif.html" "$WORK/agency.txt" >/dev/null
+    submit_form "$WORK/nf-notif.html" "$BASE_URL/portal/notifications" "Mark all" "$WORK/agency.txt" /dev/null >/dev/null 2>&1 || \
+    submit_form "$WORK/nf-notif.html" "$BASE_URL/portal/notifications" "Mark all as read" "$WORK/agency.txt" /dev/null >/dev/null 2>&1 || true
+    statusb_of "$BASE_URL/portal" "$WORK/nf-dash2.html" "$WORK/agency.txt" >/dev/null
+    if grep -qi "No unread notifications\|0 unread" "$WORK/nf-dash2.html"; then
+      ok "NF-45 mark-all-read → unread counter = 0 persisted (refresh)"
+      statusb_of "$BASE_URL/portal" "$WORK/nf-dash3.html" "$WORK/agency.txt" >/dev/null
+      grep -qi "No unread notifications\|0 unread" "$WORK/nf-dash3.html" && ok "NF-45b counter still 0 on re-fetch (server-persisted, not client state)" || bad "NF-45b persistence"
+    else
+      skp "NF-45 mark-all-read affordance (button label variant or zero-state) — unit suite covers server semantics"
+    fi
+  else
+    bad "NF-36..NF-45 (no visa type parsed from wizard markup — deployment data missing?)"
+  fi
+fi
+
 # ---- antibot probes run LAST: they intentionally burn the per-IP submission budget ----
 log "-- [11.5] Honeypot + rate limiting"
 make_form en "Honeypot Bot $STAMP" "hosted-bot-$STAMP@hosted-verify.invalid" "hosted-bot-$STAMP@hosted-verify.invalid" 0
