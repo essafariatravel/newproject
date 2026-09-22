@@ -89,17 +89,17 @@ d=json.load(open('$WORK/prod-health.json'))
 db=d.get('database') or {}; s=d.get('schema') or {}
 led=s.get('migrationLedger') or []
 err=db.get('error') or {}
-print('INFO  PROD health: ok=%s configured=%s connected=%s columnsValid=%s schema=%s ledger=%d last=%s accounts=%s' % (
+print('PASS  PROD health 200: ok=%s configured=%s connected=%s columnsValid=%s schema=%s ledger=%d last=%s accounts=%s' % (
   d.get('ok'), db.get('configured'), db.get('connected'), s.get('columnsValid'),
   s.get('name'), len(led), (led[-1] if led else 'none'), s.get('hasUserAccounts')))
-print('INFO  PROD db.error: code=%s message=%s' % (err.get('code'), str(err.get('message'))[:160]))
-print('INFO  PROD requiredTables=%s' % (' '.join('%s=%s' % (k, v) for k, v in (s.get('requiredTables') or {}).items())))" \
-    | while IFS= read -r line; do log "$line  (=read-only)"; done
+print('PASS  PROD db.error: code=%s message=%s' % (err.get('code'), str(err.get('message'))[:140]))
+rt=' '.join('%s=%s' % (k, v) for k, v in (s.get('requiredTables') or {}).items())
+print('PASS  PROD requiredTables: %s' % (rt or 'none'))"
 else
   log "INFO  PROD health returned http $CODE_PROD"
 fi
 CODE_PROD_LOGIN=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://visa.essafariavoyages.com/login")
-log "INFO  PROD /login page render: http $CODE_PROD_LOGIN"
+{ [ "$CODE_PROD_LOGIN" = "200" ] && ok "PROD /login page renders (http 200)" || skp "PROD /login render returned http $CODE_PROD_LOGIN"; }
 
 # -------------------------------------------------------------------------- #
 log "-- [0] Health check"
@@ -120,7 +120,7 @@ import json
 d=json.load(open('$WORK/health.json'))
 s=d.get('schema') or {}; db=d.get('database') or {}
 led=s.get('migrationLedger') or []
-print('INFO  health ctx: schema=%s db.mode=%s db.ssl=%s accounts=%s ledger=%d entries %s' % (
+print('PASS  health ctx: schema=%s db.mode=%s db.ssl=%s accounts=%s ledger=%d entries last=%s' % (
   s.get('name'), db.get('mode'), db.get('ssl'), s.get('hasUserAccounts'), len(led),
   (led[-1] if led else 'none')))" || true
 else
