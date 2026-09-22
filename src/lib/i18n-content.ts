@@ -102,6 +102,7 @@ const CONTENT: Record<string, Entry> = {
   "Why is this file allowed through without all documents?": { fr: "Pourquoi ce dossier est-il autorisé sans tous les documents ?", ar: "لماذا يُسمح بهذا الملف دون استكمال جميع المستندات؟" },
   "Download PDF/document": { fr: "Télécharger le PDF / document", ar: "تنزيل الملف (PDF)" },
 
+  "No applicants on this application yet.": { fr: "Aucun voyageur sur ce dossier pour l'instant.", ar: "لا يوجد مسافرون في هذا الطلب حتى الآن." },
   /* --------------------------- portal dashboard -------------------------- */
   "Agency dashboard": { fr: "Tableau de bord de l'agence", ar: "لوحة تحكم الوكالة" },
   "Active applications": { fr: "Dossiers actifs", ar: "الطلبات النشطة" },

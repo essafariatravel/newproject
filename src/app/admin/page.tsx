@@ -58,7 +58,7 @@ export default async function AdminDashboardPage() {
               title={ct("Recent applications")}
               actions={
                 <Link href="/admin/applications" className="btn-secondary btn-sm">
-                  View all →
+                  {ct("View all")} →
                 </Link>
               }
             />

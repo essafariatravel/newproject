@@ -137,7 +137,7 @@ export default async function AdminApplicationDetailPage({
                   {
                     label: "Gate",
                     value: gate.ok ? (
-                      <span className="text-emerald-700">Ready (all required documents present)</span>
+                      <span className="text-emerald-700">{ct("Ready (all required documents present)")}</span>
                     ) : (
                       <span className="text-amber-700">Blocked — missing: {gate.missing.join(", ")}</span>
                     ),
@@ -155,7 +155,7 @@ export default async function AdminApplicationDetailPage({
                   <div>
                     <label className="label" htmlFor="toStatus">{ct("Change status to")}</label>
                     <select id="toStatus" name="toStatusCode" className="input w-56" required>
-                      {selectableStatuses.length === 0 ? <option value="">No routine transitions available</option> : null}
+                      {selectableStatuses.length === 0 ? <option value="">{ct("No routine transitions available")}</option> : null}
                       {selectableStatuses.map((s) => (
                         <option key={s.status.id} value={s.status.code}>
                           {s.status.name}
@@ -164,7 +164,7 @@ export default async function AdminApplicationDetailPage({
                     </select>
                   </div>
                   <div className="min-w-[220px] flex-1">
-                    <label className="label" htmlFor="reason">Reason (recommended)</label>
+                    <label className="label" htmlFor="reason">{ct("Reason (recommended)")}</label>
                     <input id="reason" name="reason" className="input" placeholder={ct("Why is the status changing?")} />
                   </div>
                   <SubmitButton className="btn-primary" pendingLabel="Updating…">
@@ -184,7 +184,7 @@ export default async function AdminApplicationDetailPage({
                     <label className="label" htmlFor="overrideReason">{ct("Override reason (mandatory, min 10 chars)")}</label>
                     <input id="overrideReason" name="overrideReason" className="input" minLength={10} required placeholder={ct("Why is this file allowed through without all documents?")} />
                   </div>
-                  <SubmitButton className="btn-gold" pendingLabel="Submitting…">Submit with override</SubmitButton>
+                  <SubmitButton className="btn-gold" pendingLabel="Submitting…">{ct("Submit with override")}</SubmitButton>
                 </form>
               </Card>
             ) : null}
@@ -193,7 +193,7 @@ export default async function AdminApplicationDetailPage({
               <Card className="border-navy-200">
                 <CardHeader
                   title={ct("Final decision")}
-                  subtitle="Upload the embassy outcome and record it atomically: accepted document + status change + agency notification. This is the only path to approved/refused/rejected."
+                  subtitle={ct("Upload the embassy outcome and record it atomically: accepted document + status change + agency notification. This is the only path to approved/refused/rejected.")}
                 />
                 {decisionDocs.length > 0 ? (
                   <ul className="space-y-2 px-4 py-3 text-sm">
@@ -205,7 +205,7 @@ export default async function AdminApplicationDetailPage({
                             {formatDateTime(d.createdAt)} · <span className="badge bg-emerald-100 text-emerald-800">{d.status}</span>
                           </p>
                         </div>
-                        <a href={`/api/documents/${d.id}`} className="btn-secondary btn-sm">Download PDF/document</a>
+                        <a href={`/api/documents/${d.id}`} className="btn-secondary btn-sm">{ct("Download PDF/document")}</a>
                       </li>
                     ))}
                   </ul>
@@ -228,13 +228,13 @@ export default async function AdminApplicationDetailPage({
                       <label className="label" htmlFor="decision-file">{ct("Decision document (PDF/JPG/PNG, mandatory)")}</label>
                       <input id="decision-file" name="file" type="file" accept="application/pdf,image/jpeg,image/png" required className="input" />
                     </div>
-                    <SubmitButton className="btn-primary" pendingLabel="Recording decision…">Record decision</SubmitButton>
+                    <SubmitButton className="btn-primary" pendingLabel="Recording decision…">{ct("Record decision")}</SubmitButton>
                   </form>
                 ) : (
                   <p className="px-4 pb-4 text-xs text-slate-500">
                     {["APPROVED", "REJECTED", "COMPLETED", "CANCELLED"].includes(detail.statusCode)
-                      ? "The file is closed — no further decision can be recorded."
-                      : "Decisions unlock once the file is in Processing / Awaiting Decision. Approvals are double-gated: move the file to Awaiting Decision first."}
+                      ? ct("The file is closed — no further decision can be recorded.")
+                      : ct("Decisions unlock once the file is in Processing / Awaiting Decision. Approvals are double-gated: move the file to Awaiting Decision first.")}
                   </p>
                 )}
               </Card>
@@ -282,7 +282,7 @@ export default async function AdminApplicationDetailPage({
         </div>
       ) : null}
 
-      {tab === "applicants" ? <ApplicantsTab applicants={applicants} /> : null}
+      {tab === "applicants" ? <ApplicantsTab applicants={applicants} ct={ct} /> : null}
 
       {tab === "documents" ? (
         <DocumentList documents={docs} user={user} applicationId={id} isDraft={isDraft} />
@@ -322,11 +322,11 @@ export default async function AdminApplicationDetailPage({
   );
 }
 
-function ApplicantsTab({ applicants }: { applicants: Array<typeof applicantsTb.$inferSelect> }) {
+function ApplicantsTab({ applicants, ct }: { applicants: Array<typeof applicantsTb.$inferSelect>; ct: (k: string) => string }) {
   if (applicants.length === 0) {
     return (
       <Card>
-        <p className="px-4 py-10 text-center text-sm text-slate-500">No applicants on this application yet.</p>
+        <p className="px-4 py-10 text-center text-sm text-slate-500">{ct("No applicants on this application yet.")}</p>
       </Card>
     );
   }

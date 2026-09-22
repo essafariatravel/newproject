@@ -78,6 +78,7 @@ describe("content threading guards (no nav-only / no raw EN literals on translat
 
   it("admin dashboard contains no raw EN KPI labels (content is ct-driven)", () => {
     const s = readFileSync("src/app/admin/page.tsx", "utf8");
+    expect(/(>|\n)\s*View all\b(?!")/.test(s) || s.includes(">Ledger<"), "raw View all link").toBe(false);
     for (const frag of [
       'label="Total applications"',
       'label="Pending intake"',
@@ -88,7 +89,6 @@ describe("content threading guards (no nav-only / no raw EN literals on translat
       'label="Agency registrations"',
       'title="Recent applications"',
       'title="Wallet activity"',
-      ">View all",
       ">Ledger",
     ]) {
       expect(s.includes(frag), `raw EN literal still present: ${frag}`).toBe(false);
