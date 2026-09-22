@@ -164,15 +164,10 @@ export function RequestWizard(props: Props) {
   return (
     <form
       ref={formRef}
-      action={async (fd) => {
-        setPending(true);
-        setClientError("");
-        try {
-          await submitRequestAction(fd);
-        } finally {
-          setPending(false);
-        }
-      }}
+      // The DIRECT server-action reference is what lets Next emit the
+      // progressive-enhancement descriptor (no-JS / hosted form posts).
+      action={submitRequestAction}
+      onSubmit={() => { setPending(true); setClientError(""); }}
       className="space-y-4"
     >
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />

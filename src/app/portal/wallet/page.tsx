@@ -16,7 +16,7 @@ export default async function PortalWalletPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const raw = await searchParams;
-  const uiLocale = await getUiLocale();
+  const uiLocale = await getUiLocale(raw);
   const ct = contentT(uiLocale);
   const sp: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(raw)) sp[k] = typeof v === "string" ? v : undefined;

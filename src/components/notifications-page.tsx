@@ -8,8 +8,16 @@ import type { AuthUser } from "@/lib/types";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 
-export async function NotificationsPage({ user, basePath }: { user: AuthUser; basePath: string }) {
-  const ct = contentT(await getUiLocale());
+export async function NotificationsPage({
+  user,
+  basePath,
+  sp,
+}: {
+  user: AuthUser;
+  basePath: string;
+  sp?: Record<string, unknown>;
+}) {
+  const ct = contentT(await getUiLocale(sp));
   const notifications = await listNotificationsForUser(user.id);
   const unread = notifications.filter((n) => !n.readAt).length;
 

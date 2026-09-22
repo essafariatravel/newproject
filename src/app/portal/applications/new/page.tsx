@@ -27,7 +27,7 @@ export default async function NewApplicationPage({
 }) {
   const sp = await searchParams;
   const user = await portalPageUser();
-  const locale = await getUiLocale();
+  const locale = await getUiLocale(sp);
   const ct = contentT(locale);
 
   const [visaOptions, priorities, wallet] = await Promise.all([

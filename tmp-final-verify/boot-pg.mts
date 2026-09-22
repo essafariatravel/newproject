@@ -1,0 +1,11 @@
+import EmbeddedPostgres from "embedded-postgres";
+import { applyMigrations } from "../scripts/lib/migrations";
+import { Pool } from "pg";
+import { rm } from "node:fs/promises";
+const DATA_DIR = process.cwd() + "/tmp-final-verify/pgdata";
+await rm(DATA_DIR, { recursive: true, force: true });
+const pg = new EmbeddedPostgres({ databaseDir: DATA_DIR, user: "postgres", password: "postgres", port: 5440, persistent: true });
+await pg.initialise(); await pg.start(); await pg.createDatabase("essafaria_live");
+const admin = new Pool({ connectionString: "postgresql://postgres:postgres@localhost:5440/essafaria_live" });
+await applyMigrations(admin, process.cwd() + "/migrations");
+console.log("PG_READY"); setInterval(() => {}, 60_000);

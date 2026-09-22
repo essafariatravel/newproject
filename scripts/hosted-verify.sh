@@ -29,6 +29,7 @@ skp()  { SKIP=$((SKIP+1)); log "SKIP  $1"; }
 
 status_of()  { curl -s -o "$2" -w "%{http_code}" --max-time 30 "$1"; }
 statusb_of() { curl -s -b "$3" -c "$3" -o "$2" -w "%{http_code}" --max-time 30 "$1"; }
+statusbl_of() { curl -s -b "$3" -c "$3" -b "evos_ui_locale=$4" -o "$2" -w "%{http_code}" --max-time 30 "$1"; }
 
 # Submit the <form> identified by `marker` (a string inside it, e.g. the submit
 # button label) from the given fetched HTML file to `pageurl`, exactly like a
@@ -358,12 +359,12 @@ log ""
 log "== PHASE 2-FINAL RELEASE GATE =="
 
 # ---------- PUBLIC (unauthenticated) ----------
-for LOC in en fr ar; do
-  status_of "$BASE_URL/login?lang=$LOC" "$WORK/nf-login-$LOC.html" >/dev/null
-done
+status_of "$BASE_URL/login" "$WORK/nf-login-en.html" >/dev/null
+curl -s -b "evos_ui_locale=fr" -o "$WORK/nf-login-fr.html" -w "" --max-time 30 "$BASE_URL/login" >/dev/null
+curl -s -b "evos_ui_locale=ar" -o "$WORK/nf-login-ar.html" -w "" --max-time 30 "$BASE_URL/login" >/dev/null
 [ "$(status_of "$BASE_URL/login?lang=en" "$WORK/nf-login-en.html")" = "200" ] && ok "NF-01 login renders (EN)" || bad "NF-01 login"
-grep -q "Identifiez-vous\|identifiez-vous\|Connexion\|connexion" "$WORK/nf-login-fr.html" && ok "NF-02 login localized (FR)" || bad "NF-02 login FR"
-grep -q 'dir="rtl"' "$WORK/nf-login-ar.html" && ok "NF-03 login is RTL (AR)" || bad "NF-03 login AR"
+grep -q "Se connecter\|S'inscrire\|Identifiez" "$WORK/nf-login-fr.html" && ok "NF-02 login localized (FR)" || bad "NF-02 login FR"
+grep -q 'dir="rtl"' "$WORK/nf-login-ar.html" && grep -q "تسجيل الدخول\|الدخول" "$WORK/nf-login-ar.html" && ok "NF-03 login is RTL + localized (AR)" || bad "NF-03 login AR"
 [ "$(status_of "$BASE_URL/portal" "$WORK/nf-portal.html")" != "200" ] && ok "NF-04 /portal unauthenticated → redirect (no content leak)" || bad "NF-04 /portal unauthenticated"
 [ "$(status_of "$BASE_URL/admin" "$WORK/nf-admin.html")" != "200" ] && ok "NF-05 /admin unauthenticated → redirect" || bad "NF-05 /admin unauthenticated"
 grep -qi "0010_simplified_applicant" "$WORK/health.json" 2>/dev/null \
@@ -394,7 +395,7 @@ else
     && ok "NF-10 exactly THREE wizard steps" || bad "NF-10 wizard steps"
   grep -q 'data-testid="wizard-country"' "$WORK/nf-wiz-en.html" && ok "NF-11 destination-country buttons rendered" || bad "NF-11 country buttons"
   grep -q "Choose country" "$WORK/nf-wiz-en.html" && ok "NF-12 'Choose country' step-1 header (EN)" || bad "NF-12 choose country"
-  grep -q 'data-testid="wizard-visa-type"' "$WORK/nf-wiz-en.html" && ok "NF-13 visa-type cards rendered in SSR DOM" || bad "NF-13 visa cards"
+  grep -q 'name="visaTypeId"' "$WORK/nf-wiz-en.html" && ok "NF-13 visa-type cards rendered in SSR DOM" || bad "NF-13 visa cards"
   grep -q 'name="t0_fullName"' "$WORK/nf-wiz-en.html" && ok "NF-14 full-name field" || bad "NF-14 full name"
   grep -q 'name="t0_nationality"' "$WORK/nf-wiz-en.html" && ok "NF-15 nationality selector" || bad "NF-15 nationality"
   grep -qo '>Algeria</option>' "$WORK/nf-wiz-en.html" && ok "NF-16 DZ option localized 'Algeria'" || bad "NF-16 DZ label EN"
@@ -404,12 +405,12 @@ else
   ! grep -qi 'Email (optional)' "$WORK/nf-wiz-en.html" && ok "NF-20 NO email field" || bad "NF-20 email present"
   ! grep -qi 'Phone (optional)' "$WORK/nf-wiz-en.html" && ok "NF-21 NO phone field" || bad "NF-21 phone present"
 
-  statusb_of "$BASE_URL/portal/applications/new?lang=fr" "$WORK/nf-wiz-fr.html" "$WORK/agency.txt" >/dev/null
+  statusbl_of "$BASE_URL/portal/applications/new?lang=fr" "$WORK/nf-wiz-fr.html" "$WORK/agency.txt" fr >/dev/null
   grep -q "Choisir le pays" "$WORK/nf-wiz-fr.html" && ok "NF-22 wizard localized (FR)" || bad "NF-22 wizard FR"
   grep -q "Nom complet" "$WORK/nf-wiz-fr.html" && ok "NF-23 full-name label (FR)" || bad "NF-23 full name FR"
   grep -qo '>Algérie</option>' "$WORK/nf-wiz-fr.html" && ok "NF-24 DZ option 'Algérie' (FR)" || bad "NF-24 DZ FR"
 
-  statusb_of "$BASE_URL/portal/applications/new?lang=ar" "$WORK/nf-wiz-ar.html" "$WORK/agency.txt" >/dev/null
+  statusbl_of "$BASE_URL/portal/applications/new?lang=ar" "$WORK/nf-wiz-ar.html" "$WORK/agency.txt" ar >/dev/null
   grep -q 'اختيار البلد' "$WORK/nf-wiz-ar.html" && ok "NF-25 wizard localized (AR)" || bad "NF-25 wizard AR"
   grep -qo '>الجزائر</option>' "$WORK/nf-wiz-ar.html" && ok "NF-26 DZ option 'الجزائر' (AR)" || bad "NF-26 DZ AR"
   grep -q 'dir="rtl"' "$WORK/nf-wiz-ar.html" && ok "NF-27 wizard page RTL (AR)" || bad "NF-27 wizard RTL"
@@ -420,9 +421,9 @@ else
   ! grep -qi "Total credited" "$WORK/nf-wallet-en.html" && ok "NF-29 wallet hides Total credited" || bad "NF-29 total credited present"
   ! grep -qi "Total charged" "$WORK/nf-wallet-en.html" && ok "NF-30 wallet hides Total charged" || bad "NF-30 total charged present"
   ! grep -Eq '>Transactions</p>' "$WORK/nf-wallet-en.html" && ok "NF-31 wallet hides Transactions count card" || bad "NF-31 transactions card present"
-  statusb_of "$BASE_URL/portal/wallet?lang=fr" "$WORK/nf-wallet-fr.html" "$WORK/agency.txt" >/dev/null
+  statusbl_of "$BASE_URL/portal/wallet?lang=fr" "$WORK/nf-wallet-fr.html" "$WORK/agency.txt" fr >/dev/null
   grep -q "Solde disponible" "$WORK/nf-wallet-fr.html" && ok "NF-32 wallet localized (FR)" || bad "NF-32 wallet FR"
-  statusb_of "$BASE_URL/portal/wallet?lang=ar" "$WORK/nf-wallet-ar.html" "$WORK/agency.txt" >/dev/null
+  statusbl_of "$BASE_URL/portal/wallet?lang=ar" "$WORK/nf-wallet-ar.html" "$WORK/agency.txt" ar >/dev/null
   grep -q "الرصيد المتاح" "$WORK/nf-wallet-ar.html" && ok "NF-33 wallet localized (AR)" || bad "NF-33 wallet AR"
 
   # ---- Dashboard unread hint (C1 render) ----
@@ -430,28 +431,54 @@ else
   grep -qi "unread notifications" "$WORK/nf-dash.html" && ok "NF-34 dashboard exposes the per-user unread counter" || bad "NF-34 unread counter"
 
   # ---- Fund the agency via staff wallet adjustment (immutable ledger, real POST) ----
+  # Fund THE agency that owns the current portal session (its name is shown
+  # on the wallet page). Staff search narrows the list to that agency.
   AGID=""
   if [ -s "$WORK/staff.txt" ]; then
-    statusb_of "$BASE_URL/admin/agencies" "$WORK/nf-agencies.html" "$WORK/staff.txt" >/dev/null
+    AGNAME=$(python3 - "$WORK/nf-wallet-en.html" <<'PYA' 2>/dev/null || true
+import re, sys
+src = open(sys.argv[1], encoding="utf-8").read()
+m = re.search(r">\s*([^<>\n]{2,80})\s*—\s*prepaid balance", src)
+print(m.group(1).strip() if m else "")
+PYA
+)
+    QAG=$(printf '%s' "$AGNAME" | sed 's/ /%20/g')
+    if [ -n "$QAG" ]; then
+      statusb_of "$BASE_URL/admin/agencies?q=$QAG" "$WORK/nf-agencies.html" "$WORK/staff.txt" >/dev/null
+    else
+      statusb_of "$BASE_URL/admin/agencies" "$WORK/nf-agencies.html" "$WORK/staff.txt" >/dev/null
+    fi
     AGID=$(grep -o "admin/agencies/[0-9a-f-]\{36\}" "$WORK/nf-agencies.html" | head -1 | cut -d/ -f3)
   fi
   if [ -n "$AGID" ]; then
     statusb_of "$BASE_URL/admin/agencies/$AGID" "$WORK/nf-agency-detail.html" "$WORK/staff.txt" >/dev/null
-    printf 'amount=10000\nreason=Final-release hosted gate funding (Preview only)\n' > "$WORK/nf-fund.txt"
-    submit_form "$WORK/nf-agency-detail.html" "$BASE_URL/admin/agencies/$AGID" "Apply adjustment" "$WORK/staff.txt" "$WORK/nf-fund.txt" >/dev/null && ok "NF-35 staff wallet credit posted over HTTP (ledger entry)" || bad "NF-35 wallet adjust"
+    printf 'amount=1000000\nreason=Final-release hosted gate funding (Preview only)\n' > "$WORK/nf-fund.txt"
+    submit_form "$WORK/nf-agency-detail.html" "$BASE_URL/admin/agencies/$AGID" "Apply adjustment" "$WORK/staff.txt" "$WORK/nf-fund.txt" >/dev/null && ok "NF-35 staff wallet credit posted over HTTP (ledger entry, agency $AGID)" || bad "NF-35 wallet adjust"
   else
-    skp "NF-35 wallet credit (no agency id discoverable)"; bad "NF-35 wallet agency unresolved"
+    bad "NF-35 wallet agency unresolved"
   fi
 
   # ---- REAL single-applicant submission (full name + nationality only) ----
-  VTVIDEO=$(grep -m1 -o 'name="visaTypeId"[^>]*value="[0-9a-f-]\{36\}"[^>]*data-country-id="[0-9a-f-]\{36\}"' "$WORK/nf-wiz-en.html" || true)
-  VTID=$(printf '%s' "$VTVIDEO" | grep -o 'value="[0-9a-f-]\{36\}"' | head -1 | cut -d\" -f2)
-  CTID=$(printf '%s' "$VTVIDEO" | grep -o 'data-country-id="[0-9a-f-]\{36\}"' | head -1 | cut -d\" -f2)
-  REQIDS=$(python3 - "$WORK/nf-wiz-en.html" <<'PYQ' 2>/dev/null || true
-import re, sys, json
+  VTVIDEO=$(python3 - "$WORK/nf-wiz-en.html" <<'PYV' 2>/dev/null || true
+import re, sys
 src = open(sys.argv[1], encoding="utf-8").read()
+for tag in re.findall(r"<input\b[^>]*>", src):
+    if 'name="visaTypeId"' in tag:
+        v = re.search(r'value="([0-9a-f-]{36})"', tag)
+        c = re.search(r'data-country-id="([0-9a-f-]{36})"', tag)
+        if v and c:
+            print(v.group(1) + " " + c.group(1))
+            break
+PYV
+)
+  VTID=$(printf '%s' "$VTVIDEO" | cut -d' ' -f1)
+  CTID=$(printf '%s' "$VTVIDEO" | cut -d' ' -f2)
+  REQIDS=$(python3 - "$WORK/nf-wiz-en.html" <<'PYQ' 2>/dev/null || true
+import re, sys
+# RSC flight payload quotes are escaped; normalize before matching.
+src = open(sys.argv[1], encoding="utf-8").read().replace('\\"', '"')
 found = set()
-for m in re.finditer(r'"documentTypeId":"([0-9a-f-]{36})","name":"[^"]*","code":"[^"]*","required":true', src):
+for m in re.finditer(r'"documentTypeId":"([0-9a-f-]{36})","name":"[^"]*","code":"[^"]+","required":true', src):
     found.add(m.group(1))
 print("\n".join(sorted(found)))
 PYQ
@@ -472,12 +499,12 @@ PYQ
         done <<< "$REQIDS"
       fi
     } > "$WORK/nf-request.txt"
-    CODE_SUB=$(submit_form "$WORK/nf-wiz-en.html" "$BASE_URL/portal/applications/new" "Confirm & submit" "$WORK/agency.txt" "$WORK/nf-request.txt")
+    CODE_SUB=$(submit_form "$WORK/nf-wiz-en.html" "$BASE_URL/portal/applications/new" "Confirm &amp; submit" "$WORK/agency.txt" "$WORK/nf-request.txt")
     LOC_SUB=$(loc_header)
     if echo "$LOC_SUB" | grep -q "/portal/applications/[0-9a-f-]\{36\}"; then
       ok "NF-37 hosted single-applicant request submitted (SUBMITTED → $CODE_SUB)"
       APP_UUID=$(printf '%s' "$LOC_SUB" | grep -o "applications/[0-9a-f-]\{36\}" | head -1 | cut -d/ -f2)
-      statusb_of "$BASE_URL/portal/applications/$APP_UUID" "$WORK/nf-app-detail.html" "$WORK/agency.txt" >/dev/null
+      statusb_of "$BASE_URL/portal/applications/$APP_UUID?tab=applicants" "$WORK/nf-app-detail.html" "$WORK/agency.txt" >/dev/null
       grep -q "$FINALNAME" "$WORK/nf-app-detail.html" && ok "NF-38 applicant full name on detail page" || bad "NF-38 applicant on detail"
       grep -qiE "submitted" "$WORK/nf-app-detail.html" && ok "NF-39 initial status SUBMITTED rendered" || skp "NF-39 status text ambiguous"
     else
@@ -500,11 +527,12 @@ PYO3
       bad "NF-40 header order $(cat "$WORK/nf-headorder.txt")"
     fi
     grep -q "$FINALNAME" "$WORK/nf-list-en.html" && ok "NF-41 applicant row visible in applications list" || bad "NF-41 applicant row"
-    statusb_of "$BASE_URL/portal/applications?q=$FINALNAME" "$WORK/nf-list-search.html" "$WORK/agency.txt" >/dev/null
+    QNAME=$(printf '%s' "$FINALNAME" | sed 's/ /%20/g')
+    statusb_of "$BASE_URL/portal/applications?q=$QNAME" "$WORK/nf-list-search.html" "$WORK/agency.txt" >/dev/null
     grep -q "$FINALNAME" "$WORK/nf-list-search.html" && ok "NF-42 applicant participates in search" || bad "NF-42 applicant search"
-    statusb_of "$BASE_URL/portal/applications?lang=fr" "$WORK/nf-list-fr.html" "$WORK/agency.txt" >/dev/null
+    statusbl_of "$BASE_URL/portal/applications?lang=fr" "$WORK/nf-list-fr.html" "$WORK/agency.txt" fr >/dev/null
     grep -q "Demandeur" "$WORK/nf-list-fr.html" && ok "NF-43 APPLICANT column localized (FR)" || bad "NF-43 list FR"
-    statusb_of "$BASE_URL/portal/applications?lang=ar" "$WORK/nf-list-ar.html" "$WORK/agency.txt" >/dev/null
+    statusbl_of "$BASE_URL/portal/applications?lang=ar" "$WORK/nf-list-ar.html" "$WORK/agency.txt" ar >/dev/null
     grep -q "مقدم الطلب" "$WORK/nf-list-ar.html" && ok "NF-44 APPLICANT column localized (AR)" || bad "NF-44 list AR"
 
     # ---- Notifications: submit created unread; mark-all-read → 0 persists (C1) ----

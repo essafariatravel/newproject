@@ -87,7 +87,7 @@ export default async function PortalApplicationDetailPage({
     ]);
   const isDraft = app.statusId === draftStatus.id;
   const flash = flashFrom(sp);
-  const uiLocale = await getUiLocale();
+  const uiLocale = await getUiLocale(sp);
   const ct = contentT(uiLocale);
   const pricing = app.submittedAt ? await getApplicationPricing(id) : null;
   // §5 — wizard rail (draft stage): step 2 needs applicants, step 3 needs the
