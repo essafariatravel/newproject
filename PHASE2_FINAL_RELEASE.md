@@ -71,6 +71,36 @@ STATUS matrix per section above.
 
 ⇒ When the gate is unblocked, merging `main` introduces **no content delta** beyond the reviewed branch; it only links history for auditability.
 
+## 7. P0 INCIDENT & PRODUCTION RECOVERY (2026-09-22)
+
+### Root cause (VERIFIED via the app's own live diagnostics on both domains)
+- Production domain `https://visa.essafariavoyages.com` has been serving Phase-2 branch builds promoted from Vercel Preview today (00920c7 → add8fae → 41c70b1 → …).
+- `/api/health` on the PRODUCTION domain reported: `connected=True`, `columnsValid=False`, schema `visa_os`, migration ledger **{0001, 0002}**, `accounts=True`, and the exact server-side failure `42P01 — relation "visa_os.account_activation_tokens" does not exist`.
+- `/api/health` on the CURRENT branch Preview reported: schema `visa_os_preview`, ledger **{0001..0010}**, `columnsValid=True`, `accounts=True`; a live bogus-credential login returned the normal *"Invalid email or password"* (never the service-unavailable message) — full auth pipeline healthy where the schema matches the code.
+- Existing production users still exist (accounts=True); their login dies inside `authenticate()`/session creation because the drizzle user/session/session-adjacent queries resolve Phase-2 relations/columns absent from `visa_os` (ledger stuck at 0002).
+- Branding difference root cause: logo/colors/name are stored per-schema in `site_settings` (`brand.*`; logo under `branding/logo` in the per-schema `document_blobs` storage). `visa_os` simply holds older values — legitimate environment difference, NOT a code defect. No blind copy contemplated.
+
+### Migration audit (0003–0010, executed against code — full text reviewed)
+| File | Class | Notes |
+|---|---|---|
+| 0003_agency_registrations.sql | SAFE | CREATE-only new tables incl. `account_activation_tokens` |
+| 0004_phase2_1.sql | SAFE | idempotent config inserts (DZD, REJECTED, decision doc types), column default only |
+| 0005_canonical_decision_model.sql | SAFE-WITH-PRECONDITION | REFUSED→REJECTED live remap, history preserved, counts logged (pre-counts captured by audit preflight) |
+| 0006_simplified_status_model.sql | SAFE-WITH-PRECONDITION | name_fr/ar add; canonical upserts; retired remap w/ history preserved; statuses deactivated not deleted |
+| 0007_must_change_password.sql | SAFE | ADD COLUMN NOT NULL DEFAULT false — existing users NOT converted to temp |
+| 0008_application_price_adjustments.sql | SAFE-WITH-PRECONDITION | new immutable table; 3 nullable columns; backfill submitted_price=fee for submitted rows; wallet check WIDENED only |
+| 0009_atomic_request_submission.sql | SAFE | nullable column + partial unique index |
+| 0010_simplified_applicant.sql | SAFE | DROP NOT NULL relaxations + nullable column |
+- No TRUNCATE / DROP TABLE / DROP COLUMN / wallet-balance writes anywhere in the range. The runner is single-transaction + advisory-locked + ledger-guarded.
+
+### Recovery machinery (implemented, pushed, secrets-gated)
+- `scripts/prod-release.ts` — `audit` (read-only) and `apply` (surgical in-place restore snapshot of exactly the migration-write tables → transactional apply → postflight integrity: protected counts, wallet-transactions MD5 checksum, per-agency balance checksums, brand.* byte-identity, columnsValid, ledger growth-only). Fail-closed guards: schema pinned `visa_os`, Supabase project pinned, ledger must pre-exist, integrity findings abort.
+- `.github/workflows/prod-release.yml` — audit runs on every tooling push; the write path runs ONLY when a commit deliberately adds `release/PROD_GO` (intent recorded in git history).
+
+### Current blocker (external, user-side, ~4 minutes total)
+- NO database connection secret exists anywhere in GitHub (repo + 'Production' env, names PRODUCTION_DATABASE_URL / DATABASE_URL / SUPABASE_DATABASE_URL / SUPABASE_DB_URL / POSTGRES_URL_POSTGRES — all masked-empty; verified by the audit job guard, report posted as commit comment). Only Vercel holds the URI.
+- PREVIEW_VERIFY_STAFF_EMAIL / PREVIEW_VERIFY_STAFF_PASSWORD also still unset (gate staff chain stays SKIPPED). Values now known from user message (admin@essafariavoyages.com); agent cannot set secrets (403 scope limit).
+
 ## 5. PRODUCTION DEPLOYMENT (order, all after Preview gate PASS)
 
 1. Merge branch → `main` (`git merge --allow-unrelated-histories -X theirs`; production main-line baseline content equals `38023cd` which the branch fully supersedes).
