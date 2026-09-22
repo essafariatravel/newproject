@@ -11,6 +11,8 @@ export type { NavSection, NavItem } from "@/components/nav-list";
 export function AppShell(props: {
   user: AuthUser;
   nav: NavSection[];
+  /** Chrome translator (chromeT(locale)); defaults to EN pass-through. */
+  t?: (s: string) => string;
   brandSuffix: string;
   agencyLogoUrl?: string | null;
   /** Uploaded platform logo + brand identity (from /admin/settings branding). */
@@ -21,6 +23,7 @@ export function AppShell(props: {
   children: ReactNode;
 }) {
   const { user } = props;
+  const t = props.t ?? ((s: string) => s);
   return (
     <div className="flex min-h-screen">
       {/* Sidebar — floating glass panel on porcelain */}
@@ -42,7 +45,7 @@ export function AppShell(props: {
             </div>
             <form action={logoutAction} className="mt-2.5">
               <button className="w-full rounded-xl border border-ivory-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 transition-colors hover:bg-ivory-100 hover:text-navy-900">
-                Sign out
+                {t("Sign out")}
               </button>
             </form>
           </div>
@@ -65,7 +68,7 @@ export function AppShell(props: {
           <div className="px-3 pb-4">
             <form action={logoutAction}>
               <button className="w-full rounded-xl border border-ivory-200 bg-ivory-50 px-3 py-2 text-xs font-semibold text-slate-500">
-                Sign out ({user.name})
+                {t("Sign out")} ({user.name})
               </button>
             </form>
           </div>

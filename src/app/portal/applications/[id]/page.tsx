@@ -158,15 +158,15 @@ export default async function PortalApplicationDetailPage({
                 />
                 <div className="px-4 py-4">
                   <dl className="mb-4 grid grid-cols-1 gap-x-6 gap-y-2 rounded-md bg-ivory-50 p-4 text-sm sm:grid-cols-2">
-                    <div className="flex justify-between gap-2"><dt className="text-slate-500">Visa type</dt><dd className="font-medium">{app.visaTypeName}</dd></div>
-                    <div className="flex justify-between gap-2"><dt className="text-slate-500">Processing time</dt><dd className="font-medium">{formatProcessingDays(app.processingMinDays, app.processingMaxDays)}</dd></div>
+                    <div className="flex justify-between gap-2"><dt className="text-slate-500">{ct("Visa type")}</dt><dd className="font-medium">{app.visaTypeName}</dd></div>
+                    <div className="flex justify-between gap-2"><dt className="text-slate-500">{ct("Processing time")}</dt><dd className="font-medium">{formatProcessingDays(app.processingMinDays, app.processingMaxDays)}</dd></div>
                     <div className="flex justify-between gap-2"><dt className="text-slate-500">Applicants</dt><dd className="font-medium">{applicants.length}</dd></div>
-                    <div className="flex justify-between gap-2"><dt className="text-slate-500">Required documents</dt><dd className="font-medium">{progress.requiredComplete}/{progress.requiredTotal} provided</dd></div>
-                    <div className="flex justify-between gap-2"><dt className="text-slate-500">Fee</dt><dd className="font-medium tabular-nums">{formatMoney(app.fee, app.currency)}</dd></div>
-                    <div className="flex justify-between gap-2"><dt className="text-slate-500">Total charge</dt><dd className="font-semibold tabular-nums">{formatMoney(app.fee, app.currency)}</dd></div>
-                    <div className="flex justify-between gap-2"><dt className="text-slate-500">Wallet balance now</dt><dd className="tabular-nums">{formatMoney(wallet.balance, wallet.currency)}</dd></div>
+                    <div className="flex justify-between gap-2"><dt className="text-slate-500">{ct("Required documents")}</dt><dd className="font-medium">{progress.requiredComplete}/{progress.requiredTotal} provided</dd></div>
+                    <div className="flex justify-between gap-2"><dt className="text-slate-500">{ct("Fee")}</dt><dd className="font-medium tabular-nums">{formatMoney(app.fee, app.currency)}</dd></div>
+                    <div className="flex justify-between gap-2"><dt className="text-slate-500">{ct("Total charge")}</dt><dd className="font-semibold tabular-nums">{formatMoney(app.fee, app.currency)}</dd></div>
+                    <div className="flex justify-between gap-2"><dt className="text-slate-500">{ct("Wallet balance now")}</dt><dd className="tabular-nums">{formatMoney(wallet.balance, wallet.currency)}</dd></div>
                     <div className="flex justify-between gap-2">
-                      <dt className="text-slate-500">Balance after charge</dt>
+                      <dt className="text-slate-500">{ct("Balance after charge")}</dt>
                       <dd className={`tabular-nums ${canAfford ? "text-emerald-700" : "text-red-600"}`}>
                         {canAfford ? formatMoney((balance - fee).toFixed(2), wallet.currency) : "insufficient funds"}
                       </dd>
@@ -211,7 +211,7 @@ export default async function PortalApplicationDetailPage({
                   <input type="hidden" name="applicationId" value={id} />
                   <input type="hidden" name="back" value={back} />
                   <div className="min-w-[240px] flex-1">
-                    <label className="label" htmlFor="cancel-reason">Reason</label>
+                    <label className="label" htmlFor="cancel-reason">{ct("Reason")}</label>
                     <input id="cancel-reason" name="reason" className="input" placeholder={ct("Client cancelled the trip")} />
                   </div>
                   <SubmitButton className="btn-danger" pendingLabel="Cancelling…">{ct("Cancel application")}</SubmitButton>
@@ -231,7 +231,7 @@ export default async function PortalApplicationDetailPage({
                     ? "All required documents provided."
                     : `Missing: ${gate.missing.join(", ")}`}
                 </p>
-                <Link href={`${back}?tab=checklist`} className="btn-secondary btn-sm mt-3">Open checklist</Link>
+                <Link href={`${back}?tab=checklist`} className="btn-secondary btn-sm mt-3">{ct("Open checklist")}</Link>
               </div>
             </Card>
           </div>
@@ -251,7 +251,7 @@ export default async function PortalApplicationDetailPage({
                       <input type="hidden" name="applicantId" value={a.id} />
                       <input type="hidden" name="applicationId" value={id} />
                       <input type="hidden" name="back" value={`${back}?tab=applicants`} />
-                      <SubmitButton className="btn-danger btn-sm" pendingLabel="…">Remove</SubmitButton>
+                      <SubmitButton className="btn-danger btn-sm" pendingLabel="…">{ct("Remove")}</SubmitButton>
                     </form>
                   ) : undefined
                 }
@@ -261,29 +261,29 @@ export default async function PortalApplicationDetailPage({
                   <input type="hidden" name="applicantId" value={a.id} />
                   <input type="hidden" name="applicationId" value={id} />
                   <input type="hidden" name="back" value={`${back}?tab=applicants`} />
-                  <div><label className="label">First name</label><input name="firstName" defaultValue={a.firstName} required className="input" /></div>
-                  <div><label className="label">Middle name</label><input name="middleName" defaultValue={a.middleName ?? ""} className="input" /></div>
-                  <div><label className="label">Last name</label><input name="lastName" defaultValue={a.lastName} required className="input" /></div>
-                  <div><label className="label">Date of birth</label><input name="dateOfBirth" type="date" defaultValue={a.dateOfBirth} required className="input" /></div>
+                  <div><label className="label">{ct("First name")}</label><input name="firstName" defaultValue={a.firstName} required className="input" /></div>
+                  <div><label className="label">{ct("Middle name")}</label><input name="middleName" defaultValue={a.middleName ?? ""} className="input" /></div>
+                  <div><label className="label">{ct("Last name")}</label><input name="lastName" defaultValue={a.lastName} required className="input" /></div>
+                  <div><label className="label">{ct("Date of birth")}</label><input name="dateOfBirth" type="date" defaultValue={a.dateOfBirth} required className="input" /></div>
                   <div>
-                    <label className="label">Gender</label>
+                    <label className="label">{ct("Gender")}</label>
                     <select name="gender" defaultValue={a.gender ?? ""} className="input">
                       <option value="">—</option>
-                      <option value="MALE">Male</option>
-                      <option value="FEMALE">Female</option>
-                      <option value="OTHER">Other</option>
+                      <option value="MALE">{ct("Male")}</option>
+                      <option value="FEMALE">{ct("Female")}</option>
+                      <option value="OTHER">{ct("Other")}</option>
                     </select>
                   </div>
-                  <div><label className="label">Nationality</label><input name="nationality" defaultValue={a.nationality} required className="input" /></div>
-                  <div><label className="label">Passport number</label><input name="passportNumber" defaultValue={a.passportNumber} required className="input" /></div>
-                  <div><label className="label">Passport issue date</label><input name="passportIssueDate" type="date" defaultValue={a.passportIssueDate ?? ""} className="input" /></div>
-                  <div><label className="label">Passport expiry</label><input name="passportExpiryDate" type="date" defaultValue={a.passportExpiryDate} required className="input" /></div>
-                  <div><label className="label">Email</label><input name="email" type="email" defaultValue={a.email ?? ""} className="input" /></div>
-                  <div><label className="label">Phone</label><input name="phone" defaultValue={a.phone ?? ""} className="input" /></div>
-                  <div><label className="label">City</label><input name="city" defaultValue={a.city ?? ""} className="input" /></div>
-                  <div className="sm:col-span-2"><label className="label">Address</label><input name="addressLine" defaultValue={a.addressLine ?? ""} className="input" /></div>
-                  <div><label className="label">Country</label><input name="country" defaultValue={a.country ?? ""} className="input" /></div>
-                  <div className="sm:col-span-3"><SubmitButton className="btn-secondary btn-sm" pendingLabel="Saving…">Save applicant</SubmitButton></div>
+                  <div><label className="label">{ct("Nationality")}</label><input name="nationality" defaultValue={a.nationality} required className="input" /></div>
+                  <div><label className="label">{ct("Passport number")}</label><input name="passportNumber" defaultValue={a.passportNumber} required className="input" /></div>
+                  <div><label className="label">{ct("Passport issue date")}</label><input name="passportIssueDate" type="date" defaultValue={a.passportIssueDate ?? ""} className="input" /></div>
+                  <div><label className="label">{ct("Passport expiry")}</label><input name="passportExpiryDate" type="date" defaultValue={a.passportExpiryDate} required className="input" /></div>
+                  <div><label className="label">{ct("Email")}</label><input name="email" type="email" defaultValue={a.email ?? ""} className="input" /></div>
+                  <div><label className="label">{ct("Phone")}</label><input name="phone" defaultValue={a.phone ?? ""} className="input" /></div>
+                  <div><label className="label">{ct("City")}</label><input name="city" defaultValue={a.city ?? ""} className="input" /></div>
+                  <div className="sm:col-span-2"><label className="label">{ct("Address")}</label><input name="addressLine" defaultValue={a.addressLine ?? ""} className="input" /></div>
+                  <div><label className="label">{ct("Country")}</label><input name="country" defaultValue={a.country ?? ""} className="input" /></div>
+                  <div className="sm:col-span-3"><SubmitButton className="btn-secondary btn-sm" pendingLabel="Saving…">{ct("Save applicant")}</SubmitButton></div>
                 </form>
               ) : (
                 <KeyValue
@@ -307,28 +307,28 @@ export default async function PortalApplicationDetailPage({
                 <input type="hidden" name="applicationId" value={id} />
                 <input type="hidden" name="back" value={`${back}?tab=applicants`} />
                 <div><label className="label">First name *</label><input name="firstName" required className="input" /></div>
-                <div><label className="label">Middle name</label><input name="middleName" className="input" /></div>
+                <div><label className="label">{ct("Middle name")}</label><input name="middleName" className="input" /></div>
                 <div><label className="label">Last name *</label><input name="lastName" required className="input" /></div>
                 <div><label className="label">Date of birth *</label><input name="dateOfBirth" type="date" required className="input" /></div>
                 <div>
-                  <label className="label">Gender</label>
+                  <label className="label">{ct("Gender")}</label>
                   <select name="gender" className="input">
                     <option value="">—</option>
-                    <option value="MALE">Male</option>
-                    <option value="FEMALE">Female</option>
-                    <option value="OTHER">Other</option>
+                    <option value="MALE">{ct("Male")}</option>
+                    <option value="FEMALE">{ct("Female")}</option>
+                    <option value="OTHER">{ct("Other")}</option>
                   </select>
                 </div>
                 <div><label className="label">Nationality *</label><input name="nationality" required className="input" /></div>
                 <div><label className="label">Passport number *</label><input name="passportNumber" required className="input" /></div>
-                <div><label className="label">Passport issue date</label><input name="passportIssueDate" type="date" className="input" /></div>
+                <div><label className="label">{ct("Passport issue date")}</label><input name="passportIssueDate" type="date" className="input" /></div>
                 <div><label className="label">Passport expiry *</label><input name="passportExpiryDate" type="date" required className="input" /></div>
-                <div><label className="label">Email</label><input name="email" type="email" className="input" /></div>
-                <div><label className="label">Phone</label><input name="phone" className="input" /></div>
-                <div><label className="label">City</label><input name="city" className="input" /></div>
-                <div className="sm:col-span-2"><label className="label">Address</label><input name="addressLine" className="input" /></div>
-                <div><label className="label">Country</label><input name="country" className="input" /></div>
-                <div className="sm:col-span-3"><SubmitButton className="btn-primary" pendingLabel="Adding…">Add applicant</SubmitButton></div>
+                <div><label className="label">{ct("Email")}</label><input name="email" type="email" className="input" /></div>
+                <div><label className="label">{ct("Phone")}</label><input name="phone" className="input" /></div>
+                <div><label className="label">{ct("City")}</label><input name="city" className="input" /></div>
+                <div className="sm:col-span-2"><label className="label">{ct("Address")}</label><input name="addressLine" className="input" /></div>
+                <div><label className="label">{ct("Country")}</label><input name="country" className="input" /></div>
+                <div className="sm:col-span-3"><SubmitButton className="btn-primary" pendingLabel="Adding…">{ct("Add applicant")}</SubmitButton></div>
               </form>
             </Card>
           ) : null}
@@ -353,7 +353,7 @@ export default async function PortalApplicationDetailPage({
             <CardHeader title={ct("Current wallet")} />
             <div className="px-4 py-4">
               <p className="font-serif text-2xl text-navy-900 tabular-nums">{formatMoney(wallet.balance, wallet.currency)}</p>
-              <Link href="/portal/wallet" className="btn-secondary btn-sm mt-3">Open wallet & transactions</Link>
+              <Link href="/portal/wallet" className="btn-secondary btn-sm mt-3">{ct("Open wallet & transactions")}</Link>
             </div>
           </Card>
         </div>
@@ -377,7 +377,7 @@ export default async function PortalApplicationDetailPage({
                       <span className="text-sm">{doc.originalFilename}</span>
                       <span className="flex items-center gap-2">
                         <DocStatusBadge status={doc.status} />
-                        <Link href={`${back}?tab=documents`} className="btn-secondary btn-sm">Resubmit</Link>
+                        <Link href={`${back}?tab=documents`} className="btn-secondary btn-sm">{ct("Resubmit")}</Link>
                       </span>
                     </li>
                   ))}

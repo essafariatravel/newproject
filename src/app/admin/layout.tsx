@@ -77,6 +77,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
   return (
     <AppShell
+      t={tr}
       user={user}
       nav={nav}
       brandSuffix="Back Office"

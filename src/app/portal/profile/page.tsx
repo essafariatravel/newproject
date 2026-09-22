@@ -46,11 +46,11 @@ export default async function PortalProfilePage({
         <div className="xl:col-span-2 space-y-4">
           <Card>
             <CardHeader
-              title="Agency logo"
+              title={ct("Agency logo")}
               subtitle={
                 user.role === "AGENCY_ADMIN"
-                  ? "Shown on your portal. PNG, JPEG or WebP up to 2 MB."
-                  : "Only the agency administrator can change the logo."
+                  ? ct("Shown on your portal. PNG, JPEG or WebP up to 2 MB.")
+                  : ct("Only the agency administrator can change the logo.")
               }
             />
             <div className="flex flex-wrap items-center gap-4 px-5 py-5">
@@ -61,7 +61,7 @@ export default async function PortalProfilePage({
                 <>
                   {agency.logoKey ? (
                     <form action={removeOwnAgencyLogoAction}>
-                      <SubmitButton className="btn-danger btn-sm" pendingLabel="Removing…">Remove logo</SubmitButton>
+                      <SubmitButton className="btn-danger btn-sm" pendingLabel={ct("Removing…")}>{ct("Remove logo")}</SubmitButton>
                     </form>
                   ) : null}
                   <form action={uploadOwnAgencyLogoAction} encType="multipart/form-data" className="flex flex-wrap items-center gap-2">
@@ -72,43 +72,43 @@ export default async function PortalProfilePage({
                       required
                       className="max-w-full text-xs file:mr-2 file:cursor-pointer file:rounded-full file:border-0 file:bg-iris-600 file:px-3.5 file:py-1.5 file:text-xs file:font-semibold file:text-white"
                     />
-                    <SubmitButton className="btn-secondary btn-sm" pendingLabel="Uploading…">
-                      {agency.logoKey ? "Replace logo" : "Upload logo"}
+                    <SubmitButton className="btn-secondary btn-sm" pendingLabel={ct("Uploading…")}>
+                      {agency.logoKey ? ct("Replace logo") : ct("Upload logo")}
                     </SubmitButton>
                   </form>
                 </>
               ) : (
-                <p className="text-xs text-slate-400">{agency.logoKey ? "Uploaded." : "No logo uploaded yet."}</p>
+                <p className="text-xs text-slate-400">{agency.logoKey ? ct("Uploaded.") : ct("No logo uploaded yet.")}</p>
               )}
             </div>
           </Card>
 
           <Card>
-            <CardHeader title="Agency details" subtitle="Contact details are maintained by ESSAFARIA. Write to your account manager for changes." />
+            <CardHeader title={ct("Agency details")} subtitle={ct("Contact details are maintained by ESSAFARIA. Write to your account manager for changes.")} />
             <KeyValue
               items={[
-                { label: "Legal name", value: agency.legalName },
-                { label: "Trading name", value: agency.tradingName ?? "—" },
+                { label: ct("Legal name"), value: agency.legalName },
+                { label: ct("Trading name"), value: agency.tradingName ?? "—" },
                 { label: "Email", value: agency.email },
-                { label: "Phone", value: agency.phone ?? "—" },
-                { label: "Address", value: [agency.addressLine, agency.city, agency.country].filter(Boolean).join(", ") || "—" },
-                { label: "Billing", value: [agency.billingName, agency.billingEmail, agency.billingTaxId].filter(Boolean).join(" · ") || "—" },
-                { label: "Wallet currency", value: agency.currency },
-                { label: "Partner since", value: formatDateTime(agency.createdAt) },
+                { label: ct("Phone"), value: agency.phone ?? "—" },
+                { label: ct("Address"), value: [agency.addressLine, agency.city, agency.country].filter(Boolean).join(", ") || "—" },
+                { label: ct("Billing"), value: [agency.billingName, agency.billingEmail, agency.billingTaxId].filter(Boolean).join(" · ") || "—" },
+                { label: ct("Wallet currency"), value: agency.currency },
+                { label: ct("Partner since"), value: formatDateTime(agency.createdAt) },
               ]}
             />
           </Card>
 
           <Card>
-            <CardHeader title="Team" />
+            <CardHeader title={ct("Team")} />
             <TableWrap>
               <thead className="border-b border-slate-100 bg-ivory-50/60">
                 <tr>
-                  <th className="th">Name</th>
-                  <th className="th">Role</th>
-                  <th className="th">Status</th>
-                  <th className="th">Last login</th>
-                  {canManageUsers ? <th className="th text-right">Actions</th> : null}
+                  <th className="th">{ct("Name")}</th>
+                  <th className="th">{ct("Role")}</th>
+                  <th className="th">{ct("Status")}</th>
+                  <th className="th">{ct("Last login")}</th>
+                  {canManageUsers ? <th className="th text-right">{ct("Actions")}</th> : null}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -122,7 +122,7 @@ export default async function PortalProfilePage({
                     <td className="td">
                       <span className={`badge ${u.status === "ACTIVE" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}`}>{u.status}</span>
                     </td>
-                    <td className="td whitespace-nowrap text-xs text-slate-500">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "never"}</td>
+                    <td className="td whitespace-nowrap text-xs text-slate-500">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : ct("never")}</td>
                     {canManageUsers ? (
                       <td className="td text-right">
                         {u.id !== user.id ? (
@@ -133,11 +133,11 @@ export default async function PortalProfilePage({
                             <input type="hidden" name="role" value={u.role} />
                             <input type="hidden" name="toggleStatus" value="1" />
                             <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">
-                              {u.status === "ACTIVE" ? "Suspend" : "Activate"}
+                              {u.status === "ACTIVE" ? ct("Suspend") : ct("Activate")}
                             </SubmitButton>
                           </form>
                         ) : (
-                          <span className="text-xs text-slate-400">you</span>
+                          <span className="text-xs text-slate-400">{ct("you")}</span>
                         )}
                       </td>
                     ) : null}
@@ -149,30 +149,24 @@ export default async function PortalProfilePage({
 
           {canManageUsers ? (
             <Card>
-              <CardHeader title="Add team member" />
-              <form action={createUserAction} className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
+              <CardHeader title={ct("Add team member")} subtitle={ct("New members are always created as Agency User with the temporary password you set.")} />
+              <form action={createUserAction} className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
                 <input type="hidden" name="back" value="/portal/profile" />
                 <div>
-                  <label className="label" htmlFor="p-name">Full name *</label>
+                  <label className="label" htmlFor="p-name">{ct("Full name")} *</label>
                   <input id="p-name" name="name" required className="input" />
                 </div>
                 <div>
-                  <label className="label" htmlFor="p-email">Email *</label>
+                  <label className="label" htmlFor="p-email">{ct("Email")} *</label>
                   <input id="p-email" name="email" type="email" required className="input" />
                 </div>
+                <input type="hidden" name="role" value="AGENCY_USER" />
                 <div>
-                  <label className="label" htmlFor="p-role">Role *</label>
-                  <select id="p-role" name="role" required className="input" defaultValue="AGENCY_USER">
-                    <option value="AGENCY_ADMIN">Agency Admin</option>
-                    <option value="AGENCY_USER">Agency User</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label" htmlFor="p-password">Temporary password * (min 10)</label>
+                  <label className="label" htmlFor="p-password">{ct("Temporary password")} * (min 10)</label>
                   <input id="p-password" name="password" type="password" required minLength={10} className="input" />
                 </div>
-                <div className="lg:col-span-4">
-                  <SubmitButton className="btn-primary" pendingLabel="Creating…">Create team member</SubmitButton>
+                <div className="lg:col-span-3">
+                  <SubmitButton className="btn-primary" pendingLabel={ct("Creating…")}>{ct("Create team member")}</SubmitButton>
                 </div>
               </form>
             </Card>
@@ -181,19 +175,19 @@ export default async function PortalProfilePage({
 
         <div className="space-y-4">
           <Card>
-            <CardHeader title="Wallet" />
+            <CardHeader title={ct("Wallet")} />
             <div className="px-4 py-4">
               <p className="font-serif text-2xl text-navy-900 tabular-nums">{formatAmount(balance.balance, balance.currency)}</p>
-              <p className="mt-1 text-xs text-slate-500">Prepaid balance available for application charges.</p>
+              <p className="mt-1 text-xs text-slate-500">{ct("Prepaid balance available for application charges.")}</p>
             </div>
           </Card>
           <Card>
-            <CardHeader title="Your account" />
+            <CardHeader title={ct("Your account")} />
             <div className="px-4 py-4 text-sm text-slate-700">
               <p>{user.name}</p>
               <p className="text-xs text-slate-400">{user.email}</p>
               <p className="mt-2 text-xs">
-                Role: <span className="badge bg-gold-100 text-gold-600">{user.role.replaceAll("_", " ")}</span>
+                {ct("Role")}: <span className="badge bg-gold-100 text-gold-600">{user.role.replaceAll("_", " ")}</span>
               </p>
             </div>
           </Card>

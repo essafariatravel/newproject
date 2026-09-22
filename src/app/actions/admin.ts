@@ -107,6 +107,11 @@ export async function createUserAction(formData: FormData): Promise<void> {
       requirePermission(staff, "users.manage");
     }
     const data = createUserSchema.parse(Object.fromEntries(formData));
+    // Phase 2.2 §9 — an AGENCY_ADMIN may ONLY create AGENCY_USER accounts
+    // (crafted payloads requesting AGENCY_ADMIN or staff roles are rejected).
+    if (isAgencyAdmin && data.role !== "AGENCY_USER") {
+      throw new AppError("FORBIDDEN", "Agency administrators can only create AGENCY_USER accounts.");
+    }
 
     let agencyId: string | null = null;
     if (isAgencyRole(data.role)) {
@@ -172,6 +177,9 @@ export async function updateUserAction(formData: FormData): Promise<void> {
       });
     if (staff.role === "AGENCY_ADMIN" && !isAgencyRole(data.role)) {
       throw new AppError("FORBIDDEN", "You cannot assign staff roles.");
+    }
+    if (staff.role === "AGENCY_ADMIN" && data.role !== "AGENCY_USER") {
+      throw new AppError("FORBIDDEN", "Agency administrators can only hold the AGENCY_USER role assignable.");
     }
     if (target.id === staff.id && data.role !== target.role) {
       throw new AppError("VALIDATION", "You cannot change your own role.");
