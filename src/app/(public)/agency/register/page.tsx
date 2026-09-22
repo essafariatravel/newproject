@@ -12,7 +12,8 @@ export async function generateMetadata({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<Metadata> {
   const sp = await searchParams;
-  return { title: registrationCopy(resolveLocale(sp.lang)).metaTitle };
+  const locale = resolveLocale(pickUiLocale(sp.lang) ?? (await getUiLocale()));
+  return { title: registrationCopy(locale).metaTitle };
 }
 
 export default async function AgencyRegisterPage({

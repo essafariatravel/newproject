@@ -5,31 +5,21 @@ import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
 
-const SERVICES = [
-  {
-    title: "End-to-end application handling",
-    body: "From document checklist to embassy submission, every file is prepared, quality-checked and tracked by our operations team.",
-  },
-  {
-    title: "Configuration-driven precision",
-    body: "Requirements, fees and processing times per destination are maintained centrally, so your agency always quotes the current rules.",
-  },
-  {
-    title: "Full visibility for your team",
-    body: "Your agency portal shows live status, document review results, wallet activity and direct communication with our case officers.",
-  },
-  {
-    title: "Prepaid wallet billing",
-    body: "No per-file invoices. Fund your agency wallet once and every submission is charged automatically with a complete audit trail.",
-  },
+const SERVICE_KEYS: [string, string][] = [
+  ["End-to-end application handling", "From document checklist to embassy submission, every file is prepared, quality-checked and tracked by our operations team."],
+  ["Configuration-driven precision", "Requirements, fees and processing times per destination are maintained centrally, so your agency always quotes the current rules."],
+  ["Full visibility for your team", "Your agency portal shows live status, document review results, wallet activity and direct communication with our case officers."],
+  ["Prepaid wallet billing", "No per-file invoices. Fund your agency wallet once and every submission is charged automatically with a complete audit trail."],
 ];
 
-const PROCESS = [
-  { step: "01", title: "Select visa", body: "Pick destination and visa category from the live catalogue." },
-  { step: "02", title: "Add applicants", body: "Passenger details and passports are captured per traveller." },
-  { step: "03", title: "Upload documents", body: "The generated checklist tells your team exactly what to provide." },
-  { step: "04", title: "Submit & track", body: "Your wallet is charged, and the file moves through our workflow in real time." },
+const PROCESS_KEYS: [string, string, string][] = [
+  ["01", "Select visa", "Pick destination and visa category from the live catalogue."],
+  ["02", "Add applicants", "Passenger details and passports are captured per traveller."],
+  ["03", "Upload documents", "The generated checklist tells your team exactly what to provide."],
+  ["04", "Submit & track", "Your wallet is charged, and the file moves through our workflow in real time."],
 ];
+
+
 
 // Phase 2.1: the public homepage no longer queries or renders the visa
 // catalogue. Visa categories and partner pricing are private B2B information
@@ -85,8 +75,8 @@ export default async function HomePage() {
                   [ct("Embassy desk"), ct("Submission, appointments and follow-up handled.")],
                   [ct("Live tracking"), ct("Every file visible through the full pipeline.")],
                   [ct("Partner billing"), ct("Transparent prepaid wallet per agency.")],
-                ].map(([a, b]) => (
-                  <div key={a} className="flex items-start gap-3 border-b border-line/70 pb-3.5 last:border-0 last:pb-0">
+                ].map(([a, b], idx) => (
+                  <div key={idx} className="flex items-start gap-3 border-b border-line/70 pb-3.5 last:border-0 last:pb-0">
                     <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-iris-100 text-[11px] font-bold text-iris-700">
                       ✓
                     </span>
@@ -113,8 +103,8 @@ export default async function HomePage() {
             [ct("Dedicated"), ct("case officers")],
             [ct("Real-time"), ct("status tracking")],
             [ct("Audited"), ct("wallet billing")],
-          ] as [string, string][]).map(([a, b]) => (
-            <div key={a}>
+          ] as [string, string][]).map(([a, b], idx) => (
+            <div key={idx}>
               <p className="font-serif text-lg text-navy-900">{a}</p>
               <p className="text-xs uppercase tracking-wider text-slate-500">{b}</p>
             </div>
@@ -126,13 +116,13 @@ export default async function HomePage() {
       <section className="ess-container py-16">
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-iris-600">{ct("What we operate")}</p>
         <h2 className="mt-2 max-w-2xl font-serif text-3xl text-navy-900">
-          A complete visa desk behind your agency
+          {ct("A complete visa desk behind your agency")}
         </h2>
         <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {SERVICES.map((s) => (
-            <div key={s.title} className="card p-6 transition duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-pop)]">
-              <h3 className="font-serif text-lg text-navy-900">{s.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600">{s.body}</p>
+          {SERVICE_KEYS.map(([title, body], idx) => (
+            <div key={idx} className="card p-6 transition duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-pop)]">
+              <h3 className="font-serif text-lg text-navy-900">{ct(title)}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">{ct(body)}</p>
             </div>
           ))}
         </div>
@@ -147,23 +137,23 @@ export default async function HomePage() {
               <h2 className="mt-2 font-serif text-3xl text-navy-900">{ct("Coverage across four regions")}</h2>
             </div>
             <Link href="/countries" className="btn-secondary btn-sm">
-              All destinations →
+              {ct("All destinations →")}
             </Link>
           </div>
           <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[
+            {([
               ["Europe", "Schengen and UK corridors with consolidated checklists."],
               ["Americas", "US, Canada and regional visitor programmes."],
               ["Middle East", "GCC destinations with fast-track handling."],
               ["Asia", "High-volume visitor and business corridors."],
-            ].map(([region, blurb]) => (
+            ] as [string, string][]).map(([region, blurb], idx) => (
               <Link
-                key={region}
+                key={idx}
                 href="/countries"
                 className="card tr-hover group p-5 transition duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-pop)]"
               >
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{region}</p>
-                <p className="mt-1 text-sm leading-relaxed text-slate-600 group-hover:text-navy-900">{blurb}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct(region)}</p>
+                <p className="mt-1 text-sm leading-relaxed text-slate-600 group-hover:text-navy-900">{ct(blurb)}</p>
               </Link>
             ))}
           </div>
@@ -175,11 +165,11 @@ export default async function HomePage() {
         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-iris-600">{ct("How it works")}</p>
         <h2 className="mt-2 font-serif text-3xl text-navy-900">{ct("From checklist to passport stamp")}</h2>
         <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {PROCESS.map((p) => (
-            <div key={p.step} className="relative card p-6">
-              <span className="font-serif text-2xl italic text-gold-500">{p.step}</span>
-              <h3 className="mt-2 text-sm font-semibold text-navy-900">{p.title}</h3>
-              <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{p.body}</p>
+          {PROCESS_KEYS.map(([step, title, body]) => (
+            <div key={step} className="relative card p-6">
+              <span className="font-serif text-2xl italic text-gold-500">{step}</span>
+              <h3 className="mt-2 text-sm font-semibold text-navy-900">{ct(title)}</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{ct(body)}</p>
             </div>
           ))}
         </div>
@@ -199,14 +189,14 @@ export default async function HomePage() {
           <div className="relative flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
             <div>
               <h2 className="font-serif text-2xl text-white sm:text-3xl">
-                Processing volumes your agency can scale with
+                {ct("Processing volumes your agency can scale with")}
               </h2>
               <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/70 sm:text-base">
-                Join the agencies and wholesalers running their entire visa desk on {brandName}.
+                {ct("Join the agencies and wholesalers running their entire visa desk on our platform.")}
               </p>
             </div>
             <Link href="/agency/register" className="btn bg-white px-6 py-3 text-navy-900 shadow-[0_14px_30px_-12px_rgb(0_0_0/0.45)] hover:bg-gold-50">
-              Register your Agency
+              {ct("Register your Agency")}
             </Link>
           </div>
         </div>
