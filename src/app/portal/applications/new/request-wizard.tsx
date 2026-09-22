@@ -231,11 +231,16 @@ export function RequestWizard(props: Props) {
             ))}
           </div>
 
-          {country ? (
-            <div>
-              <h3 className="mb-2 font-serif text-base text-navy-900">{t.chooseVisa}</h3>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" role="radiogroup" aria-label={t.chooseVisa}>
-                {country.visaTypes.map((v) => (
+          {/* All countries' visa-type cards are always in the DOM (SSR),
+              visually narrowed by selection — required for no-JS/submission
+              robustness and hosted verification. */}
+          <div>
+            <h3 className="mb-2 font-serif text-base text-navy-900">{t.chooseVisa}</h3>
+            {props.countries.map((c) => (
+              <div key={c.id} hidden={country ? country.id !== c.id : false} className={country && country.id === c.id ? "" : country ? "" : "mb-3"}>
+                {!country ? <p className="mb-1 text-xs font-semibold text-slate-400">{c.name}</p> : null}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" role="radiogroup" aria-label={c.name}>
+                  {(country ? country.visaTypes : c.visaTypes).map((v) => (
                   <label
                     key={v.id}
                     data-testid="wizard-visa-type"
@@ -247,9 +252,10 @@ export function RequestWizard(props: Props) {
                       type="radio"
                       name="visaTypeId"
                       value={v.id}
+                      data-country-id={v.countryId}
                       className="sr-only"
                       checked={visaTypeId === v.id}
-                      onChange={() => setVisaTypeId(v.id)}
+                      onChange={() => { setCountryId(v.countryId); setVisaTypeId(v.id); }}
                     />
                     <span className="block font-semibold text-navy-900">{v.name}</span>
                     <span className="mt-0.5 block text-xs text-slate-500">{v.categoryName}</span>
@@ -257,12 +263,11 @@ export function RequestWizard(props: Props) {
                       {v.fee} {v.currency} <span className="text-xs text-slate-400">· {t.processing} {v.minDays}–{v.maxDays} {t.days}</span>
                     </span>
                   </label>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ) : (
-            <p className="text-xs text-slate-400">{t.selectVisa}</p>
-          )}
+            ))}
+          </div>
 
           <div className="space-y-4 border-t border-slate-100 pt-4">
             <h3 className="font-semibold text-navy-900">{t.applicant}</h3>

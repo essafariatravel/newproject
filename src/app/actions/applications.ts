@@ -349,6 +349,11 @@ export async function historyFor(applicationId: string) {
  * On any enumerated validation failure the user returns to the wizard with a
  * stable, localizable error code strap (`?error=<code>`).
  */
+function lastTextField(fd: FormData, key: string): string {
+  const vals = fd.getAll(key).filter((x): x is string => typeof x === "string" && x.trim() !== "");
+  return vals.length > 0 ? vals[vals.length - 1]!.trim() : "";
+}
+
 export async function submitRequestAction(formData: FormData): Promise<void> {
   const { requireAgencyUser } = await import("@/lib/auth");
   const user = await requireAgencyUser();
@@ -357,8 +362,11 @@ export async function submitRequestAction(formData: FormData): Promise<void> {
   type RequestTraveller = import("@/lib/requests").RequestTraveller;
 
   const idempotencyKey = String(formData.get("idempotencyKey") ?? "");
-  const countryId = String(formData.get("countryId") ?? "");
-  const visaTypeId = String(formData.get("visaTypeId") ?? "");
+  // The controlled wizard writes countryId through a hidden input (which a
+  // plain FormData submit may precede with an empty first entry); take the
+  // LAST non-empty value, matching how browsers/RSC clients merge fields.
+  const countryId = lastTextField(formData, "countryId");
+  const visaTypeId = lastTextField(formData, "visaTypeId");
   const priorityCode = String(formData.get("priorityCode") ?? "") || null;
   const agencyNotes = String(formData.get("agencyNotes") ?? "") || null;
 
