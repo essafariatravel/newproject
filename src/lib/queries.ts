@@ -3,7 +3,7 @@ import { qualifiedTable } from "./database-schema";
  * Read-model queries with server-side filtering and pagination.
  * Every query takes the authenticated user and enforces tenant scope.
  */
-import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, lte, notInArray, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   agencies,
@@ -65,7 +65,14 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
   }
   if (filters.countryId) conditions.push(eq(applications.countryId, filters.countryId));
   if (filters.visaTypeId) conditions.push(eq(applications.visaTypeId, filters.visaTypeId));
-  if (filters.statusCode) conditions.push(eq(statuses.code, filters.statusCode));
+  if (filters.statusCode) {
+    conditions.push(eq(statuses.code, filters.statusCode));
+  } else if (user.agencyId) {
+    // Bug 14 (Phase 2.3): the agency list defaults to ACTIVE workflow items.
+    // Legacy DRAFT/CANCELLED rows stay in the DB untouched and remain
+    // reachable only via an explicit status filter.
+    conditions.push(notInArray(statuses.code, ["DRAFT", "CANCELLED"]));
+  }
   if (filters.priorityCode) {
     const p = await db.select().from(priorities).where(eq(priorities.code, filters.priorityCode)).limit(1);
     if (p[0]) conditions.push(eq(applications.priorityId, p[0].id));

@@ -54,7 +54,12 @@ export default async function PortalApplicationsPage({
         action="/portal/applications"
         fields={[
           { name: "q", label: ct("Search"), type: "text", value: sp.q, placeholder: ct("Reference, applicant, passport…") },
-          { name: "status", label: ct("Status"), type: "select", value: sp.status, options: statuses.map((s) => ({ value: s.code, label: localizedStatusName(s.code, s.name, uiLocale) })) },
+          {
+            name: "status", label: ct("Status"), type: "select", value: sp.status,
+            options: statuses
+              .filter((s) => !["DRAFT", "CANCELLED"].includes(s.code))
+              .map((s) => ({ value: s.code, label: localizedStatusName(s.code, s.name, uiLocale) })),
+          },
           { name: "from", label: ct("From"), type: "date", value: sp.from },
           { name: "to", label: ct("To"), type: "date", value: sp.to },
         ]}
