@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write # post the gate verdict as a commit comment
   deployments: read
 
 jobs:
@@ -35,19 +35,37 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Resolve the CURRENT Vercel Preview deployment URL for this commit
+        env:
+          WF_REPO: ${{ github.repository }}
+          WF_SHA: ${{ github.sha }}
         run: |
-          # Deployment URLs rotate per deployment; resolve the success deployment
-          # of THIS push SHA from the GitHub Deployments API (repo: deployments:read).
           BASE_URL=""
           for i in $(seq 1 30); do
-            DEP_ID=$(gh api "repos/${{ github.repository }}/deployments"               -q "[.[] | select(.sha=="${{ github.sha }}" and .environment=="Preview")][0].id" 2>/dev/null || true)
+            DEP_ID=$(gh api "repos/$WF_REPO/deployments" | python3 -c '
+          import json, sys, os
+          sha = os.environ["WF_SHA"]
+          try:
+              deps = json.load(sys.stdin)
+          except Exception:
+              print(""); raise SystemExit(0)
+          out = [d["id"] for d in deps if d.get("sha") == sha and d.get("environment") == "Preview"]
+          print(out[0] if out else "")
+          ' 2>/dev/null || true)
             if [ -n "$DEP_ID" ]; then
-              URL=$(gh api "repos/${{ github.repository }}/deployments/$DEP_ID/statuses"                 -q "[.[] | select(.state=="success")][0].environment_url" 2>/dev/null || true)
-              if [ -n "$URL" ] && [ "$URL" != "null" ]; then BASE_URL="$URL"; break; fi
+              ENV_URL=$(gh api "repos/$WF_REPO/deployments/$DEP_ID/statuses" | python3 -c '
+          import json, sys
+          try:
+              sts = json.load(sys.stdin)
+          except Exception:
+              print(""); raise SystemExit(0)
+          out = [st.get("environment_url") or "" for st in sts if st.get("state") == "success"]
+          print(out[0] if out else "")
+          ' 2>/dev/null || true)
+              if [ -n "$ENV_URL" ]; then BASE_URL="$ENV_URL"; break; fi
             fi
             echo "attempt $i: deployment not ready yet"; sleep 10
           done
-          [ -n "$BASE_URL" ] || { echo "No successful Preview deployment URL for ${{ github.sha }}"; exit 1; }
+          [ -n "$BASE_URL" ] || { echo "No successful Preview deployment URL for $WF_SHA"; exit 1; }
           echo "BASE_URL=$BASE_URL" >> "$GITHUB_ENV"
           echo "Resolved Preview deployment: $BASE_URL"
 
@@ -63,4 +81,25 @@ jobs:
           exit 1
 
       - name: Run hosted end-to-end verification
-        run: bash scripts/hosted-verify.sh
+        run: |
+          bash scripts/hosted-verify.sh 2>&1 | tee /tmp/gate.out
+          exit ${PIPESTATUS[0]}
+
+      - name: Publish the gate verdict as a commit comment
+        if: always()
+        env:
+          WF_REPO: ${{ github.repository }}
+          WF_SHA: ${{ github.sha }}
+          WF_CONCLUSION: ${{ job.status }}
+        run: |
+          OUT_FILE=/tmp/gate.out
+          [ -f "$OUT_FILE" ] || echo "(gate output unavailable — resolve/wait step failed before the harness ran)" > "$OUT_FILE"
+          grep -E "^(PASS|FAIL|SKIP|== Summary|Target|Resolved)" "$OUT_FILE" | tail -80 > /tmp/gate.tail || true
+          python3 -c '
+          import subprocess, sys, os
+          repo = os.environ["WF_REPO"]; sha = os.environ["WF_SHA"]; conclusion = os.environ["WF_CONCLUSION"]
+          tail = open("/tmp/gate.tail", encoding="utf-8", errors="replace").read() or "(no PASS/FAIL lines captured)"
+          body = "### Hosted Preview verification — %s\n\n```\n%s\n```" % (conclusion.upper(), tail)
+          r = subprocess.run(["gh", "api", "repos/%s/commits/%s/comments" % (repo, sha), "-f", "body=" + body], capture_output=True, text=True)
+          print(r.stdout[-300:]); print(r.stderr[-300:], file=sys.stderr)
+          '
