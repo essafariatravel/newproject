@@ -11,20 +11,14 @@ const NEW_PAGE = readFileSync(path.join(__dirname, "..", "src/app/portal/applica
 const DETAIL = readFileSync(path.join(__dirname, "..", "src/app/portal/applications/[id]/page.tsx"), "utf8");
 const WIZARD = readFileSync(path.join(__dirname, "..", "src/components/wizard-steps.tsx"), "utf8");
 
-describe("Phase 2.2 §5 — 4-step request wizard", () => {
-  it("a single shared rail marks the four canonical steps", () => {
-    expect(WIZARD).toContain("Application request wizard");
-    expect(WIZARD).toContain('"step"'); // aria-current=step on current
-    expect(NEW_PAGE).toContain("current={1}");
-    expect(NEW_PAGE).toContain('label: ct("Choose visa")');
-    expect(NEW_PAGE).toContain('label: ct("Applicant info")');
-    expect(NEW_PAGE).toContain('label: ct("Upload documents")');
-    expect(NEW_PAGE).toMatch(/label: ct\("Review (&amp;|&) submit"\)/);
-  });
-
-  it("step 1 keeps the existing createApplicationAction server path (create draft)", () => {
-    expect(NEW_PAGE).toContain("createApplicationAction");
-    expect(NEW_PAGE).not.toContain("use client"); // stays server-rendered
+describe("Phase 2.2 §5 — 4-step request wizard (new-page superseded by Phase 2.3 3-step flow; legacy-draft rail retained)", () => {
+  it("the legacy new page was replaced by the Phase 2.3 3-step atomic request wizard", () => {
+    expect(NEW_PAGE).toContain("RequestWizard");
+    expect(NEW_PAGE).toContain("step.choose");
+    expect(NEW_PAGE).toContain("step.upload");
+    expect(NEW_PAGE).toContain("step.preview");
+    expect(NEW_PAGE).not.toContain("use client"); // shell stays server-rendered
+    expect(NEW_PAGE).not.toContain("createApplicationAction"); // no draft path anymore
   });
 
   it("draft stage derives the current step from real workflow state (applicants → docs → review)", () => {

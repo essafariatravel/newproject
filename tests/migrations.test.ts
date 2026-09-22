@@ -24,6 +24,7 @@ describe("safe migrations against isolated test PostgreSQL", () => {
       "0006_simplified_status_model.sql",
       "0007_must_change_password.sql",
       "0008_application_price_adjustments.sql",
+      "0009_atomic_request_submission.sql",
       ]);
       expect(await applyMigrations(pool, directory, "visa_os_preview")).toEqual([]);
       await pool.query("select password_hash, name, role from visa_os_preview.users limit 0");
@@ -63,6 +64,7 @@ describe("safe migrations against isolated test PostgreSQL", () => {
           { name: "0006_simplified_status_model.sql" },
           { name: "0007_must_change_password.sql" },
           { name: "0008_application_price_adjustments.sql" },
+          { name: "0009_atomic_request_submission.sql" },
         ]);
     } finally {
       await pool.end();

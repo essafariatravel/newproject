@@ -39,7 +39,8 @@ export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
 export const GENDERS = ["MALE", "FEMALE", "OTHER"] as const;
 export type Gender = (typeof GENDERS)[number];
 
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB
+/** Phase 2.3 §8: hard cap per uploaded file — 2 MB everywhere (portal, registration, staff). */
+export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024; // 2 MB
 
 /** MIME types accepted for visa documents. */
 export const ALLOWED_MIME_TYPES: readonly string[] = [
@@ -61,7 +62,7 @@ export const REGISTRATION_MIME_TYPES: readonly string[] = [
   "image/png",
   "image/webp",
 ];
-export const REGISTRATION_MAX_UPLOAD_BYTES = MAX_UPLOAD_BYTES; // 10 MB
+export const REGISTRATION_MAX_UPLOAD_BYTES = MAX_UPLOAD_BYTES; // 2 MB
 export const REGISTRATION_MAX_DOCUMENTS = 4;
 
 export const SESSION_COOKIE = "evos_session";

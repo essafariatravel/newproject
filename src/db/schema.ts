@@ -314,6 +314,8 @@ export const applications = pgTable(
     decisionAt: timestamp("decision_at", { withTimezone: true }),
     overrideReason: text("override_reason"),
     overrideBy: uuid("override_by").references(() => users.id),
+    /** Phase 2.3: client UUID for the atomic 3-step request submit (unique, nullable) */
+    idempotencyKey: text("idempotency_key"),
     ...timestamps,
   },
   (t) => [

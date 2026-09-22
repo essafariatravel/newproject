@@ -206,7 +206,7 @@ function matchesMagicBytes(data: Buffer, mimeType: string): boolean {
 export function validateRegistrationFile(file: RegistrationFileInput): void {
   if (file.size <= 0) throw new AppError("EMPTY_FILE", "The uploaded file is empty.");
   if (file.size > REGISTRATION_MAX_UPLOAD_BYTES || file.data.length > REGISTRATION_MAX_UPLOAD_BYTES) {
-    throw new AppError("FILE_TOO_LARGE", "Files must be 10 MB or smaller.");
+    throw new AppError("FILE_TOO_LARGE", "Files must be 2 MB or smaller.");
   }
   if (!REGISTRATION_MIME_TYPES.includes(file.type)) {
     throw new AppError("FILE_TYPE", "Allowed formats: PDF, JPEG, PNG or WebP.");

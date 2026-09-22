@@ -1,18 +1,23 @@
 import { portalPageUser } from "@/lib/page-auth";
 import { activeVisaOptions } from "@/lib/queries";
 import { listPriorities } from "@/lib/applications";
-import { flashFrom } from "@/lib/action-helpers";
-import { formatAmount } from "@/lib/format";
 import { getBalance } from "@/lib/wallet";
-import { createApplicationAction } from "@/app/actions/applications";
-import { SubmitButton } from "@/components/forms";
-import { Card, CardHeader, Flash, PageHeader } from "@/components/ui";
+import { PageHeader } from "@/components/ui";
 import { getUiLocale } from "@/lib/ui-i18n";
-import { WizardSteps } from "@/components/wizard-steps";
 import { contentT } from "@/lib/i18n-content";
+import { listRequirementsForVisaType } from "@/lib/requests";
+import { RequestWizard, type WizardLabels, type WizardRequirement } from "./request-wizard";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Phase 2.3 §5–§12 — exactly THREE user-facing steps:
+ *   1. Choose visa (traveller info inline)
+ *   2. Upload documents (generated from the visa-type requirement config)
+ *   3. Preview, confirm & submit (one atomic server transaction)
+ * No draft rows exist before step 3 — no abandoned records, no early
+ * reference allocation, no wallet interaction until the single final charge.
+ */
 export default async function NewApplicationPage({
   searchParams,
 }: {
@@ -20,8 +25,8 @@ export default async function NewApplicationPage({
 }) {
   const sp = await searchParams;
   const user = await portalPageUser();
-  const ct = contentT(await getUiLocale());
-  const flash = flashFrom(sp);
+  const locale = await getUiLocale();
+  const ct = contentT(locale);
 
   const [visaOptions, priorities, wallet] = await Promise.all([
     activeVisaOptions(),
@@ -29,95 +34,94 @@ export default async function NewApplicationPage({
     getBalance(user.agencyId),
   ]);
 
+  const requirementMaps: Record<string, WizardRequirement[]> = {};
+  await Promise.all(
+    visaOptions.map(async (v) => {
+      requirementMaps[v.id] = await listRequirementsForVisaType(v.id);
+    }),
+  );
+
+  const errorCode = typeof sp.error === "string" ? sp.error : null;
+  const serverError = errorCode
+    ? ct(`request.error.${errorCode}`) === `request.error.${errorCode}`
+      ? ct("request.error.INTERNAL")
+      : ct(`request.error.${errorCode}`)
+    : null;
+
+  const labels: WizardLabels = {
+    stepChoose: ct("step.choose"),
+    stepUpload: ct("step.upload"),
+    stepPreview: ct("step.preview"),
+    visaProgramme: ct("Visa programme"),
+    selectVisa: ct("Select one visa programme to continue."),
+    noVisaSelected: ct("No visa selected yet."),
+    fee: ct("Fee"),
+    processing: ct("Processing time"),
+    days: ct("days"),
+    priority: ct("Priority"),
+    notes: ct("Notes for ESSAFARIA (optional)"),
+    notesPlaceholder: ct("Travel dates, group context, special requests…"),
+    travellers: ct("Travellers"),
+    traveller: ct("Traveller"),
+    addTraveller: ct("Add another traveller"),
+    removeTraveller: ct("Remove"),
+    firstName: ct("First name"),
+    lastName: ct("Last name"),
+    dateOfBirth: ct("Date of birth"),
+    nationality: ct("Nationality"),
+    passportNumber: ct("Passport number"),
+    passportIssueDate: ct("Passport issue date"),
+    passportExpiryDate: ct("Passport expiry"),
+    email: ct("Email (optional)"),
+    phone: ct("Phone (optional)"),
+    next: ct("Next"),
+    back: ct("Back"),
+    required: ct("Required"),
+    optional: ct("Optional"),
+    uploadHint: ct("PDF, JPEG, PNG, WEBP, DOC or DOCX · maximum 2 MB per file"),
+    fileTooLarge: ct("Files must be 2 MB or smaller."),
+    chooseFile: ct("Choose file"),
+    documents: ct("Upload the required documents"),
+    reviewTitle: ct("Preview & confirm"),
+    reviewSubtitle: ct("Verify everything below before submitting. This is the only write: your application is created, charged and sent to ESSAFARIA in one step."),
+    walletBalance: ct("Wallet balance"),
+    chargeNote: ct("Your wallet is charged once, automatically, when you confirm. Retrying a failed attempt can never charge twice."),
+    confirmSubmit: ct("Confirm & submit"),
+    submitting: ct("Submitting…"),
+    missingPrefix: ct("Required documents missing"),
+    summaryTravellers: ct("Travellers (checked above)"),
+    summaryDocuments: ct("Documents attached"),
+    noDocumentsRequired: ct("This visa programme has no document requirements."),
+    validationChooseVisa: ct("Choose a visa programme to continue."),
+    validationTraveller: ct("Complete every required traveller field to continue."),
+  };
+
   return (
     <>
       <PageHeader
-        title={ct("New application")}
-        subtitle={ct("Four steps: choose the visa, add applicants, upload the required documents, review and submit.")}
+        title={ct("New visa request")}
+        subtitle={ct("Three steps: choose the visa, upload the documents, preview and submit. Nothing is saved before the final confirmation.")}
       />
-      <Flash {...flash} />
-
-      <WizardSteps
-        current={1}
-        steps={[
-          { id: 1, label: ct("Choose visa") },
-          { id: 2, label: ct("Applicant info") },
-          { id: 3, label: ct("Upload documents") },
-          { id: 4, label: ct("Review & submit") },
-        ]}
+      <RequestWizard
+        visaOptions={visaOptions.map((v) => ({
+          id: v.id,
+          label: v.label,
+          name: v.name,
+          countryName: v.countryName,
+          categoryName: v.categoryName,
+          fee: v.fee,
+          currency: v.currency,
+          minDays: v.minDays,
+          maxDays: v.maxDays,
+        }))}
+        priorities={priorities.map((p) => ({ code: p.code, name: p.name }))}
+        requirementsByVisaType={requirementMaps}
+        walletBalance={wallet.balance}
+        walletCurrency={wallet.currency}
+        locale={locale}
+        labels={labels}
+        serverError={serverError}
       />
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2">
-          <form action={createApplicationAction} className="card p-5">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <label className="label" htmlFor="visaTypeId">{ct("Visa programme *")}</label>
-                <select id="visaTypeId" name="visaTypeId" required className="input" defaultValue="">
-                  <option value="" disabled>
-                    {ct("Select country and visa…")}
-                  </option>
-                  {visaOptions.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.label} — {formatAmount(v.fee, v.currency)} · {v.minDays}–{v.maxDays} days
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1.5 text-xs text-slate-500">
-                  The fee and processing time are locked to this application when it is created; later
-                  catalogue changes do not affect it.
-                </p>
-              </div>
-              <div>
-                <label className="label" htmlFor="priorityCode">{ct("Priority")}</label>
-                <select id="priorityCode" name="priorityCode" className="input" defaultValue="STANDARD">
-                  {priorities.map((p) => (
-                    <option key={p.code} value={p.code}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="sm:col-span-2">
-                <label className="label" htmlFor="agencyNotes">{ct("Notes for ESSAFARIA (optional)")}</label>
-                <textarea id="agencyNotes" name="agencyNotes" rows={3} className="input" placeholder={ct("Travel dates, group context, special requests…")} />
-              </div>
-            </div>
-            <div className="mt-5">
-              <SubmitButton className="btn-primary" pendingLabel={ct("Creating draft…")}>
-                {ct("Continue to applicant info")}
-              </SubmitButton>
-            </div>
-          </form>
-        </div>
-
-        <div className="space-y-4">
-          <Card>
-            <CardHeader title="How submission works" />
-            <ol className="list-decimal space-y-2 px-6 py-4 text-sm text-slate-600">
-              <li>Create the draft — the checklist is generated automatically.</li>
-              <li>Add every traveller's details.</li>
-              <li>Upload the required documents.</li>
-              <li>Review the summary and submit.</li>
-              <li>
-                Your wallet is charged <strong>once</strong>, automatically, with a full ledger entry.
-              </li>
-            </ol>
-          </Card>
-          <Card>
-            <CardHeader title="Your wallet" />
-            <div className="px-4 py-4">
-              <p className="font-serif text-2xl text-navy-900 tabular-nums">
-                {formatAmount(wallet.balance, wallet.currency)}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Applications cannot be submitted if the balance is insufficient. Contact ESSAFARIA
-                accounting to top up.
-              </p>
-            </div>
-          </Card>
-        </div>
-      </div>
     </>
   );
 }

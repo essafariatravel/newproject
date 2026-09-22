@@ -424,6 +424,9 @@ export async function activeVisaOptions() {
     .select({
       id: visaTypes.id,
       label: sql<string>`${countries.name} || ' — ' || ${visaTypes.name}`,
+      name: visaTypes.name,
+      countryName: countries.name,
+      categoryName: visaCategories.name,
       fee: visaTypes.fee,
       currency: visaTypes.currency,
       minDays: visaTypes.processingMinDays,
@@ -432,6 +435,7 @@ export async function activeVisaOptions() {
     })
     .from(visaTypes)
     .innerJoin(countries, eq(visaTypes.countryId, countries.id))
+    .innerJoin(visaCategories, eq(visaTypes.categoryId, visaCategories.id))
     .where(and(eq(visaTypes.active, true), eq(countries.active, true)))
     .orderBy(asc(countries.name), asc(visaTypes.name));
 }

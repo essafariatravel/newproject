@@ -137,7 +137,7 @@ export async function uploadDocument(input: UploadDocumentInput) {
 
   if (input.file.size <= 0) throw new AppError("EMPTY_FILE", "The uploaded file is empty.");
   if (input.file.size > MAX_UPLOAD_BYTES) {
-    throw new AppError("FILE_TOO_LARGE", "Files must be 10 MB or smaller.");
+    throw new AppError("FILE_TOO_LARGE", "Files must be 2 MB or smaller.");
   }
   if (!ALLOWED_MIME_TYPES.includes(input.file.type)) {
     throw new AppError("UNSUPPORTED_TYPE", "Allowed formats: PDF, JPEG, PNG, WEBP, DOC, DOCX.");

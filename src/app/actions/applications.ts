@@ -339,3 +339,84 @@ export async function submissionGateFor(applicationId: string) {
 export async function historyFor(applicationId: string) {
   return getStatusHistory(applicationId);
 }
+
+/* -------------------- atomic 3-step request (Phase 2.3) -------------------- */
+
+/**
+ * Final step of the new portal wizard: ONE FormData carrying traveller rows,
+ * notes, and the document files. Everything is validated and committed in a
+ * single server transaction in `submitVisaRequest` — no draft state exists.
+ * On any enumerated validation failure the user returns to the wizard with a
+ * stable, localizable error code strap (`?error=<code>`).
+ */
+export async function submitRequestAction(formData: FormData): Promise<void> {
+  const { requireAgencyUser } = await import("@/lib/auth");
+  const user = await requireAgencyUser();
+  const ip = clientIp(await headersOf());
+  const { submitVisaRequest } = await import("@/lib/requests");
+  type RequestTraveller = import("@/lib/requests").RequestTraveller;
+
+  const idempotencyKey = String(formData.get("idempotencyKey") ?? "");
+  const visaTypeId = String(formData.get("visaTypeId") ?? "");
+  const priorityCode = String(formData.get("priorityCode") ?? "") || null;
+  const agencyNotes = String(formData.get("agencyNotes") ?? "") || null;
+
+  const travellers: RequestTraveller[] = [];
+  for (let i = 0; i < 25; i++) {
+    const firstName = formData.get(`t${i}_firstName`);
+    const lastName = formData.get(`t${i}_lastName`);
+    if (!firstName && !lastName) {
+      if (i === 0) continue;
+      break;
+    }
+    travellers.push({
+      firstName: String(firstName ?? ""),
+      lastName: String(lastName ?? ""),
+      dateOfBirth: String(formData.get(`t${i}_dateOfBirth`) ?? ""),
+      nationality: String(formData.get(`t${i}_nationality`) ?? ""),
+      passportNumber: String(formData.get(`t${i}_passportNumber`) ?? ""),
+      passportIssueDate: String(formData.get(`t${i}_passportIssueDate`) ?? "") || null,
+      passportExpiryDate: String(formData.get(`t${i}_passportExpiryDate`) ?? ""),
+      email: String(formData.get(`t${i}_email`) ?? "") || null,
+      phone: String(formData.get(`t${i}_phone`) ?? "") || null,
+    });
+  }
+
+  // Files: every entry named file_<documentTypeId> (multiple allowed).
+  const documents: { documentTypeId: string; file: { name: string; type: string; size: number; data: Buffer } }[] = [];
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith("file_") || typeof value === "string") continue;
+    const documentTypeId = key.slice(5);
+    if (!/^[0-9a-f-]{36}$/i.test(documentTypeId)) continue;
+    if (value.size === 0 && !value.name) continue; // untouched picker
+    documents.push({
+      documentTypeId,
+      file: { name: value.name, type: value.type, size: value.size, data: Buffer.from(await value.arrayBuffer()) },
+    });
+  }
+
+  const { redirect } = await import("next/navigation");
+  let applicationId = "";
+  try {
+    const result = await submitVisaRequest({
+      actor: user,
+      idempotencyKey,
+      visaTypeId,
+      priorityCode,
+      agencyNotes,
+      travellers,
+      documents,
+      ipAddress: ip,
+    });
+    applicationId = result.applicationId;
+  } catch (error) {
+    if (error instanceof AppError) {
+      redirect(`/portal/applications/new?error=${encodeURIComponent(error.code)}`);
+    }
+    console.error("submit-request-failed", error);
+    redirect("/portal/applications/new?error=INTERNAL");
+  }
+
+  revalidatePath("/portal/applications");
+  redirect(`/portal/applications/${applicationId}?submitted=1`);
+}
