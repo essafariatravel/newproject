@@ -88,6 +88,15 @@ sys.exit(0 if (d.get('ok') is True
   ok "health: ok=true, columnsValid=true, database.error=null ($CODE)"
   grep -q 'agency_registrations' "$WORK/health.json" && ok "health: agency_registrations table present" \
   || ok "health: table list not exposed (columnsValid already asserted)"
+  # P0 diag context: which schema/ledger/accounts state the deployed Preview actually sees.
+  python3 -c "
+import json
+d=json.load(open('$WORK/health.json'))
+s=d.get('schema') or {}; db=d.get('database') or {}
+led=s.get('migrationLedger') or []
+print('INFO  health ctx: schema=%s db.mode=%s db.ssl=%s accounts=%s ledger=%d entries %s' % (
+  s.get('name'), db.get('mode'), db.get('ssl'), s.get('hasUserAccounts'), len(led),
+  (led[-1] if led else 'none')))" || true
 else
   bad "health endpoint ($CODE)"
 fi
