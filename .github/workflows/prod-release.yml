@@ -1,0 +1,136 @@
+name: Production release (visa_os) — audit & migration recovery
+
+# Read-only PRODUCATION audit runs whenever this workflow or the tooling
+# changes (so its freshness is always provable). The write path runs ONLY
+# when a commit deliberately adds the sentinel file release/PROD_GO — the
+# sentinel itself documents intent in git history and is removed together
+# with it to make re-runs explicit, never incidental.
+#
+# Safety model (enforced in scripts/prod-release.ts):
+#   - schema pinned to visa_os; Supabase project pinned; ledger must pre-exist.
+#   - a surgical in-place restore point is created BEFORE migrating.
+#   - migrations run through the same single-transaction, advisory-locked,
+#     ledger-guarded runner used in Preview; any failure = full rollback.
+#   - postflight proves protected counts / wallet ledger checksum / agency
+#     balances / brand settings are byte-identical, else the job FAILS.
+on:
+  push:
+    branches:
+      - arena/01a0c3b8-newproject
+    paths:
+      - .github/workflows/prod-release.yml
+      - scripts/prod-release.ts
+      - release/PROD_GO
+  workflow_dispatch:
+
+concurrency:
+  group: prod-release-${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write # post the release report as a commit comment
+
+jobs:
+  audit:
+    name: "Production DB audit (read-only)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: Production
+    outputs:
+      audit_ran: ${{ steps.guard.outputs.audit_ran }}
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL || secrets.DATABASE_URL }}
+      DIRECT_DATABASE_URL: ${{ secrets.PRODUCTION_DIRECT_DATABASE_URL || secrets.DIRECT_DATABASE_URL }}
+      DATABASE_SCHEMA: visa_os
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Guard — Production database secret present
+        id: guard
+        run: |
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "MISSING secret: set PRODUCTION_DATABASE_URL (or DATABASE_URL) in the 'Production' GitHub environment to the Supabase URI of visa_os. Read-only audit refused; nothing was attempted."
+            echo "audit_ran=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "audit_ran=true" >> "$GITHUB_OUTPUT"
+
+      - name: Toolchain
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Dependencies
+        run: |
+          corepack enable
+          corepack pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Run read-only Production audit
+        run: node_modules/tsx/dist/cli.mjs scripts/prod-release.ts audit
+
+      - name: Publish report as commit comment
+        if: always()
+        env:
+          WF_REPO: ${{ github.repository }}
+          WF_SHA: ${{ github.sha }}
+          WF_CONCLUSION: ${{ job.status }}
+        run: |
+          R=/tmp/prod-release-report.md
+          [ -f "$R" ] || printf '### Production release — AUDIT report\n\n```\n(audit did not produce a report — see guard step output)\n```\n' > "$R"
+          python3 -c '
+          import subprocess, sys, os
+          repo = os.environ["WF_REPO"]; sha = os.environ["WF_SHA"]; conclusion = os.environ["WF_CONCLUSION"]
+          body = open("/tmp/prod-release-report.md", encoding="utf-8", errors="replace").read() + "\n\nconclusion: " + conclusion
+          r = subprocess.run(["gh", "api", "repos/%s/commits/%s/comments" % (repo, sha), "-f", "body=" + body], capture_output=True, text=True)
+          print(r.stdout[-300:]); print(r.stderr[-300:], file=sys.stderr)
+          '
+
+  apply:
+    name: "Apply pending Phase-2 migrations to visa_os (guarded)"
+    needs: audit
+    if: >-
+      github.event_name == 'push' &&
+      contains(github.event.head_commit.added, 'release/PROD_GO')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: Production
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL || secrets.DATABASE_URL }}
+      DIRECT_DATABASE_URL: ${{ secrets.PRODUCTION_DIRECT_DATABASE_URL || secrets.DIRECT_DATABASE_URL }}
+      DATABASE_SCHEMA: visa_os
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Toolchain
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Dependencies
+        run: |
+          corepack enable
+          corepack pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Preflight + restore point + migrations + integrity postflight
+        run: node_modules/tsx/dist/cli.mjs scripts/prod-release.ts apply
+
+      - name: Publish report as commit comment
+        if: always()
+        env:
+          WF_REPO: ${{ github.repository }}
+          WF_SHA: ${{ github.sha }}
+          WF_CONCLUSION: ${{ job.status }}
+        run: |
+          R=/tmp/prod-release-report.md
+          [ -f "$R" ] || printf '### Production release — APPLY report\n\n```\n(apply did not produce a report — step failed before execution)\n```\n' > "$R"
+          python3 -c '
+          import subprocess, sys, os
+          repo = os.environ["WF_REPO"]; sha = os.environ["WF_SHA"]; conclusion = os.environ["WF_CONCLUSION"]
+          body = open("/tmp/prod-release-report.md", encoding="utf-8", errors="replace").read() + "\n\nconclusion: " + conclusion
+          r = subprocess.run(["gh", "api", "repos/%s/commits/%s/comments" % (repo, sha), "-f", "body=" + body], capture_output=True, text=True)
+          print(r.stdout[-300:]); print(r.stderr[-300:], file=sys.stderr)
+          '
