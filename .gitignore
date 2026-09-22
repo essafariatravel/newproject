@@ -34,3 +34,4 @@ ESSAFARIA-VISA-OS-FINAL.zip
 SHA256SUMS.txt
 tests/.pgdata-test/
 pnpm-lock.yaml
+pnpm-workspace.yaml
