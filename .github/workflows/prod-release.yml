@@ -40,7 +40,11 @@ jobs:
       audit_ran: ${{ steps.guard.outputs.audit_ran }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL || secrets.DATABASE_URL }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      POSTGRES_URL_POSTGRES: ${{ secrets.POSTGRES_URL_POSTGRES }}
       DIRECT_DATABASE_URL: ${{ secrets.PRODUCTION_DIRECT_DATABASE_URL || secrets.DIRECT_DATABASE_URL }}
       DATABASE_SCHEMA: visa_os
     steps:
@@ -50,12 +54,24 @@ jobs:
       - name: Guard — Production database secret present
         id: guard
         run: |
-          if [ -z "${DATABASE_URL:-}" ]; then
-            echo "MISSING secret: set PRODUCTION_DATABASE_URL (or DATABASE_URL) in the 'Production' GitHub environment to the Supabase URI of visa_os. Read-only audit refused; nothing was attempted."
-            echo "audit_ran=false" >> "$GITHUB_OUTPUT"
+          PICKED=""
+          for NAME in PRODUCTION_DATABASE_URL DATABASE_URL SUPABASE_DATABASE_URL SUPABASE_DB_URL POSTGRES_URL_POSTGRES; do
+            VALUE=$(eval "printf %s \"\${$NAME:-}\"")
+            if [ -n "$VALUE" ]; then
+              PICKED="SOURCE:$NAME"
+              echo "DATABASE_URL=$VALUE" >> "$GITHUB_ENV"
+              echo "DB_SECRET_NAME=$NAME" >> "$GITHUB_ENV"
+              break
+            fi
+          done
+          if [ -z "$PICKED" ]; then
+            echo "MISSING Production database connection secret. Tried (all empty/masked): PRODUCTION_DATABASE_URL, DATABASE_URL, SUPABASE_DATABASE_URL, SUPABASE_DB_URL, POSTGRES_URL_POSTGRES."
+            echo "→ Repo Settings → Environments → Production → 'Add environment secret', name PRODUCTION_DATABASE_URL, value = the Supabase pooler URI that the visa.essafariavoyages.com deployment itself uses (it clearly exists on Vercel)."
+            echo "READ-ONLY audit refused; nothing was attempted."
             exit 1
           fi
           echo "audit_ran=true" >> "$GITHUB_OUTPUT"
+          echo "Using Production env secret: $PICKED (value masked)"
 
       - name: Toolchain
         uses: actions/setup-node@v4
@@ -98,7 +114,11 @@ jobs:
     environment: Production
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL || secrets.DATABASE_URL }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      POSTGRES_URL_POSTGRES: ${{ secrets.POSTGRES_URL_POSTGRES }}
       DIRECT_DATABASE_URL: ${{ secrets.PRODUCTION_DIRECT_DATABASE_URL || secrets.DIRECT_DATABASE_URL }}
       DATABASE_SCHEMA: visa_os
     steps:
