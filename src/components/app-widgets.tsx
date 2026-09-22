@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { DatePicker } from "@/components/date-picker";
+
+export type FilterBarLocale = "en" | "fr" | "ar";
 
 export interface FilterField {
   name: string;
@@ -14,6 +17,8 @@ export function FilterBar(props: {
   action: string;
   fields: FilterField[];
   hidden?: Record<string, string>;
+  /** Interface locale — required for localized date-pickers (§8). */
+  locale?: FilterBarLocale;
 }) {
   return (
     <form method="get" action={props.action} className="card mb-4 flex flex-wrap items-end gap-3 p-4">
@@ -32,6 +37,14 @@ export function FilterBar(props: {
                 </option>
               ))}
             </select>
+          ) : f.type === "date" ? (
+            <DatePicker
+              id={`f-${f.name}`}
+              name={f.name}
+              defaultValue={f.value ?? ""}
+              locale={props.locale ?? "en"}
+              placeholder={f.placeholder}
+            />
           ) : (
             <input
               id={`f-${f.name}`}

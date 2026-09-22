@@ -16,7 +16,8 @@ export default async function PortalWalletPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const raw = await searchParams;
-  const ct = contentT(await getUiLocale());
+  const uiLocale = await getUiLocale();
+  const ct = contentT(uiLocale);
   const sp: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(raw)) sp[k] = typeof v === "string" ? v : undefined;
   const user = await portalPageUser();
@@ -50,6 +51,7 @@ export default async function PortalWalletPage({
       {user.role === "AGENCY_ADMIN" ? (
         <div className="mt-6">
           <WalletStatementForm
+            locale={uiLocale}
         copy={{
           title: ct("Download wallet statement (PDF)"),
           body: ct("Professional statement for a chosen period: opening balance, credits, debits and closing balance, derived directly from the immutable ledger."),

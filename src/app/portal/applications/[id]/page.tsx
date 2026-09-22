@@ -17,6 +17,7 @@ import { listCommunications } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
 import { getUiLocale, localizedDocTypeName } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
+import { DatePicker } from "@/components/date-picker";
 import { formatDate, formatDateTime, personName } from "@/lib/format";
 import {
   addApplicantAction,
@@ -83,7 +84,7 @@ export default async function PortalApplicationDetailPage({
   const isDraft = app.statusId === draftStatus.id;
   const flash = flashFrom(sp);
   const uiLocale = await getUiLocale();
-  const ct = contentT(await getUiLocale());
+  const ct = contentT(uiLocale);
   const fee = Number(app.fee);
   const balance = Number(wallet.balance);
   const canAfford = balance >= fee;
@@ -264,7 +265,7 @@ export default async function PortalApplicationDetailPage({
                   <div><label className="label">{ct("First name")}</label><input name="firstName" defaultValue={a.firstName} required className="input" /></div>
                   <div><label className="label">{ct("Middle name")}</label><input name="middleName" defaultValue={a.middleName ?? ""} className="input" /></div>
                   <div><label className="label">{ct("Last name")}</label><input name="lastName" defaultValue={a.lastName} required className="input" /></div>
-                  <div><label className="label">{ct("Date of birth")}</label><input name="dateOfBirth" type="date" defaultValue={a.dateOfBirth} required className="input" /></div>
+                  <div><label className="label">{ct("Date of birth")}</label><DatePicker name="dateOfBirth" defaultValue={a.dateOfBirth} required locale={uiLocale} placeholder={ct("Date of birth")} /></div>
                   <div>
                     <label className="label">{ct("Gender")}</label>
                     <select name="gender" defaultValue={a.gender ?? ""} className="input">
@@ -276,8 +277,8 @@ export default async function PortalApplicationDetailPage({
                   </div>
                   <div><label className="label">{ct("Nationality")}</label><input name="nationality" defaultValue={a.nationality} required className="input" /></div>
                   <div><label className="label">{ct("Passport number")}</label><input name="passportNumber" defaultValue={a.passportNumber} required className="input" /></div>
-                  <div><label className="label">{ct("Passport issue date")}</label><input name="passportIssueDate" type="date" defaultValue={a.passportIssueDate ?? ""} className="input" /></div>
-                  <div><label className="label">{ct("Passport expiry")}</label><input name="passportExpiryDate" type="date" defaultValue={a.passportExpiryDate} required className="input" /></div>
+                  <div><label className="label">{ct("Passport issue date")}</label><DatePicker name="passportIssueDate" defaultValue={a.passportIssueDate ?? ""} locale={uiLocale} placeholder={ct("Passport issue date")} /></div>
+                  <div><label className="label">{ct("Passport expiry")}</label><DatePicker name="passportExpiryDate" defaultValue={a.passportExpiryDate} required locale={uiLocale} placeholder={ct("Passport expiry")} /></div>
                   <div><label className="label">{ct("Email")}</label><input name="email" type="email" defaultValue={a.email ?? ""} className="input" /></div>
                   <div><label className="label">{ct("Phone")}</label><input name="phone" defaultValue={a.phone ?? ""} className="input" /></div>
                   <div><label className="label">{ct("City")}</label><input name="city" defaultValue={a.city ?? ""} className="input" /></div>
@@ -309,7 +310,7 @@ export default async function PortalApplicationDetailPage({
                 <div><label className="label">First name *</label><input name="firstName" required className="input" /></div>
                 <div><label className="label">{ct("Middle name")}</label><input name="middleName" className="input" /></div>
                 <div><label className="label">Last name *</label><input name="lastName" required className="input" /></div>
-                <div><label className="label">Date of birth *</label><input name="dateOfBirth" type="date" required className="input" /></div>
+                <div><label className="label">Date of birth *</label><DatePicker name="dateOfBirth" required locale={uiLocale} placeholder={ct("Date of birth")} /></div>
                 <div>
                   <label className="label">{ct("Gender")}</label>
                   <select name="gender" className="input">
@@ -321,8 +322,8 @@ export default async function PortalApplicationDetailPage({
                 </div>
                 <div><label className="label">Nationality *</label><input name="nationality" required className="input" /></div>
                 <div><label className="label">Passport number *</label><input name="passportNumber" required className="input" /></div>
-                <div><label className="label">{ct("Passport issue date")}</label><input name="passportIssueDate" type="date" className="input" /></div>
-                <div><label className="label">Passport expiry *</label><input name="passportExpiryDate" type="date" required className="input" /></div>
+                <div><label className="label">{ct("Passport issue date")}</label><DatePicker name="passportIssueDate" locale={uiLocale} placeholder={ct("Passport issue date")} /></div>
+                <div><label className="label">Passport expiry *</label><DatePicker name="passportExpiryDate" required locale={uiLocale} placeholder={ct("Passport expiry")} /></div>
                 <div><label className="label">{ct("Email")}</label><input name="email" type="email" className="input" /></div>
                 <div><label className="label">{ct("Phone")}</label><input name="phone" className="input" /></div>
                 <div><label className="label">{ct("City")}</label><input name="city" className="input" /></div>

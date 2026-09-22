@@ -1,6 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui";
+import { DatePicker } from "@/components/date-picker";
 
 /**
  * Wallet statement PDF — date-range picker (AGENCY_ADMIN only).
@@ -17,7 +18,17 @@ export interface WalletStatementCopy {
   alertInverted: string;
 }
 
-export function WalletStatementForm({ today, defaultFrom, copy }: { today: string; defaultFrom: string; copy: WalletStatementCopy }) {
+export function WalletStatementForm({
+  today,
+  defaultFrom,
+  copy,
+  locale = "en",
+}: {
+  today: string;
+  defaultFrom: string;
+  copy: WalletStatementCopy;
+  locale?: "en" | "fr" | "ar";
+}) {
   return (
     <Card className="p-4">
       <h3 className="text-sm font-semibold text-navy-800">{copy.title}</h3>
@@ -45,11 +56,11 @@ export function WalletStatementForm({ today, defaultFrom, copy }: { today: strin
       >
         <div>
           <label htmlFor="wallet-stmt-from" className="mb-1 block text-xs font-medium text-navy-600">{copy.from}</label>
-          <input id="wallet-stmt-from" name="from" type="date" required defaultValue={defaultFrom} max={today} className="input" />
+          <DatePicker id="wallet-stmt-from" name="from" required defaultValue={defaultFrom} max={today} locale={locale} placeholder="YYYY-MM-DD" />
         </div>
         <div>
           <label htmlFor="wallet-stmt-to" className="mb-1 block text-xs font-medium text-navy-600">{copy.to}</label>
-          <input id="wallet-stmt-to" name="to" type="date" required defaultValue={today} max={today} className="input" />
+          <DatePicker id="wallet-stmt-to" name="to" required defaultValue={today} max={today} locale={locale} placeholder="YYYY-MM-DD" />
         </div>
         <button type="submit" className="btn-primary px-4">{copy.generate}</button>
       </form>

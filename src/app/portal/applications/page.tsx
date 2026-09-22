@@ -19,7 +19,8 @@ export default async function PortalApplicationsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const raw = await searchParams;
-  const ct = contentT(await getUiLocale());
+  const uiLocale = await getUiLocale();
+  const ct = contentT(uiLocale);
   const sp: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(raw)) sp[k] = typeof v === "string" ? v : undefined;
   const user = await portalPageUser();
@@ -48,13 +49,13 @@ export default async function PortalApplicationsPage({
       />
       <Flash {...flash} />
 
-      <FilterBar
+      <FilterBar locale={uiLocale}
         action="/portal/applications"
         fields={[
           { name: "q", label: "Search", type: "text", value: sp.q, placeholder: "Reference, applicant, passport…" },
           { name: "status", label: "Status", type: "select", value: sp.status, options: statuses.map((s) => ({ value: s.code, label: s.name })) },
-          { name: "from", label: "From", type: "date", value: sp.from },
-          { name: "to", label: "To", type: "date", value: sp.to },
+          { name: "from", label: ct("From"), type: "date", value: sp.from },
+          { name: "to", label: ct("To"), type: "date", value: sp.to },
         ]}
       />
 

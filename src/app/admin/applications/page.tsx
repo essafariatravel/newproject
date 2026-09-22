@@ -19,7 +19,8 @@ export default async function AdminApplicationsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const raw = await searchParams;
-  const ct = contentT(await getUiLocale());
+  const uiLocale = await getUiLocale();
+  const ct = contentT(uiLocale);
   const sp: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(raw)) sp[k] = typeof v === "string" ? v : undefined;
   const user = await pageUser();
@@ -47,7 +48,7 @@ export default async function AdminApplicationsPage({
       <PageHeader title={ct("Applications")} subtitle={ct("All visa applications across partner agencies.")} />
       <Flash {...flash} />
 
-      <FilterBar
+      <FilterBar locale={uiLocale}
         action="/admin/applications"
         fields={[
           { name: "q", label: ct("Search"), type: "text", value: sp.q, placeholder: ct("Reference, applicant, passport…") },
