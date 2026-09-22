@@ -59,3 +59,48 @@ describe("reusable DatePicker (Phase 2.2 §8)", () => {
     }
   });
 });
+
+import { yearRangeWindow, clampYearMonth } from "@/components/date-picker";
+
+describe("DatePicker Bug 4 — direct year/month navigation (Phase 2.3)", () => {
+  it("exposes YEAR and MONTH panes reachable from the header", () => {
+    const src = readFileSync(path.join(__dirname, "..", "src/components/date-picker.tsx"), "utf8");
+    expect(src).toContain('"years"');
+    expect(src).toContain('"months"');
+    expect(src).toContain('aria-label="Choose year"');
+    expect(src).toContain('aria-label="Choose month"');
+    expect(src).toContain("yearRangeWindow");
+    expect(src).toContain("Choose month / year");
+  });
+
+  it("yearRangeWindow: 12-year windows stable + aligned", () => {
+    expect(yearRangeWindow(2026)).toEqual({ start: 2016, end: 2027 });
+    expect(yearRangeWindow(1981)).toEqual({ start: 1980, end: 1991 });
+    expect(yearRangeWindow(2000)).toEqual({ start: 1992, end: 2003 });
+  });
+
+  it("decades-in-the-past birth-year cost: 2026 → 1981 needs ≤ 4 range-page interactions", () => {
+    // clicking ‹ in years view jumps 12 YEARS each: 2026→(2014)→(2002)→(1980) = 3 clicks + 1 click on 1981.
+    let pivot = 2026;
+    let clicks = 0;
+    while (![yearRangeWindow(pivot).start, yearRangeWindow(pivot).end].some((e) => 1981 >= yearRangeWindow(pivot).start && 1981 <= yearRangeWindow(pivot).end)) {
+      pivot -= 12; clicks++;
+      if (clicks > 10) break;
+    }
+    expect(clicks).toBeLessThanOrEqual(3);
+  });
+
+  it("clampYearMonth keeps selections inside min/max", () => {
+    expect(clampYearMonth(2099, 0, "2000-01-01", "2026-06-30")).toEqual({ year: 2026, month: 5 });
+    expect(clampYearMonth(1950, 11, "2000-01-01", "2026-06-30")).toEqual({ year: 2000, month: 0 });
+    expect(clampYearMonth(2010, 3, "2000-01-01", "2026-06-30")).toEqual({ year: 2010, month: 3 });
+  });
+
+  it("years/months grids render localized (Intl) and cells respect min/max disablement", () => {
+    const src = readFileSync(path.join(__dirname, "..", "src/components/date-picker.tsx"), "utf8");
+    expect(src.match(/new Intl\.DateTimeFormat\(locale, \{ month: "short" \}\)/g)?.length).toBeGreaterThanOrEqual(1);
+    expect(src.match(/Intl\.NumberFormat\(locale, \{ useGrouping: false \}\)/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(src).toContain("disabledCandidate");
+    expect(src).not.toContain('from "react-date');
+  });
+});

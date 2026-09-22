@@ -30,6 +30,35 @@ export interface DatePickerProps {
 
 const ISO = /^(\d{4})-(\d{2})-(\d{2})$/;
 
+/**
+ * The 12-year window shown in the year picker around a pivot year.
+ * Exported and pure so tests can verify decades-in-the-past jumps stay cheap
+ * (birth-year selection like 1981 from 2026 = 4 range clicks, not months).
+ */
+export function yearRangeWindow(pivot: number): { start: number; end: number } {
+  const start = pivot - (pivot % 12);
+  return { start, end: start + 11 };
+}
+
+/** Clamp a year/month selection against ISO min/max bounds. */
+export function clampYearMonth(
+  year: number,
+  month: number,
+  min?: string,
+  max?: string,
+): { year: number; month: number } {
+  const v = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+  if (max && v > `${max.slice(0, 7)}-01`) {
+    return { year: Number(max.slice(0, 4)), month: Number(max.slice(5, 7)) - 1 };
+  }
+  if (min && v < `${min.slice(0, 7)}-01`) {
+    return { year: Number(min.slice(0, 4)), month: Number(min.slice(5, 7)) - 1 };
+  }
+  return { year, month };
+}
+
+type PickerView = "days" | "months" | "years";
+
 function iso(year: number, monthIndex: number, day: number): string {
   const m = String(monthIndex + 1).padStart(2, "0");
   const d = String(day).padStart(2, "0");
@@ -61,6 +90,9 @@ export function DatePicker(props: DatePickerProps) {
   const [viewYear, setViewYear] = useState(initial?.y ?? today.y);
   const [viewMonth, setViewMonth] = useState(initial?.m ?? today.m);
   const [focusedDay, setFocusedDay] = useState(initial?.d ?? today.d);
+  const [view, setView] = useState<PickerView>("days");
+  // pivot year drives the 12-year grid in "years" view
+  const [pivotYear, setPivotYear] = useState(initial?.y ?? today.y);
   const rootRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -185,19 +217,40 @@ export function DatePicker(props: DatePickerProps) {
         <div
           role="dialog"
           aria-label={fmtMonth.format(new Date(viewYear, viewMonth, 1))}
+          onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); setOpen(false); } }}
           className="absolute z-40 mt-2 w-72 rounded-2xl border border-ivory-200 bg-white p-3 shadow-[0_24px_48px_-24px_rgb(15_23_42/0.35)]"
         >
           <div className="flex items-center justify-between pb-2">
-            <button type="button" onClick={() => moveMonth(-1)} className="rounded-lg px-2 py-1 text-slate-500 hover:bg-ivory-100" aria-label="Previous month">
+            <button
+              type="button"
+              onClick={() => (view === "days" ? moveMonth(-1) : view === "months" ? setViewYear((y) => y - 1) : setPivotYear((y) => y - 12))}
+              className="rounded-lg px-2 py-1 text-slate-500 hover:bg-ivory-100"
+              aria-label={view === "days" ? "Previous month" : view === "months" ? "Previous year" : "Earlier years"}
+            >
               ‹
             </button>
-            <span className="text-sm font-semibold text-navy-900">
-              {fmtMonth.format(new Date(viewYear, viewMonth, 1))}
-            </span>
-            <button type="button" onClick={() => moveMonth(1)} className="rounded-lg px-2 py-1 text-slate-500 hover:bg-ivory-100" aria-label="Next month">
+            <button
+              type="button"
+              className="rounded-lg px-2 py-1 text-sm font-semibold text-navy-900 hover:bg-ivory-100"
+              onClick={() => setView((v) => (v === "days" ? "months" : "years"))}
+              aria-label={view === "days" ? "Choose month / year" : view === "months" ? "Choose year" : "Back to days"}
+            >
+              {view === "days"
+                ? fmtMonth.format(new Date(viewYear, viewMonth, 1))
+                : view === "months"
+                  ? new Intl.NumberFormat(locale, { useGrouping: false }).format(viewYear)
+                  : `${new Intl.NumberFormat(locale, { useGrouping: false }).format(yearRangeWindow(pivotYear).start)}–${new Intl.NumberFormat(locale, { useGrouping: false }).format(yearRangeWindow(pivotYear).end)}`}
+            </button>
+            <button
+              type="button"
+              onClick={() => (view === "days" ? moveMonth(1) : view === "months" ? setViewYear((y) => y + 1) : setPivotYear((y) => y + 12))}
+              className="rounded-lg px-2 py-1 text-slate-500 hover:bg-ivory-100"
+              aria-label={view === "days" ? "Next month" : view === "months" ? "Next year" : "Later years"}
+            >
               ›
             </button>
           </div>
+          {view === "days" ? (
           <div role="grid" ref={gridRef} onKeyDown={onGridKeyDown}>
             <div role="row" className="grid grid-cols-7 text-center text-[11px] font-medium text-slate-400">
               {weekdayNames.map((w, i) => (
@@ -242,6 +295,65 @@ export function DatePicker(props: DatePickerProps) {
               })}
             </div>
           </div>
+          ) : view === "months" ? (
+            <div role="grid" aria-label="Choose month" className="grid grid-cols-3 gap-1 pb-2">
+              {Array.from({ length: 12 }).map((_, m) => {
+                const monthLabel = new Intl.DateTimeFormat(locale, { month: "short" }).format(new Date(viewYear, m, 1));
+                const disabledCandidate = !allowed(iso(viewYear, m, 1)) && !allowed(iso(viewYear, m, new Date(viewYear, m + 1, 0).getDate()));
+                const isCurrent = m === viewMonth;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    disabled={disabledCandidate}
+                    onClick={() => {
+                      const clamped = clampYearMonth(viewYear, m, props.min, props.max);
+                      setViewYear(clamped.year);
+                      setViewMonth(clamped.month);
+                      setFocusedDay((d) => Math.min(d, new Date(clamped.year, clamped.month + 1, 0).getDate()));
+                      setView("days");
+                    }}
+                    aria-pressed={isCurrent}
+                    className={[
+                      "rounded-lg px-2 py-2.5 text-sm transition-colors",
+                      isCurrent ? "bg-iris-600 font-semibold text-white" : disabledCandidate ? "cursor-not-allowed text-slate-300" : "text-navy-900 hover:bg-ivory-100",
+                    ].join(" ")}
+                  >
+                    {monthLabel}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div role="grid" aria-label="Choose year" className="grid grid-cols-3 gap-1 pb-2">
+              {Array.from({ length: 12 }).map((_, i) => {
+                const y = yearRangeWindow(pivotYear).start + i;
+                const disabledCandidate = !allowed(`${y}-01-01`) && !allowed(`${y}-12-31`);
+                const isCurrent = y === viewYear;
+                return (
+                  <button
+                    key={y}
+                    type="button"
+                    disabled={disabledCandidate}
+                    onClick={() => {
+                      const clamped = clampYearMonth(y, Math.min(viewMonth, 11), props.min, props.max);
+                      setViewYear(clamped.year);
+                      setViewMonth(clamped.month);
+                      setPivotYear(clamped.year);
+                      setView("months");
+                    }}
+                    aria-pressed={isCurrent}
+                    className={[
+                      "rounded-lg px-2 py-2.5 text-sm tabular-nums transition-colors",
+                      isCurrent ? "bg-iris-600 font-semibold text-white" : disabledCandidate ? "cursor-not-allowed text-slate-300" : "text-navy-900 hover:bg-ivory-100",
+                    ].join(" ")}
+                  >
+                    {new Intl.NumberFormat(locale, { useGrouping: false }).format(y)}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <div className="flex items-center justify-between border-t border-ivory-100 pt-2">
             <button
               type="button"

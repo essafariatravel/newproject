@@ -1,11 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import {
-  LOCALE_NAMES,
-  registrationCopy,
-  REGISTRATION_LOCALES,
-  resolveLocale,
-} from "@/lib/i18n";
+import { registrationCopy, resolveLocale } from "@/lib/i18n";
+import { getUiLocale, pickUiLocale } from "@/lib/ui-i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -19,28 +15,13 @@ export default async function RegistrationSuccessPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const locale = resolveLocale(sp.lang);
+  const locale = resolveLocale(pickUiLocale(sp.lang) ?? (await getUiLocale()));
   const copy = registrationCopy(locale);
   const rawRef = typeof sp.ref === "string" ? sp.ref : null;
   const reference = rawRef && REFERENCE_RE.test(rawRef) ? rawRef : null;
 
   return (
     <div dir={copy.dir} lang={locale} className="ess-container flex flex-col items-center py-16 sm:py-20">
-      {/* language switcher */}
-      <div className="mb-10 flex items-center gap-1 rounded-full border border-ivory-200 bg-white p-1 shadow-sm">
-        {REGISTRATION_LOCALES.map((l) => (
-          <Link
-            key={l}
-            href={reference ? `/agency/register/success?ref=${reference}&lang=${l}` : `/agency/register/success?lang=${l}`}
-            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-              l === locale ? "bg-navy-900 text-white shadow-sm" : "text-slate-500 hover:text-navy-900"
-            }`}
-          >
-            {LOCALE_NAMES[l]}
-          </Link>
-        ))}
-      </div>
-
       <div className="card w-full max-w-2xl overflow-hidden">
         <div className="relative bg-gradient-to-br from-navy-800 via-navy-900 to-navy-950 px-8 py-11 text-center sm:px-12">
           <div

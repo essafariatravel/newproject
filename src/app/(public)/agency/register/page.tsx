@@ -1,12 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import RegistrationForm from "./registration-form";
-import {
-  LOCALE_NAMES,
-  registrationCopy,
-  REGISTRATION_LOCALES,
-  resolveLocale,
-} from "@/lib/i18n";
+import { registrationCopy, resolveLocale } from "@/lib/i18n";
+import { getUiLocale, pickUiLocale } from "@/lib/ui-i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -19,31 +15,15 @@ export async function generateMetadata({
   return { title: registrationCopy(resolveLocale(sp.lang)).metaTitle };
 }
 
-function LanguageSwitcher({ current, reference }: { current: string; reference?: string | null }) {
-  return (
-    <div className="flex items-center gap-1 rounded-full border border-white/25 bg-white/10 p-1 backdrop-blur-sm">
-      {REGISTRATION_LOCALES.map((l) => (
-        <Link
-          key={l}
-          href={reference ? `/agency/register/success?ref=${reference}&lang=${l}` : `/agency/register?lang=${l}`}
-          className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-            l === current ? "bg-white text-navy-900 shadow-sm" : "text-white/75 hover:text-white"
-          }`}
-        >
-          {LOCALE_NAMES[l]}
-        </Link>
-      ))}
-    </div>
-  );
-}
-
 export default async function AgencyRegisterPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const locale = resolveLocale(sp.lang);
+  // Bug 3: ONE global language switcher controls this page — resolve ?lang= first,
+  // then the shared ui locale cookie (the registration copy locales match ui locales).
+  const locale = resolveLocale(pickUiLocale(sp.lang) ?? (await getUiLocale()));
   const copy = registrationCopy(locale);
 
   return (
@@ -59,16 +39,13 @@ export default async function AgencyRegisterPage({
           }}
         />
         <div className="ess-container relative py-14 sm:py-16">
-          <div className="flex justify-end">
-            <LanguageSwitcher current={locale} />
-          </div>
-          <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.24em] text-gold-400">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-gold-300">
             {copy.kicker}
           </p>
-          <h1 className="mt-3 max-w-3xl font-serif text-4xl leading-[1.12] text-white sm:text-5xl">
+          <h1 className="mt-3 max-w-3xl font-serif text-4xl leading-[1.12] text-white [text-shadow:0_2px_14px_rgb(4_10_32/0.55)] sm:text-5xl">
             {copy.title}
           </h1>
-          <p className="mt-4 max-w-2xl text-base leading-relaxed text-white/70 sm:text-lg">
+          <p className="mt-4 max-w-2xl text-base leading-relaxed text-white/90 sm:text-lg">
             {copy.subtitle}
           </p>
         </div>
