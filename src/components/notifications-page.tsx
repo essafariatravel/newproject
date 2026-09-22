@@ -5,27 +5,30 @@ import { SubmitButton } from "@/components/forms";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import type { AuthUser } from "@/lib/types";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 
 export async function NotificationsPage({ user, basePath }: { user: AuthUser; basePath: string }) {
+  const ct = contentT(await getUiLocale());
   const notifications = await listNotificationsForUser(user.id);
   const unread = notifications.filter((n) => !n.readAt).length;
 
   return (
     <>
       <PageHeader
-        title="Notifications"
+        title={ct("Notifications")}
         subtitle={`${unread} unread · ${notifications.length} total`}
         actions={
           unread > 0 ? (
             <form action={markNotificationsReadAction}>
               <input type="hidden" name="back" value={basePath} />
-              <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">Mark all as read</SubmitButton>
+              <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">{ct("Mark all as read")}</SubmitButton>
             </form>
           ) : undefined
         }
       />
       {notifications.length === 0 ? (
-        <div className="card"><EmptyState title="No notifications" body="Events on your applications will appear here." /></div>
+        <div className="card"><EmptyState title={ct("No notifications")} body="Events on your applications will appear here." /></div>
       ) : (
         <div className="space-y-2.5">
           {notifications.map((n) => (
@@ -44,14 +47,14 @@ export async function NotificationsPage({ user, basePath }: { user: AuthUser; ba
               <div className="flex shrink-0 flex-col items-end gap-1.5">
                 {n.link ? (
                   <Link href={n.link} className="btn-secondary btn-sm">
-                    Open →
+                    {ct("Open")} →
                   </Link>
                 ) : null}
                 {!n.readAt ? (
                   <form action={markNotificationsReadAction}>
                     <input type="hidden" name="id" value={n.id} />
                     <input type="hidden" name="back" value={basePath} />
-                    <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">Mark read</SubmitButton>
+                    <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">{ct("Mark read")}</SubmitButton>
                   </form>
                 ) : null}
               </div>

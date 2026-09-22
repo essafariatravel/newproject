@@ -9,7 +9,8 @@ import {
 import { flashFrom } from "@/lib/action-helpers";
 import { formatDateTime } from "@/lib/format";
 import { FilterBar, Pagination } from "@/components/app-widgets";
-import { EmptyState, Flash, PageHeader, StatusBadge, TableWrap } from "@/components/ui";
+import { EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
+import { StatusBadge } from "@/components/badges";
 
 export const dynamic = "force-dynamic";
 

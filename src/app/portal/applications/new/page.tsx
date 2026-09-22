@@ -7,6 +7,8 @@ import { getBalance } from "@/lib/wallet";
 import { createApplicationAction } from "@/app/actions/applications";
 import { SubmitButton } from "@/components/forms";
 import { Card, CardHeader, Flash, PageHeader } from "@/components/ui";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +19,7 @@ export default async function NewApplicationPage({
 }) {
   const sp = await searchParams;
   const user = await portalPageUser();
+  const ct = contentT(await getUiLocale());
   const flash = flashFrom(sp);
 
   const [visaOptions, priorities, wallet] = await Promise.all([
@@ -28,8 +31,8 @@ export default async function NewApplicationPage({
   return (
     <>
       <PageHeader
-        title="New application"
-        subtitle="Step 1 — choose the visa. Applicants, documents, review and submission follow on the application page."
+        title={ct("New application")}
+        subtitle={ct("Step 1 — choose the visa. Applicants, documents, review and submission follow on the application page.")}
       />
       <Flash {...flash} />
 
@@ -38,10 +41,10 @@ export default async function NewApplicationPage({
           <form action={createApplicationAction} className="card p-5">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <label className="label" htmlFor="visaTypeId">Visa programme *</label>
+                <label className="label" htmlFor="visaTypeId">{ct("Visa programme *")}</label>
                 <select id="visaTypeId" name="visaTypeId" required className="input" defaultValue="">
                   <option value="" disabled>
-                    Select country and visa…
+                    {ct("Select country and visa…")}
                   </option>
                   {visaOptions.map((v) => (
                     <option key={v.id} value={v.id}>
@@ -55,7 +58,7 @@ export default async function NewApplicationPage({
                 </p>
               </div>
               <div>
-                <label className="label" htmlFor="priorityCode">Priority</label>
+                <label className="label" htmlFor="priorityCode">{ct("Priority")}</label>
                 <select id="priorityCode" name="priorityCode" className="input" defaultValue="STANDARD">
                   {priorities.map((p) => (
                     <option key={p.code} value={p.code}>
@@ -65,13 +68,13 @@ export default async function NewApplicationPage({
                 </select>
               </div>
               <div className="sm:col-span-2">
-                <label className="label" htmlFor="agencyNotes">Notes for ESSAFARIA (optional)</label>
-                <textarea id="agencyNotes" name="agencyNotes" rows={3} className="input" placeholder="Travel dates, group context, special requests…" />
+                <label className="label" htmlFor="agencyNotes">{ct("Notes for ESSAFARIA (optional)")}</label>
+                <textarea id="agencyNotes" name="agencyNotes" rows={3} className="input" placeholder={ct("Travel dates, group context, special requests…")} />
               </div>
             </div>
             <div className="mt-5">
               <SubmitButton className="btn-primary" pendingLabel="Creating draft…">
-                Create draft application
+                {ct("Create draft application")}
               </SubmitButton>
             </div>
           </form>

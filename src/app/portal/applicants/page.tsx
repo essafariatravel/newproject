@@ -5,6 +5,8 @@ import { flashFrom } from "@/lib/action-helpers";
 import { formatDate, personName } from "@/lib/format";
 import { FilterBar, Pagination } from "@/components/app-widgets";
 import { EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
 
@@ -17,13 +19,14 @@ export default async function PortalApplicantsPage({
   const sp: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(raw)) sp[k] = typeof v === "string" ? v : undefined;
   const user = await portalPageUser();
+  const ct = contentT(await getUiLocale());
   const flash = flashFrom(sp);
   const page = Number(sp.page ?? "1") || 1;
   const result = await listApplicants({ q: sp.q, page, agencyId: user.agencyId });
 
   return (
     <>
-      <PageHeader title="Applicants" subtitle="Travellers on your agency's applications." />
+      <PageHeader title={ct("Applicants")} subtitle="Travellers on your agency's applications." />
       <Flash {...flash} />
 
       <FilterBar action="/portal/applicants" fields={[{ name: "q", label: "Search", type: "text", value: sp.q, placeholder: "Name or passport…" }]} />

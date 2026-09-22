@@ -4,10 +4,13 @@ import { isAgencyRole } from "@/lib/types";
 import { readBranding, brandLogoUrl, BRANDING_DEFAULTS } from "@/lib/branding";
 import BrandMark from "@/components/brand-mark";
 import { LoginForm } from "./login-form";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
+  const ct = contentT(await getUiLocale());
   // Already signed in → straight to the right workspace. Never 500 if DB is temporarily unavailable.
   let user: Awaited<ReturnType<typeof getSessionUser>> = null;
   try {
@@ -41,16 +44,15 @@ export default async function LoginPage() {
         <BrandMark className="relative h-10 w-10" src={logoUrl} alt={branding.name} />
         <div className="relative">
           <h2 className="font-serif text-3xl leading-snug text-navy-900">
-            One platform for your entire
-            <span className="italic text-gold-600"> visa operation</span>
+            {ct("One platform for your entire")}
+            <span className="italic text-gold-600"> {ct("visa operation")}</span>
           </h2>
           <p className="mt-4 max-w-md text-sm leading-relaxed text-slate-500">
-            Agency partners manage applications, documents and wallets. {branding.name} staff process files from
-            the central Back Office.
+            {ct("Agency partners manage applications, documents and wallets. Staff process files from the central Back Office.")}
           </p>
         </div>
         <p className="relative text-xs text-slate-400">
-          Access is restricted to authorized users. All activity is logged and audited.
+          {ct("Access is restricted to authorized users. All activity is logged and audited.")}
         </p>
       </div>
       <div className="flex items-center justify-center p-6">
@@ -58,9 +60,16 @@ export default async function LoginPage() {
           <div className="mb-8 flex justify-center lg:hidden">
             <BrandMark className="h-12 w-12" src={logoUrl} alt={branding.name} />
           </div>
-          <h1 className="font-serif text-2xl text-navy-900">Sign in</h1>
-          <p className="mt-1 text-sm text-slate-500">Agency portal and Back Office access.</p>
-          <LoginForm brandName={branding.name} />
+          <h1 className="font-serif text-2xl text-navy-900">{ct("Sign in")}</h1>
+          <p className="mt-1 text-sm text-slate-500">{ct("Agency portal and Back Office access.")}</p>
+          <LoginForm
+        copy={{
+          email: ct("Email"),
+          password: ct("Password"),
+          signIn: ct("Sign in"),
+          signingIn: `${ct("Signing in")}…`,
+          footer: ct("Agency access is provisioned. Forgotten credentials? Contact your account manager."),
+        }} brandName={branding.name} />
         </div>
       </div>
     </div>

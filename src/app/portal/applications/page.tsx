@@ -5,8 +5,11 @@ import { listStatuses } from "@/lib/applications";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatDate } from "@/lib/format";
 import { FilterBar, Pagination } from "@/components/app-widgets";
-import { EmptyState, Flash, PageHeader, Progress, StatusBadge, TableWrap } from "@/components/ui";
+import { EmptyState, Flash, PageHeader, Progress, TableWrap } from "@/components/ui";
+import { StatusBadge } from "@/components/badges";
 import { checklistProgress } from "@/lib/applications";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +19,7 @@ export default async function PortalApplicationsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const raw = await searchParams;
+  const ct = contentT(await getUiLocale());
   const sp: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(raw)) sp[k] = typeof v === "string" ? v : undefined;
   const user = await portalPageUser();
@@ -38,9 +42,9 @@ export default async function PortalApplicationsPage({
   return (
     <>
       <PageHeader
-        title="Applications"
-        subtitle="Your agency's visa files."
-        actions={<Link href="/portal/applications/new" className="btn-primary btn-sm">+ New application</Link>}
+        title={ct("Applications")}
+        subtitle={ct("Your agency's visa files.")}
+        actions={<Link href="/portal/applications/new" className="btn-primary btn-sm">{ct("+ New application")}</Link>}
       />
       <Flash {...flash} />
 
@@ -57,9 +61,9 @@ export default async function PortalApplicationsPage({
       {result.rows.length === 0 ? (
         <div className="card">
           <EmptyState
-            title="No applications found"
+            title={ct("No applications found")}
             body="Create a new application to get started."
-            action={<Link href="/portal/applications/new" className="btn-primary btn-sm">Create application</Link>}
+            action={<Link href="/portal/applications/new" className="btn-primary btn-sm">{ct("Create application")}</Link>}
           />
         </div>
       ) : (
@@ -67,13 +71,13 @@ export default async function PortalApplicationsPage({
           <TableWrap>
             <thead className="border-b border-slate-100 bg-ivory-50/60">
               <tr>
-                <th className="th">Reference</th>
-                <th className="th">Visa / Country</th>
-                <th className="th">Applicants</th>
-                <th className="th">Documents</th>
-                <th className="th">Fee</th>
-                <th className="th">Status</th>
-                <th className="th">Created</th>
+                <th className="th">{ct("Reference")}</th>
+                <th className="th">{ct("Visa / Country")}</th>
+                <th className="th">{ct("Applicants")}</th>
+                <th className="th">{ct("Documents")}</th>
+                <th className="th">{ct("Fee")}</th>
+                <th className="th">{ct("Status")}</th>
+                <th className="th">{ct("Created")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

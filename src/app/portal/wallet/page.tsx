@@ -5,6 +5,8 @@ import { formatAmount, formatDateTime } from "@/lib/format";
 import { Pagination } from "@/components/app-widgets";
 import { Card, EmptyState, Flash, PageHeader, StatCard, TableWrap } from "@/components/ui";
 import { WalletStatementForm } from "@/components/wallet-statement-form";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +16,7 @@ export default async function PortalWalletPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const raw = await searchParams;
+  const ct = contentT(await getUiLocale());
   const sp: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(raw)) sp[k] = typeof v === "string" ? v : undefined;
   const user = await portalPageUser();
@@ -27,18 +30,18 @@ export default async function PortalWalletPage({
 
   return (
     <>
-      <PageHeader title="Wallet & Transactions" subtitle={`${user.agencyName} — prepaid balance and complete ledger.`} />
+      <PageHeader title={ct("Wallet & Transactions")} subtitle={`${user.agencyName} — prepaid balance and complete ledger.`} />
       <Flash {...flash} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Current balance" value={formatAmount(balance.balance, balance.currency)} tone="gold" />
-        <StatCard label="Transactions" value={txs.length} />
+        <StatCard label={ct("Current balance")} value={formatAmount(balance.balance, balance.currency)} tone="gold" />
+        <StatCard label={ct("Transactions")} value={txs.length} />
         <StatCard
-          label="Total credited"
+          label={ct("Total credited")}
           value={formatAmount(txs.filter((t) => t.tx.type === "CREDIT").reduce((s, t) => s + Number(t.tx.amount), 0).toFixed(2), balance.currency)}
         />
         <StatCard
-          label="Total charged"
+          label={ct("Total charged")}
           value={formatAmount(txs.filter((t) => t.tx.type === "APPLICATION_CHARGE").reduce((s, t) => s + Number(t.tx.amount), 0).toFixed(2), balance.currency)}
           tone="navy"
         />
@@ -47,6 +50,15 @@ export default async function PortalWalletPage({
       {user.role === "AGENCY_ADMIN" ? (
         <div className="mt-6">
           <WalletStatementForm
+        copy={{
+          title: ct("Download wallet statement (PDF)"),
+          body: ct("Professional statement for a chosen period: opening balance, credits, debits and closing balance, derived directly from the immutable ledger."),
+          from: ct("From"),
+          to: ct("To"),
+          generate: ct("Generate PDF"),
+          alertMissing: ct("Please choose both a 'from' and a 'to' date."),
+          alertInverted: ct("The 'from' date must not be after the 'to' date."),
+        }}
             today={new Date().toISOString().slice(0, 10)}
             defaultFrom={new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)}
           />
@@ -55,18 +67,18 @@ export default async function PortalWalletPage({
 
       <div className="mt-6">
         {visible.length === 0 ? (
-          <div className="card"><EmptyState title="No transactions yet" body="Wallet credits and application charges will appear here." /></div>
+          <div className="card"><EmptyState title={ct("No transactions yet")} body={ct("Wallet credits and application charges will appear here.")} /></div>
         ) : (
           <>
             <TableWrap>
               <thead className="border-b border-slate-100 bg-ivory-50/60">
                 <tr>
-                  <th className="th">Date</th>
-                  <th className="th">Type</th>
-                  <th className="th">Amount</th>
-                  <th className="th">Balance before → after</th>
-                  <th className="th">Application</th>
-                  <th className="th">Reason</th>
+                  <th className="th">{ct("Date")}</th>
+                  <th className="th">{ct("Type")}</th>
+                  <th className="th">{ct("Amount")}</th>
+                  <th className="th">{ct("Balance before → after")}</th>
+                  <th className="th">{ct("Application")}</th>
+                  <th className="th">{ct("Reason")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

@@ -2,33 +2,37 @@ import Link from "next/link";
 import { portalPageUser } from "@/lib/page-auth";
 import { agencyDashboard } from "@/lib/queries";
 import { formatAmount, formatDateTime } from "@/lib/format";
-import { Card, CardHeader, EmptyState, PageHeader, StatCard, StatusBadge, TableWrap } from "@/components/ui";
+import { Card, CardHeader, EmptyState, PageHeader, StatCard, TableWrap } from "@/components/ui";
+import { StatusBadge } from "@/components/badges";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
 
 export default async function PortalDashboardPage() {
   const user = await portalPageUser();
+  const ct = contentT(await getUiLocale());
   const data = await agencyDashboard(user.agencyId);
   const { totals, wallet } = data;
 
   return (
     <>
       <PageHeader
-        title="Agency dashboard"
+        title={ct("Agency dashboard")}
         subtitle={user.agencyName ?? undefined}
         actions={
           <Link href="/portal/applications/new" className="btn-primary btn-sm">
-            + New application
+            {ct("+ New application")}
           </Link>
         }
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Active applications" value={totals.active} hint="Submitted and in progress" href="/portal/applications" tone="navy" />
-        <StatCard label="Completed" value={totals.completed} href="/portal/applications" tone="teal" />
-        <StatCard label="Missing documents" value={totals.missingDocs} hint="Action required" href="/portal/applications?status=DOCUMENTS_REQUIRED" tone="gold" />
+        <StatCard label={ct("Active applications")} value={totals.active} hint={ct("Submitted and in progress")} href="/portal/applications" tone="navy" />
+        <StatCard label={ct("Completed")} value={totals.completed} href="/portal/applications" tone="teal" />
+        <StatCard label={ct("Missing documents")} value={totals.missingDocs} hint={ct("Action required")} href="/portal/applications?status=DOCUMENTS_REQUIRED" tone="gold" />
         <StatCard
-          label="Wallet balance"
+          label={ct("Wallet balance")}
           value={formatAmount(wallet.balance, wallet.currency)}
           href="/portal/wallet"
           hint={`${data.unreadNotifications} unread notifications`}
@@ -36,34 +40,34 @@ export default async function PortalDashboardPage() {
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Drafts" value={totals.drafts} href="/portal/applications" />
-        <StatCard label="Refused" value={totals.refused} href="/portal/applications" />
-        <StatCard label="Total files" value={totals.total} href="/portal/applications" />
-        <StatCard label="Notifications" value={data.unreadNotifications} href="/portal/notifications" />
+        <StatCard label={ct("Drafts")} value={totals.drafts} href="/portal/applications" />
+        <StatCard label={ct("Rejected")} value={totals.refused} href="/portal/applications" />
+        <StatCard label={ct("Total files")} value={totals.total} href="/portal/applications" />
+        <StatCard label={ct("Notifications")} value={data.unreadNotifications} href="/portal/notifications" />
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="xl:col-span-2">
           <Card>
             <CardHeader
-              title="Recent applications"
-              actions={<Link href="/portal/applications" className="btn-secondary btn-sm">View all →</Link>}
+              title={ct("Recent applications")}
+              actions={<Link href="/portal/applications" className="btn-secondary btn-sm">{ct("View all")} →</Link>}
             />
             {data.recentApplications.length === 0 ? (
               <EmptyState
-                title="No applications yet"
-                body="Submit your first visa application to see it tracked here."
-                action={<Link href="/portal/applications/new" className="btn-primary btn-sm">Create application</Link>}
+                title={ct("No applications yet")}
+                body={ct("Submit your first visa application to see it tracked here.")}
+                action={<Link href="/portal/applications/new" className="btn-primary btn-sm">{ct("Create application")}</Link>}
               />
             ) : (
               <TableWrap>
                 <thead className="border-b border-slate-100 bg-ivory-50/60">
                   <tr>
-                    <th className="th">Reference</th>
-                    <th className="th">Visa</th>
-                    <th className="th">Applicants</th>
-                    <th className="th">Status</th>
-                    <th className="th">Created</th>
+                    <th className="th">{ct("Reference")}</th>
+                    <th className="th">{ct("Visa")}</th>
+                    <th className="th">{ct("Applicants")}</th>
+                    <th className="th">{ct("Status")}</th>
+                    <th className="th">{ct("Created")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -91,8 +95,8 @@ export default async function PortalDashboardPage() {
 
         <Card>
           <CardHeader
-            title="Recent wallet activity"
-            actions={<Link href="/portal/wallet" className="btn-secondary btn-sm">Ledger →</Link>}
+            title={ct("Recent wallet activity")}
+            actions={<Link href="/portal/wallet" className="btn-secondary btn-sm">{ct("Ledger")} →</Link>}
           />
           <ul className="divide-y divide-slate-100 px-4">
             {data.recentTx.length === 0 ? (

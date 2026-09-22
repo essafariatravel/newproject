@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
 
@@ -39,23 +41,23 @@ const PILLARS = [
   { title: "Quality review", body: "Experienced visa officers review every dossier before it reaches an embassy counter." },
 ];
 
-export default function VisasPage() {
+export default async function VisasPage() {
+  const ct = contentT(await getUiLocale());
   return (
     <div className="ess-container py-14">
       <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold-600">What we operate</p>
-      <h1 className="mt-2 font-serif text-3xl text-navy-900">Visa services for professional partners</h1>
+      <h1 className="mt-2 font-serif text-3xl text-navy-900">{ct("Visa services for professional partners")}</h1>
       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-        ESSAFARIA runs complete visa operations for travel agencies, wholesalers and tour operators:
-        document preparation, embassy workflows and transparent tracking — all through one partner platform.
+        {ct("ESSAFARIA runs complete visa operations for travel agencies, wholesalers and tour operators: document preparation, embassy workflows and transparent tracking — all through one partner platform.")}
       </p>
 
       <section className="mt-10">
-        <h2 className="border-b border-slate-200 pb-2 font-serif text-xl text-navy-900">Services we deliver</h2>
+        <h2 className="border-b border-slate-200 pb-2 font-serif text-xl text-navy-900">{ct("Services we deliver")}</h2>
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {SERVICE_LINES.map((s) => (
             <div key={s.title} className="card p-6">
-              <h3 className="font-serif text-lg text-navy-900">{s.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600">{s.body}</p>
+              <h3 className="font-serif text-lg text-navy-900">{ct(s.title)}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">{ct(s.body)}</p>
             </div>
           ))}
         </div>
@@ -63,13 +65,13 @@ export default function VisasPage() {
 
       <section className="mt-10">
         <h2 className="border-b border-slate-200 pb-2 font-serif text-xl text-navy-900">
-          What working with us looks like
+          {ct("What working with us looks like")}
         </h2>
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {PILLARS.map((p) => (
             <div key={p.title} className="card p-5">
-              <h3 className="text-sm font-semibold text-navy-900">{p.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600">{p.body}</p>
+              <h3 className="text-sm font-semibold text-navy-900">{ct(p.title)}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">{ct(p.body)}</p>
             </div>
           ))}
         </div>
@@ -78,7 +80,7 @@ export default function VisasPage() {
       <section className="mt-12 card bg-navy-900 !text-white">
         <div className="flex flex-col items-start gap-4 p-8 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="font-serif text-2xl">Catalogue access is reserved for partner agencies.</h2>
+            <h2 className="font-serif text-2xl">{ct("Catalogue access is reserved for partner agencies.")}</h2>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-300">
               Current programmes, processing times and partner pricing are maintained by our operations team and
               served live inside the Agency Portal to authorized partners.
@@ -96,7 +98,7 @@ export default function VisasPage() {
       </section>
 
       <p className="mt-8 text-xs text-slate-400">
-        Scoping something unusual for a client? <Link className="text-iris-600 underline" href="/contact">Talk to our partnerships team</Link>.
+        Scoping something unusual for a client? <Link className="text-iris-600 underline" href="/contact">{ct("Talk to our partnerships team")}</Link>.
       </p>
     </div>
   );

@@ -3,11 +3,16 @@ import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
 import { adminDashboard } from "@/lib/queries";
 import { formatAmount, formatDateTime } from "@/lib/format";
-import { Card, CardHeader, EmptyState, PageHeader, StatCard, StatusBadge, TableWrap } from "@/components/ui";
+import { Card, CardHeader, EmptyState, PageHeader, StatCard, TableWrap } from "@/components/ui";
+import { StatusBadge } from "@/components/badges";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT, localizedGreeting } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardPage() {
+  const uiLocale = await getUiLocale();
+  const ct = contentT(uiLocale);
   const user = await pageUser();
   const data = await adminDashboard();
   const { totals } = data;
@@ -18,27 +23,27 @@ export default async function AdminDashboardPage() {
   return (
     <>
       <PageHeader
-        title={`Good ${greeting()}, ${user.name.split(" ")[0]}`}
-        subtitle="Operational overview of the ESSAFARIA visa desk."
+        title={uiLocale === "en" ? `Good ${greeting()}, ${user.name.split(" ")[0]}` : `${localizedGreeting(greeting() as "morning" | "afternoon" | "evening", uiLocale)}, ${user.name.split(" ")[0]}`}
+        subtitle={ct("Operational overview of the ESSAFARIA visa desk.")}
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Total applications" value={totals.total} hint={`${totals.last30} in the last 30 days`} href="/admin/applications" tone="navy" />
-        <StatCard label="Pending intake" value={totals.pending} hint="Submitted · Docs required · Under review" href="/admin/applications?status=SUBMITTED" />
-        <StatCard label="In processing" value={totals.processing} hint="Processing · Embassy · Awaiting decision" href="/admin/applications?status=PROCESSING" tone="teal" />
-        <StatCard label="Documents in review" value={data.documentsInReview} hint="Uploaded / under review" href="/admin/documents" tone="gold" />
+        <StatCard label={ct("Total applications")} value={totals.total} hint={`${totals.last30} ${ct("in the last 30 days")}`} href="/admin/applications" tone="navy" />
+        <StatCard label={ct("Pending intake")} value={totals.pending} hint={ct("Submitted · Docs required · Under review")} href="/admin/applications?status=SUBMITTED" />
+        <StatCard label={ct("In processing")} value={totals.processing} hint={ct("Processing · Embassy · Awaiting decision")} href="/admin/applications?status=PROCESSING" tone="teal" />
+        <StatCard label={ct("Documents in review")} value={data.documentsInReview} hint={ct("Uploaded / under review")} href="/admin/documents" tone="gold" />
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Missing documents" value={totals.missingDocs} href="/admin/applications?status=DOCUMENTS_REQUIRED" />
-        <StatCard label="Completed / approved" value={totals.completed} href="/admin/applications?status=COMPLETED" />
-        <StatCard label="Refused" value={totals.refused} href="/admin/applications?status=REFUSED" />
-        <StatCard label="Active agencies" value={`${data.agencyAgg.active}/${data.agencyAgg.total}`} href="/admin/agencies" />
+        <StatCard label={ct("Missing documents")} value={totals.missingDocs} href="/admin/applications?status=DOCUMENTS_REQUIRED" />
+        <StatCard label={ct("Completed / approved")} value={totals.completed} href="/admin/applications?status=COMPLETED" />
+        <StatCard label={ct("Rejected")} value={totals.refused} href="/admin/applications?status=REJECTED" />
+        <StatCard label={ct("Active agencies")} value={`${data.agencyAgg.active}/${data.agencyAgg.total}`} href="/admin/agencies" />
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
-          label="Agency registrations"
+          label={ct("Agency registrations")}
           value={data.pendingRegistrations}
           hint={`${data.registrationsInReview} in review · partnership applications awaiting decision`}
           href="/admin/registrations"
@@ -50,7 +55,7 @@ export default async function AdminDashboardPage() {
         <div className="xl:col-span-2">
           <Card>
             <CardHeader
-              title="Recent applications"
+              title={ct("Recent applications")}
               actions={
                 <Link href="/admin/applications" className="btn-secondary btn-sm">
                   View all →
@@ -58,16 +63,16 @@ export default async function AdminDashboardPage() {
               }
             />
             {recent.length === 0 ? (
-              <EmptyState title="No applications yet" body="Applications submitted by partner agencies will appear here." />
+              <EmptyState title={ct("No applications yet")} body={ct("Applications submitted by partner agencies will appear here.")} />
             ) : (
               <TableWrap>
                 <thead className="border-b border-slate-100 bg-ivory-50/60">
                   <tr>
-                    <th className="th">Reference</th>
-                    <th className="th">Agency</th>
-                    <th className="th">Visa</th>
-                    <th className="th">Status</th>
-                    <th className="th">Created</th>
+                    <th className="th">{ct("Reference")}</th>
+                    <th className="th">{ct("Agency")}</th>
+                    <th className="th">{ct("Visa")}</th>
+                    <th className="th">{ct("Status")}</th>
+                    <th className="th">{ct("Created")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -97,22 +102,22 @@ export default async function AdminDashboardPage() {
         <div className="space-y-4">
           {canSeeBilling ? (
             <Card>
-              <CardHeader title="Wallet activity" actions={<Link href="/admin/billing" className="btn-secondary btn-sm">Ledger →</Link>} />
+              <CardHeader title={ct("Wallet activity")} actions={<Link href="/admin/billing" className="btn-secondary btn-sm">{ct("Ledger")} →</Link>} />
               <div className="grid grid-cols-3 divide-x divide-slate-100 px-4 py-4 text-center">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Credited</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{ct("Credited")}</p>
                   <p className="mt-1 text-sm font-semibold tabular-nums text-emerald-700">
                     {formatAmount(data.walletAgg.credits, "EUR")}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Charged</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{ct("Charged")}</p>
                   <p className="mt-1 text-sm font-semibold tabular-nums text-navy-900">
                     {formatAmount(data.walletAgg.charges, "EUR")}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Balances</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{ct("Balances")}</p>
                   <p className="mt-1 text-sm font-semibold tabular-nums text-teal-700">
                     {formatAmount(data.agencyAgg.walletTotal, "EUR")}
                   </p>
@@ -122,10 +127,10 @@ export default async function AdminDashboardPage() {
           ) : null}
 
           <Card>
-            <CardHeader title="Pipeline by status" />
+            <CardHeader title={ct("Pipeline by status")} />
             <div className="space-y-2 px-4 py-4">
               {data.statusCounts.length === 0 ? (
-                <p className="text-sm text-slate-500">No applications yet.</p>
+                <p className="text-sm text-slate-500">{ct("No applications yet.")}</p>
               ) : (
                 data.statusCounts.map((s) => (
                   <Link
@@ -143,7 +148,7 @@ export default async function AdminDashboardPage() {
 
           {hasPermission(user, "audit.view") ? (
             <Card>
-              <CardHeader title="Recent activity" actions={<Link href="/admin/audit" className="btn-secondary btn-sm">Audit log →</Link>} />
+              <CardHeader title={ct("Recent activity")} actions={<Link href="/admin/audit" className="btn-secondary btn-sm">{ct("Audit log")} →</Link>} />
               <ul className="divide-y divide-slate-100 px-4">
                 {data.recentAudit.map((a) => (
                   <li key={a.id} className="flex items-start justify-between gap-3 py-2.5">

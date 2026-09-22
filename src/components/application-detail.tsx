@@ -1,7 +1,8 @@
 import type { ChecklistItem, Applicant, Application } from "@/db/schema";
 import { formatDateTime, formatAmount, personName, bytes } from "@/lib/format";
 import type { DocumentRow } from "@/db/schema";
-import { DocStatusBadge, Progress, StatusBadge } from "@/components/ui";
+import { Progress } from "@/components/ui";
+import { DocStatusBadge, StatusBadge } from "@/components/badges";
 import { ConfirmButton, SubmitButton } from "@/components/forms";
 import {
   reviewDocumentAction,

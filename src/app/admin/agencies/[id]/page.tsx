@@ -14,7 +14,8 @@ import { SubmitButton } from "@/components/forms";
 import BrandMark from "@/components/brand-mark";
 import { agencyLogoUrl } from "@/lib/branding";
 import { uploadAgencyLogoAction, removeAgencyLogoAction } from "@/app/actions/branding";
-import { ActiveBadge, Card, CardHeader, Flash, KeyValue, PageHeader, StatCard, StatusBadge, TableWrap } from "@/components/ui";
+import { ActiveBadge, Card, CardHeader, Flash, KeyValue, PageHeader, StatCard, TableWrap } from "@/components/ui";
+import { StatusBadge } from "@/components/badges";
 import { WALLET_MANAGE_ROLES } from "@/lib/types";
 
 export const dynamic = "force-dynamic";

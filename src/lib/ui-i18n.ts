@@ -241,3 +241,26 @@ const DECISION_DOC_TYPE_LABELS: Record<string, Record<UiLocale, string>> = {
 export function localizedDocTypeName(code: string, dbName: string, locale: UiLocale): string {
   return DECISION_DOC_TYPE_LABELS[code]?.[locale] ?? dbName;
 }
+
+const DOC_STATUS_LABELS: Record<string, Record<UiLocale, string>> = {
+  UPLOADED: { en: "Uploaded", fr: "Téléversé", ar: "مرفوع" },
+  UNDER_REVIEW: { en: "Under Review", fr: "En cours d'examen", ar: "قيد المراجعة" },
+  ACCEPTED: { en: "Accepted", fr: "Accepté", ar: "مقبول" },
+  REJECTED: { en: "Rejected", fr: "Refusé", ar: "مرفوض" },
+  RESUBMISSION_REQUIRED: { en: "Resubmission Required", fr: "Nouvelle remise requise", ar: "إعادة الإرسال مطلوبة" },
+};
+
+/** Localized document-review status; unknown codes keep the source label. */
+export function localizedDocStatus(code: string, locale: UiLocale, fallback: string): string {
+  return DOC_STATUS_LABELS[code]?.[locale] ?? fallback;
+}
+
+const PRIORITY_LABELS: Record<string, Record<UiLocale, string>> = {
+  STANDARD: { en: "Standard", fr: "Standard", ar: "عادي" },
+  URGENT: { en: "Urgent", fr: "Urgent", ar: "عاجل" },
+};
+
+/** Localized priority label for built-in codes; configured names pass through. */
+export function localizedPriority(code: string, dbName: string, locale: UiLocale): string {
+  return PRIORITY_LABELS[code]?.[locale] ?? dbName;
+}

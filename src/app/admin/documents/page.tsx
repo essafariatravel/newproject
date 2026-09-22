@@ -5,7 +5,8 @@ import { listAllDocuments } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatDateTime, bytes } from "@/lib/format";
 import { FilterBar, Pagination } from "@/components/app-widgets";
-import { DocStatusBadge, EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
+import { EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
+import { DocStatusBadge } from "@/components/badges";
 
 export const dynamic = "force-dynamic";
 

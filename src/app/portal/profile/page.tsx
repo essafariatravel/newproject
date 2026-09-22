@@ -13,6 +13,8 @@ import { getBalance } from "@/lib/wallet";
 import BrandMark from "@/components/brand-mark";
 import { agencyLogoUrl } from "@/lib/branding";
 import { uploadOwnAgencyLogoAction, removeOwnAgencyLogoAction } from "@/app/actions/branding";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +25,7 @@ export default async function PortalProfilePage({
 }) {
   const sp = await searchParams;
   const user = await portalPageUser();
+  const ct = contentT(await getUiLocale());
   const flash = flashFrom(sp);
 
   const [agencyRows, team, balance] = await Promise.all([
@@ -36,7 +39,7 @@ export default async function PortalProfilePage({
 
   return (
     <>
-      <PageHeader title="Profile" subtitle="Your agency account and team." />
+      <PageHeader title={ct("Profile")} subtitle={ct("Your agency account and team.")} />
       <Flash {...flash} />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">

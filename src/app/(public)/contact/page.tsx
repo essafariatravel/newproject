@@ -1,10 +1,13 @@
 import { getSiteSettings, settingObject, settingString } from "@/lib/settings";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Contact — ESSAFARIA TRAVEL" };
 
 export default async function ContactPage() {
   const settings = await getSiteSettings();
+  const ct = contentT(await getUiLocale());
   const email = settingString(settings, "site.contactEmail");
   const phone = settingString(settings, "site.contactPhone");
   const address = settingString(settings, "site.address");
@@ -14,7 +17,7 @@ export default async function ContactPage() {
   return (
     <div className="ess-container max-w-4xl py-14">
       <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold-600">Get in touch</p>
-      <h1 className="mt-2 font-serif text-3xl text-navy-900">Contact ESSAFARIA</h1>
+      <h1 className="mt-2 font-serif text-3xl text-navy-900">{ct("Contact ESSAFARIA")}</h1>
       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
         Agencies already partnering with us can reach their case officers directly through the agency
         portal. For partnership enquiries and general questions, use the channels below.
@@ -26,7 +29,7 @@ export default async function ContactPage() {
           <a href={`mailto:${email}`} className="mt-1 block font-serif text-lg text-navy-900 hover:text-navy-700">
             {email}
           </a>
-          <p className="mt-2 text-xs text-slate-500">Partnership, operations and billing enquiries.</p>
+          <p className="mt-2 text-xs text-slate-500">{ct("Partnership, operations and billing enquiries.")}</p>
         </div>
         <div className="card p-6">
           <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Phone</h2>

@@ -14,7 +14,8 @@ import {
   generateActivationLinkAction,
 } from "@/app/actions/registration-admin";
 import { ConfirmButton, SubmitButton } from "@/components/forms";
-import { Card, CardHeader, Flash, KeyValue, PageHeader, StatusBadge, EmptyState } from "@/components/ui";
+import { Card, CardHeader, Flash, KeyValue, PageHeader, EmptyState } from "@/components/ui";
+import { StatusBadge } from "@/components/badges";
 import { LOCALE_NAMES, resolveLocale } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";

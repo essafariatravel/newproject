@@ -2,7 +2,8 @@ import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
 import { reportData } from "@/lib/queries";
 import { formatAmount } from "@/lib/format";
-import { Card, CardHeader, EmptyState, PageHeader, StatCard, StatusBadge, TableWrap } from "@/components/ui";
+import { Card, CardHeader, EmptyState, PageHeader, StatCard, TableWrap } from "@/components/ui";
+import { StatusBadge } from "@/components/badges";
 
 export const dynamic = "force-dynamic";
 

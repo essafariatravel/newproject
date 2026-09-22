@@ -16,6 +16,7 @@ import { findTransactionByApplication, getBalance, formatMoney } from "@/lib/wal
 import { listCommunications } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
 import { getUiLocale, localizedDocTypeName } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 import { formatDate, formatDateTime, personName } from "@/lib/format";
 import {
   addApplicantAction,
@@ -26,7 +27,8 @@ import {
   updateApplicantAction,
 } from "@/app/actions/applications";
 import { SubmitButton } from "@/components/forms";
-import { Card, CardHeader, DocStatusBadge, EmptyState, Flash, KeyValue, PageHeader, Progress, StatusBadge, Tabs } from "@/components/ui";
+import { Card, CardHeader, EmptyState, Flash, KeyValue, PageHeader, Progress, Tabs } from "@/components/ui";
+import { DocStatusBadge, StatusBadge } from "@/components/badges";
 import {
   ActivityTimeline,
   BillingSummary,
@@ -81,6 +83,7 @@ export default async function PortalApplicationDetailPage({
   const isDraft = app.statusId === draftStatus.id;
   const flash = flashFrom(sp);
   const uiLocale = await getUiLocale();
+  const ct = contentT(await getUiLocale());
   const fee = Number(app.fee);
   const balance = Number(wallet.balance);
   const canAfford = balance >= fee;
@@ -106,20 +109,20 @@ export default async function PortalApplicationDetailPage({
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <div className="space-y-4 xl:col-span-2">
             <Card>
-              <CardHeader title="Application" />
+              <CardHeader title={ct("Application")} />
               <KeyValue
                 items={[
-                  { label: "Reference", value: app.reference },
-                  { label: "Visa type", value: `${app.visaTypeName} (${app.visaTypeCode})` },
-                  { label: "Category", value: app.categoryName },
-                  { label: "Country", value: app.countryName },
-                  { label: "Fee", value: `${app.fee} ${app.currency}` },
-                  { label: "Processing time", value: formatProcessingDays(app.processingMinDays, app.processingMaxDays) },
-                  { label: "Applicants", value: String(applicants.length) },
-                  { label: "Required documents", value: `${progress.requiredComplete}/${progress.requiredTotal} provided` },
-                  { label: "Created", value: formatDateTime(app.createdAt) },
-                  { label: "Submitted", value: formatDateTime(app.submittedAt) },
-                  { label: "Your notes", value: app.agencyNotes ?? "—" },
+                  { label: ct("Reference"), value: app.reference },
+                  { label: ct("Visa type"), value: `${app.visaTypeName} (${app.visaTypeCode})` },
+                  { label: ct("Category"), value: app.categoryName },
+                  { label: ct("Country"), value: app.countryName },
+                  { label: ct("Fee"), value: `${app.fee} ${app.currency}` },
+                  { label: ct("Processing time"), value: formatProcessingDays(app.processingMinDays, app.processingMaxDays) },
+                  { label: ct("Applicants"), value: String(applicants.length) },
+                  { label: ct("Required documents"), value: `${progress.requiredComplete}/${progress.requiredTotal} ${ct("provided")}` },
+                  { label: ct("Created"), value: formatDateTime(app.createdAt) },
+                  { label: ct("Submitted"), value: formatDateTime(app.submittedAt) },
+                  { label: ct("Your notes"), value: app.agencyNotes ?? "—" },
                 ]}
               />
             </Card>
@@ -127,8 +130,8 @@ export default async function PortalApplicationDetailPage({
             {decisionDocs.length > 0 ? (
               <Card className="border-emerald-200">
                 <CardHeader
-                  title="Official decision"
-                  subtitle="Issued after submission and review — the embassy outcome, accepted and downloadable as PDF."
+                  title={ct("Official decision")}
+                  subtitle={ct("Issued after submission and review — the embassy outcome, accepted and downloadable as PDF.")}
                 />
                 <ul className="space-y-2 px-4 py-4 text-sm">
                   {decisionDocs.map((d) => (
@@ -140,7 +143,7 @@ export default async function PortalApplicationDetailPage({
                           <span className="badge bg-emerald-100 text-emerald-800">{d.status}</span>
                         </p>
                       </div>
-                      <a href={`/api/documents/${d.id}`} className="btn-primary btn-sm">Download</a>
+                      <a href={`/api/documents/${d.id}`} className="btn-primary btn-sm">{ct("Download")}</a>
                     </li>
                   ))}
                 </ul>
@@ -150,8 +153,8 @@ export default async function PortalApplicationDetailPage({
             {isDraft ? (
               <Card>
                 <CardHeader
-                  title="Review & submit"
-                  subtitle="Verify everything below. Submitting charges your wallet once and starts ESSAFARIA processing."
+                  title={ct("Review & submit")}
+                  subtitle={ct("Verify everything below. Submitting charges your wallet once and starts ESSAFARIA processing.")}
                 />
                 <div className="px-4 py-4">
                   <dl className="mb-4 grid grid-cols-1 gap-x-6 gap-y-2 rounded-md bg-ivory-50 p-4 text-sm sm:grid-cols-2">
@@ -203,15 +206,15 @@ export default async function PortalApplicationDetailPage({
 
             {canCancel ? (
               <Card>
-                <CardHeader title="Cancel application" subtitle="Drafts can be cancelled free of charge. Cancelled files cannot be reopened." />
+                <CardHeader title={ct("Cancel application")} subtitle={ct("Drafts can be cancelled free of charge. Cancelled files cannot be reopened.")} />
                 <form action={cancelDraftAction} className="flex flex-wrap items-end gap-3 px-4 py-4">
                   <input type="hidden" name="applicationId" value={id} />
                   <input type="hidden" name="back" value={back} />
                   <div className="min-w-[240px] flex-1">
                     <label className="label" htmlFor="cancel-reason">Reason</label>
-                    <input id="cancel-reason" name="reason" className="input" placeholder="Client cancelled the trip" />
+                    <input id="cancel-reason" name="reason" className="input" placeholder={ct("Client cancelled the trip")} />
                   </div>
-                  <SubmitButton className="btn-danger" pendingLabel="Cancelling…">Cancel application</SubmitButton>
+                  <SubmitButton className="btn-danger" pendingLabel="Cancelling…">{ct("Cancel application")}</SubmitButton>
                 </form>
               </Card>
             ) : null}
@@ -220,7 +223,7 @@ export default async function PortalApplicationDetailPage({
           <div className="space-y-4">
             <BillingSummary application={app} charge={charge} />
             <Card>
-              <CardHeader title="Documents" />
+              <CardHeader title={ct("Documents")} />
               <div className="px-4 py-4">
                 <Progress done={progress.requiredComplete} total={progress.requiredTotal} />
                 <p className="mt-2 text-xs text-slate-500">
@@ -299,7 +302,7 @@ export default async function PortalApplicationDetailPage({
 
           {isDraft ? (
             <Card>
-              <CardHeader title="Add applicant" />
+              <CardHeader title={ct("Add applicant")} />
               <form action={addApplicantAction} className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-3">
                 <input type="hidden" name="applicationId" value={id} />
                 <input type="hidden" name="back" value={`${back}?tab=applicants`} />
@@ -338,7 +341,7 @@ export default async function PortalApplicationDetailPage({
         <div className="space-y-4">
           <ChecklistTable items={checklist} documents={docs} applicationId={id} user={user} applicants={applicants} back={back} />
           {!isDraft && docs.length === 0 ? (
-            <Card><EmptyState title="No documents uploaded" /></Card>
+            <Card><EmptyState title={ct("No documents uploaded")} /></Card>
           ) : null}
         </div>
       ) : null}
@@ -347,7 +350,7 @@ export default async function PortalApplicationDetailPage({
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <BillingSummary application={app} charge={charge} />
           <Card>
-            <CardHeader title="Current wallet" />
+            <CardHeader title={ct("Current wallet")} />
             <div className="px-4 py-4">
               <p className="font-serif text-2xl text-navy-900 tabular-nums">{formatMoney(wallet.balance, wallet.currency)}</p>
               <Link href="/portal/wallet" className="btn-secondary btn-sm mt-3">Open wallet & transactions</Link>
@@ -365,7 +368,7 @@ export default async function PortalApplicationDetailPage({
           <ActivityTimeline history={history} />
           {docs.some((d) => d.doc.status === "REJECTED" || d.doc.status === "RESUBMISSION_REQUIRED") ? (
             <Card>
-              <CardHeader title="Documents needing attention" />
+              <CardHeader title={ct("Documents needing attention")} />
               <ul className="divide-y divide-slate-100 px-4">
                 {docs
                   .filter((d) => d.doc.status === "REJECTED" || d.doc.status === "RESUBMISSION_REQUIRED")

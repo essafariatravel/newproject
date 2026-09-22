@@ -4,7 +4,8 @@ import { listStatuses, listTransitions } from "@/lib/applications";
 import { flashFrom } from "@/lib/action-helpers";
 import { addTransitionAction, createStatusAction } from "@/app/actions/config";
 import { SubmitButton } from "@/components/forms";
-import { ActiveBadge, Card, CardHeader, EmptyState, Flash, PageHeader, StatusBadge, TableWrap } from "@/components/ui";
+import { ActiveBadge, Card, CardHeader, EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
+import { StatusBadge } from "@/components/badges";
 
 export const dynamic = "force-dynamic";
 

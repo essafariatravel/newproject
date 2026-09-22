@@ -2,17 +2,20 @@ import Link from "next/link";
 import { recentCommunications } from "@/lib/queries";
 import { formatDateTime } from "@/lib/format";
 import { EmptyState, PageHeader } from "@/components/ui";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
 
 export default async function PortalCommunicationsPage() {
+  const ct = contentT(await getUiLocale());
   const messages = (await recentCommunications(100)).filter((m) => m.message.visibility === "AGENCY");
 
   return (
     <>
-      <PageHeader title="Communications" subtitle="Latest agency-visible messages on your applications." />
+      <PageHeader title={ct("Communications")} subtitle={ct("Latest agency-visible messages on your applications.")} />
       {messages.length === 0 ? (
-        <div className="card"><EmptyState title="No messages yet" body="Open an application and post a message — ESSAFARIA case officers will reply in the same thread." /></div>
+        <div className="card"><EmptyState title={ct("No messages yet")} body={ct("Open an application and post a message — ESSAFARIA case officers will reply in the same thread.")} /></div>
       ) : (
         <div className="space-y-3">
           {messages.map(({ message, authorName, applicationReference, applicationId }) => (

@@ -4,7 +4,8 @@ import { listPriorities } from "@/lib/applications";
 import { flashFrom } from "@/lib/action-helpers";
 import { createPriorityAction, updatePriorityAction } from "@/app/actions/config";
 import { SubmitButton } from "@/components/forms";
-import { ActiveBadge, EmptyState, Flash, PageHeader, PriorityBadge, TableWrap } from "@/components/ui";
+import { ActiveBadge, EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
+import { PriorityBadge } from "@/components/badges";
 
 export const dynamic = "force-dynamic";
 

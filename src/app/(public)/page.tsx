@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { getSiteSettings, settingString } from "@/lib/settings";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +38,7 @@ const PROCESS = [
 
 export default async function HomePage() {
   const settings = await getSiteSettings();
+  const ct = contentT(await getUiLocale());
   const brandName = settingString(settings, "brand.name", "ESSAFARIA TRAVEL");
 
   return (
@@ -53,36 +56,35 @@ export default async function HomePage() {
         <div className="ess-container relative grid grid-cols-1 gap-10 py-20 lg:grid-cols-[1.15fr_0.85fr] lg:py-28">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-iris-600">
-              B2B Visa Processing Platform
+              {ct("B2B Visa Processing Platform")}
             </p>
             <h1 className="mt-4 font-serif text-4xl leading-[1.15] text-navy-900 sm:text-5xl">
-              The operating system for
-              <span className="italic text-gold-600"> professional visa processing</span>
+              {ct("The operating system for")}
+              <span className="italic text-gold-600"> {ct("professional visa processing")}</span>
             </h1>
             <p className="mt-5 max-w-xl text-lg leading-relaxed text-slate-500">
-              {brandName} runs visa operations for travel agencies, wholesalers and tour operators —
-              one platform for applications, documents, checklists, wallets and embassy workflows.
+              {brandName} {ct("runs visa operations for travel agencies, wholesalers and tour operators — one platform for applications, documents, checklists, wallets and embassy workflows.")}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/agency/register" className="btn-primary px-6 py-3">
-                Register your Agency
+                {ct("Register your Agency")}
               </Link>
               <Link href="/visas" className="btn-secondary px-6 py-3">
-                Explore visa services
+                {ct("Explore visa services")}
               </Link>
             </div>
           </div>
           <div className="hidden items-center lg:flex">
             <div className="w-full rounded-[1.5rem] border border-white/70 bg-white/70 p-6 shadow-[var(--shadow-pop)] backdrop-blur-xl">
               <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
-                Built for professional visa operations
+                {ct("Built for professional visa operations")}
               </p>
               <div className="mt-4 space-y-3.5">
                 {[
-                  ["Checklists", "Destination-accurate document lists per traveller."],
-                  ["Embassy desk", "Submission, appointments and follow-up handled."],
-                  ["Live tracking", "Every file visible through the full pipeline."],
-                  ["Partner billing", "Transparent prepaid wallet per agency."],
+                  [ct("Checklists"), ct("Destination-accurate document lists per traveller.")],
+                  [ct("Embassy desk"), ct("Submission, appointments and follow-up handled.")],
+                  [ct("Live tracking"), ct("Every file visible through the full pipeline.")],
+                  [ct("Partner billing"), ct("Transparent prepaid wallet per agency.")],
                 ].map(([a, b]) => (
                   <div key={a} className="flex items-start gap-3 border-b border-line/70 pb-3.5 last:border-0 last:pb-0">
                     <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-iris-100 text-[11px] font-bold text-iris-700">
@@ -96,7 +98,7 @@ export default async function HomePage() {
                 ))}
               </div>
               <p className="mt-4 text-[11px] text-slate-400">
-                Catalogue and partner pricing are served live inside the Agency Portal.
+                {ct("Catalogue and partner pricing are served live inside the Agency Portal.")}
               </p>
             </div>
           </div>

@@ -2,6 +2,8 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { countries } from "@/db/schema";
 import { EmptyState } from "@/components/ui";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +11,7 @@ export const metadata = { title: "Destinations — ESSAFARIA TRAVEL" };
 
 export default async function CountriesPage() {
   // Countries are marketing-safe coverage information. Visa types, counts and
+  const ct = contentT(await getUiLocale());
   // prices are B2B-only (Agency Portal) and deliberately not queried here.
   let rows: Array<{ id: string; name: string; region: string | null; iso2: string }> = [];
   let catalogueUnavailable = false;
@@ -39,22 +42,21 @@ export default async function CountriesPage() {
 
   return (
     <div className="ess-container py-14">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold-600">Coverage</p>
-      <h1 className="mt-2 font-serif text-3xl text-navy-900">Destinations we operate</h1>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold-600">{ct("Coverage")}</p>
+      <h1 className="mt-2 font-serif text-3xl text-navy-900">{ct("Destinations we operate")}</h1>
       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-        ESSAFARIA maintains visa operations for the following destinations. Programmes and partner pricing for
-        each destination are available inside the Agency Portal.
+        {ct("ESSAFARIA maintains visa operations for the following destinations. Programmes and partner pricing for each destination are available inside the Agency Portal.")}
       </p>
 
       {rows.length === 0 ? (
         <div className="mt-10 card">
           {catalogueUnavailable ? (
             <EmptyState
-              title="Destinations temporarily unavailable"
-              body="We cannot reach the live destinations list right now. Please try again in a few moments."
+              title={ct("Destinations temporarily unavailable")}
+              body={ct("We cannot reach the live destinations list right now. Please try again in a few moments.")}
             />
           ) : (
-            <EmptyState title="No destinations published yet" />
+            <EmptyState title={ct("No destinations published yet")} />
           )}
         </div>
       ) : (

@@ -1,3 +1,5 @@
+"use client";
+
 import { Card } from "@/components/ui";
 
 /**
@@ -5,13 +7,22 @@ import { Card } from "@/components/ui";
  * Submits a plain GET so the browser launches a real file download;
  * submit is JS-guarded against inverted ranges (server validates too).
  */
-export function WalletStatementForm({ today, defaultFrom }: { today: string; defaultFrom: string }) {
+export interface WalletStatementCopy {
+  title: string;
+  body: string;
+  from: string;
+  to: string;
+  generate: string;
+  alertMissing: string;
+  alertInverted: string;
+}
+
+export function WalletStatementForm({ today, defaultFrom, copy }: { today: string; defaultFrom: string; copy: WalletStatementCopy }) {
   return (
     <Card className="p-4">
-      <h3 className="text-sm font-semibold text-navy-800">Download wallet statement (PDF)</h3>
+      <h3 className="text-sm font-semibold text-navy-800">{copy.title}</h3>
       <p className="text-xs text-navy-400">
-        Professional statement for a chosen period: opening balance, credits, debits and closing balance, derived directly
-        from the immutable ledger.
+{copy.body}
       </p>
       <form
         method="get"
@@ -23,24 +34,24 @@ export function WalletStatementForm({ today, defaultFrom }: { today: string; def
           const to = String(fd.get("to") ?? "");
           if (!from || !to) {
             e.preventDefault();
-            alert("Please choose both a 'from' and a 'to' date.");
+            alert(copy.alertMissing);
             return;
           }
           if (from > to) {
             e.preventDefault();
-            alert("The 'from' date must not be after the 'to' date.");
+            alert(copy.alertInverted);
           }
         }}
       >
         <div>
-          <label htmlFor="wallet-stmt-from" className="mb-1 block text-xs font-medium text-navy-600">From</label>
+          <label htmlFor="wallet-stmt-from" className="mb-1 block text-xs font-medium text-navy-600">{copy.from}</label>
           <input id="wallet-stmt-from" name="from" type="date" required defaultValue={defaultFrom} max={today} className="input" />
         </div>
         <div>
-          <label htmlFor="wallet-stmt-to" className="mb-1 block text-xs font-medium text-navy-600">To</label>
+          <label htmlFor="wallet-stmt-to" className="mb-1 block text-xs font-medium text-navy-600">{copy.to}</label>
           <input id="wallet-stmt-to" name="to" type="date" required defaultValue={today} max={today} className="input" />
         </div>
-        <button type="submit" className="btn-primary px-4">Generate PDF</button>
+        <button type="submit" className="btn-primary px-4">{copy.generate}</button>
       </form>
     </Card>
   );

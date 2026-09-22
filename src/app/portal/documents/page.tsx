@@ -4,7 +4,10 @@ import { listAllDocuments } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
 import { bytes, formatDateTime } from "@/lib/format";
 import { FilterBar, Pagination } from "@/components/app-widgets";
-import { DocStatusBadge, EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
+import { EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
+import { DocStatusBadge } from "@/components/badges";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
 
@@ -17,13 +20,14 @@ export default async function PortalDocumentsPage({
   const sp: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(raw)) sp[k] = typeof v === "string" ? v : undefined;
   const user = await portalPageUser();
+  const ct = contentT(await getUiLocale());
   const flash = flashFrom(sp);
   const page = Number(sp.page ?? "1") || 1;
   const result = await listAllDocuments({ status: sp.status, q: sp.q, page, agencyId: user.agencyId });
 
   return (
     <>
-      <PageHeader title="Documents" subtitle="All documents uploaded by your agency." />
+      <PageHeader title={ct("Documents")} subtitle={ct("All documents uploaded by your agency.")} />
       <Flash {...flash} />
 
       <FilterBar
@@ -47,7 +51,7 @@ export default async function PortalDocumentsPage({
       />
 
       {result.rows.length === 0 ? (
-        <div className="card"><EmptyState title="No documents found" body="Upload documents from an application's checklist." /></div>
+        <div className="card"><EmptyState title={ct("No documents found")} body="Upload documents from an application's checklist." /></div>
       ) : (
         <>
           <TableWrap>

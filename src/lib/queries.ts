@@ -147,7 +147,7 @@ export async function adminDashboard() {
       pending: sql<number>`count(*) filter (where ${statuses.code} in ('SUBMITTED','DOCUMENTS_REQUIRED','UNDER_REVIEW'))::int`,
       processing: sql<number>`count(*) filter (where ${statuses.code} in ('PROCESSING','EMBASSY_SUBMISSION','AWAITING_DECISION'))::int`,
       completed: sql<number>`count(*) filter (where ${statuses.code} in ('APPROVED','COMPLETED'))::int`,
-      refused: sql<number>`count(*) filter (where ${statuses.code} = 'REFUSED')::int`,
+      refused: sql<number>`count(*) filter (where ${statuses.code} in ('REJECTED','REFUSED'))::int`,
       missingDocs: sql<number>`count(*) filter (where ${statuses.code} = 'DOCUMENTS_REQUIRED')::int`,
       last30: sql<number>`count(*) filter (where ${applications.createdAt} > now() - interval '30 days')::int`,
     })
@@ -212,10 +212,10 @@ export async function agencyDashboard(agencyId: string) {
   const [totals] = await db
     .select({
       total: count(),
-      active: sql<number>`count(*) filter (where ${statuses.code} not in ('COMPLETED','CANCELLED','REFUSED') and ${statuses.code} <> 'DRAFT')::int`,
+      active: sql<number>`count(*) filter (where ${statuses.code} not in ('COMPLETED','CANCELLED','REJECTED','REFUSED') and ${statuses.code} <> 'DRAFT')::int`,
       drafts: sql<number>`count(*) filter (where ${statuses.code} = 'DRAFT')::int`,
       completed: sql<number>`count(*) filter (where ${statuses.code} in ('APPROVED','COMPLETED'))::int`,
-      refused: sql<number>`count(*) filter (where ${statuses.code} = 'REFUSED')::int`,
+      refused: sql<number>`count(*) filter (where ${statuses.code} in ('REJECTED','REFUSED'))::int`,
       missingDocs: sql<number>`count(*) filter (where ${statuses.code} = 'DOCUMENTS_REQUIRED')::int`,
     })
     .from(applications)

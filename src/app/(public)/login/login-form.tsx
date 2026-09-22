@@ -9,7 +9,15 @@ import { SubmitButton } from "@/components/forms";
  * wrapper, the single "Sign in" <h1> and the subtitle, so this component must
  * not repeat them.
  */
-export function LoginForm({ brandName }: { brandName: string }) {
+export interface LoginCopy {
+  email: string;
+  password: string;
+  signIn: string;
+  signingIn: string;
+  footer: string;
+}
+
+export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
   const [state, formAction] = useActionState(loginAction, {});
   return (
     <>
@@ -20,7 +28,7 @@ export function LoginForm({ brandName }: { brandName: string }) {
           </div>
         ) : null}
         <div>
-          <label htmlFor="email" className="label">Email address</label>
+          <label htmlFor="email" className="label">{copy.email}</label>
           <input
             id="email"
             name="email"
@@ -32,7 +40,7 @@ export function LoginForm({ brandName }: { brandName: string }) {
           />
         </div>
         <div>
-          <label htmlFor="password" className="label">Password</label>
+          <label htmlFor="password" className="label">{copy.password}</label>
           <input
             id="password"
             name="password"
@@ -43,12 +51,12 @@ export function LoginForm({ brandName }: { brandName: string }) {
             placeholder="••••••••"
           />
         </div>
-        <SubmitButton className="btn-primary w-full py-2.5" pendingLabel="Signing in…">
-          Sign in
+        <SubmitButton className="btn-primary w-full py-2.5" pendingLabel={copy.signingIn}>
+          {copy.signIn}
         </SubmitButton>
       </form>
       <p className="mt-6 text-center text-xs text-slate-500">
-        Agency access is provisioned by {brandName}. Forgotten credentials? Contact your account manager.
+        {copy.footer}
       </p>
     </>
   );

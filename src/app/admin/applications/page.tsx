@@ -6,7 +6,10 @@ import { listAgencies, activeVisaOptions, listStatuses, listPriorities } from "@
 import { flashFrom } from "@/lib/action-helpers";
 import { formatDate } from "@/lib/format";
 import { FilterBar, Pagination } from "@/components/app-widgets";
-import { EmptyState, Flash, PageHeader, PriorityBadge, StatusBadge, TableWrap } from "@/components/ui";
+import { EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
+import { PriorityBadge, StatusBadge } from "@/components/badges";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +19,7 @@ export default async function AdminApplicationsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const raw = await searchParams;
+  const ct = contentT(await getUiLocale());
   const sp: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(raw)) sp[k] = typeof v === "string" ? v : undefined;
   const user = await pageUser();
@@ -40,51 +44,51 @@ export default async function AdminApplicationsPage({
 
   return (
     <>
-      <PageHeader title="Applications" subtitle="All visa applications across partner agencies." />
+      <PageHeader title={ct("Applications")} subtitle={ct("All visa applications across partner agencies.")} />
       <Flash {...flash} />
 
       <FilterBar
         action="/admin/applications"
         fields={[
-          { name: "q", label: "Search", type: "text", value: sp.q, placeholder: "Reference, applicant, passport…" },
+          { name: "q", label: ct("Search"), type: "text", value: sp.q, placeholder: ct("Reference, applicant, passport…") },
           {
             name: "agency",
-            label: "Agency",
+            label: ct("Agency"),
             type: "select",
             value: sp.agency,
             options: agencies.map((a) => ({ value: a.agency.id, label: a.agency.tradingName ?? a.agency.legalName })),
           },
           {
             name: "visa",
-            label: "Visa type",
+            label: ct("Visa type"),
             type: "select",
             value: sp.visa,
             options: visaOptions.map((v) => ({ value: v.id, label: v.label })),
           },
-          { name: "status", label: "Status", type: "select", value: sp.status, options: statuses.map((s) => ({ value: s.code, label: s.name })) },
-          { name: "priority", label: "Priority", type: "select", value: sp.priority, options: priorities.map((p) => ({ value: p.code, label: p.name })) },
-          { name: "from", label: "From", type: "date", value: sp.from },
-          { name: "to", label: "To", type: "date", value: sp.to },
+          { name: "status", label: ct("Status"), type: "select", value: sp.status, options: statuses.map((s) => ({ value: s.code, label: s.name })) },
+          { name: "priority", label: ct("Priority"), type: "select", value: sp.priority, options: priorities.map((p) => ({ value: p.code, label: p.name })) },
+          { name: "from", label: ct("From"), type: "date", value: sp.from },
+          { name: "to", label: ct("To"), type: "date", value: sp.to },
         ]}
       />
 
       {result.rows.length === 0 ? (
         <div className="card">
-          <EmptyState title="No applications found" body="Try adjusting the filters, or wait for agencies to submit applications." />
+          <EmptyState title={ct("No applications found")} body={ct("Try adjusting the filters, or wait for agencies to submit applications.")} />
         </div>
       ) : (
         <>
           <TableWrap>
             <thead className="border-b border-slate-100 bg-ivory-50/60">
               <tr>
-                <th className="th">Reference</th>
-                <th className="th">Agency</th>
-                <th className="th">Applicants</th>
-                <th className="th">Visa / Country</th>
-                <th className="th">Fee</th>
-                <th className="th">Priority</th>
-                <th className="th">Status</th>
-                <th className="th">Submitted</th>
+                <th className="th">{ct("Reference")}</th>
+                <th className="th">{ct("Agency")}</th>
+                <th className="th">{ct("Applicants")}</th>
+                <th className="th">{ct("Visa / Country")}</th>
+                <th className="th">{ct("Fee")}</th>
+                <th className="th">{ct("Priority")}</th>
+                <th className="th">{ct("Status")}</th>
+                <th className="th">{ct("Submitted")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

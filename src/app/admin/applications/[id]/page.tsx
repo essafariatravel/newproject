@@ -18,6 +18,7 @@ import { findTransactionByApplication } from "@/lib/wallet";
 import { listCommunications } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
 import { getUiLocale, localizedStatusName, localizedDocTypeName } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 import { formatDate, formatDateTime, personName } from "@/lib/format";
 import { OVERRIDE_ROLES, type AuthUser } from "@/lib/types";
 import { staffDirectory } from "@/app/actions/communications";
@@ -29,16 +30,8 @@ import {
   updateInternalNotesAction,
 } from "@/app/actions/applications";
 import { SubmitButton } from "@/components/forms";
-import {
-  Card,
-  CardHeader,
-  Flash,
-  KeyValue,
-  PageHeader,
-  PriorityBadge,
-  StatusBadge,
-  Tabs,
-} from "@/components/ui";
+import { Card, CardHeader, Flash, KeyValue, PageHeader, Tabs,  } from "@/components/ui";
+import { PriorityBadge, StatusBadge } from "@/components/badges";
 import {
   ActivityTimeline,
   BillingSummary,
@@ -99,6 +92,7 @@ export default async function AdminApplicationDetailPage({
   const canOverride = hasPermission(user, "applications.submit.override") && OVERRIDE_ROLES.includes(user.role);
   const flash = flashFrom(sp);
   const uiLocale = await getUiLocale();
+  const ct = contentT(uiLocale);
 
   return (
     <>
@@ -154,12 +148,12 @@ export default async function AdminApplicationDetailPage({
 
             {canStatusChange ? (
               <Card>
-                <CardHeader title="Workflow" subtitle="Status changes are validated, logged and notify the agency." />
+                <CardHeader title={ct("Workflow")} subtitle={ct("Status changes are validated, logged and notify the agency.")} />
                 <form action={changeStatusAction} className="flex flex-wrap items-end gap-3 px-4 py-4">
                   <input type="hidden" name="applicationId" value={id} />
                   <input type="hidden" name="back" value={back} />
                   <div>
-                    <label className="label" htmlFor="toStatus">Change status to</label>
+                    <label className="label" htmlFor="toStatus">{ct("Change status to")}</label>
                     <select id="toStatus" name="toStatusCode" className="input w-56" required>
                       {selectableStatuses.length === 0 ? <option value="">No routine transitions available</option> : null}
                       {selectableStatuses.map((s) => (
@@ -171,10 +165,10 @@ export default async function AdminApplicationDetailPage({
                   </div>
                   <div className="min-w-[220px] flex-1">
                     <label className="label" htmlFor="reason">Reason (recommended)</label>
-                    <input id="reason" name="reason" className="input" placeholder="Why is the status changing?" />
+                    <input id="reason" name="reason" className="input" placeholder={ct("Why is the status changing?")} />
                   </div>
                   <SubmitButton className="btn-primary" pendingLabel="Updating…">
-                    Update status
+                    {ct("Update status")}
                   </SubmitButton>
                 </form>
               </Card>
@@ -182,13 +176,13 @@ export default async function AdminApplicationDetailPage({
 
             {isDraft && gate.missing.length > 0 && canOverride ? (
               <Card className="border-amber-300">
-                <CardHeader title="Submission gate override" subtitle="The agency cannot submit while documents are missing. Staff may override with a mandatory reason." />
+                <CardHeader title={ct("Submission gate override")} subtitle={ct("The agency cannot submit while documents are missing. Staff may override with a mandatory reason.")} />
                 <form action={submitWithOverrideAdminAction} className="flex flex-wrap items-end gap-3 px-4 py-4">
                   <input type="hidden" name="applicationId" value={id} />
                   <input type="hidden" name="back" value={back} />
                   <div className="min-w-[260px] flex-1">
-                    <label className="label" htmlFor="overrideReason">Override reason (mandatory, min 10 chars)</label>
-                    <input id="overrideReason" name="overrideReason" className="input" minLength={10} required placeholder="Why is this file allowed through without all documents?" />
+                    <label className="label" htmlFor="overrideReason">{ct("Override reason (mandatory, min 10 chars)")}</label>
+                    <input id="overrideReason" name="overrideReason" className="input" minLength={10} required placeholder={ct("Why is this file allowed through without all documents?")} />
                   </div>
                   <SubmitButton className="btn-gold" pendingLabel="Submitting…">Submit with override</SubmitButton>
                 </form>
@@ -198,7 +192,7 @@ export default async function AdminApplicationDetailPage({
             {canReview ? (
               <Card className="border-navy-200">
                 <CardHeader
-                  title="Final decision"
+                  title={ct("Final decision")}
                   subtitle="Upload the embassy outcome and record it atomically: accepted document + status change + agency notification. This is the only path to approved/refused/rejected."
                 />
                 {decisionDocs.length > 0 ? (
@@ -216,14 +210,14 @@ export default async function AdminApplicationDetailPage({
                     ))}
                   </ul>
                 ) : (
-                  <p className="px-4 pt-1 text-xs text-slate-500">No decision document recorded yet.</p>
+                  <p className="px-4 pt-1 text-xs text-slate-500">{ct("No decision document recorded yet.")}</p>
                 )}
                 {canReview && allowedDecisionOutcomes.length > 0 ? (
                   <form action={recordDecisionAction} className="flex flex-wrap items-end gap-3 px-4 py-4">
                     <input type="hidden" name="applicationId" value={id} />
                     <input type="hidden" name="back" value={back} />
                     <div>
-                      <label className="label" htmlFor="outcome">Outcome</label>
+                      <label className="label" htmlFor="outcome">{ct("Outcome")}</label>
                       <select id="outcome" name="outcome" className="input w-44" required>
                         {allowedDecisionOutcomes.map((o) => (
                           <option key={o} value={o}>{localizedStatusName(o, o, uiLocale)}</option>
@@ -231,7 +225,7 @@ export default async function AdminApplicationDetailPage({
                       </select>
                     </div>
                     <div className="min-w-[260px] flex-1">
-                      <label className="label" htmlFor="decision-file">Decision document (PDF/JPG/PNG, mandatory)</label>
+                      <label className="label" htmlFor="decision-file">{ct("Decision document (PDF/JPG/PNG, mandatory)")}</label>
                       <input id="decision-file" name="file" type="file" accept="application/pdf,image/jpeg,image/png" required className="input" />
                     </div>
                     <SubmitButton className="btn-primary" pendingLabel="Recording decision…">Record decision</SubmitButton>
@@ -248,13 +242,13 @@ export default async function AdminApplicationDetailPage({
 
             {canReview ? (
               <Card>
-                <CardHeader title="Internal notes" subtitle="Never visible to the agency." />
+                <CardHeader title={ct("Internal notes")} subtitle={ct("Never visible to the agency.")} />
                 <form action={updateInternalNotesAction} className="px-4 py-4">
                   <input type="hidden" name="applicationId" value={id} />
                   <input type="hidden" name="back" value={back} />
-                  <textarea name="internalNotes" rows={3} defaultValue={app.internalNotes ?? ""} className="input" placeholder="Case-officer notes…" />
+                  <textarea name="internalNotes" rows={3} defaultValue={app.internalNotes ?? ""} className="input" placeholder={ct("Case-officer notes…")} />
                   <div className="mt-2.5">
-                    <SubmitButton className="btn-secondary btn-sm" pendingLabel="Saving…">Save notes</SubmitButton>
+                    <SubmitButton className="btn-secondary btn-sm" pendingLabel="Saving…">{ct("Save notes")}</SubmitButton>
                   </div>
                 </form>
               </Card>
