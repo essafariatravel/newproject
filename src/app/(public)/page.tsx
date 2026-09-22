@@ -108,12 +108,12 @@ export default async function HomePage() {
       {/* Trust bar */}
       <section className="border-y border-line/70 bg-white/60">
         <div className="ess-container grid grid-cols-2 gap-6 py-8 text-center sm:grid-cols-4">
-          {[
-            ["Wholesale", "volume pricing"],
-            ["Dedicated", "case officers"],
-            ["Real-time", "status tracking"],
-            ["Audited", "wallet billing"],
-          ].map(([a, b]) => (
+          {([
+            [ct("Wholesale"), ct("volume pricing")],
+            [ct("Dedicated"), ct("case officers")],
+            [ct("Real-time"), ct("status tracking")],
+            [ct("Audited"), ct("wallet billing")],
+          ] as [string, string][]).map(([a, b]) => (
             <div key={a}>
               <p className="font-serif text-lg text-navy-900">{a}</p>
               <p className="text-xs uppercase tracking-wider text-slate-500">{b}</p>
@@ -124,7 +124,7 @@ export default async function HomePage() {
 
       {/* Services */}
       <section className="ess-container py-16">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-iris-600">What we operate</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-iris-600">{ct("What we operate")}</p>
         <h2 className="mt-2 max-w-2xl font-serif text-3xl text-navy-900">
           A complete visa desk behind your agency
         </h2>
@@ -143,8 +143,8 @@ export default async function HomePage() {
         <div className="ess-container">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-iris-600">Destinations</p>
-              <h2 className="mt-2 font-serif text-3xl text-navy-900">Coverage across four regions</h2>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-iris-600">{ct("Destinations")}</p>
+              <h2 className="mt-2 font-serif text-3xl text-navy-900">{ct("Coverage across four regions")}</h2>
             </div>
             <Link href="/countries" className="btn-secondary btn-sm">
               All destinations →
@@ -172,8 +172,8 @@ export default async function HomePage() {
 
       {/* Process */}
       <section className="ess-container py-16">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-iris-600">How it works</p>
-        <h2 className="mt-2 font-serif text-3xl text-navy-900">From checklist to passport stamp</h2>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-iris-600">{ct("How it works")}</p>
+        <h2 className="mt-2 font-serif text-3xl text-navy-900">{ct("From checklist to passport stamp")}</h2>
         <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {PROCESS.map((p) => (
             <div key={p.step} className="relative card p-6">

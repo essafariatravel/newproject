@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { DatePicker } from "@/components/date-picker";
+import { contentT } from "@/lib/i18n-content";
 
 export type FilterBarLocale = "en" | "fr" | "ar";
 
@@ -12,7 +13,7 @@ export interface FilterField {
   placeholder?: string;
 }
 
-/** GET-form filter bar — fully server-rendered, no client JS. */
+/** GET-form filter bar — fully server-rendered, no client JS. Chrome strings localised via contentT. */
 export function FilterBar(props: {
   action: string;
   fields: FilterField[];
@@ -20,6 +21,7 @@ export function FilterBar(props: {
   /** Interface locale — required for localized date-pickers (§8). */
   locale?: FilterBarLocale;
 }) {
+  const ct = contentT(props.locale ?? "en");
   return (
     <form method="get" action={props.action} className="card mb-4 flex flex-wrap items-end gap-3 p-4">
       {Object.entries(props.hidden ?? {}).map(([k, v]) => (
@@ -30,7 +32,7 @@ export function FilterBar(props: {
           <label htmlFor={`f-${f.name}`} className="label">{f.label}</label>
           {f.type === "select" ? (
             <select id={`f-${f.name}`} name={f.name} defaultValue={f.value ?? ""} className="input">
-              <option value="">All</option>
+              <option value="">{ct("All")}</option>
               {f.options?.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
@@ -58,8 +60,8 @@ export function FilterBar(props: {
         </div>
       ))}
       <div className="flex gap-2">
-        <button type="submit" className="btn-primary btn-sm px-4 py-2">Filter</button>
-        <Link href={props.action} className="btn-secondary btn-sm px-4 py-2">Reset</Link>
+        <button type="submit" className="btn-primary btn-sm px-4 py-2">{ct("Filter")}</button>
+        <Link href={props.action} className="btn-secondary btn-sm px-4 py-2">{ct("Reset")}</Link>
       </div>
     </form>
   );
@@ -71,8 +73,10 @@ export function Pagination(props: {
   total: number;
   basePath: string;
   query?: Record<string, string | undefined>;
+  locale?: FilterBarLocale;
 }) {
   const { page, pageCount } = props;
+  const ct = contentT(props.locale ?? "en");
   const mk = (p: number) => {
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(props.query ?? {})) {
@@ -85,22 +89,22 @@ export function Pagination(props: {
   return (
     <div className="flex items-center justify-between gap-3 px-1 py-3 text-sm">
       <p className="text-xs text-slate-500">
-        {props.total} result{props.total === 1 ? "" : "s"} · page {page} of {pageCount}
+        {props.total} {ct(props.total === 1 ? "result" : "results")} · {ct("page")} {page} {ct("of")} {pageCount}
       </p>
       <div className="flex gap-2">
         {page > 1 ? (
           <Link href={mk(page - 1)} className="btn-secondary btn-sm">
-            ← Previous
+            ← {ct("Previous")}
           </Link>
         ) : (
-          <span className="btn-secondary btn-sm opacity-40">← Previous</span>
+          <span className="btn-secondary btn-sm opacity-40">← {ct("Previous")}</span>
         )}
         {page < pageCount ? (
           <Link href={mk(page + 1)} className="btn-secondary btn-sm">
-            Next →
+            {ct("Next")} →
           </Link>
         ) : (
-          <span className="btn-secondary btn-sm opacity-40">Next →</span>
+          <span className="btn-secondary btn-sm opacity-40">{ct("Next")} →</span>
         )}
       </div>
     </div>

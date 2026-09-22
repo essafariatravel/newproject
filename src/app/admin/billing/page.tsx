@@ -5,6 +5,8 @@ import { listAgencies, listWalletTransactions } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
 import { adjustWalletAction } from "@/app/actions/admin";
 import { formatAmount, formatDateTime } from "@/lib/format";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 import { FilterBar, Pagination } from "@/components/app-widgets";
 import { SubmitButton } from "@/components/forms";
 import { EmptyState, Flash, PageHeader, StatCard, TableWrap } from "@/components/ui";
@@ -18,11 +20,13 @@ export default async function AdminBillingPage({
 }) {
   const sp = await searchParams;
   const staff = await pageUser();
+  const uiLocale = await getUiLocale();
+  const ct = contentT(uiLocale);
   if (!hasPermission(staff, "wallet.view.all")) {
     return (
       <>
-        <PageHeader title="Wallets & Billing" />
-        <div className="card"><EmptyState title="Not authorized" /></div>
+        <PageHeader title={ct("Wallets & Billing")} />
+        <div className="card"><EmptyState title={ct("Not authorized")} /></div>
       </>
     );
   }
@@ -35,23 +39,24 @@ export default async function AdminBillingPage({
 
   return (
     <>
-      <PageHeader title="Wallets & Billing" subtitle="Prepaid agency wallets. No online gateway — balances are funded manually and every movement is a ledger entry." />
+      <PageHeader title={ct("Wallets & Billing")} subtitle={ct("Prepaid agency wallets. No online gateway — balances are funded manually and every movement is a ledger entry.")} />
       <Flash {...flash} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Agencies" value={agencies.length} href="/admin/agencies" />
-        <StatCard label="Combined balances" value={formatAmount(totalBalance.toFixed(2), "EUR")} tone="gold" />
-        <StatCard label="Ledger entries" value={txs.total} />
-        <StatCard label="Unfiltered view" value={agencyFilter ? "Filtered" : "All agencies"} />
+        <StatCard label={ct("Agencies")} value={agencies.length} href="/admin/agencies" />
+        <StatCard label={ct("Combined balances")} value={formatAmount(totalBalance.toFixed(2), "EUR")} tone="gold" />
+        <StatCard label={ct("Ledger entries")} value={txs.total} />
+        <StatCard label={ct("Unfiltered view")} value={agencyFilter ? ct("Filtered") : ct("All agencies")} />
       </div>
 
       <div className="mt-6">
         <FilterBar
+          locale={uiLocale}
           action="/admin/billing"
           fields={[
             {
               name: "agency",
-              label: "Agency",
+              label: ct("Agency"),
               type: "select",
               value: agencyFilter,
               options: agencies.map((a) => ({ value: a.agency.id, label: a.agency.tradingName ?? a.agency.legalName })),
@@ -60,19 +65,19 @@ export default async function AdminBillingPage({
         />
 
         {txs.rows.length === 0 ? (
-          <div className="card"><EmptyState title="No transactions found" /></div>
+          <div className="card"><EmptyState title={ct("No transactions found")} /></div>
         ) : (
           <>
             <TableWrap>
               <thead className="border-b border-slate-100 bg-ivory-50/60">
                 <tr>
-                  <th className="th">Date</th>
-                  <th className="th">Agency</th>
-                  <th className="th">Type</th>
-                  <th className="th">Amount</th>
-                  <th className="th">Balance before → after</th>
-                  <th className="th">Application</th>
-                  <th className="th">Reason</th>
+                  <th className="th">{ct("Date")}</th>
+                  <th className="th">{ct("Agency")}</th>
+                  <th className="th">{ct("Type")}</th>
+                  <th className="th">{ct("Amount")}</th>
+                  <th className="th">{ct("Balance before → after")}</th>
+                  <th className="th">{ct("Application")}</th>
+                  <th className="th">{ct("Reason")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -109,18 +114,18 @@ export default async function AdminBillingPage({
                 ))}
               </tbody>
             </TableWrap>
-            <Pagination page={txs.page} pageCount={txs.pageCount} total={txs.total} basePath="/admin/billing" query={{ agency: agencyFilter }} />
+            <Pagination locale={uiLocale} page={txs.page} pageCount={txs.pageCount} total={txs.total} basePath="/admin/billing" query={{ agency: agencyFilter }} />
           </>
         )}
       </div>
 
       {canAdjust ? (
         <div className="mt-8">
-          <h2 className="mb-3 font-serif text-xl text-navy-900">Manual wallet adjustment</h2>
+          <h2 className="mb-3 font-serif text-xl text-navy-900">{ct("Manual wallet adjustment")}</h2>
           <form action={adjustWalletAction} className="card grid grid-cols-1 gap-4 p-5 sm:grid-cols-4">
             <input type="hidden" name="back" value="/admin/billing" />
             <div>
-              <label className="label" htmlFor="agencyId">Agency *</label>
+              <label className="label" htmlFor="agencyId">{ct("Agency")} *</label>
               <select id="agencyId" name="agencyId" required className="input">
                 {agencies.map((a) => (
                   <option key={a.agency.id} value={a.agency.id}>
@@ -130,15 +135,15 @@ export default async function AdminBillingPage({
               </select>
             </div>
             <div>
-              <label className="label" htmlFor="amount">Amount (negative to debit) *</label>
+              <label className="label" htmlFor="amount">{ct("Amount (negative to debit)")} *</label>
               <input id="amount" name="amount" type="number" step="0.01" required className="input" />
             </div>
             <div>
-              <label className="label" htmlFor="reason">Reason (mandatory) *</label>
+              <label className="label" htmlFor="reason">{ct("Reason (mandatory)")} *</label>
               <input id="reason" name="reason" required minLength={5} className="input" />
             </div>
             <div className="flex items-end">
-              <SubmitButton className="btn-primary" pendingLabel="Adjusting…">Apply adjustment</SubmitButton>
+              <SubmitButton className="btn-primary" pendingLabel={ct("Adjusting…")}>{ct("Apply adjustment")}</SubmitButton>
             </div>
           </form>
         </div>

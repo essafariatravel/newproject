@@ -119,19 +119,16 @@ export default async function PortalWalletPage({
                 })}
               </tbody>
             </TableWrap>
-            <Pagination page={page} pageCount={pageCount} total={txs.length} basePath="/portal/wallet" />
+            <Pagination locale={uiLocale} page={page} pageCount={pageCount} total={txs.length} basePath="/portal/wallet" />
           </>
         )}
       </div>
 
       <Card className="mt-6">
         <div className="px-4 py-4 text-sm text-slate-600">
-          <p className="font-medium text-navy-900">About your wallet</p>
+          <p className="font-medium text-navy-900">{ct("About your wallet")}</p>
           <p className="mt-1.5 max-w-2xl">
-            Your agency wallet is prepaid: ESSAFARIA credits your balance when funds are received by bank
-            transfer. Each submitted application is charged automatically at the fee configured for its visa
-            programme — the amount shown on the application never changes after creation. There is no online
-            payment in this version; contact ESSAFARIA accounting to fund your wallet.
+            {ct("Your agency wallet is prepaid: ESSAFARIA credits your balance when funds are received by bank transfer. Each submitted application is charged automatically at the fee configured for its visa programme — the amount shown on the application never changes after creation. There is no online payment in this version; contact ESSAFARIA accounting to fund your wallet.")}
           </p>
         </div>
       </Card>

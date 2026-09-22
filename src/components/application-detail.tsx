@@ -13,6 +13,8 @@ import {
 import { postMessageAction } from "@/app/actions/communications";
 import type { AuthUser } from "@/lib/types";
 import { DOCUMENT_REVIEW_ROLES } from "@/lib/types";
+import { contentT } from "@/lib/i18n-content";
+import type { UiLocale } from "@/lib/ui-i18n";
 
 /* ------------------------------- checklist ------------------------------- */
 
@@ -23,8 +25,10 @@ export function ChecklistTable(props: {
   user: AuthUser;
   applicants: Applicant[];
   back: string;
+  locale?: UiLocale;
 }) {
   const { user } = props;
+  const t = contentT(props.locale ?? "en");
   const canUpload = Boolean(user.agencyId) || DOCUMENT_REVIEW_ROLES.includes(user.role);
   const requiredItems = props.items.filter((i) => i.required && i.active);
   const requiredDone = requiredItems.filter((i) =>
@@ -55,7 +59,7 @@ export function ChecklistTable(props: {
 
       <div className="card divide-y divide-slate-100">
         {props.items.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-slate-500">No checklist configured for this visa type.</p>
+          <p className="px-4 py-6 text-sm text-slate-500">{t("No checklist configured for this visa type.")}</p>
         ) : (
           props.items.map((item) => {
             const docs = props.documents.filter((d) => d.doc.checklistItemId === item.id);
@@ -68,11 +72,11 @@ export function ChecklistTable(props: {
                     <p className="text-sm font-medium text-navy-900">
                       {item.documentTypeName}{" "}
                       {item.required ? (
-                        <span className="badge bg-red-100 text-red-700">Required</span>
+                        <span className="badge bg-red-100 text-red-700">{t("Required")}</span>
                       ) : (
-                        <span className="badge bg-slate-100 text-slate-500">Optional</span>
+                        <span className="badge bg-slate-100 text-slate-500">{t("Optional")}</span>
                       )}
-                      {!item.active ? <span className="badge bg-slate-200 text-slate-500">Requirement removed</span> : null}
+                      {!item.active ? <span className="badge bg-slate-200 text-slate-500">{t("Requirement removed")}</span> : null}
                     </p>
                     {item.notes ? <p className="mt-0.5 text-xs text-slate-500">{item.notes}</p> : null}
                   </div>
@@ -98,6 +102,7 @@ export function ChecklistTable(props: {
                 {canUpload && item.active && item.documentTypeId ? (
                   <UploadFormInline
                     applicationId={props.applicationId}
+                    t={t}
                     checklistItemId={item.id}
                     documentTypeId={item.documentTypeId}
                     applicants={props.applicants}
@@ -119,7 +124,9 @@ function UploadFormInline(props: {
   documentTypeId: string;
   applicants: Applicant[];
   back: string;
+  t: (k: string) => string;
 }) {
+  const t = props.t;
   return (
     <form action={uploadDocumentAction} className="mt-2.5 flex flex-wrap items-center gap-2">
       <input type="hidden" name="applicationId" value={props.applicationId} />
@@ -134,7 +141,7 @@ function UploadFormInline(props: {
       />
       {props.applicants.length > 1 ? (
         <select name="applicantId" className="input max-w-[180px] py-1.5 text-xs">
-          <option value="">Applicant…</option>
+          <option value="">{t("Applicant…")}</option>
           {props.applicants.map((a) => (
             <option key={a.id} value={a.id}>
               {personName(a)}
@@ -145,8 +152,8 @@ function UploadFormInline(props: {
         <input type="hidden" name="applicantId" value={props.applicants[0]!.id} />
       ) : null}
       <input type="hidden" name="back" value={props.back} />
-      <SubmitButton className="btn-secondary btn-sm" pendingLabel="Uploading…">
-        Upload
+      <SubmitButton className="btn-secondary btn-sm" pendingLabel={t("Uploading…")}>
+        {t("Upload")}
       </SubmitButton>
     </form>
   );
@@ -159,8 +166,10 @@ export function DocumentList(props: {
   user: AuthUser;
   applicationId: string;
   isDraft: boolean;
+  locale?: UiLocale;
 }) {
   const isStaff = DOCUMENT_REVIEW_ROLES.includes(props.user.role);
+  const t = contentT(props.locale ?? "en");
   if (props.documents.length === 0) {
     return (
       <div className="card px-4 py-8 text-center text-sm text-slate-500">
@@ -211,23 +220,23 @@ export function DocumentList(props: {
               <input type="hidden" name="documentId" value={doc.id} />
               <input type="hidden" name="applicationId" value={props.applicationId} />
               <div>
-                <label className="label" htmlFor={`st-${doc.id}`}>Set status</label>
+                <label className="label" htmlFor={`st-${doc.id}`}>{t("Set status")}</label>
                 <select id={`st-${doc.id}`} name="status" defaultValue={doc.status} className="input w-44 py-1.5 text-xs">
-                  <option value="UNDER_REVIEW">Under review</option>
-                  <option value="ACCEPTED">Accept</option>
-                  <option value="REJECTED">Reject</option>
-                  <option value="RESUBMISSION_REQUIRED">Resubmission required</option>
+                  <option value="UNDER_REVIEW">{t("Under review")}</option>
+                  <option value="ACCEPTED">{t("Accept")}</option>
+                  <option value="REJECTED">{t("Reject")}</option>
+                  <option value="RESUBMISSION_REQUIRED">{t("Resubmission required")}</option>
                 </select>
               </div>
               <div className="min-w-[200px] flex-1">
-                <label className="label" htmlFor={`rn-${doc.id}`}>Reviewer note (internal)</label>
-                <input id={`rn-${doc.id}`} name="reviewNotes" className="input py-1.5 text-xs" placeholder="Optional" />
+                <label className="label" htmlFor={`rn-${doc.id}`}>{t("Reviewer note (internal)")}</label>
+                <input id={`rn-${doc.id}`} name="reviewNotes" className="input py-1.5 text-xs" placeholder={t("Optional")} />
               </div>
               <div className="min-w-[200px] flex-1">
-                <label className="label" htmlFor={`rr-${doc.id}`}>Reason (mandatory for reject / resubmit)</label>
-                <input id={`rr-${doc.id}`} name="rejectionReason" className="input py-1.5 text-xs" placeholder="Visible to the agency" />
+                <label className="label" htmlFor={`rr-${doc.id}`}>{t("Reason (mandatory for reject / resubmit)")}</label>
+                <input id={`rr-${doc.id}`} name="rejectionReason" className="input py-1.5 text-xs" placeholder={t("Visible to the agency")} />
               </div>
-              <SubmitButton className="btn-primary btn-sm" pendingLabel="Saving…">Save review</SubmitButton>
+              <SubmitButton className="btn-primary btn-sm" pendingLabel={t("Saving…")}>{t("Save review")}</SubmitButton>
             </form>
           ) : ["REJECTED", "RESUBMISSION_REQUIRED"].includes(doc.status) && props.user.agencyId ? (
             <form action={uploadResubmissionAction} className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
@@ -240,7 +249,7 @@ export function DocumentList(props: {
                 accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
                 className="text-xs file:mr-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-2.5 file:py-1.5 file:text-xs file:text-white"
               />
-              <SubmitButton className="btn-gold btn-sm" pendingLabel="Submitting…">Resubmit corrected file</SubmitButton>
+              <SubmitButton className="btn-gold btn-sm" pendingLabel={t("Submitting…")}>{t("Resubmit corrected file")}</SubmitButton>
             </form>
           ) : null}
         </div>
@@ -256,13 +265,15 @@ export function CommunicationsPanel(props: {
   messages: Array<{ message: { id: string; body: string; visibility: string; createdAt: Date }; authorName: string; authorRole: string }>;
   user: AuthUser;
   back: string;
+  locale?: UiLocale;
 }) {
   const isStaff = !props.user.agencyId;
+  const t = contentT(props.locale ?? "en");
   return (
     <div className="space-y-4">
       <div className="card divide-y divide-slate-100">
         {props.messages.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-slate-500">No messages on this application yet.</p>
+          <p className="px-4 py-8 text-center text-sm text-slate-500">{t("No messages on this application yet.")}</p>
         ) : (
           props.messages.map(({ message, authorName, authorRole }) => (
             <div key={message.id} className="px-4 py-3">
@@ -286,8 +297,8 @@ export function CommunicationsPanel(props: {
       <form action={postMessageAction} className="card p-4">
         <input type="hidden" name="applicationId" value={props.applicationId} />
         <input type="hidden" name="back" value={props.back} />
-        <label htmlFor="msg-body" className="label">New message</label>
-        <textarea id="msg-body" name="body" rows={3} required className="input" placeholder="Write a message…" />
+        <label htmlFor="msg-body" className="label">{t("New message")}</label>
+        <textarea id="msg-body" name="body" rows={3} required className="input" placeholder={t("Write a message…")} />
         <div className="mt-2.5 flex items-center justify-between gap-3">
           {isStaff ? (
             <label className="flex items-center gap-2 text-xs text-slate-500">
@@ -295,9 +306,9 @@ export function CommunicationsPanel(props: {
               Internal note (not visible to the agency)
             </label>
           ) : (
-            <p className="text-xs text-slate-400">Messages are visible to both your agency and ESSAFARIA staff.</p>
+            <p className="text-xs text-slate-400">{t("Messages are visible to both your agency and ESSAFARIA staff.")}</p>
           )}
-          <SubmitButton className="btn-primary btn-sm" pendingLabel="Posting…">Post message</SubmitButton>
+          <SubmitButton className="btn-primary btn-sm" pendingLabel={t("Posting…")}>{t("Post message")}</SubmitButton>
         </div>
       </form>
     </div>
@@ -309,32 +320,34 @@ export function CommunicationsPanel(props: {
 export function BillingSummary(props: {
   application: Application;
   charge: { amount: string; balanceBefore: string; balanceAfter: string; createdAt: Date; type: string } | null;
+  locale?: UiLocale;
 }) {
   const app = props.application;
+  const t = contentT(props.locale ?? "en");
   return (
     <div className="card">
       <div className="border-b border-slate-100 px-4 py-3">
-        <h2 className="text-sm font-semibold text-navy-900">Billing</h2>
+        <h2 className="text-sm font-semibold text-navy-900">{t("Billing")}</h2>
       </div>
       <div className="space-y-2 px-4 py-4 text-sm">
         <div className="flex items-center justify-between">
-          <span className="text-slate-500">Application fee (snapshot)</span>
+          <span className="text-slate-500">{t("Application fee (snapshot)")}</span>
           <span className="font-medium tabular-nums">{formatAmount(app.fee, app.currency)}</span>
         </div>
         {props.charge ? (
           <>
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">Charge type</span>
+              <span className="text-slate-500">{t("Charge type")}</span>
               <span className="badge bg-navy-900/5 text-navy-800">{props.charge.type.replaceAll("_", " ")}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">Balance before → after</span>
+              <span className="text-slate-500">{t("Balance before → after")}</span>
               <span className="tabular-nums">
                 {props.charge.balanceBefore} → {props.charge.balanceAfter} {app.currency}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">Charged at</span>
+              <span className="text-slate-500">{t("Charged at")}</span>
               <span>{formatDateTime(props.charge.createdAt)}</span>
             </div>
           </>
@@ -352,10 +365,12 @@ export function BillingSummary(props: {
 
 export function ActivityTimeline(props: {
   history: Array<{ history: { id: string; reason: string | null; createdAt: Date }; toStatus: { code: string; name: string } }>;
+  locale?: UiLocale;
 }) {
+  const t = contentT(props.locale ?? "en");
   if (props.history.length === 0) {
     return (
-      <div className="card px-4 py-8 text-center text-sm text-slate-500">No status history recorded yet.</div>
+      <div className="card px-4 py-8 text-center text-sm text-slate-500">{t("No status history recorded yet.")}</div>
     );
   }
   return (
@@ -387,7 +402,9 @@ import type { ApplicationPricing } from "@/lib/price-adjustments";
 export function PriceAdjustmentHistory(props: {
   pricing: ApplicationPricing;
   formatLabel?: (t: "DISCOUNT" | "SURCHARGE" | "REFUND") => string;
+  locale?: UiLocale;
 }) {
+  const t = contentT(props.locale ?? "en");
   const p = props.pricing;
   if (!p.submittedPrice) return null;
   const currency = p.submittedCurrency ?? "";
@@ -395,11 +412,11 @@ export function PriceAdjustmentHistory(props: {
   return (
     <div className="card">
       <div className="border-b border-slate-100 px-4 py-3">
-        <h2 className="text-sm font-semibold text-navy-900">Price snapshot &amp; adjustments</h2>
+        <h2 className="text-sm font-semibold text-navy-900">{t("Price snapshot & adjustments")}</h2>
       </div>
       <div className="space-y-2 px-4 py-4 text-sm">
         <div className="flex items-center justify-between">
-          <span className="text-slate-500">Original submitted price</span>
+          <span className="text-slate-500">{t("Original submitted price")}</span>
           <span className="font-medium tabular-nums">{formatAmount(p.submittedPrice, currency)}</span>
         </div>
         {p.adjustments.length === 0 ? (
@@ -424,7 +441,7 @@ export function PriceAdjustmentHistory(props: {
           </>
         )}
         <div className="flex items-center justify-between border-t border-slate-200 pt-2 font-semibold text-navy-900">
-          <span>Effective price</span>
+          <span>{t("Effective price")}</span>
           <span className="tabular-nums">{p.effectivePrice ? formatAmount(p.effectivePrice, currency) : "—"}</span>
         </div>
       </div>

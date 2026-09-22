@@ -5,6 +5,7 @@ import { listStatuses } from "@/lib/applications";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatDate } from "@/lib/format";
 import { FilterBar, Pagination } from "@/components/app-widgets";
+import { localizedStatusName } from "@/lib/ui-i18n";
 import { EmptyState, Flash, PageHeader, Progress, TableWrap } from "@/components/ui";
 import { StatusBadge } from "@/components/badges";
 import { checklistProgress } from "@/lib/applications";
@@ -52,8 +53,8 @@ export default async function PortalApplicationsPage({
       <FilterBar locale={uiLocale}
         action="/portal/applications"
         fields={[
-          { name: "q", label: "Search", type: "text", value: sp.q, placeholder: "Reference, applicant, passport…" },
-          { name: "status", label: "Status", type: "select", value: sp.status, options: statuses.map((s) => ({ value: s.code, label: s.name })) },
+          { name: "q", label: ct("Search"), type: "text", value: sp.q, placeholder: ct("Reference, applicant, passport…") },
+          { name: "status", label: ct("Status"), type: "select", value: sp.status, options: statuses.map((s) => ({ value: s.code, label: localizedStatusName(s.code, s.name, uiLocale) })) },
           { name: "from", label: ct("From"), type: "date", value: sp.from },
           { name: "to", label: ct("To"), type: "date", value: sp.to },
         ]}
@@ -63,7 +64,7 @@ export default async function PortalApplicationsPage({
         <div className="card">
           <EmptyState
             title={ct("No applications found")}
-            body="Create a new application to get started."
+            body={ct("Create a new application to get started.")}
             action={<Link href="/portal/applications/new" className="btn-primary btn-sm">{ct("Create application")}</Link>}
           />
         </div>
@@ -105,7 +106,7 @@ export default async function PortalApplicationsPage({
               })}
             </tbody>
           </TableWrap>
-          <Pagination page={result.page} pageCount={result.pageCount} total={result.total} basePath="/portal/applications" query={{ q: sp.q, status: sp.status, from: sp.from, to: sp.to }} />
+          <Pagination locale={uiLocale} page={result.page} pageCount={result.pageCount} total={result.total} basePath="/portal/applications" query={{ q: sp.q, status: sp.status, from: sp.from, to: sp.to }} />
         </>
       )}
     </>
