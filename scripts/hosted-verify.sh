@@ -204,6 +204,30 @@ else
 fi
 
 # -------------------------------------------------------------------------- #
+# P0 AUTH DIAG (always runs, needs no credentials):
+# submit a deliberately unknown login and classify the response.
+# Healthy service  → 200 re-render containing the normal invalid-credentials
+#   message (proves: users query runs, password verify runs, no DB failure).
+# P0 reproduction  → response contains "Service temporarily unavailable".
+log "-- [5a] P0 auth diagnostic: bogus-credential login must NOT be service-unavailable"
+CODE_L0=$(status_of "$BASE_URL/login" "$WORK/login-p0.html")
+printf 'email=%s\npassword=%s\n' "no-such-user-$STAMP@verify.invalid" "Wr0ng!Probe$STAMP" > "$WORK/loginfields-p0.txt"
+CODE_P0=$(submit_form "$WORK/login-p0.html" "$BASE_URL/login" "Sign in" "$WORK/p0jar.txt" "$WORK/loginfields-p0.txt")
+P0_BODY="$WORK/body.html"
+P0_TEXT=$(tr -d '\r' < "$P0_BODY" | LC_ALL=C sed 's/<[^>]*>//g' | tr -s ' \n' ' ' 2>/dev/null)
+P0_OUTCOME=""
+case "$P0_TEXT" in *"Service temporarily unavailable"*) P0_OUTCOME="SERVICE_UNAVAILABLE";; esac
+if [ -z "$P0_OUTCOME" ] && { [ "$CODE_P0" = "500" ] || [ "$CODE_P0" = "503" ]; }; then P0_OUTCOME="HTTP_$CODE_P0"; fi
+if [ -n "$P0_OUTCOME" ]; then
+  bad "P0 REPRODUCED on hosted login: bogus credentials triggered service-failure ($P0_OUTCOME, http $CODE_P0)"
+  printf '%s\n' "$P0_TEXT" | head -c 300 > /dev/null # body retained in $WORK for log tail
+elif echo "$P0_TEXT" | grep -qi "Invalid email or password"; then
+  ok "P0 neg: unknown credentials rejected with normal invalid-credentials (users query + verify healthy, http $CODE_P0)"
+else
+  skp "P0 probe inconclusive (http $CODE_P0, login page http $CODE_L0 — body matched neither expected message; verify submit_form still parses the login form)"
+fi
+
+# -------------------------------------------------------------------------- #
 log "-- [5] Anonymous document access denied"
 FAKE_R="11111111-1111-4111-8111-111111111111"; FAKE_D="22222222-2222-4222-8222-222222222222"
 CODE_ANON=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$BASE_URL/api/registrations/$FAKE_R/documents/$FAKE_D")
