@@ -76,6 +76,32 @@ log "Target: $BASE_URL"
 log ""
 
 # -------------------------------------------------------------------------- #
+# P0 PROD DIAG (read-only): the custom production domain is being promoted
+# from branch deployments; verify what its own diagnostics endpoint reports.
+# GET /api/health is the app's purpose-built, credential-free, redacted
+# diagnostics route (SELECT to_regclass / limit-0 column probes / ledger read).
+log "-- [0a] P0 PROD diag (read-only): https://visa.essafariavoyages.com/api/health"
+CODE_PROD=$(status_of "https://visa.essafariavoyages.com/api/health" "$WORK/prod-health.json")
+if [ "$CODE_PROD" = "200" ]; then
+  python3 -c "
+import json
+d=json.load(open('$WORK/prod-health.json'))
+db=d.get('database') or {}; s=d.get('schema') or {}
+led=s.get('migrationLedger') or []
+err=db.get('error') or {}
+print('INFO  PROD health: ok=%s configured=%s connected=%s columnsValid=%s schema=%s ledger=%d last=%s accounts=%s' % (
+  d.get('ok'), db.get('configured'), db.get('connected'), s.get('columnsValid'),
+  s.get('name'), len(led), (led[-1] if led else 'none'), s.get('hasUserAccounts')))
+print('INFO  PROD db.error: code=%s message=%s' % (err.get('code'), str(err.get('message'))[:160]))
+print('INFO  PROD requiredTables=%s' % (' '.join('%s=%s' % (k, v) for k, v in (s.get('requiredTables') or {}).items())))" \
+    | while IFS= read -r line; do log "$line  (=read-only)"; done
+else
+  log "INFO  PROD health returned http $CODE_PROD"
+fi
+CODE_PROD_LOGIN=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://visa.essafariavoyages.com/login")
+log "INFO  PROD /login page render: http $CODE_PROD_LOGIN"
+
+# -------------------------------------------------------------------------- #
 log "-- [0] Health check"
 CODE=$(status_of "$BASE_URL/api/health" "$WORK/health.json")
 if [ "$CODE" = "200" ] && python3 -c "
