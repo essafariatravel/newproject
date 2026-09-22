@@ -42,7 +42,7 @@ export default async function RegistrationSuccessPage({
       </div>
 
       <div className="card w-full max-w-2xl overflow-hidden">
-        <div className="relative bg-gradient-to-br from-navy-800 via-navy-900 to-navy-950 px-8 py-10 text-center sm:px-12">
+        <div className="relative bg-gradient-to-br from-navy-800 via-navy-900 to-navy-950 px-8 py-11 text-center sm:px-12">
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0"
@@ -52,13 +52,13 @@ export default async function RegistrationSuccessPage({
             }}
           />
           <div className="relative">
-            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gold-500/15 text-2xl text-gold-400 ring-1 ring-gold-400/40">
+            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gold-500/25 text-3xl text-gold-200 ring-2 ring-gold-300/70 shadow-[0_0_0_6px_rgb(255_255_255/0.06)]">
               ✓
             </span>
-            <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.24em] text-gold-400">
+            <p className="mt-6 rounded-full bg-white/10 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.24em] text-gold-200 ring-1 ring-white/20">
               {copy.success.kicker}
             </p>
-            <h1 className="mx-auto mt-3 max-w-lg font-serif text-2xl leading-snug text-white sm:text-3xl">
+            <h1 className="mx-auto mt-4 max-w-lg font-serif text-2xl font-semibold leading-snug text-white [text-shadow:0_2px_14px_rgb(0_0_0/0.45)] sm:text-3xl">
               {copy.success.title}
             </h1>
           </div>

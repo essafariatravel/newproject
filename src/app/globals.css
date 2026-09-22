@@ -90,6 +90,7 @@ h1, h2, h3 {
 .btn,
 .btn-primary,
 .btn-gold,
+.btn-cta,
 .btn-secondary,
 .btn-danger {
   @apply inline-flex items-center justify-center gap-2 rounded-[var(--radius-btn,999px)] text-sm font-semibold
@@ -106,8 +107,9 @@ h1, h2, h3 {
 }
 
 .btn-gold {
-  @apply bg-gold-600 px-5 py-2.5 text-white shadow-[0_10px_24px_-12px_rgb(151_122_71/0.6)]
-         hover:bg-gold-500 active:bg-gold-700;
+  @apply bg-gradient-to-b from-gold-500 to-gold-600 px-5 py-2.5 text-navy-950 shadow-[0_10px_24px_-12px_rgb(151_122_71/0.7)]
+         hover:from-gold-400 hover:to-gold-500 active:from-gold-600 active:to-gold-700
+         disabled:from-gold-500 disabled:to-gold-600 disabled:text-navy-950/70 disabled:shadow-none disabled:opacity-60 disabled:ring-1 disabled:ring-gold-700/40;
 }
 
 /* High-contrast primary CTA reserved for top-level navigation (e.g. the
