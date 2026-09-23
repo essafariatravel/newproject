@@ -109,7 +109,16 @@ jobs:
           set -e
 
       - name: Run read-only Production audit
-        run: node_modules/tsx/dist/cli.mjs scripts/prod-release.ts audit
+        run: |
+          set +e
+          node_modules/tsx/dist/cli.mjs scripts/prod-release.ts audit 2>&1 | tee /tmp/audit.log
+          RC=$?
+          if [ ! -f /tmp/prod-release-report.md ]; then
+            { echo '### Production release — execution diagnostics'; echo; echo '```';
+              echo "audit process exited rc=$RC — full output:"; tail -40 /tmp/audit.log; echo '```';
+            } > /tmp/prod-release-report.md
+          fi
+          exit $RC
 
       - name: Publish report as commit comment
         if: always()
