@@ -94,7 +94,7 @@ jobs:
         run: |
           OUT_FILE=/tmp/gate.out
           [ -f "$OUT_FILE" ] || echo "(gate output unavailable — resolve/wait step failed before the harness ran)" > "$OUT_FILE"
-          grep -E "^(PASS|FAIL|SKIP|== Summary|Target|Resolved)" "$OUT_FILE" | tail -80 > /tmp/gate.tail || true
+          grep -E "^(PASS|FAIL|SKIP|== Summary|Target|Resolved)" "$OUT_FILE" | tail -220 > /tmp/gate.tail || true
           python3 -c '
           import subprocess, sys, os
           repo = os.environ["WF_REPO"]; sha = os.environ["WF_SHA"]; conclusion = os.environ["WF_CONCLUSION"]
