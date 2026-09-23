@@ -173,3 +173,4 @@ scripts/          migrate / seed / reset / dev-db / smoke
 See `DEPLOYMENT.md` for production deployment, `DEPLOYMENT_CHECKLIST.md` for the go-live
 checklist, `FINAL_ACCEPTANCE.md` for feature-by-feature verification and `FINAL_HANDOFF.md`
 for the handover summary.
+# Trigger Vercel Production deployment Wed Sep 23 16:13:23 UTC 2026
