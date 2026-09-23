@@ -6,8 +6,7 @@ import { qualifiedTable } from "../src/lib/database-schema";
  *
  * Usage: BASE_URL=http://localhost:3000 npx tsx scripts/smoke.ts
  */
-import { loadEnvConfig } from "@next/env";
-loadEnvConfig(process.cwd());
+import "./lib/load-env";
 import { Pool } from "pg";
 import { createHash, randomBytes } from "node:crypto";
 

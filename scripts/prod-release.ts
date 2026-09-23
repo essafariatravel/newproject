@@ -24,7 +24,7 @@
  * This tool never truncates, drops, deletes rows from, reseeds, or
  * resets ANY Production table.
  */
-import { loadEnvConfig } from "@next/env";
+import "./lib/load-env";
 import path from "node:path";
 import fs from "node:fs";
 import { Pool } from "pg";
@@ -34,7 +34,6 @@ import { databasePoolConfig, targetsSupabaseProject } from "../src/lib/database-
 import { safeErrorCode, safeErrorText } from "../src/lib/safe-error";
 import { applyMigrations } from "./lib/migrations";
 
-loadEnvConfig(process.cwd());
 
 const MODE = process.argv[2] === "apply" ? "apply" : "audit";
 const SCHEMA = "visa_os";

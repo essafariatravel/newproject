@@ -1,12 +1,11 @@
 /** Apply the repository SQL files once. No reset, seed, or destructive repair. */
-import { loadEnvConfig } from "@next/env";
+import "./lib/load-env";
 import path from "node:path";
 import { Pool } from "pg";
 import { databasePoolConfig } from "../src/lib/database-config";
 import { safeErrorCode, safeErrorText } from "../src/lib/safe-error";
 import { applyMigrations } from "./lib/migrations";
 
-loadEnvConfig(process.cwd());
 
 async function main() {
   // Optional direct/session connection for DDL; DATABASE_URL remains canonical at runtime.
