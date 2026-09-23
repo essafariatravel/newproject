@@ -19,6 +19,7 @@ jobs:
     name: Execute critical DB checks against visa_os_preview
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: Preview
     env:
       DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
       DATABASE_SCHEMA: visa_os_preview
