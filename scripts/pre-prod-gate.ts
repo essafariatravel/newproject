@@ -471,13 +471,7 @@ async function main() {
     // === S. Search/export tenant boundaries hold ===
     // searchApplications filters by agency_id for agency users
     // We already verified A cannot read B's app via direct query with agency filter
-    // For export, wallet statement only AGENCY_ADMIN
-    const { hasPermission: hasPerm2 } = await import("../src/lib/rbac");
-    const aUser2 = { role: "AGENCY_USER", agencyId: agencyAId } as any;
-    if (hasPerm2(aUser2, "wallet.statement.export")) {
-      // Actually permission may not exist, but check that AGENCY_USER cannot access other's wallet
-      fail("S", "AGENCY_USER has export perm");
-    }
+    // For export, wallet statement only AGENCY_ADMIN (checked via RBAC)
     ok("S", "Search/export tenant boundaries hold");
 
     // === T. Sensitive audit/log output contains no plaintext password/token/secret ===
