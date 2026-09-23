@@ -1,6 +1,6 @@
 /**
  * Production release tooling — visa_os schema recovery + Phase 2 migration.
- * (audit refresh: production env secrets configured — read-only evidence pass; @next/env hoist fixed; pooler credentials refreshed — rerun audit; new password candidate; xget project confirmed — rerun audit; tx-pooler 6543 refresh)
+ * (audit refresh: production env secrets configured — read-only evidence pass; @next/env hoist fixed; pooler credentials refreshed — rerun audit; new password candidate; xget project confirmed — rerun audit; tx-pooler 6543 refresh; final preflight after password rotation)
  *
  * MODES
  *   audit   — read-only: ledger, columnsValid, counts, wallet checksums,
