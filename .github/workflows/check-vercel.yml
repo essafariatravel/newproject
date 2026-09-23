@@ -1,0 +1,17 @@
+name: Check Vercel Token
+on:
+  push:
+    branches:
+      - arena/01a0ce58-newproject
+    paths:
+      - .github/workflows/check-vercel.yml
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [ -n "${{ secrets.VERCEL_TOKEN }}" ]; then echo "VERCEL_TOKEN exists"; else echo "VERCEL_TOKEN missing"; fi
+          if [ -n "${{ secrets.VERCEL_PROJECT_ID }}" ]; then echo "VERCEL_PROJECT_ID exists"; else echo "VERCEL_PROJECT_ID missing"; fi
+          if [ -n "${{ secrets.VERCEL_ORG_ID }}" ]; then echo "VERCEL_ORG_ID exists"; else echo "VERCEL_ORG_ID missing"; fi
+          if [ -n "${{ secrets.VERCEL }}" ]; then echo "VERCEL exists"; else echo "VERCEL missing"; fi
