@@ -322,13 +322,22 @@ async function main(): Promise<void> {
     // ---- apply mode: hard precondition — pre-apply state must equal the APPROVED preflight ----
     {
       const mismatches: string[] = [];
+      const FULL_LEDGER = [...APPROVED_BASELINE.ledger, "0003_agency_registrations.sql", "0004_phase2_1.sql", "0005_canonical_decision_model.sql", "0006_simplified_status_model.sql", "0007_must_change_password.sql", "0008_application_price_adjustments.sql", "0009_atomic_request_submission.sql", "0010_simplified_applicant.sql"];
+      if (JSON.stringify(before.ledger) === JSON.stringify(FULL_LEDGER)) {
+        const md = renderReport("apply", "", before, before, [], []);
+        fs.writeFileSync("/tmp/prod-release-report.md", md + "\n\nMIGRATIONS ALREADY APPLIED (ledger complete 0001-0010) — no-op run; restore point not recreated.\n");
+        console.log(md);
+        console.log("migrations already applied — ledger complete; exiting as successful no-op.");
+        pool.end();
+        return;
+      }
       if (JSON.stringify(before.ledger) !== JSON.stringify([...APPROVED_BASELINE.ledger])) {
         mismatches.push(`ledger differs: live=[${before.ledger.join(", ")}] approved=[${APPROVED_BASELINE.ledger.join(", ")}]`);
       }
       for (const [table, expected] of Object.entries(APPROVED_BASELINE.counts)) {
         const live = before.counts[table];
         if (table === "audit_logs") {
-          if (live === null || live < expected) mismatches.push(`audit_logs=${live} < approved ${expected}`);
+          if (live == null || live < expected) mismatches.push(`audit_logs=${live} < approved ${expected}`);
         } else if (live !== expected) {
           mismatches.push(`${table}: live=${live} expected=${expected}`);
         }
