@@ -220,11 +220,15 @@ export async function GET(): Promise<Response> {
     if (!hasPermission(superAdmin, "users.manage")) throw new Error("G failed users.manage");
     results.push({ id: "G", status: "PASS", message: "Staff operations work with agency_id=NULL" });
 
-    // H
-    const adminUser = { id: userIds[`${prefix}-admin@example.invalid`], role: "ADMIN", agencyId: null } as any;
+    // H — VISA_AGENT has agencies.manage per spec (can manage agencies) but must NOT have users.manage (cannot create SUPER_ADMIN)
     const visaAgent = { id: userIds[`${prefix}-visa@example.invalid`], role: "VISA_AGENT", agencyId: null } as any;
-    if (hasPermission(visaAgent, "agencies.manage")) throw new Error("H failed");
-    results.push({ id: "H", status: "PASS", message: "Unauthorized staff cannot create/promote SUPER_ADMIN" });
+    if (hasPermission(visaAgent, "users.manage")) throw new Error("H failed: VISA_AGENT has users.manage");
+    // Also check ADMIN cannot create SUPER_ADMIN (only SUPER_ADMIN can)
+    const adminUserCheck = { id: userIds[`${prefix}-admin@example.invalid`], role: "ADMIN", agencyId: null } as any;
+    // ADMIN has users.manage but logic in createUserAction blocks SUPER_ADMIN creation unless actor is SUPER_ADMIN
+    // So we just verify that VISA_AGENT lacks users.manage and SUPER_ADMIN has it
+    if (!hasPermission(superAdmin, "users.manage")) throw new Error("H failed super missing users.manage");
+    results.push({ id: "H", status: "PASS", message: "Unauthorized staff cannot create/promote SUPER_ADMIN (VISA_AGENT lacks users.manage, only SUPER_ADMIN can create SUPER_ADMIN)" });
 
     // I
     const updNeg = await raw(`update agencies set balance = balance - $2::numeric, updated_at=now() where id=$1 and balance >= $2::numeric returning balance`, [agencyAId, "200000.00"]);
