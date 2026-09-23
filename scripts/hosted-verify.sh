@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# gate rerun trigger: probe staff credentials after GitHub reconnect
+# gate rerun trigger: full staff chain (secrets now configured)
 # Hosted verification harness for Phase 2 (agency registration & approval workflow).
 #
 # Runs pure HTTP (curl) against a target deployment (local dev or Vercel Preview),

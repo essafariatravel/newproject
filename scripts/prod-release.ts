@@ -1,5 +1,6 @@
 /**
  * Production release tooling — visa_os schema recovery + Phase 2 migration.
+ * (audit refresh: production env secrets configured — read-only evidence pass)
  *
  * MODES
  *   audit   — read-only: ledger, columnsValid, counts, wallet checksums,
