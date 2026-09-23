@@ -111,8 +111,11 @@ jobs:
       - name: Run read-only Production audit
         run: |
           set +e
+          set -o pipefail
           node_modules/tsx/dist/cli.mjs scripts/prod-release.ts audit 2>&1 | tee /tmp/audit.log
           RC=$?
+          echo "audit pipeline rc=$RC"
+          set +o pipefail
           if [ ! -f /tmp/prod-release-report.md ]; then
             { echo '### Production release — execution diagnostics'; echo; echo '```';
               echo "audit process exited rc=$RC — full output:"; tail -40 /tmp/audit.log; echo '```';
