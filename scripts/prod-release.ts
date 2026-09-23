@@ -343,7 +343,7 @@ function persistError(text: string): void {
     if (!fs.existsSync("/tmp/prod-release-report.md")) {
       fs.writeFileSync(
         "/tmp/prod-release-report.md",
-        `### Production release — AUDIT/EXECUTION FAILURE (${MODE})\n\n\`\`\`\n${text}\n\`\`\`\n`,
+        `### Production release — AUDIT/EXECUTION FAILURE (${MODE})\n\n\`\`\`\ntarget: ${TARGET_DESCRIPTOR}\nerror: ${text}\n\`\`\`\n`,
       );
     }
   } catch {
