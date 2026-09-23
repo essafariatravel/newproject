@@ -131,25 +131,39 @@ export async function GET(): Promise<Response> {
     }
     results.push({ id: "FIXTURE-USERS", status: "PASS", message: `created ${Object.keys(userIds).length} users` });
 
-    const visaTypeRow = await raw(`select id, fee from visa_types where active=true order by created_at limit 1`);
-    if (visaTypeRow.rows.length === 0) throw new Error("no active visa_type");
-    const visaTypeId = visaTypeRow.rows[0].id;
-    const visaFee = visaTypeRow.rows[0].fee;
+    const visaCfgRes = await raw(`
+      select vt.id as visa_type_id, vt.fee, vt.currency, vt.name as visa_type_name, vt.code as visa_type_code,
+             vt.processing_min_days, vt.processing_max_days,
+             c.id as country_id, c.name as country_name,
+             vc.name as category_name
+      from visa_types vt
+      join countries c on vt.country_id=c.id
+      join visa_categories vc on vt.category_id=vc.id
+      where vt.active=true order by vt.created_at limit 1`);
+    if (visaCfgRes.rows.length === 0) throw new Error("no active visa_type");
+    const vc = visaCfgRes.rows[0];
+    const visaTypeId = vc.visa_type_id;
+    const visaFee = vc.fee;
     const draftStatus = await raw(`select id from statuses where code='DRAFT' limit 1`);
     const submittedStatus = await raw(`select id from statuses where code='SUBMITTED' limit 1`);
+    const priority = await raw(`select id from priorities where active=true order by weight limit 1`);
+    if (!draftStatus.rows[0] || !submittedStatus.rows[0] || !priority.rows[0]) throw new Error("missing status/priority");
     const draftStatusId = draftStatus.rows[0].id;
     const submittedStatusId = submittedStatus.rows[0].id;
+    const priorityId = priority.rows[0].id;
 
     const appARef = `${prefix}-APP-A`;
     const appBRef = `${prefix}-APP-B`;
     const appARes2 = await raw(
-      `insert into applications (agency_id, visa_type_id, status_id, reference, fee, currency, country_name, visa_type_name, category_name, processing_min_days, processing_max_days) values ($1,$2,$3,$4,$5,'DZD','TestCountry','TestVisa','Tourist',10,20) returning id`,
-      [agencyAId, visaTypeId, draftStatusId, appARef, visaFee]
+      `insert into applications (agency_id, country_id, visa_type_id, status_id, priority_id, reference, fee, currency, country_name, visa_type_name, visa_type_code, category_name, processing_min_days, processing_max_days)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) returning id`,
+      [agencyAId, vc.country_id, visaTypeId, draftStatusId, priorityId, appARef, visaFee, vc.currency, vc.country_name, vc.visa_type_name, vc.visa_type_code, vc.category_name, vc.processing_min_days, vc.processing_max_days]
     );
     const appAId = appARes2.rows[0].id;
     const appBRes2 = await raw(
-      `insert into applications (agency_id, visa_type_id, status_id, reference, fee, currency, country_name, visa_type_name, category_name, processing_min_days, processing_max_days) values ($1,$2,$3,$4,$5,'DZD','TestCountry','TestVisa','Tourist',10,20) returning id`,
-      [agencyBId, visaTypeId, draftStatusId, appBRef, visaFee]
+      `insert into applications (agency_id, country_id, visa_type_id, status_id, priority_id, reference, fee, currency, country_name, visa_type_name, visa_type_code, category_name, processing_min_days, processing_max_days)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) returning id`,
+      [agencyBId, vc.country_id, visaTypeId, draftStatusId, priorityId, appBRef, visaFee, vc.currency, vc.country_name, vc.visa_type_name, vc.visa_type_code, vc.category_name, vc.processing_min_days, vc.processing_max_days]
     );
     const appBId = appBRes2.rows[0].id;
 
@@ -220,8 +234,9 @@ export async function GET(): Promise<Response> {
     // J
     const appChargeRef = `${prefix}-CHARGE-J`;
     const appChargeRes = await raw(
-      `insert into applications (agency_id, visa_type_id, status_id, reference, fee, currency, country_name, visa_type_name, category_name, processing_min_days, processing_max_days) values ($1,$2,$3,$4,1000,'DZD','TestCountry','TestVisa','Tourist',10,20) returning id`,
-      [agencyAId, visaTypeId, draftStatusId, appChargeRef]
+      `insert into applications (agency_id, country_id, visa_type_id, status_id, priority_id, reference, fee, currency, country_name, visa_type_name, visa_type_code, category_name, processing_min_days, processing_max_days)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) returning id`,
+      [agencyAId, vc.country_id, visaTypeId, draftStatusId, priorityId, appChargeRef, 1000, 'DZD', vc.country_name, vc.visa_type_name, vc.visa_type_code, vc.category_name, vc.processing_min_days, vc.processing_max_days]
     );
     const appChargeId = appChargeRes.rows[0].id;
     // first charge
@@ -246,12 +261,14 @@ export async function GET(): Promise<Response> {
     const concApp1Ref = `${prefix}-CONC-1`;
     const concApp2Ref = `${prefix}-CONC-2`;
     await raw(
-      `insert into applications (agency_id, visa_type_id, status_id, reference, fee, currency, country_name, visa_type_name, category_name, processing_min_days, processing_max_days) values ($1,$2,$3,$4,1000,'DZD','TestCountry','TestVisa','Tourist',10,20)`,
-      [concAgencyId, visaTypeId, draftStatusId, concApp1Ref]
+      `insert into applications (agency_id, country_id, visa_type_id, status_id, priority_id, reference, fee, currency, country_name, visa_type_name, visa_type_code, category_name, processing_min_days, processing_max_days)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      [concAgencyId, vc.country_id, visaTypeId, draftStatusId, priorityId, concApp1Ref, 1000, 'DZD', vc.country_name, vc.visa_type_name, vc.visa_type_code, vc.category_name, vc.processing_min_days, vc.processing_max_days]
     );
     await raw(
-      `insert into applications (agency_id, visa_type_id, status_id, reference, fee, currency, country_name, visa_type_name, category_name, processing_min_days, processing_max_days) values ($1,$2,$3,$4,1000,'DZD','TestCountry','TestVisa','Tourist',10,20)`,
-      [concAgencyId, visaTypeId, draftStatusId, concApp2Ref]
+      `insert into applications (agency_id, country_id, visa_type_id, status_id, priority_id, reference, fee, currency, country_name, visa_type_name, visa_type_code, category_name, processing_min_days, processing_max_days)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      [concAgencyId, vc.country_id, visaTypeId, draftStatusId, priorityId, concApp2Ref, 1000, 'DZD', vc.country_name, vc.visa_type_name, vc.visa_type_code, vc.category_name, vc.processing_min_days, vc.processing_max_days]
     );
     // Simulate concurrent debits via two separate connections
     const { pool } = await import("@/lib/db");
