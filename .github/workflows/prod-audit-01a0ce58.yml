@@ -1,0 +1,57 @@
+name: Production Audit — 01a0ce58 (read-only)
+
+on:
+  push:
+    branches:
+      - arena/01a0ce58-newproject
+    paths:
+      - .github/workflows/prod-audit-01a0ce58.yml
+      - scripts/prod-release.ts
+  workflow_dispatch:
+
+concurrency:
+  group: prod-audit-01a0ce58
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Production DB audit (read-only) visa_os
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: Production
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+      DATABASE_SCHEMA: visa_os
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Guard — Production secret present
+        run: |
+          PICKED=""
+          for NAME in PRODUCTION_DATABASE_URL DATABASE_URL SUPABASE_DATABASE_URL; do
+            VALUE=$(eval "printf %s \"\${$NAME:-}\"")
+            if [ -n "$VALUE" ]; then
+              PICKED="$NAME"
+              echo "DATABASE_URL=$VALUE" >> "$GITHUB_ENV"
+              break
+            fi
+          done
+          [ -n "$PICKED" ] || { echo "Missing Production secret"; exit 1; }
+          echo "Using $PICKED"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Run audit
+        run: npx tsx scripts/prod-release.ts audit
