@@ -55,3 +55,18 @@ jobs:
 
       - name: Run audit
         run: npx tsx scripts/prod-release.ts audit
+
+      - name: Publish report as commit comment
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat /tmp/prod-release-report.md || echo "(no report)"
+          python3 -c '
+          import subprocess, os
+          repo=os.environ.get("GITHUB_REPOSITORY")
+          sha=os.environ.get("GITHUB_SHA")
+          body=open("/tmp/prod-release-report.md", encoding="utf-8", errors="replace").read() if os.path.exists("/tmp/prod-release-report.md") else "(no report)"
+          body="### Production audit (01a0ce58) — read-only\n\n"+body
+          subprocess.run(["gh","api",f"repos/{repo}/commits/{sha}/comments","-f",f"body={body}"], capture_output=True, text=True)
+          '
