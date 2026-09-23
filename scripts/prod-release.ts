@@ -231,9 +231,22 @@ function renderReport(
   return lines.join("\n");
 }
 
+let TARGET_DESCRIPTOR = "(unresolved)";
+
+function describeTarget(value: string): string {
+  try {
+    const u = new URL(value);
+    return `host=${u.hostname} port=${u.port || "5432"} database=${u.pathname.slice(1)} username=${decodeURIComponent(u.username)} sslmode=${u.searchParams.get("sslmode") ?? "(none, CA-verified TLS applied by pool config)"}`;
+  } catch {
+    return "(unparseable)";
+  }
+}
+
 async function main(): Promise<void> {
   const url = process.env.DATABASE_URL;
   if (!url) fail("DATABASE_URL is not available to this job — expected in the 'Production' GitHub environment secrets.");
+  TARGET_DESCRIPTOR = describeTarget(url);
+  console.log("connection target (credentials never printed): " + TARGET_DESCRIPTOR);
   let host = "";
   let projectNote = "";
   try {
