@@ -663,7 +663,12 @@ if [ -n "$STAFF_EMAIL" ] && [ -n "$STAFF_PASS" ]; then
   if grep -qi 'set-cookie:.*evos_session=' "$WORK/headers.txt" && echo "$LOC_RP" | grep -qE "/admin|/portal|/change-password"; then
     ok "PROD real login → evos_session + redirect ${LOC_RP} (authentication operational on production domain)"
   else
-    bad "PROD real login failed (http $CODE_RP, ${LOC_RP:-no redirect}; login page http $CODE_PROD_L2)"
+    RP_TEXT=$(tr -d '\r' < "$WORK/body.html" | LC_ALL=C sed 's/<[^>]*>//g' | tr -s ' \n' ' ' 2>/dev/null)
+    RP_CLASS="other"
+    case "$RP_TEXT" in *"Service temporarily unavailable"*) RP_CLASS="SERVICE-UNAVAILABLE";; esac
+    case "$RP_TEXT" in *"Invalid email or password"*) RP_CLASS="invalid-credentials";; esac
+    case "$RP_TEXT" in *"suspended"*|*"Suspended"*) RP_CLASS="suspended";; esac
+    bad "PROD real login failed (http $CODE_RP, ${LOC_RP:-no redirect}; login page http $CODE_PROD_L2; server-action outcome class=$RP_CLASS)"
   fi
 else
   skp "PROD real login smoke (needs PREVIEW_VERIFY_STAFF_EMAIL/PASSWORD)"
