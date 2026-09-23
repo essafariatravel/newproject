@@ -167,6 +167,29 @@ jobs:
       DIRECT_DATABASE_URL: ${{ secrets.PRODUCTION_DIRECT_DATABASE_URL || secrets.DIRECT_DATABASE_URL }}
       DATABASE_SCHEMA: visa_os
     steps:
+      - name: Guard — resolve the Production database secret (masked)
+        run: |
+          PICKED=""
+          for NAME in PRODUCTION_DATABASE_URL DATABASE_URL SUPABASE_DATABASE_URL SUPABASE_DB_URL POSTGRES_URL_POSTGRES; do
+            VALUE=$(eval "printf %s \"\${$NAME:-}\"")
+            if [ -n "$VALUE" ]; then
+              echo "DATABASE_URL=$VALUE" >> "$GITHUB_ENV"
+              PICKED="$NAME"
+              break
+            fi
+          done
+          if [ -z "$PICKED" ]; then
+            {
+              echo '### Production release — GUARD FAILURE (apply)'
+              echo; echo '```'
+              echo "MISSING Production database secret (PRODUCTION_DATABASE_URL et al.). No write attempted."
+              echo '```'
+            } > /tmp/prod-release-report.md
+            echo "missing secret; refusing apply"
+            exit 1
+          fi
+          echo "Using Production environment secret: $PICKED (value masked — never printed)"
+
       - name: Checkout
         uses: actions/checkout@v4
 
