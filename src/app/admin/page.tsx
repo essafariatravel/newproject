@@ -24,28 +24,31 @@ export default async function AdminDashboardPage() {
     <>
       <PageHeader
         title={uiLocale === "en" ? `Good ${greeting()}, ${user.name.split(" ")[0]}` : `${localizedGreeting(greeting() as "morning" | "afternoon" | "evening", uiLocale)}, ${user.name.split(" ")[0]}`}
-        subtitle={ct("Operational overview of the ESSAFARIA visa desk.")}
+        subtitle={ct("Operational overview of the ESSAFARIA visa desk — work queue.")}
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label={ct("Total applications")} value={totals.total} hint={`${totals.last30} ${ct("in the last 30 days")}`} href="/admin/applications" tone="navy" />
-        <StatCard label={ct("Pending intake")} value={totals.pending} hint={ct("Submitted · Docs required · Under review")} href="/admin/applications?status=SUBMITTED" />
-        <StatCard label={ct("In processing")} value={totals.processing} hint={ct("Processing · Embassy · Awaiting decision")} href="/admin/applications?status=PROCESSING" tone="teal" />
-        <StatCard label={ct("Documents in review")} value={data.documentsInReview} hint={ct("Uploaded / under review")} href="/admin/documents" tone="gold" />
+        <StatCard label={ct("New applications")} value={totals.newApps} hint={ct("Submitted, awaiting intake")} href="/admin/applications?status=SUBMITTED" tone="navy" />
+        <StatCard label={ct("Documents to verify")} value={totals.docsChecking} hint={ct("Documents checking")} href="/admin/applications?status=DOCUMENTS_CHECKING" tone="gold" />
+        <StatCard label={ct("Action required")} value={totals.docsRequested} hint={ct("Agency action / documents requested")} href="/admin/applications?status=DOCUMENTS_REQUESTED" />
+        <StatCard label={ct("In process")} value={totals.inProcess} hint={ct("Actively processing")} href="/admin/applications?status=IN_PROCESS" tone="teal" />
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label={ct("Missing documents")} value={totals.missingDocs} href="/admin/applications?status=DOCUMENTS_REQUIRED" />
-        <StatCard label={ct("Completed / approved")} value={totals.completed} href="/admin/applications?status=COMPLETED" />
+        <StatCard label={ct("Sent to embassy")} value={totals.embassySent} hint={ct("Optional embassy stage")} href="/admin/applications?status=EMBASSY_SENT" />
+        <StatCard label={ct("Unassigned")} value={totals.unassigned} hint={ct("No case officer")} href="/admin/applications?assigned=unassigned" />
+        <StatCard label={ct("Urgent")} value={totals.urgent} hint={ct("Priority urgent")} href="/admin/applications?priority=URGENT" tone="gold" />
+        <StatCard label={ct("Aging")} value={totals.aging} hint={ct("Older than 3 days")} href="/admin/applications" />
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label={ct("Completed")} value={totals.completed} href="/admin/applications?status=APPROVED" tone="teal" />
         <StatCard label={ct("Rejected")} value={totals.refused} href="/admin/applications?status=REJECTED" />
         <StatCard label={ct("Active agencies")} value={`${data.agencyAgg.active}/${data.agencyAgg.total}`} href="/admin/agencies" />
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           label={ct("Agency registrations")}
           value={data.pendingRegistrations}
-          hint={`${data.registrationsInReview} in review · partnership applications awaiting decision`}
+          hint={`${data.registrationsInReview} in review`}
           href="/admin/registrations"
           tone="gold"
         />
@@ -70,6 +73,7 @@ export default async function AdminDashboardPage() {
                   <tr>
                     <th className="th">{ct("Reference")}</th>
                     <th className="th">{ct("Agency")}</th>
+                    <th className="th">{ct("Applicant")}</th>
                     <th className="th">{ct("Visa")}</th>
                     <th className="th">{ct("Status")}</th>
                     <th className="th">{ct("Created")}</th>
@@ -82,9 +86,9 @@ export default async function AdminDashboardPage() {
                         <Link href={`/admin/applications/${r.app.id}`} className="font-medium text-navy-900 hover:underline">
                           {r.app.reference}
                         </Link>
-                        <span className="mt-0.5 block text-xs text-slate-400">{r.applicantCount} applicant(s)</span>
                       </td>
-                      <td className="td max-w-[160px] truncate">{r.agencyName}</td>
+                      <td className="td max-w-[140px] truncate">{r.agencyName}</td>
+                      <td className="td max-w-[140px] truncate font-medium text-navy-900">{(r as any).applicantSummary ?? "—"}</td>
                       <td className="td">
                         <span className="block">{r.app.countryName}</span>
                         <span className="block text-xs text-slate-400">{r.app.visaTypeName}</span>
@@ -107,19 +111,19 @@ export default async function AdminDashboardPage() {
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{ct("Credited")}</p>
                   <p className="mt-1 text-sm font-semibold tabular-nums text-emerald-700">
-                    {formatAmount(data.walletAgg.credits, "EUR")}
+                    {formatAmount(data.walletAgg.credits, "DZD", uiLocale)}
                   </p>
                 </div>
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{ct("Charged")}</p>
                   <p className="mt-1 text-sm font-semibold tabular-nums text-navy-900">
-                    {formatAmount(data.walletAgg.charges, "EUR")}
+                    {formatAmount(data.walletAgg.charges, "DZD", uiLocale)}
                   </p>
                 </div>
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{ct("Balances")}</p>
                   <p className="mt-1 text-sm font-semibold tabular-nums text-teal-700">
-                    {formatAmount(data.agencyAgg.walletTotal, "EUR")}
+                    {formatAmount(data.agencyAgg.walletTotal, "DZD", uiLocale)}
                   </p>
                 </div>
               </div>

@@ -9,6 +9,7 @@ import { qualifiedTable } from "./database-schema";
  *  - every mutation writes an immutable ledger row with before/after balances,
  *  - application charges are idempotent via a partial unique index
  *    (one APPLICATION_CHARGE row per application).
+ *  - DZD-only: all operational amounts are DZD.
  */
 import { and, eq, sql } from "drizzle-orm";
 import { db, pool } from "@/lib/db";
@@ -18,6 +19,7 @@ import { recordAudit } from "@/lib/audit";
 
 export interface WalletTx {
   id: string;
+  reference?: string;
   agencyId: string;
   applicationId: string | null;
   type: string;
@@ -35,32 +37,52 @@ export function toNumber(money: string): number {
   return n;
 }
 
-export function formatMoney(money: string, currency: string): string {
+export function formatMoney(money: string, _currency?: string | null, locale: string = "en"): string {
   const n = toNumber(money);
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n);
+  const nfLocale = locale === "fr" ? "fr-DZ" : locale === "ar" ? "ar-DZ" : "en-DZ";
+  try {
+    const formatted = new Intl.NumberFormat(nfLocale, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(n);
+    return `${formatted} DZD`;
+  } catch {
+    return `${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} DZD`;
+  }
 }
 
 /** Manual adjustment by an authorized staff member. Returns the ledger row id. */
 export async function adjustWallet(params: {
   agencyId: string;
-  /** positive to credit, negative to debit */
   amount: number;
   reason: string;
   actor: AuthUser;
   ipAddress?: string | null;
+  operation?: "CREDIT" | "DEBIT";
 }): Promise<string> {
-  if (!Number.isFinite(params.amount) || params.amount === 0) {
-    throw new AppError("INVALID_AMOUNT", "Amount must be a non-zero number.");
+  let operation: "CREDIT" | "DEBIT";
+  let amountAbs: string;
+  if (params.operation) {
+    if (!Number.isFinite(params.amount) || params.amount <= 0) {
+      throw new AppError("INVALID_AMOUNT", "Amount must be a positive number.");
+    }
+    const rounded = Math.round(params.amount * 100) / 100;
+    amountAbs = rounded.toFixed(2);
+    operation = params.operation;
+  } else {
+    if (!Number.isFinite(params.amount) || params.amount === 0) {
+      throw new AppError("INVALID_AMOUNT", "Amount must be a non-zero number.");
+    }
+    const rounded = Math.round(params.amount * 100) / 100;
+    amountAbs = Math.abs(rounded).toFixed(2);
+    operation = rounded > 0 ? "CREDIT" : "DEBIT";
   }
-  const rounded = Math.round(params.amount * 100) / 100;
-  const credit = rounded > 0;
-  const amountAbs = Math.abs(rounded).toFixed(2);
+  const credit = operation === "CREDIT";
   const type = credit ? "CREDIT" : "DEBIT";
 
   const client = await pool.connect();
   try {
     await client.query("begin");
-    // Lock the agency row; conditional update guards against negative balances.
     const upd = await client.query<{ balance_after: string; balance_before: string }>(
       credit
         ? `update ${qualifiedTable("agencies")}
@@ -82,14 +104,14 @@ export async function adjustWallet(params: {
       if (!agency.rows[0]) throw new AppError("NOT_FOUND", "Agency not found.");
       throw new AppError(
         "INSUFFICIENT_FUNDS",
-        `Insufficient funds: current balance is ${agency.rows[0].balance} ${agency.rows[0].currency}.`,
+        `Insufficient funds: current balance is ${agency.rows[0].balance} DZD.`,
       );
     }
     const { balance_before, balance_after } = upd.rows[0];
     const tx = await client.query<{ id: string }>(
       `insert into ${qualifiedTable("wallet_transactions")}
          (agency_id, type, amount, currency, balance_before, balance_after, reason, actor_id)
-       values ($1, $2, $3, (select currency from ${qualifiedTable("agencies")} where id = $1), $4, $5, $6, $7)
+       values ($1, $2, $3, 'DZD', $4, $5, $6, $7)
        returning id`,
       [params.agencyId, type, amountAbs, balance_before, balance_after, params.reason, params.actor.id],
     );
@@ -102,7 +124,7 @@ export async function adjustWallet(params: {
       entity: "wallet_transaction",
       entityId: txId,
       agencyId: params.agencyId,
-      metadata: { amount: amountAbs, reason: params.reason, balanceBefore: balance_before, balanceAfter: balance_after },
+      metadata: { amount: amountAbs, reason: params.reason, balanceBefore: balance_before, balanceAfter: balance_after, currency: "DZD" },
       ipAddress: params.ipAddress ?? null,
     });
     return txId;
@@ -120,18 +142,6 @@ export interface ChargeResult {
   balanceAfter: string;
 }
 
-/**
- * Atomic application submission charge.
- *
- * Steps (single SQL transaction):
- *  1. lock the application row, verify it is still an uncharged draft,
- *  2. lock the agency row and debit only if `balance >= fee`,
- *  3. insert the ledger row (partial unique index blocks double charges),
- *  4. flip the application to SUBMITTED with a status-history + audit trail,
- *  5. commit.
- *
- * Returns null-equivalent failure reasons as typed codes for UI handling.
- */
 export async function chargeApplicationSubmission(params: {
   applicationId: string;
   actorId: string;
@@ -168,7 +178,6 @@ export async function chargeApplicationSubmission(params: {
       );
     }
 
-    // Debit the wallet. The row lock on agencies serializes concurrent spenders.
     const upd = await client.query<{ balance_after: string; balance_before: string }>(
       `update ${qualifiedTable("agencies")}
          set balance = balance - $2::numeric, updated_at = now()
@@ -182,25 +191,22 @@ export async function chargeApplicationSubmission(params: {
         `select balance::text as balance, currency from ${qualifiedTable("agencies")} where id = $1`,
         [app.agency_id],
       );
-      const cur = bal.rows[0]?.currency ?? "";
       throw new AppError(
         "INSUFFICIENT_FUNDS",
-        `Wallet balance is too low for this application (${app.fee} ${cur} required).`,
+        `Wallet balance is too low for this application (${app.fee} DZD required).`,
       );
     }
     const { balance_before, balance_after } = upd.rows[0];
 
-    // Ledger insert — the partial unique index makes double charges impossible.
     const txRes = await client.query<{ id: string }>(
       `insert into ${qualifiedTable("wallet_transactions")}
          (agency_id, application_id, type, amount, currency, balance_before, balance_after, reason, actor_id)
-       values ($1, $2, 'APPLICATION_CHARGE', $3, $4, $5, $6, $7, $8)
+       values ($1, $2, 'APPLICATION_CHARGE', $3, 'DZD', $4, $5, $6, $7)
        returning id`,
       [
         app.agency_id,
         app.id,
         app.fee,
-        app.currency,
         balance_before,
         balance_after,
         `Visa application ${app.reference}`,
@@ -212,7 +218,7 @@ export async function chargeApplicationSubmission(params: {
     await client.query(
       `update ${qualifiedTable("applications")}
          set status_id = $2, submitted_at = now(), updated_at = now(),
-             submitted_price = fee, submitted_currency = currency, effective_price = fee
+             submitted_price = fee, submitted_currency = 'DZD', effective_price = fee
        where id = $1`,
       [app.id, params.submittedStatusId],
     );
@@ -232,7 +238,6 @@ export async function chargeApplicationSubmission(params: {
   }
 }
 
-/** Ledger entries for an agency (tenant-safe when agencyId is passed). */
 export async function getTransactions(agencyId?: string, limit = 100) {
   const q = db
     .select({
@@ -247,7 +252,6 @@ export async function getTransactions(agencyId?: string, limit = 100) {
   return rows;
 }
 
-/** Current balance straight from the authoritative agency row. */
 export async function getBalance(agencyId: string): Promise<{ balance: string; currency: string }> {
   const rows = await db
     .select({ balance: agencies.balance, currency: agencies.currency })
@@ -255,7 +259,8 @@ export async function getBalance(agencyId: string): Promise<{ balance: string; c
     .where(eq(agencies.id, agencyId))
     .limit(1);
   if (!rows[0]) throw new AppError("NOT_FOUND", "Agency not found.");
-  return rows[0];
+  // Operational currency is always DZD
+  return { balance: rows[0].balance, currency: "DZD" };
 }
 
 export async function findTransactionByApplication(applicationId: string) {

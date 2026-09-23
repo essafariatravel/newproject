@@ -86,6 +86,32 @@ export async function updateCountryAction(formData: FormData): Promise<void> {
   });
 }
 
+export async function deleteCountryAction(formData: FormData): Promise<void> {
+  await runAction("/admin/config/countries", async () => {
+    const staff = await requireStaff();
+    requirePermission(staff, "config.manage");
+    const id = idSchema.parse(formData.get("id"));
+    const rows = await db.select().from(countries).where(eq(countries.id, id)).limit(1);
+    const country = rows[0];
+    if (!country) throw new AppError("NOT_FOUND", "Country not found.");
+
+    // Safe hard-delete: block if referenced by visa_types or applications
+    const vtRef = await db.select({ id: visaTypes.id }).from(visaTypes).where(eq(visaTypes.countryId, id)).limit(1);
+    if (vtRef.length > 0) {
+      throw new AppError("REFERENCED", `Cannot delete ${country.name}: it is referenced by ${vtRef.length > 0 ? "visa types" : ""}. Deactivate it instead.`);
+    }
+    const appRef = await db.select({ id: applications.id }).from(applications).where(eq(applications.countryId, id)).limit(1);
+    if (appRef.length > 0) {
+      throw new AppError("REFERENCED", `Cannot delete ${country.name}: it has historical applications. Deactivate it instead.`);
+    }
+
+    await db.delete(countries).where(eq(countries.id, id));
+    await recordAudit({ actor: staff, action: "CONFIG_COUNTRY_DELETED", entity: "country", entityId: id, metadata: { name: country.name, mode: "hard" } });
+    revalidatePath("/admin/config/countries");
+    return `Country "${country.name}" deleted.`;
+  });
+}
+
 /* --------------------------- visa categories --------------------------- */
 
 const categorySchema = z.object({

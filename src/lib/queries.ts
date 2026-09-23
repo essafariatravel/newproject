@@ -161,9 +161,19 @@ export async function adminDashboard() {
       refused: sql<number>`count(*) filter (where ${statuses.code} in ('REJECTED','REFUSED'))::int`,
       missingDocs: sql<number>`count(*) filter (where ${statuses.code} = 'DOCUMENTS_REQUESTED')::int`,
       last30: sql<number>`count(*) filter (where ${applications.createdAt} > now() - interval '30 days')::int`,
+      // Work queue metrics
+      newApps: sql<number>`count(*) filter (where ${statuses.code} = 'SUBMITTED')::int`,
+      docsChecking: sql<number>`count(*) filter (where ${statuses.code} = 'DOCUMENTS_CHECKING')::int`,
+      docsRequested: sql<number>`count(*) filter (where ${statuses.code} = 'DOCUMENTS_REQUESTED')::int`,
+      inProcess: sql<number>`count(*) filter (where ${statuses.code} = 'IN_PROCESS')::int`,
+      embassySent: sql<number>`count(*) filter (where ${statuses.code} = 'EMBASSY_SENT')::int`,
+      unassigned: sql<number>`count(*) filter (where ${applications.assignedTo} is null and ${statuses.code} not in ('APPROVED','REJECTED','COMPLETED','CANCELLED','REFUSED'))::int`,
+      urgent: sql<number>`count(*) filter (where ${priorities.code} = 'URGENT' and ${statuses.code} not in ('APPROVED','REJECTED','COMPLETED','CANCELLED','REFUSED'))::int`,
+      aging: sql<number>`count(*) filter (where ${applications.createdAt} < now() - interval '3 days' and ${statuses.code} not in ('APPROVED','REJECTED','COMPLETED','CANCELLED','REFUSED'))::int`,
     })
     .from(applications)
-    .innerJoin(statuses, eq(applications.statusId, statuses.id));
+    .innerJoin(statuses, eq(applications.statusId, statuses.id))
+    .innerJoin(priorities, eq(applications.priorityId, priorities.id));
 
   const [agencyAgg] = await db
     .select({
@@ -224,10 +234,10 @@ export async function agencyDashboard(agencyId: string, userId: string) {
     .select({
       total: count(),
       active: sql<number>`count(*) filter (where ${statuses.code} not in ('APPROVED','COMPLETED','CANCELLED','REJECTED','REFUSED') and ${statuses.code} <> 'DRAFT')::int`,
-      drafts: sql<number>`count(*) filter (where ${statuses.code} = 'DRAFT')::int`,
       completed: sql<number>`count(*) filter (where ${statuses.code} in ('APPROVED','COMPLETED'))::int`,
       refused: sql<number>`count(*) filter (where ${statuses.code} in ('REJECTED','REFUSED'))::int`,
-      missingDocs: sql<number>`count(*) filter (where ${statuses.code} = 'DOCUMENTS_REQUESTED')::int`,
+      actionRequired: sql<number>`count(*) filter (where ${statuses.code} = 'DOCUMENTS_REQUESTED')::int`,
+      drafts: sql<number>`count(*) filter (where ${statuses.code} = 'DRAFT')::int`,
     })
     .from(applications)
     .innerJoin(statuses, eq(applications.statusId, statuses.id))

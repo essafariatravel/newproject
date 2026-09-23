@@ -2,7 +2,7 @@
 
 /**
  * Document actions — upload (agency + staff), review (staff), delete (agency,
- * draft only). Every path validates the ownership chain server-side.
+ * draft only), replacement & additional requests (staff).
  */
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -10,6 +10,7 @@ import { requireUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/rbac";
 import { AppError, DOCUMENT_REVIEW_ROLES } from "@/lib/types";
 import { deleteDocument, reviewDocument, uploadDocument, uploadResubmission } from "@/lib/documents";
+import { requestAdditionalDocument, requestDocumentReplacement } from "@/lib/document-requests";
 import { runAction } from "@/lib/action-helpers";
 
 const idSchema = z.string().uuid("Invalid identifier.");
@@ -122,5 +123,47 @@ export async function deleteDocumentAction(formData: FormData): Promise<void> {
     revalidatePath(back);
     revalidatePath("/portal/documents");
     return "Document removed.";
+  });
+}
+
+export async function requestReplacementAction(formData: FormData): Promise<void> {
+  const applicationId = idSchema.parse(formData.get("applicationId"));
+  const checklistItemId = idSchema.parse(formData.get("checklistItemId"));
+  const back = String(formData.get("back") ?? `/admin/applications/${applicationId}`);
+  await runAction(back, async () => {
+    const user = await requireUser();
+    requirePermission(user, "documents.review");
+    const reason = z.string().trim().min(5, "Reason required (min 5 chars).").max(1000).parse(formData.get("reason"));
+    await requestDocumentReplacement({
+      applicationId,
+      checklistItemId,
+      reason,
+      actor: user,
+      ipAddress: clientIp(await headersOf()),
+    });
+    revalidatePath(back);
+    revalidatePath(`/portal/applications/${applicationId}`);
+    return "Replacement requested — agency notified.";
+  });
+}
+
+export async function requestAdditionalDocumentAction(formData: FormData): Promise<void> {
+  const applicationId = idSchema.parse(formData.get("applicationId"));
+  const documentTypeId = idSchema.parse(formData.get("documentTypeId"));
+  const back = String(formData.get("back") ?? `/admin/applications/${applicationId}`);
+  await runAction(back, async () => {
+    const user = await requireUser();
+    requirePermission(user, "documents.review");
+    const reason = z.string().trim().min(5, "Reason required (min 5 chars).").max(1000).parse(formData.get("reason"));
+    await requestAdditionalDocument({
+      applicationId,
+      documentTypeId,
+      reason,
+      actor: user,
+      ipAddress: clientIp(await headersOf()),
+    });
+    revalidatePath(back);
+    revalidatePath(`/portal/applications/${applicationId}`);
+    return "Additional document requested — agency notified.";
   });
 }

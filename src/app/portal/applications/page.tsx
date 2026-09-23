@@ -105,7 +105,7 @@ export default async function PortalApplicationsPage({
                       <span className="block text-xs text-slate-400">{r.app.visaTypeName}</span>
                     </td>
                     <td className="td">{p ? <Progress done={p.done} total={p.total} /> : "—"}</td>
-                    <td className="td whitespace-nowrap tabular-nums">{r.app.fee} {r.app.currency}</td>
+                    <td className="td whitespace-nowrap tabular-nums">{r.app.fee} DZD</td>
                     <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
                     <td className="td whitespace-nowrap text-xs text-slate-500">{formatDate(r.app.createdAt)}</td>
                   </tr>

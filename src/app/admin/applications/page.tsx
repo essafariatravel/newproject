@@ -111,7 +111,7 @@ export default async function AdminApplicationsPage({
                     <span className="block text-xs text-slate-400">{r.app.visaTypeName}</span>
                   </td>
                   <td className="td whitespace-nowrap tabular-nums">
-                    {r.app.fee} {r.app.currency}
+                    {r.app.fee} DZD
                   </td>
                   <td className="td">
                     <PriorityBadge name={r.priorityName} weight={r.priorityWeight} />

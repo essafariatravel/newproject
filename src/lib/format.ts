@@ -18,10 +18,30 @@ export function formatDateTime(d: Date | string | null | undefined): string {
   });
 }
 
-export function formatAmount(amount: string | number, currency: string): string {
+/**
+ * DZD-only formatting — operational currency is always DZD.
+ * Locale-aware grouping, consistent suffix.
+ * Historical rows may carry legacy currency metadata; we preserve the numeric
+ * value but render as DZD to avoid €/$ confusion.
+ */
+export function formatAmount(amount: string | number, currency?: string | null, locale: string = "en"): string {
   const n = typeof amount === "string" ? Number(amount) : amount;
-  if (!Number.isFinite(n)) return `${amount} ${currency}`;
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n);
+  if (!Number.isFinite(n)) return `${amount} DZD`;
+  const nfLocale = locale === "fr" ? "fr-DZ" : locale === "ar" ? "ar-DZ" : "en-DZ";
+  try {
+    const formatted = new Intl.NumberFormat(nfLocale, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(n);
+    return `${formatted} DZD`;
+  } catch {
+    return `${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} DZD`;
+  }
+}
+
+/** Alias for explicit DZD formatting where currency param is not needed */
+export function formatDZD(amount: string | number, locale: string = "en"): string {
+  return formatAmount(amount, "DZD", locale);
 }
 
 /** Zero denotes an unpublished processing estimate, never an immediate turnaround. */

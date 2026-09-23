@@ -31,20 +31,17 @@ export default async function PortalWalletPage({
 
   return (
     <>
-      <PageHeader title={ct("Wallet & Transactions")} subtitle={`${user.agencyName} — prepaid balance and complete ledger.`} />
+      <PageHeader title={ct("Wallet & Transactions")} subtitle={`${user.agencyName} — prepaid DZD wallet, immutable ledger.`} />
       <Flash {...flash} />
 
-      {/* Phase 2-Final Correction 2: the agency-facing summary shows ONLY the
-          available balance. Aggregates (credited/debited/entry counts) stay
-          available to Staff/Admin/Accounting surfaces (admin/billing) — the
-          immutable ledger below is unchanged. */}
       <div className="card flex flex-col items-start gap-1 p-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{ct("Available balance")}</p>
-          <p className="mt-1 font-serif text-4xl text-navy-900 tabular-nums">{formatAmount(balance.balance, balance.currency)}</p>
+          <p className="mt-1 font-serif text-4xl text-navy-900 tabular-nums">{formatAmount(balance.balance, "DZD", uiLocale)}</p>
+          <p className="mt-1 text-xs text-slate-400">{ct("Currency")}: DZD — {ct("Algerian Dinar")}</p>
         </div>
         <p className="max-w-md text-sm text-slate-500">
-          {ct("Your wallet stays prepaid — each confirmed visa request is debited automatically and shown in the ledger below.")}
+          {ct("Your wallet stays prepaid — each confirmed visa request is debited automatically and shown in the ledger below. All amounts in DZD.")}
         </p>
       </div>
 
@@ -54,7 +51,7 @@ export default async function PortalWalletPage({
             locale={uiLocale}
         copy={{
           title: ct("Download wallet statement (PDF)"),
-          body: ct("Professional statement for a chosen period: opening balance, credits, debits and closing balance, derived directly from the immutable ledger."),
+          body: ct("Professional statement for a chosen period: opening balance, credits, debits and closing balance, derived directly from the immutable ledger. DZD only."),
           from: ct("From"),
           to: ct("To"),
           generate: ct("Generate PDF"),
@@ -69,13 +66,14 @@ export default async function PortalWalletPage({
 
       <div className="mt-6">
         {visible.length === 0 ? (
-          <div className="card"><EmptyState title={ct("No transactions yet")} body={ct("Wallet credits and application charges will appear here.")} /></div>
+          <div className="card"><EmptyState title={ct("No transactions yet")} body={ct("Wallet credits and application charges will appear here. DZD only.")} /></div>
         ) : (
           <>
             <TableWrap>
               <thead className="border-b border-slate-100 bg-ivory-50/60">
                 <tr>
                   <th className="th">{ct("Date")}</th>
+                  <th className="th">{ct("Reference")}</th>
                   <th className="th">{ct("Type")}</th>
                   <th className="th">{ct("Amount")}</th>
                   <th className="th">{ct("Balance before → after")}</th>
@@ -85,8 +83,6 @@ export default async function PortalWalletPage({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {visible.map(({ tx, applicationReference }) => {
-                  // §18 — direction from the actual balance movement; compensating
-                  // commercial credits display "+", never as debits.
                   const creditEffect = Number(tx.balanceAfter) > Number(tx.balanceBefore);
                   const typeLabel =
                     tx.type === "COMMERCIAL_DISCOUNT"
@@ -97,15 +93,16 @@ export default async function PortalWalletPage({
                   return (
                   <tr key={tx.id} className="tr-hover">
                     <td className="td whitespace-nowrap text-xs">{formatDateTime(tx.createdAt)}</td>
+                    <td className="td whitespace-nowrap font-mono text-[11px]">{(tx as any).reference ?? tx.id.slice(0,8)}</td>
                     <td className="td">
                       <span className={`badge ${creditEffect ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}`}>
                         {typeLabel}
                       </span>
                     </td>
                     <td className={`td whitespace-nowrap font-medium tabular-nums ${creditEffect ? "text-emerald-700" : "text-red-700"}`}>
-                      {creditEffect ? "+" : "−"}{formatAmount(tx.amount, tx.currency)}
+                      {creditEffect ? "+" : "−"}{formatAmount(tx.amount, "DZD", uiLocale)}
                     </td>
-                    <td className="td whitespace-nowrap tabular-nums text-xs">{tx.balanceBefore} → {tx.balanceAfter} {tx.currency}</td>
+                    <td className="td whitespace-nowrap tabular-nums text-xs">{formatAmount(tx.balanceBefore, "DZD", uiLocale)} → {formatAmount(tx.balanceAfter, "DZD", uiLocale)}</td>
                     <td className="td text-xs">
                       {applicationReference ? (
                         tx.applicationId ? (
@@ -128,7 +125,7 @@ export default async function PortalWalletPage({
         <div className="px-4 py-4 text-sm text-slate-600">
           <p className="font-medium text-navy-900">{ct("About your wallet")}</p>
           <p className="mt-1.5 max-w-2xl">
-            {ct("Your agency wallet is prepaid: ESSAFARIA credits your balance when funds are received by bank transfer. Each submitted application is charged automatically at the fee configured for its visa programme — the amount shown on the application never changes after creation. There is no online payment in this version; contact ESSAFARIA accounting to fund your wallet.")}
+            {ct("Your agency wallet is prepaid in DZD only: ESSAFARIA credits your balance when funds are received. Each submitted application is charged automatically — before/after balances are shown above. Immutable ledger, no deletion.")}
           </p>
         </div>
       </Card>

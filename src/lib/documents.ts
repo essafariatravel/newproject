@@ -1,9 +1,8 @@
 import { qualifiedTable } from "./database-schema";
 /**
  * Document service — secure upload, review workflow, tenant-safe retrieval.
- *
- * Ownership chain enforced server-side on EVERY access:
- *   user → agency → application → applicant/document
+ * Post-submission locking: agency uploads are blocked unless staff explicitly
+ * requested replacement/additional via document_requests.
  */
 import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
@@ -12,6 +11,7 @@ import {
   applicants,
   applications,
   checklistItems,
+  documentRequests,
   documentTypes,
   documents,
   statuses,
@@ -29,10 +29,6 @@ import { recordAudit } from "@/lib/audit";
 import { agencyUserIds, staffUserIds, notifyUsers } from "@/lib/notifications";
 import { getStatusByCode } from "@/lib/applications";
 
-/* ------------------------------------------------------------------ */
-/* Tenant-safe loaders                                                 */
-/* ------------------------------------------------------------------ */
-
 interface ApplicationAccess {
   applicationId: string;
   agencyId: string;
@@ -41,7 +37,6 @@ interface ApplicationAccess {
   isDraft: boolean;
 }
 
-/** Verify user → agency → application chain; returns application context. */
 export async function assertApplicationAccess(
   applicationId: string,
   user: AuthUser,
@@ -61,7 +56,7 @@ export async function assertApplicationAccess(
   const app = rows[0];
   if (!app) throw new AppError("NOT_FOUND", "Application not found.");
   if (user.agencyId && app.agencyId !== user.agencyId) {
-    throw new AppError("NOT_FOUND", "Application not found."); // tenant isolation
+    throw new AppError("NOT_FOUND", "Application not found.");
   }
   return {
     applicationId: app.id,
@@ -87,7 +82,6 @@ export async function listDocumentsForApplication(applicationId: string) {
     .orderBy(desc(documents.createdAt));
 }
 
-/** Load a single document enforcing the full ownership chain. */
 export async function getDocumentForUser(documentId: string, user: AuthUser) {
   const rows = await db
     .select({
@@ -102,15 +96,10 @@ export async function getDocumentForUser(documentId: string, user: AuthUser) {
   const row = rows[0];
   if (!row) throw new AppError("NOT_FOUND", "Document not found.");
   if (user.agencyId && row.appAgencyId !== user.agencyId) {
-    throw new AppError("NOT_FOUND", "Document not found."); // tenant isolation
+    throw new AppError("NOT_FOUND", "Document not found.");
   }
   return row;
 }
-
-/* ------------------------------------------------------------------ */
-/* Upload                                                             */
-/* ------------------------------------------------------------------ */
-
 
 export interface UploadDocumentInput {
   applicationId: string;
@@ -125,29 +114,7 @@ export interface UploadDocumentInput {
 export async function uploadDocument(input: UploadDocumentInput) {
   const access = await assertApplicationAccess(input.applicationId, input.actor);
 
-  // Only the owning tenant (or staff) may upload, and only before/at review stages.
-  if (input.actor.agencyId && access.statusCode === "DRAFT") {
-    // allowed
-  } else if (input.actor.agencyId) {
-    // agency can still upload when documents were requested / resubmission needed
-    if (!["DOCUMENTS_REQUESTED", "DOCUMENTS_CHECKING", "SUBMITTED", "IN_PROCESS"].includes(access.statusCode)) {
-      throw new AppError("UPLOAD_NOT_ALLOWED", "Documents cannot be uploaded in this status.");
-    }
-  }
-
-  if (input.file.size <= 0) throw new AppError("EMPTY_FILE", "The uploaded file is empty.");
-  if (input.file.size > MAX_UPLOAD_BYTES) {
-    throw new AppError("FILE_TOO_LARGE", "Files must be 2 MB or smaller.");
-  }
-  if (!ALLOWED_MIME_TYPES.includes(input.file.type)) {
-    throw new AppError("UNSUPPORTED_TYPE", "Allowed formats: PDF, JPEG, PNG, WEBP, DOC, DOCX.");
-  }
-  const name = input.file.name;
-  if (name.length > 200 || /[\u0000-\u001f\\/]/.test(name)) {
-    throw new AppError("INVALID_FILENAME", "Invalid file name.");
-  }
-
-  // Resolve the checklist item (must belong to this application).
+  // Resolve checklist item first to know document type
   let checklistItem: { id: string; documentTypeId: string | null } | null = null;
   if (input.checklistItemId) {
     const rows = await db
@@ -173,6 +140,50 @@ export async function uploadDocument(input: UploadDocumentInput) {
   if (!documentTypeId) {
     throw new AppError("VALIDATION", "Select a document type for this upload.");
   }
+
+  // Post-submission locking: agency uploads only allowed if DRAFT or OPEN request exists
+  // Locked after submission — only staff-requested replacement/additional via document_requests unlocks uploads
+  if (input.actor.agencyId && !access.isDraft) {
+    // Terminal statuses never allow agency uploads
+    if (["APPROVED", "REJECTED", "CANCELLED", "COMPLETED", "REFUSED"].includes(access.statusCode)) {
+      throw new AppError("UPLOAD_NOT_ALLOWED", "Documents are locked — application is already completed. Locked after submission.");
+    }
+    // Check for open document_requests that authorize this upload
+    const openRequests = await db
+      .select()
+      .from(documentRequests)
+      .where(
+        and(
+          eq(documentRequests.applicationId, input.applicationId),
+          eq(documentRequests.status, "OPEN"),
+        ),
+      );
+    const authorized = openRequests.some((r) => {
+      if (r.checklistItemId && input.checklistItemId) return r.checklistItemId === input.checklistItemId;
+      if (r.documentTypeId === documentTypeId) return true;
+      if (r.checklistItemId && checklistItem && r.checklistItemId === checklistItem.id) return true;
+      return false;
+    });
+    if (!authorized) {
+      throw new AppError(
+        "UPLOAD_NOT_ALLOWED",
+        "Documents are locked after submission. ESSAFARIA will request replacement or additional documents if needed.",
+      );
+    }
+  }
+
+  if (input.file.size <= 0) throw new AppError("EMPTY_FILE", "The uploaded file is empty.");
+  if (input.file.size > MAX_UPLOAD_BYTES) {
+    throw new AppError("FILE_TOO_LARGE", "Files must be 2 MB or smaller.");
+  }
+  if (!ALLOWED_MIME_TYPES.includes(input.file.type)) {
+    throw new AppError("UNSUPPORTED_TYPE", "Allowed formats: PDF, JPEG, PNG, WEBP, DOC, DOCX.");
+  }
+  const name = input.file.name;
+  if (name.length > 200 || /[\\u0000-\\u001f\\\\/]/.test(name)) {
+    throw new AppError("INVALID_FILENAME", "Invalid file name.");
+  }
+
   const dtRows = await db
     .select({ id: documentTypes.id, active: documentTypes.active })
     .from(documentTypes)
@@ -180,7 +191,6 @@ export async function uploadDocument(input: UploadDocumentInput) {
     .limit(1);
   if (!dtRows[0]?.active) throw new AppError("NOT_FOUND", "Document type is not available.");
 
-  // Applicant (optional) must belong to the same application.
   if (input.applicantId) {
     const rows = await db
       .select({ id: applicants.id })
@@ -192,7 +202,6 @@ export async function uploadDocument(input: UploadDocumentInput) {
     if (!rows[0]) throw new AppError("NOT_FOUND", "Applicant not found for this application.");
   }
 
-  // Version: uploading for an item that already has documents increments the version.
   let version = 1;
   if (checklistItem) {
     const v = await db
@@ -225,27 +234,68 @@ export async function uploadDocument(input: UploadDocumentInput) {
     .returning();
   const doc = inserted[0]!;
 
+  // If agency fulfilled an open request, mark it fulfilled
+  if (input.actor.agencyId) {
+    const openReqs = await db
+      .select()
+      .from(documentRequests)
+      .where(
+        and(
+          eq(documentRequests.applicationId, input.applicationId),
+          eq(documentRequests.status, "OPEN"),
+        ),
+      );
+    for (const req of openReqs) {
+      const matchesChecklist = req.checklistItemId && checklistItem && req.checklistItemId === checklistItem.id;
+      const matchesType = req.documentTypeId === documentTypeId;
+      if (matchesChecklist || matchesType) {
+        await db
+          .update(documentRequests)
+          .set({
+            status: "FULFILLED",
+            fulfilledBy: input.actor.id,
+            fulfilledDocumentId: doc.id,
+            fulfilledAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(documentRequests.id, req.id));
+        // Notify staff
+        const sIds = await staffUserIds();
+        await notifyUsers(sIds, {
+          type: "DOCUMENTS_REQUIRED",
+          title: `Replacement document uploaded — ${access.applicationId.slice(0, 8)}`,
+          body: `${name} uploaded as replacement/additional for request ${req.id.slice(0, 8)}. Reason: ${req.reason}`,
+          link: `/admin/applications/${input.applicationId}`,
+        });
+        break; // fulfill only one request per upload
+      }
+    }
+  }
+
   await recordAudit({
     actor: input.actor,
     action: "DOCUMENT_UPLOADED",
     entity: "document",
     entityId: doc.id,
     agencyId: access.agencyId,
-    metadata: { filename: name, sizeBytes: input.file.size, version },
+    metadata: { filename: name, sizeBytes: input.file.size, version, checklistItemId: checklistItem?.id ?? null },
     ipAddress: input.ipAddress ?? null,
   });
 
-  const sIds = await staffUserIds();
-  await notifyUsers(sIds, {
-    type: "DOCUMENTS_REQUIRED",
-    title: `Document uploaded${input.actor.agencyName ? ` by ${input.actor.agencyName}` : ""}`,
-    body: `${name} was uploaded to the document pool.`,
-    link: `/admin/documents`,
-  });
+  // Notify staff if agency uploaded outside fulfillment path (draft stage)
+  if (input.actor.agencyId && access.isDraft) {
+    const sIds = await staffUserIds();
+    await notifyUsers(sIds, {
+      type: "DOCUMENTS_REQUIRED",
+      title: `Document uploaded${input.actor.agencyName ? ` by ${input.actor.agencyName}` : ""}`,
+      body: `${name} was uploaded to the document pool.`,
+      link: `/admin/documents`,
+    });
+  }
+
   return doc;
 }
 
-/** Agency-side resubmission replaces a rejected/resubmission-required document. */
 export async function uploadResubmission(input: UploadDocumentInput & { originalDocumentId: string }) {
   const original = await getDocumentForUser(input.originalDocumentId, input.actor);
   if (!["REJECTED", "RESUBMISSION_REQUIRED"].includes(original.doc.status)) {
@@ -267,10 +317,6 @@ export async function uploadResubmission(input: UploadDocumentInput & { original
   });
   return doc;
 }
-
-/* ------------------------------------------------------------------ */
-/* Review                                                              */
-/* ------------------------------------------------------------------ */
 
 export interface ReviewInput {
   documentId: string;
@@ -305,9 +351,6 @@ export async function reviewDocument(input: ReviewInput) {
       "REASON_REQUIRED",
       "A rejection / resubmission reason (min 5 characters) is mandatory.",
     );
-  }
-  if (!requiresReason && reason && input.status === "ACCEPTED") {
-    // acceptance may carry notes; nothing to enforce
   }
 
   await db
@@ -360,10 +403,6 @@ export async function reviewDocument(input: ReviewInput) {
   });
 }
 
-/* ------------------------------------------------------------------ */
-/* Delete (agency, draft only)                                         */
-/* ------------------------------------------------------------------ */
-
 export async function deleteDocument(documentId: string, actor: AuthUser, ipAddress?: string | null) {
   const row = await getDocumentForUser(documentId, actor);
   if (!actor.agencyId || row.appAgencyId !== actor.agencyId) {
@@ -390,10 +429,6 @@ export async function deleteDocument(documentId: string, actor: AuthUser, ipAddr
     ipAddress: ipAddress ?? null,
   });
 }
-
-/* ------------------------------------------------------------------ */
-/* Listing helpers                                                     */
-/* ------------------------------------------------------------------ */
 
 export async function listApplicantsForApplication(applicationId: string) {
   return db

@@ -63,7 +63,7 @@ export const agencies = pgTable(
     status: text("status").notNull().default("ACTIVE"), // ACTIVE | SUSPENDED
     /** Prepaid wallet. Never negative (enforced by CHECK). Server-authoritative. */
     balance: money("balance").notNull().default("0"),
-    currency: char("currency", { length: 3 }).notNull().default("EUR"),
+    currency: char("currency", { length: 3 }).notNull().default("DZD"),
     billingName: text("billing_name"),
     billingEmail: text("billing_email"),
     billingTaxId: text("billing_tax_id"),
@@ -167,7 +167,7 @@ export const visaTypes = pgTable(
     processingMinDays: integer("processing_min_days").notNull().default(5),
     processingMaxDays: integer("processing_max_days").notNull().default(15),
     fee: money("fee").notNull().default("0"),
-    currency: char("currency", { length: 3 }).notNull().default("EUR"),
+    currency: char("currency", { length: 3 }).notNull().default("DZD"),
     active: boolean("active").notNull().default(true),
     ...timestamps,
   },
@@ -427,6 +427,8 @@ export const walletTransactions = pgTable(
   "wallet_transactions",
   {
     id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    /** Human-readable reference e.g. WLT-2026-000123 — unique, immutable */
+    reference: text("reference").notNull().default(sql`generate_wallet_reference()`),
     agencyId: uuid("agency_id")
       .notNull()
       .references(() => agencies.id),
@@ -498,6 +500,40 @@ export const applicationStatusHistory = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("application_status_history_application_idx").on(t.applicationId, t.createdAt)],
+);
+
+/* ------------------------------------------------------------------ */
+/* Staff-requested document replacement / additional workflow           */
+/* ------------------------------------------------------------------ */
+
+export const documentRequests = pgTable(
+  "document_requests",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    applicationId: uuid("application_id")
+      .notNull()
+      .references(() => applications.id, { onDelete: "cascade" }),
+    checklistItemId: uuid("checklist_item_id").references(() => checklistItems.id, { onDelete: "set null" }),
+    documentTypeId: uuid("document_type_id")
+      .notNull()
+      .references(() => documentTypes.id),
+    /** REPLACEMENT | ADDITIONAL */
+    type: text("type").notNull(),
+    /** OPEN | FULFILLED | CANCELLED */
+    status: text("status").notNull().default("OPEN"),
+    reason: text("reason").notNull(),
+    requestedBy: uuid("requested_by").references(() => users.id, { onDelete: "set null" }),
+    fulfilledBy: uuid("fulfilled_by").references(() => users.id, { onDelete: "set null" }),
+    fulfilledDocumentId: uuid("fulfilled_document_id").references(() => documents.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    fulfilledAt: timestamp("fulfilled_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("document_requests_application_idx").on(t.applicationId, t.createdAt),
+    index("document_requests_status_idx").on(t.status),
+    index("document_requests_checklist_item_idx").on(t.checklistItemId),
+  ],
 );
 
 /* ------------------------------------------------------------------ */
@@ -758,6 +794,7 @@ export type Applicant = typeof applicants.$inferSelect;
 export type ChecklistItem = typeof checklistItems.$inferSelect;
 export type DocumentRow = typeof documents.$inferSelect;
 export type WalletTransaction = typeof walletTransactions.$inferSelect;
+export type DocumentRequest = typeof documentRequests.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type Communication = typeof communications.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;

@@ -93,7 +93,7 @@ export default async function PortalProfilePage({
                 { label: ct("Phone"), value: agency.phone ?? "—" },
                 { label: ct("Address"), value: [agency.addressLine, agency.city, agency.country].filter(Boolean).join(", ") || "—" },
                 { label: ct("Billing"), value: [agency.billingName, agency.billingEmail, agency.billingTaxId].filter(Boolean).join(" · ") || "—" },
-                { label: ct("Wallet currency"), value: agency.currency },
+                { label: ct("Wallet currency"), value: "DZD" },
                 { label: ct("Partner since"), value: formatDateTime(agency.createdAt) },
               ]}
             />
@@ -177,7 +177,7 @@ export default async function PortalProfilePage({
           <Card>
             <CardHeader title={ct("Wallet")} />
             <div className="px-4 py-4">
-              <p className="font-serif text-2xl text-navy-900 tabular-nums">{formatAmount(balance.balance, balance.currency)}</p>
+              <p className="font-serif text-2xl text-navy-900 tabular-nums">{formatAmount(balance.balance, "DZD")}</p>
               <p className="mt-1 text-xs text-slate-500">{ct("Prepaid balance available for application charges.")}</p>
             </div>
           </Card>

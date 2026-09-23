@@ -39,12 +39,12 @@ export default async function AdminBillingPage({
 
   return (
     <>
-      <PageHeader title={ct("Wallets & Billing")} subtitle={ct("Prepaid agency wallets. No online gateway — balances are funded manually and every movement is a ledger entry.")} />
+      <PageHeader title={ct("Wallets & Billing")} subtitle={ct("Prepaid agency wallets. No online gateway — balances are funded manually and every movement is a ledger entry. DZD only.")} />
       <Flash {...flash} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label={ct("Agencies")} value={agencies.length} href="/admin/agencies" />
-        <StatCard label={ct("Combined balances")} value={formatAmount(totalBalance.toFixed(2), "EUR")} tone="gold" />
+        <StatCard label={ct("Combined balances")} value={formatAmount(totalBalance.toFixed(2), "DZD", uiLocale)} tone="gold" />
         <StatCard label={ct("Ledger entries")} value={txs.total} />
         <StatCard label={ct("Unfiltered view")} value={agencyFilter ? ct("Filtered") : ct("All agencies")} />
       </div>
@@ -71,6 +71,7 @@ export default async function AdminBillingPage({
             <TableWrap>
               <thead className="border-b border-slate-100 bg-ivory-50/60">
                 <tr>
+                  <th className="th">{ct("Reference")}</th>
                   <th className="th">{ct("Date")}</th>
                   <th className="th">{ct("Agency")}</th>
                   <th className="th">{ct("Type")}</th>
@@ -83,6 +84,7 @@ export default async function AdminBillingPage({
               <tbody className="divide-y divide-slate-100">
                 {txs.rows.map(({ tx, agencyName, applicationReference }) => (
                   <tr key={tx.id} className="tr-hover">
+                    <td className="td whitespace-nowrap text-xs font-mono">{(tx as any).reference ?? tx.id.slice(0, 8)}</td>
                     <td className="td whitespace-nowrap text-xs">{formatDateTime(tx.createdAt)}</td>
                     <td className="td max-w-[160px] truncate">
                       <Link href={`/admin/agencies/${tx.agencyId}`} className="text-navy-800 hover:underline">
@@ -90,15 +92,15 @@ export default async function AdminBillingPage({
                       </Link>
                     </td>
                     <td className="td">
-                      <span className={`badge ${tx.type === "CREDIT" ? "bg-emerald-100 text-emerald-800" : tx.type === "DEBIT" ? "bg-red-100 text-red-700" : "bg-navy-900/5 text-navy-800"}`}>
+                      <span className={`badge ${tx.type === "CREDIT" || tx.type === "COMMERCIAL_DISCOUNT" ? "bg-emerald-100 text-emerald-800" : tx.type === "DEBIT" || tx.type === "COMMERCIAL_SURCHARGE" ? "bg-red-100 text-red-700" : "bg-navy-900/5 text-navy-800"}`}>
                         {tx.type.replaceAll("_", " ")}
                       </span>
                     </td>
-                    <td className={`td whitespace-nowrap font-medium tabular-nums ${tx.type === "CREDIT" ? "text-emerald-700" : "text-red-700"}`}>
-                      {tx.type === "CREDIT" ? "+" : "−"}{formatAmount(tx.amount, tx.currency)}
+                    <td className={`td whitespace-nowrap font-medium tabular-nums ${tx.type === "CREDIT" || tx.type === "COMMERCIAL_DISCOUNT" ? "text-emerald-700" : "text-red-700"}`}>
+                      {tx.type === "CREDIT" || tx.type === "COMMERCIAL_DISCOUNT" ? "+" : "−"}{formatAmount(tx.amount, "DZD", uiLocale)}
                     </td>
                     <td className="td whitespace-nowrap tabular-nums text-xs">
-                      {tx.balanceBefore} → {tx.balanceAfter} {tx.currency}
+                      {formatAmount(tx.balanceBefore, "DZD", uiLocale)} → {formatAmount(tx.balanceAfter, "DZD", uiLocale)}
                     </td>
                     <td className="td text-xs">
                       {tx.applicationId && applicationReference ? (
@@ -122,7 +124,7 @@ export default async function AdminBillingPage({
       {canAdjust ? (
         <div className="mt-8">
           <h2 className="mb-3 font-serif text-xl text-navy-900">{ct("Manual wallet adjustment")}</h2>
-          <form action={adjustWalletAction} className="card grid grid-cols-1 gap-4 p-5 sm:grid-cols-4">
+          <form action={adjustWalletAction} className="card grid grid-cols-1 gap-4 p-5 sm:grid-cols-5">
             <input type="hidden" name="back" value="/admin/billing" />
             <div>
               <label className="label" htmlFor="agencyId">{ct("Agency")} *</label>
@@ -135,12 +137,19 @@ export default async function AdminBillingPage({
               </select>
             </div>
             <div>
-              <label className="label" htmlFor="amount">{ct("Amount (negative to debit)")} *</label>
-              <input id="amount" name="amount" type="number" step="0.01" required className="input" />
+              <label className="label" htmlFor="operation">{ct("Operation")} *</label>
+              <select id="operation" name="operation" required className="input" defaultValue="CREDIT">
+                <option value="CREDIT">{ct("Credit wallet")}</option>
+                <option value="DEBIT">{ct("Debit wallet")}</option>
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="amount">{ct("Amount (DZD)")} *</label>
+              <input id="amount" name="amount" type="number" step="0.01" min="0.01" required className="input" placeholder="50000" />
             </div>
             <div>
               <label className="label" htmlFor="reason">{ct("Reason (mandatory)")} *</label>
-              <input id="reason" name="reason" required minLength={5} className="input" />
+              <input id="reason" name="reason" required minLength={5} className="input" placeholder={ct("Bank transfer #1234, refund…")} />
             </div>
             <div className="flex items-end">
               <SubmitButton className="btn-primary" pendingLabel={ct("Adjusting…")}>{ct("Apply adjustment")}</SubmitButton>

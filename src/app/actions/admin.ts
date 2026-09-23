@@ -188,21 +188,46 @@ export async function createUserAction(formData: FormData): Promise<void> {
     }
     const data = createUserSchema.parse(Object.fromEntries(formData));
     // Phase 2.2 §9 — an AGENCY_ADMIN may ONLY create AGENCY_USER accounts
-    // (crafted payloads requesting AGENCY_ADMIN or staff roles are rejected).
     if (isAgencyAdmin && data.role !== "AGENCY_USER") {
       throw new AppError("FORBIDDEN", "Agency administrators can only create AGENCY_USER accounts.");
     }
 
+    // Prevent privilege escalation for staff role creation
+    if (!isAgencyRole(data.role)) {
+      // Staff role creation — only SUPER_ADMIN and ADMIN may create staff users
+      if (isAgencyAdmin) throw new AppError("FORBIDDEN", "You cannot create staff accounts.");
+      if (!["SUPER_ADMIN", "ADMIN"].includes(staff.role)) {
+        throw new AppError("FORBIDDEN", "Only SUPER_ADMIN or ADMIN can create staff accounts.");
+      }
+      // Only SUPER_ADMIN can create SUPER_ADMIN
+      if (data.role === "SUPER_ADMIN" && staff.role !== "SUPER_ADMIN") {
+        throw new AppError("FORBIDDEN", "Only SUPER_ADMIN can create a SUPER_ADMIN account.");
+      }
+    }
+
     let agencyId: string | null = null;
     if (isAgencyRole(data.role)) {
-      agencyId = staff.agencyId; // agency admins can only create users in their own agency
-      if (!agencyId) throw new AppError("FORBIDDEN", "No agency bound to your account.");
-    } else {
-      if (isAgencyAdmin) throw new AppError("FORBIDDEN", "You cannot create staff accounts.");
-      agencyId = formData.get("agencyId") ? String(formData.get("agencyId")) : null;
-      if (isAgencyRole(data.role) && !agencyId) {
-        throw new AppError("VALIDATION", "Agency users must be assigned to an agency.");
+      if (isAgencyAdmin) {
+        // Agency admins create users only in their own agency
+        agencyId = staff.agencyId;
+        if (!agencyId) throw new AppError("FORBIDDEN", "No agency bound to your account.");
+      } else {
+        // Staff creating agency user — agencyId must come from form, not from staff.agencyId
+        const rawAgencyId = formData.get("agencyId") ? String(formData.get("agencyId")).trim() : "";
+        if (!rawAgencyId) {
+          throw new AppError("VALIDATION", "Agency users must be assigned to an agency.");
+        }
+        // Validate UUID format
+        try {
+          idSchema.parse(rawAgencyId);
+        } catch {
+          throw new AppError("VALIDATION", "Invalid agency identifier.");
+        }
+        agencyId = rawAgencyId;
       }
+    } else {
+      // Staff role — no agency
+      agencyId = null;
     }
 
     const dup = await db.select({ id: users.id }).from(users).where(sql`lower(${users.email}) = lower(${data.email})`).limit(1);
@@ -287,12 +312,14 @@ export async function adjustWalletAction(formData: FormData): Promise<void> {
     if (!WALLET_MANAGE_ROLES.includes(staff.role)) {
       throw new AppError("FORBIDDEN", "Only SUPER_ADMIN, ADMIN or ACCOUNTING can adjust wallets.");
     }
-    const amount = z.coerce.number().refine((v) => v !== 0, "Amount cannot be zero.").parse(formData.get("amount"));
+    // DZD-only explicit operation model
+    const operation = z.enum(["CREDIT", "DEBIT"]).parse(formData.get("operation") ?? formData.get("type") ?? "CREDIT");
+    const amount = z.coerce.number().positive("Amount must be positive.").max(10000000).parse(formData.get("amount"));
     const reason = z.string().trim().min(5, "A reason (min 5 characters) is mandatory.").max(500).parse(formData.get("reason"));
-    await adjustWallet({ agencyId, amount, reason, actor: staff });
+    await adjustWallet({ agencyId, amount, reason, actor: staff, operation });
     revalidatePath(back);
     revalidatePath("/admin/billing");
-    return `Wallet ${amount > 0 ? "credited" : "debited"} by ${Math.abs(amount).toFixed(2)}.`;
+    return `Wallet ${operation === "CREDIT" ? "credited" : "debited"} by ${amount.toFixed(2)} DZD.`;
   });
 }
 

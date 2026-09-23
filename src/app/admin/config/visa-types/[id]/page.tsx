@@ -178,7 +178,7 @@ export default async function VisaTypeDetailPage({
             <KeyValue
               items={[
                 { label: "Code", value: vt.code },
-                { label: "Fee", value: formatAmount(vt.fee, vt.currency) },
+                { label: "Fee", value: formatAmount(vt.fee, "DZD") },
                 { label: "Processing", value: formatProcessingDays(vt.processingMinDays, vt.processingMaxDays) },
                 { label: "Description", value: vt.description ?? "—" },
               ]}
@@ -195,15 +195,10 @@ export default async function VisaTypeDetailPage({
                   <label className="label" htmlFor="e-name">Name *</label>
                   <input id="e-name" name="name" required defaultValue={vt.name} className="input" />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="label" htmlFor="e-fee">Fee *</label>
-                    <input id="e-fee" name="fee" type="number" step="0.01" min="0" required defaultValue={vt.fee} className="input" />
-                  </div>
-                  <div>
-                    <label className="label" htmlFor="e-currency">Currency *</label>
-                    <input id="e-currency" name="currency" required maxLength={3} defaultValue={vt.currency} className="input uppercase" />
-                  </div>
+                <div>
+                  <label className="label" htmlFor="e-fee">Fee (DZD) *</label>
+                  <input id="e-fee" name="fee" type="number" step="0.01" min="0" required defaultValue={vt.fee} className="input" />
+                  <input name="currency" value="DZD" type="hidden" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>

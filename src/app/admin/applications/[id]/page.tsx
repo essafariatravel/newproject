@@ -1,7 +1,5 @@
-import { formatProcessingDays } from "@/lib/format";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { applicants as applicantsTb } from "@/db/schema";
 import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
 import { getApplicationDetail } from "@/lib/queries";
@@ -10,34 +8,32 @@ import {
   decisionOutcomesForStatus,
   getChecklist,
   getDecisionDocuments,
-  getStatusByCode,
   getStatusHistory,
 } from "@/lib/applications";
 import { listApplicantsForApplication, listDocumentsForApplication } from "@/lib/documents";
+import { listDocumentRequests } from "@/lib/document-requests";
 import { findTransactionByApplication } from "@/lib/wallet";
 import { listCommunications } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
 import { getUiLocale, localizedStatusName, localizedDocTypeName } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
-import { formatDate, formatDateTime, personName } from "@/lib/format";
+import { formatAmount, formatDate, formatDateTime } from "@/lib/format";
+import { nationalityLabel } from "@/lib/nationalities";
 import { OVERRIDE_ROLES, type AuthUser } from "@/lib/types";
 import { staffDirectory } from "@/app/actions/communications";
 import {
   assignOfficerAction,
   changeStatusAction,
   recordDecisionAction,
-  submissionGateFor,
   updateInternalNotesAction,
 } from "@/app/actions/applications";
+import { requestAdditionalDocumentAction, requestReplacementAction } from "@/app/actions/documents";
 import { SubmitButton } from "@/components/forms";
-import { Card, CardHeader, Flash, KeyValue, PageHeader, Tabs,  } from "@/components/ui";
+import { Card, CardHeader, Flash, PageHeader, Tabs } from "@/components/ui";
 import { PriorityBadge, StatusBadge } from "@/components/badges";
 import {
   ActivityTimeline,
-  BillingSummary,
-  ChecklistTable,
   CommunicationsPanel,
-  DocumentList,
   PriceAdjustmentHistory,
 } from "@/components/application-detail";
 import { getApplicationPricing } from "@/lib/price-adjustments";
@@ -46,10 +42,8 @@ import { applyPriceAdjustmentAction } from "@/app/actions/pricing";
 export const dynamic = "force-dynamic";
 
 const TABS = [
-  { id: "overview", label: "Overview" },
-  { id: "applicants", label: "Applicants" },
+  { id: "overview", label: "Dossier" },
   { id: "documents", label: "Documents" },
-  { id: "checklist", label: "Checklist" },
   { id: "billing", label: "Billing" },
   { id: "communications", label: "Communications" },
   { id: "activity", label: "Activity" },
@@ -71,12 +65,10 @@ export default async function AdminApplicationDetailPage({
   const app = detail.app;
 
   const canAdjustPrice = hasPermission(user, "applications.pricing.adjust");
-  // A fresh key per render: retrying the SAME rendered form replays safely;
-  // a NEW action must use a new key (double-submit protection).
   const idempotencyKey = `adj-${id}-${Math.random().toString(36).slice(2, 14)}`;
 
   const back = `/admin/applications/${id}`;
-  const [applicants, docs, checklist, history, messages, charge, gate, nextStatuses, draftStatus, officers, decisionDocs, pricing] =
+  const [applicants, docs, checklist, history, messages, charge, nextStatuses, officers, decisionDocs, pricing, docRequests] =
     await Promise.all([
       listApplicantsForApplication(id),
       listDocumentsForApplication(id),
@@ -84,167 +76,131 @@ export default async function AdminApplicationDetailPage({
       getStatusHistory(id),
       listCommunications(id, user),
       findTransactionByApplication(id),
-      submissionGateFor(id),
       allowedNextStatuses(app.statusId, user.role),
-      getStatusByCode("DRAFT"),
       hasPermission(user, "applications.assign") ? staffDirectory() : Promise.resolve([]),
       getDecisionDocuments(id),
       getApplicationPricing(id),
+      listDocumentRequests(id),
     ]);
-  // PHASE 2.1: final outcomes are never offered as bare status changes —
-  // they require the decision-document workflow below.
+
   const selectableStatuses = nextStatuses.filter((s) => !["APPROVED", "REJECTED"].includes(s.status.code));
   const allowedDecisionOutcomes = decisionOutcomesForStatus(detail.statusCode);
-  const isDraft = app.statusId === draftStatus.id;
   const canStatusChange = hasPermission(user, "applications.status.change");
   const canReview = hasPermission(user, "applications.review");
   const canOverride = hasPermission(user, "applications.submit.override") && OVERRIDE_ROLES.includes(user.role);
   const flash = flashFrom(sp);
   const uiLocale = await getUiLocale();
   const ct = contentT(uiLocale);
+  const applicant = applicants[0];
+  const openRequests = docRequests.filter((r) => r.req.status === "OPEN");
 
   return (
     <>
       <PageHeader
         title={app.reference}
-        subtitle={`${app.countryName} · ${app.categoryName} · ${app.visaTypeName} — ${detail.agencyName ?? ""}`}
+        subtitle={`${app.countryName} · ${app.visaTypeName} — ${detail.agencyName ?? ""}`}
         actions={
           <>
             <StatusBadge code={detail.statusCode} name={detail.statusName} />
             <PriorityBadge name={detail.priorityName} weight={detail.priorityWeight} />
-            <Link href="/admin/applications" className="btn-secondary btn-sm">
-              ← All applications
-            </Link>
+            <Link href="/admin/applications" className="btn-secondary btn-sm">← All applications</Link>
           </>
         }
       />
       <Flash {...flash} />
-
-      <Tabs tabs={TABS.map((t) => ({ ...t, href: `${back}?tab=${t.id}` }))} current={tab} />
+      <Tabs tabs={TABS.map((t) => ({ ...t, label: ct(t.label), href: `${back}?tab=${t.id}` }))} current={tab} />
 
       {tab === "overview" ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <div className="space-y-4 xl:col-span-2">
             <Card>
-              <CardHeader title="Application" />
-              <KeyValue
-                items={[
-                  { label: "Reference", value: app.reference },
-                  { label: "Agency", value: detail.agencyName },
-                  { label: "Country", value: app.countryName },
-                  { label: "Visa type", value: `${app.visaTypeName} (${app.visaTypeCode})` },
-                  { label: "Category", value: app.categoryName },
-                  { label: "Fee (snapshot)", value: `${app.fee} ${app.currency}` },
-                  { label: "Processing time", value: formatProcessingDays(app.processingMinDays, app.processingMaxDays) },
-                  { label: "Created", value: formatDateTime(app.createdAt) },
-                  { label: "Submitted", value: formatDateTime(app.submittedAt) },
-                  { label: "Applicants", value: String(applicants.length) },
-                  {
-                    label: "Documents",
-                    value: `${docs.length} uploaded · ${gate.missing.length} required missing`,
-                  },
-                  {
-                    label: "Gate",
-                    value: gate.ok ? (
-                      <span className="text-emerald-700">{ct("Ready (all required documents present)")}</span>
-                    ) : (
-                      <span className="text-amber-700">Blocked — missing: {gate.missing.join(", ")}</span>
-                    ),
-                  },
-                ]}
-              />
+              <CardHeader title={ct("Dossier")} />
+              <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 text-sm">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Applicant")}</p>
+                  <p className="mt-1 font-semibold text-navy-900">{applicant?.fullName || `${applicant?.firstName ?? ""} ${applicant?.lastName ?? ""}`.trim() || "—"}</p>
+                  <p className="text-xs text-slate-500">{ct("Nationality")}: {applicant ? nationalityLabel(applicant.nationality, uiLocale) : "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Agency")}</p>
+                  <p className="mt-1 font-medium text-navy-900">{detail.agencyName}</p>
+                  <p className="text-xs text-slate-500">{app.reference} · {formatDateTime(app.submittedAt)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Destination")}</p>
+                  <p className="mt-1 font-medium text-navy-900">{app.countryName}</p>
+                  <p className="text-xs text-slate-500">{app.visaTypeName} · {app.categoryName}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Fee")}</p>
+                  <p className="mt-1 font-semibold tabular-nums">{formatAmount(app.fee, "DZD", uiLocale)}</p>
+                  <p className="text-xs text-slate-500">{ct("Processing time")}: {app.processingMinDays}–{app.processingMaxDays} {ct("days")}</p>
+                </div>
+              </div>
             </Card>
 
             {canStatusChange ? (
               <Card>
-                <CardHeader title={ct("Workflow")} subtitle={ct("Status changes are validated, logged and notify the agency.")} />
+                <CardHeader title={ct("Workflow")} subtitle={ct("Direct transition IN_PROCESS → APPROVED/REJECTED via decision only. Routine transitions validated.")} />
                 <form action={changeStatusAction} className="flex flex-wrap items-end gap-3 px-4 py-4">
                   <input type="hidden" name="applicationId" value={id} />
                   <input type="hidden" name="back" value={back} />
                   <div>
-                    <label className="label" htmlFor="toStatus">{ct("Change status to")}</label>
-                    <select id="toStatus" name="toStatusCode" className="input w-56" required>
+                    <label className="label">{ct("Change status to")}</label>
+                    <select name="toStatusCode" className="input w-56" required>
                       {selectableStatuses.length === 0 ? <option value="">{ct("No routine transitions available")}</option> : null}
                       {selectableStatuses.map((s) => (
-                        <option key={s.status.id} value={s.status.code}>
-                          {s.status.name}
-                        </option>
+                        <option key={s.status.id} value={s.status.code}>{s.status.name}</option>
                       ))}
                     </select>
                   </div>
                   <div className="min-w-[220px] flex-1">
-                    <label className="label" htmlFor="reason">{ct("Reason (recommended)")}</label>
-                    <input id="reason" name="reason" className="input" placeholder={ct("Why is the status changing?")} />
+                    <label className="label">{ct("Reason (recommended)")}</label>
+                    <input name="reason" className="input" placeholder={ct("Why is the status changing?")} />
                   </div>
-                  <SubmitButton className="btn-primary" pendingLabel="Updating…">
-                    {ct("Update status")}
-                  </SubmitButton>
-                </form>
-              </Card>
-            ) : null}
-
-            {isDraft && gate.missing.length > 0 && canOverride ? (
-              <Card className="border-amber-300">
-                <CardHeader title={ct("Submission gate override")} subtitle={ct("The agency cannot submit while documents are missing. Staff may override with a mandatory reason.")} />
-                <form action={submitWithOverrideAdminAction} className="flex flex-wrap items-end gap-3 px-4 py-4">
-                  <input type="hidden" name="applicationId" value={id} />
-                  <input type="hidden" name="back" value={back} />
-                  <div className="min-w-[260px] flex-1">
-                    <label className="label" htmlFor="overrideReason">{ct("Override reason (mandatory, min 10 chars)")}</label>
-                    <input id="overrideReason" name="overrideReason" className="input" minLength={10} required placeholder={ct("Why is this file allowed through without all documents?")} />
-                  </div>
-                  <SubmitButton className="btn-gold" pendingLabel="Submitting…">{ct("Submit with override")}</SubmitButton>
+                  <SubmitButton className="btn-primary" pendingLabel="Updating…">{ct("Update status")}</SubmitButton>
                 </form>
               </Card>
             ) : null}
 
             {canReview ? (
               <Card className="border-navy-200">
-                <CardHeader
-                  title={ct("Final decision")}
-                  subtitle={ct("Upload the embassy outcome and record it atomically: accepted document + status change + agency notification. This is the only path to approved/refused/rejected.")}
-                />
+                <CardHeader title={ct("Final decision")} subtitle={ct("Upload embassy outcome and record atomically — the only path to APPROVED/REJECTED.")} />
                 {decisionDocs.length > 0 ? (
                   <ul className="space-y-2 px-4 py-3 text-sm">
                     {decisionDocs.map((d) => (
                       <li key={d.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-ivory-50/60 px-3 py-2">
                         <div>
                           <p className="font-medium text-navy-900">{localizedDocTypeName(d.typeCode, d.typeName, uiLocale)}</p>
-                          <p className="text-xs text-slate-500">
-                            {formatDateTime(d.createdAt)} · <span className="badge bg-emerald-100 text-emerald-800">{d.status}</span>
-                          </p>
+                          <p className="text-xs text-slate-500">{formatDateTime(d.createdAt)} · {d.status}</p>
                         </div>
-                        <a href={`/api/documents/${d.id}`} className="btn-secondary btn-sm">{ct("Download PDF/document")}</a>
+                        <a href={`/api/documents/${d.id}`} className="btn-secondary btn-sm">{ct("Download")}</a>
                       </li>
                     ))}
                   </ul>
                 ) : (
                   <p className="px-4 pt-1 text-xs text-slate-500">{ct("No decision document recorded yet.")}</p>
                 )}
-                {canReview && allowedDecisionOutcomes.length > 0 ? (
-                  <form action={recordDecisionAction} className="flex flex-wrap items-end gap-3 px-4 py-4">
+                {allowedDecisionOutcomes.length > 0 ? (
+                  <form action={recordDecisionAction} encType="multipart/form-data" className="flex flex-wrap items-end gap-3 px-4 py-4">
                     <input type="hidden" name="applicationId" value={id} />
                     <input type="hidden" name="back" value={back} />
                     <div>
-                      <label className="label" htmlFor="outcome">{ct("Outcome")}</label>
-                      <select id="outcome" name="outcome" className="input w-44" required>
+                      <label className="label">{ct("Outcome")}</label>
+                      <select name="outcome" className="input w-44" required>
                         {allowedDecisionOutcomes.map((o) => (
                           <option key={o} value={o}>{localizedStatusName(o, o, uiLocale)}</option>
                         ))}
                       </select>
                     </div>
                     <div className="min-w-[260px] flex-1">
-                      <label className="label" htmlFor="decision-file">{ct("Decision document (PDF/JPG/PNG, mandatory)")}</label>
-                      <input id="decision-file" name="file" type="file" accept="application/pdf,image/jpeg,image/png" required className="input" />
+                      <label className="label">{ct("Decision document (PDF/JPG/PNG, mandatory)")}</label>
+                      <input name="file" type="file" accept="application/pdf,image/jpeg,image/png" required className="input" />
                     </div>
-                    <SubmitButton className="btn-primary" pendingLabel="Recording decision…">{ct("Record decision")}</SubmitButton>
+                    <SubmitButton className="btn-primary" pendingLabel="Recording…">{ct("Record decision")}</SubmitButton>
                   </form>
                 ) : (
-                  <p className="px-4 pb-4 text-xs text-slate-500">
-                    {["APPROVED", "REJECTED", "COMPLETED", "CANCELLED"].includes(detail.statusCode)
-                      ? ct("The file is closed — no further decision can be recorded.")
-                      : ct("Decisions unlock once the file is in Processing / Awaiting Decision. Approvals are double-gated: move the file to Awaiting Decision first.")}
-                  </p>
+                  <p className="px-4 pb-4 text-xs text-slate-500">{["APPROVED","REJECTED","COMPLETED","CANCELLED"].includes(detail.statusCode) ? ct("File closed.") : ct("Decisions unlock in Processing / Awaiting Decision.")}</p>
                 )}
               </Card>
             ) : null}
@@ -256,9 +212,7 @@ export default async function AdminApplicationDetailPage({
                   <input type="hidden" name="applicationId" value={id} />
                   <input type="hidden" name="back" value={back} />
                   <textarea name="internalNotes" rows={3} defaultValue={app.internalNotes ?? ""} className="input" placeholder={ct("Case-officer notes…")} />
-                  <div className="mt-2.5">
-                    <SubmitButton className="btn-secondary btn-sm" pendingLabel="Saving…">{ct("Save notes")}</SubmitButton>
-                  </div>
+                  <div className="mt-2.5"><SubmitButton className="btn-secondary btn-sm" pendingLabel="Saving…">{ct("Save notes")}</SubmitButton></div>
                 </form>
               </Card>
             ) : null}
@@ -267,18 +221,16 @@ export default async function AdminApplicationDetailPage({
           <div className="space-y-4">
             {hasPermission(user, "applications.assign") ? (
               <Card>
-                <CardHeader title="Case officer" />
+                <CardHeader title={ct("Case officer")} />
                 <form action={assignOfficerAction} className="flex items-end gap-2 px-4 py-4">
                   <input type="hidden" name="applicationId" value={id} />
                   <input type="hidden" name="back" value={back} />
                   <div className="flex-1">
-                    <label className="label" htmlFor="assignedTo">Assigned to</label>
-                    <select id="assignedTo" name="assignedTo" defaultValue={app.assignedTo ?? ""} className="input">
-                      <option value="">Unassigned</option>
+                    <label className="label">{ct("Assigned to")}</label>
+                    <select name="assignedTo" defaultValue={app.assignedTo ?? ""} className="input">
+                      <option value="">{ct("Unassigned")}</option>
                       {officers.map((o) => (
-                        <option key={o.id} value={o.id}>
-                          {o.name} ({o.role.replaceAll("_", " ")})
-                        </option>
+                        <option key={o.id} value={o.id}>{o.name} ({o.role.replaceAll("_"," ")})</option>
                       ))}
                     </select>
                   </div>
@@ -286,138 +238,172 @@ export default async function AdminApplicationDetailPage({
                 </form>
               </Card>
             ) : null}
-            <BillingSummary application={app} charge={charge} />
+
+            <Card>
+              <CardHeader title={ct("Billing")} />
+              <div className="p-4 text-sm space-y-2">
+                <div className="flex justify-between"><span className="text-slate-500">{ct("Fee")}</span><span className="font-medium tabular-nums">{formatAmount(app.fee, "DZD", uiLocale)}</span></div>
+                {charge ? (
+                  <>
+                    <div className="flex justify-between"><span className="text-slate-500">{ct("Charged")}</span><span className="tabular-nums">{formatAmount(charge.amount, "DZD", uiLocale)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">{ct("Balance after")}</span><span className="tabular-nums">{formatAmount(charge.balanceAfter, "DZD", uiLocale)}</span></div>
+                  </>
+                ) : null}
+                {app.overrideReason ? <p className="text-xs text-amber-700">Override: {app.overrideReason}</p> : null}
+              </div>
+            </Card>
+
+            {pricing ? <PriceAdjustmentHistory pricing={pricing} locale={uiLocale} /> : null}
+
+            {canAdjustPrice && pricing?.submittedPrice ? (
+              <Card>
+                <CardHeader title={ct("Adjust price")} subtitle={ct("Immutable adjustment + compensating wallet entry")} />
+                <form action={applyPriceAdjustmentAction} className="grid grid-cols-1 gap-3 p-4">
+                  <input type="hidden" name="applicationId" value={id} />
+                  <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+                  <div>
+                    <label className="label">{ct("Type")} *</label>
+                    <select name="type" required className="input" defaultValue="DISCOUNT">
+                      <option value="DISCOUNT">{ct("Discount")}</option>
+                      <option value="REFUND">{ct("Refund")}</option>
+                      <option value="SURCHARGE">{ct("Surcharge")}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">{ct("Amount (DZD)")} *</label>
+                    <input name="amount" required inputMode="decimal" className="input" placeholder="2000.00" />
+                  </div>
+                  <div>
+                    <label className="label">{ct("Reason")} *</label>
+                    <input name="reason" required minLength={8} className="input" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input name="confirm" type="checkbox" required className="h-4 w-4 rounded border-slate-300" />
+                    <label className="text-xs text-slate-700">{ct("I confirm this commercial adjustment")}</label>
+                  </div>
+                  <SubmitButton className="btn-primary btn-sm" pendingLabel="Applying…">{ct("Apply adjustment")}</SubmitButton>
+                </form>
+              </Card>
+            ) : null}
           </div>
         </div>
       ) : null}
 
-      {tab === "applicants" ? <ApplicantsTab applicants={applicants} ct={ct} /> : null}
-
       {tab === "documents" ? (
-        <DocumentList documents={docs} user={user} applicationId={id} isDraft={isDraft} />
-      ) : null}
-
-      {tab === "checklist" ? (
-        <ChecklistTable
-          items={checklist}
-          documents={docs}
-          applicationId={id}
-          user={user}
-          applicants={applicants}
-          back={back}
-        />
-      ) : null}
-
-      {tab === "billing" ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <BillingSummary application={app} charge={charge} />
-          {pricing ? <PriceAdjustmentHistory pricing={pricing} /> : null}
-          {canAdjustPrice && pricing && pricing.submittedPrice ? (
-            <div className="lg:col-span-2">
-              <Card>
-                <CardHeader
-                  title="Adjust price / Apply discount"
-                  subtitle="Creates an immutable adjustment row and a compensating wallet entry — the original charge is never modified. Multiple adjustments are preserved."
-                />
-                <form action={applyPriceAdjustmentAction} className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
-                  <input type="hidden" name="applicationId" value={id} />
-                  <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
-                  <div>
-                    <label className="label" htmlFor="adj-type">Type *</label>
-                    <select id="adj-type" name="type" required className="input" defaultValue="DISCOUNT">
-                      <option value="DISCOUNT">Commercial discount</option>
-                      <option value="REFUND">Refund (partial / full)</option>
-                      <option value="SURCHARGE">Surcharge</option>
-                    </select>
+        <div className="space-y-4">
+          <Card>
+            <CardHeader title={ct("Documents")} subtitle={`${docs.length} ${ct("uploaded")} · ${checklist.length} ${ct("requirements")}`} />
+            <div className="divide-y divide-slate-100">
+              {checklist.map((item) => {
+                const itemDocs = docs.filter((d) => d.doc.checklistItemId === item.id).sort((a,b) => b.doc.version - a.doc.version);
+                const latest = itemDocs[0];
+                return (
+                  <div key={item.id} className="px-4 py-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-navy-900">{item.documentTypeName} {item.required ? <span className="badge bg-rose-50 text-rose-600 text-[10px]">Required</span> : null}</p>
+                        {item.notes ? <p className="mt-0.5 text-xs text-slate-500">{item.notes}</p> : null}
+                      </div>
+                      {latest ? <span className="badge bg-emerald-50 text-emerald-700">Uploaded</span> : <span className="badge bg-amber-50 text-amber-700">Missing</span>}
+                    </div>
+                    {itemDocs.length > 0 ? (
+                      <ul className="mt-3 space-y-1.5">
+                        {itemDocs.map(({ doc, applicantName }) => (
+                          <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ivory-50 px-3 py-2 text-xs">
+                            <span className="flex items-center gap-2 min-w-0">
+                              <a href={`/api/documents/${doc.id}`} target="_blank" className="font-medium truncate hover:underline">{doc.originalFilename}</a>
+                              <span className="text-slate-400">v{doc.version} · {doc.status} · {formatDateTime(doc.createdAt)}</span>
+                              {applicantName ? <span className="text-slate-500">· {applicantName}</span> : null}
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                              <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-xs">Preview</a>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    <form action={requestReplacementAction} className="mt-3 flex flex-wrap items-end gap-2">
+                      <input type="hidden" name="applicationId" value={id} />
+                      <input type="hidden" name="checklistItemId" value={item.id} />
+                      <input type="hidden" name="back" value={`${back}?tab=documents`} />
+                      <div className="flex-1 min-w-[180px]">
+                        <input name="reason" required minLength={5} placeholder={ct("Reason to request replacement")} className="input text-xs" />
+                      </div>
+                      <SubmitButton className="btn-secondary btn-xs" pendingLabel="…">{ct("Request replacement")}</SubmitButton>
+                    </form>
                   </div>
-                  <div>
-                    <label className="label" htmlFor="adj-amount">Amount ({pricing.submittedCurrency}) *</label>
-                    <input id="adj-amount" name="amount" required inputMode="decimal" pattern="\d+(\.\d{1,2})?" className="input" placeholder="2000.00" />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="label" htmlFor="adj-reason">Reason * (min 8 chars)</label>
-                    <input id="adj-reason" name="reason" required minLength={8} className="input" placeholder="Loyalty discount agreed with the client" />
-                  </div>
-                  <div className="sm:col-span-2 lg:col-span-3 flex items-center gap-2">
-                    <input id="adj-confirm" name="confirm" type="checkbox" required className="h-4 w-4 rounded border-slate-300 text-iris-600" />
-                    <label htmlFor="adj-confirm" className="text-sm text-slate-700">
-                      I confirm this commercial adjustment — original price {pricing.submittedPrice} {pricing.submittedCurrency} → new effective price is computed server-side and written to the wallet immediately.
-                    </label>
-                  </div>
-                  <div className="flex items-end">
-                    <SubmitButton className="btn-primary" pendingLabel="Applying…">Apply adjustment</SubmitButton>
-                  </div>
-                </form>
-              </Card>
+                );
+              })}
             </div>
-          ) : null}
-          {app.overrideReason ? (
+          </Card>
+
+          <Card>
+            <CardHeader title={ct("Request additional document")} subtitle={ct("Creates an extra requirement and notifies agency")} />
+            <form action={requestAdditionalDocumentAction} className="flex flex-wrap items-end gap-3 p-4">
+              <input type="hidden" name="applicationId" value={id} />
+              <input type="hidden" name="back" value={`${back}?tab=documents`} />
+              <div className="min-w-[200px] flex-1">
+                <label className="label">{ct("Document type")} *</label>
+                <select name="documentTypeId" required className="input">
+                  <option value="">{ct("Select type")}</option>
+                  {checklist.filter((c) => c.documentTypeId).map((c) => (
+                    <option key={c.documentTypeId!} value={c.documentTypeId!}>{c.documentTypeName}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="min-w-[240px] flex-1">
+                <label className="label">{ct("Reason")} *</label>
+                <input name="reason" required minLength={5} className="input" placeholder={ct("Embassy requested additional…")} />
+              </div>
+              <SubmitButton className="btn-primary btn-sm" pendingLabel="Requesting…">{ct("Request additional")}</SubmitButton>
+            </form>
+          </Card>
+
+          {docRequests.length > 0 ? (
             <Card>
-              <CardHeader title="Submission override" />
-              <p className="px-4 py-4 text-sm text-slate-700">
-                This file was submitted by staff override. Reason: “{app.overrideReason}”
-              </p>
+              <CardHeader title={ct("Document requests history")} />
+              <div className="divide-y divide-slate-100 text-xs">
+                {docRequests.map((r) => (
+                  <div key={r.req.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
+                    <span><span className={`badge ${r.req.status === "OPEN" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>{r.req.status}</span> {r.req.type} · {r.docTypeName}</span>
+                    <span className="text-slate-500">{r.req.reason} · {formatDateTime(r.req.createdAt)}</span>
+                  </div>
+                ))}
+              </div>
             </Card>
           ) : null}
         </div>
       ) : null}
 
-      {tab === "communications" ? (
-        <CommunicationsPanel applicationId={id} messages={messages} user={user} back={`${back}?tab=communications`} />
+      {tab === "billing" ? (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader title={ct("Billing")} />
+            <div className="p-4 text-sm space-y-2">
+              <div className="flex justify-between"><span className="text-slate-500">{ct("Fee")}</span><span className="font-medium tabular-nums">{formatAmount(app.fee, "DZD", uiLocale)}</span></div>
+              {charge ? (
+                <>
+                  <div className="flex justify-between"><span className="text-slate-500">{ct("Amount")}</span><span>{formatAmount(charge.amount, "DZD", uiLocale)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">{ct("Balance before")}</span><span>{formatAmount(charge.balanceBefore, "DZD", uiLocale)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">{ct("Balance after")}</span><span>{formatAmount(charge.balanceAfter, "DZD", uiLocale)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">{ct("Reference")}</span><span className="font-mono text-xs">{(charge as any).reference ?? charge.id.slice(0,8)}</span></div>
+                </>
+              ) : <p className="text-xs text-slate-500">{ct("No charge recorded")}</p>}
+            </div>
+          </Card>
+          {pricing ? <PriceAdjustmentHistory pricing={pricing} locale={uiLocale} /> : null}
+        </div>
       ) : null}
 
-      {tab === "activity" ? <ActivityTimeline history={history} /> : null}
+      {tab === "communications" ? (
+        <CommunicationsPanel applicationId={id} messages={messages} user={user} back={`${back}?tab=communications`} locale={uiLocale} />
+      ) : null}
+
+      {tab === "activity" ? (
+        <div className="space-y-4">
+          <ActivityTimeline history={history} locale={uiLocale} />
+        </div>
+      ) : null}
     </>
   );
-}
-
-function ApplicantsTab({ applicants, ct }: { applicants: Array<typeof applicantsTb.$inferSelect>; ct: (k: string) => string }) {
-  if (applicants.length === 0) {
-    return (
-      <Card>
-        <p className="px-4 py-10 text-center text-sm text-slate-500">{ct("No applicants on this application yet.")}</p>
-      </Card>
-    );
-  }
-  return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      {applicants.map((a) => (
-        <Card key={a.id}>
-          <CardHeader title={personName(a)} subtitle={`Passport ${a.passportNumber}`} />
-          <KeyValue
-            items={[
-              { label: "Date of birth", value: formatDate(a.dateOfBirth) },
-              { label: "Gender", value: a.gender ?? "—" },
-              { label: "Nationality", value: a.nationality },
-              { label: "Passport expiry", value: formatDate(a.passportExpiryDate) },
-              { label: "Email", value: a.email ?? "—" },
-              { label: "Phone", value: a.phone ?? "—" },
-            ]}
-          />
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-/* Staff-side override submit (wraps the shared submission service). */
-import { submitApplication } from "@/lib/applications";
-import { runAction } from "@/lib/action-helpers";
-import { revalidatePath } from "next/cache";
-
-async function submitWithOverrideAdminAction(formData: FormData): Promise<void> {
-  "use server";
-  const applicationId = String(formData.get("applicationId"));
-  const back = String(formData.get("back") ?? `/admin/applications/${applicationId}`);
-  await runAction(back, async () => {
-    const user: AuthUser = await pageUser();
-    const result = await submitApplication({
-      applicationId,
-      actor: user,
-      overrideReason: String(formData.get("overrideReason") ?? ""),
-    });
-    revalidatePath(back);
-    revalidatePath("/admin");
-    return `Application ${result.reference} submitted with override. Wallet charged — new balance ${result.charge.balanceAfter}.`;
-  });
 }

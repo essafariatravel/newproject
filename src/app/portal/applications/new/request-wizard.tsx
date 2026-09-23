@@ -1,18 +1,14 @@
 "use client";
 
 /**
- * Phase 2-Final — the 3-step visa request wizard (final UX):
- *   1. CHOOSE VISA  — country-first: destination countries (only active
- *      destinations with active visa types), then that country's visa types
- *      as selectable CARDS (name/category/price/currency/processing time).
- *      The single applicant is collected inline: Full Name + Nationality
- *      (country selector, default Algeria) — nothing else.
- *   2. UPLOAD DOCUMENTS (checklist loaded from the visa configuration)
- *   3. PREVIEW, CONFIRM & SUBMIT (one atomic server transaction)
- * Nothing is persisted before the final confirm: no draft, no reference.
+ * 3-step wizard: Choose Visa -> Applicant&Docs -> Review&Submit
+ * Step1: searchable countries, collapsible visa lists, auto-select single visa,
+ *        full name + nationality (Algeria default).
+ * Step2: documents from visa config with 2MB client guard.
+ * Step3: review with DZD balance before/after.
  */
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { submitRequestAction } from "@/app/actions/applications";
 
 export interface WizardVisaOption {
@@ -106,7 +102,10 @@ export function RequestWizard(props: Props) {
   const [step, setStep] = useState(1);
   const [countryId, setCountryId] = useState("");
   const [visaTypeId, setVisaTypeId] = useState("");
-  const [fileError, setFileError] = useState<string>("");
+  const [countrySearch, setCountrySearch] = useState("");
+  const [expandedCountries, setExpandedCountries] = useState<Set<string>>(new Set());
+  const [natSearch, setNatSearch] = useState("");
+  const [fileError, setFileError] = useState("");
   const [files, setFiles] = useState<Record<string, File[]>>({});
   const [pending, setPending] = useState(false);
   const [clientError, setClientError] = useState("");
@@ -116,6 +115,37 @@ export function RequestWizard(props: Props) {
   const country = useMemo(() => props.countries.find((c) => c.id === countryId) ?? null, [props.countries, countryId]);
   const visa = useMemo(() => country?.visaTypes.find((v) => v.id === visaTypeId) ?? null, [country, visaTypeId]);
   const requirements = useMemo(() => (visaTypeId ? (props.requirementsByVisaType[visaTypeId] ?? []) : []), [props.requirementsByVisaType, visaTypeId]);
+
+  const filteredCountries = useMemo(() => {
+    if (!countrySearch.trim()) return props.countries;
+    const q = countrySearch.trim().toLowerCase();
+    return props.countries.filter((c) => c.name.toLowerCase().includes(q) || c.visaTypes.some((v) => v.name.toLowerCase().includes(q)));
+  }, [props.countries, countrySearch]);
+
+  const filteredNationalities = useMemo(() => {
+    if (!natSearch.trim()) return props.nationalities;
+    const q = natSearch.trim().toLowerCase();
+    return props.nationalities.filter((n) => n.label.toLowerCase().includes(q) || n.code.toLowerCase().includes(q));
+  }, [props.nationalities, natSearch]);
+
+  // Auto-expand selected country
+  useEffect(() => {
+    if (countryId) {
+      setExpandedCountries((prev) => {
+        const next = new Set(prev);
+        next.add(countryId);
+        return next;
+      });
+    }
+  }, [countryId]);
+
+  // Auto-select when single visa type
+  useEffect(() => {
+    if (country && country.visaTypes.length === 1 && !visaTypeId) {
+      const only = country.visaTypes[0];
+      if (only) setVisaTypeId(only.id);
+    }
+  }, [country, visaTypeId]);
 
   function validateStep(n: number): boolean {
     setClientError("");
@@ -161,11 +191,14 @@ export function RequestWizard(props: Props) {
     return full ? `${full} — ${label}` : "—";
   }
 
+  const balanceNum = parseFloat(props.walletBalance || "0");
+  const feeNum = visa ? parseFloat(visa.fee || "0") : 0;
+  const afterNum = balanceNum - feeNum;
+  const canAfford = afterNum >= 0;
+
   return (
     <form
       ref={formRef}
-      // The DIRECT server-action reference is what lets Next emit the
-      // progressive-enhancement descriptor (no-JS / hosted form posts).
       action={submitRequestAction}
       onSubmit={() => { setPending(true); setClientError(""); }}
       className="space-y-4"
@@ -173,7 +206,6 @@ export function RequestWizard(props: Props) {
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <input type="hidden" name="countryId" value={countryId} />
 
-      {/* Step rail — exactly THREE steps */}
       <ol className="flex flex-wrap items-center gap-2 text-sm" data-testid="wizard-steps">
         {[
           { n: 1, label: t.stepChoose },
@@ -181,11 +213,7 @@ export function RequestWizard(props: Props) {
           { n: 3, label: t.stepPreview },
         ].map((s) => (
           <li key={s.n} className="flex items-center gap-2">
-            <span
-              className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
-                step === s.n ? "bg-iris-600 text-white" : step > s.n ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-500"
-              }`}
-            >
+            <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${step === s.n ? "bg-iris-600 text-white" : step > s.n ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-500"}`}>
               {s.n}
             </span>
             <span className={step === s.n ? "font-semibold text-navy-900" : "text-slate-500"}>{s.label}</span>
@@ -200,68 +228,99 @@ export function RequestWizard(props: Props) {
         </div>
       )}
 
-      {/* ------------------ STEP 1: COUNTRY → VISA TYPE → APPLICANT ------------------ */}
+      {/* STEP 1 */}
       <section data-wizard-section="1" hidden={step !== 1}>
         <div className="card p-5 space-y-5">
-          <div>
-            <h2 className="font-serif text-lg text-navy-900">{t.chooseCountry}</h2>
-            {!country ? <p className="mt-1 text-xs text-slate-500">{t.selectCountry}</p> : null}
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" role="group" aria-label={t.chooseCountry}>
-            {props.countries.map((c) => (
-              <button
-                type="button"
-                key={c.id}
-                data-testid="wizard-country"
-                onClick={() => { setCountryId(c.id); setVisaTypeId(""); }}
-                className={`rounded-2xl border p-4 text-start transition ${
-                  countryId === c.id ? "border-iris-500 bg-iris-50/60 ring-2 ring-iris-200" : "border-slate-200 hover:border-iris-300"
-                }`}
-              >
-                <span className="block font-semibold text-navy-900">{c.name}</span>
-                <span className="mt-0.5 block text-xs text-slate-500">
-                  {c.visaTypes.length} {c.visaTypes.length === 1 ? "visa" : "visas"}
-                </span>
-              </button>
-            ))}
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="font-serif text-lg text-navy-900">{t.chooseCountry}</h2>
+              <p className="mt-1 text-xs text-slate-500">{t.selectCountry}</p>
+            </div>
+            <div className="w-full sm:w-64">
+              <input
+                type="search"
+                placeholder="Search country or visa…"
+                value={countrySearch}
+                onChange={(e) => setCountrySearch(e.target.value)}
+                className="input text-sm"
+              />
+            </div>
           </div>
 
-          {/* All countries' visa-type cards are always in the DOM (SSR),
-              visually narrowed by selection — required for no-JS/submission
-              robustness and hosted verification. */}
-          <div>
-            <h3 className="mb-2 font-serif text-base text-navy-900">{t.chooseVisa}</h3>
-            {props.countries.map((c) => (
-              <div key={c.id} hidden={country ? country.id !== c.id : false} className={country && country.id === c.id ? "" : country ? "" : "mb-3"}>
-                {!country ? <p className="mb-1 text-xs font-semibold text-slate-400">{c.name}</p> : null}
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" role="radiogroup" aria-label={c.name}>
-                  {(country ? country.visaTypes : c.visaTypes).map((v) => (
-                  <label
-                    key={v.id}
-                    data-testid="wizard-visa-type"
-                    className={`cursor-pointer rounded-2xl border p-4 transition ${
-                      visaTypeId === v.id ? "border-iris-500 bg-iris-50/60 ring-2 ring-iris-200" : "border-slate-200 hover:border-iris-300"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="visaTypeId"
-                      value={v.id}
-                      data-country-id={v.countryId}
-                      className="sr-only"
-                      checked={visaTypeId === v.id}
-                      onChange={() => { setCountryId(v.countryId); setVisaTypeId(v.id); }}
-                    />
-                    <span className="block font-semibold text-navy-900">{v.name}</span>
-                    <span className="mt-0.5 block text-xs text-slate-500">{v.categoryName}</span>
-                    <span className="mt-2 block text-sm font-medium text-iris-700">
-                      {v.fee} {v.currency} <span className="text-xs text-slate-400">· {t.processing} {v.minDays}–{v.maxDays} {t.days}</span>
-                    </span>
-                  </label>
-                  ))}
-                </div>
-              </div>
-            ))}
+          <div className="space-y-2">
+            {filteredCountries.length === 0 ? (
+              <p className="py-6 text-center text-sm text-slate-500">No countries match “{countrySearch}”.</p>
+            ) : (
+              filteredCountries.map((c) => {
+                const isExpanded = expandedCountries.has(c.id) || countryId === c.id;
+                const isSelected = countryId === c.id;
+                return (
+                  <div key={c.id} className={`rounded-2xl border ${isSelected ? "border-iris-300 bg-iris-50/40" : "border-slate-200 bg-white"}`}>
+                    <button
+                      type="button"
+                      data-testid="wizard-country"
+                      onClick={() => {
+                        const wasSelected = countryId === c.id;
+                        if (wasSelected) {
+                          // collapse toggle
+                          setExpandedCountries((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(c.id)) next.delete(c.id);
+                            else next.add(c.id);
+                            return next;
+                          });
+                        } else {
+                          setCountryId(c.id);
+                          if (c.visaTypes.length === 1) {
+                            const only = c.visaTypes[0];
+                            if (only) setVisaTypeId(only.id);
+                          }
+                          else if (c.visaTypes.length > 1 && !c.visaTypes.some((v) => v.id === visaTypeId)) {
+                            // keep previous visa if same country, otherwise clear
+                            const sameCountry = props.countries.find((cc) => cc.id === countryId)?.visaTypes.some((v) => v.id === visaTypeId);
+                            if (!sameCountry) setVisaTypeId("");
+                          }
+                          setExpandedCountries((prev) => { const n = new Set(prev); n.add(c.id); return n; });
+                        }
+                      }}
+                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-start"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${isSelected ? "bg-iris-600 text-white" : "bg-slate-100 text-slate-500"}`}>{c.name.slice(0,1)}</span>
+                        <span className="font-semibold text-navy-900">{c.name}</span>
+                        <span className="text-xs text-slate-400">{c.visaTypes.length} visa{c.visaTypes.length !== 1 ? "s" : ""}</span>
+                      </span>
+                      <span className="text-slate-400">{isExpanded ? "▾" : "▸"}</span>
+                    </button>
+
+                    {isExpanded ? (
+                      <div className="grid grid-cols-1 gap-2 border-t border-slate-100 p-3 sm:grid-cols-2">
+                        {c.visaTypes.map((v) => (
+                          <label
+                            key={v.id}
+                            data-testid="wizard-visa-type"
+                            className={`cursor-pointer rounded-xl border p-3 transition ${visaTypeId === v.id ? "border-iris-500 bg-iris-50 ring-2 ring-iris-200" : "border-slate-200 hover:border-iris-300"}`}
+                          >
+                            <input
+                              type="radio"
+                              name="visaTypeId"
+                              value={v.id}
+                              data-country-id={v.countryId}
+                              className="sr-only"
+                              checked={visaTypeId === v.id}
+                              onChange={() => { setCountryId(v.countryId); setVisaTypeId(v.id); }}
+                            />
+                            <span className="block font-semibold text-navy-900">{v.name}</span>
+                            <span className="mt-0.5 block text-xs text-slate-500">{v.categoryName}</span>
+                            <span className="mt-1.5 block text-sm font-medium text-navy-800 tabular-nums">{v.fee} DZD <span className="text-xs text-slate-400">· {t.processing} {v.minDays}–{v.maxDays} {t.days}</span></span>
+                          </label>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })
+            )}
           </div>
 
           <div className="space-y-4 border-t border-slate-100 pt-4">
@@ -269,23 +328,32 @@ export function RequestWizard(props: Props) {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="label" htmlFor="t0_fullName">{t.fullName} *</label>
-                <input id="t0_fullName" name="t0_fullName" required autoComplete="name" className="input" data-testid="wizard-full-name" />
+                <input id="t0_fullName" name="t0_fullName" required autoComplete="name" className="input" data-testid="wizard-full-name" placeholder="Full name as in passport" />
               </div>
               <div>
                 <label className="label" htmlFor="t0_nationality">{t.nationality} *</label>
-                <select
-                  id="t0_nationality"
-                  name="t0_nationality"
-                  required
-                  defaultValue={props.defaultNationality}
-                  className="input"
-                  data-testid="wizard-nationality"
-                  aria-label={t.searchNationality}
-                >
-                  {props.nationalities.map((n) => (
-                    <option key={n.code} value={n.code}>{n.label}</option>
-                  ))}
-                </select>
+                <div className="space-y-1.5">
+                  <input
+                    type="search"
+                    placeholder="Search nationality…"
+                    value={natSearch}
+                    onChange={(e) => setNatSearch(e.target.value)}
+                    className="input text-xs"
+                  />
+                  <select
+                    id="t0_nationality"
+                    name="t0_nationality"
+                    required
+                    defaultValue={props.defaultNationality}
+                    className="input"
+                    data-testid="wizard-nationality"
+                    aria-label={t.searchNationality}
+                  >
+                    {filteredNationalities.map((n) => (
+                      <option key={n.code} value={n.code}>{n.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -306,7 +374,7 @@ export function RequestWizard(props: Props) {
         </div>
       </section>
 
-      {/* ---------------------------- STEP 2: UPLOAD DOCUMENTS ---------------------------- */}
+      {/* STEP 2 */}
       <section data-wizard-section="2" hidden={step !== 2}>
         <div className="card p-5 space-y-4">
           <h2 className="font-serif text-lg text-navy-900">{t.documents}</h2>
@@ -360,7 +428,7 @@ export function RequestWizard(props: Props) {
         </div>
       </section>
 
-      {/* ---------------------------- STEP 3: PREVIEW & SUBMIT ---------------------------- */}
+      {/* STEP 3 */}
       <section data-wizard-section="3" hidden={step !== 3}>
         <div className="card p-5 space-y-4">
           <div>
@@ -378,7 +446,7 @@ export function RequestWizard(props: Props) {
             </div>
             <div className="flex justify-between gap-3 rounded-xl bg-ivory-50 px-3 py-2">
               <dt className="text-slate-500">{t.fee}</dt>
-              <dd className="font-medium text-navy-900">{visa ? `${visa.fee} ${visa.currency}` : "—"}</dd>
+              <dd className="font-medium text-navy-900 tabular-nums">{visa ? `${visa.fee} DZD` : "—"}</dd>
             </div>
             <div className="flex justify-between gap-3 rounded-xl bg-ivory-50 px-3 py-2">
               <dt className="text-slate-500">{t.processing}</dt>
@@ -388,37 +456,37 @@ export function RequestWizard(props: Props) {
               <dt className="text-slate-500">{t.summaryApplicant}</dt>
               <dd className="font-medium text-navy-900">{step === 3 ? applicantSummary() : "—"}</dd>
             </div>
-            <div className="flex justify-between gap-3 rounded-xl bg-ivory-50 px-3 py-2 sm:col-span-2">
+            <div className="flex justify-between gap-3 rounded-xl bg-ivory-50 px-3 py-2">
               <dt className="text-slate-500">{t.walletBalance}</dt>
-              <dd className="font-medium text-navy-900">{props.walletBalance} {props.walletCurrency}</dd>
+              <dd className="font-medium text-navy-900 tabular-nums">{props.walletBalance} DZD</dd>
+            </div>
+            <div className={`flex justify-between gap-3 rounded-xl px-3 py-2 ${canAfford ? "bg-emerald-50" : "bg-rose-50"}`}>
+              <dt className={canAfford ? "text-emerald-700" : "text-rose-700"}>Balance after</dt>
+              <dd className={`font-medium tabular-nums ${canAfford ? "text-emerald-800" : "text-rose-700"}`}>{visa ? `${afterNum.toFixed(2)} DZD` : "—"} {canAfford ? "" : "— insufficient"}</dd>
             </div>
           </dl>
           <div>
             <h3 className="mb-1 text-sm font-semibold text-navy-900">{t.summaryDocuments}</h3>
             <ul className="list-inside list-disc text-sm text-slate-600">
               {requirements.map((r) => (
-                <li key={r.documentTypeId}>
-                  {r.name}: {(files[r.documentTypeId] ?? []).length}
-                </li>
+                <li key={r.documentTypeId}>{r.name}: {(files[r.documentTypeId] ?? []).length}</li>
               ))}
             </ul>
           </div>
           <p className="rounded-xl bg-iris-50 px-3 py-2 text-xs text-iris-800">{t.chargeNote}</p>
-          <button type="submit" disabled={pending} className="btn-primary w-full sm:w-auto">
-            {pending ? t.submitting : t.confirmSubmit}
+          {!canAfford ? (
+            <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700">Wallet balance too low — request top-up before submitting.</p>
+          ) : null}
+          <button type="submit" disabled={pending || !canAfford} className="btn-primary w-full sm:w-auto disabled:opacity-50">
+            {pending ? t.submitting : `${t.confirmSubmit} — ${visa?.fee ?? ""} DZD`}
           </button>
         </div>
       </section>
 
-      {/* nav */}
       <div className="flex items-center justify-between">
-        <button type="button" onClick={() => setStep((s) => Math.max(1, s - 1))} disabled={step === 1 || pending} className="btn-secondary">
-          ← {t.back}
-        </button>
+        <button type="button" onClick={() => setStep((s) => Math.max(1, s - 1))} disabled={step === 1 || pending} className="btn-secondary">← {t.back}</button>
         {step < 3 ? (
-          <button type="button" onClick={goNext} className="btn-primary">
-            {t.next} →
-          </button>
+          <button type="button" onClick={goNext} className="btn-primary">{t.next} →</button>
         ) : null}
       </div>
     </form>

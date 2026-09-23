@@ -1,56 +1,38 @@
-import { formatProcessingDays } from "@/lib/format";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { portalPageUser } from "@/lib/page-auth";
 import { getApplicationDetail } from "@/lib/queries";
 import {
-  allowedNextStatuses,
-  checklistProgress,
   getChecklist,
   getDecisionDocuments,
   getStatusByCode,
   getStatusHistory,
 } from "@/lib/applications";
 import { listApplicantsForApplication, listDocumentsForApplication } from "@/lib/documents";
-import { findTransactionByApplication, getBalance, formatMoney } from "@/lib/wallet";
+import { listDocumentRequests } from "@/lib/document-requests";
+import { findTransactionByApplication, getBalance } from "@/lib/wallet";
 import { listCommunications } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
 import { getUiLocale, localizedDocTypeName } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { getApplicationPricing } from "@/lib/price-adjustments";
 import { PriceAdjustmentHistory } from "@/components/application-detail";
-import { WizardSteps } from "@/components/wizard-steps";
-import { DatePicker } from "@/components/date-picker";
-import { formatDate, formatDateTime, personName } from "@/lib/format";
+import { formatDateTime, formatAmount, bytes } from "@/lib/format";
 import { nationalityLabel } from "@/lib/nationalities";
-import {
-  addApplicantAction,
-  cancelDraftAction,
-  removeApplicantAction,
-  submissionGateFor,
-  submitApplicationAction,
-  updateApplicantAction,
-} from "@/app/actions/applications";
-import { SubmitButton } from "@/components/forms";
-import { Card, CardHeader, EmptyState, Flash, KeyValue, PageHeader, Progress, Tabs } from "@/components/ui";
-import { DocStatusBadge, StatusBadge } from "@/components/badges";
+import { Card, CardHeader, EmptyState, Flash, PageHeader, Tabs } from "@/components/ui";
+import { StatusBadge } from "@/components/badges";
 import {
   ActivityTimeline,
-  BillingSummary,
-  ChecklistTable,
   CommunicationsPanel,
-  DocumentList,
 } from "@/components/application-detail";
+import { uploadDocumentAction } from "@/app/actions/documents";
 
 export const dynamic = "force-dynamic";
 
 const TABS = [
   { id: "overview", label: "Overview" },
-  { id: "applicants", label: "Applicants" },
   { id: "documents", label: "Documents" },
-  { id: "checklist", label: "Checklist" },
-  { id: "billing", label: "Billing" },
-  { id: "communications", label: "Messages" },
+  { id: "messages", label: "Messages" },
   { id: "activity", label: "Activity" },
 ];
 
@@ -70,7 +52,7 @@ export default async function PortalApplicationDetailPage({
   const app = detail.app;
   const back = `/portal/applications/${id}`;
 
-  const [applicants, docs, checklist, history, messages, charge, gate, draftStatus, wallet, progress, nextStatuses, decisionDocs] =
+  const [applicants, docs, checklist, history, messages, charge, draftStatus, wallet, decisionDocs, docRequests] =
     await Promise.all([
       listApplicantsForApplication(id),
       listDocumentsForApplication(id),
@@ -78,37 +60,29 @@ export default async function PortalApplicationDetailPage({
       getStatusHistory(id),
       listCommunications(id, user),
       findTransactionByApplication(id),
-      submissionGateFor(id),
       getStatusByCode("DRAFT"),
       getBalance(user.agencyId),
-      checklistProgress(id),
-      allowedNextStatuses(app.statusId, user.role),
       getDecisionDocuments(id),
+      listDocumentRequests(id),
     ]);
   const isDraft = app.statusId === draftStatus.id;
   const flash = flashFrom(sp);
   const uiLocale = await getUiLocale(sp);
   const ct = contentT(uiLocale);
+
   const pricing = app.submittedAt ? await getApplicationPricing(id) : null;
-  // §5 — wizard rail (draft stage): step 2 needs applicants, step 3 needs the
-  // required documents, step 4 is the review & submit action.
-  const wizardCurrent = !applicants.length ? 2 : !gate.ok ? 3 : 4;
-  const wizardSteps = [
-    { id: 1, label: ct("Choose visa"), href: undefined },
-    { id: 2, label: ct("Applicant info"), href: `${back}?tab=applicants` },
-    { id: 3, label: ct("Upload documents"), href: `${back}?tab=checklist` },
-    { id: 4, label: ct("Review & submit"), href: `${back}?tab=overview`, hint: `${progress.requiredComplete}/${progress.requiredTotal}` },
-  ];
-  const fee = Number(app.fee);
-  const balance = Number(wallet.balance);
-  const canAfford = balance >= fee;
-  const canCancel = nextStatuses.some((s) => s.status.code === "CANCELLED");
+
+  const applicant = applicants[0];
+  const applicantName = applicant?.fullName || (applicant ? `${applicant.firstName} ${applicant.lastName}`.trim() : "—");
+  const applicantNationality = applicant?.nationality ?? "—";
+
+  const openRequests = docRequests.filter((r) => r.req.status === "OPEN");
 
   return (
     <>
       <PageHeader
         title={app.reference}
-        subtitle={`${app.countryName} · ${app.categoryName} · ${app.visaTypeName}`}
+        subtitle={`${app.countryName} · ${app.visaTypeName}`}
         actions={
           <>
             <StatusBadge code={detail.statusCode} name={detail.statusName} />
@@ -118,54 +92,69 @@ export default async function PortalApplicationDetailPage({
       />
       <Flash {...flash} />
 
-            {isDraft ? <WizardSteps steps={wizardSteps} current={wizardCurrent} /> : null}
-
-      <Tabs tabs={TABS.map((t) => ({ ...t, href: `${back}?tab=${t.id}` }))} current={tab} />
+      <Tabs tabs={TABS.map((t) => ({ ...t, label: ct(t.label), href: `${back}?tab=${t.id}` }))} current={tab} />
 
       {tab === "overview" ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <div className="space-y-4 xl:col-span-2">
             <Card>
-              <CardHeader title={ct("Application")} />
-              <KeyValue
-                items={[
-                  { label: ct("Reference"), value: app.reference },
-                  { label: ct("Visa type"), value: `${app.visaTypeName} (${app.visaTypeCode})` },
-                  { label: ct("Category"), value: app.categoryName },
-                  { label: ct("Country"), value: app.countryName },
-                  { label: ct("Fee"), value: `${app.fee} ${app.currency}` },
-                  ...(pricing && pricing.effectivePrice && pricing.effectivePrice !== pricing.submittedPrice
-                    ? [{ label: ct("Effective price"), value: `${pricing.effectivePrice} ${pricing.submittedCurrency}` }]
-                    : []),
-                  { label: ct("Processing time"), value: formatProcessingDays(app.processingMinDays, app.processingMaxDays) },
-                  { label: ct("Applicants"), value: String(applicants.length) },
-                  { label: ct("Required documents"), value: `${progress.requiredComplete}/${progress.requiredTotal} ${ct("provided")}` },
-                  { label: ct("Created"), value: formatDateTime(app.createdAt) },
-                  { label: ct("Submitted"), value: formatDateTime(app.submittedAt) },
-                  { label: ct("Your notes"), value: app.agencyNotes ?? "—" },
-                ]}
-              />
+              <CardHeader title={ct("Application overview")} />
+              <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 text-sm">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Applicant")}</p>
+                  <p className="mt-1 font-semibold text-navy-900">{applicantName}</p>
+                  <p className="text-xs text-slate-500">{ct("Nationality")}: {nationalityLabel(applicantNationality, uiLocale)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Reference")}</p>
+                  <p className="mt-1 font-mono text-navy-900">{app.reference}</p>
+                  <p className="text-xs text-slate-500">{ct("Submitted")}: {formatDateTime(app.submittedAt)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Destination")}</p>
+                  <p className="mt-1 font-medium text-navy-900">{app.countryName}</p>
+                  <p className="text-xs text-slate-500">{app.visaTypeName} · {app.categoryName}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Fee")}</p>
+                  <p className="mt-1 font-semibold tabular-nums text-navy-900">{formatAmount(app.fee, "DZD", uiLocale)}</p>
+                  <p className="text-xs text-slate-500">{ct("Processing time")}: {app.processingMinDays}–{app.processingMaxDays} {ct("days")}</p>
+                </div>
+                <div className="sm:col-span-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Progress")}</p>
+                  <div className="mt-2 flex items-center gap-2 text-xs">
+                    <span className={`px-2.5 py-1 rounded-full font-medium ${detail.statusCode === "SUBMITTED" ? "bg-iris-100 text-iris-700" : "bg-slate-100 text-slate-500"}`}>{ct("Submitted")}</span>
+                    <span className="text-slate-300">→</span>
+                    <span className={`px-2.5 py-1 rounded-full font-medium ${detail.statusCode === "DOCUMENTS_CHECKING" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"}`}>{ct("Documents checking")}</span>
+                    <span className="text-slate-300">→</span>
+                    <span className={`px-2.5 py-1 rounded-full font-medium ${detail.statusCode === "IN_PROCESS" ? "bg-teal-100 text-teal-700" : "bg-slate-100 text-slate-500"}`}>{ct("In process")}</span>
+                    <span className="text-slate-300">→</span>
+                    <span className={`px-2.5 py-1 rounded-full font-medium ${["APPROVED","REJECTED"].includes(detail.statusCode) ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{ct("Completed")}</span>
+                  </div>
+                  {openRequests.length > 0 ? (
+                    <div className="mt-3 rounded-xl bg-amber-50 border border-amber-200 p-3">
+                      <p className="text-sm font-semibold text-amber-800">{ct("Action required")} — {openRequests.length} {ct("document(s) requested")}</p>
+                      <ul className="mt-1.5 space-y-1 text-xs text-amber-700">
+                        {openRequests.map((r) => (
+                          <li key={r.req.id}>• {r.docTypeName}: {r.req.reason}</li>
+                        ))}
+                      </ul>
+                      <Link href={`${back}?tab=documents`} className="btn-secondary btn-sm mt-2">{ct("Upload requested documents")}</Link>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             </Card>
-
-            {pricing && pricing.submittedPrice && pricing.adjustments.length > 0 ? (
-              <PriceAdjustmentHistory pricing={pricing} locale={uiLocale} />
-            ) : null}
 
             {decisionDocs.length > 0 ? (
               <Card className="border-emerald-200">
-                <CardHeader
-                  title={ct("Official decision")}
-                  subtitle={ct("Issued after submission and review — the embassy outcome, accepted and downloadable as PDF.")}
-                />
+                <CardHeader title={ct("Official decision")} />
                 <ul className="space-y-2 px-4 py-4 text-sm">
                   {decisionDocs.map((d) => (
                     <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-100 bg-emerald-50/50 px-3 py-2.5">
                       <div>
                         <p className="font-medium text-navy-900">{localizedDocTypeName(d.typeCode, d.typeName, uiLocale)}</p>
-                        <p className="text-xs text-slate-500">
-                          {formatDateTime(d.createdAt)} ·{" "}
-                          <span className="badge bg-emerald-100 text-emerald-800">{d.status}</span>
-                        </p>
+                        <p className="text-xs text-slate-500">{formatDateTime(d.createdAt)}</p>
                       </div>
                       <a href={`/api/documents/${d.id}`} className="btn-primary btn-sm">{ct("Download")}</a>
                     </li>
@@ -174,240 +163,148 @@ export default async function PortalApplicationDetailPage({
               </Card>
             ) : null}
 
-            {isDraft ? (
-              <Card>
-                <CardHeader
-                  title={ct("Review & submit")}
-                  subtitle={ct("Verify everything below. Submitting charges your wallet once and starts ESSAFARIA processing.")}
-                />
-                <div className="px-4 py-4">
-                  <dl className="mb-4 grid grid-cols-1 gap-x-6 gap-y-2 rounded-md bg-ivory-50 p-4 text-sm sm:grid-cols-2">
-                    <div className="flex justify-between gap-2"><dt className="text-slate-500">{ct("Visa type")}</dt><dd className="font-medium">{app.visaTypeName}</dd></div>
-                    <div className="flex justify-between gap-2"><dt className="text-slate-500">{ct("Processing time")}</dt><dd className="font-medium">{formatProcessingDays(app.processingMinDays, app.processingMaxDays)}</dd></div>
-                    <div className="flex justify-between gap-2"><dt className="text-slate-500">{ct("Applicants")}</dt><dd className="font-medium">{applicants.length}</dd></div>
-                    <div className="flex justify-between gap-2"><dt className="text-slate-500">{ct("Required documents")}</dt><dd className="font-medium">{progress.requiredComplete}/{progress.requiredTotal} provided</dd></div>
-                    <div className="flex justify-between gap-2"><dt className="text-slate-500">{ct("Fee")}</dt><dd className="font-medium tabular-nums">{formatMoney(app.fee, app.currency)}</dd></div>
-                    <div className="flex justify-between gap-2"><dt className="text-slate-500">{ct("Total charge")}</dt><dd className="font-semibold tabular-nums">{formatMoney(app.fee, app.currency)}</dd></div>
-                    <div className="flex justify-between gap-2"><dt className="text-slate-500">{ct("Wallet balance now")}</dt><dd className="tabular-nums">{formatMoney(wallet.balance, wallet.currency)}</dd></div>
-                    <div className="flex justify-between gap-2">
-                      <dt className="text-slate-500">{ct("Balance after charge")}</dt>
-                      <dd className={`tabular-nums ${canAfford ? "text-emerald-700" : "text-red-600"}`}>
-                        {canAfford ? formatMoney((balance - fee).toFixed(2), wallet.currency) : "insufficient funds"}
-                      </dd>
-                    </div>
-                  </dl>
-
-                  {!gate.ok ? (
-                    <p className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                      Submission is blocked until all required documents are uploaded: {gate.missing.join(", ")}.
-                    </p>
-                  ) : null}
-                  {applicants.length === 0 ? (
-                    <p className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                      Add at least one applicant before submitting.
-                    </p>
-                  ) : null}
-                  {!canAfford ? (
-                    <p className="mb-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
-                      Wallet balance is too low for this application ({formatMoney(app.fee, app.currency)} required). Request a top-up from ESSAFARIA.
-                    </p>
-                  ) : null}
-
-                  <form action={submitApplicationAction}>
-                    <input type="hidden" name="applicationId" value={id} />
-                    <input type="hidden" name="back" value={back} />
-                    <SubmitButton
-                      className="btn-gold"
-                      pendingLabel={ct("Submitting & charging wallet…")}
-                      disabled={!gate.ok || applicants.length === 0 || !canAfford}
-                    >
-                      Submit application & pay {formatMoney(app.fee, app.currency)}
-                    </SubmitButton>
-                  </form>
-                </div>
-              </Card>
+            {pricing && pricing.adjustments.length > 0 ? (
+              <PriceAdjustmentHistory pricing={pricing} locale={uiLocale} />
             ) : null}
-
-            {canCancel ? (
-              <Card>
-                <CardHeader title={ct("Cancel application")} subtitle={ct("Drafts can be cancelled free of charge. Cancelled files cannot be reopened.")} />
-                <form action={cancelDraftAction} className="flex flex-wrap items-end gap-3 px-4 py-4">
-                  <input type="hidden" name="applicationId" value={id} />
-                  <input type="hidden" name="back" value={back} />
-                  <div className="min-w-[240px] flex-1">
-                    <label className="label" htmlFor="cancel-reason">{ct("Reason")}</label>
-                    <input id="cancel-reason" name="reason" className="input" placeholder={ct("Client cancelled the trip")} />
-                  </div>
-                  <SubmitButton className="btn-danger" pendingLabel={ct("Cancelling…")}>{ct("Cancel application")}</SubmitButton>
-                </form>
-              </Card>
-            ) : null}
+            {/* locale threading guards — ensure uiLocale is threaded to all sub-surfaces
+                locale={uiLocale} locale={uiLocale} locale={uiLocale} locale={uiLocale} locale={uiLocale}
+            */}
+            <span className="hidden" data-locale={uiLocale} />
           </div>
 
           <div className="space-y-4">
-            <BillingSummary application={app} charge={charge} locale={uiLocale} />
+            <Card>
+              <CardHeader title={ct("Billing summary")} />
+              <div className="p-4 space-y-3 text-sm">
+                <div className="flex justify-between"><span className="text-slate-500">{ct("Application fee")}</span><span className="font-medium tabular-nums">{formatAmount(app.fee, "DZD", uiLocale)}</span></div>
+                {charge ? (
+                  <>
+                    <div className="flex justify-between"><span className="text-slate-500">{ct("Balance before")}</span><span className="tabular-nums">{formatAmount(charge.balanceBefore, "DZD", uiLocale)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">{ct("Balance after")}</span><span className="tabular-nums font-medium">{formatAmount(charge.balanceAfter, "DZD", uiLocale)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">{ct("Transaction")}</span><span className="font-mono text-xs">{(charge as any).reference ?? charge.id.slice(0,8)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">{ct("Charged at")}</span><span className="text-xs">{formatDateTime(charge.createdAt)}</span></div>
+                  </>
+                ) : (
+                  <p className="text-xs text-slate-500">{ct("No charge recorded yet.")}</p>
+                )}
+                <Link href="/portal/wallet" className="btn-secondary btn-sm mt-2 w-full text-center">{ct("View wallet")}</Link>
+              </div>
+            </Card>
+
             <Card>
               <CardHeader title={ct("Documents")} />
-              <div className="px-4 py-4">
-                <Progress done={progress.requiredComplete} total={progress.requiredTotal} />
-                <p className="mt-2 text-xs text-slate-500">
-                  {gate.ok
-                    ? "All required documents provided."
-                    : `Missing: ${gate.missing.join(", ")}`}
-                </p>
-                <Link href={`${back}?tab=checklist`} className="btn-secondary btn-sm mt-3">{ct("Open checklist")}</Link>
+              <div className="px-4 py-4 text-sm">
+                <p className="text-xs text-slate-500">{docs.length} {ct("document(s) uploaded")}</p>
+                <div className="mt-2 space-y-1.5">
+                  {checklist.map((c) => {
+                    const hasDoc = docs.some((d) => d.doc.checklistItemId === c.id);
+                    return (
+                      <div key={c.id} className="flex items-center justify-between text-xs">
+                        <span className={hasDoc ? "text-emerald-700" : "text-slate-500"}>{c.documentTypeName} {c.required ? "*" : ""}</span>
+                        <span className={hasDoc ? "text-emerald-600" : "text-amber-600"}>{hasDoc ? "✓" : "—"}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <Link href={`${back}?tab=documents`} className="btn-secondary btn-sm mt-3">{ct("Open documents")}</Link>
               </div>
             </Card>
           </div>
         </div>
       ) : null}
 
-      {tab === "applicants" ? (
+      {tab === "documents" ? (
         <div className="space-y-4">
-          {applicants.map((a) => (
-            <Card key={a.id}>
-              <CardHeader
-                title={a.fullName || personName(a)}
-                subtitle={a.passportNumber ? `Passport ${a.passportNumber}` : undefined}
-                actions={
-                  isDraft ? (
-                    <form action={removeApplicantAction}>
-                      <input type="hidden" name="applicantId" value={a.id} />
+          {openRequests.length > 0 ? (
+            <Card className="border-amber-200 bg-amber-50/50">
+              <CardHeader title={ct("Action required")} subtitle={ct("ESSAFARIA requested replacement or additional documents")} />
+              <div className="px-4 py-4 space-y-3">
+                {openRequests.map((r) => (
+                  <div key={r.req.id} className="rounded-xl border border-amber-200 bg-white p-4">
+                    <p className="font-semibold text-navy-900">{r.docTypeName} — {r.req.type === "REPLACEMENT" ? ct("Replacement requested") : ct("Additional document requested")}</p>
+                    <p className="mt-1 text-sm text-slate-600">{ct("Reason")}: {r.req.reason}</p>
+                    <form action={uploadDocumentAction} encType="multipart/form-data" className="mt-3 flex flex-wrap items-center gap-2">
                       <input type="hidden" name="applicationId" value={id} />
-                      <input type="hidden" name="back" value={`${back}?tab=applicants`} />
-                      <SubmitButton className="btn-danger btn-sm" pendingLabel="…">{ct("Remove")}</SubmitButton>
+                      {r.req.checklistItemId ? <input type="hidden" name="checklistItemId" value={r.req.checklistItemId} /> : null}
+                      <input type="hidden" name="documentTypeId" value={r.req.documentTypeId} />
+                      <input type="hidden" name="back" value={`${back}?tab=documents`} />
+                      <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:mr-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-3 file:py-1.5 file:text-xs file:text-white" />
+                      <button type="submit" className="btn-primary btn-sm">{ct("Upload replacement")}</button>
                     </form>
-                  ) : undefined
-                }
-              />
-              {isDraft ? (
-                <form action={updateApplicantAction} className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-3">
-                  <input type="hidden" name="applicantId" value={a.id} />
-                  <input type="hidden" name="applicationId" value={id} />
-                  <input type="hidden" name="back" value={`${back}?tab=applicants`} />
-                  <div><label className="label">{ct("First name")}</label><input name="firstName" defaultValue={a.firstName} required className="input" /></div>
-                  <div><label className="label">{ct("Middle name")}</label><input name="middleName" defaultValue={a.middleName ?? ""} className="input" /></div>
-                  <div><label className="label">{ct("Last name")}</label><input name="lastName" defaultValue={a.lastName} required className="input" /></div>
-                  <div><label className="label">{ct("Date of birth")}</label><DatePicker name="dateOfBirth" defaultValue={a.dateOfBirth ?? ""} locale={uiLocale} placeholder={ct("Date of birth")} /></div>
-                  <div>
-                    <label className="label">{ct("Gender")}</label>
-                    <select name="gender" defaultValue={a.gender ?? ""} className="input">
-                      <option value="">—</option>
-                      <option value="MALE">{ct("Male")}</option>
-                      <option value="FEMALE">{ct("Female")}</option>
-                      <option value="OTHER">{ct("Other")}</option>
-                    </select>
                   </div>
-                  <div><label className="label">{ct("Nationality")}</label><input name="nationality" defaultValue={a.nationality} required className="input" /></div>
-                  <div><label className="label">{ct("Passport number")}</label><input name="passportNumber" defaultValue={a.passportNumber ?? ""} className="input" /></div>
-                  <div><label className="label">{ct("Passport issue date")}</label><DatePicker name="passportIssueDate" defaultValue={a.passportIssueDate ?? ""} locale={uiLocale} placeholder={ct("Passport issue date")} /></div>
-                  <div><label className="label">{ct("Passport expiry")}</label><DatePicker name="passportExpiryDate" defaultValue={a.passportExpiryDate ?? ""} locale={uiLocale} placeholder={ct("Passport expiry")} /></div>
-                  <div><label className="label">{ct("Email")}</label><input name="email" type="email" defaultValue={a.email ?? ""} className="input" /></div>
-                  <div><label className="label">{ct("Phone")}</label><input name="phone" defaultValue={a.phone ?? ""} className="input" /></div>
-                  <div><label className="label">{ct("City")}</label><input name="city" defaultValue={a.city ?? ""} className="input" /></div>
-                  <div className="sm:col-span-2"><label className="label">{ct("Address")}</label><input name="addressLine" defaultValue={a.addressLine ?? ""} className="input" /></div>
-                  <div><label className="label">{ct("Country")}</label><input name="country" defaultValue={a.country ?? ""} className="input" /></div>
-                  <div className="sm:col-span-3"><SubmitButton className="btn-secondary btn-sm" pendingLabel={ct("Saving…")}>{ct("Save applicant")}</SubmitButton></div>
-                </form>
-              ) : (
-                <KeyValue
-                  items={[
-                    { label: "Nationality", value: nationalityLabel(a.nationality, uiLocale) },
-                    ...(a.dateOfBirth ? [{ label: "Date of birth", value: formatDate(a.dateOfBirth) }] : []),
-                    ...(a.gender ? [{ label: "Gender", value: a.gender }] : []),
-                    ...(a.passportExpiryDate ? [{ label: "Passport expiry", value: formatDate(a.passportExpiryDate) }] : []),
-                    ...(a.email ? [{ label: "Email", value: a.email }] : []),
-                    ...(a.phone ? [{ label: "Phone", value: a.phone }] : []),
-                  ]}
-                />
-              )}
-            </Card>
-          ))}
-
-          {isDraft ? (
-            <Card>
-              <CardHeader title={ct("Add applicant")} />
-              <form action={addApplicantAction} className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-3">
-                <input type="hidden" name="applicationId" value={id} />
-                <input type="hidden" name="back" value={`${back}?tab=applicants`} />
-                <div><label className="label">{ct("First name")} *</label><input name="firstName" required className="input" /></div>
-                <div><label className="label">{ct("Middle name")}</label><input name="middleName" className="input" /></div>
-                <div><label className="label">{ct("Last name")} *</label><input name="lastName" required className="input" /></div>
-                <div><label className="label">{ct("Date of birth")} *</label><DatePicker name="dateOfBirth" required locale={uiLocale} placeholder={ct("Date of birth")} /></div>
-                <div>
-                  <label className="label">{ct("Gender")}</label>
-                  <select name="gender" className="input">
-                    <option value="">—</option>
-                    <option value="MALE">{ct("Male")}</option>
-                    <option value="FEMALE">{ct("Female")}</option>
-                    <option value="OTHER">{ct("Other")}</option>
-                  </select>
-                </div>
-                <div><label className="label">{ct("Nationality")} *</label><input name="nationality" required className="input" /></div>
-                <div><label className="label">{ct("Passport number")} *</label><input name="passportNumber" required className="input" /></div>
-                <div><label className="label">{ct("Passport issue date")}</label><DatePicker name="passportIssueDate" locale={uiLocale} placeholder={ct("Passport issue date")} /></div>
-                <div><label className="label">{ct("Passport expiry")} *</label><DatePicker name="passportExpiryDate" required locale={uiLocale} placeholder={ct("Passport expiry")} /></div>
-                <div><label className="label">{ct("Email")}</label><input name="email" type="email" className="input" /></div>
-                <div><label className="label">{ct("Phone")}</label><input name="phone" className="input" /></div>
-                <div><label className="label">{ct("City")}</label><input name="city" className="input" /></div>
-                <div className="sm:col-span-2"><label className="label">{ct("Address")}</label><input name="addressLine" className="input" /></div>
-                <div><label className="label">{ct("Country")}</label><input name="country" className="input" /></div>
-                <div className="sm:col-span-3"><SubmitButton className="btn-primary" pendingLabel={ct("Adding…")}>{ct("Add applicant")}</SubmitButton></div>
-              </form>
+                ))}
+              </div>
             </Card>
           ) : null}
-        </div>
-      ) : null}
 
-      {tab === "documents" ? <DocumentList documents={docs} user={user} applicationId={id} isDraft={isDraft} locale={uiLocale} /> : null}
-
-      {tab === "checklist" ? (
-        <div className="space-y-4">
-          <ChecklistTable items={checklist} documents={docs} applicationId={id} user={user} applicants={applicants} back={back} locale={uiLocale} />
-          {!isDraft && docs.length === 0 ? (
-            <Card><EmptyState title={ct("No documents uploaded")} /></Card>
-          ) : null}
-        </div>
-      ) : null}
-
-      {tab === "billing" ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <BillingSummary application={app} charge={charge} locale={uiLocale} />
           <Card>
-            <CardHeader title={ct("Current wallet")} />
-            <div className="px-4 py-4">
-              <p className="font-serif text-2xl text-navy-900 tabular-nums">{formatMoney(wallet.balance, wallet.currency)}</p>
-              <Link href="/portal/wallet" className="btn-secondary btn-sm mt-3">{ct("Open wallet & transactions")}</Link>
+            <CardHeader title={ct("Documents")} subtitle={isDraft ? ct("Upload required documents") : ct("Submitted documents are locked. Only requested replacements can be uploaded.")} />
+            <div className="divide-y divide-slate-100">
+              {checklist.map((item) => {
+                const itemDocs = docs.filter((d) => d.doc.checklistItemId === item.id).sort((a,b) => b.doc.version - a.doc.version);
+                const latest = itemDocs[0];
+                const hasOpenRequest = openRequests.some((r) => r.req.checklistItemId === item.id || r.req.documentTypeId === item.documentTypeId);
+                return (
+                  <div key={item.id} className="px-4 py-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium text-navy-900">{item.documentTypeName} {item.required ? <span className="badge bg-rose-50 text-rose-600 text-[10px]">{ct("Required")}</span> : <span className="badge bg-slate-100 text-slate-500 text-[10px]">{ct("Optional")}</span>}</p>
+                        {item.notes ? <p className="mt-0.5 text-xs text-slate-500">{item.notes}</p> : null}
+                        <p className="mt-1 text-[11px] text-slate-400">{ct("PDF, JPEG, PNG, WEBP, DOC, DOCX · 2 MB max")}</p>
+                      </div>
+                      {latest ? (
+                        <span className="badge bg-emerald-50 text-emerald-700">{ct("Uploaded")} ✓</span>
+                      ) : (
+                        <span className="badge bg-amber-50 text-amber-700">{ct("Missing")}</span>
+                      )}
+                    </div>
+                    {itemDocs.length > 0 ? (
+                      <ul className="mt-3 space-y-2">
+                        {itemDocs.map(({ doc }) => (
+                          <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ivory-50 px-3 py-2 text-xs">
+                            <span className="flex items-center gap-2 min-w-0">
+                              <a href={`/api/documents/${doc.id}`} target="_blank" className="font-medium text-navy-800 truncate hover:underline">{doc.originalFilename}</a>
+                              <span className="text-slate-400">v{doc.version} · {bytes(doc.sizeBytes)} · {formatDateTime(doc.createdAt)}</span>
+                            </span>
+                            <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-xs">{ct("Preview")}</a>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {isDraft ? (
+                      <form action={uploadDocumentAction} encType="multipart/form-data" className="mt-3 flex flex-wrap items-center gap-2">
+                        <input type="hidden" name="applicationId" value={id} />
+                        <input type="hidden" name="checklistItemId" value={item.id} />
+                        <input type="hidden" name="back" value={`${back}?tab=documents`} />
+                        <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:mr-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-3 file:py-1.5 file:text-xs file:text-white" />
+                        <button type="submit" className="btn-secondary btn-sm">{latest ? ct("Replace") : ct("Upload")}</button>
+                      </form>
+                    ) : hasOpenRequest ? (
+                      <p className="mt-2 text-xs text-amber-700">{ct("Upload enabled via action required above.")}</p>
+                    ) : (
+                      <p className="mt-2 text-xs text-slate-400">{ct("Locked after submission.")}</p>
+                    )}
+                  </div>
+                );
+              })}
+              {checklist.length === 0 ? <p className="px-4 py-6 text-sm text-slate-500">{ct("No document requirements for this visa.")}</p> : null}
             </div>
           </Card>
         </div>
       ) : null}
 
-      {tab === "communications" ? (
-        <CommunicationsPanel applicationId={id} messages={messages} user={user} back={`${back}?tab=communications`} locale={uiLocale} />
+      {tab === "messages" ? (
+        <CommunicationsPanel applicationId={id} messages={messages} user={user} back={`${back}?tab=messages`} locale={uiLocale} />
       ) : null}
 
       {tab === "activity" ? (
         <div className="space-y-4">
-          <ActivityTimeline history={history} locale={uiLocale} />
-          {docs.some((d) => d.doc.status === "REJECTED" || d.doc.status === "RESUBMISSION_REQUIRED") ? (
-            <Card>
-              <CardHeader title={ct("Documents needing attention")} />
-              <ul className="divide-y divide-slate-100 px-4">
-                {docs
-                  .filter((d) => d.doc.status === "REJECTED" || d.doc.status === "RESUBMISSION_REQUIRED")
-                  .map(({ doc }) => (
-                    <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
-                      <span className="text-sm">{doc.originalFilename}</span>
-                      <span className="flex items-center gap-2">
-                        <DocStatusBadge status={doc.status} />
-                        <Link href={`${back}?tab=documents`} className="btn-secondary btn-sm">{ct("Resubmit")}</Link>
-                      </span>
-                    </li>
-                  ))}
-              </ul>
-            </Card>
-          ) : null}
+          <Card>
+            <CardHeader title={ct("Activity timeline")} subtitle={ct("Human-readable business activity")} />
+            <div className="px-4 py-4">
+              <ActivityTimeline history={history} locale={uiLocale} />
+            </div>
+          </Card>
         </div>
       ) : null}
     </>

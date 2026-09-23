@@ -332,7 +332,7 @@ export function BillingSummary(props: {
       <div className="space-y-2 px-4 py-4 text-sm">
         <div className="flex items-center justify-between">
           <span className="text-slate-500">{t("Application fee (snapshot)")}</span>
-          <span className="font-medium tabular-nums">{formatAmount(app.fee, app.currency)}</span>
+          <span className="font-medium tabular-nums">{formatAmount(app.fee, "DZD")}</span>
         </div>
         {props.charge ? (
           <>
@@ -343,7 +343,7 @@ export function BillingSummary(props: {
             <div className="flex items-center justify-between">
               <span className="text-slate-500">{t("Balance before → after")}</span>
               <span className="tabular-nums">
-                {props.charge.balanceBefore} → {props.charge.balanceAfter} {app.currency}
+                {props.charge.balanceBefore} → {props.charge.balanceAfter} DZD
               </span>
             </div>
             <div className="flex items-center justify-between">
@@ -417,7 +417,7 @@ export function PriceAdjustmentHistory(props: {
       <div className="space-y-2 px-4 py-4 text-sm">
         <div className="flex items-center justify-between">
           <span className="text-slate-500">{t("Original submitted price")}</span>
-          <span className="font-medium tabular-nums">{formatAmount(p.submittedPrice, currency)}</span>
+          <span className="font-medium tabular-nums">{formatAmount(p.submittedPrice, "DZD")}</span>
         </div>
         {p.adjustments.length === 0 ? (
           <p className="rounded-md bg-ivory-100 px-3 py-2 text-xs text-slate-500">
@@ -434,7 +434,7 @@ export function PriceAdjustmentHistory(props: {
                   <span className="ml-2 text-xs text-slate-400">{a.reason}</span>
                 </div>
                 <span className={`whitespace-nowrap tabular-nums ${a.type === "SURCHARGE" ? "text-red-700" : "text-emerald-700"}`}>
-                  {a.type === "SURCHARGE" ? "+" : "−"}{Number(a.amount).toFixed(2)} {a.currency}
+                  {a.type === "SURCHARGE" ? "+" : "−"}{Number(a.amount).toFixed(2)} DZD
                 </span>
               </div>
             ))}
@@ -442,7 +442,7 @@ export function PriceAdjustmentHistory(props: {
         )}
         <div className="flex items-center justify-between border-t border-slate-200 pt-2 font-semibold text-navy-900">
           <span>{t("Effective price")}</span>
-          <span className="tabular-nums">{p.effectivePrice ? formatAmount(p.effectivePrice, currency) : "—"}</span>
+          <span className="tabular-nums">{p.effectivePrice ? formatAmount(p.effectivePrice, "DZD") : "—"}</span>
         </div>
       </div>
     </div>

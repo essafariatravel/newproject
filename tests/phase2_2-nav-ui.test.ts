@@ -2,9 +2,8 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
 /**
- * Phase 2.2 — sidebar cleanup + registration CTA/button/success readability.
- * Source-level guards: the standalone Applicants/Documents entries must not be
- * part of any STAFF/AGENCY sidebar definition, while pages themselves remain.
+ * Phase 2 Final — agency portal simple nav: Dashboard, Applications, New, Wallet, Notifications, Communications, Profile.
+ * No standalone Applicants/Documents. Dossier simplified to Overview/Documents/Messages/Activity.
  */
 describe("Task 7 — standalone Applicants/Documents removed from sidebars", () => {
   it("staff sidebar keeps all sections but drops Applicants/Documents", () => {
@@ -23,13 +22,19 @@ describe("Task 7 — standalone Applicants/Documents removed from sidebars", () 
       expect(s.includes(kept), `kept entry missing: ${kept}`).toBe(true);
     }
   });
-  it("application workspace retains contextual applicants/documents functionality", () => {
+  it("application workspace is simplified dossier: Overview/Documents/Messages/Activity, one applicant", () => {
     const detail = readFileSync("src/app/portal/applications/[id]/page.tsx", "utf8");
-    expect(detail).toContain("Add applicant");
+    // New simplified tabs
+    expect(detail).toContain("overview");
+    expect(detail).toContain("documents");
+    expect(detail).toContain("messages");
+    expect(detail).toContain("activity");
+    // One applicant model
+    expect(detail).toContain("Applicant");
+    // Documents handling
     expect(detail).toContain("Documents");
-    const tabs = readFileSync("src/components/application-detail.tsx", "utf8");
-    expect(tabs).toContain("applicants");
-    expect(tabs).toContain("documents");
+    // No legacy multi-applicant add
+    expect(detail).not.toContain("Add applicant");
   });
 });
 
@@ -44,7 +49,6 @@ describe("Task 2/3 — CTA + registration submit button share the polished butto
   it("registration submit remains visibly a button when enabled/disabled/loading", () => {
     const css = readFileSync("src/app/globals.css", "utf8");
     const gold = css.slice(css.indexOf(".btn-gold {"), css.indexOf("}", css.indexOf(".btn-gold {")));
-    // readable label in every state + visible disabled ring/shape
     expect(gold).toContain("text-navy-950");
     expect(gold).toContain("disabled:opacity-60");
     expect(gold).toContain("disabled:ring-1");

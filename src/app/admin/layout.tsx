@@ -58,7 +58,6 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         { href: "/admin/config/visa-categories", label: tr("Visa Categories")},
         { href: "/admin/config/visa-types", label: tr("Visa Types")},
         { href: "/admin/config/document-types", label: tr("Document Types")},
-        { href: "/admin/config/currencies", label: tr("Currencies")},
         { href: "/admin/config/statuses", label: tr("Statuses & Transitions")},
         { href: "/admin/config/priorities", label: tr("Priorities")},
       ],
