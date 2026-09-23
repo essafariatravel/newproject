@@ -1,0 +1,16 @@
+PROD_GO — explicit authorization for the controlled Production migration.
+Authorized by: essafariatravel (chat confirmation)
+Approved plan: "FINAL READ-ONLY PRODUCTION PREFLIGHT — ALL GREEN" (audit run 35848598713)
+Baseline (verbatim):
+  project: xgetzgixalrsmuvfthpf (Supabase) | schema: visa_os
+  ledger: [0001_init.sql, 0002_branding.sql]
+  counts: users=2, agencies=2, applications=0, applicants=0, notifications=0,
+          communications=0, audit_logs=26, site_settings=13, documents=0,
+          document_blobs=1, checklist_items=0, wallet_transactions=0,
+          application_status_history=0
+  wallet ledger checksum: empty | agency balances checksum: ea27cd1eb76b30a33475bd25d9563019
+  remap exposure: all sources = 0
+  brand.*: 6 keys, name="ESSAFARIA TRAVEL"
+Migration set: 0003 → 0010 (single transaction, advisory-locked, ledger-guarded runner)
+Safety: restore point created BEFORE apply (kept after success until cleanup is
+explicitly authorized); fail-closed pre/post guards; any integrity deviation aborts.
