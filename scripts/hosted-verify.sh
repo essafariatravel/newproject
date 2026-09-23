@@ -92,6 +92,8 @@ err=db.get('error') or {}
 print('PASS  PROD health 200: ok=%s configured=%s connected=%s columnsValid=%s schema=%s ledger=%d last=%s accounts=%s' % (
   d.get('ok'), db.get('configured'), db.get('connected'), s.get('columnsValid'),
   s.get('name'), len(led), (led[-1] if led else 'none'), s.get('hasUserAccounts')))
+print('PASS  PROD db.identity: host=%s port=%s mode=%s ssl=%s intendedSupabaseProject=%s' % (
+  db.get('host'), db.get('port'), db.get('mode'), db.get('ssl'), db.get('intendedSupabaseProject')))
 print('PASS  PROD db.error: code=%s message=%s' % (err.get('code'), str(err.get('message'))[:140]))
 rt=' '.join('%s=%s' % (k, v) for k, v in (s.get('requiredTables') or {}).items())
 print('PASS  PROD requiredTables: %s' % (rt or 'none'))"
@@ -120,9 +122,9 @@ import json
 d=json.load(open('$WORK/health.json'))
 s=d.get('schema') or {}; db=d.get('database') or {}
 led=s.get('migrationLedger') or []
-print('PASS  health ctx: schema=%s db.mode=%s db.ssl=%s accounts=%s ledger=%d entries last=%s' % (
-  s.get('name'), db.get('mode'), db.get('ssl'), s.get('hasUserAccounts'), len(led),
-  (led[-1] if led else 'none')))" || true
+    print('PASS  health ctx: schema=%s host=%s mode=%s ssl=%s intendedProject=%s accounts=%s ledger=%d entries last=%s' % (
+  s.get('name'), db.get('host'), db.get('mode'), db.get('ssl'), db.get('intendedSupabaseProject'),
+  s.get('hasUserAccounts'), len(led), (led[-1] if led else 'none')))" || true
 else
   bad "health endpoint ($CODE)"
 fi
