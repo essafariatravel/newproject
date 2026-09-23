@@ -84,15 +84,28 @@ jobs:
           echo "audit_ran=true" >> "$GITHUB_OUTPUT"
           echo "Using Production env secret: $PICKED (value masked)"
 
+      - name: pnpm 12.5.1
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.5.1
+
       - name: Toolchain
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
 
-      - name: Dependencies
+      - name: Dependencies (diagnostics tee to report on failure)
         run: |
-          corepack enable
-          corepack pnpm install --frozen-lockfile --prefer-offline
+          set -o pipefail
+          (pnpm install --frozen-lockfile --prefer-offline 2>&1 || pnpm install --prefer-offline 2>&1) | tee /tmp/deps.log
+          RC=${PIPESTATUS[0]}
+          if [ "$RC" != "0" ]; then
+            { echo '### Production release — environment diagnostics'; echo; echo '```';
+              echo "dependency install FAILED (rc=$RC) — tail of output:"; tail -25 /tmp/deps.log; echo '```';
+            } > /tmp/prod-release-report.md
+            exit "$RC"
+          fi
 
       - name: Run read-only Production audit
         run: node_modules/tsx/dist/cli.mjs scripts/prod-release.ts audit
@@ -136,15 +149,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: pnpm 12.5.1
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.5.1
+
       - name: Toolchain
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
 
-      - name: Dependencies
+      - name: Dependencies (diagnostics tee to report on failure)
         run: |
-          corepack enable
-          corepack pnpm install --frozen-lockfile --prefer-offline
+          set -o pipefail
+          (pnpm install --frozen-lockfile --prefer-offline 2>&1 || pnpm install --prefer-offline 2>&1) | tee /tmp/deps.log
+          RC=${PIPESTATUS[0]}
+          if [ "$RC" != "0" ]; then
+            { echo '### Production release — environment diagnostics'; echo; echo '```';
+              echo "dependency install FAILED (rc=$RC) — tail of output:"; tail -25 /tmp/deps.log; echo '```';
+            } > /tmp/prod-release-report.md
+            exit "$RC"
+          fi
 
       - name: Preflight + restore point + migrations + integrity postflight
         run: node_modules/tsx/dist/cli.mjs scripts/prod-release.ts apply
