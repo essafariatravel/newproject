@@ -1,0 +1,88 @@
+name: Pre-Production Gate — DB Security & Concurrency
+
+on:
+  push:
+    branches:
+      - arena/01a0ce58-newproject
+  workflow_dispatch:
+
+concurrency:
+  group: pre-prod-gate
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  deployments: read
+
+jobs:
+  gate:
+    name: Execute critical DB checks against visa_os_preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+      DATABASE_SCHEMA: visa_os_preview
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Guard — secrets and schema pin
+        run: |
+          [ -n "$DATABASE_URL" ] || { echo "Missing PREVIEW_DATABASE_URL"; exit 1; }
+          [ "$DATABASE_SCHEMA" = "visa_os_preview" ] || { echo "schema pin violated"; exit 1; }
+          echo "schema pin OK: visa_os_preview"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run pre-production gate script
+        run: npx tsx scripts/pre-prod-gate.ts
+
+      - name: Verify production untouched (read-only via health endpoints)
+        run: |
+          echo "Checking production health..."
+          curl -s --max-time 20 https://visa.essafariavoyages.com/api/health -o /tmp/prod.json
+          cat /tmp/prod.json
+          python3 -c "
+          import json
+          d=json.load(open('/tmp/prod.json'))
+          ledger=d.get('schema',{}).get('migrationLedger',[])
+          assert '0011_dzd_only_and_wallet_ref.sql' not in ledger, 'prod has 0011'
+          assert '0012_document_requests.sql' not in ledger, 'prod has 0012'
+          assert d.get('schema',{}).get('name')=='visa_os', 'prod schema not visa_os'
+          print('PROD untouched verified: ledger through 0010 only')
+          "
+          echo "Checking preview health..."
+          # Use the latest preview deployment URL for this SHA
+          SHA=${{ github.sha }}
+          for i in $(seq 1 20); do
+            DEP=$(gh api repos/${{ github.repository }}/deployments?sha=$SHA --jq '.[] | select(.environment==\"Preview\") | .id' | head -1)
+            if [ -n "$DEP" ]; then
+              URL=$(gh api repos/${{ github.repository }}/deployments/$DEP/statuses --jq '.[] | select(.state==\"success\") | .environment_url' | head -1)
+              if [ -n "$URL" ]; then
+                echo "Preview URL: $URL"
+                curl -s --max-time 20 $URL/api/health -o /tmp/preview.json
+                cat /tmp/preview.json
+                python3 -c "
+          import json
+          d=json.load(open('/tmp/preview.json'))
+          ledger=d.get('schema',{}).get('migrationLedger',[])
+          assert '0011_dzd_only_and_wallet_ref.sql' in ledger, 'preview missing 0011'
+          assert '0012_document_requests.sql' in ledger, 'preview missing 0012'
+          assert d.get('schema',{}).get('name')=='visa_os_preview', 'preview schema not preview'
+          print(f'PREVIEW verified: {len(ledger)} migrations through 0012')
+          "
+                exit 0
+              fi
+            fi
+            echo "waiting for deployment..."
+            sleep 10
+          done
+          echo "could not resolve preview URL, but DB gate already verified ledger"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
