@@ -1,6 +1,7 @@
 /**
- * Production release tooling — visa_os schema recovery + Phase 2 migration.
- * (audit refresh: production env secrets configured — read-only evidence pass; @next/env hoist fixed; pooler credentials refreshed — rerun audit; new password candidate; xget project confirmed — rerun audit; tx-pooler 6543 refresh; final preflight after password rotation)
+ * Production release tooling — visa_os schema 0011+0012 release.
+ * Updated baseline: ledger 0001-0010, live production audit 2026-05-13 run 35876904396.
+ * Previous baselines preserved in git history.
  *
  * MODES
  *   audit   — read-only: ledger, columnsValid, counts, wallet checksums,
@@ -66,35 +67,51 @@ const SNAPSHOT_TABLES = [
   "agencies",
   "users",
   "currencies",
+  "visa_types",
   "document_types",
+  "wallet_transactions",
+  "document_requests",
   "schema_migrations",
   "site_settings",
 ] as const;
 
 /**
- * The EXACT preflight state approved for the migration (final read-only audit —
- * commit comments on 3e..b, run 35848598713). The apply path refuses to run if
- * the live pre-apply state differs. audit_logs rows may grow (they record
- * events); every other value must match exactly.
+ * The EXACT preflight state approved for the migration (live audit 2026-05-13).
+ * For 0011+0012 release: production baseline is ledger 0001-0010,
+ * counts from live audit run 35876904396 — commit bb839b7.
+ * audit_logs may grow; others must match exactly.
+ * columnsValid false pre-migration is expected (document_requests absent).
  */
 const APPROVED_BASELINE = {
-  ledger: ["0001_init.sql", "0002_branding.sql"] as const,
+  ledger: [
+    "0001_init.sql",
+    "0002_branding.sql",
+    "0003_agency_registrations.sql",
+    "0004_phase2_1.sql",
+    "0005_canonical_decision_model.sql",
+    "0006_simplified_status_model.sql",
+    "0007_must_change_password.sql",
+    "0008_application_price_adjustments.sql",
+    "0009_atomic_request_submission.sql",
+    "0010_simplified_applicant.sql",
+  ] as const,
   counts: {
-    users: 2,
-    agencies: 2,
-    applications: 0,
-    applicants: 0,
-    notifications: 0,
+    users: 4,
+    agencies: 3,
+    applications: 1,
+    applicants: 1,
+    notifications: 13,
     communications: 0,
-    audit_logs: 26,
+    audit_logs: 45,
     site_settings: 13,
-    documents: 0,
-    document_blobs: 1,
-    checklist_items: 0,
-    wallet_transactions: 0,
-    application_status_history: 0,
+    documents: 2,
+    document_blobs: 4,
+    checklist_items: 2,
+    wallet_transactions: 2,
+    application_status_history: 3,
   } as Record<string, number>,
-  walletChecksum: "empty",
+  walletChecksum: "e1fdc33dc84212d28deb24429c4853d2",
+  agencyWalletsChecksum: "6b946ee161521be88d246ad359a78497",
 };
 const PROJECT_USER = `postgres.${EXPECTED_SUPABASE_PROJECT}`;
 
@@ -322,15 +339,17 @@ async function main(): Promise<void> {
     // ---- apply mode: hard precondition — pre-apply state must equal the APPROVED preflight ----
     {
       const mismatches: string[] = [];
-      const FULL_LEDGER = [...APPROVED_BASELINE.ledger, "0003_agency_registrations.sql", "0004_phase2_1.sql", "0005_canonical_decision_model.sql", "0006_simplified_status_model.sql", "0007_must_change_password.sql", "0008_application_price_adjustments.sql", "0009_atomic_request_submission.sql", "0010_simplified_applicant.sql"];
-      if (JSON.stringify(before.ledger) === JSON.stringify(FULL_LEDGER)) {
+      const FULL_LEDGER_AFTER = [...APPROVED_BASELINE.ledger, "0011_dzd_only_and_wallet_ref.sql", "0012_document_requests.sql"];
+      // If already fully migrated to 0012, no-op
+      if (JSON.stringify(before.ledger) === JSON.stringify(FULL_LEDGER_AFTER)) {
         const md = renderReport("apply", "", before, before, [], []);
-        fs.writeFileSync("/tmp/prod-release-report.md", md + "\n\nMIGRATIONS ALREADY APPLIED (ledger complete 0001-0010) — no-op run; restore point not recreated.\n");
+        fs.writeFileSync("/tmp/prod-release-report.md", md + "\n\nMIGRATIONS ALREADY APPLIED (ledger complete 0001-0012) — no-op run; restore point not recreated.\n");
         console.log(md);
-        console.log("migrations already applied — ledger complete; exiting as successful no-op.");
+        console.log("migrations already applied — ledger complete 0001-0012; exiting as successful no-op.");
         pool.end();
         return;
       }
+      // Pre-apply must be exactly 0001-0010
       if (JSON.stringify(before.ledger) !== JSON.stringify([...APPROVED_BASELINE.ledger])) {
         mismatches.push(`ledger differs: live=[${before.ledger.join(", ")}] approved=[${APPROVED_BASELINE.ledger.join(", ")}]`);
       }
@@ -344,6 +363,9 @@ async function main(): Promise<void> {
       }
       if (before.walletChecksum !== APPROVED_BASELINE.walletChecksum) {
         mismatches.push(`wallet ledger checksum differs: live=${before.walletChecksum} expected=${APPROVED_BASELINE.walletChecksum}`);
+      }
+      if (before.agencyWallets !== APPROVED_BASELINE.agencyWalletsChecksum) {
+        mismatches.push(`agency wallets checksum differs: live=${before.agencyWallets} expected=${APPROVED_BASELINE.agencyWalletsChecksum}`);
       }
       const currentUrl = process.env.DATABASE_URL ?? "";
       const username = (() => { try { return decodeURIComponent(new URL(currentUrl).username); } catch { return ""; } })();
