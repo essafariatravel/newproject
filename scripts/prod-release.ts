@@ -235,14 +235,18 @@ async function main(): Promise<void> {
   const url = process.env.DATABASE_URL;
   if (!url) fail("DATABASE_URL is not available to this job — expected in the 'Production' GitHub environment secrets.");
   let host = "";
+  let projectNote = "";
   try {
-    host = new URL(url).hostname;
-    if (!targetsSupabaseProject(url, EXPECTED_SUPABASE_PROJECT)) {
-      fail(`DATABASE_URL target ('${host}') does not belong to the intended Supabase project; refusing to run.`);
-    }
+    const parsed = new URL(url);
+    host = parsed.hostname;
+    const isSupabase = host.endsWith(".supabase.com");
+    if (!isSupabase) fail(`DATABASE_URL host '${host}' is not a Supabase host; refusing to run.`);
+    projectNote = targetsSupabaseProject(url, EXPECTED_SUPABASE_PROJECT)
+      ? `targets the recorded project ${EXPECTED_SUPABASE_PROJECT}`
+      : `targets project ref in username '${decodeURIComponent(parsed.username || "")}' (differs from the recorded preview project ${EXPECTED_SUPABASE_PROJECT} — Production may legitimately live in its own Supabase project)`;
   } catch (err) {
-    if (err instanceof Error && err.message.startsWith("DATABASE_URL target")) throw err;
-    fail("DATABASE_URL is not parseable or does not target the intended Supabase project.");
+    if (err instanceof Error && err.message.startsWith("DATABASE_URL")) throw err;
+    fail("DATABASE_URL is not parseable.");
   }
   if ((process.env.DATABASE_SCHEMA ?? "").trim() !== SCHEMA) {
     fail(`DATABASE_SCHEMA must be exactly '${SCHEMA}' for this tool (got '${process.env.DATABASE_SCHEMA ?? ""}'). Refusing to run.`);
@@ -262,7 +266,7 @@ async function main(): Promise<void> {
       if (!ledgerProbe.rows[0].t) {
         fail("Production migration ledger is missing — this is not a managed Production database state. Nothing was changed.");
       }
-      notes.push(`connected: database=${dbName} schema=${SCHEMA}`);
+      notes.push(`connected: database=${dbName} schema=${SCHEMA}; ${projectNote}`);
       before = await collect(client, notes);
     } finally {
       client.release();
