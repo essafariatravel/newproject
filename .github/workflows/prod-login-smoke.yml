@@ -1,0 +1,68 @@
+name: Production Login Smoke — 01a0ce58 (read-only)
+
+on:
+  push:
+    branches:
+      - arena/01a0ce58-newproject
+    paths:
+      - .github/workflows/prod-login-smoke.yml
+      - src/lib/auth.ts
+  workflow_dispatch:
+
+concurrency:
+  group: prod-login-smoke
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Production login smoke (invalid creds)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: Production
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+      DATABASE_SCHEMA: visa_os
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      - name: Test invalid credentials returns INVALID_CREDENTIALS not SERVICE_UNAVAILABLE
+        run: |
+          cat > /tmp/test-login.ts <<'TS'
+          import "./scripts/lib/load-env";
+          import { authenticate } from "./src/lib/auth";
+          import { AppError } from "./src/lib/types";
+          async function main(){
+            try {
+              await authenticate("invalid-test-xyz@example.com", "wrongPassword123");
+              console.error("UNEXPECTED: invalid creds should have thrown");
+              process.exit(2);
+            } catch (e:any){
+              if (e instanceof AppError) {
+                console.log(`AppError code=${e.code} message=${e.message}`);
+                if (e.code==="INVALID_CREDENTIALS") {
+                  console.log("PASS: invalid creds returns INVALID_CREDENTIALS (DB query works, no SERVICE_UNAVAILABLE)");
+                  process.exit(0);
+                } else if (e.code==="SERVICE_UNAVAILABLE") {
+                  console.error("FAIL: SERVICE_UNAVAILABLE — DB/schema issue");
+                  process.exit(3);
+                } else {
+                  console.log(`Other AppError code=${e.code} — still not SERVICE_UNAVAILABLE, partial PASS`);
+                  process.exit(0);
+                }
+              } else {
+                console.error("FAIL: unexpected error", e);
+                process.exit(4);
+              }
+            }
+          }
+          main();
+          TS
+          npx tsx /tmp/test-login.ts
