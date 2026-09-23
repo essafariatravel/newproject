@@ -62,8 +62,10 @@ PY
   local args=()
   while IFS= read -r line; do args+=(-F "$line"); done < "$WORK/fields.txt"
   [ -f "$5" ] && while IFS= read -r line; do args+=(-F "$line"); done < "$5"
+  local ORIGIN
+  ORIGIN=$(printf '%s' "$2" | sed -E 's#^([a-z]+://[^/]+).*#\1#')
   curl -s -b "$4" -c "$4" -D "$WORK/headers.txt" -o "$WORK/body.html" -w "%{http_code}" \
-    -H "Origin: ${BASE_URL}" --max-time 60 -X POST "$2" "${args[@]}"
+    -H "Origin: ${ORIGIN}" --max-time 60 -X POST "$2" "${args[@]}"
 }
 
 loc_header() { grep -i '^location:' "$WORK/headers.txt" | tr -d '\r' | cut -d' ' -f2; }
