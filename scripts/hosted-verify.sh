@@ -643,6 +643,30 @@ d=json.load(open('$WORK/health2.json'))
 sys.exit(0 if d.get('ok') is True else 1)
 " 2>/dev/null && ok "final health check ok ($CODE_H2)" || bad "final health check ($CODE_H2)"
 
+# -------------------------------------------------------------------------- #
+log "-- [13] PROD post-alignment auth smoke (visa.essafariavoyages.com — read-only + MAX one real login/session row)"
+CODE_PROD_L=$(status_of "https://visa.essafariavoyages.com/login" "$WORK/prod-login.html")
+printf 'email=%s\npassword=%s\n' "no-such-user-$STAMP@verify.invalid" "Wr0ng!Probe$STAMP" > "$WORK/prodloginfields-bogus.txt"
+CODE_P0P=$(submit_form "$WORK/prod-login.html" "https://visa.essafariavoyages.com/login" "Sign in" "$WORK/prodjarb.txt" "$WORK/prodloginfields-bogus.txt")
+P0P_TEXT=$(tr -d '\r' < "$WORK/body.html" | LC_ALL=C sed 's/<[^>]*>//g' | tr -s ' \n' ' ' 2>/dev/null)
+case "$P0P_TEXT" in *"Service temporarily unavailable"*) bad "PROD P0 repro: bogus login produced service-failure on production domain";; esac
+echo "$P0P_TEXT" | grep -qi "Invalid email or password" \
+  && ok "PROD bogus login → normal invalid-credentials (auth + users query healthy on visa_os, http $CODE_P0P)" \
+  || skp "PROD bogus-login probe inconclusive (http $CODE_P0P; login page http $CODE_PROD_L)"
+if [ -n "$STAFF_EMAIL" ] && [ -n "$STAFF_PASS" ]; then
+  CODE_PROD_L2=$(status_of "https://visa.essafariavoyages.com/login" "$WORK/prod-login2.html")
+  printf 'email=%s\npassword=%s\n' "$STAFF_EMAIL" "$STAFF_PASS" > "$WORK/prodloginfields.txt"
+  CODE_RP=$(submit_form "$WORK/prod-login2.html" "https://visa.essafariavoyages.com/login" "Sign in" "$WORK/prodjar.txt" "$WORK/prodloginfields.txt")
+  LOC_RP=$(loc_header)
+  if grep -qi 'set-cookie:.*evos_session=' "$WORK/headers.txt" && echo "$LOC_RP" | grep -qE "/admin|/portal|/change-password"; then
+    ok "PROD real login → evos_session + redirect ${LOC_RP} (authentication operational on production domain)"
+  else
+    bad "PROD real login failed (http $CODE_RP, ${LOC_RP:-no redirect}; login page http $CODE_PROD_L2)"
+  fi
+else
+  skp "PROD real login smoke (needs PREVIEW_VERIFY_STAFF_EMAIL/PASSWORD)"
+fi
+
 log ""
 log "== Summary =="
 log "PASS: $PASS  FAIL: $FAIL  SKIP: $SKIP"

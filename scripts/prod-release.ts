@@ -71,6 +71,33 @@ const SNAPSHOT_TABLES = [
   "site_settings",
 ] as const;
 
+/**
+ * The EXACT preflight state approved for the migration (final read-only audit —
+ * commit comments on 3e..b, run 35848598713). The apply path refuses to run if
+ * the live pre-apply state differs. audit_logs rows may grow (they record
+ * events); every other value must match exactly.
+ */
+const APPROVED_BASELINE = {
+  ledger: ["0001_init.sql", "0002_branding.sql"] as const,
+  counts: {
+    users: 2,
+    agencies: 2,
+    applications: 0,
+    applicants: 0,
+    notifications: 0,
+    communications: 0,
+    audit_logs: 26,
+    site_settings: 13,
+    documents: 0,
+    document_blobs: 1,
+    checklist_items: 0,
+    wallet_transactions: 0,
+    application_status_history: 0,
+  } as Record<string, number>,
+  walletChecksum: "empty",
+};
+const PROJECT_USER = `postgres.${EXPECTED_SUPABASE_PROJECT}`;
+
 interface SnapshotReport {
   counts: Record<string, number | null>;
   walletChecksum: string | null;
@@ -290,6 +317,34 @@ async function main(): Promise<void> {
       fs.writeFileSync("/tmp/prod-release-report.md", md);
       console.log(md);
       return;
+    }
+
+    // ---- apply mode: hard precondition — pre-apply state must equal the APPROVED preflight ----
+    {
+      const mismatches: string[] = [];
+      if (JSON.stringify(before.ledger) !== JSON.stringify([...APPROVED_BASELINE.ledger])) {
+        mismatches.push(`ledger differs: live=[${before.ledger.join(", ")}] approved=[${APPROVED_BASELINE.ledger.join(", ")}]`);
+      }
+      for (const [table, expected] of Object.entries(APPROVED_BASELINE.counts)) {
+        const live = before.counts[table];
+        if (table === "audit_logs") {
+          if (live === null || live < expected) mismatches.push(`audit_logs=${live} < approved ${expected}`);
+        } else if (live !== expected) {
+          mismatches.push(`${table}: live=${live} expected=${expected}`);
+        }
+      }
+      if (before.walletChecksum !== APPROVED_BASELINE.walletChecksum) {
+        mismatches.push(`wallet ledger checksum differs: live=${before.walletChecksum} expected=${APPROVED_BASELINE.walletChecksum}`);
+      }
+      const currentUrl = process.env.DATABASE_URL ?? "";
+      const username = (() => { try { return decodeURIComponent(new URL(currentUrl).username); } catch { return ""; } })();
+      const hostname = (() => { try { return new URL(currentUrl).hostname; } catch { return ""; } })();
+      if (hostname.includes("pooler.supabase.com") && username !== PROJECT_USER) {
+        mismatches.push(`pooler username '${username}' is not '${PROJECT_USER}' (identity of the approved production project)`);
+      }
+      if (mismatches.length) {
+        fail(`PRE-APPLY STATE DIVERGES FROM THE APPROVED PREFLIGHT — refusing to apply anything:\n - ${mismatches.join("\n - ")}`);
+      }
     }
 
     // ---- apply mode: surgical in-place restore point (outside the migration transaction) ----
