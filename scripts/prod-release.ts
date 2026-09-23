@@ -88,6 +88,14 @@ interface SnapshotReport {
 
 function fail(msg: string): never {
   console.error(`GUARD FAILURE: ${msg}`);
+  try {
+    fs.writeFileSync(
+      "/tmp/prod-release-report.md",
+      `### Production release — GUARD FAILURE (${MODE})\n\n\`\`\`\n${msg}\n\`\`\`\n`,
+    );
+  } catch {
+    // report channel best-effort only
+  }
   process.exit(1);
 }
 
@@ -314,8 +322,23 @@ async function main(): Promise<void> {
   }
 }
 
+function persistError(text: string): void {
+  try {
+    if (!fs.existsSync("/tmp/prod-release-report.md")) {
+      fs.writeFileSync(
+        "/tmp/prod-release-report.md",
+        `### Production release — AUDIT/EXECUTION FAILURE (${MODE})\n\n\`\`\`\n${text}\n\`\`\`\n`,
+      );
+    }
+  } catch {
+    // best effort
+  }
+}
+
 main().catch((error) => {
-  console.error(`prod-release ${MODE} failed${safeErrorCode(error) ? ` (code ${safeErrorCode(error)})` : ""}: ${safeErrorText(error)}`);
+  const text = `${safeErrorCode(error) ? `(code ${safeErrorCode(error)}) ` : ""}${safeErrorText(error)}`;
+  console.error(`prod-release ${MODE} failed: ${text}`);
   console.error("No reset, seed, or destructive repair was attempted. The migration transaction is all-or-nothing.");
+  persistError(text);
   process.exitCode = 1;
 });
