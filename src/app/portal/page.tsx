@@ -51,7 +51,7 @@ export default async function PortalDashboardPage() {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label={ct("Active applications")} value={totals.active} hint={ct("Submitted and in progress")} href="/portal/applications" tone="navy" />
-        <StatCard label={ct("Action required")} value={(totals as any).actionRequired ?? 0} hint={ct("Replacement or additional document requested")} href="/portal/applications?status=DOCUMENTS_REQUESTED" tone="gold" />
+        <StatCard label={ct("Action required")} value={(totals as { actionRequired?: number }).actionRequired ?? 0} hint={ct("Replacement or additional document requested")} href="/portal/applications?status=DOCUMENTS_REQUESTED" tone="gold" />
         <StatCard label={ct("Completed")} value={totals.completed} href="/portal/applications?status=APPROVED" tone="teal" />
         <StatCard
           label={ct("Wallet balance")}
@@ -133,7 +133,7 @@ export default async function PortalDashboardPage() {
                           {r.app.reference}
                         </Link>
                       </td>
-                      <td className="td font-medium text-navy-900">{(r as any).applicantSummary ?? "—"}</td>
+                      <td className="td font-medium text-navy-900">{(r as { applicantSummary?: string }).applicantSummary ?? "—"}</td>
                       <td className="td">
                         {r.app.countryName}
                         <span className="block text-xs text-slate-400">{r.app.visaTypeName}</span>
@@ -160,7 +160,7 @@ export default async function PortalDashboardPage() {
               data.recentTx.map((tx) => (
                 <li key={tx.id} className="flex items-center justify-between gap-3 py-2.5">
                   <div className="min-w-0">
-                    <p className="truncate text-xs font-medium text-navy-900">{(tx as any).reference ?? tx.type.replaceAll("_", " ")}</p>
+                    <p className="truncate text-xs font-medium text-navy-900">{(tx as { reference?: string | null }).reference ?? tx.type.replaceAll("_", " ")}</p>
                     <p className="truncate text-[11px] text-slate-400">{formatDateTime(tx.createdAt)}</p>
                   </div>
                   <span className={`whitespace-nowrap text-sm font-medium tabular-nums ${tx.type === "CREDIT" ? "text-emerald-700" : "text-red-700"}`}>

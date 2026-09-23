@@ -17,9 +17,9 @@ import { listCommunications } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
 import { getUiLocale, localizedStatusName, localizedDocTypeName } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
-import { formatAmount, formatDate, formatDateTime } from "@/lib/format";
+import { formatAmount, formatDateTime } from "@/lib/format";
 import { nationalityLabel } from "@/lib/nationalities";
-import { OVERRIDE_ROLES, type AuthUser } from "@/lib/types";
+import { OVERRIDE_ROLES } from "@/lib/types";
 import { staffDirectory } from "@/app/actions/communications";
 import {
   assignOfficerAction,
@@ -87,12 +87,12 @@ export default async function AdminApplicationDetailPage({
   const allowedDecisionOutcomes = decisionOutcomesForStatus(detail.statusCode);
   const canStatusChange = hasPermission(user, "applications.status.change");
   const canReview = hasPermission(user, "applications.review");
-  const canOverride = hasPermission(user, "applications.submit.override") && OVERRIDE_ROLES.includes(user.role);
+  const _canOverride = hasPermission(user, "applications.submit.override") && OVERRIDE_ROLES.includes(user.role);
   const flash = flashFrom(sp);
   const uiLocale = await getUiLocale();
   const ct = contentT(uiLocale);
   const applicant = applicants[0];
-  const openRequests = docRequests.filter((r) => r.req.status === "OPEN");
+  const _openRequests = docRequests.filter((r) => r.req.status === "OPEN");
 
   return (
     <>
@@ -386,7 +386,7 @@ export default async function AdminApplicationDetailPage({
                   <div className="flex justify-between"><span className="text-slate-500">{ct("Amount")}</span><span>{formatAmount(charge.amount, "DZD", uiLocale)}</span></div>
                   <div className="flex justify-between"><span className="text-slate-500">{ct("Balance before")}</span><span>{formatAmount(charge.balanceBefore, "DZD", uiLocale)}</span></div>
                   <div className="flex justify-between"><span className="text-slate-500">{ct("Balance after")}</span><span>{formatAmount(charge.balanceAfter, "DZD", uiLocale)}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">{ct("Reference")}</span><span className="font-mono text-xs">{(charge as any).reference ?? charge.id.slice(0,8)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">{ct("Reference")}</span><span className="font-mono text-xs">{(charge as { reference?: string | null }).reference ?? charge.id.slice(0,8)}</span></div>
                 </>
               ) : <p className="text-xs text-slate-500">{ct("No charge recorded")}</p>}
             </div>

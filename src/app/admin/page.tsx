@@ -88,7 +88,7 @@ export default async function AdminDashboardPage() {
                         </Link>
                       </td>
                       <td className="td max-w-[140px] truncate">{r.agencyName}</td>
-                      <td className="td max-w-[140px] truncate font-medium text-navy-900">{(r as any).applicantSummary ?? "—"}</td>
+                      <td className="td max-w-[140px] truncate font-medium text-navy-900">{(r as { applicantSummary?: string }).applicantSummary ?? "—"}</td>
                       <td className="td">
                         <span className="block">{r.app.countryName}</span>
                         <span className="block text-xs text-slate-400">{r.app.visaTypeName}</span>

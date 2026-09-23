@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { checklistItems, documentRequests, documentTypes, documents } from "@/db/schema";
+import { checklistItems, documentRequests, documentTypes } from "@/db/schema";
 import { AppError, type AuthUser, DOCUMENT_REVIEW_ROLES } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
 import { agencyUserIds, notifyUsers } from "@/lib/notifications";

@@ -84,7 +84,7 @@ export default async function AdminBillingPage({
               <tbody className="divide-y divide-slate-100">
                 {txs.rows.map(({ tx, agencyName, applicationReference }) => (
                   <tr key={tx.id} className="tr-hover">
-                    <td className="td whitespace-nowrap text-xs font-mono">{(tx as any).reference ?? tx.id.slice(0, 8)}</td>
+                    <td className="td whitespace-nowrap text-xs font-mono">{(tx as { reference?: string | null }).reference ?? tx.id.slice(0, 8)}</td>
                     <td className="td whitespace-nowrap text-xs">{formatDateTime(tx.createdAt)}</td>
                     <td className="td max-w-[160px] truncate">
                       <Link href={`/admin/agencies/${tx.agencyId}`} className="text-navy-800 hover:underline">

@@ -19,7 +19,7 @@ import { getApplicationPricing } from "@/lib/price-adjustments";
 import { PriceAdjustmentHistory } from "@/components/application-detail";
 import { formatDateTime, formatAmount, bytes } from "@/lib/format";
 import { nationalityLabel } from "@/lib/nationalities";
-import { Card, CardHeader, EmptyState, Flash, PageHeader, Tabs } from "@/components/ui";
+import { Card, CardHeader, Flash, PageHeader, Tabs } from "@/components/ui";
 import { StatusBadge } from "@/components/badges";
 import {
   ActivityTimeline,
@@ -52,7 +52,7 @@ export default async function PortalApplicationDetailPage({
   const app = detail.app;
   const back = `/portal/applications/${id}`;
 
-  const [applicants, docs, checklist, history, messages, charge, draftStatus, wallet, decisionDocs, docRequests] =
+  const [applicants, docs, checklist, history, messages, charge, draftStatus, _wallet, decisionDocs, docRequests] =
     await Promise.all([
       listApplicantsForApplication(id),
       listDocumentsForApplication(id),
@@ -181,7 +181,7 @@ export default async function PortalApplicationDetailPage({
                   <>
                     <div className="flex justify-between"><span className="text-slate-500">{ct("Balance before")}</span><span className="tabular-nums">{formatAmount(charge.balanceBefore, "DZD", uiLocale)}</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">{ct("Balance after")}</span><span className="tabular-nums font-medium">{formatAmount(charge.balanceAfter, "DZD", uiLocale)}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">{ct("Transaction")}</span><span className="font-mono text-xs">{(charge as any).reference ?? charge.id.slice(0,8)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">{ct("Transaction")}</span><span className="font-mono text-xs">{(charge as { reference?: string | null }).reference ?? charge.id.slice(0,8)}</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">{ct("Charged at")}</span><span className="text-xs">{formatDateTime(charge.createdAt)}</span></div>
                   </>
                 ) : (

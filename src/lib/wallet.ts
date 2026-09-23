@@ -187,7 +187,7 @@ export async function chargeApplicationSubmission(params: {
     );
     if (!upd.rows[0]) {
       await client.query("rollback");
-      const bal = await client.query<{ balance: string; currency: string }>(
+      const _bal = await client.query<{ balance: string; currency: string }>(
         `select balance::text as balance, currency from ${qualifiedTable("agencies")} where id = $1`,
         [app.agency_id],
       );

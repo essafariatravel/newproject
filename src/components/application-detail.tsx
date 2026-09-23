@@ -407,7 +407,7 @@ export function PriceAdjustmentHistory(props: {
   const t = contentT(props.locale ?? "en");
   const p = props.pricing;
   if (!p.submittedPrice) return null;
-  const currency = p.submittedCurrency ?? "";
+  const _currency = p.submittedCurrency ?? "";
   const label = props.formatLabel ?? ((t: "DISCOUNT" | "SURCHARGE" | "REFUND") => t.replace("_", " "));
   return (
     <div className="card">

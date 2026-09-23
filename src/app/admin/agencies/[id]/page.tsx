@@ -324,7 +324,7 @@ export default async function AdminAgencyDetailPage({
               ) : (
                 txs.map(({ tx, applicationReference }) => (
                   <tr key={tx.id} className="tr-hover">
-                    <td className="td whitespace-nowrap text-xs font-mono">{(tx as any).reference ?? tx.id.slice(0, 8)}</td>
+                    <td className="td whitespace-nowrap text-xs font-mono">{(tx as { reference?: string | null }).reference ?? tx.id.slice(0, 8)}</td>
                     <td className="td whitespace-nowrap text-xs">{formatDateTime(tx.createdAt)}</td>
                     <td className="td">
                       <span className={`badge ${tx.type === "CREDIT" ? "bg-emerald-100 text-emerald-800" : tx.type === "DEBIT" ? "bg-red-100 text-red-700" : "bg-navy-900/5 text-navy-800"}`}>

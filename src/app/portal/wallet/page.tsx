@@ -93,7 +93,7 @@ export default async function PortalWalletPage({
                   return (
                   <tr key={tx.id} className="tr-hover">
                     <td className="td whitespace-nowrap text-xs">{formatDateTime(tx.createdAt)}</td>
-                    <td className="td whitespace-nowrap font-mono text-[11px]">{(tx as any).reference ?? tx.id.slice(0,8)}</td>
+                    <td className="td whitespace-nowrap font-mono text-[11px]">{(tx as { reference?: string | null }).reference ?? tx.id.slice(0,8)}</td>
                     <td className="td">
                       <span className={`badge ${creditEffect ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}`}>
                         {typeLabel}
