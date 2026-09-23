@@ -96,15 +96,17 @@ jobs:
 
       - name: Dependencies (diagnostics tee to report on failure)
         run: |
-          set -o pipefail
+          set +e
           (pnpm install --frozen-lockfile --prefer-offline 2>&1 || pnpm install --prefer-offline 2>&1) | tee /tmp/deps.log
-          RC=${PIPESTATUS[0]}
+          RC=$?
+          echo "install rc=$RC"
           if [ "$RC" != "0" ]; then
             { echo '### Production release — environment diagnostics'; echo; echo '```';
-              echo "dependency install FAILED (rc=$RC) — tail of output:"; tail -25 /tmp/deps.log; echo '```';
+              echo "dependency install FAILED (rc=$RC) — tail of output:"; tail -30 /tmp/deps.log; echo '```';
             } > /tmp/prod-release-report.md
             exit "$RC"
           fi
+          set -e
 
       - name: Run read-only Production audit
         run: node_modules/tsx/dist/cli.mjs scripts/prod-release.ts audit
@@ -160,15 +162,17 @@ jobs:
 
       - name: Dependencies (diagnostics tee to report on failure)
         run: |
-          set -o pipefail
+          set +e
           (pnpm install --frozen-lockfile --prefer-offline 2>&1 || pnpm install --prefer-offline 2>&1) | tee /tmp/deps.log
-          RC=${PIPESTATUS[0]}
+          RC=$?
+          echo "install rc=$RC"
           if [ "$RC" != "0" ]; then
             { echo '### Production release — environment diagnostics'; echo; echo '```';
-              echo "dependency install FAILED (rc=$RC) — tail of output:"; tail -25 /tmp/deps.log; echo '```';
+              echo "dependency install FAILED (rc=$RC) — tail of output:"; tail -30 /tmp/deps.log; echo '```';
             } > /tmp/prod-release-report.md
             exit "$RC"
           fi
+          set -e
 
       - name: Preflight + restore point + migrations + integrity postflight
         run: node_modules/tsx/dist/cli.mjs scripts/prod-release.ts apply
