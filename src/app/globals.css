@@ -59,9 +59,11 @@ body {
   background-image: none;
 }
 
-h1, h2, h3 {
-  @apply text-navy-900;
-  letter-spacing: -0.01em;
+@layer base {
+  h1, h2, h3 {
+    @apply text-navy-900;
+    letter-spacing: -0.01em;
+  }
 }
 
 ::selection {

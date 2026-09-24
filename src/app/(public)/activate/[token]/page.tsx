@@ -6,7 +6,7 @@ import { registrationCopy, resolveLocale } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Activate your account — ESSAFARIA VISA" };
+export const metadata: Metadata = { title: "Activate your account" };
 
 export default async function ActivateAccountPage({
   params,

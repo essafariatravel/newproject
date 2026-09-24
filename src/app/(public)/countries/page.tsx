@@ -9,7 +9,7 @@ import { resolvePageSize } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Destinations — ESSAFARIA VISA" };
+export const metadata = { title: "Destinations" };
 
 /**
  * PUBLIC destinations index.
@@ -52,7 +52,7 @@ export default async function CountriesPage({
   const matches = (row: (typeof rows)[number]) => {
     if (region && (row.region ?? "Other") !== region) return false;
     if (!needle) return true;
-    const haystack = `${countryName(row, uiLocale)} ${row.name} ${row.region ?? ""}`
+    const haystack = `${countryName(row, uiLocale)} ${row.name} ${row.region ?? ""} ${row.region ? ct(row.region) : ""}`
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase();
@@ -89,7 +89,7 @@ export default async function CountriesPage({
           <select id="d-region" name="region" defaultValue={region} className="input">
             <option value="">{ct("All regions")}</option>
             {allRegions.map((r) => (
-              <option key={r} value={r}>{r}</option>
+              <option key={r} value={r}>{ct(r)}</option>
             ))}
           </select>
         </div>
@@ -119,7 +119,7 @@ export default async function CountriesPage({
             {paged.map((row) => (
               <div key={row.id} className="card flex items-center justify-between p-4">
                 <span className="font-medium text-navy-900">{countryName(row, uiLocale)}</span>
-                <span className="text-xs text-slate-400">{row.region ?? "—"}</span>
+                <span className="text-xs text-slate-400">{row.region ? ct(row.region) : "—"}</span>
               </div>
             ))}
           </div>

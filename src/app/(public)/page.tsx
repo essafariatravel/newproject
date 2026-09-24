@@ -87,7 +87,7 @@ export default async function HomePage() {
               {destinations.slice(0, 8).map((row) => (
                 <Link key={row.id} href="/countries" className="public-card group relative flex min-h-64 flex-col justify-between overflow-hidden rounded-2xl bg-navy-900 p-6 text-white">
                   <span className="absolute -end-2 -top-10 select-none font-serif text-[10rem] leading-none text-white/[.06]" aria-hidden>{row.iso2}</span>
-                  <span className="relative text-xs font-semibold uppercase tracking-[0.16em] text-gold-400">{row.region ?? ct("Destination")}</span>
+                  <span className="relative text-xs font-semibold uppercase tracking-[0.16em] text-gold-400">{row.region ? ct(row.region) : ct("Destination")}</span>
                   <span className="relative flex items-end justify-between gap-3">
                     <span className="font-serif text-3xl">{countryName(row, locale)}</span>
                     <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gold-500 text-navy-950 transition-transform group-hover:translate-x-1 rtl:group-hover:-translate-x-1" aria-hidden>{locale === "ar" ? "←" : "→"}</span>

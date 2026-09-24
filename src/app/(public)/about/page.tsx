@@ -5,7 +5,7 @@ import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "About — ESSAFARIA VISA" };
+export const metadata = { title: "About" };
 
 export default async function AboutPage() {
   const settings = await getSiteSettings();

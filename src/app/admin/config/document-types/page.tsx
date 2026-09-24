@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 import { hasPermission } from "@/lib/rbac";
 import { listDocumentTypes } from "@/lib/applications-exports";
 import { resolvePageSize } from "@/lib/queries";
@@ -19,8 +21,10 @@ export default async function DocumentTypesConfigPage({
 }) {
   const sp = await searchParams;
   const staff = await pageUser();
+  const locale = await getUiLocale();
+  const ct = contentT(locale);
   if (!hasPermission(staff, "config.view")) {
-    return <div className="card"><EmptyState title="Not authorized" /></div>;
+    return <div className="card"><EmptyState title={ct("Not authorized")} /></div>;
   }
   const flash = flashFrom(sp);
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
@@ -41,13 +45,13 @@ export default async function DocumentTypesConfigPage({
   return (
     <>
       <PageHeader
-        title="Document types"
-        subtitle="Catalogue used by visa requirements and checklists."
+        title={ct("Document types")}
+        subtitle={ct("Catalogue used by visa requirements and checklists.")}
         actions={
           <form className="flex items-center gap-2">
-            <input name="q" defaultValue={q} placeholder="Search document type…" className="input w-64 text-sm" />
-            <button type="submit" className="btn-secondary btn-sm">Search</button>
-            {q ? <Link href="/admin/config/document-types" className="btn-secondary btn-sm">Clear</Link> : null}
+            <input name="q" defaultValue={q} placeholder={ct("Search document type…")} className="input w-64 text-sm" />
+            <button type="submit" className="btn-secondary btn-sm">{ct("Search")}</button>
+            {q ? <Link href="/admin/config/document-types" className="btn-secondary btn-sm">{ct("Clear")}</Link> : null}
           </form>
         }
       />
@@ -56,13 +60,13 @@ export default async function DocumentTypesConfigPage({
       <TableWrap>
         <thead className="border-b border-slate-100 bg-ivory-50/60">
           <tr>
-            <th className="th">Document type</th>
-            <th className="th">Code</th>
-            <th className="th">Description</th>
-            <th className="th">Sort</th>
-            <th className="th">Agency upload</th>
-            <th className="th">Status</th>
-            {canManage ? <th className="th text-right">Actions</th> : null}
+            <th className="th">{ct("Document type")}</th>
+            <th className="th">{ct("Code")}</th>
+            <th className="th">{ct("Description")}</th>
+            <th className="th">{ct("Sort")}</th>
+            <th className="th">{ct("Agency upload")}</th>
+            <th className="th">{ct("Status")}</th>
+            {canManage ? <th className="th text-right">{ct("Actions")}</th> : null}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -74,12 +78,12 @@ export default async function DocumentTypesConfigPage({
               <td className="td tabular-nums text-xs">{d.sortOrder}</td>
               <td className="td">
                 {d.agencyUploadable ? (
-                  <span className="badge bg-teal-50 text-teal-700">Agency</span>
+                  <span className="badge bg-teal-50 text-teal-700">{ct("Agency")}</span>
                 ) : (
-                  <span className="badge bg-navy-900/5 text-navy-800">ESSAFARIA issued</span>
+                  <span className="badge bg-navy-900/5 text-navy-800">{ct("ESSAFARIA issued")}</span>
                 )}
               </td>
-              <td className="td"><ActiveBadge active={d.active} /></td>
+              <td className="td"><ActiveBadge active={d.active} locale={locale} /></td>
       {canManage ? (
                 <td className="td text-right">
                   <form action={updateDocumentTypeAction} className="inline">
@@ -91,7 +95,7 @@ export default async function DocumentTypesConfigPage({
                     <input type="hidden" name="agencyUploadable" value={d.agencyUploadable ? "1" : "0"} />
                     <input type="hidden" name="toggle" value="1" />
                     <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">
-                      {d.active ? "Deactivate" : "Activate"}
+                      {ct(d.active ? "Deactivate" : "Activate")}
                     </SubmitButton>
                   </form>
                 </td>
@@ -108,8 +112,8 @@ export default async function DocumentTypesConfigPage({
         <div className="mt-3 flex items-center justify-between text-xs">
           <span className="text-slate-500">Page {page} / {pageCount} — {total} total</span>
           <span className="flex gap-1.5">
-            {page > 1 ? <Link href={`/admin/config/document-types?${new URLSearchParams({ ...(q ? { q } : {}), ...(per !== 20 ? { per: String(per) } : {}), page: String(page - 1) }).toString()}`} className="btn-secondary btn-sm">← Prev</Link> : null}
-            {page < pageCount ? <Link href={`/admin/config/document-types?${new URLSearchParams({ ...(q ? { q } : {}), ...(per !== 20 ? { per: String(per) } : {}), page: String(page + 1) }).toString()}`} className="btn-secondary btn-sm">Next →</Link> : null}
+            {page > 1 ? <Link href={`/admin/config/document-types?${new URLSearchParams({ ...(q ? { q } : {}), ...(per !== 20 ? { per: String(per) } : {}), page: String(page - 1) }).toString()}`} className="btn-secondary btn-sm">{ct("← Prev")}</Link> : null}
+            {page < pageCount ? <Link href={`/admin/config/document-types?${new URLSearchParams({ ...(q ? { q } : {}), ...(per !== 20 ? { per: String(per) } : {}), page: String(page + 1) }).toString()}`} className="btn-secondary btn-sm">{ct("Next →")}</Link> : null}
           </span>
         </div>
       ) : null}
@@ -120,29 +124,29 @@ export default async function DocumentTypesConfigPage({
 
       {canManage ? (
         <div className="mt-8">
-          <h2 className="mb-3 font-serif text-xl text-navy-900">Add document type</h2>
+          <h2 className="mb-3 font-serif text-xl text-navy-900">{ct("Add document type")}</h2>
           <form action={createDocumentTypeAction} className="card grid grid-cols-1 gap-4 p-5 sm:grid-cols-4">
             <div>
-              <label className="label">Name *</label>
+              <label className="label">{ct("Name *")}</label>
               <input name="name" required className="input" placeholder="Police Clearance" />
             </div>
             <div>
-              <label className="label">Code *</label>
+              <label className="label">{ct("Code *")}</label>
               <input name="code" required className="input uppercase" placeholder="POLICE_CLEARANCE" />
             </div>
             <div className="sm:col-span-2">
-              <label className="label">Description</label>
+              <label className="label">{ct("Description")}</label>
               <input name="description" className="input" />
             </div>
             <div className="sm:col-span-2">
-              <label className="label">Provided by</label>
+              <label className="label">{ct("Provided by")}</label>
               <select name="agencyUploadable" className="input" defaultValue="1">
-                <option value="1">Agency uploads it</option>
-                <option value="0">ESSAFARIA / authority issues it</option>
+                <option value="1">{ct("Agency uploads it")}</option>
+                <option value="0">{ct("ESSAFARIA / authority issues it")}</option>
               </select>
             </div>
             <div className="sm:col-span-2">
-              <SubmitButton className="btn-primary" pendingLabel="Saving…">Add document type</SubmitButton>
+              <SubmitButton className="btn-primary" pendingLabel={ct("Saving…")}>{ct("Add document type")}</SubmitButton>
             </div>
           </form>
         </div>

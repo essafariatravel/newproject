@@ -81,7 +81,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       t={tr}
       user={user}
       nav={nav}
-      brandSuffix="Back Office"
+      brandSuffix={tr("Back Office")}
       platformLogoUrl={platformBranding ? brandLogoUrl(platformBranding) : null}
       brandName={platformBranding?.name}
       headerExtras={

@@ -33,7 +33,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
 
   const nav: NavSection[] = [
     {
-      title: "Your agency",
+      title: tr("Your agency"),
       items: [
         { href: "/portal", label: tr("Dashboard")},
         { href: "/portal/applications", label: tr("Applications")},
@@ -41,11 +41,11 @@ export default async function PortalLayout({ children }: { children: ReactNode }
       ],
     },
     {
-      title: "Finance",
+      title: tr("Finance"),
       items: [{ href: "/portal/wallet", label: tr("Wallet & Transactions")}],
     },
     {
-      title: "Workspace",
+      title: tr("Workspace"),
       items: [
         { href: "/portal/notifications", label: tr("Notifications"), badge: unread },
         { href: "/portal/communications", label: tr("Communications")},
@@ -62,7 +62,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
       t={tr}
       user={user}
       nav={nav}
-      brandSuffix="Agency Portal"
+      brandSuffix={tr("Agency Portal")}
       agencyLogoUrl={agencyLogo}
       platformLogoUrl={platformBranding ? brandLogoUrl(platformBranding) : null}
       brandName={platformBranding?.name}

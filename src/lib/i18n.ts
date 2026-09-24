@@ -117,7 +117,7 @@ export interface RegistrationCopy {
 
 const en: RegistrationCopy = {
   dir: "ltr",
-  metaTitle: "Register your Agency — ESSAFARIA VISA",
+  metaTitle: "Register your Agency",
   kicker: "B2B Partnership Application",
   title: "Register your Agency",
   subtitle:
@@ -249,7 +249,7 @@ const en: RegistrationCopy = {
 
 const fr: RegistrationCopy = {
   dir: "ltr",
-  metaTitle: "Inscrire votre agence — ESSAFARIA VISA",
+  metaTitle: "Inscrire votre agence",
   kicker: "Demande de partenariat B2B",
   title: "Inscrire votre agence",
   subtitle:
@@ -381,7 +381,7 @@ const fr: RegistrationCopy = {
 
 const ar: RegistrationCopy = {
   dir: "rtl",
-  metaTitle: "سجّل وكالتك — ESSAFARIA VISA",
+  metaTitle: "سجّل وكالتك",
   kicker: "طلب شراكة بين الشركات",
   title: "سجّل وكالتك",
   subtitle:

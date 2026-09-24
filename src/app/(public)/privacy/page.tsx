@@ -4,7 +4,7 @@ import { formatMonthYear } from "@/lib/format";
 import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Privacy Notice — ESSAFARIA VISA" };
+export const metadata = { title: "Privacy Notice" };
 
 export default async function PrivacyPage() {
   const settings = await getSiteSettings();

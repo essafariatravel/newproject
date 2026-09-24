@@ -5,6 +5,8 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { documentTypes, visaRequirements, visaTypes } from "@/db/schema";
 import { pageUser } from "@/lib/page-auth";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 import { hasPermission } from "@/lib/rbac";
 import { flashFrom } from "@/lib/action-helpers";
 import { addRequirementAction, removeRequirementAction, updateRequirementAction, updateVisaTypeAction } from "@/app/actions/config";
@@ -24,6 +26,8 @@ export default async function VisaTypeDetailPage({
   const { id } = await params;
   const sp = await searchParams;
   const staff = await pageUser();
+  const locale = await getUiLocale();
+  const ct = contentT(locale);
   if (!hasPermission(staff, "config.view")) notFound();
 
   const rows = await db.select().from(visaTypes).where(eq(visaTypes.id, id)).limit(1);
@@ -56,11 +60,11 @@ export default async function VisaTypeDetailPage({
                 <input type="hidden" name="back" value={`/admin/config/visa-types/${id}`} />
                 <input type="hidden" name="toggle" value="1" />
                 <SubmitButton className={vt.active ? "btn-danger btn-sm" : "btn-secondary btn-sm"} pendingLabel="…">
-                  {vt.active ? "Deactivate" : "Activate"}
+                  {ct(vt.active ? "Deactivate" : "Activate")}
                 </SubmitButton>
               </form>
             ) : null}
-            <Link href="/admin/config/visa-types" className="btn-secondary btn-sm">← All visa types</Link>
+            <Link href="/admin/config/visa-types" className="btn-secondary btn-sm">{ct("← All visa types")}</Link>
           </>
         }
       />
@@ -70,19 +74,19 @@ export default async function VisaTypeDetailPage({
         <div className="space-y-4 xl:col-span-2">
           <Card>
             <CardHeader
-              title="Document requirements"
-              subtitle="Applied to new applications. Draft applications re-sync automatically; submitted applications are never rewritten."
+              title={ct("Document requirements")}
+              subtitle={ct("Applied to new applications. Draft applications re-sync automatically; submitted applications are never rewritten.")}
               testId="vt-section-docs"
             />
             <TableWrap>
               <thead className="border-b border-slate-100 bg-ivory-50/60">
                 <tr>
-                  <th className="th">Document</th>
-                  <th className="th">Required</th>
-                  <th className="th">Order</th>
-                  <th className="th">Notes</th>
-                  <th className="th">Status</th>
-                  {canManage ? <th className="th text-right">Actions</th> : null}
+                  <th className="th">{ct("Document")}</th>
+                  <th className="th">{ct("Required")}</th>
+                  <th className="th">{ct("Order")}</th>
+                  <th className="th">{ct("Notes")}</th>
+                  <th className="th">{ct("Status")}</th>
+                  {canManage ? <th className="th text-right">{ct("Actions")}</th> : null}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -120,13 +124,13 @@ export default async function VisaTypeDetailPage({
                             <input type="hidden" name="visaTypeId" value={id} />
                             <input type="hidden" name="toggleActive" value="1" />
                             <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">
-                              {req.active ? "Deactivate" : "Activate"}
+                              {ct(req.active ? "Deactivate" : "Activate")}
                             </SubmitButton>
                           </form>
                           <form action={removeRequirementAction}>
                             <input type="hidden" name="id" value={req.id} />
                             <input type="hidden" name="visaTypeId" value={id} />
-                            <SubmitButton className="btn-danger btn-sm" pendingLabel="…">Remove</SubmitButton>
+                            <SubmitButton className="btn-danger btn-sm" pendingLabel="…">{ct("Remove")}</SubmitButton>
                           </form>
                         </div>
                       </td>
@@ -134,7 +138,7 @@ export default async function VisaTypeDetailPage({
                   </tr>
                 ))}
                 {requirements.length === 0 ? (
-                  <tr><td colSpan={6} className="td py-8 text-center text-slate-500">No requirements yet — applications of this visa would have an empty checklist.</td></tr>
+                  <tr><td colSpan={6} className="td py-8 text-center text-slate-500">{ct("No requirements yet — applications of this visa would have an empty checklist.")}</td></tr>
                 ) : null}
               </tbody>
             </TableWrap>
@@ -142,11 +146,11 @@ export default async function VisaTypeDetailPage({
 
           {canManage && missingDocTypes.length > 0 ? (
             <Card>
-              <CardHeader title="Document requirements — add" subtitle="A document already on this list cannot be added twice; change its row instead." />
+              <CardHeader title={ct("Document requirements — add")} subtitle={ct("A document already on this list cannot be added twice; change its row instead.")} />
               <form action={addRequirementAction} className="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-4">
                 <input type="hidden" name="visaTypeId" value={id} />
                 <div className="sm:col-span-2">
-                  <label className="label" htmlFor="documentTypeId">Document type *</label>
+                  <label className="label" htmlFor="documentTypeId">{ct("Document type *")}</label>
                   <select id="documentTypeId" name="documentTypeId" required className="input">
                     {missingDocTypes.map((d) => (
                       <option key={d.id} value={d.id}>{d.name}</option>
@@ -154,22 +158,22 @@ export default async function VisaTypeDetailPage({
                   </select>
                 </div>
                 <div>
-                  <label className="label" htmlFor="required">Required?</label>
+                  <label className="label" htmlFor="required">{ct("Required?")}</label>
                   <select id="required" name="required" className="input" defaultValue="true">
-                    <option value="true">Required</option>
-                    <option value="false">Optional</option>
+                    <option value="true">{ct("Required")}</option>
+                    <option value="false">{ct("Optional")}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="label" htmlFor="sortOrder">Sort order</label>
+                  <label className="label" htmlFor="sortOrder">{ct("Sort order")}</label>
                   <input id="sortOrder" name="sortOrder" type="number" min="0" defaultValue={10} className="input" />
                 </div>
                 <div className="sm:col-span-3">
-                  <label className="label" htmlFor="notes">Notes (shown on the agency checklist)</label>
-                  <input id="notes" name="notes" className="input" placeholder="Last 3 months, stamped." />
+                  <label className="label" htmlFor="notes">{ct("Notes (shown on the agency checklist)")}</label>
+                  <input id="notes" name="notes" className="input" placeholder={ct("Last 3 months, stamped.")} />
                 </div>
                 <div className="flex items-end">
-                  <SubmitButton className="btn-primary" pendingLabel="Adding…">Add</SubmitButton>
+                  <SubmitButton className="btn-primary" pendingLabel={ct("Adding…")}>{ct("Add")}</SubmitButton>
                 </div>
               </form>
             </Card>
@@ -179,8 +183,8 @@ export default async function VisaTypeDetailPage({
         <div className="space-y-4">
           <Card>
             <CardHeader
-              title="Publication"
-              subtitle="Inactive programmes disappear from the agency wizard and cannot be chosen for new applications. Existing dossiers are untouched."
+              title={ct("Publication")}
+              subtitle={ct("Inactive programmes disappear from the agency wizard and cannot be chosen for new applications. Existing dossiers are untouched.")}
               testId="vt-section-publication"
             />
             <div className="space-y-3 px-4 py-4">
@@ -206,7 +210,7 @@ export default async function VisaTypeDetailPage({
           </Card>
 
           <Card>
-            <CardHeader title="Information" subtitle="Internal and agency-facing name of this programme." testId="vt-section-information" />
+            <CardHeader title={ct("Information")} subtitle={ct("Internal and agency-facing name of this programme.")} testId="vt-section-information" />
             <KeyValue
               items={[
                 { label: "Code", value: vt.code },
@@ -218,25 +222,25 @@ export default async function VisaTypeDetailPage({
 
           {canManage ? (
             <Card>
-              <CardHeader title="Edit programme" subtitle="Existing applications keep their snapshot; new applications use these values." />
+              <CardHeader title={ct("Edit programme")} subtitle={ct("Existing applications keep their snapshot; new applications use these values.")} />
               <form action={updateVisaTypeAction} className="space-y-3 px-4 py-4">
                 <input type="hidden" name="id" value={id} />
                 <input type="hidden" name="back" value={`/admin/config/visa-types/${id}`} />
                 <fieldset className="space-y-3 rounded-xl border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-information-edit">
-                  <legend className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Information</legend>
+                  <legend className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Information")}</legend>
                   <div>
-                    <label className="label" htmlFor="e-name">Name *</label>
+                    <label className="label" htmlFor="e-name">{ct("Name *")}</label>
                     <input id="e-name" name="name" required defaultValue={vt.name} className="input" />
                   </div>
                   <div>
-                    <label className="label" htmlFor="e-desc">Description</label>
+                    <label className="label" htmlFor="e-desc">{ct("Description")}</label>
                     <textarea id="e-desc" name="description" rows={2} defaultValue={vt.description ?? ""} className="input" />
                   </div>
                 </fieldset>
                 <fieldset className="space-y-3 rounded-xl border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-pricing">
-                  <legend className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Pricing (DZD)</legend>
+                  <legend className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Pricing (DZD)")}</legend>
                   <div>
-                    <label className="label" htmlFor="e-fee">Fee (DZD) *</label>
+                    <label className="label" htmlFor="e-fee">{ct("Fee (DZD) *")}</label>
                     <input id="e-fee" name="fee" type="number" step="0.01" min="0" required defaultValue={vt.fee} className="input" />
                     <input name="currency" value="DZD" type="hidden" />
                     <p className="mt-1.5 text-xs text-slate-500">
@@ -246,40 +250,40 @@ export default async function VisaTypeDetailPage({
                   </div>
                 </fieldset>
                 <fieldset className="space-y-3 rounded-xl border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-processing">
-                  <legend className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Processing</legend>
+                  <legend className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Processing")}</legend>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="label" htmlFor="e-min">Min days (0 = on request) *</label>
+                      <label className="label" htmlFor="e-min">{ct("Min days (0 = on request) *")}</label>
                       <input id="e-min" name="processingMinDays" type="number" min="0" required defaultValue={vt.processingMinDays} className="input" />
                     </div>
                     <div>
-                      <label className="label" htmlFor="e-max">Max days (0 = on request) *</label>
+                      <label className="label" htmlFor="e-max">{ct("Max days (0 = on request) *")}</label>
                       <input id="e-max" name="processingMaxDays" type="number" min="0" required defaultValue={vt.processingMaxDays} className="input" />
                     </div>
                   </div>
                   <p className="text-xs text-slate-500">
-                    Shown to agencies as {formatProcessingDays(vt.processingMinDays, vt.processingMaxDays)}. Zero means “on request”, never “0 days”.
+                    {ct("Shown to agencies as")} {formatProcessingDays(vt.processingMinDays, vt.processingMaxDays, locale)}. {ct("Zero means on request, never zero days.")}
                   </p>
                 </fieldset>
                 <fieldset className="rounded-xl border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-workflow">
-                  <legend className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Workflow</legend>
-                  <label className="label" htmlFor="e-embassy">Embassy / external authority step</label>
+                  <legend className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Workflow")}</legend>
+                  <label className="label" htmlFor="e-embassy">{ct("Embassy / external authority step")}</label>
                   <select
                     id="e-embassy"
                     name="embassyApplicability"
                     defaultValue={(vt as { embassyApplicability?: string }).embassyApplicability ?? "OPTIONAL"}
                     className="input"
                   >
-                    <option value="NOT_APPLICABLE">Not applicable — this programme never goes to an embassy</option>
-                    <option value="OPTIONAL">Optional — staff may send it, never required</option>
-                    <option value="APPLICABLE">Applicable — the embassy stage is part of this programme</option>
+                    <option value="NOT_APPLICABLE">{ct("Not applicable — this programme never goes to an embassy")}</option>
+                    <option value="OPTIONAL">{ct("Optional — staff may send it, never required")}</option>
+                    <option value="APPLICABLE">{ct("Applicable — the embassy stage is part of this programme")}</option>
                   </select>
                   <p className="mt-1.5 text-xs text-slate-500">
                     When a programme is “Not applicable”, staff can no longer move an application to the embassy stage, and agencies
                     never see an embassy step in their progress view.
                   </p>
                 </fieldset>
-                <SubmitButton className="btn-primary w-full" pendingLabel="Saving…">Save visa type</SubmitButton>
+                <SubmitButton className="btn-primary w-full" pendingLabel={ct("Saving…")}>{ct("Save visa type")}</SubmitButton>
               </form>
             </Card>
           ) : null}

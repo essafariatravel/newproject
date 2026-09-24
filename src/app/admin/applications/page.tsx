@@ -5,13 +5,13 @@ import { searchApplications, resolvePageSize } from "@/lib/queries";
 import { staffDirectory } from "@/app/actions/communications";
 import { listAgencies, activeVisaOptions, listStatuses, listPriorities } from "@/lib/applications-exports";
 import { flashFrom } from "@/lib/action-helpers";
-import { formatDate } from "@/lib/format";
+import { formatAmount, formatDate } from "@/lib/format";
 import { elapsedDays, elapsedLabel, waitingBand, type WaitingBand } from "@/lib/time-in-status";
 import { FilterBar, Pagination, PageSizeSelector } from "@/components/app-widgets";
 import { EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
 import { PriorityBadge, StatusBadge } from "@/components/badges";
 import { bulkAssignAction, bulkPriorityAction } from "@/app/actions/applications";
-import { getUiLocale } from "@/lib/ui-i18n";
+import { getUiLocale, localizedPriority, localizedStatusName } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { countryName } from "@/lib/country-names";
 
@@ -139,8 +139,8 @@ export default async function AdminApplicationsPage({
             value: sp.visa,
             options: visaOptions.map((v) => ({ value: v.id, label: v.label })),
           },
-          { name: "status", label: ct("Status"), type: "select", value: sp.status, options: statuses.map((s) => ({ value: s.code, label: s.name })) },
-          { name: "priority", label: ct("Priority"), type: "select", value: sp.priority, options: priorities.map((p) => ({ value: p.code, label: p.name })) },
+          { name: "status", label: ct("Status"), type: "select", value: sp.status, options: statuses.map((s) => ({ value: s.code, label: localizedStatusName(s.code, s.name, uiLocale) })) },
+          { name: "priority", label: ct("Priority"), type: "select", value: sp.priority, options: priorities.map((p) => ({ value: p.code, label: localizedPriority(p.code, p.name, uiLocale) })) },
           { name: "from", label: ct("From"), type: "date", value: sp.from },
           { name: "to", label: ct("To"), type: "date", value: sp.to },
         ]}
@@ -192,7 +192,7 @@ export default async function AdminApplicationsPage({
                 <select id="bulk-priority" name="priorityId" className="input">
                   <option value="">{ct("Leave unchanged")}</option>
                   {priorities.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
+                    <option key={p.id} value={p.id}>{localizedPriority(p.code, p.name, uiLocale)}</option>
                   ))}
                 </select>
               </div>
@@ -208,9 +208,8 @@ export default async function AdminApplicationsPage({
             <thead className="border-b border-slate-100 bg-ivory-50/60">
               <tr>
                 {canBulk ? <th className="th w-8">{ct("Select")}</th> : null}
-                <th className="th">{ct("Reference")}</th>
-                <th className="th">{ct("Agency")}</th>
                 <th className="th">{ct("Applicants")}</th>
+                <th className="th">{ct("Agency")}</th>
                 <th className="th">{ct("Visa / Country")}</th>
                 <th className="th">{ct("Fee")}</th>
                 <th className="th">{ct("Priority")}</th>
@@ -236,22 +235,18 @@ export default async function AdminApplicationsPage({
                     </td>
                   ) : null}
                   <td className="td">
-                    <Link href={`/admin/applications/${r.app.id}`} className="font-medium text-navy-900 hover:underline">
-                      {r.app.reference}
+                    <Link href={`/admin/applications/${r.app.id}`} className="block max-w-[200px] truncate font-semibold text-navy-900 hover:underline" title={r.applicantSummary ?? r.app.reference}>
+                      {r.applicantSummary ?? r.app.reference}
                     </Link>
+                    {r.applicantSummary ? <span className="block text-xs text-slate-500">{r.app.reference}</span> : null}
                   </td>
                   <td className="td max-w-[160px] truncate">{r.agencyName}</td>
-                  <td className="td">
-                    <span className="block max-w-[180px] truncate text-xs" title={r.applicantSummary ?? ""}>
-                      {r.applicantSummary ?? "—"}
-                    </span>
-                  </td>
                   <td className="td">
                     <span className="block">{countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}</span>
                     <span className="block text-xs text-slate-400">{r.app.visaTypeName}</span>
                   </td>
                   <td className="td whitespace-nowrap tabular-nums">
-                    {r.app.fee} DZD
+                    {formatAmount(r.app.fee, "DZD", uiLocale)}
                   </td>
                   <td className="td">
                     <PriorityBadge name={r.priorityName} weight={r.priorityWeight} />

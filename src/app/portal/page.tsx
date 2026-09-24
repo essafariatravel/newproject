@@ -18,11 +18,9 @@ export default async function PortalDashboardPage() {
   const user = await portalPageUser();
   const uiLocale = await getUiLocale();
   const ct = contentT(uiLocale);
-  const data = await agencyDashboard(user.agencyId, user.id);
-  const { totals, wallet } = data;
-
-  // Needs attention: DOCUMENTS_REQUESTED
-  const needsAttention = await db
+  const [data, needsAttention] = await Promise.all([
+    agencyDashboard(user.agencyId, user.id),
+    db
     .select({
       id: applications.id,
       reference: applications.reference,
@@ -38,7 +36,9 @@ export default async function PortalDashboardPage() {
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
     .where(and(eq(applications.agencyId, user.agencyId), eq(statuses.code, "DOCUMENTS_REQUESTED")))
     .orderBy(desc(applications.createdAt))
-    .limit(5);
+    .limit(5),
+  ]);
+  const { totals, wallet } = data;
 
   return (
     <>

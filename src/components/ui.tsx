@@ -79,10 +79,11 @@ export function titleize(code: string): string {
 }
 
 
-export function ActiveBadge({ active }: { active: boolean }) {
+export function ActiveBadge({ active, locale = "en" }: { active: boolean; locale?: "en" | "fr" | "ar" }) {
+  const labels = { en: ["Active", "Inactive"], fr: ["Actif", "Inactif"], ar: ["نشط", "غير نشط"] };
   return (
     <span className={`badge ${active ? "bg-emerald-50 text-emerald-700" : "bg-ivory-100 text-slate-400"}`}>
-      {active ? "Active" : "Inactive"}
+      {labels[locale][active ? 0 : 1]}
     </span>
   );
 }

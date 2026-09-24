@@ -5,7 +5,7 @@ import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "B2B Partnership — ESSAFARIA VISA" };
+export const metadata = { title: "B2B Partnership" };
 
 const BENEFITS = [
   {

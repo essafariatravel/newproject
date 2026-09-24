@@ -55,7 +55,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
         <div className={`ess-container grid grid-cols-1 gap-10 py-12 sm:grid-cols-2 ${hasContact ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
           <div>
             <p className="text-lg font-bold tracking-[0.04em] text-white">{brandName}</p>
-            <p className="mt-2 max-w-xs text-sm leading-relaxed text-white/65">{tagline}</p>
+            <p className="mt-2 max-w-xs text-sm leading-relaxed text-white/65">{ct(tagline)}</p>
           </div>
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-gold-400">{tr("Platform")}</p>

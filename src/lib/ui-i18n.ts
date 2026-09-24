@@ -59,7 +59,7 @@ type ChromeKey =
   | "Back Office" | "Agency Portal" | "B2B Agency Portal"
   | "Search" | "Search…"
   /* nav sections */
-  | "Overview" | "Operations" | "Partners" | "Finance" | "Configuration" | "Insights"
+  | "Overview" | "Operations" | "Partners" | "Finance" | "Configuration" | "Insights" | "Your agency" | "Workspace"
   /* nav items */
   | "Dashboard" | "Notifications" | "Applications" | "New Application" | "Applicants"
   | "Documents" | "Communications" | "Profile" | "Wallet & Transactions"
@@ -98,6 +98,8 @@ const FR: ChromeDict = {
   Operations: "Opérations",
   Partners: "Partenaires",
   Finance: "Finance",
+  "Your agency": "Votre agence",
+  Workspace: "Espace de travail",
   Configuration: "Configuration",
   Insights: "Pilotage",
   Dashboard: "Tableau de bord",
@@ -154,6 +156,8 @@ const AR: ChromeDict = {
   Operations: "العمليات",
   Partners: "الشركاء",
   Finance: "المالية",
+  "Your agency": "وكالتك",
+  Workspace: "مساحة العمل",
   Configuration: "الإعدادات",
   Insights: "الرؤى والتقارير",
   Dashboard: "لوحة التحكم",
@@ -203,7 +207,7 @@ export const ALL_CHROME_KEYS: ChromeKey[] = [
   "Menu", "Close menu",
   "Back Office", "Agency Portal", "B2B Agency Portal",
   "Search", "Search…",
-  "Overview", "Operations", "Partners", "Finance", "Configuration", "Insights",
+  "Overview", "Operations", "Partners", "Finance", "Configuration", "Insights", "Your agency", "Workspace",
   "Dashboard", "Notifications", "Applications", "New Application", "Applicants",
   "Documents", "Communications", "Profile", "Wallet & Transactions",
   "Agency Registrations", "Agencies", "Users", "Wallets & Billing",

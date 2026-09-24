@@ -5,7 +5,7 @@ import { getUiLocale, pickUiLocale } from "@/lib/ui-i18n";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Application received — ESSAFARIA VISA" };
+export const metadata: Metadata = { title: "Application received" };
 
 const REFERENCE_RE = /^AGR-\d{4}-[A-Z0-9]{6}$/;
 

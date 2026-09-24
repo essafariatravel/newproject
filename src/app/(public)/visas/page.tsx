@@ -4,7 +4,7 @@ import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Visa Services — ESSAFARIA VISA" };
+export const metadata = { title: "Visa Services" };
 
 /**
  * PUBLIC marketing page — deliberately DB-free.

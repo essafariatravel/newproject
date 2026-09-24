@@ -3,7 +3,7 @@ import { portalPageUser } from "@/lib/page-auth";
 import { searchApplications, resolvePageSize } from "@/lib/queries";
 import { listStatuses } from "@/lib/applications";
 import { flashFrom } from "@/lib/action-helpers";
-import { formatDate } from "@/lib/format";
+import { formatAmount, formatDate } from "@/lib/format";
 import { FilterBar, Pagination, PageSizeSelector } from "@/components/app-widgets";
 import { localizedStatusName } from "@/lib/ui-i18n";
 import { EmptyState, Flash, PageHeader, Progress, TableWrap } from "@/components/ui";
@@ -97,7 +97,7 @@ export default async function PortalApplicationsPage({
                     {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)} · {r.app.visaTypeName}
                   </p>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-                    <span className="tabular-nums">{r.app.fee} DZD</span>
+                    <span className="tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</span>
                     <span className="flex items-center gap-2">
                       {p ? <Progress done={p.done} total={p.total} /> : null}
                       <span>{formatDate(r.app.createdAt, uiLocale)}</span>
@@ -134,7 +134,7 @@ export default async function PortalApplicationsPage({
                       <span className="block text-xs text-slate-400">{r.app.visaTypeName}</span>
                     </td>
                     <td className="td">{p ? <Progress done={p.done} total={p.total} /> : "—"}</td>
-                    <td className="td whitespace-nowrap tabular-nums">{r.app.fee} DZD</td>
+                    <td className="td whitespace-nowrap tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</td>
                     <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
                     <td className="td whitespace-nowrap text-xs text-slate-500">{formatDate(r.app.createdAt, uiLocale)}</td>
                   </tr>
