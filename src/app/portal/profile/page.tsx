@@ -168,6 +168,8 @@ export default async function PortalProfilePage({
                   required
                   autoComplete="new-password"
                   hint={ct("At least 10 characters. The member must change it at first sign-in.")}
+                  showLabel={ct("Show")}
+                  hideLabel={ct("Hide")}
                 />
                 <div className="lg:col-span-3">
                   <SubmitButton className="btn-primary" pendingLabel={ct("Creating…")}>{ct("Create team member")}</SubmitButton>

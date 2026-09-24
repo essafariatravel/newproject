@@ -123,22 +123,31 @@ export default async function PortalWalletPage({
         <Card className="p-4">
           <h3 className="text-sm font-semibold text-navy-800">{ct("Statement period")}</h3>
           <p className="mt-0.5 text-xs text-slate-400">{ct("Filter the ledger by period, then export exactly what you see.")}</p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2" data-testid="wallet-periods">
             {([
-              ["this_month", ct("This month")],
-              ["last_month", ct("Last month")],
+              ["this_month", ct("Last 1 month")],
               ["last_3_months", ct("Last 3 months")],
+              ["custom", ct("Custom dates")],
               ["all", ct("All time")],
             ] as const).map(([value, label]) => (
               <Link
                 key={value}
-                href={`/portal/wallet?period=${value}`}
+                href={value === "custom" ? "/portal/wallet?period=custom" : `/portal/wallet?period=${value}`}
+                data-testid={`wallet-period-${value}`}
                 className={range.period === value ? "btn-primary btn-sm" : "btn-secondary btn-sm"}
               >
                 {label}
               </Link>
             ))}
           </div>
+          {/* One sentence saying exactly which window the ledger and the CSV cover. */}
+          <p className="mt-2 text-xs text-slate-500" data-testid="wallet-period-range">
+            {range.period === "all"
+              ? ct("Showing the full ledger history.")
+              : range.period === "custom"
+                ? `${ct("Showing")} ${range.fromIso ?? "…"} → ${range.toIso ?? "…"} ${ct("(use the From / To filters below).")}`
+                : `${ct("Showing")} ${range.fromIso ?? "…"} → ${range.toIso ?? "…"}`}
+          </p>
           <a
             href={`/api/agency/wallet/export${exportQuery.size > 0 ? `?${exportQuery.toString()}` : ""}`}
             className="btn-secondary btn-sm mt-3 inline-flex"

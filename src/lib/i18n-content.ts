@@ -817,6 +817,34 @@ const CONTENT: Record<string, Entry> = {
     ar: "نصيحة: ابحث باسم وكالة أو مرجع مثل EVT-2026-XXXXXX أو اسم مقدم الطلب أو بلد أو نوع تأشيرة.",
   },
 
+  "Onboarding…": { fr: "Intégration…", ar: "جارٍ الإضافة…" },
+
+  "Name or email…": { fr: "Nom ou e-mail…", ar: "الاسم أو البريد الإلكتروني…" },
+  "No agencies yet": { fr: "Aucune agence pour l'instant", ar: "لا توجد وكالات بعد" },
+  "Create your first partner agency to start onboarding users.": { fr: "Créez votre première agence partenaire pour commencer à intégrer des utilisateurs.", ar: "أنشئ أول وكالة شريكة لبدء إضافة المستخدمين." },
+  "Wallet (DZD)": { fr: "Portefeuille (DZD)", ar: "المحفظة (دج)" },
+  "Create agency": { fr: "Créer l'agence", ar: "إنشاء وكالة" },
+  "Create agency (DZD only)": { fr: "Créer une agence (DZD uniquement)", ar: "إنشاء وكالة (بالدينار الجزائري فقط)" },
+  "First administrator": { fr: "Premier administrateur", ar: "المسؤول الأول" },
+  "Administrator name": { fr: "Nom de l'administrateur", ar: "اسم المسؤول" },
+  "Administrator email": { fr: "E-mail de l'administrateur", ar: "البريد الإلكتروني للمسؤول" },
+  "Onboard agency + administrator": { fr: "Intégrer l'agence + l'administrateur", ar: "إضافة الوكالة + المسؤول" },
+  "Agency email": { fr: "E-mail de l'agence", ar: "البريد الإلكتروني للوكالة" },
+  "Partner agencies — DZD wallets, immutable ledger.": { fr: "Agences partenaires — portefeuilles DZD, registre immuable.", ar: "الوكالات الشريكة — محافظ بالدينار الجزائري وسجل غير قابل للتغيير." },
+  "Onboard agency + first administrator": { fr: "Intégrer une agence + son premier administrateur", ar: "إضافة وكالة + مسؤولها الأول" },
+  "One step: agency + AGENCY_ADMIN with temporary password (forced change at first login). DZD wallet.": { fr: "En une étape : agence + AGENCY_ADMIN avec mot de passe temporaire (changement obligatoire à la première connexion). Portefeuille DZD.", ar: "خطوة واحدة: الوكالة + مدير وكالة بكلمة مرور مؤقتة (تغيير إلزامي عند أول تسجيل دخول). محفظة بالدينار الجزائري." },
+
+  "Show": { fr: "Afficher", ar: "إظهار" },
+  "Hide": { fr: "Masquer", ar: "إخفاء" },
+  "At least 10 characters. The user must change it at first sign-in.": { fr: "10 caractères minimum. L'utilisateur devra le changer à sa première connexion.", ar: "10 أحرف على الأقل. يجب على المستخدم تغييرها عند أول تسجيل دخول." },
+  "Temporary password for the agency administrator (min 10 characters).": { fr: "Mot de passe temporaire de l'administrateur de l'agence (10 caractères minimum).", ar: "كلمة مرور مؤقتة لمسؤول الوكالة (10 أحرف على الأقل)." },
+
+  "Last 1 month": { fr: "1 dernier mois", ar: "آخر شهر واحد" },
+  "Custom dates": { fr: "Dates personnalisées", ar: "تواريخ مخصّصة" },
+  "Showing": { fr: "Affichage", ar: "عرض" },
+  "(use the From / To filters below).": { fr: "(utilisez les filtres Du / Au ci-dessous).", ar: "(استخدم مرشّحي «من / إلى» أدناه)." },
+  "Showing the full ledger history.": { fr: "Affichage de tout l'historique du registre.", ar: "عرض كامل سجل المعاملات." },
+
   "Clear": { fr: "Effacer", ar: "مسح" },
 
   "Search a destination": { fr: "Rechercher une destination", ar: "ابحث عن وجهة" },
@@ -843,7 +871,6 @@ const CONTENT: Record<string, Entry> = {
   "Agency accounts are created with their agency (or by the agency administrator).": { fr: "Les comptes d'agence sont créés avec leur agence (ou par l'administrateur de l'agence).", ar: "تُنشأ حسابات الوكالات مع وكالتها (أو بواسطة مدير الوكالة)." },
 
   "At least 10 characters. The member must change it at first sign-in.": { fr: "Au moins 10 caractères. Le membre devra le changer à sa première connexion.", ar: "10 أحرف على الأقل. يجب على العضو تغييره عند أول تسجيل دخول." },
-  "At least 10 characters. The user must change it at first sign-in.": { fr: "Au moins 10 caractères. L'utilisateur devra le changer à sa première connexion.", ar: "10 أحرف على الأقل. يجب على المستخدم تغييره عند أول تسجيل دخول." },
   "The password you were given by ESSAFARIA.": { fr: "Le mot de passe fourni par ESSAFARIA.", ar: "كلمة المرور التي زوّدتك بها ESSAFARIA." },
   "At least 10 characters. Avoid reusing a password you use elsewhere.": { fr: "Au moins 10 caractères. Évitez de réutiliser un mot de passe utilisé ailleurs.", ar: "10 أحرف على الأقل. تجنّب إعادة استخدام كلمة مرور تستخدمها في مكان آخر." },
   "Type the same password again.": { fr: "Saisissez à nouveau le même mot de passe.", ar: "أعد كتابة كلمة المرور نفسها." },
@@ -862,7 +889,6 @@ const CONTENT: Record<string, Entry> = {
   "Wallet credits vs charges": { fr: "Crédits et facturations du portefeuille", ar: "قيود المحفظة مقابل المبالغ المحمّلة" },
   "All amounts are DZD. Correction entries appear as their own ledger rows.": { fr: "Tous les montants sont en DZD. Les écritures de correction figurent sur leurs propres lignes du grand livre.", ar: "جميع المبالغ بالدينار الجزائري. تظهر قيود التصحيح في سطور مستقلة." },
 
-  "Showing": { fr: "Affichage", ar: "عرض" },
   "applications": { fr: "dossiers", ar: "ملفات" },
   "Export this view": { fr: "Exporter cette vue", ar: "تصدير هذا العرض" },
   "CSV": { fr: "CSV", ar: "CSV" },

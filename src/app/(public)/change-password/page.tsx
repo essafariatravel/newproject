@@ -44,6 +44,8 @@ export default async function ChangePasswordPage({
           required
           autoComplete="current-password"
           hint={ct("The password you were given by ESSAFARIA.")}
+          showLabel={ct("Show")}
+          hideLabel={ct("Hide")}
         />
         <PasswordField
           id="cp-new"
@@ -52,6 +54,8 @@ export default async function ChangePasswordPage({
           required
           autoComplete="new-password"
           hint={ct("At least 10 characters. Avoid reusing a password you use elsewhere.")}
+          showLabel={ct("Show")}
+          hideLabel={ct("Hide")}
         />
         <PasswordField
           id="cp-confirm"
@@ -60,6 +64,8 @@ export default async function ChangePasswordPage({
           required
           autoComplete="new-password"
           hint={ct("Type the same password again.")}
+          showLabel={ct("Show")}
+          hideLabel={ct("Hide")}
         />
         <SubmitButton className="btn-primary w-full" pendingLabel={ct("Saving…")}>
           {ct("Set password and continue")}

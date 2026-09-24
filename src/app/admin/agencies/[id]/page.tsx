@@ -10,7 +10,7 @@ import { flashFrom } from "@/lib/action-helpers";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { adjustWalletAction, toggleAgencyStatusAction, updateAgencyAction, createUserAction } from "@/app/actions/admin";
 import { searchApplications } from "@/lib/queries";
-import { SubmitButton } from "@/components/forms";
+import { PasswordField, SubmitButton } from "@/components/forms";
 import BrandMark from "@/components/brand-mark";
 import { agencyLogoUrl } from "@/lib/branding";
 import { uploadAgencyLogoAction, removeAgencyLogoAction } from "@/app/actions/branding";
@@ -273,10 +273,15 @@ export default async function AdminAgencyDetailPage({
                     <option value="AGENCY_USER">{ct("Agency User")}</option>
                   </select>
                 </div>
-                <div>
-                  <label className="label" htmlFor="u-password">{ct("Temporary password")} * (min 10 chars)</label>
-                  <input id="u-password" name="password" type="password" required minLength={10} className="input" autoComplete="new-password" />
-                </div>
+                <PasswordField
+                  id="u-password"
+                  name="password"
+                  label={`${ct("Temporary password")} (min 10 chars)`}
+                  required
+                  hint={ct("At least 10 characters. The user must change it at first sign-in.")}
+                  showLabel={ct("Show")}
+                  hideLabel={ct("Hide")}
+                />
                 <SubmitButton className="btn-secondary w-full" pendingLabel="Creating…">{ct("Create user")}</SubmitButton>
               </form>
             </Card>

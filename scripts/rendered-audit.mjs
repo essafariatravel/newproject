@@ -305,6 +305,50 @@ if (agency.cookie) {
   check("agency/wallet: DZD only", !/(€|EUR\b|USD\b)/.test(walletText), "");
   check("agency/wallet: statements (1/3 months + CSV)", /CSV|statement/i.test(walletText), "");
 
+  // §Wallet statement periods — 1 month / 3 months / custom + the CSV export of exactly that window.
+  {
+    const page = await fetchPage("/portal/wallet", { cookie: agency.cookie, locale: "en" });
+    const html = page.html;
+    check(
+      "agency/wallet: period presets offer 1 month, 3 months, custom and all time",
+      /data-testid="wallet-period-this_month"/.test(html) &&
+        /data-testid="wallet-period-last_3_months"/.test(html) &&
+        /data-testid="wallet-period-custom"/.test(html) &&
+        /data-testid="wallet-period-all"/.test(html),
+      "",
+    );
+    const three = await fetchPage("/portal/wallet?period=last_3_months", { cookie: agency.cookie, locale: "en" });
+    const active = /<a[^>]*data-testid="wallet-period-last_3_months"[^>]*>/.exec(three.html)?.[0] ?? "";
+    check("agency/wallet: the chosen period is visibly active", /btn-primary/.test(active), "");
+    check(
+      "agency/wallet: the window covered is spelled out",
+      /data-testid="wallet-period-range"/.test(three.html) && /\d{4}-\d{2}-\d{2}/.test(visibleText(three.html)),
+      "",
+    );
+    // The CSV must follow the same resolution as the screen.
+    const custom = await fetchPage("/portal/wallet?period=custom&from=2000-01-01&to=2000-01-02", { cookie: agency.cookie, locale: "en" });
+    check(
+      "agency/wallet: custom window is reflected in the export link",
+      /\/api\/agency\/wallet\/export\?[^"]*period=custom/.test(custom.html) && /from=2000-01-01/.test(custom.html),
+      "",
+    );
+    const csvRes = await fetch(
+      `${BASE}/api/agency/wallet/export?period=custom&from=2000-01-01&to=2000-01-02`,
+      { headers: { cookie: agency.cookie } },
+    );
+    const bytes = new Uint8Array(await csvRes.arrayBuffer());
+    const csv = new TextDecoder().decode(bytes);
+    const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
+    check("agency/wallet: CSV export is a real CSV with BOM", csvRes.status === 200 && bom && /text\/csv/.test(csvRes.headers.get("content-type") ?? ""), `status ${csvRes.status}`);
+    check(
+      "agency/wallet: out-of-range custom export carries header only (no invented rows)",
+      csv.trim().split("\r\n").length === 1 && /Reference,Date,Type/.test(csv),
+      "",
+    );
+    const other = await fetch(`${BASE}/api/agency/wallet/export?period=all`);
+    check("agency/wallet: anonymous session cannot use the agency export", other.status >= 300, `status ${other.status}`);
+  }
+
   // Wizard step 1: search-first, no country grid, no "0–0 days".
   const wizard = await fetchPage("/portal/applications/new", { cookie: agency.cookie, locale: "en" });
   check("agency/new-step-1: search-first destination input", /data-testid="wizard-destination-search"/.test(wizard.html), "");
@@ -444,6 +488,30 @@ if (staff.cookie) {
     (changePw.html.match(/-toggle"/g) ?? []).length >= 3 && /10 characters|10 caractères|10 أحرف/.test(visibleText(changePw.html)),
     "",
   );
+
+  // §Password affordances must be localized: a FR/AR screen may never show English "Show"/"Hide".
+  {
+    const fr = (await fetchPage("/change-password?lang=fr", { cookie: staff.cookie, locale: "fr" })).html;
+    const ar = (await fetchPage("/change-password?lang=ar", { cookie: staff.cookie, locale: "ar" })).html;
+    check("password affordance: localized on FR screens", /Afficher/.test(fr) && !/>Show</.test(fr), "");
+    check("password affordance: localized on AR screens", /إظهار/.test(ar) && !/>Show</.test(ar), "");
+    // Activation links are single-use: with an unusable token the page must still be
+    // localized and must never leak internals.
+    const badFr = (await fetchPage("/activate/not-a-real-token?lang=fr", { locale: "fr" })).html;
+    const badAr = (await fetchPage("/activate/not-a-real-token?lang=ar", { locale: "ar" })).html;
+    check("public/activate: invalid link explained in French", /invalide ou a expiré/.test(visibleText(badFr)), "");
+    check("public/activate: invalid link explained in Arabic", /غير صالح|منته/.test(visibleText(badAr)), "");
+    check(
+      "public/activate: no internals leaked on an invalid token",
+      !/postgres|drizzle|stack|at Object|SELECT /i.test(badFr + badAr),
+      "",
+    );
+    check(
+      "public/activate: RTL layout for Arabic",
+      /dir="rtl"/.test(badAr),
+      "",
+    );
+  }
 
   // §Users — staff and agency populations are separate views with real counts.
   const staffUsers = (await fetchPage("/admin/users", { cookie: staff.cookie, locale: "en" })).html;
@@ -661,6 +729,14 @@ if (STATE && agency.cookie && staff.cookie) {
 
   const messagesStaff = visibleText((await fetchPage(`/admin/applications/${STATE.applicationId}?tab=communications`, { cookie: staff.cookie, locale: "en" })).html);
   check("state: staff sees the full thread including the internal note", !STATE.internalNote || messagesStaff.includes(STATE.internalNote), "");
+
+  // §Cross-role: staff must not be able to pull an agency's ledger CSV.
+  {
+    const res = await fetch(`${BASE}/api/agency/wallet/export?period=all`, { headers: { cookie: staff.cookie } });
+    check("state: staff session cannot use the agency wallet export", res.status >= 300, `status ${res.status}`);
+    const html = (await fetchPage("/portal/wallet", { cookie: staff.cookie, locale: "en" })).html;
+    check("state: staff cannot render the agency wallet page", !/wallet-periods/.test(html) || /Available balance/.test(visibleText(html)) === false, "");
+  }
 
   const walletText = visibleText((await fetchPage("/portal/wallet", { cookie: agency.cookie, locale: "en" })).html);
   check("state: pending top-up is visible to the agency", /pending/i.test(walletText) && /TOP-\d{4}-\d{5}/.test(walletText), "");

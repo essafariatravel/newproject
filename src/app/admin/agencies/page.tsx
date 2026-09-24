@@ -11,6 +11,7 @@ import { PasswordField, SubmitButton } from "@/components/forms";
 import { ActiveBadge, EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
 import BrandMark from "@/components/brand-mark";
 import { agencyLogoUrl } from "@/lib/branding";
+import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
 
@@ -22,11 +23,12 @@ export default async function AdminAgenciesPage({
   const sp = await searchParams;
   const user = await pageUser();
   const uiLocale = await getUiLocale(sp);
+  const ct = contentT(uiLocale);
   if (!hasPermission(user, "agencies.view")) {
     return (
       <>
-        <PageHeader title="Agencies" />
-        <div className="card"><EmptyState title="Not authorized" /></div>
+        <PageHeader title={ct("Agencies")} />
+        <div className="card"><EmptyState title={ct("Not authorized")} /></div>
       </>
     );
   }
@@ -37,23 +39,25 @@ export default async function AdminAgenciesPage({
 
   return (
     <>
-      <PageHeader title="Agencies" subtitle="Partner agencies — DZD wallets, immutable ledger." />
+      <PageHeader title={ct("Agencies")} subtitle={ct("Partner agencies — DZD wallets, immutable ledger.")} />
       <Flash {...flash} />
 
-      <FilterBar locale={uiLocale} action="/admin/agencies" fields={[{ name: "q", label: "Search", type: "text", value: q, placeholder: "Name or email…" }]} />
+      <FilterBar locale={uiLocale} action="/admin/agencies" fields={[{ name: "q", label: ct("Search"), type: "text", value: q, placeholder: ct("Name or email…") }]} />
 
       {rows.length === 0 ? (
-        <div className="card"><EmptyState title="No agencies yet" body="Create your first partner agency to start onboarding users." /></div>
+        <div className="card">
+          <EmptyState title={ct("No agencies yet")} body={ct("Create your first partner agency to start onboarding users.")} />
+        </div>
       ) : (
         <TableWrap>
           <thead className="border-b border-slate-100 bg-ivory-50/60">
             <tr>
-              <th className="th">Agency</th>
-              <th className="th">Country</th>
-              <th className="th">Status</th>
-              <th className="th">Users</th>
-              <th className="th">Applications</th>
-              <th className="th">Wallet (DZD)</th>
+              <th className="th">{ct("Agency")}</th>
+              <th className="th">{ct("Country")}</th>
+              <th className="th">{ct("Status")}</th>
+              <th className="th">{ct("Users")}</th>
+              <th className="th">{ct("Applications")}</th>
+              <th className="th">{ct("Wallet (DZD)")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -83,39 +87,47 @@ export default async function AdminAgenciesPage({
 
       {canManage ? (
         <div className="mt-8">
-          <h2 className="mb-3 font-serif text-xl text-navy-900">Create agency (DZD only)</h2>
+          <h2 className="mb-3 font-serif text-xl text-navy-900">{ct("Create agency (DZD only)")}</h2>
           <form action={createAgencyAction} className="card grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
-            <div><label className="label">Legal name *</label><input name="legalName" required className="input" placeholder="Horizon Voyages SARL" /></div>
-            <div><label className="label">Trading name</label><input name="tradingName" className="input" /></div>
-            <div><label className="label">Email *</label><input name="email" type="email" required className="input" /></div>
-            <div><label className="label">Phone</label><input name="phone" className="input" /></div>
-            <div><label className="label">City</label><input name="city" className="input" /></div>
-            <div><label className="label">Country</label><input name="country" className="input" /></div>
+            <div><label className="label">{ct("Legal name")} *</label><input name="legalName" required className="input" placeholder="Horizon Voyages SARL" /></div>
+            <div><label className="label">{ct("Trading name")}</label><input name="tradingName" className="input" /></div>
+            <div><label className="label">{ct("Email")} *</label><input name="email" type="email" required className="input" /></div>
+            <div><label className="label">{ct("Phone")}</label><input name="phone" className="input" /></div>
+            <div><label className="label">{ct("City")}</label><input name="city" className="input" /></div>
+            <div><label className="label">{ct("Country")}</label><input name="country" className="input" /></div>
             <input type="hidden" name="currency" value="DZD" />
-            <div><label className="label">Billing tax ID</label><input name="billingTaxId" className="input" /></div>
-            <div className="flex items-end lg:col-span-3"><SubmitButton className="btn-primary" pendingLabel="Creating…">Create agency</SubmitButton></div>
+            <div><label className="label">{ct("Billing tax ID")}</label><input name="billingTaxId" className="input" /></div>
+            <div className="flex items-end lg:col-span-3"><SubmitButton className="btn-primary" pendingLabel={ct("Creating…")}>{ct("Create agency")}</SubmitButton></div>
           </form>
         </div>
       ) : null}
 
       {user.role === "SUPER_ADMIN" ? (
         <div className="mt-8">
-          <h2 className="mb-1 font-serif text-xl text-navy-900">Onboard agency + first administrator</h2>
-          <p className="mb-3 text-xs text-slate-500">One step: agency + AGENCY_ADMIN with temporary password (forced change at first login). DZD wallet.</p>
+          <h2 className="mb-1 font-serif text-xl text-navy-900">{ct("Onboard agency + first administrator")}</h2>
+          <p className="mb-3 text-xs text-slate-500">{ct("One step: agency + AGENCY_ADMIN with temporary password (forced change at first login). DZD wallet.")}</p>
           <form action={createAgencyWithAdminAction} className="card grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
-            <div><label className="label">Legal name *</label><input name="legalName" required className="input" /></div>
-            <div><label className="label">Trading name</label><input name="tradingName" className="input" /></div>
-            <div><label className="label">Agency email *</label><input name="email" type="email" required className="input" /></div>
-            <div><label className="label">Phone</label><input name="phone" className="input" /></div>
-            <div><label className="label">City</label><input name="city" className="input" /></div>
-            <div><label className="label">Country</label><input name="country" className="input" /></div>
+            <div><label className="label">{ct("Legal name")} *</label><input name="legalName" required className="input" /></div>
+            <div><label className="label">{ct("Trading name")}</label><input name="tradingName" className="input" /></div>
+            <div><label className="label">{ct("Agency email")} *</label><input name="email" type="email" required className="input" /></div>
+            <div><label className="label">{ct("Phone")}</label><input name="phone" className="input" /></div>
+            <div><label className="label">{ct("City")}</label><input name="city" className="input" /></div>
+            <div><label className="label">{ct("Country")}</label><input name="country" className="input" /></div>
             <input type="hidden" name="currency" value="DZD" />
-            <div><label className="label">Billing tax ID</label><input name="billingTaxId" className="input" /></div>
-            <div className="sm:col-span-2 lg:col-span-3 mt-2 border-t border-ivory-200 pt-4"><p className="mb-3 text-sm font-medium text-navy-800">First administrator</p></div>
-            <div><label className="label">Administrator name *</label><input name="adminName" required className="input" /></div>
-            <div><label className="label">Administrator email *</label><input name="adminEmail" type="email" required className="input" /></div>
-            <PasswordField id="a-admin-password" name="adminPassword" label="Temporary password" required hint="At least 10 characters. The agency administrator must change it at first sign-in." />
-            <div className="flex items-end lg:col-span-3"><SubmitButton className="btn-primary" pendingLabel="Onboarding…">Onboard agency + administrator</SubmitButton></div>
+            <div><label className="label">{ct("Billing tax ID")}</label><input name="billingTaxId" className="input" /></div>
+            <div className="sm:col-span-2 lg:col-span-3 mt-2 border-t border-ivory-200 pt-4"><p className="mb-3 text-sm font-medium text-navy-800">{ct("First administrator")}</p></div>
+            <div><label className="label">{ct("Administrator name")} *</label><input name="adminName" required className="input" /></div>
+            <div><label className="label">{ct("Administrator email")} *</label><input name="adminEmail" type="email" required className="input" /></div>
+                        <PasswordField
+              id="a-admin-password"
+              name="adminPassword"
+              label={ct("Temporary password")}
+              required
+              hint={ct("At least 10 characters. The agency administrator must change it at first sign-in.")}
+              showLabel={ct("Show")}
+              hideLabel={ct("Hide")}
+            />
+            <div className="flex items-end lg:col-span-3"><SubmitButton className="btn-primary" pendingLabel={ct("Onboarding…")}>{ct("Onboard agency + administrator")}</SubmitButton></div>
           </form>
         </div>
       ) : null}

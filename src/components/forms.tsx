@@ -19,6 +19,9 @@ export function PasswordField(props: {
   defaultValue?: string;
   hint?: string;
   className?: string;
+  /** Localized affordance labels — the field must never mix languages. */
+  showLabel?: string;
+  hideLabel?: string;
 }) {
   const [visible, setVisible] = useState(false);
   const minLength = props.minLength ?? 10;
@@ -46,7 +49,7 @@ export function PasswordField(props: {
           aria-pressed={visible}
           data-testid={`${props.id}-toggle`}
         >
-          {visible ? "Hide" : "Show"}
+          {visible ? (props.hideLabel ?? "Hide") : (props.showLabel ?? "Show")}
         </button>
       </div>
       <p className="mt-1 text-xs text-slate-400">

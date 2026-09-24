@@ -208,6 +208,8 @@ export default async function AdminUsersPage({
               label={ct("Temporary password")}
               required
               hint={ct("At least 10 characters. The user must change it at first sign-in.")}
+              showLabel={ct("Show")}
+              hideLabel={ct("Hide")}
             />
             <div className="lg:col-span-5">
               <SubmitButton className="btn-primary" pendingLabel="Creating…">Create user</SubmitButton>

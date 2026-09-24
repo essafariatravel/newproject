@@ -109,6 +109,9 @@ export interface RegistrationCopy {
     passwordTooShort: string;
     welcomeName: string;
     backToLogin: string;
+    /** Localized affordance labels for the password reveal control. */
+    showPassword: string;
+    hidePassword: string;
   };
 }
 
@@ -239,6 +242,8 @@ const en: RegistrationCopy = {
     passwordTooShort: "Password must be at least 10 characters.",
     welcomeName: "Account",
     backToLogin: "Back to sign in",
+    showPassword: "Show",
+    hidePassword: "Hide",
   },
 };
 
@@ -369,6 +374,8 @@ const fr: RegistrationCopy = {
     passwordTooShort: "Le mot de passe doit contenir au moins 10 caractères.",
     welcomeName: "Compte",
     backToLogin: "Retour à la connexion",
+    showPassword: "Afficher",
+    hidePassword: "Masquer",
   },
 };
 
@@ -498,6 +505,8 @@ const ar: RegistrationCopy = {
     passwordTooShort: "يجب أن تتكون كلمة المرور من 10 أحرف على الأقل.",
     welcomeName: "الحساب",
     backToLogin: "العودة إلى تسجيل الدخول",
+    showPassword: "إظهار",
+    hidePassword: "إخفاء",
   },
 };
 

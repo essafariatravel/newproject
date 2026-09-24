@@ -3,12 +3,15 @@
 import { useActionState } from "react";
 import { activateAccountAction, type ActivationFormState } from "@/app/actions/activation";
 import type { RegistrationCopy, RegistrationLocale } from "@/lib/i18n";
-import { Spinner } from "@/components/forms";
+import { PasswordField, Spinner } from "@/components/forms";
 
 export default function ActivationForm(props: {
   token: string;
   locale: RegistrationLocale;
   copy: RegistrationCopy;
+  /** Localized show/hide labels so the affordance never appears in English on a FR/AR page. */
+  showLabel?: string;
+  hideLabel?: string;
 }) {
   const { copy, locale, token } = props;
   const [state, formAction, pending] = useActionState<ActivationFormState, FormData>(
@@ -25,35 +28,27 @@ export default function ActivationForm(props: {
           {state.error}
         </div>
       ) : null}
-      <div>
-        <label className="label" htmlFor="activation-password">
-          {copy.activation.passwordLabel} <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="activation-password"
-          name="password"
-          type="password"
-          required
-          minLength={10}
-          autoComplete="new-password"
-          className="input"
-        />
-        <p className="mt-1 text-[11px] text-slate-400">{copy.activation.passwordHint}</p>
-      </div>
-      <div>
-        <label className="label" htmlFor="activation-password-confirm">
-          {copy.activation.confirmLabel} <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="activation-password-confirm"
-          name="passwordConfirm"
-          type="password"
-          required
-          minLength={10}
-          autoComplete="new-password"
-          className="input"
-        />
-      </div>
+      <PasswordField
+        id="activation-password"
+        name="password"
+        label={copy.activation.passwordLabel}
+        required
+        minLength={10}
+        autoComplete="new-password"
+        hint={copy.activation.passwordHint}
+        showLabel={props.showLabel}
+        hideLabel={props.hideLabel}
+      />
+      <PasswordField
+        id="activation-password-confirm"
+        name="passwordConfirm"
+        label={copy.activation.confirmLabel}
+        required
+        minLength={10}
+        autoComplete="new-password"
+        showLabel={props.showLabel}
+        hideLabel={props.hideLabel}
+      />
       <button type="submit" disabled={pending} className="btn-gold w-full px-5 py-2.5">
         {pending ? (
           <>
