@@ -10,6 +10,14 @@ export function formatDate(d: Date | string | null | undefined, locale: string =
   return date.toLocaleDateString(dateLocale(locale), { day: "2-digit", month: "short", year: "numeric" });
 }
 
+/** Month + year only (legal pages, statements) — localized, no invented dates. */
+export function formatMonthYear(d: Date | string | null | undefined, locale: string = "en"): string {
+  if (!d) return "—";
+  const date = typeof d === "string" ? new Date(d) : d;
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString(dateLocale(locale), { month: "long", year: "numeric" });
+}
+
 export function formatDateTime(d: Date | string | null | undefined, locale: string = "en"): string {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;

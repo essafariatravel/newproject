@@ -191,7 +191,7 @@ export function DocumentList(props: {
               </p>
               <p className="mt-0.5 text-xs text-slate-500">
                 {documentTypeName}
-                {applicantName ? ` · ${applicantName}` : ""} · v{doc.version} · {bytes(doc.sizeBytes)} · uploaded {formatDateTime(doc.createdAt)}
+                {applicantName ? ` · ${applicantName}` : ""} · v{doc.version} · {bytes(doc.sizeBytes)} · uploaded {formatDateTime(doc.createdAt, props.locale ?? "en")}
               </p>
               {doc.rejectionReason ? (
                 <p className="mt-1.5 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
@@ -286,7 +286,7 @@ export function CommunicationsPanel(props: {
                     </span>
                   ) : null}
                 </p>
-                <span className="text-[11px] text-slate-400">{formatDateTime(message.createdAt)}</span>
+                <span className="text-[11px] text-slate-400">{formatDateTime(message.createdAt, props.locale ?? "en")}</span>
               </div>
               <p className="mt-1.5 whitespace-pre-line text-sm text-slate-700">{message.body}</p>
             </div>
@@ -332,7 +332,7 @@ export function BillingSummary(props: {
       <div className="space-y-2 px-4 py-4 text-sm">
         <div className="flex items-center justify-between">
           <span className="text-slate-500">{t("Application fee (snapshot)")}</span>
-          <span className="font-medium tabular-nums">{formatAmount(app.fee, "DZD")}</span>
+          <span className="font-medium tabular-nums">{formatAmount(app.fee, "DZD", props.locale ?? "en")}</span>
         </div>
         {props.charge ? (
           <>
@@ -348,7 +348,7 @@ export function BillingSummary(props: {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-slate-500">{t("Charged at")}</span>
-              <span>{formatDateTime(props.charge.createdAt)}</span>
+              <span>{formatDateTime(props.charge.createdAt, props.locale ?? "en")}</span>
             </div>
           </>
         ) : (
@@ -383,7 +383,7 @@ export function ActivityTimeline(props: {
               → <StatusBadge code={h.toStatus.code} name={h.toStatus.name} />
             </p>
             {h.history.reason ? <p className="mt-1 text-xs text-slate-500">Reason: {h.history.reason}</p> : null}
-            <p className="mt-0.5 text-[11px] text-slate-400">{formatDateTime(h.history.createdAt)}</p>
+            <p className="mt-0.5 text-[11px] text-slate-400">{formatDateTime(h.history.createdAt, props.locale ?? "en")}</p>
           </li>
         ))}
       </ol>
@@ -417,7 +417,7 @@ export function PriceAdjustmentHistory(props: {
       <div className="space-y-2 px-4 py-4 text-sm">
         <div className="flex items-center justify-between">
           <span className="text-slate-500">{t("Original submitted price")}</span>
-          <span className="font-medium tabular-nums">{formatAmount(p.submittedPrice, "DZD")}</span>
+          <span className="font-medium tabular-nums">{formatAmount(p.submittedPrice, "DZD", props.locale ?? "en")}</span>
         </div>
         {p.adjustments.length === 0 ? (
           <p className="rounded-md bg-ivory-100 px-3 py-2 text-xs text-slate-500">
@@ -442,7 +442,7 @@ export function PriceAdjustmentHistory(props: {
         )}
         <div className="flex items-center justify-between border-t border-slate-200 pt-2 font-semibold text-navy-900">
           <span>{t("Effective price")}</span>
-          <span className="tabular-nums">{p.effectivePrice ? formatAmount(p.effectivePrice, "DZD") : "—"}</span>
+          <span className="tabular-nums">{p.effectivePrice ? formatAmount(p.effectivePrice, "DZD", props.locale ?? "en") : "—"}</span>
         </div>
       </div>
     </div>

@@ -2,13 +2,15 @@ import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
 import { listDocumentTypes } from "@/lib/applications-exports";
+import { resolvePageSize } from "@/lib/queries";
+import { PageSizeSelector } from "@/components/app-widgets";
 import { flashFrom } from "@/lib/action-helpers";
 import { createDocumentTypeAction, updateDocumentTypeAction } from "@/app/actions/config";
 import { SubmitButton } from "@/components/forms";
 import { ActiveBadge, EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
-const PAGE_SIZE = 20;
+
 
 export default async function DocumentTypesConfigPage({
   searchParams,
@@ -32,8 +34,9 @@ export default async function DocumentTypesConfigPage({
     rows = rows.filter((d) => d.name.toLowerCase().includes(lower) || d.code.toLowerCase().includes(lower) || (d.description ?? "").toLowerCase().includes(lower));
   }
   const total = rows.length;
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const paged = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const per = resolvePageSize(sp.per);
+  const pageCount = Math.max(1, Math.ceil(total / per));
+  const paged = rows.slice((page - 1) * per, page * per);
 
   return (
     <>
@@ -57,6 +60,7 @@ export default async function DocumentTypesConfigPage({
             <th className="th">Code</th>
             <th className="th">Description</th>
             <th className="th">Sort</th>
+            <th className="th">Agency upload</th>
             <th className="th">Status</th>
             {canManage ? <th className="th text-right">Actions</th> : null}
           </tr>
@@ -68,8 +72,15 @@ export default async function DocumentTypesConfigPage({
               <td className="td"><span className="badge bg-navy-900/5 text-navy-800">{d.code}</span></td>
               <td className="td max-w-[320px] truncate text-xs text-slate-500">{d.description ?? "—"}</td>
               <td className="td tabular-nums text-xs">{d.sortOrder}</td>
+              <td className="td">
+                {d.agencyUploadable ? (
+                  <span className="badge bg-teal-50 text-teal-700">Agency</span>
+                ) : (
+                  <span className="badge bg-navy-900/5 text-navy-800">ESSAFARIA issued</span>
+                )}
+              </td>
               <td className="td"><ActiveBadge active={d.active} /></td>
-              {canManage ? (
+      {canManage ? (
                 <td className="td text-right">
                   <form action={updateDocumentTypeAction} className="inline">
                     <input type="hidden" name="id" value={d.id} />
@@ -77,6 +88,7 @@ export default async function DocumentTypesConfigPage({
                     <input type="hidden" name="code" value={d.code} />
                     <input type="hidden" name="description" value={d.description ?? ""} />
                     <input type="hidden" name="sortOrder" value={d.sortOrder} />
+                    <input type="hidden" name="agencyUploadable" value={d.agencyUploadable ? "1" : "0"} />
                     <input type="hidden" name="toggle" value="1" />
                     <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">
                       {d.active ? "Deactivate" : "Activate"}
@@ -87,7 +99,7 @@ export default async function DocumentTypesConfigPage({
             </tr>
           ))}
           {paged.length === 0 ? (
-            <tr><td colSpan={6} className="td py-8 text-center text-slate-500">No document types found{q ? ` for “${q}”` : ""}.</td></tr>
+            <tr><td colSpan={7} className="td py-8 text-center text-slate-500">No document types found{q ? ` for “${q}”` : ""}.</td></tr>
           ) : null}
         </tbody>
       </TableWrap>
@@ -96,11 +108,15 @@ export default async function DocumentTypesConfigPage({
         <div className="mt-3 flex items-center justify-between text-xs">
           <span className="text-slate-500">Page {page} / {pageCount} — {total} total</span>
           <span className="flex gap-1.5">
-            {page > 1 ? <Link href={`/admin/config/document-types?${new URLSearchParams({ ...(q ? { q } : {}), page: String(page - 1) }).toString()}`} className="btn-secondary btn-sm">← Prev</Link> : null}
-            {page < pageCount ? <Link href={`/admin/config/document-types?${new URLSearchParams({ ...(q ? { q } : {}), page: String(page + 1) }).toString()}`} className="btn-secondary btn-sm">Next →</Link> : null}
+            {page > 1 ? <Link href={`/admin/config/document-types?${new URLSearchParams({ ...(q ? { q } : {}), ...(per !== 20 ? { per: String(per) } : {}), page: String(page - 1) }).toString()}`} className="btn-secondary btn-sm">← Prev</Link> : null}
+            {page < pageCount ? <Link href={`/admin/config/document-types?${new URLSearchParams({ ...(q ? { q } : {}), ...(per !== 20 ? { per: String(per) } : {}), page: String(page + 1) }).toString()}`} className="btn-secondary btn-sm">Next →</Link> : null}
           </span>
         </div>
       ) : null}
+
+      <div className="mt-2 flex justify-end">
+        <PageSizeSelector pageSize={per} basePath="/admin/config/document-types" query={{ q }} />
+      </div>
 
       {canManage ? (
         <div className="mt-8">
@@ -118,7 +134,14 @@ export default async function DocumentTypesConfigPage({
               <label className="label">Description</label>
               <input name="description" className="input" />
             </div>
-            <div className="sm:col-span-4">
+            <div className="sm:col-span-2">
+              <label className="label">Provided by</label>
+              <select name="agencyUploadable" className="input" defaultValue="1">
+                <option value="1">Agency uploads it</option>
+                <option value="0">ESSAFARIA / authority issues it</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2">
               <SubmitButton className="btn-primary" pendingLabel="Saving…">Add document type</SubmitButton>
             </div>
           </form>

@@ -188,6 +188,12 @@ export const documentTypes = pgTable(
     code: text("code").notNull().unique(),
     description: text("description"),
     active: boolean("active").notNull().default(true),
+    /**
+     * true = the agency provides this document on a checklist.
+     * false = ESSAFARIA / the authority issues it (decision documents); such a
+     * type can never be requested from an agency nor uploaded by one.
+     */
+    agencyUploadable: boolean("agency_uploadable").notNull().default(true),
     sortOrder: integer("sort_order").notNull().default(0),
     ...timestamps,
   },

@@ -8,7 +8,7 @@ import {
   getStatusByCode,
   getStatusHistory,
 } from "@/lib/applications";
-import { listApplicantsForApplication, listDocumentsForApplication } from "@/lib/documents";
+import { groupDocumentsForDisplay, listApplicantsForApplication, listDocumentsForApplication } from "@/lib/documents";
 import { listDocumentRequests } from "@/lib/document-requests";
 import { findTransactionByApplication, getBalance } from "@/lib/wallet";
 import { listCommunications } from "@/lib/queries";
@@ -87,6 +87,11 @@ export default async function PortalApplicationDetailPage({
   const applicantNationality = applicant?.nationality ?? "—";
 
   const openRequests = docRequests.filter((r) => r.req.status === "OPEN");
+  const fulfilledRequests = docRequests.filter((r) => r.req.status === "FULFILLED");
+  // Grouping is shared with the staff dossier: a document that is not linked to a
+  // checklist requirement is still listed (never invisible) instead of vanishing
+  // from the agency's own view of its dossier.
+  const documentGroups = groupDocumentsForDisplay(checklist, docs);
 
   return (
     <>
@@ -265,7 +270,7 @@ export default async function PortalApplicationDetailPage({
             <CardHeader title={ct("Documents")} subtitle={isDraft ? ct("Upload required documents") : ct("Submitted documents are locked. Only requested replacements can be uploaded.")} />
             <div className="divide-y divide-slate-100">
               {checklist.map((item) => {
-                const itemDocs = docs.filter((d) => d.doc.checklistItemId === item.id).sort((a,b) => b.doc.version - a.doc.version);
+                const itemDocs = documentGroups.byItem.get(item.id) ?? [];
                 const latest = itemDocs[0];
                 const hasOpenRequest = openRequests.some((r) => r.req.checklistItemId === item.id || r.req.documentTypeId === item.documentTypeId);
                 return (
@@ -281,6 +286,9 @@ export default async function PortalApplicationDetailPage({
                       ) : (
                         <span className="badge bg-amber-50 text-amber-700">{ct("Missing")}</span>
                       )}
+                      {latest && fulfilledRequests.some((r) => r.req.fulfilledDocumentId === latest.doc.id) ? (
+                        <span className="badge bg-teal-50 text-teal-700">{ct("Received")}</span>
+                      ) : null}
                     </div>
                     {itemDocs.length > 0 ? (
                       <ul className="mt-3 space-y-2">
@@ -314,6 +322,51 @@ export default async function PortalApplicationDetailPage({
               {checklist.length === 0 ? <p className="px-4 py-6 text-sm text-slate-500">{ct("No document requirements for this visa.")}</p> : null}
             </div>
           </Card>
+
+          {documentGroups.unassigned.length > 0 ? (
+            <Card>
+              <CardHeader title={ct("Other documents")} />
+              <div className="divide-y divide-slate-100">
+                {documentGroups.unassigned.map(({ doc }) => (
+                  <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-xs">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <a href={`/api/documents/${doc.id}`} target="_blank" className="truncate font-medium text-navy-800 hover:underline">{doc.originalFilename}</a>
+                      <span className="text-slate-400">v{doc.version} · {bytes(doc.sizeBytes)} · {formatDateTime(doc.createdAt, uiLocale)}</span>
+                    </span>
+                    <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-xs">{ct("Preview")}</a>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+
+          {docRequests.length > 0 ? (
+            <Card>
+              <CardHeader title={ct("Document requests")} subtitle={ct("Everything ESSAFARIA asked you for, and what happened next.")} />
+              <div className="divide-y divide-slate-100 text-xs">
+                {docRequests.map((r) => {
+                  const open = r.req.status === "OPEN";
+                  return (
+                    <div key={r.req.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
+                      <span className="flex items-center gap-2">
+                        <span className={`badge ${open ? "bg-amber-100 text-amber-700" : r.req.status === "FULFILLED" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                          {open ? ct("Awaiting your upload") : r.req.status === "FULFILLED" ? ct("Received") : ct("Cancelled")}
+                        </span>
+                        <span className="font-medium text-navy-900">
+                          {r.req.type === "REPLACEMENT" ? ct("Replacement requested") : ct("Additional document requested")}
+                        </span>
+                        <span className="text-slate-500">{r.docTypeName}</span>
+                      </span>
+                      <span className="text-slate-500">
+                        {formatDateTime(r.req.createdAt, uiLocale)}
+                        {r.req.fulfilledAt ? ` · ${ct("Received")} ${formatDateTime(r.req.fulfilledAt, uiLocale)}` : ""}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          ) : null}
         </div>
       ) : null}
 

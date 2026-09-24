@@ -275,7 +275,7 @@ export default async function AdminAgencyDetailPage({
                 </div>
                 <div>
                   <label className="label" htmlFor="u-password">{ct("Temporary password")} * (min 10 chars)</label>
-                  <input id="u-password" name="password" type="password" required minLength={10} className="input" />
+                  <input id="u-password" name="password" type="password" required minLength={10} className="input" autoComplete="new-password" />
                 </div>
                 <SubmitButton className="btn-secondary w-full" pendingLabel="Creating…">{ct("Create user")}</SubmitButton>
               </form>

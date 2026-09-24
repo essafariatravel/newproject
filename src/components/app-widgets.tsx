@@ -67,6 +67,44 @@ export function FilterBar(props: {
   );
 }
 
+/**
+ * §pagination standard — 20 / 50 / 100 rows per page.
+ * Rendered as plain links carrying the current filters, so the choice survives
+ * refresh, back navigation and sharing, and no client state is required.
+ */
+export function PageSizeSelector(props: {
+  pageSize: number;
+  basePath: string;
+  query?: Record<string, string | undefined>;
+  locale?: FilterBarLocale;
+}) {
+  const ct = contentT(props.locale ?? "en");
+  const mk = (size: number) => {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(props.query ?? {})) {
+      if (v && k !== "page" && k !== "per") params.set(k, v);
+    }
+    if (size !== 20) params.set("per", String(size));
+    const qs = params.toString();
+    return `${props.basePath}${qs ? `?${qs}` : ""}`;
+  };
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-slate-500" data-testid="page-size">
+      <span>{ct("Rows per page")}:</span>
+      {[20, 50, 100].map((size) => (
+        <Link
+          key={size}
+          href={mk(size)}
+          className={props.pageSize === size ? "badge bg-navy-900 text-white" : "badge bg-navy-900/5 text-navy-800"}
+          data-testid={`page-size-${size}`}
+        >
+          {size}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 export function Pagination(props: {
   page: number;
   pageCount: number;

@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { checklistItems, documentRequests, documentTypes } from "@/db/schema";
 import { AppError, type AuthUser, DOCUMENT_REVIEW_ROLES } from "@/lib/types";
@@ -25,6 +25,28 @@ export async function listOpenRequestsForApplication(applicationId: string) {
     .where(and(eq(documentRequests.applicationId, applicationId), eq(documentRequests.status, "OPEN")));
 }
 
+/**
+ * Document types an AGENCY can be asked to provide.
+ * Decision documents (the issued visa / approval) are issued by ESSAFARIA and
+ * must never be requested from — or uploaded by — an agency.
+ */
+export function isAgencyRequestableType(type: { agencyUploadable?: boolean | null } | null | undefined) {
+  return type?.agencyUploadable !== false;
+}
+
+export async function listAgencyRequestableDocumentTypes() {
+  return db
+    .select({
+      id: documentTypes.id,
+      name: documentTypes.name,
+      code: documentTypes.code,
+      description: documentTypes.description,
+    })
+    .from(documentTypes)
+    .where(and(eq(documentTypes.active, true), eq(documentTypes.agencyUploadable, true)))
+    .orderBy(asc(documentTypes.sortOrder));
+}
+
 export interface RequestReplacementInput {
   applicationId: string;
   checklistItemId: string;
@@ -47,6 +69,17 @@ export async function requestDocumentReplacement(input: RequestReplacementInput)
   const item = itemRows[0];
   if (!item) throw new AppError("NOT_FOUND", "Checklist item not found.");
   if (!item.documentTypeId) throw new AppError("VALIDATION", "Checklist item has no document type.");
+  const typeRows = await db
+    .select({ agencyUploadable: documentTypes.agencyUploadable, name: documentTypes.name })
+    .from(documentTypes)
+    .where(eq(documentTypes.id, item.documentTypeId))
+    .limit(1);
+  if (!isAgencyRequestableType(typeRows[0])) {
+    throw new AppError(
+      "VALIDATION",
+      `"${typeRows[0]?.name ?? "This document"}" is issued by ESSAFARIA, not provided by the agency.`,
+    );
+  }
 
   const reason = input.reason.trim();
   if (reason.length < 5) throw new AppError("VALIDATION", "Reason must be at least 5 characters.");
@@ -120,6 +153,12 @@ export async function requestAdditionalDocument(input: RequestAdditionalInput) {
     .limit(1);
   const dt = dtRows[0];
   if (!dt?.active) throw new AppError("NOT_FOUND", "Document type not found or inactive.");
+  if (!isAgencyRequestableType(dt)) {
+    throw new AppError(
+      "VALIDATION",
+      `"${dt.name}" is issued by ESSAFARIA, not provided by the agency — it cannot be requested as an additional document.`,
+    );
+  }
 
   const reason = input.reason.trim();
   if (reason.length < 5) throw new AppError("VALIDATION", "Reason must be at least 5 characters.");

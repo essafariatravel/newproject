@@ -375,15 +375,23 @@ export async function processTopupRequest(params: {
   }
 
   const recipients = await agencyUserIds(outcome.agencyId);
+  const money = (value: string | number | null | undefined) => {
+    const n = typeof value === "string" ? Number(value) : value;
+    if (n === null || n === undefined || !Number.isFinite(n)) return null;
+    return new Intl.NumberFormat("en-DZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+  };
+  const credited = money(outcome.amount);
+  const balanceNow = money(outcome.balanceAfter);
   await notifyUsers(recipients, {
     type: "WALLET_TOPUP_DECIDED",
     title:
       outcome.status === "PROCESSED"
-        ? `Wallet topped up — ${outcome.amount} DZD`
+        ? `Wallet topped up — ${credited ?? outcome.amount} DZD`
         : "Wallet top-up request rejected",
     body:
       outcome.status === "PROCESSED"
-        ? `Request ${outcome.reference} was credited to your wallet.`
+        ? `Request ${outcome.reference} was credited to your wallet${credited ? ` (+${credited} DZD)` : ""}` +
+          `${balanceNow ? `. New balance: ${balanceNow} DZD.` : "."}`
         : `Request ${outcome.reference} was rejected. ${note ?? ""}`.trim(),
     link: "/portal/wallet",
     agencyId: outcome.agencyId,

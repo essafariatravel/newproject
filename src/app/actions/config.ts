@@ -295,6 +295,14 @@ const docTypeSchema = z.object({
   code: codeSchema,
   description: z.string().trim().max(500).optional().nullable(),
   sortOrder: z.coerce.number().int().min(0).max(9999).default(0),
+  /**
+   * "1" = checklist item the agency provides, "0" = issued by ESSAFARIA.
+   * NB: z.coerce.boolean() would be WRONG here — the string "0" is truthy in JS.
+   */
+  agencyUploadable: z
+    .union([z.literal("1"), z.literal("0"), z.boolean()])
+    .transform((v) => v === true || v === "1")
+    .default(true),
 });
 
 export async function createDocumentTypeAction(formData: FormData): Promise<void> {
@@ -316,7 +324,16 @@ export async function updateDocumentTypeAction(formData: FormData): Promise<void
     requirePermission(staff, "config.manage");
     const id = idSchema.parse(formData.get("id"));
     if (formData.get("toggle")) {
-      await db.update(documentTypes).set({ active: sql`not ${documentTypes.active}`, updatedAt: new Date() }).where(eq(documentTypes.id, id));
+      await db
+        .update(documentTypes)
+        .set({
+          active: sql`not ${documentTypes.active}`,
+          agencyUploadable: docTypeSchema.shape.agencyUploadable.parse(formData.get("agencyUploadable") ?? "1"),
+          // toggling activation never re-classifies who provides a document
+          // beyond what the form carried (hidden field keeps the current value)
+          updatedAt: new Date(),
+        })
+        .where(eq(documentTypes.id, id));
       await recordAudit({ actor: staff, action: "CONFIG_DOCUMENT_TYPE_TOGGLED", entity: "document_type", entityId: id });
     } else {
       const data = docTypeSchema.parse(Object.fromEntries(formData));

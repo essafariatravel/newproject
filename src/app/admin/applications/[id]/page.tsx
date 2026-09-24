@@ -10,8 +10,8 @@ import {
   getDecisionDocuments,
   getStatusHistory,
 } from "@/lib/applications";
-import { listApplicantsForApplication, listDocumentsForApplication } from "@/lib/documents";
-import { listDocumentRequests } from "@/lib/document-requests";
+import { groupDocumentsForDisplay, listApplicantsForApplication, listDocumentsForApplication } from "@/lib/documents";
+import { listAgencyRequestableDocumentTypes, listDocumentRequests } from "@/lib/document-requests";
 import { findTransactionByApplication } from "@/lib/wallet";
 import { listCommunications } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
@@ -28,7 +28,7 @@ import {
   recordDecisionAction,
   updateInternalNotesAction,
 } from "@/app/actions/applications";
-import { requestAdditionalDocumentAction, requestReplacementAction } from "@/app/actions/documents";
+import { requestAdditionalDocumentAction, requestReplacementAction, reviewDocumentAction } from "@/app/actions/documents";
 import { SubmitButton } from "@/components/forms";
 import { Card, CardHeader, Flash, PageHeader, Tabs } from "@/components/ui";
 import { PriorityBadge, StatusBadge } from "@/components/badges";
@@ -83,6 +83,25 @@ export default async function AdminApplicationDetailPage({
       getApplicationPricing(id),
       listDocumentRequests(id),
     ]);
+
+  // §"ADDITIONAL from configured types": staff may request any active, configured
+  // document an agency is able to provide — not only the items already on this
+  // checklist. Staff-issued artifacts (decision documents) are excluded by the
+  // catalogue itself (document_types.agency_uploadable).
+  const requestableTypes = await listAgencyRequestableDocumentTypes();
+  // Types already on this checklist are handled by "Request replacement" on the
+  // requirement row — offering them again would create a duplicate requirement.
+  // When nothing is left, the panel explains that instead of showing an empty
+  // dropdown (no dead ends, §"helpful empty states").
+  const availableRequestableTypes = requestableTypes.filter(
+    (t) => !checklist.some((c) => c.documentTypeId === t.id),
+  );
+
+  // Every uploaded document must be reachable from this page: rows that are not
+  // linked to a checklist requirement of this application are listed separately
+  // instead of disappearing (regression: the agency fulfilled a request and staff
+  // could not see or preview the new version).
+  const documentGroups = groupDocumentsForDisplay(checklist, docs);
 
   // §18 — the embassy stage is only offered when the programme uses it.
   const embassyApplicability = await getEmbassyApplicability(app.visaTypeId);
@@ -312,7 +331,7 @@ export default async function AdminApplicationDetailPage({
             <CardHeader title={ct("Documents")} subtitle={`${docs.length} ${ct("uploaded")} · ${checklist.length} ${ct("requirements")}`} />
             <div className="divide-y divide-slate-100">
               {checklist.map((item) => {
-                const itemDocs = docs.filter((d) => d.doc.checklistItemId === item.id).sort((a,b) => b.doc.version - a.doc.version);
+                const itemDocs = documentGroups.byItem.get(item.id) ?? [];
                 const latest = itemDocs[0];
                 return (
                   <div key={item.id} className="px-4 py-4">
@@ -359,22 +378,60 @@ export default async function AdminApplicationDetailPage({
             <form action={requestAdditionalDocumentAction} className="flex flex-wrap items-end gap-3 p-4">
               <input type="hidden" name="applicationId" value={id} />
               <input type="hidden" name="back" value={`${back}?tab=documents`} />
-              <div className="min-w-[200px] flex-1">
-                <label className="label">{ct("Document type")} *</label>
-                <select name="documentTypeId" required className="input">
-                  <option value="">{ct("Select type")}</option>
-                  {checklist.filter((c) => c.documentTypeId).map((c) => (
-                    <option key={c.documentTypeId!} value={c.documentTypeId!}>{c.documentTypeName}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="min-w-[240px] flex-1">
-                <label className="label">{ct("Reason")} *</label>
-                <input name="reason" required minLength={5} className="input" placeholder={ct("Embassy requested additional…")} />
-              </div>
-              <SubmitButton className="btn-primary btn-sm" pendingLabel="Requesting…">{ct("Request additional")}</SubmitButton>
+              {availableRequestableTypes.length === 0 ? (
+                <p className="w-full text-xs text-slate-600">
+                  {ct("Every configured agency document is already a requirement of this dossier. Use “Request replacement” on the requirement to ask for a new version — no duplicate requirement is created.")}
+                </p>
+              ) : (
+                <>
+                  <div className="min-w-[200px] flex-1">
+                    <label className="label">{ct("Document type")} *</label>
+                    <select name="documentTypeId" required className="input">
+                      <option value="">{ct("Select type")}</option>
+                      {availableRequestableTypes.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="min-w-[240px] flex-1">
+                    <label className="label">{ct("Reason")} *</label>
+                    <input name="reason" required minLength={5} className="input" placeholder={ct("Embassy requested additional…")} />
+                  </div>
+                  <SubmitButton className="btn-primary btn-sm" pendingLabel="Requesting…">{ct("Request additional")}</SubmitButton>
+                </>
+              )}
             </form>
           </Card>
+
+          {documentGroups.unassigned.length > 0 ? (
+            <Card>
+              <CardHeader
+                title={ct("Other documents")}
+                subtitle={ct("Documents received outside the checklist — still reviewable and downloadable.")}
+              />
+              <div className="divide-y divide-slate-100">
+                {documentGroups.unassigned.map(({ doc, documentTypeName }) => (
+                  <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+                    <span className="flex min-w-0 items-center gap-2 text-xs">
+                      <a href={`/api/documents/${doc.id}`} target="_blank" className="truncate font-medium text-navy-900 hover:underline">
+                        {doc.originalFilename}
+                      </a>
+                      <span className="text-slate-400">v{doc.version} · {documentTypeName} · {formatDateTime(doc.createdAt, uiLocale)}</span>
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-xs">{ct("Preview")}</a>
+                      <form action={reviewDocumentAction} className="flex items-center gap-1">
+                        <input type="hidden" name="documentId" value={doc.id} />
+                        <input type="hidden" name="applicationId" value={id} />
+                        <input type="hidden" name="back" value={`${back}?tab=documents`} />
+                        <SubmitButton name="status" value="ACCEPTED" className="btn-secondary btn-xs" pendingLabel="…">{ct("Accept")}</SubmitButton>
+                      </form>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
 
           {docRequests.length > 0 ? (
             <Card>
@@ -382,8 +439,16 @@ export default async function AdminApplicationDetailPage({
               <div className="divide-y divide-slate-100 text-xs">
                 {docRequests.map((r) => (
                   <div key={r.req.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
-                    <span><span className={`badge ${r.req.status === "OPEN" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>{r.req.status}</span> {r.req.type} · {r.docTypeName}</span>
-                    <span className="text-slate-500">{r.req.reason} · {formatDateTime(r.req.createdAt, uiLocale)}</span>
+                    <span>
+                      <span className={`badge ${r.req.status === "OPEN" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+                        {r.req.status === "OPEN" ? ct("Awaiting your upload") : r.req.status === "FULFILLED" ? ct("Received") : ct("Cancelled")}
+                      </span>{" "}
+                      {r.req.type === "REPLACEMENT" ? ct("Replacement requested") : ct("Additional document requested")} · {r.docTypeName}
+                    </span>
+                    <span className="text-slate-500">
+                      {r.req.reason} · {formatDateTime(r.req.createdAt, uiLocale)}
+                      {r.req.fulfilledAt ? ` → ${ct("Received")} ${formatDateTime(r.req.fulfilledAt, uiLocale)}` : ""}
+                    </span>
                   </div>
                 ))}
               </div>

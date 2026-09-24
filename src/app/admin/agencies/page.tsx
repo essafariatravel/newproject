@@ -7,7 +7,7 @@ import { formatAmount } from "@/lib/format";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { createAgencyAction, createAgencyWithAdminAction } from "@/app/actions/admin";
 import { FilterBar } from "@/components/app-widgets";
-import { SubmitButton } from "@/components/forms";
+import { PasswordField, SubmitButton } from "@/components/forms";
 import { ActiveBadge, EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
 import BrandMark from "@/components/brand-mark";
 import { agencyLogoUrl } from "@/lib/branding";
@@ -114,7 +114,7 @@ export default async function AdminAgenciesPage({
             <div className="sm:col-span-2 lg:col-span-3 mt-2 border-t border-ivory-200 pt-4"><p className="mb-3 text-sm font-medium text-navy-800">First administrator</p></div>
             <div><label className="label">Administrator name *</label><input name="adminName" required className="input" /></div>
             <div><label className="label">Administrator email *</label><input name="adminEmail" type="email" required className="input" /></div>
-            <div><label className="label">Temporary password * (min 10)</label><input name="adminPassword" type="password" required minLength={10} className="input" autoComplete="new-password" /></div>
+            <PasswordField id="a-admin-password" name="adminPassword" label="Temporary password" required hint="At least 10 characters. The agency administrator must change it at first sign-in." />
             <div className="flex items-end lg:col-span-3"><SubmitButton className="btn-primary" pendingLabel="Onboarding…">Onboard agency + administrator</SubmitButton></div>
           </form>
         </div>

@@ -329,6 +329,10 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
   await runAction("/admin/settings", async () => {
     const staff = await requireStaff();
     requirePermission(staff, "cms.manage");
+    // §Settings — each section saves independently: only the keys the submitted
+    // section actually carries are written, so saving the website copy cannot
+    // overwrite legal text (and the legal section never touches the CMS fields).
+    const section = String(formData.get("section") ?? "");
     const entries: Array<[string, unknown]> = [];
     const simpleKeys = [
       "brand.name",
@@ -346,6 +350,21 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
       const v = formData.get(key);
       if (v !== null) entries.push([key, String(v)]);
     }
+    // Multilingual legal copy (EN/FR/AR) — every language stored under its own key.
+    for (const key of [
+      "legal.privacy.en",
+      "legal.privacy.fr",
+      "legal.privacy.ar",
+      "legal.terms.en",
+      "legal.terms.fr",
+      "legal.terms.ar",
+    ]) {
+      const v = formData.get(key);
+      if (v !== null) entries.push([key, String(v)]);
+    }
+    if (entries.length === 0) {
+      throw new AppError("VALIDATION", "Nothing to save in this section.");
+    }
     if (formData.get("site.social.linkedin") !== null || formData.get("site.social.instagram") !== null || formData.get("site.social.x") !== null) {
       entries.push([
         "site.social",
@@ -359,9 +378,16 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
     for (const [key, value] of entries) {
       await updateSetting(key, value, staff.id);
     }
-    await recordAudit({ actor: staff, action: "SETTINGS_UPDATED", entity: "site_settings", metadata: { keys: entries.map(([k]) => k) } });
+    await recordAudit({
+      actor: staff,
+      action: "SETTINGS_UPDATED",
+      entity: "site_settings",
+      metadata: { section: section || "unspecified", keys: entries.map(([k]) => k) },
+    });
     revalidatePath("/admin/settings");
     revalidatePath("/");
-    return "Settings saved.";
+    revalidatePath("/privacy");
+    revalidatePath("/terms");
+    return section === "legal" ? "Legal content saved." : "Website content saved.";
   });
 }

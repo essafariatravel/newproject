@@ -1,13 +1,46 @@
 import { pageUser } from "@/lib/page-auth";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { hasPermission } from "@/lib/rbac";
-import { listAuditLogs } from "@/lib/queries";
+import { listAuditLogs, resolvePageSize } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatDateTime } from "@/lib/format";
-import { FilterBar, Pagination } from "@/components/app-widgets";
+import { FilterBar, Pagination, PageSizeSelector } from "@/components/app-widgets";
 import { EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Audit metadata is stored as JSON, but it is read by humans: render it as
+ * plain "key: value" pairs, shorten identifiers that add no meaning, and never
+ * print braces, quotes or a full UUID (§audit human-readable).
+ */
+function fmtValue(value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "boolean") return value ? "yes" : "no";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "string") {
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(value)) return `#${value.slice(0, 8)}`;
+    return value.replaceAll("_", " ");
+  }
+  if (Array.isArray(value)) return value.map(fmtValue).join(", ");
+  if (typeof value === "object") return Object.entries(value as Record<string, unknown>).map(([k, v]) => `${k.replaceAll("_", " ")}: ${fmtValue(v)}`).join(" · ");
+  return String(value);
+}
+
+function readableMetadata(metadata: unknown): React.ReactNode {
+  if (!metadata || typeof metadata !== "object") return <span className="text-xs text-slate-400">—</span>;
+  const entries = Object.entries(metadata as Record<string, unknown>).filter(([, v]) => v !== null && v !== undefined && v !== "");
+  if (entries.length === 0) return <span className="text-xs text-slate-400">—</span>;
+  return (
+    <span className="block text-[11px] leading-relaxed text-slate-500">
+      {entries.map(([key, value]) => (
+        <span key={key} className="mr-2 inline-block whitespace-nowrap">
+          <span className="text-slate-400">{key.replaceAll("_", " ")}</span> {fmtValue(value)}
+        </span>
+      ))}
+    </span>
+  );
+}
 
 export default async function AdminAuditPage({
   searchParams,
@@ -28,7 +61,8 @@ export default async function AdminAuditPage({
   const flash = flashFrom(sp);
   const q = typeof sp.q === "string" ? sp.q : undefined;
   const page = Number(sp.page ?? "1") || 1;
-  const result = await listAuditLogs({ q, page });
+  const per = resolvePageSize(sp.per);
+  const result = await listAuditLogs({ q, page, pageSize: per });
 
   return (
     <>
@@ -64,22 +98,19 @@ export default async function AdminAuditPage({
                     <span className="badge bg-navy-900/5 text-navy-800">{log.action.replaceAll("_", " ")}</span>
                   </td>
                   <td className="td text-xs text-slate-500">{log.entity}{log.entityId ? ` · ${log.entityId.slice(0, 8)}…` : ""}</td>
-                  <td className="td max-w-[220px]">
-                    {log.metadata ? (
-                      <code className="block truncate text-[11px] text-slate-500" title={JSON.stringify(log.metadata)}>
-                        {JSON.stringify(log.metadata)}
-                      </code>
-                    ) : (
-                      "—"
-                    )}
+                  <td className="td max-w-[260px]">
+                    {readableMetadata(log.metadata)}
                   </td>
                 </tr>
               ))}
             </tbody>
           </TableWrap>
-          <Pagination page={result.page} pageCount={result.pageCount} total={result.total} basePath="/admin/audit" query={{ q }} />
+          <Pagination locale={uiLocale} page={result.page} pageCount={result.pageCount} total={result.total} basePath="/admin/audit" query={{ q, per: String(per) }} />
         </>
       )}
+      <div className="mt-2 flex justify-end">
+        <PageSizeSelector locale={uiLocale} pageSize={per} basePath="/admin/audit" query={{ q }} />
+      </div>
     </>
   );
 }

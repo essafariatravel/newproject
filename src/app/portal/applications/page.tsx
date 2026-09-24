@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { portalPageUser } from "@/lib/page-auth";
-import { searchApplications } from "@/lib/queries";
+import { searchApplications, resolvePageSize } from "@/lib/queries";
 import { listStatuses } from "@/lib/applications";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatDate } from "@/lib/format";
-import { FilterBar, Pagination } from "@/components/app-widgets";
+import { FilterBar, Pagination, PageSizeSelector } from "@/components/app-widgets";
 import { localizedStatusName } from "@/lib/ui-i18n";
 import { EmptyState, Flash, PageHeader, Progress, TableWrap } from "@/components/ui";
 import { StatusBadge } from "@/components/badges";
@@ -30,13 +30,13 @@ export default async function PortalApplicationsPage({
   const page = Number(sp.page ?? "1") || 1;
 
   const [result, statuses] = await Promise.all([
-    searchApplications(user, { q: sp.q, statusCode: sp.status, dateFrom: sp.from, dateTo: sp.to, page }),
+    searchApplications(user, { q: sp.q, statusCode: sp.status, dateFrom: sp.from, dateTo: sp.to, page, pageSize: resolvePageSize(sp.per) }),
     listStatuses(true),
   ]);
 
   const progressById = new Map<string, { done: number; total: number }>();
   await Promise.all(
-    result.rows.slice(0, 20).map(async (r) => {
+    result.rows.map(async (r) => {
       const p = await checklistProgress(r.app.id);
       progressById.set(r.app.id, { done: p.requiredComplete, total: p.requiredTotal });
     }),
@@ -114,7 +114,10 @@ export default async function PortalApplicationsPage({
               })}
             </tbody>
           </TableWrap>
-          <Pagination locale={uiLocale} page={result.page} pageCount={result.pageCount} total={result.total} basePath="/portal/applications" query={{ q: sp.q, status: sp.status, from: sp.from, to: sp.to }} />
+          <Pagination locale={uiLocale} page={result.page} pageCount={result.pageCount} total={result.total} basePath="/portal/applications" query={{ q: sp.q, status: sp.status, from: sp.from, to: sp.to, per: sp.per }} />
+          <div className="flex justify-end">
+            <PageSizeSelector locale={uiLocale} pageSize={resolvePageSize(sp.per)} basePath="/portal/applications" query={{ q: sp.q, status: sp.status, from: sp.from, to: sp.to }} />
+          </div>
         </>
       )}
     </>

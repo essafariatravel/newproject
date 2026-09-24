@@ -1,9 +1,22 @@
 import { qualifiedTable } from "./database-schema";
+
+/**
+ * §pagination standard: every paginated list offers 20 / 50 / 100 rows per page.
+ * Unknown or hostile values fall back to the default instead of being trusted,
+ * and the page-size parameter can only ever choose between these three.
+ */
+export const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
+export const DEFAULT_PAGE_SIZE = 20;
+
+export function resolvePageSize(value: unknown): number {
+  const parsed = Number(typeof value === "string" ? value : Array.isArray(value) ? value[0] : NaN);
+  return (PAGE_SIZE_OPTIONS as readonly number[]).includes(parsed) ? parsed : DEFAULT_PAGE_SIZE;
+}
 /**
  * Read-model queries with server-side filtering and pagination.
  * Every query takes the authenticated user and enforces tenant scope.
  */
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   agencies,
@@ -44,6 +57,8 @@ export interface ApplicationFilters {
   documents?: "requested" | "missing";
   /** §27/§31 — dossiers waiting at least N whole days in the current status. */
   agingDays?: number;
+  /** §pagination standard — 20 / 50 / 100 rows per page. */
+  pageSize?: number;
 }
 
 const applicationSelection = {
@@ -73,8 +88,13 @@ const applicationSelection = {
   ownerName: sql<string | null>`(select u.name from ${sql.raw(qualifiedTable("users"))} u where u.id = applications.assigned_to)`,
 };
 
-export async function searchApplications(user: AuthUser, filters: ApplicationFilters) {
-  const page = Math.max(1, filters.page ?? 1);
+/**
+ * ONE definition of "what the user is currently looking at".
+ * The list page, the saved views, the export routes and the CSV/XLSX writers all
+ * call this, so an export can never drift from the filtered list on screen — and
+ * the tenant scope is applied here, on the server, for every entry point.
+ */
+export async function buildApplicationConditions(user: AuthUser, filters: ApplicationFilters) {
   const conditions = [];
 
   if (user.agencyId) {
@@ -146,6 +166,13 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
     );
   }
 
+  return conditions;
+}
+
+export async function searchApplications(user: AuthUser, filters: ApplicationFilters) {
+  const page = Math.max(1, filters.page ?? 1);
+  const pageSize = resolvePageSize(filters.pageSize ?? DEFAULT_PAGE_SIZE);
+  const conditions = await buildApplicationConditions(user, filters);
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
   const rows = await db
@@ -155,8 +182,8 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
     .innerJoin(priorities, eq(applications.priorityId, priorities.id))
     .where(where)
     .orderBy(desc(applications.createdAt))
-    .limit(PAGE_SIZE)
-    .offset((page - 1) * PAGE_SIZE);
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
 
   const totalRows = await db
     .select({ total: count() })
@@ -166,6 +193,32 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
   const total = Number(totalRows[0]?.total ?? 0);
 
   return { rows, total, page, pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+}
+
+/**
+ * §"Exports scoped by RBAC + tenant + the ACTIVE filter".
+ * Same conditions as the list, no pagination, hard cap so a runaway filter can
+ * never stream the whole platform into memory. Agency actors are scoped to their
+ * own rows by `buildApplicationConditions`; the route additionally requires the
+ * staff export permission.
+ */
+export const EXPORT_ROW_LIMIT = 5000;
+
+export async function exportApplications(user: AuthUser, filters: ApplicationFilters) {
+  const conditions = await buildApplicationConditions(user, filters);
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const rows = await db
+    .select(applicationSelection)
+    .from(applications)
+    .innerJoin(statuses, eq(applications.statusId, statuses.id))
+    .innerJoin(priorities, eq(applications.priorityId, priorities.id))
+    .where(where)
+    .orderBy(desc(applications.createdAt))
+    .limit(EXPORT_ROW_LIMIT + 1);
+
+  const truncated = rows.length > EXPORT_ROW_LIMIT;
+  return { rows: rows.slice(0, EXPORT_ROW_LIMIT), truncated };
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -426,7 +479,31 @@ export async function reportData() {
     .groupBy(users.id, users.name)
     .orderBy(desc(count(applications.id)));
 
-  return { byAgency, byCountry, byVisaType, byStatus, byPriority, docIssues, walletFlow, workload };
+  // §"avg processing only real timestamps": computed exclusively from rows that
+  // really carry both stamps (submitted + decision). Legacy or unfinished
+  // dossiers contribute NOTHING here, and with no finished dossier the metric
+  // reports null so the UI can say "not available" instead of inventing 0 days.
+  const [processing] = await db
+    .select({
+      decided: count(),
+      avgDays: sql<string | null>`avg(extract(epoch from (${applications.decisionAt} - ${applications.submittedAt})) / 86400.0)::text`,
+      fastestDays: sql<string | null>`min(extract(epoch from (${applications.decisionAt} - ${applications.submittedAt})) / 86400.0)::text`,
+      slowestDays: sql<string | null>`max(extract(epoch from (${applications.decisionAt} - ${applications.submittedAt})) / 86400.0)::text`,
+    })
+    .from(applications)
+    .where(and(isNotNull(applications.submittedAt), isNotNull(applications.decisionAt)));
+
+  return {
+    byAgency,
+    byCountry,
+    byVisaType,
+    byStatus,
+    byPriority,
+    docIssues,
+    walletFlow,
+    workload,
+    processing: processing ?? { decided: 0, avgDays: null, fastestDays: null, slowestDays: null },
+  };
 }
 
 /* ------------------------------ notifications --------------------------- */
@@ -453,7 +530,11 @@ export async function unreadNotificationCount(userId: string): Promise<number> {
 export async function listCommunications(applicationId: string, user: AuthUser) {
   const conditions = [eq(communications.applicationId, applicationId)];
   if (user.agencyId) {
-    // agencies see only agency-visible messages
+    // Defense in depth: an agency user may only read messages of a dossier that
+    // belongs to its own agency, and only agency-visible ones. The page loader
+    // already refuses foreign dossiers; enforcing it here too means a future
+    // caller cannot accidentally bypass tenancy by passing an id.
+    conditions.push(eq(applications.agencyId, user.agencyId));
     conditions.push(eq(communications.visibility, "AGENCY"));
   }
   return db
@@ -464,11 +545,28 @@ export async function listCommunications(applicationId: string, user: AuthUser) 
     })
     .from(communications)
     .innerJoin(users, eq(communications.authorId, users.id))
+    .innerJoin(applications, eq(communications.applicationId, applications.id))
     .where(and(...conditions))
     .orderBy(asc(communications.createdAt));
 }
 
-export async function recentCommunications(limit = 30) {
+/**
+ * Latest messages across dossiers.
+ *
+ * TENANT SAFETY: this used to be an unscoped "latest N" query, which meant the
+ * agency Communications inbox listed other agencies' message bodies. Callers MUST
+ * declare their scope: staff pass no agencyId, agencies pass the agencyId from the
+ * session (never from a query parameter) and `agencyVisibleOnly` for the audience
+ * filter. Both filters are applied inside the query so a page cannot forget them.
+ */
+export async function recentCommunications(
+  limit = 30,
+  scope: { agencyId?: string | null; agencyVisibleOnly?: boolean } = {},
+) {
+  const conditions = [];
+  if (scope.agencyId) conditions.push(eq(applications.agencyId, scope.agencyId));
+  if (scope.agencyVisibleOnly) conditions.push(eq(communications.visibility, "AGENCY"));
+  const where = conditions.length ? and(...conditions) : undefined;
   return db
     .select({
       message: communications,
@@ -480,6 +578,7 @@ export async function recentCommunications(limit = 30) {
     .from(communications)
     .innerJoin(users, eq(communications.authorId, users.id))
     .innerJoin(applications, eq(communications.applicationId, applications.id))
+    .where(where)
     .orderBy(desc(communications.createdAt))
     .limit(limit);
 }
@@ -561,12 +660,24 @@ export async function listAgencies(q?: string) {
     .orderBy(asc(agencies.legalName));
 }
 
-export async function listUsers(q?: string, agencyId?: string) {
+/**
+ * §Users — back-office accounts are TWO populations, not one list: ESSAFARIA
+ * staff (agency_id is NULL) and partner-agency users (bound to exactly one
+ * agency). They are queried separately so a staff view can never render an
+ * agency account and vice versa, and the counts shown in the tabs are real.
+ */
+export async function listUsers(
+  q?: string,
+  agencyId?: string,
+  scope: "staff" | "agency" | "all" = "all",
+) {
   const conditions = [];
   if (q) {
     const term = `%${q.trim()}%`;
     conditions.push(or(ilike(users.name, term), ilike(users.email, term))!);
   }
+  if (scope === "staff") conditions.push(isNull(users.agencyId));
+  if (scope === "agency") conditions.push(isNotNull(users.agencyId));
   if (agencyId) conditions.push(eq(users.agencyId, agencyId));
   return db
     .select({
@@ -578,8 +689,9 @@ export async function listUsers(q?: string, agencyId?: string) {
     .orderBy(asc(users.role), asc(users.name));
 }
 
-export async function listAuditLogs(filters: { q?: string; agencyId?: string; action?: string; page?: number }) {
+export async function listAuditLogs(filters: { q?: string; agencyId?: string; action?: string; page?: number; pageSize?: number }) {
   const page = Math.max(1, filters.page ?? 1);
+  const pageSize = resolvePageSize(filters.pageSize ?? DEFAULT_PAGE_SIZE);
   const conditions = [];
   if (filters.q) {
     const term = `%${filters.q.trim()}%`;
@@ -597,11 +709,11 @@ export async function listAuditLogs(filters: { q?: string; agencyId?: string; ac
     .from(auditLogs)
     .where(where)
     .orderBy(desc(auditLogs.createdAt))
-    .limit(PAGE_SIZE)
-    .offset((page - 1) * PAGE_SIZE);
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
   const totalRows = await db.select({ total: count() }).from(auditLogs).where(where);
   const total = Number(totalRows[0]?.total ?? 0);
-  return { rows, total, page, pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+  return { rows, total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
 export interface WalletLedgerFilters {

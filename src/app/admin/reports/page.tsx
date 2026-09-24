@@ -32,13 +32,23 @@ export default async function AdminReportsPage() {
   }
   const data = await reportData();
   const walletFlow = data.walletFlow!;
+  const processing = data.processing;
   const maxCountry = Math.max(1, ...data.byCountry.map((r) => Number(r.total)));
   const maxVisa = Math.max(1, ...data.byVisaType.map((r) => Number(r.total)));
   const maxStatus = Math.max(1, ...data.byStatus.map((r) => Number(r.total)));
 
   return (
     <>
-      <PageHeader title={ct("Reports")} subtitle={ct("Operational and financial reporting from live database data. DZD only.")} />
+      <PageHeader
+        title={ct("Reports")}
+        subtitle={ct("Operational and financial reporting from live database data. DZD only.")}
+        actions={
+          <div className="flex items-center gap-1.5">
+            <a href="/api/admin/reports/export" className="btn-secondary btn-sm" data-testid="reports-export-csv">{ct("Download CSV")}</a>
+            <a href="/api/admin/reports/export?format=xlsx" className="btn-secondary btn-sm" data-testid="reports-export-xlsx">{ct("Download Excel")}</a>
+          </div>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label={ct("Wallet credits")} value={formatAmount(walletFlow.credits, "DZD", uiLocale)} tone="gold" />
@@ -49,6 +59,38 @@ export default async function AdminReportsPage() {
           value={data.docIssues.reduce((s, d) => s + Number(d.total), 0)}
           hint={data.docIssues.map((d) => `${d.status.replaceAll("_", " ")}: ${d.total}`).join(" · ") || "none"}
         />
+      </div>
+
+      {/* §"avg processing only real timestamps" — with no decided dossier the
+          metric is reported as unavailable rather than as a fabricated 0. */}
+      <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card className="p-4">
+          <h3 className="text-sm font-semibold text-navy-900">{ct("Average processing time")}</h3>
+          <p className="mt-1 font-serif text-2xl text-navy-900" data-testid="avg-processing">
+            {processing.avgDays === null
+              ? ct("Not available yet")
+              : `${Number(processing.avgDays).toFixed(1)} ${ct("days")}`}
+          </p>
+          <p className="mt-0.5 text-xs text-slate-400">
+            {ct("Only dossiers that reached a decision are counted — submitted → decision, from real timestamps.")}
+          </p>
+        </Card>
+        <Card className="p-4">
+          <h3 className="text-sm font-semibold text-navy-900">{ct("Decided dossiers")}</h3>
+          <p className="mt-1 font-serif text-2xl text-navy-900">{Number(processing.decided ?? 0)}</p>
+          <p className="mt-0.5 text-xs text-slate-400">
+            {processing.fastestDays === null
+              ? ct("No decision has been recorded in this period yet.")
+              : `${ct("Fastest")} ${Number(processing.fastestDays).toFixed(1)} · ${ct("Slowest")} ${Number(processing.slowestDays).toFixed(1)} ${ct("days")}`}
+          </p>
+        </Card>
+        <Card className="p-4">
+          <h3 className="text-sm font-semibold text-navy-900">{ct("Wallet credits vs charges")}</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            {formatAmount(walletFlow.credits, "DZD", uiLocale)} {ct("credited")} · {formatAmount(walletFlow.charges, "DZD", uiLocale)} {ct("charged")}
+          </p>
+          <p className="mt-0.5 text-xs text-slate-400">{ct("All amounts are DZD. Correction entries appear as their own ledger rows.")}</p>
+        </Card>
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">

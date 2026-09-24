@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { formatAmount, formatDateTime } from "@/lib/format";
 
 /**
  * Phase 2.3 — Bug 1 hard guard: no raw English JSX literals left on the
@@ -123,6 +124,36 @@ describe("Phase 2.3 — Bug 1 localization audit (hard guards)", () => {
 
   it("application-detail shared panels have no raw English text nodes", () => {
     expect(findRaw(SHARED_COMPONENTS.applicationDetail!, new Set())).toEqual([]);
+  });
+
+  it("shared dossier panels localize dates and amounts (no locale-blind formatting)", () => {
+    // Regression: the panels formatted dates/amounts with the default locale, so a
+    // French or Arabic dossier rendered English month names and English grouping.
+    const src = readFileSync(path.join(ROOT, SHARED_COMPONENTS.applicationDetail!), "utf8");
+    const blind = [/formatDateTime\([^)]*\)(?!.*props\.locale)/g, /formatAmount\([^)]*\)(?!.*props\.locale)/g];
+    for (const re of blind) {
+      for (const match of src.match(re) ?? []) {
+        expect(match, `locale-blind formatter in application-detail.tsx: ${match}`).toContain("props.locale");
+      }
+    }
+    expect(src).toContain('formatDateTime(doc.createdAt, props.locale ?? "en")');
+    expect(src).toContain('formatAmount(app.fee, "DZD", props.locale ?? "en")');
+  });
+
+  it("localized date and amount formatting really differ per locale", () => {
+    const d = new Date("2026-03-05T14:30:00Z");
+    const en = formatDateTime(d, "en");
+    const fr = formatDateTime(d, "fr");
+    const ar = formatDateTime(d, "ar");
+    expect(fr).not.toBe(en);
+    expect(ar).not.toBe(en);
+    expect(fr.toLowerCase()).toContain("mars");
+    expect(formatAmount(1234.5, "DZD", "en")).toBe("1,234.5 DZD");
+    expect(formatAmount(1234.5, "DZD", "fr")).not.toBe("1,234.5 DZD");
+    for (const out of [formatAmount(1234.5, "DZD", "en"), formatAmount(1234.5, "DZD", "fr"), formatAmount(1234.5, "DZD", "ar")]) {
+      expect(out).toContain("DZD");
+      expect(out).not.toMatch(/(€|EUR|\$|USD)/);
+    }
   });
 
   it("registration flow pages use registrationCopy/resolveLocale (no raw hero copy)", () => {

@@ -124,8 +124,8 @@ export async function seedFixtures(): Promise<void> {
       { name: "Flight Reservation", code: "FLIGHT_RESERVATION", sortOrder: 40 },
       { name: "Hotel Reservation", code: "HOTEL_RESERVATION", sortOrder: 50 },
       { name: "Travel Insurance", code: "INSURANCE", sortOrder: 60 },
-      { name: "Issued Visa / Approval Decision", code: "DECISION_VISA_APPROVAL", sortOrder: 900 },
-      { name: "Refusal / Rejection Decision Letter", code: "DECISION_REFUSAL_LETTER", sortOrder: 910 },
+      { name: "Issued Visa / Approval Decision", code: "DECISION_VISA_APPROVAL", sortOrder: 900, agencyUploadable: false },
+      { name: "Refusal / Rejection Decision Letter", code: "DECISION_REFUSAL_LETTER", sortOrder: 910, agencyUploadable: false },
     ])
     .returning();
   const docByCode = new Map(docTypeRows.map((d) => [d.code, d]));

@@ -1,8 +1,60 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import type { ReactNode } from "react";
+
+/**
+ * Password input with an explicit show/hide toggle and the platform policy
+ * spelled out. Server-side validation is unchanged (and authoritative) — this
+ * only makes the requirement visible and prevents typing mistakes.
+ */
+export function PasswordField(props: {
+  id: string;
+  name: string;
+  label: string;
+  required?: boolean;
+  minLength?: number;
+  autoComplete?: string;
+  defaultValue?: string;
+  hint?: string;
+  className?: string;
+}) {
+  const [visible, setVisible] = useState(false);
+  const minLength = props.minLength ?? 10;
+  return (
+    <div className={props.className}>
+      <label className="label" htmlFor={props.id}>
+        {props.label}
+        {props.required ? " *" : ""}
+      </label>
+      <div className="relative">
+        <input
+          id={props.id}
+          name={props.name}
+          type={visible ? "text" : "password"}
+          required={props.required}
+          minLength={props.required ? minLength : undefined}
+          autoComplete={props.autoComplete ?? "new-password"}
+          defaultValue={props.defaultValue}
+          className="input pr-16"
+        />
+        <button
+          type="button"
+          onClick={() => setVisible((v) => !v)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 hover:text-navy-900"
+          aria-pressed={visible}
+          data-testid={`${props.id}-toggle`}
+        >
+          {visible ? "Hide" : "Show"}
+        </button>
+      </div>
+      <p className="mt-1 text-xs text-slate-400">
+        {props.hint ?? `At least ${minLength} characters.`}
+      </p>
+    </div>
+  );
+}
 
 export interface ActionState {
   error?: string;

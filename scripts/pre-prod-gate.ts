@@ -449,7 +449,10 @@ async function main() {
     ok("N", "Replacement request opens only intended document");
 
     // === O. Additional-document request opens only intended type ===
-    const docType2Row = await q(`select id from document_types where id!=$1 and active=true limit 1`, [docTypeId]);
+    const docType2Row = await q(
+      `select id from document_types where id!=$1 and active=true and agency_uploadable limit 1`,
+      [docTypeId],
+    );
     if (docType2Row.rows.length === 0) {
       ok("O", "SKIP additional type (only one doc type in preview) — still valid");
     } else {
@@ -463,6 +466,44 @@ async function main() {
       const openAdd = await q(`select document_type_id from document_requests where id=$1`, [addReqId]);
       if (openAdd.rows[0].document_type_id !== docType2Id) fail("O", "additional request type mismatch");
       ok("O", "Additional-document request opens only intended type");
+    }
+
+    // === DOC-AUDIENCE. Every document is either agency-provided or ESSAFARIA-issued ===
+    // Found by the rendered audit: staff could request the authority's own
+    // decision document from an agency, so an agency was asked to upload the
+    // visa decision. The catalogue now classifies who provides a document.
+    {
+      const colRes = await q(
+        `select 1 from information_schema.columns
+          where table_schema = current_schema() and table_name = 'document_types' and column_name = 'agency_uploadable'`,
+      );
+      if (colRes.rows.length === 0) fail("DOC-AUDIENCE", "document_types.agency_uploadable is missing (migration 0016/0017 not applied)");
+
+      const misclassified = await q(
+        `select code from document_types where code like 'DECISION\\_%' and agency_uploadable is not false`,
+      );
+      if (misclassified.rows.length > 0) {
+        fail("DOC-AUDIENCE", `decision document types still agency-uploadable: ${misclassified.rows.map((r: any) => r.code).join(", ")}`);
+      }
+
+      const phantom = await q(
+        `select ci.id, dt.code from checklist_items ci
+           join document_types dt on dt.id = ci.document_type_id
+          where dt.agency_uploadable = false limit 5`,
+      );
+      if (phantom.rows.length > 0) {
+        fail("DOC-AUDIENCE", `an agency checklist requires an ESSAFARIA-issued document: ${phantom.rows.map((r: any) => r.code).join(", ")}`);
+      }
+
+      const requestable = await q(
+        `select count(*)::int as cnt from document_types where active and agency_uploadable`,
+      );
+      if (requestable.rows[0].cnt < 1) fail("DOC-AUDIENCE", "no agency-provided document type is available to request");
+
+      ok(
+        "DOC-AUDIENCE",
+        `decision documents are ESSAFARIA-issued only; ${requestable.rows[0].cnt} agency-provided types remain requestable; no checklist requires a staff-issued document`,
+      );
     }
 
     // === P. Fulfillment closes request and locks upload again ===
@@ -510,11 +551,70 @@ async function main() {
       }
     }
 
-    // === S. Search/export tenant boundaries hold ===
-    // searchApplications filters by agency_id for agency users
-    // We already verified A cannot read B's app via direct query with agency filter
-    // For export, wallet statement only AGENCY_ADMIN (checked via RBAC)
-    ok("S", "Search/export tenant boundaries hold");
+    // === S. Search/export tenant boundaries hold (real queries, not claims) ===
+    {
+      const { listWalletTransactions } = await import("../src/lib/queries");
+      const { listApplications } = await import("../src/lib/queries").catch(() => ({ listApplications: null as never })) as { listApplications: null };
+      void listApplications;
+
+      // A funded ledger row for agency B that agency A must never reach.
+      await q(
+        `insert into wallet_transactions (agency_id, type, amount, currency, balance_before, balance_after, reason)
+         values ($1,'CREDIT','321.00','DZD','0','321.00',$2)`,
+        [agencyBId, `${prefix}-B-ONLY-321`],
+      );
+      const forA = await listWalletTransactions({ agencyId: agencyAId, pageSize: 10_000 });
+      if (forA.rows.some((r: any) => r.tx.agencyId === agencyBId)) fail("S", "agency A export reached agency B rows");
+      const bMarker = await listWalletTransactions({ agencyId: agencyAId, q: `${prefix}-B-ONLY-321` });
+      if (bMarker.total !== 0) fail("S", "agency A could query agency B's ledger by text");
+      ok("S", `ledger/export scope holds (A sees ${forA.total} own rows, 0 foreign)`);
+    }
+
+    // === COMMS. Dossier conversations are tenant-scoped and audience-filtered ===
+    {
+      const { recentCommunications, listCommunications } = await import("../src/lib/queries");
+      const aAdminActor = { id: userIds[`${prefix}-a-admin@example.invalid`]!, email: `${prefix}-a-admin@example.invalid`, role: "AGENCY_ADMIN", agencyId: agencyAId } as any;
+      const bAdminActor = { id: userIds[`${prefix}-b-admin@example.invalid`]!, email: `${prefix}-b-admin@example.invalid`, role: "AGENCY_ADMIN", agencyId: agencyBId } as any;
+      const superActorReal = await q(`select id, email from users where agency_id is null and role = 'SUPER_ADMIN' limit 1`);
+      if (superActorReal.rows.length === 0) fail("COMMS", "no staff super admin available for the conversation check");
+      const staffId = superActorReal.rows[0].id as string;
+      const staffActor = { id: staffId, email: superActorReal.rows[0].email as string, role: "SUPER_ADMIN", agencyId: null } as any;
+
+      await q(`insert into communications (application_id, author_id, visibility, body) values ($1,$2,'AGENCY',$3)`, [
+        appAId,
+        staffId,
+        `${prefix} A visible message`,
+      ]);
+      await q(`insert into communications (application_id, author_id, visibility, body) values ($1,$2,'AGENCY',$3)`, [
+        appBId,
+        staffId,
+        `${prefix} B visible message`,
+      ]);
+      await q(`insert into communications (application_id, author_id, visibility, body) values ($1,$2,'INTERNAL',$3)`, [
+        appAId,
+        staffId,
+        `${prefix} A INTERNAL note`,
+      ]);
+
+      // The agency inbox is scoped by dossier owner + audience: the leak that was
+      // fixed would have listed agency B's body here.
+      const inboxA = await recentCommunications(100, { agencyId: agencyAId, agencyVisibleOnly: true });
+      if (inboxA.some((m: any) => m.message.body.includes("B visible message"))) fail("COMMS", "agency A inbox listed agency B's message");
+      if (inboxA.some((m: any) => m.message.body.includes("INTERNAL note"))) fail("COMMS", "agency A inbox listed a staff internal note");
+      if (!inboxA.some((m: any) => m.message.body.includes("A visible message"))) fail("COMMS", "agency A inbox missed its own message");
+
+      // Reading a foreign dossier through the dossier query returns nothing…
+      const foreignRead = await listCommunications(appBId, aAdminActor);
+      if (foreignRead.length !== 0) fail("COMMS", "agency A read agency B's dossier conversation");
+      // …while the owner sees its own thread and staff see everything.
+      const ownRead = await listCommunications(appAId, aAdminActor);
+      if (ownRead.length !== 1) fail("COMMS", `agency A saw ${ownRead.length} messages instead of its 1 agency-visible one`);
+      const staffRead = await listCommunications(appAId, staffActor);
+      if (staffRead.length !== 2) fail("COMMS", "staff cannot see the full thread (agency + internal)");
+      const bOwn = await listCommunications(appBId, bAdminActor);
+      if (bOwn.length !== 1) fail("COMMS", "agency B cannot read its own thread");
+      ok("COMMS", "dossier conversations are tenant-scoped; internal notes never reach an agency; staff keep the full thread");
+    }
 
     // === T. Sensitive audit/log output contains no plaintext password/token/secret ===
     const auditSample = await q(`select metadata from audit_logs order by created_at desc limit 5`);
@@ -743,6 +843,7 @@ async function main() {
 
     // Cleanup
     log("Cleaning up disposable fixtures...");
+    await q(`delete from communications where application_id in (select id from applications where agency_id in ($1,$2,$3,$4))`, [agencyAId, agencyBId, concAgencyId, concTestAgencyId]).catch(()=>{});
     await q(`delete from wallet_topup_requests where agency_id in ($1,$2,$3,$4)`, [agencyAId, agencyBId, concAgencyId, concTestAgencyId]).catch(()=>{});
     await q(`delete from document_requests where application_id in (select id from applications where agency_id in ($1,$2,$3,$4))`, [agencyAId, agencyBId, concAgencyId, concTestAgencyId]).catch(()=>{});
     await q(`delete from documents where application_id in (select id from applications where agency_id in ($1,$2,$3,$4))`, [agencyAId, agencyBId, concAgencyId, concTestAgencyId]).catch(()=>{});

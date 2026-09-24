@@ -4,12 +4,20 @@ import { formatDateTime } from "@/lib/format";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
+import { portalPageUser } from "@/lib/page-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function PortalCommunicationsPage() {
-  const ct = contentT(await getUiLocale());
-  const messages = (await recentCommunications(100)).filter((m) => m.message.visibility === "AGENCY");
+  const user = await portalPageUser();
+  const uiLocale = await getUiLocale();
+  const ct = contentT(uiLocale);
+  // Tenant scope comes from the SESSION. The query is scoped by dossier owner and
+  // by audience, so this inbox can never list another agency's conversation.
+  const messages = await recentCommunications(100, {
+    agencyId: user.agencyId,
+    agencyVisibleOnly: true,
+  });
 
   return (
     <>
@@ -24,7 +32,7 @@ export default async function PortalCommunicationsPage() {
                 <Link href={`/portal/applications/${applicationId}?tab=communications`} className="text-xs font-semibold text-navy-900 hover:underline">
                   {applicationReference}
                 </Link>
-                <span className="text-[11px] text-slate-400">{formatDateTime(message.createdAt)}</span>
+                <span className="text-[11px] text-slate-400">{formatDateTime(message.createdAt, uiLocale)}</span>
               </div>
               <p className="mt-1.5 text-sm text-slate-700">{message.body}</p>
               <p className="mt-1 text-[11px] text-slate-400">— {authorName}</p>

@@ -17,6 +17,7 @@ import { db, pool } from "@/lib/db";
 import { agencies, applications, walletTransactions } from "@/db/schema";
 import { AppError, type AuthUser } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
+import { agencyUserIds, notifyUsers } from "@/lib/notifications";
 
 export interface WalletMutationResult {
   transactionId: string;
@@ -194,7 +195,28 @@ export async function adjustWallet(params: {
     },
     ipAddress: params.ipAddress ?? null,
   });
+
+  // §34 — a manual wallet movement is never silent: the agency is told what
+  // changed, by how much and what the balance is now, with a deep link to the
+  // ledger it happened in. (The submission charge is announced by the submission
+  // flow itself, so only manual adjustments notify from here.)
+  const recipients = await agencyUserIds(params.agencyId);
+  await notifyUsers(recipients, {
+    type: "WALLET_ADJUSTED",
+    title: `${operation === "CREDIT" ? "Wallet credited" : "Wallet debited"} — ${money(amountAbs)} DZD`,
+    body: `${params.reason}. New balance: ${money(result.balanceAfter)} DZD. Reference ${result.reference ?? result.transactionId}.`,
+    link: "/portal/wallet",
+    agencyId: params.agencyId,
+  });
+
   return result.transactionId;
+}
+
+/** Deterministic DZD formatting for notifications (grouping + 2 decimals). */
+function money(value: string | number): string {
+  const n = typeof value === "string" ? Number(value) : value;
+  if (!Number.isFinite(n)) return String(value);
+  return new Intl.NumberFormat("en-DZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 }
 
 export interface ChargeResult {
