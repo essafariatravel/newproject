@@ -817,6 +817,17 @@ const CONTENT: Record<string, Entry> = {
     ar: "نصيحة: ابحث باسم وكالة أو مرجع مثل EVT-2026-XXXXXX أو اسم مقدم الطلب أو بلد أو نوع تأشيرة.",
   },
 
+  "Clear": { fr: "Effacer", ar: "مسح" },
+
+  "Search a destination": { fr: "Rechercher une destination", ar: "ابحث عن وجهة" },
+  "Country or region…": { fr: "Pays ou région…", ar: "بلد أو منطقة…" },
+  "Region": { fr: "Région", ar: "المنطقة" },
+  "All regions": { fr: "Toutes les régions", ar: "كل المناطق" },
+  "No destination matches your search": { fr: "Aucune destination ne correspond à votre recherche", ar: "لا توجد وجهة مطابقة لبحثك" },
+  "Try a shorter search term or clear the region filter. If your destination is missing, contact us — we open new programmes regularly.": { fr: "Essayez un terme plus court ou effacez le filtre de région. Si votre destination manque, contactez-nous — nous ouvrons régulièrement de nouveaux programmes.", ar: "جرّب كلمة بحث أقصر أو امسح تصفية المنطقة. إذا لم تظهر وجهتك، تواصل معنا — نضيف برامج جديدة باستمرار." },
+  "Destinations are temporarily unavailable": { fr: "Destinations temporairement indisponibles", ar: "الوجهات غير متاحة مؤقتًا" },
+  "Our catalogue could not be loaded just now. Please try again in a moment, or contact us and we will confirm coverage for your destination.": { fr: "Notre catalogue n'a pas pu être chargé. Réessayez dans un instant ou contactez-nous pour confirmer la couverture de votre destination.", ar: "تعذّر تحميل الكتالوج الآن. أعد المحاولة بعد قليل، أو تواصل معنا لتأكيد تغطية وجهتك." },
+
   "Privacy Notice": { fr: "Avis de confidentialité", ar: "إشعار الخصوصية" },
   "Terms of Service": { fr: "Conditions d'utilisation", ar: "شروط الخدمة" },
   "Last updated": { fr: "Dernière mise à jour", ar: "آخر تحديث" },

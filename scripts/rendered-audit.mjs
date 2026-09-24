@@ -236,6 +236,27 @@ for (const [path, label] of [["/", "home"], ["/visas", "visas"], ["/countries", 
   check(`public/${label}: no price list, no foreign currency`, !price, price?.[0] ? `found “${price[0]}”` : "clean");
 }
 
+// §public list standard — search, filter, pagination, actionable empty state.
+{
+  const every = await fetchPage("/countries", { locale: "en" });
+  check("public/countries: search + region filter present", /data-testid="destinations-filter"/.test(every.html) && /name="region"/.test(every.html), "");
+  const filtered = await fetchPage("/countries?q=spain", { locale: "en" });
+  const filteredText = visibleText(filtered.html);
+  check("public/countries: search narrows the list", filteredText.includes("Spain"), "");
+  const accented = await fetchPage("/countries?q=espagne", { locale: "fr" });
+  check("public/countries: search is accent-insensitive and localized", /Espagne/.test(visibleText(accented.html)), "");
+  const empty = await fetchPage("/countries?q=zzzznotacountry", { locale: "en" });
+  check(
+    "public/countries: empty state is actionable",
+    /No destination matches your search/.test(visibleText(empty.html)) && /contact us/.test(visibleText(empty.html)),
+    "",
+  );
+  const paged = await fetchPage("/countries?per=20", { locale: "en" });
+  check("public/countries: pagination standard offered", /data-testid="page-size"/.test(paged.html), "");
+  const regression = await fetchPage("/countries?region=Europe&q=zzzz", { locale: "en" });
+  check("public/countries: filter combination degrades gracefully", regression.status === 200, `status ${regression.status}`);
+}
+
 check("public/countries FR: destination names localized", /Espagne/.test((await fetchPage("/countries", { locale: "fr" })).html), "");
 check("public/countries AR: destination names localized", /إسبانيا|فرنسا/.test((await fetchPage("/countries", { locale: "ar" })).html), "");
 
@@ -263,6 +284,13 @@ if (agency.cookie) {
     }
     auditPage(`agency/${label}`, path, html, { expectText: expect });
   }
+
+// §"mobile cards" for the agency application list.
+{
+  const list = await fetchPage("/portal/applications", { cookie: agency.cookie, locale: "en" });
+  check("agency/applications: card list for phones", /data-testid="applications-cards"/.test(list.html) && /md:hidden/.test(list.html), "");
+  check("agency/applications: table kept for desktop", /hidden md:block/.test(list.html), "");
+}
 
   // Dashboard must lead with the action banner, then the KPIs.
   const dash = await fetchPage("/portal", { cookie: agency.cookie, locale: "en" });

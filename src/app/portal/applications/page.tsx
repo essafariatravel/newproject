@@ -76,6 +76,39 @@ export default async function PortalApplicationsPage({
         </div>
       ) : (
         <>
+          {/* §"mobile cards" — on a phone a seven-column table is unusable, so the
+              same rows are rendered as cards (same data, same links, same order).
+              The table stays for pointer/desktop viewports. */}
+          <div className="space-y-3 md:hidden" data-testid="applications-cards">
+            {result.rows.map((r) => {
+              const p = progressById.get(r.app.id);
+              return (
+                <Link
+                  key={r.app.id}
+                  href={`/portal/applications/${r.app.id}`}
+                  className="card block p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="font-medium text-navy-900">{r.app.reference}</span>
+                    <StatusBadge code={r.statusCode} name={r.statusName} />
+                  </div>
+                  <p className="mt-1 text-sm text-navy-900">{r.applicantSummary ?? "—"}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)} · {r.app.visaTypeName}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                    <span className="tabular-nums">{r.app.fee} DZD</span>
+                    <span className="flex items-center gap-2">
+                      {p ? <Progress done={p.done} total={p.total} /> : null}
+                      <span>{formatDate(r.app.createdAt, uiLocale)}</span>
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className="hidden md:block">
           <TableWrap>
             <thead className="border-b border-slate-100 bg-ivory-50/60">
               <tr>
@@ -114,6 +147,7 @@ export default async function PortalApplicationsPage({
               })}
             </tbody>
           </TableWrap>
+          </div>
           <Pagination locale={uiLocale} page={result.page} pageCount={result.pageCount} total={result.total} basePath="/portal/applications" query={{ q: sp.q, status: sp.status, from: sp.from, to: sp.to, per: sp.per }} />
           <div className="flex justify-end">
             <PageSizeSelector locale={uiLocale} pageSize={resolvePageSize(sp.per)} basePath="/portal/applications" query={{ q: sp.q, status: sp.status, from: sp.from, to: sp.to }} />
