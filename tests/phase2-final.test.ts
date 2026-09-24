@@ -267,6 +267,8 @@ describe("C6 — nationality selector with localized labels and Algeria default"
     expect(nationalityLabel("DZ", "ar")).toBe("الجزائر");
     expect(nationalityLabel("FR", "fr")).toBe("France");
     expect(nationalityLabel("FR", "ar")).toBe("فرنسا");
+    expect(nationalityLabel("AL", "fr")).toBe("Albanie");
+    expect(nationalityLabel("AL", "ar")).toBe("ألبانيا");
   });
 
   it("labels are never accepted as identifiers; unknown values rejected safely", () => {

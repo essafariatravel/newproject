@@ -98,7 +98,7 @@ export default async function PortalDashboardPage() {
         <StatCard label={ct("Completed")} value={totals.completed} href="/portal/applications?status=APPROVED" tone="teal" />
         <StatCard
           label={ct("Wallet balance")}
-          value={formatAmount(wallet.balance, "DZD", uiLocale)}
+          value={<span className="whitespace-nowrap text-[1.05rem] sm:text-[1.65rem]">{formatAmount(wallet.balance, "DZD", uiLocale)}</span>}
           href="/portal/wallet"
           hint={data.unreadNotifications === 0 ? ct("No unread notifications") : `${data.unreadNotifications} ${ct("unread notifications")}`}
         />

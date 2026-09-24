@@ -12,6 +12,8 @@ type Entry = { fr: string; ar: string };
 
 const CONTENT: Record<string, Entry> = {
   /* ------------------------- staff configuration ------------------------- */
+  "Africa": { fr: "Afrique", ar: "أفريقيا" },
+  "Oceania": { fr: "Océanie", ar: "أوقيانوسيا" },
   "No visa types found": { fr: "Aucun type de visa trouvé", ar: "لم يُعثر على أنواع تأشيرات" },
   "Page": { fr: "Page", ar: "صفحة" },
   "total": { fr: "au total", ar: "الإجمالي" },
