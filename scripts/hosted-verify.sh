@@ -375,21 +375,49 @@ else
     submit_form "$WORK/detail1e.html" "$BASE_URL/admin/registrations/$ID1" "Generate activation link" "$WORK/staff.txt" /dev/null >/dev/null
     # the action redirects with the one-time link exposed ONLY in the 303 Location
     LOC_GEN=$(loc_header)
-    TOKEN=$(printf '%s' "$LOC_GEN" | grep -o "activate%2F[0-9A-Za-z_-]\{32,\}" | head -1 | cut -dF -f2)
-    [ -z "$TOKEN" ] && TOKEN=$(printf '%s' "$LOC_GEN" | grep -o "activate/[0-9A-Za-z_-]\{32,\}" | head -1 | cut -d/ -f2)
+    # The staff action exposes the one-time link percent-encoded inside the redirect
+    # (?activation=<encoded https://…/activate/<token>>). Decode it properly: slicing
+    # the raw header on a literal character truncated every token containing that
+    # character (~half of all runs), and the flow then silently exercised an INVALID
+    # token — reported as a product failure it never was.
+    ACT_URL=$(printf '%s' "$LOC_GEN" | python3 -c "
+import sys, urllib.parse, re
+raw = sys.stdin.read()
+m = re.search(r'activation=([^&\s]+)', raw)
+print(urllib.parse.unquote(m.group(1)) if m else '')" | tr -d '\r')
+    TOKEN=$(printf '%s' "$ACT_URL" | sed -n 's#.*/activate/##p' | tr -d '\r')
+    if [ "${#TOKEN}" -lt 32 ]; then
+      # Fallback: header arrived already decoded (or the link is not the last param).
+      TOKEN=$(printf '%s' "$LOC_GEN" | python3 -c "
+import sys, urllib.parse, re
+m = re.search(r'/activate/([0-9A-Za-z_-]{32,})', urllib.parse.unquote(sys.stdin.read()))
+print(m.group(1) if m else '')" | tr -d '\r')
+    fi
     statusb_of "$BASE_URL/admin/registrations/$ID1" "$WORK/detail1f.html" "$WORK/staff.txt" >/dev/null
-    if [ -n "$TOKEN" ]; then
-      ok "activation link generated"
+    if [ "${#TOKEN}" -ge 32 ]; then
+      ok "activation link generated (token length ${#TOKEN})"
       CODE_A=$(status_of "$BASE_URL/activate/$TOKEN" "$WORK/activate.html")
       [ "$CODE_A" = "200" ] && ok "activation page renders (GET 200)" || bad "activation page $CODE_A"
+      # A 200 is not enough: a truncated/expired token renders the "invalid link"
+      # page with status 200. The real token must expose the set-password form.
+      grep -qi "Set password" "$WORK/activate.html" \
+        && ok "activation page exposes the set-password form (token is valid)" \
+        || bad "activation page has no set-password form — token invalid/expired"
       NEWPASS="Verify-H0sted!$((STAMP % 900))"
       printf 'password=%s\npasswordConfirm=%s\n' "$NEWPASS" "$NEWPASS" > "$WORK/activatefields.txt"
       CACT=$(submit_form "$WORK/activate.html" "$BASE_URL/activate/$TOKEN" "Set password" "$WORK/agency.txt" "$WORK/activatefields.txt")
+      if [ -z "$CACT" ]; then
+        log "note: activation POST returned no response (cold start / transport) — retrying once"
+        status_of "$BASE_URL/activate/$TOKEN" "$WORK/activate.html" >/dev/null
+        CACT=$(submit_form "$WORK/activate.html" "$BASE_URL/activate/$TOKEN" "Set password" "$WORK/agency.txt" "$WORK/activatefields.txt")
+      fi
       LOC_A=$(loc_header)
       if echo "$LOC_A" | grep -q "/portal" && grep -qi 'set-cookie:.*evos_session=' "$WORK/headers.txt"; then
         ok "activation sets password → session issued → /portal"
       else bad "activation post ($CACT → ${LOC_A:-none})"; fi
-    else bad "activation link not found"; fi
+    else
+      bad "activation link not usable (token length ${#TOKEN} < 32 — extraction broken or the staff action did not issue a link)"
+    fi
 
     CODE_P=$(statusb_of "$BASE_URL/portal" "$WORK/portal.html" "$WORK/agency.txt")
     if [ "$CODE_P" = "200" ] && grep -qiE "dashboard|wallet|applications" "$WORK/portal.html"; then
