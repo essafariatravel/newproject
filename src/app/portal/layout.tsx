@@ -58,6 +58,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
 
   return (
     <AppShell
+      surface="agency"
       t={tr}
       user={user}
       nav={nav}

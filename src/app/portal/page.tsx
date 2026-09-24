@@ -43,8 +43,8 @@ export default async function PortalDashboardPage() {
   return (
     <>
       <PageHeader
-        title={ct("Agency dashboard")}
-        subtitle={user.agencyName ?? undefined}
+        title={`${ct("Welcome")}, ${user.agencyName ?? user.name}`}
+        subtitle={ct("Agency dashboard")}
         actions={
           <Link href="/portal/applications/new" className="btn-primary btn-sm">
             {ct("+ New application")}
@@ -121,7 +121,6 @@ export default async function PortalDashboardPage() {
               <TableWrap>
                 <thead className="border-b border-slate-100 bg-ivory-50/60">
                   <tr>
-                    <th className="th">{ct("Reference")}</th>
                     <th className="th">{ct("Applicant")}</th>
                     <th className="th">{ct("Visa")}</th>
                     <th className="th">{ct("Status")}</th>
@@ -132,11 +131,9 @@ export default async function PortalDashboardPage() {
                   {data.recentApplications.map((r) => (
                     <tr key={r.app.id} className="tr-hover">
                       <td className="td">
-                        <Link href={`/portal/applications/${r.app.id}`} className="font-medium text-navy-900 hover:underline">
-                          {r.app.reference}
-                        </Link>
+                        <Link href={`/portal/applications/${r.app.id}`} className="font-semibold text-navy-900 hover:underline">{(r as { applicantSummary?: string }).applicantSummary ?? "—"}</Link>
+                        <span className="block text-xs text-slate-500">{r.app.reference}</span>
                       </td>
-                      <td className="td font-medium text-navy-900">{(r as { applicantSummary?: string }).applicantSummary ?? "—"}</td>
                       <td className="td">
                         {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}
                         <span className="block text-xs text-slate-400">{r.app.visaTypeName}</span>

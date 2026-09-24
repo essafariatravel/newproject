@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata(): Promise<Metadata> {
   try {
     const settings = await getSiteSettings();
-    const brand = settingString(settings, "brand.name", "ESSAFARIA TRAVEL");
+    const brand = (await readBranding()).name;
     const tagline = settingString(settings, "brand.tagline", "Professional B2B visa processing");
     return {
       title: { default: `${brand} — Visa OS`, template: `%s — ${brand}` },
@@ -17,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
     };
   } catch {
     return {
-      title: { default: "ESSAFARIA TRAVEL — Visa OS", template: "%s — ESSAFARIA TRAVEL" },
+      title: { default: "ESSAFARIA VISA", template: "%s — ESSAFARIA VISA" },
       description: "Professional B2B visa processing platform",
     };
   }

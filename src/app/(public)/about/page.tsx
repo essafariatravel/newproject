@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { getSiteSettings, settingString } from "@/lib/settings";
+import { readBranding } from "@/lib/branding";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "About — ESSAFARIA TRAVEL" };
+export const metadata = { title: "About — ESSAFARIA VISA" };
 
 export default async function AboutPage() {
   const settings = await getSiteSettings();
   const ct = contentT(await getUiLocale());
-  const brandName = settingString(settings, "brand.name", "ESSAFARIA TRAVEL");
-  const description = settingString(settings, "brand.description");
+  const brandName = (await readBranding()).name;
   const address = settingString(settings, "site.address");
 
   return (
@@ -18,7 +18,6 @@ export default async function AboutPage() {
       <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold-600">{ct("Our company")}</p>
       <h1 className="mt-2 font-serif text-3xl text-navy-900">{ct("About")} {brandName}</h1>
       <div className="mt-8 space-y-5 text-[15px] leading-relaxed text-slate-700">
-        <p>{description}</p>
         <p>
           {brandName} {ct("is a professional visa-processing house built for the travel trade. We are not a consumer visa shop: our platform, pricing and service levels are designed for agencies, wholesalers and tour operators that move meaningful passenger volumes and need an operational partner they can hold accountable.")}
         </p>

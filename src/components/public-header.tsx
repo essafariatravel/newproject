@@ -54,7 +54,7 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
   }, [open]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line/70 bg-white/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-white/10 bg-navy-950 text-white">
       <div className="ess-container flex h-16 items-center justify-between gap-3">
         {/* Brand — logo artwork when uploaded, otherwise monogram + wordmark */}
         <Link href="/" className="flex min-w-0 shrink items-center gap-2.5" aria-label={brandName}>
@@ -68,7 +68,7 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
             <>
               <BrandMark className="h-9 w-9 shrink-0" alt={brandName} />
               <span className="hidden min-w-0 leading-tight sm:block">
-                <span className="block truncate text-[15px] font-bold tracking-[0.04em] text-navy-900">{brandName}</span>
+                <span className="block truncate text-[15px] font-bold tracking-[0.04em] text-white">{brandName}</span>
                 <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-600">
                   {labels.b2b}
                 </span>
@@ -83,7 +83,7 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
             <Link
               key={item.href}
               href={item.href}
-              className="rounded-full px-3.5 py-1.5 text-sm font-medium text-slate-500 transition-colors hover:bg-ivory-100 hover:text-navy-900"
+              className="rounded-lg px-3.5 py-1.5 text-sm font-medium text-white/75 transition-colors hover:bg-white/10 hover:text-white"
             >
               {item.label}
             </Link>
@@ -93,14 +93,16 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
         <div className="flex shrink-0 items-center gap-2">
           {/* Language switcher: desktop only — mobile gets it inside the menu */}
           <span className="hidden lg:inline-flex">{localeSwitcher}</span>
-          <Link href="/login" className="btn-secondary btn-sm hidden lg:inline-flex">
-            {labels.signIn}
-          </Link>
+          <span className="hidden lg:inline-flex">
+            <Link href="/login" className="btn btn-sm border border-white/35 bg-transparent text-white hover:bg-white/10">
+              {labels.signIn}
+            </Link>
+          </span>
           {/* The ONE register CTA (visible on every viewport, mobile included) */}
           <Link
             href="/agency/register"
             data-testid="public-register-cta"
-            className="btn-cta btn-sm whitespace-nowrap px-3 text-xs sm:px-4 sm:text-sm"
+            className="btn-gold btn-sm whitespace-nowrap px-3 text-xs sm:px-4 sm:text-sm"
           >
             {labels.register}
           </Link>
@@ -111,7 +113,7 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
             aria-controls={panelId}
             aria-label={open ? labels.close : labels.menu}
             data-testid="public-menu-toggle"
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line/80 bg-white text-navy-900 transition-colors hover:bg-ivory-100 lg:hidden"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/25 bg-transparent text-white transition-colors hover:bg-white/10 lg:hidden"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
               {open ? (
@@ -126,21 +128,21 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
 
       {/* Mobile / tablet navigation panel — no register CTA here (one only) */}
       {open ? (
-        <div id={panelId} className="border-t border-line/70 bg-white lg:hidden">
+        <div id={panelId} className="border-t border-white/10 bg-navy-950 lg:hidden">
           <nav className="ess-container flex flex-col py-2" aria-label={labels.menu}>
             {nav.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setOpen(false)}
-                className="rounded-xl px-2 py-3 text-sm font-medium text-slate-600 transition-colors hover:bg-ivory-100 hover:text-navy-900"
+                className="rounded-xl px-2 py-3 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white"
               >
                 {item.label}
               </Link>
             ))}
-            <div className="mt-1 flex flex-wrap items-center justify-between gap-3 border-t border-line/70 px-2 pb-3 pt-3">
+            <div className="mt-1 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-2 pb-3 pt-3">
               {localeSwitcher}
-              <Link href="/login" className="btn-secondary btn-sm" onClick={() => setOpen(false)}>
+              <Link href="/login" className="btn btn-sm border border-white/35 bg-transparent text-white" onClick={() => setOpen(false)}>
                 {labels.signIn}
               </Link>
             </div>

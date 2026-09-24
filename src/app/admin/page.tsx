@@ -7,6 +7,8 @@ import { Card, CardHeader, EmptyState, PageHeader, StatCard, TableWrap } from "@
 import { StatusBadge } from "@/components/badges";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT, localizedGreeting } from "@/lib/i18n-content";
+import { elapsedLabel } from "@/lib/time-in-status";
+import { countryName } from "@/lib/country-names";
 
 export const dynamic = "force-dynamic";
 
@@ -27,32 +29,46 @@ export default async function AdminDashboardPage() {
         subtitle={ct("Operational overview of the ESSAFARIA visa desk — work queue.")}
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard label={ct("New applications")} value={totals.newApps} hint={ct("Submitted, awaiting intake")} href="/admin/applications?status=SUBMITTED" tone="navy" />
         <StatCard label={ct("Documents to verify")} value={totals.docsChecking} hint={ct("Documents checking")} href="/admin/applications?status=DOCUMENTS_CHECKING" tone="gold" />
         <StatCard label={ct("Action required")} value={totals.docsRequested} hint={ct("Agency action / documents requested")} href="/admin/applications?status=DOCUMENTS_REQUESTED" />
         <StatCard label={ct("In process")} value={totals.inProcess} hint={ct("Actively processing")} href="/admin/applications?status=IN_PROCESS" tone="teal" />
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label={ct("Sent to embassy")} value={totals.embassySent} hint={ct("Optional embassy stage")} href="/admin/applications?status=EMBASSY_SENT" />
         <StatCard label={ct("Unassigned")} value={totals.unassigned} hint={ct("No case officer")} href="/admin/applications?assigned=unassigned" />
         <StatCard label={ct("Urgent")} value={totals.urgent} hint={ct("Priority urgent")} href="/admin/applications?priority=URGENT" tone="gold" />
-        <StatCard label={ct("Aging")} value={totals.aging} hint={ct("Older than 3 days")} href="/admin/applications" />
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label={ct("Completed")} value={totals.completed} href="/admin/applications?status=APPROVED" tone="teal" />
-        <StatCard label={ct("Rejected")} value={totals.refused} href="/admin/applications?status=REJECTED" />
-        <StatCard label={ct("Active agencies")} value={`${data.agencyAgg.active}/${data.agencyAgg.total}`} href="/admin/agencies" />
-        <StatCard
-          label={ct("Agency registrations")}
-          value={data.pendingRegistrations}
-          hint={`${data.registrationsInReview} in review`}
-          href="/admin/registrations"
-          tone="gold"
-        />
-      </div>
+      <Card className="mt-6">
+        <CardHeader title={ct("Work queue")} subtitle={ct("Priority and oldest open files first")} actions={<Link href="/admin/applications" className="btn-secondary btn-sm">{ct("View all")} →</Link>} />
+        {data.workQueue.length === 0 ? (
+          <EmptyState title={ct("No applications yet")} body={ct("Applications submitted by partner agencies will appear here.")} />
+        ) : (
+          <TableWrap>
+            <thead className="border-b border-line bg-ivory-50">
+              <tr>
+                <th className="th">{ct("Applicant")}</th>
+                <th className="th">{ct("Agency")}</th>
+                <th className="th">{ct("Visa")}</th>
+                <th className="th">{ct("Status")}</th>
+                <th className="th">{ct("Priority")}</th>
+                <th className="th">{ct("Time in status")}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {data.workQueue.map((r) => (
+                <tr key={r.app.id} className="tr-hover">
+                  <td className="td"><Link href={`/admin/applications/${r.app.id}`} className="font-semibold text-navy-900 hover:underline">{r.applicantSummary}</Link><span className="block text-xs text-slate-500">{r.app.reference}</span></td>
+                  <td className="td">{r.agencyName}</td>
+                  <td className="td">{countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}<span className="block text-xs text-slate-500">{r.app.visaTypeName}</span></td>
+                  <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
+                  <td className="td">{r.priorityName}</td>
+                  <td className="td whitespace-nowrap">{elapsedLabel(new Date(r.statusSince), uiLocale)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </TableWrap>
+        )}
+      </Card>
 
       <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="xl:col-span-2">

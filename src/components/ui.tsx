@@ -11,7 +11,7 @@ export function PageHeader(props: {
   return (
     <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="font-serif text-[1.75rem] leading-tight text-navy-900">{props.title}</h1>
+        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-tight text-navy-900">{props.title}</h1>
         {props.subtitle ? <p className="mt-1 text-sm text-slate-500">{props.subtitle}</p> : null}
       </div>
       {props.actions ? <div className="flex flex-wrap items-center gap-2">{props.actions}</div> : null}
@@ -44,21 +44,21 @@ export function StatCard(props: {
 }) {
   const toneClass =
     props.tone === "gold"
-      ? "border-gold-100 bg-gradient-to-b from-gold-50/80 to-white"
+      ? "border-gold-100 bg-gold-50/50"
       : props.tone === "teal"
-        ? "border-teal-100 bg-gradient-to-b from-teal-50/70 to-white"
+        ? "border-teal-100 bg-teal-50/40"
         : props.tone === "navy"
-          ? "border-iris-100 bg-gradient-to-b from-iris-50/70 to-white"
+          ? "border-navy-100 bg-navy-50/70"
           : "";
   const body = (
     <div className={`card h-full border px-5 py-4 ${toneClass}`}>
       <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">{props.label}</p>
-      <p className="mt-1.5 font-serif text-[1.65rem] leading-snug text-navy-900 tabular-nums">{props.value}</p>
+      <p className="mt-1.5 text-[1.65rem] font-semibold leading-snug tracking-tight text-navy-900 tabular-nums">{props.value}</p>
       {props.hint ? <p className="mt-1 text-xs text-slate-400">{props.hint}</p> : null}
     </div>
   );
   return props.href ? (
-    <Link href={props.href} className="block transition-transform hover:-translate-y-0.5">
+    <Link href={props.href} className="block transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-500">
       {body}
     </Link>
   ) : (

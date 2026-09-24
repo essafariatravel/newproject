@@ -325,6 +325,15 @@ export async function adminDashboard() {
     .orderBy(desc(applications.createdAt))
     .limit(8);
 
+  const workQueue = await db
+    .select(applicationSelection)
+    .from(applications)
+    .innerJoin(statuses, eq(applications.statusId, statuses.id))
+    .innerJoin(priorities, eq(applications.priorityId, priorities.id))
+    .where(inArray(statuses.code, ["SUBMITTED", "DOCUMENTS_CHECKING", "DOCUMENTS_REQUESTED", "IN_PROCESS", "EMBASSY_SENT"]))
+    .orderBy(desc(priorities.weight), asc(applications.createdAt))
+    .limit(8);
+
   const recentAudit = await db
     .select()
     .from(auditLogs)
@@ -349,6 +358,7 @@ export async function adminDashboard() {
     agencyAgg: agencyAgg!,
     walletAgg: walletAgg!,
     recentApplications,
+    workQueue,
     recentAudit,
     documentsInReview: Number(reviewQueue[0]?.total ?? 0),
     pendingRegistrations: Number(pendingRegs?.pending ?? 0),

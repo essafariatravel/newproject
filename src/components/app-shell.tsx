@@ -18,6 +18,7 @@ export function AppShell(props: {
   /** Uploaded platform logo + brand identity (from /admin/settings branding). */
   platformLogoUrl?: string | null;
   brandName?: string;
+  surface?: "agency" | "staff";
   /** Extra controls rendered in the top header cluster (e.g. language switcher). */
   headerExtras?: ReactNode;
   children: ReactNode;
@@ -25,26 +26,25 @@ export function AppShell(props: {
   const { user } = props;
   const t = props.t ?? ((s: string) => s);
   return (
-    <div className="flex min-h-screen">
-      {/* Sidebar — floating glass panel on porcelain */}
-      <aside className="fixed inset-y-0 start-0 z-40 hidden w-64 flex-col border-e border-line/80 bg-white/80 backdrop-blur-xl lg:flex">
+    <div className={`workspace-${props.surface ?? "agency"} flex min-h-screen`}>
+      <aside className="fixed inset-y-0 start-0 z-40 hidden w-64 flex-col border-e border-white/10 bg-navy-950 text-white lg:flex">
         <SidebarBrand suffix={props.brandSuffix} platformLogoUrl={props.platformLogoUrl} brandName={props.brandName} />
         <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
           <NavList sections={props.nav} />
         </nav>
         <div className="px-3 pb-4">
-          <div className="rounded-2xl border border-line/80 bg-ivory-50/80 p-3">
+          <div className="rounded-xl border border-white/15 bg-white/5 p-3">
             <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-iris-400 to-iris-600 text-xs font-bold text-white shadow-[0_6px_14px_-6px_rgb(74_91_208/0.6)]">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold-500 text-xs font-bold text-navy-950">
                 {initials(user.name)}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-navy-900">{user.name}</p>
-                <p className="truncate text-[11px] text-slate-400">{user.email}</p>
+                <p className="truncate text-sm font-semibold text-white">{user.name}</p>
+                <p className="truncate text-[11px] text-white/55">{user.email}</p>
               </div>
             </div>
             <form action={logoutAction} className="mt-2.5">
-              <button className="w-full rounded-xl border border-ivory-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 transition-colors hover:bg-ivory-100 hover:text-navy-900">
+              <button className="w-full rounded-lg border border-white/20 bg-transparent px-3 py-1.5 text-xs font-semibold text-white/75 transition-colors hover:bg-white/10 hover:text-white">
                 {t("Sign out")}
               </button>
             </form>
@@ -60,14 +60,14 @@ export function AppShell(props: {
           className="fixed inset-0 z-40 hidden bg-navy-950/30 backdrop-blur-sm peer-checked:block"
           aria-label="Close navigation"
         />
-        <div className="mobnav-panel fixed inset-y-0 start-0 z-50 flex w-72 flex-col border-e border-line bg-white transition-transform duration-300 peer-checked:!translate-x-0">
+        <div className="mobnav-panel fixed inset-y-0 start-0 z-50 flex w-72 flex-col border-e border-white/10 bg-navy-950 text-white transition-transform duration-300 peer-checked:!translate-x-0">
           <SidebarBrand suffix={props.brandSuffix} platformLogoUrl={props.platformLogoUrl} brandName={props.brandName} />
           <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
             <NavList sections={props.nav} />
           </nav>
           <div className="px-3 pb-4">
             <form action={logoutAction}>
-              <button className="w-full rounded-xl border border-ivory-200 bg-ivory-50 px-3 py-2 text-xs font-semibold text-slate-500">
+              <button className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-xs font-semibold text-white/75">
                 {t("Sign out")} ({user.name})
               </button>
             </form>
@@ -77,10 +77,10 @@ export function AppShell(props: {
 
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col lg:ps-64">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-line/70 bg-white/65 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-line bg-white/95 px-4 sm:px-6 lg:px-8">
           <label
             htmlFor="mobnav"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-ivory-200 bg-white text-slate-500 transition-colors hover:text-navy-900 lg:hidden"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-ivory-200 bg-white text-slate-500 transition-colors hover:text-navy-900 lg:hidden"
             aria-label="Open navigation"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
@@ -111,7 +111,7 @@ export function AppShell(props: {
             </span>
           </div>
         </header>
-        <main className="flex-1 px-4 py-8 sm:px-6 lg:px-10">{props.children}</main>
+        <main className="flex-1 px-4 py-7 sm:px-6 lg:px-8">{props.children}</main>
       </div>
     </div>
   );
@@ -134,7 +134,7 @@ function SidebarBrand({
 }) {
   if (platformLogoUrl) {
     return (
-      <Link href="/" className="flex flex-col gap-1.5 border-b border-line/70 px-5 py-4">
+      <Link href="/" className="flex flex-col gap-1.5 border-b border-white/10 px-5 py-4">
         <img
           src={platformLogoUrl}
           alt={brandName ?? "ESSAFARIA"}
@@ -145,10 +145,10 @@ function SidebarBrand({
     );
   }
   return (
-    <Link href="/" className="flex items-center gap-3 border-b border-line/70 px-5 py-4">
+    <Link href="/" className="flex items-center gap-3 border-b border-white/10 px-5 py-4">
       <BrandMark className="h-10 w-10" />
       <span className="leading-tight">
-        <span className="block text-sm font-bold tracking-[0.06em] text-navy-900">{brandName ?? "ESSAFARIA"}</span>
+        <span className="block text-sm font-bold tracking-[0.06em] text-white">{brandName ?? "ESSAFARIA VISA"}</span>
         <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-600">{suffix}</span>
       </span>
     </Link>

@@ -45,13 +45,13 @@ export interface Branding {
 }
 
 export const BRANDING_DEFAULTS: Branding = {
-  name: "ESSAFARIA TRAVEL",
+  name: "ESSAFARIA VISA",
   tagline: "Professional B2B visa processing",
-  primary: "#4a5bd0",
-  accent: "#b2945e",
-  ink: "#1d2547",
-  radius: "soft",
-  fonts: "aurora",
+  primary: "#102a45",
+  accent: "#c99a32",
+  ink: "#071a33",
+  radius: "balanced",
+  fonts: "modern",
   logoKey: null,
   logoMime: null,
   logoVersion: "",
@@ -85,11 +85,11 @@ export async function readBranding(): Promise<Branding> {
     ? (s(map, "brand.fonts") as FontPreset)
     : BRANDING_DEFAULTS.fonts;
   return {
-    name: s(map, "brand.name") || BRANDING_DEFAULTS.name,
+    name: s(map, "brand.name") === "ESSAFARIA TRAVEL" ? BRANDING_DEFAULTS.name : s(map, "brand.name") || BRANDING_DEFAULTS.name,
     tagline: s(map, "brand.tagline") || BRANDING_DEFAULTS.tagline,
-    primary: clampHex(s(map, "brand.primary"), BRANDING_DEFAULTS.primary),
-    accent: clampHex(s(map, "brand.accent"), BRANDING_DEFAULTS.accent),
-    ink: clampHex(s(map, "brand.ink"), BRANDING_DEFAULTS.ink),
+    primary: s(map, "brand.primary").toLowerCase() === "#4a5bd0" ? BRANDING_DEFAULTS.primary : clampHex(s(map, "brand.primary"), BRANDING_DEFAULTS.primary),
+    accent: s(map, "brand.accent").toLowerCase() === "#b2945e" ? BRANDING_DEFAULTS.accent : clampHex(s(map, "brand.accent"), BRANDING_DEFAULTS.accent),
+    ink: s(map, "brand.ink").toLowerCase() === "#1d2547" ? BRANDING_DEFAULTS.ink : clampHex(s(map, "brand.ink"), BRANDING_DEFAULTS.ink),
     radius,
     fonts,
     logoKey: s(map, "brand.logoKey") || null,
@@ -101,7 +101,8 @@ export async function readBranding(): Promise<Branding> {
 function tint(color: string, percent: number): string {
   // percent > 0 → mix toward white; percent < 0 → mix toward black
   const target = percent >= 0 ? "white" : "black";
-  return `color-mix(in srgb, ${color} ${Math.abs(100 - percent)}%, ${target})`;
+  const baseWeight = Math.max(0, Math.min(100, 100 - Math.abs(percent)));
+  return `color-mix(in srgb, ${color} ${baseWeight}%, ${target})`;
 }
 
 /**
@@ -111,8 +112,8 @@ function tint(color: string, percent: number): string {
  */
 export function brandingCssOverride(b: Branding): string {
   const radiusCard =
-    b.radius === "crisp" ? "0.55rem" : b.radius === "balanced" ? "0.9rem" : "1.25rem";
-  const radiusBtn = b.radius === "crisp" ? "0.55rem" : b.radius === "balanced" ? "0.9rem" : "999px";
+    b.radius === "crisp" ? "0.55rem" : b.radius === "balanced" ? "0.9rem" : "1rem";
+  const radiusBtn = b.radius === "crisp" ? "0.55rem" : b.radius === "balanced" ? "0.75rem" : "1rem";
   const fontStacks: Record<FontPreset, [string, string]> = {
     aurora: [
       `"Manrope", "Nunito Sans", ui-rounded, "SF Pro Rounded", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`,

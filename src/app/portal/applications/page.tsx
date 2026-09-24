@@ -89,10 +89,10 @@ export default async function PortalApplicationsPage({
                   className="card block p-4"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <span className="font-medium text-navy-900">{r.app.reference}</span>
+                    <span className="font-semibold text-navy-900">{r.applicantSummary ?? "—"}</span>
                     <StatusBadge code={r.statusCode} name={r.statusName} />
                   </div>
-                  <p className="mt-1 text-sm text-navy-900">{r.applicantSummary ?? "—"}</p>
+                  <p className="mt-1 text-xs text-slate-500">{r.app.reference}</p>
                   <p className="mt-0.5 text-xs text-slate-500">
                     {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)} · {r.app.visaTypeName}
                   </p>
@@ -112,7 +112,6 @@ export default async function PortalApplicationsPage({
           <TableWrap>
             <thead className="border-b border-slate-100 bg-ivory-50/60">
               <tr>
-                <th className="th">{ct("Reference")}</th>
                 <th className="th">{ct("Applicant")}</th>
                 <th className="th">{ct("Visa / Country")}</th>
                 <th className="th">{ct("Documents")}</th>
@@ -127,13 +126,9 @@ export default async function PortalApplicationsPage({
                 return (
                   <tr key={r.app.id} className="tr-hover">
                     <td className="td">
-                      <Link href={`/portal/applications/${r.app.id}`} className="font-medium text-navy-900 hover:underline">
-                        {r.app.reference}
-                      </Link>
+                      <Link href={`/portal/applications/${r.app.id}`} className="font-semibold text-navy-900 hover:underline">{r.applicantSummary ?? "—"}</Link>
+                      <span className="block text-xs text-slate-500">{r.app.reference}</span>
                     </td>
-                    {/* Phase 2-Final Correction 7: APPLICANT (full name)
-                        immediately after REFERENCE. */}
-                    <td className="td font-medium text-navy-900">{r.applicantSummary ?? "—"}</td>
                     <td className="td">
                       {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}
                       <span className="block text-xs text-slate-400">{r.app.visaTypeName}</span>

@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { asc, eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { countries } from "@/db/schema";
+import { publicDestinations } from "@/lib/public-destinations";
 import { EmptyState } from "@/components/ui";
 import { Pagination, PageSizeSelector } from "@/components/app-widgets";
 import { getUiLocale } from "@/lib/ui-i18n";
@@ -16,8 +14,9 @@ export const metadata = { title: "Destinations — ESSAFARIA TRAVEL" };
 /**
  * PUBLIC destinations index.
  *
- * Same catalogue rules as before — this page must never query visa programmes or
- * prices (B2B information lives in the Agency Portal) — but it now behaves like
+ * Public coverage includes only countries with an active visa programme.
+ * Programme names, categories and prices remain private in the Agency Portal.
+ * The list behaves like
  * every other list in the product: accent-insensitive search, a region filter,
  * the shared 20/50/100 pagination standard, and an empty state that tells the
  * visitor what to do next instead of showing nothing.
@@ -38,16 +37,7 @@ export default async function CountriesPage({
   let rows: Array<{ id: string; name: string; region: string | null; iso2: string }> = [];
   let catalogueUnavailable = false;
   try {
-    rows = await db
-      .select({
-        id: countries.id,
-        name: countries.name,
-        region: countries.region,
-        iso2: countries.iso2,
-      })
-      .from(countries)
-      .where(eq(countries.active, true))
-      .orderBy(asc(countries.name));
+    rows = await publicDestinations();
   } catch (err) {
     console.error("[countries] destinations unavailable", err);
     rows = [];

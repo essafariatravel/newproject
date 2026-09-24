@@ -35,26 +35,19 @@ export default async function LoginPage() {
 
   return (
     <div className="grid min-h-[calc(100vh-4rem)] grid-cols-1 lg:grid-cols-2">
-      <div className="relative hidden flex-col justify-between overflow-hidden border-r border-line/70 bg-gradient-to-br from-iris-50 via-ivory-50 to-gold-50 p-12 lg:flex">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(520px 300px at 90% 6%, rgb(130 144 230 / 0.2), transparent 62%), radial-gradient(420px 260px at 8% 96%, rgb(203 178 135 / 0.2), transparent 58%)",
-          }}
-        />
+      <div className="relative hidden flex-col justify-between overflow-hidden border-r border-white/10 bg-navy-950 bg-[url('/images/essafaria-airport-hero.webp')] bg-cover bg-center p-12 text-white lg:flex">
+        <div aria-hidden className="pointer-events-none absolute inset-0 bg-navy-950/65" />
         <BrandMark className="relative h-10 w-10" src={logoUrl} alt={branding.name} />
         <div className="relative">
-          <h2 className="font-serif text-3xl leading-snug text-navy-900">
+          <h2 className="font-serif text-4xl leading-snug text-white">
             {ct("One platform for your entire")}
             <span className="italic text-gold-600"> {ct("visa operation")}</span>
           </h2>
-          <p className="mt-4 max-w-md text-sm leading-relaxed text-slate-500">
+          <p className="mt-4 max-w-md text-sm leading-relaxed text-white/80">
             {ct("Agency partners manage applications, documents and wallets. Staff process files from the central Back Office.")}
           </p>
         </div>
-        <p className="relative text-xs text-slate-400">
+        <p className="relative text-xs text-white/65">
           {ct("Access is restricted to authorized users. All activity is logged and audited.")}
         </p>
       </div>

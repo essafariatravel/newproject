@@ -27,8 +27,11 @@ function run(script: string, args: string[]): number {
 function main(): void {
   const isVercelPreview = process.env.VERCEL === "1" && process.env.VERCEL_ENV === "preview";
   const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
+  const isRedesignBranch = process.env.VERCEL_GIT_COMMIT_REF === "codex/essafaria-premium-redesign";
 
-  if (isVercelPreview && hasDatabaseUrl) {
+  if (isRedesignBranch && isVercelPreview) {
+    console.log("[build] Redesign Preview: database migrations, seeding, and bootstrap verification are disabled.");
+  } else if (isVercelPreview && hasDatabaseUrl) {
     console.log("[build] Vercel Preview build with DATABASE_URL: applying migrations if any are outstanding.");
     if (run("node_modules/tsx/dist/cli.mjs", ["scripts/migrate.ts"]) !== 0) {
       console.error("[build] Migration failed. Deployment stopped; no seed will run.");

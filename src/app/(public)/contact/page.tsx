@@ -3,7 +3,7 @@ import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Contact — ESSAFARIA TRAVEL" };
+export const metadata = { title: "Contact — ESSAFARIA VISA" };
 
 export default async function ContactPage() {
   const settings = await getSiteSettings();
@@ -16,30 +16,29 @@ export default async function ContactPage() {
 
   return (
     <div className="ess-container max-w-4xl py-14">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold-600">Get in touch</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold-600">{ct("Get in touch")}</p>
       <h1 className="mt-2 font-serif text-3xl text-navy-900">{ct("Contact ESSAFARIA")}</h1>
       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-        Agencies already partnering with us can reach their case officers directly through the agency
-        portal. For partnership enquiries and general questions, use the channels below.
+        {ct("Partner agencies can reach case officers through the portal. For partnership enquiries, use the contact details below.")}
       </p>
 
       <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="card p-6">
-          <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Email</h2>
+          <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Email")}</h2>
           <a href={`mailto:${email}`} className="mt-1 block font-serif text-lg text-navy-900 hover:text-navy-700">
             {email}
           </a>
           <p className="mt-2 text-xs text-slate-500">{ct("Partnership, operations and billing enquiries.")}</p>
         </div>
         <div className="card p-6">
-          <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Phone</h2>
+          <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Phone")}</h2>
           <a href={`tel:${phone.replace(/\s/g, "")}`} className="mt-1 block font-serif text-lg text-navy-900 hover:text-navy-700">
             {phone}
           </a>
           <p className="mt-2 text-xs text-slate-500">{hours}</p>
         </div>
         <div className="card p-6 sm:col-span-2">
-          <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Office</h2>
+          <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Office")}</h2>
           <p className="mt-1 font-serif text-lg text-navy-900">{address}</p>
         </div>
       </div>
