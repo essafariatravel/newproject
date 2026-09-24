@@ -5,7 +5,7 @@ import { portalPageUser } from "@/lib/page-auth";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatDateTime } from "@/lib/format";
 import { createUserAction, updateUserAction } from "@/app/actions/admin";
-import { SubmitButton } from "@/components/forms";
+import { PasswordField, SubmitButton } from "@/components/forms";
 import { Card, CardHeader, Flash, KeyValue, PageHeader, TableWrap } from "@/components/ui";
 import { hasPermission } from "@/lib/rbac";
 import { formatAmount } from "@/lib/format";
@@ -161,10 +161,16 @@ export default async function PortalProfilePage({
                   <input id="p-email" name="email" type="email" required className="input" />
                 </div>
                 <input type="hidden" name="role" value="AGENCY_USER" />
-                <div>
-                  <label className="label" htmlFor="p-password">{ct("Temporary password")} * (min 10)</label>
-                  <input id="p-password" name="password" type="password" required minLength={10} className="input" />
-                </div>
+                <PasswordField
+                  id="p-password"
+                  name="password"
+                  label={ct("Temporary password")}
+                  required
+                  autoComplete="new-password"
+                  hint={ct("At least 10 characters. The member must change it at first sign-in.")}
+                  showLabel={ct("Show")}
+                  hideLabel={ct("Hide")}
+                />
                 <div className="lg:col-span-3">
                   <SubmitButton className="btn-primary" pendingLabel={ct("Creating…")}>{ct("Create team member")}</SubmitButton>
                 </div>

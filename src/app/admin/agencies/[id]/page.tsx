@@ -10,7 +10,7 @@ import { flashFrom } from "@/lib/action-helpers";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { adjustWalletAction, toggleAgencyStatusAction, updateAgencyAction, createUserAction } from "@/app/actions/admin";
 import { searchApplications } from "@/lib/queries";
-import { SubmitButton } from "@/components/forms";
+import { PasswordField, SubmitButton } from "@/components/forms";
 import BrandMark from "@/components/brand-mark";
 import { agencyLogoUrl } from "@/lib/branding";
 import { uploadAgencyLogoAction, removeAgencyLogoAction } from "@/app/actions/branding";
@@ -70,7 +70,7 @@ export default async function AdminAgencyDetailPage({
         <StatCard label={ct("Wallet balance")} value={formatAmount(balance.balance, "DZD", uiLocale)} tone="gold" />
         <StatCard label={ct("Users")} value={agencyUsers.length} />
         <StatCard label={ct("Applications")} value={apps.total} href="/admin/applications" />
-        <StatCard label={ct("Member since")} value={formatDateTime(agency.createdAt).split(",")[0]} />
+        <StatCard label={ct("Member since")} value={formatDateTime(agency.createdAt, uiLocale).split(",")[0]} />
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -216,7 +216,7 @@ export default async function AdminAgencyDetailPage({
                       <td className="td">{r.app.countryName} · {r.app.visaTypeName}</td>
                       <td className="td tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</td>
                       <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
-                      <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(r.app.createdAt)}</td>
+                      <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(r.app.createdAt, uiLocale)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -273,10 +273,15 @@ export default async function AdminAgencyDetailPage({
                     <option value="AGENCY_USER">{ct("Agency User")}</option>
                   </select>
                 </div>
-                <div>
-                  <label className="label" htmlFor="u-password">{ct("Temporary password")} * (min 10 chars)</label>
-                  <input id="u-password" name="password" type="password" required minLength={10} className="input" />
-                </div>
+                <PasswordField
+                  id="u-password"
+                  name="password"
+                  label={`${ct("Temporary password")} (min 10 chars)`}
+                  required
+                  hint={ct("At least 10 characters. The user must change it at first sign-in.")}
+                  showLabel={ct("Show")}
+                  hideLabel={ct("Hide")}
+                />
                 <SubmitButton className="btn-secondary w-full" pendingLabel="Creating…">{ct("Create user")}</SubmitButton>
               </form>
             </Card>
@@ -325,7 +330,7 @@ export default async function AdminAgencyDetailPage({
                 txs.map(({ tx, applicationReference }) => (
                   <tr key={tx.id} className="tr-hover">
                     <td className="td whitespace-nowrap text-xs font-mono">{(tx as { reference?: string | null }).reference ?? tx.id.slice(0, 8)}</td>
-                    <td className="td whitespace-nowrap text-xs">{formatDateTime(tx.createdAt)}</td>
+                    <td className="td whitespace-nowrap text-xs">{formatDateTime(tx.createdAt, uiLocale)}</td>
                     <td className="td">
                       <span className={`badge ${tx.type === "CREDIT" ? "bg-emerald-100 text-emerald-800" : tx.type === "DEBIT" ? "bg-red-100 text-red-700" : "bg-navy-900/5 text-navy-800"}`}>
                         {tx.type.replaceAll("_", " ")}

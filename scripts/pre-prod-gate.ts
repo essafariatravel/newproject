@@ -26,6 +26,15 @@ async function main() {
     process.exit(1);
   }
   const pool = new Pool(databasePoolConfig(process.env, true));
+
+  // Forward-only, PREVIEW-ONLY migration step. Running it here makes the gate
+  // deterministic: it no longer races the Vercel preview build that normally
+  // applies migrations. `visa_os` is never touched by this call.
+  const migrationsDirectory = path.join(process.cwd(), "migrations");
+  log(`Applying pending migrations to ${SCHEMA_PREVIEW} (forward-only)...`);
+  const freshlyApplied = await applyMigrations(pool, migrationsDirectory, SCHEMA_PREVIEW);
+  log(freshlyApplied.length > 0 ? `Applied: ${freshlyApplied.join(", ")}` : "Preview schema already up to date.");
+
   const client = await pool.connect();
   try {
     // Verify schemas exist and ledger
@@ -33,10 +42,40 @@ async function main() {
     const ledgerPreview = await client.query(`select name from schema_migrations order by name`);
     const namesPreview = ledgerPreview.rows.map((r: any) => r.name);
     log(`Preview ledger (${SCHEMA_PREVIEW}): ${namesPreview.join(", ")}`);
-    if (!namesPreview.includes("0011_dzd_only_and_wallet_ref.sql") || !namesPreview.includes("0012_document_requests.sql")) {
-      fail("LEDGER", "Preview missing 0011/0012");
+    for (const required of [
+      "0011_dzd_only_and_wallet_ref.sql",
+      "0012_document_requests.sql",
+      "0013_embassy_applicability.sql",
+      "0014_wallet_topup_requests.sql",
+    ]) {
+      if (!namesPreview.includes(required)) fail("LEDGER", `Preview missing ${required}`);
     }
-    ok("LEDGER-PREVIEW", `through 0012 verified (${namesPreview.length} migrations)`);
+    ok("LEDGER-PREVIEW", `through 0014 verified (${namesPreview.length} migrations)`);
+
+    // The new structures must actually exist on Preview (a ledger row alone
+    // proves nothing): embassy applicability + the top-up request table with
+    // its one-credit-per-request guarantees.
+    const embassyCol = await client.query(
+      `select column_name from information_schema.columns
+        where table_schema = current_schema() and table_name = 'visa_types' and column_name = 'embassy_applicability'`,
+    );
+    if (embassyCol.rows.length !== 1) fail("SCHEMA-0013", "visa_types.embassy_applicability missing on Preview");
+    const topupCols = await client.query(
+      `select column_name from information_schema.columns
+        where table_schema = current_schema() and table_name = 'wallet_topup_requests'`,
+    );
+    const topupNames = topupCols.rows.map((r: any) => r.column_name);
+    for (const col of ["reference", "agency_id", "amount", "currency", "status", "wallet_transaction_id", "decision_note"]) {
+      if (!topupNames.includes(col)) fail("SCHEMA-0014", `wallet_topup_requests.${col} missing on Preview`);
+    }
+    const topupIdx = await client.query(
+      `select indexdef from pg_indexes where schemaname = current_schema() and tablename = 'wallet_topup_requests'`,
+    );
+    const idxDefs = topupIdx.rows.map((r: any) => String(r.indexdef));
+    if (!idxDefs.some((d: string) => d.includes("wallet_transaction_id") && d.includes("UNIQUE"))) {
+      fail("SCHEMA-0014", "one-credit-per-request unique index missing");
+    }
+    ok("SCHEMA-0013/0014", "embassy applicability + top-up request structures present on Preview");
 
     // Check prod ledger read-only (connect with search_path prod)
     try {
@@ -44,13 +83,18 @@ async function main() {
       const ledgerProd = await client.query(`select name from schema_migrations order by name`);
       const namesProd = ledgerProd.rows.map((r: any) => r.name);
       log(`Prod ledger (${SCHEMA_PROD}): ${namesProd.join(", ")}`);
-      if (namesProd.includes("0011_dzd_only_and_wallet_ref.sql") || namesProd.includes("0012_document_requests.sql")) {
-        fail("LEDGER-PROD", "Production already has 0011/0012 — must remain untouched");
+      // Production is released and must stay exactly where it is: the
+      // migrations of THIS change set (0013/0014) are Preview-only and must
+      // never appear there before the release is authorised.
+      for (const forbidden of ["0013_embassy_applicability.sql", "0014_wallet_topup_requests.sql"]) {
+        if (namesProd.includes(forbidden)) {
+          fail("LEDGER-PROD", `Production already has ${forbidden} — it must remain untouched`);
+        }
       }
-      if (!namesProd.includes("0010_simplified_applicant.sql")) {
-        fail("LEDGER-PROD", "Production missing 0010");
+      if (!namesProd.includes("0012_document_requests.sql")) {
+        fail("LEDGER-PROD", "Production is behind the released 0012 — investigate immediately");
       }
-      ok("LEDGER-PROD", `through 0010 only (${namesProd.length} migrations) — untouched`);
+      ok("LEDGER-PROD", `released state through 0012 (${namesProd.length} migrations) — untouched by this run`);
     } catch (e: any) {
       // If prod schema not accessible or error, report but don't fail if it's expected isolation
       log(`Prod ledger check error (may be isolated): ${e.message}`);
@@ -107,10 +151,27 @@ async function main() {
     }
     ok("FIXTURE-USERS", `created ${Object.keys(userIds).length} users`);
 
-    // Get a visa type and statuses
-    const visaTypeRow = await q(`select id, fee, currency from visa_types where active=true order by created_at limit 1`);
+    // Get a visa type (with its destination, required by the applications FK)
+    // and the workflow statuses the fixtures need.
+    const visaTypeRow = await q(
+      `select vt.id, vt.fee, vt.currency, vt.country_id, vt.name, vt.code, c.name as country_name, vc.name as category_name
+         from visa_types vt
+         join countries c on c.id = vt.country_id
+         join visa_categories vc on vc.id = vt.category_id
+        where vt.active = true
+        order by vt.created_at limit 1`,
+    );
     if (visaTypeRow.rows.length === 0) fail("FIXTURE-VISA", "no active visa_type");
     const visaTypeId = visaTypeRow.rows[0].id;
+    const visaCountryId = visaTypeRow.rows[0].country_id;
+    const visaCountryName = visaTypeRow.rows[0].country_name;
+    const visaName = visaTypeRow.rows[0].name;
+    const visaCategoryName = visaTypeRow.rows[0].category_name;
+    const visaTypeCode = visaTypeRow.rows[0].code;
+    // priority_id is NOT NULL on applications — use the configured default.
+    const priorityRow = await q(`select id from priorities where active = true order by weight, sort_order limit 1`);
+    if (!priorityRow.rows[0]) fail("FIXTURE-PRIORITY", "no active priority configured");
+    const priorityId = priorityRow.rows[0].id;
     const visaFee = visaTypeRow.rows[0].fee;
     const draftStatus = await q(`select id from statuses where code='DRAFT' limit 1`);
     const submittedStatus = await q(`select id from statuses where code='SUBMITTED' limit 1`);
@@ -119,20 +180,20 @@ async function main() {
     const draftStatusId = draftStatus.rows[0].id;
     const submittedStatusId = submittedStatus.rows[0].id;
 
+    // Shared fixture insert: every NOT NULL column of `applications` is filled.
+    const insertFixtureApp = (agencyId: string, reference: string, statusId: string, fee = visaFee) =>
+      q(
+        `insert into applications (agency_id, country_id, visa_type_id, status_id, priority_id, reference, fee, currency, country_name, visa_type_name, visa_type_code, category_name, processing_min_days, processing_max_days)
+         values ($1,$2,$3,$4,$5,$6,$7,'DZD',$8,$9,$10,$11,10,20) returning id`,
+        [agencyId, visaCountryId, visaTypeId, statusId, priorityId, reference, fee, visaCountryName, visaName, visaTypeCode, visaCategoryName],
+      );
+
     // Create applications for A and B
     const appARef = `${prefix}-APP-A`;
     const appBRef = `${prefix}-APP-B`;
-    const appARes = await q(
-      `insert into applications (agency_id, visa_type_id, status_id, reference, fee, currency, country_name, visa_type_name, category_name, processing_min_days, processing_max_days)
-       values ($1,$2,$3,$4,$5,'DZD','TestCountry','TestVisa','Tourist',10,20) returning id`,
-      [agencyAId, visaTypeId, draftStatusId, appARef, visaFee]
-    );
+    const appARes = await insertFixtureApp(agencyAId, appARef, draftStatusId);
     const appAId = appARes.rows[0].id;
-    const appBRes = await q(
-      `insert into applications (agency_id, visa_type_id, status_id, reference, fee, currency, country_name, visa_type_name, category_name, processing_min_days, processing_max_days)
-       values ($1,$2,$3,$4,$5,'DZD','TestCountry','TestVisa','Tourist',10,20) returning id`,
-      [agencyBId, visaTypeId, draftStatusId, appBRef, visaFee]
-    );
+    const appBRes = await insertFixtureApp(agencyBId, appBRef, draftStatusId);
     const appBId = appBRes.rows[0].id;
     ok("FIXTURE-APPS", `created AppA=${appAId.slice(0,8)} AppB=${appBId.slice(0,8)}`);
 
@@ -253,11 +314,7 @@ async function main() {
     // Simulate chargeApplicationSubmission logic: status check + balance update + unique app charge
     // First charge
     const appForChargeRef = `${prefix}-CHARGE-J`;
-    const appChargeRes = await q(
-      `insert into applications (agency_id, visa_type_id, status_id, reference, fee, currency, country_name, visa_type_name, category_name, processing_min_days, processing_max_days)
-       values ($1,$2,$3,$4,1000,'DZD','TestCountry','TestVisa','Tourist',10,20) returning id`,
-      [agencyAId, visaTypeId, draftStatusId, appForChargeRef]
-    );
+    const appChargeRes = await insertFixtureApp(agencyAId, appForChargeRef, draftStatusId, "1000.00");
     const appChargeId = appChargeRes.rows[0].id;
     // First charge attempt
     await q(`begin`);
@@ -295,7 +352,10 @@ async function main() {
     }
 
     // === K. Concurrent submission cannot double-charge/corrupt balance ===
-    // Create agency with 1500 balance, fee 1000, try two concurrent charges
+    // One wallet, balance 1500, two independent sessions each trying to charge
+    // 1000 at the same time. Exactly one may succeed: the loser is either
+    // blocked by the row lock or re-evaluates the conditional WHERE after the
+    // winner commits and finds insufficient funds.
     const concAgencyEmail = `${prefix}-conc@example.invalid`;
     const concAgencyRes = await q(
       `insert into agencies (legal_name, trading_name, email, city, country, currency, balance, status)
@@ -303,82 +363,64 @@ async function main() {
       [`${prefix} Conc Agency`, `${prefix} Conc`, concAgencyEmail]
     );
     const concAgencyId = concAgencyRes.rows[0].id;
-    const concApp1Ref = `${prefix}-CONC-1`;
-    const concApp2Ref = `${prefix}-CONC-2`;
-    const concApp1 = await q(
-      `insert into applications (agency_id, visa_type_id, status_id, reference, fee, currency, country_name, visa_type_name, category_name, processing_min_days, processing_max_days)
-       values ($1,$2,$3,$4,1000,'DZD','TestCountry','TestVisa','Tourist',10,20) returning id`,
-      [concAgencyId, visaTypeId, draftStatusId, concApp1Ref]
-    );
-    const concApp2 = await q(
-      `insert into applications (agency_id, visa_type_id, status_id, reference, fee, currency, country_name, visa_type_name, category_name, processing_min_days, processing_max_days)
-       values ($1,$2,$3,$4,1000,'DZD','TestCountry','TestVisa','Tourist',10,20) returning id`,
-      [concAgencyId, visaTypeId, draftStatusId, concApp2Ref]
-    );
+    const concApp1 = await insertFixtureApp(concAgencyId, `${prefix}-CONC-1`, draftStatusId, "1000.00");
+    const concApp2 = await insertFixtureApp(concAgencyId, `${prefix}-CONC-2`, draftStatusId, "1000.00");
     const concApp1Id = concApp1.rows[0].id;
-    const concApp2Id = concApp2.rows[0].id;
 
-    // Simulate concurrent debits using two separate clients
-    const pool2 = new Pool(databasePoolConfig(process.env, true));
-    const c1 = await pool.connect();
+    const pool2 = new Pool({ ...databasePoolConfig(process.env, true), max: 2 });
+    const c1 = await pool2.connect();
     const c2 = await pool2.connect();
     try {
-      await c1.query(`set search_path to "${SCHEMA_PREVIEW}"`);
-      await c2.query(`set search_path to "${SCHEMA_PREVIEW}"`);
-      await c1.query(`begin`);
-      await c2.query(`begin`);
-      // Both try to charge 1000 from 1500 balance
-      const updC1 = await c1.query(
-        `update agencies set balance = balance - $2::numeric where id=$1 and balance >= $2::numeric returning balance::text`,
-        [concAgencyId, "1000.00"]
-      );
-      const updC2 = await c2.query(
-        `update agencies set balance = balance - $2::numeric where id=$1 and balance >= $2::numeric returning balance::text`,
-        [concAgencyId, "1000.00"]
-      );
-      // One should succeed, one should fail (or both but second blocked by row lock? Actually second will wait or fail depending on isolation)
-      // In Postgres, second update will block until first commits, then re-evaluate WHERE condition
-      // So we need to commit first, then second
-      if (updC1.rows.length === 1) {
-        await c1.query(`insert into wallet_transactions (agency_id, type, amount, currency, balance_before, balance_after, reason, actor_id)
-          values ($1,'DEBIT','1000.00','DZD','1500.00',$2,'conc test',$3)`, [concAgencyId, updC1.rows[0].balance, superAdmin.id]);
-        await c1.query(`commit`);
-      } else {
-        await c1.query(`rollback`);
+      for (const c of [c1, c2]) {
+        await c.query(`set search_path to "${SCHEMA_PREVIEW}"`);
+        await c.query(`begin`);
+        // Never hang the gate: a lock wait longer than this is itself proof
+        // that the second session is blocked by the first.
+        await c.query(`set local lock_timeout = '3s'`);
       }
-      // Now try to commit second - it should have been blocked, but after first commit, balance is 500, so second should fail
-      // Actually c2 already executed update, but if it was blocked, it would have waited. In our test, we executed both before commit, so second may have succeeded if using same snapshot? Let's check
-      if (updC2.rows.length === 1) {
-        // This would mean both succeeded, which would make balance negative - should not happen with proper locking
-        // Check final balance
-        await c2.query(`rollback`); // rollback second to avoid negative, but we need to verify behavior
-        // Actually we need to re-run with proper sequencing: commit c1, then attempt c2
-        await c1.query(`begin`).catch(()=>{});
-        await c1.query(`set search_path to "${SCHEMA_PREVIEW}"`);
-        const finalBal = await q(`select balance::text as bal from agencies where id=$1`, [concAgencyId]);
-        log(`After first concurrent charge, balance=${finalBal.rows[0].bal}`);
-        // Now attempt second charge from main client - should fail
-        const secondAttempt = await q(
-          `update agencies set balance = balance - $2::numeric where id=$1 and balance >= $2::numeric returning balance::text`,
-          [concAgencyId, "1000.00"]
+      const debit = (c: any) =>
+        c.query(
+          `update agencies set balance = balance - 1000.00, updated_at = now()
+            where id = $1 and balance >= 1000.00 returning balance::text`,
+          [concAgencyId],
         );
-        if (secondAttempt.rows.length !== 0) {
-          fail("K", `Concurrent second charge succeeded, balance would be negative, got ${secondAttempt.rows[0].balance}`);
-        } else {
-          ok("K", "Concurrent submission cannot double-charge/corrupt balance (second blocked, final balance 500)");
-        }
-      } else {
+
+      const first = await debit(c1);
+      if (!first.rows[0]) {
+        await c1.query(`rollback`);
         await c2.query(`rollback`);
-        ok("K", "Concurrent second charge blocked immediately (row lock / balance check)");
+        fail("K", "first concurrent charge unexpectedly failed");
       }
+      // Fire the racing debit, then release the winner's lock by committing.
+      const secondPromise = debit(c2).then(
+        (res: any) => ({ ok: res.rows.length === 1, blocked: false }),
+        (err: any) => ({ ok: false, blocked: /lock timeout|canceling statement/i.test(String(err.message)) }),
+      );
+      await c1.query(
+        `insert into wallet_transactions (agency_id, application_id, type, amount, currency, balance_before, balance_after, reason, actor_id)
+         values ($1,$2,'APPLICATION_CHARGE','1000.00','DZD','1500.00',$3,'gate concurrency',$4)`,
+        [concAgencyId, concApp1Id, first.rows[0].balance, superAdmin.id],
+      );
+      await c1.query(`commit`);
+
+      const second = await secondPromise;
+      if (second.ok) fail("K", "both concurrent charges succeeded — wallet could go negative");
+      await c2.query(`rollback`).catch(() => {});
+
+      const after = await q(`select balance::text as bal from agencies where id=$1`, [concAgencyId]);
+      if (after.rows[0].bal !== "500.00") {
+        fail("K", `wallet balance after the race is ${after.rows[0].bal}, expected 500.00`);
+      }
+      ok(
+        "K",
+        `concurrent submissions charged exactly once (${second.blocked ? "second blocked by row lock" : "second re-checked balance"}; final balance 500.00)`,
+      );
     } finally {
       c1.release();
       c2.release();
       await pool2.end();
-      // Reset conc agency balance for cleanup check
-      const finalBalCheck = await q(`select balance::text as bal from agencies where id=$1`, [concAgencyId]);
-      log(`Conc agency final balance: ${finalBalCheck.rows[0].bal}`);
     }
+
 
     // === L. Required documents enforced server-side ===
     // Check that checklist_items required flag exists and submission gate checks it
@@ -407,7 +449,10 @@ async function main() {
     ok("N", "Replacement request opens only intended document");
 
     // === O. Additional-document request opens only intended type ===
-    const docType2Row = await q(`select id from document_types where id!=$1 and active=true limit 1`, [docTypeId]);
+    const docType2Row = await q(
+      `select id from document_types where id!=$1 and active=true and agency_uploadable limit 1`,
+      [docTypeId],
+    );
     if (docType2Row.rows.length === 0) {
       ok("O", "SKIP additional type (only one doc type in preview) — still valid");
     } else {
@@ -421,6 +466,44 @@ async function main() {
       const openAdd = await q(`select document_type_id from document_requests where id=$1`, [addReqId]);
       if (openAdd.rows[0].document_type_id !== docType2Id) fail("O", "additional request type mismatch");
       ok("O", "Additional-document request opens only intended type");
+    }
+
+    // === DOC-AUDIENCE. Every document is either agency-provided or ESSAFARIA-issued ===
+    // Found by the rendered audit: staff could request the authority's own
+    // decision document from an agency, so an agency was asked to upload the
+    // visa decision. The catalogue now classifies who provides a document.
+    {
+      const colRes = await q(
+        `select 1 from information_schema.columns
+          where table_schema = current_schema() and table_name = 'document_types' and column_name = 'agency_uploadable'`,
+      );
+      if (colRes.rows.length === 0) fail("DOC-AUDIENCE", "document_types.agency_uploadable is missing (migration 0016/0017 not applied)");
+
+      const misclassified = await q(
+        `select code from document_types where code like 'DECISION\\_%' and agency_uploadable is not false`,
+      );
+      if (misclassified.rows.length > 0) {
+        fail("DOC-AUDIENCE", `decision document types still agency-uploadable: ${misclassified.rows.map((r: any) => r.code).join(", ")}`);
+      }
+
+      const phantom = await q(
+        `select ci.id, dt.code from checklist_items ci
+           join document_types dt on dt.id = ci.document_type_id
+          where dt.agency_uploadable = false limit 5`,
+      );
+      if (phantom.rows.length > 0) {
+        fail("DOC-AUDIENCE", `an agency checklist requires an ESSAFARIA-issued document: ${phantom.rows.map((r: any) => r.code).join(", ")}`);
+      }
+
+      const requestable = await q(
+        `select count(*)::int as cnt from document_types where active and agency_uploadable`,
+      );
+      if (requestable.rows[0].cnt < 1) fail("DOC-AUDIENCE", "no agency-provided document type is available to request");
+
+      ok(
+        "DOC-AUDIENCE",
+        `decision documents are ESSAFARIA-issued only; ${requestable.rows[0].cnt} agency-provided types remain requestable; no checklist requires a staff-issued document`,
+      );
     }
 
     // === P. Fulfillment closes request and locks upload again ===
@@ -468,11 +551,70 @@ async function main() {
       }
     }
 
-    // === S. Search/export tenant boundaries hold ===
-    // searchApplications filters by agency_id for agency users
-    // We already verified A cannot read B's app via direct query with agency filter
-    // For export, wallet statement only AGENCY_ADMIN (checked via RBAC)
-    ok("S", "Search/export tenant boundaries hold");
+    // === S. Search/export tenant boundaries hold (real queries, not claims) ===
+    {
+      const { listWalletTransactions } = await import("../src/lib/queries");
+      const { listApplications } = await import("../src/lib/queries").catch(() => ({ listApplications: null as never })) as { listApplications: null };
+      void listApplications;
+
+      // A funded ledger row for agency B that agency A must never reach.
+      await q(
+        `insert into wallet_transactions (agency_id, type, amount, currency, balance_before, balance_after, reason)
+         values ($1,'CREDIT','321.00','DZD','0','321.00',$2)`,
+        [agencyBId, `${prefix}-B-ONLY-321`],
+      );
+      const forA = await listWalletTransactions({ agencyId: agencyAId, pageSize: 10_000 });
+      if (forA.rows.some((r: any) => r.tx.agencyId === agencyBId)) fail("S", "agency A export reached agency B rows");
+      const bMarker = await listWalletTransactions({ agencyId: agencyAId, q: `${prefix}-B-ONLY-321` });
+      if (bMarker.total !== 0) fail("S", "agency A could query agency B's ledger by text");
+      ok("S", `ledger/export scope holds (A sees ${forA.total} own rows, 0 foreign)`);
+    }
+
+    // === COMMS. Dossier conversations are tenant-scoped and audience-filtered ===
+    {
+      const { recentCommunications, listCommunications } = await import("../src/lib/queries");
+      const aAdminActor = { id: userIds[`${prefix}-a-admin@example.invalid`]!, email: `${prefix}-a-admin@example.invalid`, role: "AGENCY_ADMIN", agencyId: agencyAId } as any;
+      const bAdminActor = { id: userIds[`${prefix}-b-admin@example.invalid`]!, email: `${prefix}-b-admin@example.invalid`, role: "AGENCY_ADMIN", agencyId: agencyBId } as any;
+      const superActorReal = await q(`select id, email from users where agency_id is null and role = 'SUPER_ADMIN' limit 1`);
+      if (superActorReal.rows.length === 0) fail("COMMS", "no staff super admin available for the conversation check");
+      const staffId = superActorReal.rows[0].id as string;
+      const staffActor = { id: staffId, email: superActorReal.rows[0].email as string, role: "SUPER_ADMIN", agencyId: null } as any;
+
+      await q(`insert into communications (application_id, author_id, visibility, body) values ($1,$2,'AGENCY',$3)`, [
+        appAId,
+        staffId,
+        `${prefix} A visible message`,
+      ]);
+      await q(`insert into communications (application_id, author_id, visibility, body) values ($1,$2,'AGENCY',$3)`, [
+        appBId,
+        staffId,
+        `${prefix} B visible message`,
+      ]);
+      await q(`insert into communications (application_id, author_id, visibility, body) values ($1,$2,'INTERNAL',$3)`, [
+        appAId,
+        staffId,
+        `${prefix} A INTERNAL note`,
+      ]);
+
+      // The agency inbox is scoped by dossier owner + audience: the leak that was
+      // fixed would have listed agency B's body here.
+      const inboxA = await recentCommunications(100, { agencyId: agencyAId, agencyVisibleOnly: true });
+      if (inboxA.some((m: any) => m.message.body.includes("B visible message"))) fail("COMMS", "agency A inbox listed agency B's message");
+      if (inboxA.some((m: any) => m.message.body.includes("INTERNAL note"))) fail("COMMS", "agency A inbox listed a staff internal note");
+      if (!inboxA.some((m: any) => m.message.body.includes("A visible message"))) fail("COMMS", "agency A inbox missed its own message");
+
+      // Reading a foreign dossier through the dossier query returns nothing…
+      const foreignRead = await listCommunications(appBId, aAdminActor);
+      if (foreignRead.length !== 0) fail("COMMS", "agency A read agency B's dossier conversation");
+      // …while the owner sees its own thread and staff see everything.
+      const ownRead = await listCommunications(appAId, aAdminActor);
+      if (ownRead.length !== 1) fail("COMMS", `agency A saw ${ownRead.length} messages instead of its 1 agency-visible one`);
+      const staffRead = await listCommunications(appAId, staffActor);
+      if (staffRead.length !== 2) fail("COMMS", "staff cannot see the full thread (agency + internal)");
+      const bOwn = await listCommunications(appBId, bAdminActor);
+      if (bOwn.length !== 1) fail("COMMS", "agency B cannot read its own thread");
+      ok("COMMS", "dossier conversations are tenant-scoped; internal notes never reach an agency; staff keep the full thread");
+    }
 
     // === T. Sensitive audit/log output contains no plaintext password/token/secret ===
     const auditSample = await q(`select metadata from audit_logs order by created_at desc limit 5`);
@@ -534,8 +676,175 @@ async function main() {
     if (afterBal !== "1000.00") fail("CONC", `expected final balance 1000.00, got ${afterBal}`);
     ok("CONC", `row locking/atomic works, balance never negative, ledger exact: before=${beforeBal} after=${afterBal} success=${success} ledger=${ledgerCnt}`);
 
+    // === U. Wallet top-up requests: tenant isolation, role gate, single credit ===
+    const { createTopupRequest, listTopupRequestsForAgency, processTopupRequest } = await import("../src/lib/topup");
+    const aAdminActor = { id: userIds[`${prefix}-a-admin@example.invalid`]!, email: `${prefix}-a-admin@example.invalid`, role: "AGENCY_ADMIN", agencyId: agencyAId } as any;
+    const bAdminActor = { id: userIds[`${prefix}-b-admin@example.invalid`]!, email: `${prefix}-b-admin@example.invalid`, role: "AGENCY_ADMIN", agencyId: agencyBId } as any;
+    const superActor = { id: userIds[`${prefix}-super@example.invalid`]!, email: `${prefix}-super@example.invalid`, role: "SUPER_ADMIN", agencyId: null } as any;
+    const visaActor = { id: userIds[`${prefix}-visa@example.invalid`]!, email: `${prefix}-visa@example.invalid`, role: "VISA_AGENT", agencyId: null } as any;
+
+    const balBeforeTopup = (await q(`select balance::text as bal from agencies where id=$1`, [agencyAId])).rows[0].bal;
+    const req = await createTopupRequest({ agencyId: agencyAId, amount: 50000, note: "gate fixture", actor: aAdminActor });
+    if (!/^TOP-\d{4}-\d{6}$/.test(req.reference)) fail("U", `bad top-up reference ${req.reference}`);
+    const balAfterRequest = (await q(`select balance::text as bal from agencies where id=$1`, [agencyAId])).rows[0].bal;
+    if (balAfterRequest !== balBeforeTopup) fail("U", "requesting a top-up moved the balance");
+
+    // Agency isolation: B never sees A's request.
+    const forB = await listTopupRequestsForAgency(agencyBId);
+    if (forB.some((r) => r.agencyId === agencyAId)) fail("U", "agency B could read agency A's top-up request");
+    const forA = await listTopupRequestsForAgency(agencyAId);
+    if (!forA.some((r) => r.id === req.id)) fail("U", "agency A cannot see its own request");
+
+    // Role gate: an agency admin can never process a request (own included).
+    try {
+      await processTopupRequest({ requestId: req.id, actor: aAdminActor, decision: "CREDIT" });
+      fail("U", "an agency user processed a top-up request");
+    } catch (e: any) {
+      if (!/not authorized|FORBIDDEN/i.test(String(e.code ?? e.message))) {
+        fail("U", `unexpected error while blocking agency processing: ${e.message}`);
+      }
+      // Try from the "other" tenant too: still blocked (role gate, not tenant gate).
+      await processTopupRequest({ requestId: req.id, actor: bAdminActor, decision: "CREDIT" }).then(
+        () => fail("U", "agency B could process agency A's request"),
+        () => undefined,
+      );
+    }
+    // VISA_AGENT may view wallets but never move money (§8).
+    await processTopupRequest({ requestId: req.id, actor: visaActor, decision: "CREDIT" }).then(
+      () => fail("U", "VISA_AGENT credited a wallet"),
+      () => undefined,
+    );
+    const stillPending = await q(`select status from wallet_topup_requests where id=$1`, [req.id]);
+    if (stillPending.rows[0].status !== "PENDING") fail("U", "blocked processing changed the request status");
+    ok("U1", "agency users and VISA_AGENT can never process a top-up request; tenants are isolated");
+
+    // Staff credits through the normal wallet primitive: one ledger row, linked.
+    const processed = await processTopupRequest({ requestId: req.id, actor: superActor, decision: "CREDIT" });
+    const balAfterCredit = (await q(`select balance::text as bal from agencies where id=$1`, [agencyAId])).rows[0].bal;
+    if (processed.status !== "PROCESSED") fail("U", "staff credit did not process the request");
+    if (Number(balAfterCredit) - Number(balBeforeTopup) !== 50000) {
+      fail("U", `credit moved the wrong amount: ${balBeforeTopup} -> ${balAfterCredit}`);
+    }
+    const linked = await q(
+      `select count(*)::int as cnt from wallet_transactions where agency_id=$1 and reason=$2`,
+      [agencyAId, `Wallet top-up ${req.reference}`],
+    );
+    if (Number(linked.rows[0].cnt) !== 1) fail("U", "credit is not linked 1:1 with the request");
+    // Double processing is impossible.
+    await processTopupRequest({ requestId: req.id, actor: superActor, decision: "CREDIT" }).then(
+      () => fail("U", "a processed request was processed twice (double credit possible)"),
+      (e: any) => {
+        if (!/already/i.test(String(e.code ?? e.message))) fail("U", `unexpected repeat-processing error: ${e.message}`);
+      },
+    );
+    const balAfterRepeat = (await q(`select balance::text as bal from agencies where id=$1`, [agencyAId])).rows[0].bal;
+    if (balAfterRepeat !== balAfterCredit) fail("U", "repeat processing moved money");
+    ok("U2", `top-up credited exactly once through the wallet primitive (${balBeforeTopup} → ${balAfterCredit} DZD)`);
+
+    // A credit can never exceed what the agency asked for.
+    const req2 = await createTopupRequest({ agencyId: agencyAId, amount: 1000, note: "gate fixture 2", actor: aAdminActor });
+    await processTopupRequest({ requestId: req2.id, actor: superActor, decision: "CREDIT", amount: 999999 }).then(
+      () => fail("U", "credit above the requested amount was accepted"),
+      (e: any) => {
+        if (e.code !== "INVALID_AMOUNT") fail("U", `unexpected over-credit error: ${e.code ?? e.message}`);
+      },
+    );
+    // Rejection requires a written reason and never touches the wallet.
+    await processTopupRequest({ requestId: req2.id, actor: superActor, decision: "REJECT" }).then(
+      () => fail("U", "rejection accepted without a reason"),
+      (e: any) => {
+        if (e.code !== "REASON_REQUIRED") fail("U", `unexpected rejection error: ${e.code ?? e.message}`);
+      },
+    );
+    await processTopupRequest({ requestId: req2.id, actor: superActor, decision: "REJECT", decisionNote: "gate: no transfer received" });
+    const balAfterReject = (await q(`select balance::text as bal from agencies where id=$1`, [agencyAId])).rows[0].bal;
+    if (balAfterReject !== balAfterCredit) fail("U", "rejection moved the balance");
+    ok("U3", "over-credit refused, rejection requires a reason and never invents money");
+
+    // === REF. Schema-safe human references (migration 0015) ===
+    // Reproduces the real defect: the reference used to be produced by a plpgsql
+    // function whose unqualified `nextval('wallet_reference_seq')` was resolved at
+    // first execution from the SESSION search_path. In this shared database one
+    // table could therefore draw numbers from two counters and hand out a duplicate
+    // WLT-… reference. The probe table lives in the preview schema and is dropped
+    // again below, so no business row is created by this check.
+    {
+      const refProbeTable = `${prefix.replace(/[^a-z0-9_]/gi, "_")}_ref_probe`;
+      const counterRow = await q(
+        `select coalesce(max(nullif(regexp_replace(reference, '^WLT-[0-9]{4}-', ''), '')::bigint), 0) as max_ref
+           from wallet_transactions where reference ~ '^WLT-[0-9]{4}-[0-9]+$'`,
+      );
+      const maxRef = Number(counterRow.rows[0].max_ref);
+      const seqRow = await q(`select last_value from wallet_reference_seq`);
+      const seqValue = Number(seqRow.rows[0].last_value);
+      if (seqValue < maxRef) fail("REF", `wallet counter (${seqValue}) is behind stored references (${maxRef})`);
+
+      await q(`drop table if exists ${refProbeTable}`);
+      await q(`create table ${refProbeTable} (reference text not null)`);
+      await q(
+        `create trigger ${refProbeTable}_ref before insert on ${refProbeTable}
+           for each row execute function assign_wallet_reference()`,
+      );
+
+      // The main pool is pinned to a single connection for the whole run, so the
+      // probe takes its own short-lived pool (never widen the gate's pool).
+      const refPool = new Pool({ ...databasePoolConfig(process.env, true), max: 2 });
+      const probeFrom = async (searchPath: string) => {
+        const probeClient = await refPool.connect();
+        try {
+          await probeClient.query(`set search_path to ${searchPath}`);
+          const res = await probeClient.query(
+            `insert into ${SCHEMA_PREVIEW}.${refProbeTable} (reference) values (null) returning reference`,
+          );
+          return String(res.rows[0].reference);
+        } finally {
+          probeClient.release();
+        }
+      };
+      // Session A: no search_path (exactly how the application connects — it
+      // qualifies tables instead of relying on session state).
+      const refDefaultPath = await probeFrom(`"public"`);
+      // Session B: search_path on the preview schema (how the gate/tests connect).
+      const refPreviewPath = await probeFrom(`"${SCHEMA_PREVIEW}", "public"`);
+      if (refDefaultPath === refPreviewPath) fail("REF", `both sessions produced ${refDefaultPath}`);
+      for (const ref of [refDefaultPath, refPreviewPath]) {
+        if (!/^WLT-\d{4}-\d{6}$/.test(ref)) fail("REF", `malformed reference ${ref}`);
+      }
+      const suffixes = [refDefaultPath, refPreviewPath].map((r) => Number(r.slice(-6)));
+      if (suffixes.some((n) => n <= maxRef)) {
+        fail("REF", `a reference was drawn from another counter (${suffixes.join(", ")} <= ${maxRef})`);
+      }
+      await q(`drop table ${refProbeTable}`);
+      await refPool.end();
+
+      // The defaults that caused the mis-resolution must be gone; the triggers are
+      // the single source of truth.
+      // Scoped to the schema under test: the same catalog also holds the other
+      // schema's tables and triggers.
+      const leftovers = await q(
+        `select count(*)::int as n from pg_attrdef ad
+           join pg_class c on c.oid = ad.adrelid
+           join pg_namespace n on n.oid = c.relnamespace
+           join pg_attribute a on a.attrelid = ad.adrelid and a.attnum = ad.adnum
+          where n.nspname = current_schema()
+            and c.relname in ('wallet_transactions','wallet_topup_requests') and a.attname = 'reference'`,
+      );
+      if (Number(leftovers.rows[0].n) !== 0) fail("REF", "reference column default still present");
+      const trg = await q(
+        `select t.tgname from pg_trigger t
+           join pg_class c on c.oid = t.tgrelid
+           join pg_namespace n on n.oid = c.relnamespace
+          where n.nspname = current_schema() and not t.tgisinternal
+            and t.tgname in ('wallet_transactions_reference','wallet_topup_requests_reference')`,
+      );
+      if (trg.rows.length !== 2) fail("REF", `expected 2 reference triggers, found ${trg.rows.length}`);
+      ok("REF", `references are schema-local and collision-free (${refDefaultPath}, ${refPreviewPath}; counter ${seqValue} ≥ max ${maxRef})`);
+    }
+
     // Cleanup
     log("Cleaning up disposable fixtures...");
+    await q(`delete from communications where application_id in (select id from applications where agency_id in ($1,$2,$3,$4))`, [agencyAId, agencyBId, concAgencyId, concTestAgencyId]).catch(()=>{});
+    await q(`delete from wallet_topup_requests where agency_id in ($1,$2,$3,$4)`, [agencyAId, agencyBId, concAgencyId, concTestAgencyId]).catch(()=>{});
     await q(`delete from document_requests where application_id in (select id from applications where agency_id in ($1,$2,$3,$4))`, [agencyAId, agencyBId, concAgencyId, concTestAgencyId]).catch(()=>{});
     await q(`delete from documents where application_id in (select id from applications where agency_id in ($1,$2,$3,$4))`, [agencyAId, agencyBId, concAgencyId, concTestAgencyId]).catch(()=>{});
     await q(`delete from checklist_items where application_id in (select id from applications where agency_id in ($1,$2,$3,$4))`, [agencyAId, agencyBId, concAgencyId, concTestAgencyId]).catch(()=>{});

@@ -23,6 +23,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, pool } from "@/lib/db";
+import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 import { qualifiedTable } from "@/lib/database-schema";
 import {
   accountActivationTokens,
@@ -211,9 +212,8 @@ export function validateRegistrationFile(file: RegistrationFileInput): void {
   if (!REGISTRATION_MIME_TYPES.includes(file.type)) {
     throw new AppError("FILE_TYPE", "Allowed formats: PDF, JPEG, PNG or WebP.");
   }
-  if (file.name.length > 200 || /[\u0000-\u001f\\/]/.test(file.name)) {
-    throw new AppError("FILE_NAME", "Invalid file name.");
-  }
+  const nameProblem = fileNameProblem(file.name);
+  if (nameProblem) throw new AppError("FILE_NAME", fileNameErrorMessage(nameProblem));
   // Content sniffing: the declared type must match the actual bytes.
   if (!matchesMagicBytes(file.data, file.type)) {
     throw new AppError("FILE_CONTENT", "The file content does not match its declared format.");

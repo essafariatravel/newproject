@@ -123,9 +123,13 @@ describe("C2 — agency wallet summary shows only Available Balance", () => {
   });
 
   it("the immutable ledger is still rendered for the agency (own history)", () => {
-    expect(PORTAL_WALLET).toContain("getTransactions(user.agencyId");
+    // Ledger query is tenant-scoped from the session, never from the request.
+    expect(PORTAL_WALLET).toContain("agencyId: user.agencyId");
     expect(PORTAL_WALLET).toContain('ct("Wallet & Transactions")');
     expect(PORTAL_WALLET).toContain("TableWrap");
+    // §10/§11 — the wallet page carries the top-up request entry point.
+    expect(PORTAL_WALLET).toContain("requestTopupAction");
+    expect(PORTAL_WALLET).toContain('id="topup"');
   });
 
   it("staff/admin aggregates are retained", () => {
@@ -155,16 +159,22 @@ describe("C3 — country-first step-1 UX with visa-type cards", () => {
     expect(WIZARD.split("data-wizard-section").length - 1).toBe(3);
   });
 
-  it("country selection comes first and gates the visa-type cards", () => {
-    expect(WIZARD.indexOf("wizard-country")).toBeLessThan(WIZARD.indexOf("wizard-visa-type"));
-    expect(WIZARD).toContain("onClick={() => { setCountryId(c.id); setVisaTypeId(\"\"); }}");
+  it("destination search comes first and gates the visa-programme cards", () => {
+    expect(WIZARD.indexOf("wizard-destination-search")).toBeLessThan(WIZARD.indexOf("wizard-visa-type"));
+    // No giant visible country list — the destination is picked from search results.
+    expect(WIZARD).not.toContain("expandedCountries");
+    expect(WIZARD).toContain('data-testid="wizard-destination-selected"');
+    expect(WIZARD).toContain("setCountryId(c.id)");
     expect(WIZARD).toContain('name="countryId"'); // posted to the server
+    expect(WIZARD).toContain('name="visaTypeId"');
   });
 
-  it("visa-type cards show name, category, price, currency and processing time", () => {
-    for (const token of ["{v.name}</span>", "{v.categoryName}</span>", "{v.fee} {v.currency}", "{v.minDays}–{v.maxDays}"]) {
+  it("programme cards show name, category, DZD price and processing time", () => {
+    for (const token of ["{v.name}</span>", "{v.categoryName}</span>", "{v.fee} DZD", "processingLabel(v)"]) {
       expect(WIZARD).toContain(token);
     }
+    // DZD is structural: no per-row currency column/selector anywhere.
+    expect(WIZARD).not.toContain("{v.currency}");
   });
 
   it("server only feeds ACTIVE destinations with ACTIVE visa types", async () => {
@@ -270,7 +280,8 @@ describe("C6 — nationality selector with localized labels and Algeria default"
 
   it("the wizard renders a real selector preselected to the platform default", () => {
     expect(WIZARD).toContain('defaultValue={props.defaultNationality}');
-    expect(WIZARD).toContain("props.nationalities.map((n)");
+    // Searchable nationality list (accent-insensitive) rendering real labels.
+    expect(WIZARD).toContain("filteredNationalities.map((n)");
     expect(WIZARD).toContain('value={n.code}'); // codes, never labels
     expect(NEW_PAGE).toContain("defaultNationality={DEFAULT_NATIONALITY}");
     expect(NEW_PAGE).toContain("NATIONALITIES.map((n) => ({ code: n.code, label: nationalityLabel(n.code, uiLocale) })");

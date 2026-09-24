@@ -4,11 +4,11 @@
  * Application lifecycle actions — used by both the agency portal and the
  * Back Office. Authorization and tenant checks happen inside each action.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { applicants, applications } from "@/db/schema";
+import { applicants, applications, priorities, statuses, users } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/rbac";
 import { AppError, type AuthUser } from "@/lib/types";
@@ -23,8 +23,15 @@ import {
 } from "@/lib/applications";
 import { runAction } from "@/lib/action-helpers";
 import { recordAudit } from "@/lib/audit";
+import { notifyUsers } from "@/lib/notifications";
 
 const idSchema = z.string().uuid("Invalid identifier.");
+
+/**
+ * Dossiers in a terminal state never participate in bulk changes: an outcome
+ * (approved / rejected) and a cancellation are business events, not batch edits.
+ */
+const FINAL_STATUS_CODES = new Set(["APPROVED", "REJECTED", "CANCELLED"]);
 
 function clientIp(headers: Headers): string | null {
   return headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
@@ -311,8 +318,127 @@ export async function assignOfficerAction(formData: FormData): Promise<void> {
       entityId: applicationId,
       metadata: { assignedTo },
     });
+    // §25 — the new case officer is told, with a deep link to the dossier.
+    if (assignedTo && assignedTo !== user.id) {
+      const app = (
+        await db
+          .select({ reference: applications.reference, agencyId: applications.agencyId })
+          .from(applications)
+          .where(eq(applications.id, applicationId))
+          .limit(1)
+      )[0];
+      if (app) {
+        await notifyUsers([assignedTo], {
+          type: "APPLICATION_ASSIGNED",
+          title: `Assigned: ${app.reference}`,
+          body: `${user.name} assigned this dossier to you.`,
+          link: `/admin/applications/${applicationId}`,
+          agencyId: app.agencyId,
+          applicationId,
+        });
+      }
+    }
     revalidatePath(back);
     return assignedTo ? "Case officer assigned." : "Assignment cleared.";
+  });
+}
+
+/* ------------------------------ safe bulk ------------------------------- */
+/**
+ * §"safe bulk actions (assign / priority / export)".
+ *
+ * Deliberately narrow: the ONLY bulk operations are assignment and priority.
+ * There is no bulk approve, reject, wallet debit or delete anywhere in the
+ * product (§decision integrity — every outcome stays an explicit, single-dossier
+ * staff action). Rows that are already finished (REJECTED / CANCELLED / APPROVED
+ * handled by the same guard) are skipped rather than silently mutated, the count
+ * is reported back, and every touched dossier gets its own audit entry.
+ */
+const BULK_LIMIT = 200;
+
+async function parseBulkIds(formData: FormData) {
+  const raw = formData.getAll("ids").map(String).filter((v) => v.trim() !== "");
+  if (raw.length === 0) throw new AppError("VALIDATION", "Select at least one dossier first.");
+  if (raw.length > BULK_LIMIT) throw new AppError("VALIDATION", `Select at most ${BULK_LIMIT} dossiers at a time.`);
+  const ids = raw.map((v) => idSchema.parse(v));
+  // Tenant/RBAC safe by construction: staff-only, and only ids that really exist.
+  const rows = await db
+    .select({ id: applications.id, reference: applications.reference, statusCode: statuses.code, agencyId: applications.agencyId })
+    .from(applications)
+    .innerJoin(statuses, eq(applications.statusId, statuses.id))
+    .where(inArray(applications.id, ids));
+  if (rows.length !== ids.length) throw new AppError("NOT_FOUND", "One of the selected dossiers no longer exists.");
+  if (rows.some((r) => FINAL_STATUS_CODES.has(r.statusCode))) {
+    throw new AppError(
+      "VALIDATION",
+      "Finished dossiers (approved / rejected / cancelled) are excluded from bulk changes — open them individually if a correction is needed.",
+    );
+  }
+  return rows;
+}
+
+export async function bulkAssignAction(formData: FormData): Promise<void> {
+  await runAction("/admin/applications", async () => {
+    const user = await requireUser();
+    requirePermission(user, "applications.assign");
+    const rows = await parseBulkIds(formData);
+    const assignedToRaw = formData.get("assignedTo");
+    const assignedTo = assignedToRaw && String(assignedToRaw) !== "" ? idSchema.parse(assignedToRaw) : null;
+    if (assignedTo) {
+      const officer = await db.select({ id: users.id, role: users.role }).from(users).where(eq(users.id, assignedTo)).limit(1);
+      if (!officer[0] || officer[0].role === "AGENCY_ADMIN" || officer[0].role === "AGENCY_USER") {
+        throw new AppError("VALIDATION", "Dossiers can only be assigned to ESSAFARIA staff.");
+      }
+    }
+    for (const row of rows) {
+      await db.update(applications).set({ assignedTo, updatedAt: new Date() }).where(eq(applications.id, row.id));
+      await recordAudit({
+        actor: user,
+        action: "APPLICATION_ASSIGNED",
+        entity: "application",
+        entityId: row.id,
+        agencyId: row.agencyId,
+        metadata: { assignedTo, bulk: true },
+      });
+      if (assignedTo && assignedTo !== user.id) {
+        await notifyUsers([assignedTo], {
+          type: "APPLICATION_ASSIGNED",
+          title: `Assigned: ${row.reference}`,
+          body: `${user.name} assigned this dossier to you.`,
+          link: `/admin/applications/${row.id}`,
+          agencyId: row.agencyId,
+          applicationId: row.id,
+        });
+      }
+    }
+    revalidatePath("/admin/applications");
+    return assignedTo
+      ? `${rows.length} dossier(s) assigned to the selected officer.`
+      : `Assignment cleared on ${rows.length} dossier(s).`;
+  });
+}
+
+export async function bulkPriorityAction(formData: FormData): Promise<void> {
+  await runAction("/admin/applications", async () => {
+    const user = await requireUser();
+    requirePermission(user, "applications.review");
+    const rows = await parseBulkIds(formData);
+    const priorityId = idSchema.parse(formData.get("priorityId"));
+    const priority = await db.select({ id: priorities.id, name: priorities.name }).from(priorities).where(eq(priorities.id, priorityId)).limit(1);
+    if (!priority[0]) throw new AppError("VALIDATION", "Choose a valid priority.");
+    for (const row of rows) {
+      await db.update(applications).set({ priorityId, updatedAt: new Date() }).where(eq(applications.id, row.id));
+      await recordAudit({
+        actor: user,
+        action: "APPLICATION_PRIORITY_CHANGED",
+        entity: "application",
+        entityId: row.id,
+        agencyId: row.agencyId,
+        metadata: { priorityId, priorityName: priority[0].name, bulk: true },
+      });
+    }
+    revalidatePath("/admin/applications");
+    return `Priority "${priority[0].name}" applied to ${rows.length} dossier(s).`;
   });
 }
 

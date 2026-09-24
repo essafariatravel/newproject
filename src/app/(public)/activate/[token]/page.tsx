@@ -58,7 +58,13 @@ export default async function ActivateAccountPage({
                 <p className="text-xs text-slate-400">{info.email}</p>
                 {info.agencyName ? <p className="mt-1 text-xs text-slate-500">{info.agencyName}</p> : null}
               </div>
-              <ActivationForm token={token} locale={locale} copy={copy} />
+              <ActivationForm
+                token={token}
+                locale={locale}
+                copy={copy}
+                showLabel={copy.activation.showPassword}
+                hideLabel={copy.activation.hidePassword}
+              />
             </>
           ) : (
             <>

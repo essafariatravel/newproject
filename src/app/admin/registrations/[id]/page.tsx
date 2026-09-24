@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { pageUser } from "@/lib/page-auth";
+import { getUiLocale } from "@/lib/ui-i18n";
 import { hasPermission } from "@/lib/rbac";
 import { getRegistrationDetail } from "@/lib/registrations";
 import { flashFrom } from "@/lib/action-helpers";
@@ -53,6 +54,7 @@ export default async function AdminRegistrationDetailPage({
   const { id } = await params;
   const sp = await searchParams;
   const staff = await pageUser();
+  const uiLocale = await getUiLocale();
   if (!hasPermission(staff, "registrations.view")) notFound();
 
   const detail = await getRegistrationDetail(id);
@@ -68,7 +70,7 @@ export default async function AdminRegistrationDetailPage({
     <>
       <PageHeader
         title={reg.legalName}
-        subtitle={`${reg.reference} · submitted ${formatDateTime(reg.createdAt)}`}
+        subtitle={`${reg.reference} · submitted ${formatDateTime(reg.createdAt, uiLocale)}`}
         actions={
           <>
             <StatusBadge code={reg.status} />
@@ -85,7 +87,7 @@ export default async function AdminRegistrationDetailPage({
             Approved — agency and Agency Admin provisioned.
           </p>
           <p className="mt-1">
-            Decided {formatDateTime(reg.decidedAt)} · Agency:{" "}
+            Decided {formatDateTime(reg.decidedAt, uiLocale)} · Agency:{" "}
             <Link href={`/admin/agencies/${agency.id}`} className="font-semibold underline underline-offset-2">
               {agency.legalName}
             </Link>
@@ -96,7 +98,7 @@ export default async function AdminRegistrationDetailPage({
       {reg.status === "REJECTED" ? (
         <div className="mb-4 rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-700">
           <p className="font-semibold">Rejected — no agency, portal access or wallet credit was created.</p>
-          <p className="mt-1">Decided {formatDateTime(reg.decidedAt)} · Reason: {reg.rejectionReason}</p>
+          <p className="mt-1">Decided {formatDateTime(reg.decidedAt, uiLocale)} · Reason: {reg.rejectionReason}</p>
         </div>
       ) : null}
       {activationLink ? (
@@ -172,7 +174,7 @@ export default async function AdminRegistrationDetailPage({
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-navy-900">{DOC_CATEGORY_LABELS[doc.category] ?? doc.category}</p>
                       <p className="truncate text-xs text-slate-400">
-                        {doc.originalFilename} · {bytes(doc.sizeBytes)} · {formatDateTime(doc.createdAt)}
+                        {doc.originalFilename} · {bytes(doc.sizeBytes)} · {formatDateTime(doc.createdAt, uiLocale)}
                       </p>
                     </div>
                     <a
@@ -194,9 +196,9 @@ export default async function AdminRegistrationDetailPage({
                 { label: "Terms of Service", value: reg.termsAccepted ? "Accepted" : "—" },
                 { label: "Privacy Notice", value: reg.privacyAcknowledged ? "Acknowledged" : "—" },
                 { label: "Accuracy confirmed", value: reg.infoConfirmed ? "Confirmed" : "—" },
-                { label: "Consented at", value: formatDateTime(reg.consentedAt) },
+                { label: "Consented at", value: formatDateTime(reg.consentedAt, uiLocale) },
                 { label: "Form language", value: LOCALE_NAMES[resolveLocale(reg.locale)] },
-                { label: "Review started", value: formatDateTime(reg.reviewedAt) },
+                { label: "Review started", value: formatDateTime(reg.reviewedAt, uiLocale) },
               ]}
             />
           </Card>
@@ -302,7 +304,7 @@ export default async function AdminRegistrationDetailPage({
                     <span className="absolute -start-[5px] mt-1 h-2.5 w-2.5 rounded-full bg-gold-400" />
                     <p className="text-xs font-semibold text-navy-900">{historyLabel(entry)}</p>
                     <p className="text-[11px] text-slate-400">
-                      {formatDateTime(entry.createdAt)}
+                      {formatDateTime(entry.createdAt, uiLocale)}
                       {entry.actorName ? ` · ${entry.actorName}` : ""}
                     </p>
                     {entry.note ? (

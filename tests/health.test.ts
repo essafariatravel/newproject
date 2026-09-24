@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { suiteSetup } from "./helpers/global-state";
 import { Pool } from "pg";
+import { readdirSync } from "node:fs";
+import path from "node:path";
 import { testConnectionString } from "./helpers/pg";
 
 suiteSetup();
+
+/** Every migration file, in ledger order. */
+const MIGRATION_FILES = readdirSync(path.join(__dirname, "..", "migrations"))
+  .filter((f) => f.endsWith(".sql"))
+  .sort();
 
 import { GET as healthGET } from "../src/app/api/health/route";
 
@@ -48,17 +55,9 @@ describe("GET /api/health (deployment diagnostics, never a 500, never secrets)",
       countries: true,
       schema_migrations: true,
     });
-    expect(body.schema.migrationLedger).toEqual([
-      "0001_init.sql",
-      "0002_branding.sql",
-      "0003_agency_registrations.sql",
-      "0004_phase2_1.sql",
-      "0005_canonical_decision_model.sql",
-      "0006_simplified_status_model.sql",
-      "0007_must_change_password.sql",
-      "0008_application_price_adjustments.sql",
-      "0009_atomic_request_submission.sql", "0010_simplified_applicant.sql", 
-    ]);
+    // The ledger must equal the migrations actually shipped on disk — this
+    // stays true for every future migration without editing the test.
+    expect(body.schema.migrationLedger).toEqual(MIGRATION_FILES);
     // The report must never contain a connection URI (credentials).
     expect(JSON.stringify(body)).not.toMatch(/postgres(ql)?:\/\//i);
   });

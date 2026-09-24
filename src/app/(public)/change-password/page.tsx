@@ -1,7 +1,7 @@
 import { pageUserForPasswordChange } from "@/lib/page-auth";
 import { flashFrom } from "@/lib/action-helpers";
 import { changePasswordAction, logoutAction } from "@/app/actions/auth";
-import { SubmitButton } from "@/components/forms";
+import { PasswordField, SubmitButton } from "@/components/forms";
 import { Flash } from "@/components/ui";
 import { chromeT, getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
@@ -37,18 +37,36 @@ export default async function ChangePasswordPage({
         <Flash {...flash} />
       </div>
       <form action={changePasswordAction} className="card mt-4 space-y-4 p-6">
-        <div>
-          <label className="label" htmlFor="cp-current">{ct("Current (temporary) password")}</label>
-          <input id="cp-current" name="current" type="password" required minLength={10} className="input" autoComplete="current-password" />
-        </div>
-        <div>
-          <label className="label" htmlFor="cp-new">{ct("New password")} * ({ct("min 10 characters")})</label>
-          <input id="cp-new" name="password" type="password" required minLength={10} className="input" autoComplete="new-password" />
-        </div>
-        <div>
-          <label className="label" htmlFor="cp-confirm">{ct("Confirm the new password")}</label>
-          <input id="cp-confirm" name="confirm" type="password" required minLength={10} className="input" autoComplete="new-password" />
-        </div>
+        <PasswordField
+          id="cp-current"
+          name="current"
+          label={ct("Current (temporary) password")}
+          required
+          autoComplete="current-password"
+          hint={ct("The password you were given by ESSAFARIA.")}
+          showLabel={ct("Show")}
+          hideLabel={ct("Hide")}
+        />
+        <PasswordField
+          id="cp-new"
+          name="password"
+          label={ct("New password")}
+          required
+          autoComplete="new-password"
+          hint={ct("At least 10 characters. Avoid reusing a password you use elsewhere.")}
+          showLabel={ct("Show")}
+          hideLabel={ct("Hide")}
+        />
+        <PasswordField
+          id="cp-confirm"
+          name="confirm"
+          label={ct("Confirm the new password")}
+          required
+          autoComplete="new-password"
+          hint={ct("Type the same password again.")}
+          showLabel={ct("Show")}
+          hideLabel={ct("Hide")}
+        />
         <SubmitButton className="btn-primary w-full" pendingLabel={ct("Saving…")}>
           {ct("Set password and continue")}
         </SubmitButton>

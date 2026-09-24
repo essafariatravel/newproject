@@ -2,6 +2,7 @@
  * Deterministic test fixtures: workflow config, visa catalogue, staff,
  * two agencies (A/B) with users. Inserted into a freshly migrated database.
  */
+import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   agencies,
@@ -123,8 +124,8 @@ export async function seedFixtures(): Promise<void> {
       { name: "Flight Reservation", code: "FLIGHT_RESERVATION", sortOrder: 40 },
       { name: "Hotel Reservation", code: "HOTEL_RESERVATION", sortOrder: 50 },
       { name: "Travel Insurance", code: "INSURANCE", sortOrder: 60 },
-      { name: "Issued Visa / Approval Decision", code: "DECISION_VISA_APPROVAL", sortOrder: 900 },
-      { name: "Refusal / Rejection Decision Letter", code: "DECISION_REFUSAL_LETTER", sortOrder: 910 },
+      { name: "Issued Visa / Approval Decision", code: "DECISION_VISA_APPROVAL", sortOrder: 900, agencyUploadable: false },
+      { name: "Refusal / Rejection Decision Letter", code: "DECISION_REFUSAL_LETTER", sortOrder: 910, agencyUploadable: false },
     ])
     .returning();
   const docByCode = new Map(docTypeRows.map((d) => [d.code, d]));
@@ -140,7 +141,7 @@ export async function seedFixtures(): Promise<void> {
         processingMinDays: 10,
         processingMaxDays: 25,
         fee: "120.00",
-        currency: "EUR",
+        currency: "DZD",
       },
       {
         countryId: countryRows[1]!.id,
@@ -150,7 +151,7 @@ export async function seedFixtures(): Promise<void> {
         processingMinDays: 5,
         processingMaxDays: 10,
         fee: "80.00",
-        currency: "USD",
+        currency: "DZD",
       },
     ])
     .returning();
@@ -176,7 +177,7 @@ export async function seedFixtures(): Promise<void> {
         email: "ops@agencya.example",
         city: "Casablanca",
         country: "Morocco",
-        currency: "EUR",
+        currency: "DZD",
         balance: "0",
       },
       {
@@ -185,7 +186,7 @@ export async function seedFixtures(): Promise<void> {
         email: "ops@agencyb.example",
         city: "London",
         country: "United Kingdom",
-        currency: "EUR",
+        currency: "DZD",
         balance: "0",
       },
     ])
@@ -222,6 +223,14 @@ export function authUser(overrides: {
     agencyStatus: overrides.agencyId ? "ACTIVE" : null,
     agencyName: null,
   };
+}
+
+/** Resolve a seeded document type id by its stable code. */
+export async function documentTypeIdByCode(code: string): Promise<string> {
+  const rows = await db.select({ id: documentTypes.id }).from(documentTypes).where(eq(documentTypes.code, code)).limit(1);
+  const row = rows[0];
+  if (!row) throw new Error(`document type not seeded: ${code}`);
+  return row.id;
 }
 
 export async function userByEmail(email: string) {

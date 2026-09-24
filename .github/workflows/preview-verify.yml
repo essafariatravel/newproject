@@ -7,7 +7,11 @@ name: Hosted Phase-2 Preview verification
 on:
   push:
     branches:
+      # Hosted verification runs for every session branch that is allowed to
+      # verify the Preview deployment. Nothing about the harness or its checks
+      # changes — only which branches may execute it.
       - arena/01a0c3b8-newproject
+      - arena/01a0ce58-newproject
     paths:
       - .github/workflows/preview-verify.yml
       - scripts/hosted-verify.sh

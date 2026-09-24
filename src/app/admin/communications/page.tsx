@@ -1,23 +1,27 @@
 import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
+import { getUiLocale } from "@/lib/ui-i18n";
 import { recentCommunications } from "@/lib/queries";
 import { formatDateTime } from "@/lib/format";
+import { contentT } from "@/lib/i18n-content";
 import { EmptyState, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminCommunicationsPage() {
   await pageUser();
+  const uiLocale = await getUiLocale();
+  const ct = contentT(uiLocale);
   const messages = await recentCommunications(40);
 
   return (
     <>
       <PageHeader
-        title="Communications"
-        subtitle="Latest messages across all application threads. Open an application to reply."
+        title={ct("Communications")}
+        subtitle={ct("Latest messages across all application threads. Open an application to reply.")}
       />
       {messages.length === 0 ? (
-        <div className="card"><EmptyState title="No messages yet" body="Application communication timelines will appear here." /></div>
+        <div className="card"><EmptyState title={ct("No messages yet")} body={ct("Application communication timelines will appear here.")} /></div>
       ) : (
         <div className="space-y-3">
           {messages.map(({ message, authorName, applicationReference, applicationId, agencyName }) => (
@@ -31,9 +35,9 @@ export default async function AdminCommunicationsPage() {
                 </p>
                 <div className="flex items-center gap-2">
                   <span className={`badge ${message.visibility === "INTERNAL" ? "bg-slate-200 text-slate-600" : "bg-teal-100 text-teal-700"}`}>
-                    {message.visibility === "INTERNAL" ? "Internal note" : "Agency-visible"}
+                    {message.visibility === "INTERNAL" ? ct("Internal note") : ct("Agency-visible")}
                   </span>
-                  <span className="text-[11px] text-slate-400">{formatDateTime(message.createdAt)}</span>
+                  <span className="text-[11px] text-slate-400">{formatDateTime(message.createdAt, uiLocale)}</span>
                 </div>
               </div>
               <p className="mt-1.5 line-clamp-2 text-sm text-slate-700">{message.body}</p>

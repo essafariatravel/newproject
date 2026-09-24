@@ -2,6 +2,8 @@ import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
 import { listCountries, listVisaCategories, listVisaTypesWithRelations } from "@/lib/applications-exports";
+import { resolvePageSize } from "@/lib/queries";
+import { PageSizeSelector } from "@/components/app-widgets";
 import { flashFrom } from "@/lib/action-helpers";
 import { createVisaTypeAction, updateVisaTypeAction } from "@/app/actions/config";
 import { formatAmount, formatProcessingDays } from "@/lib/format";
@@ -10,7 +12,7 @@ import { SubmitButton } from "@/components/forms";
 import { ActiveBadge, EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
-const PAGE_SIZE = 20;
+
 
 export default async function VisaTypesConfigPage({
   searchParams,
@@ -46,8 +48,9 @@ export default async function VisaTypesConfigPage({
     );
   }
   const total = rows.length;
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const paged = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const per = resolvePageSize(sp.per);
+  const pageCount = Math.max(1, Math.ceil(total / per));
+  const paged = rows.slice((page - 1) * per, page * per);
 
   return (
     <>
@@ -91,7 +94,7 @@ export default async function VisaTypesConfigPage({
               <td className="td whitespace-nowrap text-xs">{formatProcessingDays(vt.processingMinDays, vt.processingMaxDays)}</td>
               <td className="td"><ActiveBadge active={vt.active} /></td>
               <td className="td text-right">
-                {canManage ? (
+        {canManage ? (
                   <form action={updateVisaTypeAction} className="inline">
                     <input type="hidden" name="id" value={vt.id} />
                     <input type="hidden" name="toggle" value="1" />
@@ -113,11 +116,15 @@ export default async function VisaTypesConfigPage({
         <div className="mt-3 flex items-center justify-between text-xs">
           <span className="text-slate-500">Page {page} / {pageCount} — {total} total</span>
           <span className="flex gap-1.5">
-            {page > 1 ? <Link href={`/admin/config/visa-types?${new URLSearchParams({ ...(q ? { q } : {}), page: String(page - 1) }).toString()}`} className="btn-secondary btn-sm">← Prev</Link> : null}
-            {page < pageCount ? <Link href={`/admin/config/visa-types?${new URLSearchParams({ ...(q ? { q } : {}), page: String(page + 1) }).toString()}`} className="btn-secondary btn-sm">Next →</Link> : null}
+            {page > 1 ? <Link href={`/admin/config/visa-types?${new URLSearchParams({ ...(q ? { q } : {}), ...(per !== 20 ? { per: String(per) } : {}), page: String(page - 1) }).toString()}`} className="btn-secondary btn-sm">← Prev</Link> : null}
+            {page < pageCount ? <Link href={`/admin/config/visa-types?${new URLSearchParams({ ...(q ? { q } : {}), ...(per !== 20 ? { per: String(per) } : {}), page: String(page + 1) }).toString()}`} className="btn-secondary btn-sm">Next →</Link> : null}
           </span>
         </div>
       ) : null}
+
+      <div className="mt-2 flex justify-end">
+        <PageSizeSelector pageSize={per} basePath="/admin/config/visa-types" query={{ q }} />
+      </div>
 
       {canManage ? (
         <div className="mt-8">

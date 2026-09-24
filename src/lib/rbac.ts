@@ -106,11 +106,12 @@ const PERMISSIONS: Record<Role, readonly Permission[]> = {
     "notifications.staff",
   ],
   VISA_AGENT: [
+    // §36 — case processing only. Agency administration (create/suspend) and
+    // partner-registration decisions belong to ADMIN/SUPER_ADMIN, so the
+    // agent keeps read access without the management permission.
     "admin.access",
-    "agencies.manage",
     "agencies.view",
     "registrations.view",
-    "registrations.manage",
     "users.view",
     "config.view",
     "reports.view",
@@ -130,11 +131,11 @@ const PERMISSIONS: Record<Role, readonly Permission[]> = {
     "notifications.staff",
   ],
   ACCOUNTING: [
+    // §36 — finance role: wallets, top-ups, invoices, reports. It may read the
+    // partner records it bills, but never administers agencies or users.
     "admin.access",
-    "agencies.manage",
     "agencies.view",
     "registrations.view",
-    "registrations.manage",
     "users.view",
     "config.view",
     "reports.view",

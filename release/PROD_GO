@@ -1,8 +1,0 @@
-PRODUCTION RELEASE AUTHORIZATION — d2bb0d3
-
-Branch: arena/01a0ce58-newproject
-Commit: d2bb0d3 (supersedes c1b138d)
-Authorized scope: ONLY 0011_dzd_only_and_wallet_ref.sql + 0012_document_requests.sql to Supabase xgetzgixalrsmuvfthpf schema visa_os
-Baseline: ledger 0001-0010, users 4, agencies 3, applications 1, applicants 1, notifications 13, communications 0, audit_logs 45, site_settings 13, documents 2, document_blobs 4, checklist_items 2, wallet_transactions 2, application_status_history 3, wallet checksum e1fdc33dc84212d28deb24429c4853d2, agency balances 6b946ee161521be88d246ad359a78497, status IN_PROCESS 1, brand ESSAFARIA TRAVEL
-Hardened tooling: scripts/prod-release.ts with restore snapshots, DATABASE_SCHEMA=visa_os pinned, project guard, ledger guard, integrity checks
-Date: 2026-05-13T authorized

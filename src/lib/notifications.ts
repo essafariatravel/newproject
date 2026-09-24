@@ -19,7 +19,10 @@ type NotificationType =
   | "REGISTRATION_SUBMITTED"
   | "REGISTRATION_APPROVED"
   | "REGISTRATION_REJECTED"
-  | "AGENCY_ONBOARDED";
+  | "AGENCY_ONBOARDED"
+  | "TOPUP_REQUESTED"
+  | "WALLET_TOPUP_DECIDED"
+  | "DOCUMENT_REQUEST_FULFILLED";
 
 /**
  * Insert a notification row per recipient user.

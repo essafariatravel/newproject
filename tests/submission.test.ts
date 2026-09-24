@@ -37,7 +37,7 @@ describe("application creation & snapshots", () => {
     const app = await createDraftApplication({ agencyId: agencyA.id, visaTypeId: await visaId(), createdBy: staffA });
     expect(app.reference).toMatch(/^EVT-\d{2}-[A-Z2-9]{8}$/);
     expect(app.fee).toBe("120.00");
-    expect(app.currency).toBe("EUR");
+    expect(app.currency).toBe("DZD");
     expect(app.processingMinDays).toBe(10);
     expect(app.processingMaxDays).toBe(25);
     expect(app.visaTypeName).toBe("France Schengen Tourist");

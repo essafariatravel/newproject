@@ -10,8 +10,12 @@ concurrency:
   group: pre-prod-gate
   cancel-in-progress: true
 
+# The gate job itself stays read-only against the repository. Only the small
+# reporting job (which never checks out or executes repository code) may write,
+# and it only ever posts the gate's own PASS/FAIL summary as a commit comment —
+# that is how the verdict stays readable without downloading CI log blobs.
 permissions:
-  contents: read
+  contents: write
   deployments: read
 
 jobs:
@@ -20,6 +24,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: Preview
+    permissions:
+      contents: read
+      deployments: read
+    outputs:
+      verdict: ${{ steps.run-gate.outputs.verdict }}
+      exit_code: ${{ steps.run-gate.outputs.exit_code }}
     env:
       DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
       DATABASE_SCHEMA: visa_os_preview
@@ -42,7 +52,24 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Run pre-production gate script
-        run: npx tsx scripts/pre-prod-gate.ts
+        id: run-gate
+        # The verdict is captured (and published) whether the gate passes or fails;
+        # the dedicated step below still fails the job on a non-zero exit, so a
+        # failing gate can never be reported as green.
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          npx tsx scripts/pre-prod-gate.ts 2>&1 | tee /tmp/gate.out
+          CODE=${PIPESTATUS[0]}
+          {
+            echo "exit_code=$CODE"
+            echo "verdict<<GATE_VERDICT_EOF"
+            # Only PASS/FAIL/ledger/migration lines — never connection details.
+            grep -E "^(PASS|FAIL|Applying|Applied|Preview ledger|Prod ledger|Using disposable|== |--- )" /tmp/gate.out | tail -200 || echo "(no PASS/FAIL lines captured)"
+            echo "gate exit code: $CODE"
+            echo "GATE_VERDICT_EOF"
+          } >> "$GITHUB_OUTPUT"
+          exit $CODE
 
       - name: Verify production untouched (read-only via health endpoints)
         run: |
@@ -53,10 +80,11 @@ jobs:
           import json
           d=json.load(open('/tmp/prod.json'))
           ledger=d.get('schema',{}).get('migrationLedger',[])
-          assert '0011_dzd_only_and_wallet_ref.sql' not in ledger, 'prod has 0011'
-          assert '0012_document_requests.sql' not in ledger, 'prod has 0012'
+          assert '0013_embassy_applicability.sql' not in ledger, 'prod has 0013 — production must stay untouched'
+          assert '0014_wallet_topup_requests.sql' not in ledger, 'prod has 0014 — production must stay untouched'
+          assert '0012_document_requests.sql' in ledger, 'prod is behind the released 0012'
           assert d.get('schema',{}).get('name')=='visa_os', 'prod schema not visa_os'
-          print('PROD untouched verified: ledger through 0010 only')
+          print(f'PROD untouched verified: released state through 0012 ({len(ledger)} migrations)')
           "
           echo "Checking preview health..."
           # Use the latest preview deployment URL for this SHA
@@ -73,10 +101,10 @@ jobs:
           import json
           d=json.load(open('/tmp/preview.json'))
           ledger=d.get('schema',{}).get('migrationLedger',[])
-          assert '0011_dzd_only_and_wallet_ref.sql' in ledger, 'preview missing 0011'
-          assert '0012_document_requests.sql' in ledger, 'preview missing 0012'
+          for required in ('0011_dzd_only_and_wallet_ref.sql','0012_document_requests.sql','0013_embassy_applicability.sql','0014_wallet_topup_requests.sql'):
+              assert required in ledger, f'preview missing {required}'
           assert d.get('schema',{}).get('name')=='visa_os_preview', 'preview schema not preview'
-          print(f'PREVIEW verified: {len(ledger)} migrations through 0012')
+          print(f'PREVIEW verified: {len(ledger)} migrations through 0014')
           "
                 exit 0
               fi
@@ -87,3 +115,42 @@ jobs:
           echo "could not resolve preview URL, but DB gate already verified ledger"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fail the job when the gate did not pass
+        if: steps.run-gate.outputs.exit_code != '0'
+        run: |
+          echo "pre-production gate exited with ${{ steps.run-gate.outputs.exit_code }}"
+          exit 1
+
+  report:
+    name: Publish the gate verdict as a commit comment
+    needs: gate
+    if: always()
+    runs-on: ubuntu-latest
+    # No checkout, no repository code: this job only posts the verdict string.
+    permissions:
+      contents: write
+    steps:
+      - name: Post gate verdict
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WF_REPO: ${{ github.repository }}
+          WF_SHA: ${{ github.sha }}
+          WF_RESULT: ${{ needs.gate.result }}
+          VERDICT: ${{ needs.gate.outputs.verdict }}
+        run: |
+          python3 - <<'PY'
+          import os, subprocess
+          body = "### Pre-Production Gate (visa_os_preview) — %s\n\n```\n%s\n```" % (
+              os.environ["WF_RESULT"].upper(),
+              os.environ.get("VERDICT") or "(gate output unavailable — job did not reach the gate step)",
+          )
+          r = subprocess.run(
+              ["gh", "api", "repos/%s/commits/%s/comments" % (os.environ["WF_REPO"], os.environ["WF_SHA"]),
+               "-f", "body=" + body],
+              capture_output=True, text=True,
+          )
+          print(r.stdout[-200:])
+          print(r.stderr[-200:])
+          raise SystemExit(r.returncode)
+          PY

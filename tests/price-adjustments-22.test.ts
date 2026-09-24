@@ -32,7 +32,7 @@ async function visaId() {
   return ((await db.execute(sql`select id from visa_types where code='FR-SCH-TOUR'`)).rows[0] as { id: string }).id;
 }
 
-/** A freshly SUBMITTED app at the standard 120 EUR fee on agency B (fully-funded). */
+/** A freshly SUBMITTED app at the standard 120 DZD fee on agency B (fully-funded). */
 async function submittedApp(n: number) {
   const agencyB = await agencyByEmail("ops@agencyb.example");
   const staffB = await userByEmail("b-admin@test.example");
@@ -63,7 +63,7 @@ async function submittedApp(n: number) {
 const staff = () => userByEmail("admin@test.example");
 
 describe("Phase 2.2 §17 — staff price adjustment core", () => {
-  it("#66 happy path: 120 EUR charge + 25 EUR staff discount → effective 95, original debit untouched, wallet compensated", async () => {
+  it("#66 happy path: 120 DZD charge + 25 DZD staff discount → effective 95, original debit untouched, wallet compensated", async () => {
     const { app, agency } = await submittedApp(66);
     const admin = await staff();
     const originalCharge = (await db.execute(sql`
@@ -224,7 +224,7 @@ describe("Phase 2.2 §17 — staff price adjustment core", () => {
 
   it("#76 currency always equals the SUBMITTED currency (no client-controlled currency exists in the input model)", async () => {
     const { app, agency } = await submittedApp(76);
-    expect(agency.currency).toBe("EUR");
+    expect(agency.currency).toBe("DZD");
     const res = await applyPriceAdjustment({ applicationId: app.id, actor: await staff(), type: "DISCOUNT", amount: 5, reason: "Micro discount check", idempotencyKey: `t76-${app.id}` });
     const pricing = await getApplicationPricing(app.id);
     expect(pricing!.adjustments[0]!.currency).toBe(app.currency);

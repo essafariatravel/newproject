@@ -9,8 +9,11 @@
  * Authorization: AGENCY_ADMIN only, always scoped to the actor's own agency
  * — cross-agency access is rejected even if an agency id is explicitly passed.
  *
- * Multi-currency: ledger rows in mixed currencies are reported in SEPARATE
- * sections — currencies are never summed together.
+ * DZD-only (platform rule §7): DZD is the operational currency and is always
+ * the primary section. Historical non-DZD ledger rows (from before the
+ * DZD-only migration) are NEVER converted and never summed into DZD totals —
+ * they are reported in their own section and counted in `nonDzdRowCount` so
+ * nothing disappears silently.
  */
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/lib/db";
@@ -48,6 +51,8 @@ export interface WalletStatement {
   to: Date;
   generatedAt: Date;
   sections: StatementCurrencySection[];
+  /** Historical rows in currencies other than DZD (reported, never converted). */
+  nonDzdRowCount: number;
   truncated: boolean;
 }
 
@@ -130,6 +135,7 @@ export async function getAgencyWalletStatement(params: {
   const inRange = truncated ? rows.slice(0, STATEMENT_MAX_ROWS) : rows;
 
   // Group per currency — mixed-currency ledgers are reported separately, never summed.
+  // Operational currency is DZD (§7); anything else here is historical data.
   const byCurrency = new Map<string, StatementTx[]>();
   for (const r of inRange) {
     // Direction comes from the ledger movement itself, never from a type-name guess.
@@ -156,8 +162,10 @@ export async function getAgencyWalletStatement(params: {
   }
 
   const sections: StatementCurrencySection[] = [];
-  // Agency's primary currency first so the statement reads naturally.
-  const ordered = [...byCurrency.keys()].sort((a, b) => (a === agency.currency ? -1 : b === agency.currency ? 1 : a.localeCompare(b)));
+  // DZD first (§7): the operational currency leads the statement.
+  const ordered = [...byCurrency.keys()].sort((a, b) =>
+    a === "DZD" ? -1 : b === "DZD" ? 1 : a === agency.currency ? -1 : b === agency.currency ? 1 : a.localeCompare(b),
+  );
   for (const currency of ordered) {
     const txs = byCurrency.get(currency)!;
     const opening = txs[0]!.balanceBefore;
@@ -181,7 +189,7 @@ export async function getAgencyWalletStatement(params: {
   // Zero-transaction periods still produce a valid statement: opening = closing = current balance.
   if (sections.length === 0) {
     sections.push({
-      currency: agency.currency,
+      currency: "DZD",
       openingBalance: Number(agency.balance),
       totalCredits: 0,
       totalDebits: 0,
@@ -196,6 +204,7 @@ export async function getAgencyWalletStatement(params: {
     to,
     generatedAt: new Date(),
     sections,
+    nonDzdRowCount: inRange.filter((r) => r.currency !== "DZD").length,
     truncated,
   };
 }
@@ -230,6 +239,12 @@ export async function buildWalletStatementPdf(statement: WalletStatement): Promi
   doc.setTitle(`Wallet statement — ${latinize(statement.agency.legalName)}`);
   doc.setSubject("Agency prepaid wallet statement");
   doc.setProducer("Essafaria Visa OS");
+  // Deterministic artefact: pdf-lib would otherwise stamp the wall-clock time, so
+  // the same statement produced twice could differ byte-for-byte (and a re-issued
+  // statement would not be verifiable against the original). The statement's own
+  // timestamp is the truthful creation date.
+  doc.setCreationDate(statement.generatedAt);
+  doc.setModificationDate(statement.generatedAt);
 
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);

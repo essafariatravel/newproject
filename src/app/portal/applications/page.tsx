@@ -1,16 +1,17 @@
 import Link from "next/link";
 import { portalPageUser } from "@/lib/page-auth";
-import { searchApplications } from "@/lib/queries";
+import { searchApplications, resolvePageSize } from "@/lib/queries";
 import { listStatuses } from "@/lib/applications";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatDate } from "@/lib/format";
-import { FilterBar, Pagination } from "@/components/app-widgets";
+import { FilterBar, Pagination, PageSizeSelector } from "@/components/app-widgets";
 import { localizedStatusName } from "@/lib/ui-i18n";
 import { EmptyState, Flash, PageHeader, Progress, TableWrap } from "@/components/ui";
 import { StatusBadge } from "@/components/badges";
 import { checklistProgress } from "@/lib/applications";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
+import { countryName } from "@/lib/country-names";
 
 export const dynamic = "force-dynamic";
 
@@ -29,13 +30,13 @@ export default async function PortalApplicationsPage({
   const page = Number(sp.page ?? "1") || 1;
 
   const [result, statuses] = await Promise.all([
-    searchApplications(user, { q: sp.q, statusCode: sp.status, dateFrom: sp.from, dateTo: sp.to, page }),
+    searchApplications(user, { q: sp.q, statusCode: sp.status, dateFrom: sp.from, dateTo: sp.to, page, pageSize: resolvePageSize(sp.per) }),
     listStatuses(true),
   ]);
 
   const progressById = new Map<string, { done: number; total: number }>();
   await Promise.all(
-    result.rows.slice(0, 20).map(async (r) => {
+    result.rows.map(async (r) => {
       const p = await checklistProgress(r.app.id);
       progressById.set(r.app.id, { done: p.requiredComplete, total: p.requiredTotal });
     }),
@@ -75,6 +76,39 @@ export default async function PortalApplicationsPage({
         </div>
       ) : (
         <>
+          {/* §"mobile cards" — on a phone a seven-column table is unusable, so the
+              same rows are rendered as cards (same data, same links, same order).
+              The table stays for pointer/desktop viewports. */}
+          <div className="space-y-3 md:hidden" data-testid="applications-cards">
+            {result.rows.map((r) => {
+              const p = progressById.get(r.app.id);
+              return (
+                <Link
+                  key={r.app.id}
+                  href={`/portal/applications/${r.app.id}`}
+                  className="card block p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="font-medium text-navy-900">{r.app.reference}</span>
+                    <StatusBadge code={r.statusCode} name={r.statusName} />
+                  </div>
+                  <p className="mt-1 text-sm text-navy-900">{r.applicantSummary ?? "—"}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)} · {r.app.visaTypeName}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                    <span className="tabular-nums">{r.app.fee} DZD</span>
+                    <span className="flex items-center gap-2">
+                      {p ? <Progress done={p.done} total={p.total} /> : null}
+                      <span>{formatDate(r.app.createdAt, uiLocale)}</span>
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className="hidden md:block">
           <TableWrap>
             <thead className="border-b border-slate-100 bg-ivory-50/60">
               <tr>
@@ -101,19 +135,23 @@ export default async function PortalApplicationsPage({
                         immediately after REFERENCE. */}
                     <td className="td font-medium text-navy-900">{r.applicantSummary ?? "—"}</td>
                     <td className="td">
-                      {r.app.countryName}
+                      {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}
                       <span className="block text-xs text-slate-400">{r.app.visaTypeName}</span>
                     </td>
                     <td className="td">{p ? <Progress done={p.done} total={p.total} /> : "—"}</td>
                     <td className="td whitespace-nowrap tabular-nums">{r.app.fee} DZD</td>
                     <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
-                    <td className="td whitespace-nowrap text-xs text-slate-500">{formatDate(r.app.createdAt)}</td>
+                    <td className="td whitespace-nowrap text-xs text-slate-500">{formatDate(r.app.createdAt, uiLocale)}</td>
                   </tr>
                 );
               })}
             </tbody>
           </TableWrap>
-          <Pagination locale={uiLocale} page={result.page} pageCount={result.pageCount} total={result.total} basePath="/portal/applications" query={{ q: sp.q, status: sp.status, from: sp.from, to: sp.to }} />
+          </div>
+          <Pagination locale={uiLocale} page={result.page} pageCount={result.pageCount} total={result.total} basePath="/portal/applications" query={{ q: sp.q, status: sp.status, from: sp.from, to: sp.to, per: sp.per }} />
+          <div className="flex justify-end">
+            <PageSizeSelector locale={uiLocale} pageSize={resolvePageSize(sp.per)} basePath="/portal/applications" query={{ q: sp.q, status: sp.status, from: sp.from, to: sp.to }} />
+          </div>
         </>
       )}
     </>

@@ -34,6 +34,23 @@ describe("rbac", () => {
     expect(hasPermission(agencyUser, "wallet.adjust")).toBe(false);
   });
 
+  it("§36 — case-processing and finance roles never administer agencies, users or partners", async () => {
+    const agent = await userByEmail("agent@test.example");
+    const accounting = await userByEmail("accounting@test.example");
+    // Read-only visibility stays; management does not.
+    for (const staff of [agent, accounting]) {
+      expect(hasPermission(staff, "agencies.view")).toBe(true);
+      expect(hasPermission(staff, "agencies.manage")).toBe(false);
+      expect(hasPermission(staff, "users.manage")).toBe(false);
+      expect(hasPermission(staff, "registrations.manage")).toBe(false);
+    }
+    // Wallet mutation is ACCOUNTING-only on top of SUPER_ADMIN/ADMIN.
+    expect(hasPermission(agent, "wallet.adjust")).toBe(false);
+    expect(hasPermission(accounting, "wallet.adjust")).toBe(true);
+    // …and an agent cannot administer the catalogue it processes against.
+    expect(hasPermission(agent, "config.manage")).toBe(false);
+  });
+
   it("document review is staff-only", async () => {
     const agent = await userByEmail("agent@test.example");
     const agencyUser = await userByEmail("a-user@test.example");

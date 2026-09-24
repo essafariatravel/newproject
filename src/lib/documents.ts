@@ -1,4 +1,5 @@
 import { qualifiedTable } from "./database-schema";
+import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 /**
  * Document service — secure upload, review workflow, tenant-safe retrieval.
  * Post-submission locking: agency uploads are blocked unless staff explicitly
@@ -180,16 +181,24 @@ export async function uploadDocument(input: UploadDocumentInput) {
     throw new AppError("UNSUPPORTED_TYPE", "Allowed formats: PDF, JPEG, PNG, WEBP, DOC, DOCX.");
   }
   const name = input.file.name;
-  if (name.length > 200 || /[\\u0000-\\u001f\\\\/]/.test(name)) {
-    throw new AppError("INVALID_FILENAME", "Invalid file name.");
-  }
+  const problem = fileNameProblem(name);
+  if (problem) throw new AppError("INVALID_FILENAME", fileNameErrorMessage(problem));
 
   const dtRows = await db
-    .select({ id: documentTypes.id, active: documentTypes.active })
+    .select({ id: documentTypes.id, name: documentTypes.name, active: documentTypes.active, agencyUploadable: documentTypes.agencyUploadable })
     .from(documentTypes)
     .where(eq(documentTypes.id, documentTypeId))
     .limit(1);
   if (!dtRows[0]?.active) throw new AppError("NOT_FOUND", "Document type is not available.");
+  // Decision documents (issued visa / approval) belong to ESSAFARIA's staff
+  // workflow: an agency can never upload into that slot, even with an open
+  // request, and such a request can no longer be created (see document-requests).
+  if (input.actor.agencyId && dtRows[0].agencyUploadable === false) {
+    throw new AppError(
+      "UPLOAD_NOT_ALLOWED",
+      `"${dtRows[0].name}" is issued by ESSAFARIA and is not uploaded by agencies.`,
+    );
+  }
 
   if (input.applicantId) {
     const rows = await db
@@ -436,6 +445,40 @@ export async function listApplicantsForApplication(applicationId: string) {
     .from(applicants)
     .where(eq(applicants.applicationId, applicationId))
     .orderBy(asc(applicants.createdAt));
+}
+
+/**
+ * Display grouping shared by the staff dossier and the agency portal.
+ *
+ * Documents are grouped by their checklist requirement. Anything that is not
+ * linked to a checklist row of THIS application (older rows without a checklist
+ * link, or a document whose requirement was later removed) is returned in
+ * `unassigned` instead of being silently dropped — a document that exists but
+ * renders nowhere was exactly how "staff cannot see the document the agency just
+ * uploaded" happened. Both surfaces must render every row they receive.
+ */
+export function groupDocumentsForDisplay<
+  T extends { doc: { checklistItemId: string | null; version: number; createdAt: Date | string } },
+>(checklist: Array<{ id: string }>, rows: T[]): { byItem: Map<string, T[]>; unassigned: T[] } {
+  const itemIds = new Set(checklist.map((c) => c.id));
+  const byItem = new Map<string, T[]>();
+  const unassigned: T[] = [];
+  for (const row of rows) {
+    const itemId = row.doc.checklistItemId;
+    if (!itemId || !itemIds.has(itemId)) {
+      unassigned.push(row);
+      continue;
+    }
+    const bucket = byItem.get(itemId) ?? [];
+    bucket.push(row);
+    byItem.set(itemId, bucket);
+  }
+  const byVersionDesc = (a: T, b: T) =>
+    b.doc.version - a.doc.version ||
+    new Date(b.doc.createdAt).getTime() - new Date(a.doc.createdAt).getTime();
+  for (const bucket of byItem.values()) bucket.sort(byVersionDesc);
+  unassigned.sort(byVersionDesc);
+  return { byItem, unassigned };
 }
 
 export async function getDocumentStatusCounts() {

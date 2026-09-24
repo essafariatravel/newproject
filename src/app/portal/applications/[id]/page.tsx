@@ -1,24 +1,26 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { portalPageUser } from "@/lib/page-auth";
-import { getApplicationDetail } from "@/lib/queries";
+import { getApplicationDetail, getEmbassyApplicability } from "@/lib/queries";
 import {
   getChecklist,
   getDecisionDocuments,
   getStatusByCode,
   getStatusHistory,
 } from "@/lib/applications";
-import { listApplicantsForApplication, listDocumentsForApplication } from "@/lib/documents";
+import { groupDocumentsForDisplay, listApplicantsForApplication, listDocumentsForApplication } from "@/lib/documents";
 import { listDocumentRequests } from "@/lib/document-requests";
 import { findTransactionByApplication, getBalance } from "@/lib/wallet";
 import { listCommunications } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
 import { getUiLocale, localizedDocTypeName } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
+import { countryName } from "@/lib/country-names";
 import { getApplicationPricing } from "@/lib/price-adjustments";
 import { PriceAdjustmentHistory } from "@/components/application-detail";
 import { formatDateTime, formatAmount, bytes } from "@/lib/format";
 import { nationalityLabel } from "@/lib/nationalities";
+import { buildProgress } from "@/lib/progress";
 import { Card, CardHeader, Flash, PageHeader, Tabs } from "@/components/ui";
 import { StatusBadge } from "@/components/badges";
 import {
@@ -66,6 +68,14 @@ export default async function PortalApplicationDetailPage({
       listDocumentRequests(id),
     ]);
   const isDraft = app.statusId === draftStatus.id;
+  // §17 — progress is derived from the persisted history, and the embassy
+  // stage only appears when the programme declares it (or the file went there).
+  const embassyApplicability = await getEmbassyApplicability(app.visaTypeId);
+  const progress = buildProgress({
+    statusCode: detail.statusCode,
+    history: history.map((h) => ({ toStatusCode: h.toStatus.code, createdAt: h.history.createdAt })),
+    embassyApplicability,
+  });
   const flash = flashFrom(sp);
   const uiLocale = await getUiLocale(sp);
   const ct = contentT(uiLocale);
@@ -77,12 +87,17 @@ export default async function PortalApplicationDetailPage({
   const applicantNationality = applicant?.nationality ?? "—";
 
   const openRequests = docRequests.filter((r) => r.req.status === "OPEN");
+  const fulfilledRequests = docRequests.filter((r) => r.req.status === "FULFILLED");
+  // Grouping is shared with the staff dossier: a document that is not linked to a
+  // checklist requirement is still listed (never invisible) instead of vanishing
+  // from the agency's own view of its dossier.
+  const documentGroups = groupDocumentsForDisplay(checklist, docs);
 
   return (
     <>
       <PageHeader
         title={app.reference}
-        subtitle={`${app.countryName} · ${app.visaTypeName}`}
+        subtitle={`${countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)} · ${app.visaTypeName}`}
         actions={
           <>
             <StatusBadge code={detail.statusCode} name={detail.statusName} />
@@ -108,11 +123,11 @@ export default async function PortalApplicationDetailPage({
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Reference")}</p>
                   <p className="mt-1 font-mono text-navy-900">{app.reference}</p>
-                  <p className="text-xs text-slate-500">{ct("Submitted")}: {formatDateTime(app.submittedAt)}</p>
+                  <p className="text-xs text-slate-500">{ct("Submitted")}: {formatDateTime(app.submittedAt, uiLocale)}</p>
                 </div>
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Destination")}</p>
-                  <p className="mt-1 font-medium text-navy-900">{app.countryName}</p>
+                  <p className="mt-1 font-medium text-navy-900">{countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)}</p>
                   <p className="text-xs text-slate-500">{app.visaTypeName} · {app.categoryName}</p>
                 </div>
                 <div>
@@ -122,15 +137,29 @@ export default async function PortalApplicationDetailPage({
                 </div>
                 <div className="sm:col-span-2">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Progress")}</p>
-                  <div className="mt-2 flex items-center gap-2 text-xs">
-                    <span className={`px-2.5 py-1 rounded-full font-medium ${detail.statusCode === "SUBMITTED" ? "bg-iris-100 text-iris-700" : "bg-slate-100 text-slate-500"}`}>{ct("Submitted")}</span>
-                    <span className="text-slate-300">→</span>
-                    <span className={`px-2.5 py-1 rounded-full font-medium ${detail.statusCode === "DOCUMENTS_CHECKING" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"}`}>{ct("Documents checking")}</span>
-                    <span className="text-slate-300">→</span>
-                    <span className={`px-2.5 py-1 rounded-full font-medium ${detail.statusCode === "IN_PROCESS" ? "bg-teal-100 text-teal-700" : "bg-slate-100 text-slate-500"}`}>{ct("In process")}</span>
-                    <span className="text-slate-300">→</span>
-                    <span className={`px-2.5 py-1 rounded-full font-medium ${["APPROVED","REJECTED"].includes(detail.statusCode) ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{ct("Completed")}</span>
-                  </div>
+                  <ol className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs" data-testid="application-progress">
+                    {progress.map((step, index) => (
+                      <li key={step.key} className="flex items-center gap-2">
+                        {index > 0 ? <span aria-hidden className="text-slate-300">→</span> : null}
+                        <span
+                          data-step={step.key}
+                          data-state={step.state}
+                          className={`rounded-full px-2.5 py-1 font-medium ${
+                            step.state === "current"
+                              ? "bg-iris-100 text-iris-700"
+                              : step.state === "done"
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "bg-slate-100 text-slate-400"
+                          }`}
+                        >
+                          {ct(step.label)}
+                        </span>
+                        {step.at && step.state !== "pending" ? (
+                          <span className="hidden text-[11px] text-slate-400 sm:inline">{formatDateTime(step.at, uiLocale)}</span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ol>
                   {openRequests.length > 0 ? (
                     <div className="mt-3 rounded-xl bg-amber-50 border border-amber-200 p-3">
                       <p className="text-sm font-semibold text-amber-800">{ct("Action required")} — {openRequests.length} {ct("document(s) requested")}</p>
@@ -154,7 +183,7 @@ export default async function PortalApplicationDetailPage({
                     <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-100 bg-emerald-50/50 px-3 py-2.5">
                       <div>
                         <p className="font-medium text-navy-900">{localizedDocTypeName(d.typeCode, d.typeName, uiLocale)}</p>
-                        <p className="text-xs text-slate-500">{formatDateTime(d.createdAt)}</p>
+                        <p className="text-xs text-slate-500">{formatDateTime(d.createdAt, uiLocale)}</p>
                       </div>
                       <a href={`/api/documents/${d.id}`} className="btn-primary btn-sm">{ct("Download")}</a>
                     </li>
@@ -182,7 +211,7 @@ export default async function PortalApplicationDetailPage({
                     <div className="flex justify-between"><span className="text-slate-500">{ct("Balance before")}</span><span className="tabular-nums">{formatAmount(charge.balanceBefore, "DZD", uiLocale)}</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">{ct("Balance after")}</span><span className="tabular-nums font-medium">{formatAmount(charge.balanceAfter, "DZD", uiLocale)}</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">{ct("Transaction")}</span><span className="font-mono text-xs">{(charge as { reference?: string | null }).reference ?? charge.id.slice(0,8)}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">{ct("Charged at")}</span><span className="text-xs">{formatDateTime(charge.createdAt)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">{ct("Charged at")}</span><span className="text-xs">{formatDateTime(charge.createdAt, uiLocale)}</span></div>
                   </>
                 ) : (
                   <p className="text-xs text-slate-500">{ct("No charge recorded yet.")}</p>
@@ -241,7 +270,7 @@ export default async function PortalApplicationDetailPage({
             <CardHeader title={ct("Documents")} subtitle={isDraft ? ct("Upload required documents") : ct("Submitted documents are locked. Only requested replacements can be uploaded.")} />
             <div className="divide-y divide-slate-100">
               {checklist.map((item) => {
-                const itemDocs = docs.filter((d) => d.doc.checklistItemId === item.id).sort((a,b) => b.doc.version - a.doc.version);
+                const itemDocs = documentGroups.byItem.get(item.id) ?? [];
                 const latest = itemDocs[0];
                 const hasOpenRequest = openRequests.some((r) => r.req.checklistItemId === item.id || r.req.documentTypeId === item.documentTypeId);
                 return (
@@ -257,6 +286,9 @@ export default async function PortalApplicationDetailPage({
                       ) : (
                         <span className="badge bg-amber-50 text-amber-700">{ct("Missing")}</span>
                       )}
+                      {latest && fulfilledRequests.some((r) => r.req.fulfilledDocumentId === latest.doc.id) ? (
+                        <span className="badge bg-teal-50 text-teal-700">{ct("Received")}</span>
+                      ) : null}
                     </div>
                     {itemDocs.length > 0 ? (
                       <ul className="mt-3 space-y-2">
@@ -264,7 +296,7 @@ export default async function PortalApplicationDetailPage({
                           <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ivory-50 px-3 py-2 text-xs">
                             <span className="flex items-center gap-2 min-w-0">
                               <a href={`/api/documents/${doc.id}`} target="_blank" className="font-medium text-navy-800 truncate hover:underline">{doc.originalFilename}</a>
-                              <span className="text-slate-400">v{doc.version} · {bytes(doc.sizeBytes)} · {formatDateTime(doc.createdAt)}</span>
+                              <span className="text-slate-400">v{doc.version} · {bytes(doc.sizeBytes)} · {formatDateTime(doc.createdAt, uiLocale)}</span>
                             </span>
                             <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-xs">{ct("Preview")}</a>
                           </li>
@@ -290,6 +322,51 @@ export default async function PortalApplicationDetailPage({
               {checklist.length === 0 ? <p className="px-4 py-6 text-sm text-slate-500">{ct("No document requirements for this visa.")}</p> : null}
             </div>
           </Card>
+
+          {documentGroups.unassigned.length > 0 ? (
+            <Card>
+              <CardHeader title={ct("Other documents")} />
+              <div className="divide-y divide-slate-100">
+                {documentGroups.unassigned.map(({ doc }) => (
+                  <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-xs">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <a href={`/api/documents/${doc.id}`} target="_blank" className="truncate font-medium text-navy-800 hover:underline">{doc.originalFilename}</a>
+                      <span className="text-slate-400">v{doc.version} · {bytes(doc.sizeBytes)} · {formatDateTime(doc.createdAt, uiLocale)}</span>
+                    </span>
+                    <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-xs">{ct("Preview")}</a>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+
+          {docRequests.length > 0 ? (
+            <Card>
+              <CardHeader title={ct("Document requests")} subtitle={ct("Everything ESSAFARIA asked you for, and what happened next.")} />
+              <div className="divide-y divide-slate-100 text-xs">
+                {docRequests.map((r) => {
+                  const open = r.req.status === "OPEN";
+                  return (
+                    <div key={r.req.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
+                      <span className="flex items-center gap-2">
+                        <span className={`badge ${open ? "bg-amber-100 text-amber-700" : r.req.status === "FULFILLED" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                          {open ? ct("Awaiting your upload") : r.req.status === "FULFILLED" ? ct("Received") : ct("Cancelled")}
+                        </span>
+                        <span className="font-medium text-navy-900">
+                          {r.req.type === "REPLACEMENT" ? ct("Replacement requested") : ct("Additional document requested")}
+                        </span>
+                        <span className="text-slate-500">{r.docTypeName}</span>
+                      </span>
+                      <span className="text-slate-500">
+                        {formatDateTime(r.req.createdAt, uiLocale)}
+                        {r.req.fulfilledAt ? ` · ${ct("Received")} ${formatDateTime(r.req.fulfilledAt, uiLocale)}` : ""}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          ) : null}
         </div>
       ) : null}
 
