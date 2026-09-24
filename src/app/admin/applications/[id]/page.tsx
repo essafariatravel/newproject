@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
-import { getApplicationDetail } from "@/lib/queries";
+import { getApplicationDetail, getEmbassyApplicability } from "@/lib/queries";
 import {
   allowedNextStatuses,
   decisionOutcomesForStatus,
@@ -17,6 +17,7 @@ import { listCommunications } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
 import { getUiLocale, localizedStatusName, localizedDocTypeName } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
+import { countryName } from "@/lib/country-names";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { nationalityLabel } from "@/lib/nationalities";
 import { OVERRIDE_ROLES } from "@/lib/types";
@@ -83,7 +84,16 @@ export default async function AdminApplicationDetailPage({
       listDocumentRequests(id),
     ]);
 
-  const selectableStatuses = nextStatuses.filter((s) => !["APPROVED", "REJECTED"].includes(s.status.code));
+  // §18 — the embassy stage is only offered when the programme uses it.
+  const embassyApplicability = await getEmbassyApplicability(app.visaTypeId);
+  const selectableStatuses = nextStatuses.filter(
+    (s) =>
+      !["APPROVED", "REJECTED"].includes(s.status.code) &&
+      !(
+        embassyApplicability === "NOT_APPLICABLE" &&
+        ["EMBASSY_SENT", "EMBASSY_SUBMISSION"].includes(s.status.code)
+      ),
+  );
   const allowedDecisionOutcomes = decisionOutcomesForStatus(detail.statusCode);
   const canStatusChange = hasPermission(user, "applications.status.change");
   const canReview = hasPermission(user, "applications.review");
@@ -98,7 +108,7 @@ export default async function AdminApplicationDetailPage({
     <>
       <PageHeader
         title={app.reference}
-        subtitle={`${app.countryName} · ${app.visaTypeName} — ${detail.agencyName ?? ""}`}
+        subtitle={`${countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)} · ${app.visaTypeName} — ${detail.agencyName ?? ""}`}
         actions={
           <>
             <StatusBadge code={detail.statusCode} name={detail.statusName} />
@@ -124,11 +134,11 @@ export default async function AdminApplicationDetailPage({
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Agency")}</p>
                   <p className="mt-1 font-medium text-navy-900">{detail.agencyName}</p>
-                  <p className="text-xs text-slate-500">{app.reference} · {formatDateTime(app.submittedAt)}</p>
+                  <p className="text-xs text-slate-500">{app.reference} · {formatDateTime(app.submittedAt, uiLocale)}</p>
                 </div>
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Destination")}</p>
-                  <p className="mt-1 font-medium text-navy-900">{app.countryName}</p>
+                  <p className="mt-1 font-medium text-navy-900">{countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)}</p>
                   <p className="text-xs text-slate-500">{app.visaTypeName} · {app.categoryName}</p>
                 </div>
                 <div>
@@ -141,7 +151,14 @@ export default async function AdminApplicationDetailPage({
 
             {canStatusChange ? (
               <Card>
-                <CardHeader title={ct("Workflow")} subtitle={ct("Direct transition IN_PROCESS → APPROVED/REJECTED via decision only. Routine transitions validated.")} />
+                <CardHeader
+                  title={ct("Workflow")}
+                  subtitle={
+                    embassyApplicability === "NOT_APPLICABLE"
+                      ? ct("This programme does not use an embassy stage: process the file and record the decision.")
+                      : ct("Direct transition IN_PROCESS → APPROVED/REJECTED via decision only. Routine transitions validated.")
+                  }
+                />
                 <form action={changeStatusAction} className="flex flex-wrap items-end gap-3 px-4 py-4">
                   <input type="hidden" name="applicationId" value={id} />
                   <input type="hidden" name="back" value={back} />
@@ -172,7 +189,7 @@ export default async function AdminApplicationDetailPage({
                       <li key={d.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-ivory-50/60 px-3 py-2">
                         <div>
                           <p className="font-medium text-navy-900">{localizedDocTypeName(d.typeCode, d.typeName, uiLocale)}</p>
-                          <p className="text-xs text-slate-500">{formatDateTime(d.createdAt)} · {d.status}</p>
+                          <p className="text-xs text-slate-500">{formatDateTime(d.createdAt, uiLocale)} · {d.status}</p>
                         </div>
                         <a href={`/api/documents/${d.id}`} className="btn-secondary btn-sm">{ct("Download")}</a>
                       </li>
@@ -312,7 +329,7 @@ export default async function AdminApplicationDetailPage({
                           <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ivory-50 px-3 py-2 text-xs">
                             <span className="flex items-center gap-2 min-w-0">
                               <a href={`/api/documents/${doc.id}`} target="_blank" className="font-medium truncate hover:underline">{doc.originalFilename}</a>
-                              <span className="text-slate-400">v{doc.version} · {doc.status} · {formatDateTime(doc.createdAt)}</span>
+                              <span className="text-slate-400">v{doc.version} · {doc.status} · {formatDateTime(doc.createdAt, uiLocale)}</span>
                               {applicantName ? <span className="text-slate-500">· {applicantName}</span> : null}
                             </span>
                             <span className="flex items-center gap-1.5">
@@ -366,7 +383,7 @@ export default async function AdminApplicationDetailPage({
                 {docRequests.map((r) => (
                   <div key={r.req.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
                     <span><span className={`badge ${r.req.status === "OPEN" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>{r.req.status}</span> {r.req.type} · {r.docTypeName}</span>
-                    <span className="text-slate-500">{r.req.reason} · {formatDateTime(r.req.createdAt)}</span>
+                    <span className="text-slate-500">{r.req.reason} · {formatDateTime(r.req.createdAt, uiLocale)}</span>
                   </div>
                 ))}
               </div>

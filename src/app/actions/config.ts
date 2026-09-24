@@ -163,7 +163,11 @@ const visaTypeSchema = z.object({
   processingMinDays: z.coerce.number().int().min(0).max(365),
   processingMaxDays: z.coerce.number().int().min(0).max(365),
   fee: z.coerce.number().min(0).max(100000),
-  currency: z.string().trim().length(3).transform((v) => v.toUpperCase()),
+  // DZD is the ONLY operational currency (§7): never client-controlled.
+  // §18/§42 — the embassy step is a programme property, not a global default.
+  embassyApplicability: z
+    .enum(["NOT_APPLICABLE", "OPTIONAL", "APPLICABLE"])
+    .default("OPTIONAL"),
 }).refine((d) => d.processingMinDays <= d.processingMaxDays && (d.processingMinDays > 0 || d.processingMaxDays === 0), {
   message: "Enter a valid range, or use zero for both values for an estimate on request.",
   path: ["processingMinDays"],
@@ -176,7 +180,7 @@ export async function createVisaTypeAction(formData: FormData): Promise<void> {
     const data = visaTypeSchema.parse(Object.fromEntries(formData));
     const inserted = await db
       .insert(visaTypes)
-      .values({ ...data, fee: data.fee.toFixed(2) })
+      .values({ ...data, fee: data.fee.toFixed(2), currency: "DZD" })
       .onConflictDoNothing()
       .returning();
     if (!inserted[0]) throw new AppError("DUPLICATE", `Visa type code ${data.code} already exists.`);
@@ -198,8 +202,14 @@ export async function updateVisaTypeAction(formData: FormData): Promise<void> {
       await recordAudit({ actor: staff, action: "CONFIG_VISA_TYPE_TOGGLED", entity: "visa_type", entityId: id });
     } else {
       const data = visaTypeSchema.parse(Object.fromEntries(formData));
-      await db.update(visaTypes).set({ ...data, fee: data.fee.toFixed(2), updatedAt: new Date() }).where(eq(visaTypes.id, id));
-      await recordAudit({ actor: staff, action: "CONFIG_VISA_TYPE_UPDATED", entity: "visa_type", entityId: id, metadata: { fee: data.fee } });
+      await db.update(visaTypes).set({ ...data, fee: data.fee.toFixed(2), currency: "DZD", updatedAt: new Date() }).where(eq(visaTypes.id, id));
+      await recordAudit({
+        actor: staff,
+        action: "CONFIG_VISA_TYPE_UPDATED",
+        entity: "visa_type",
+        entityId: id,
+        metadata: { fee: data.fee, embassyApplicability: data.embassyApplicability },
+      });
     }
     revalidatePath("/admin/config/visa-types");
     revalidatePath(`/admin/config/visa-types/${id}`);

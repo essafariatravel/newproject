@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
+import { getUiLocale } from "@/lib/ui-i18n";
 import { hasPermission } from "@/lib/rbac";
 import { listApplicants } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
@@ -16,6 +17,7 @@ export default async function AdminApplicantsPage({
 }) {
   const sp = await searchParams;
   const user = await pageUser();
+  const uiLocale = await getUiLocale();
   if (!hasPermission(user, "applicants.view.all")) {
     return (
       <>
@@ -60,10 +62,10 @@ export default async function AdminApplicantsPage({
                   <td className="td font-medium text-navy-900">{personName(applicant)}</td>
                   <td className="td tabular-nums">
                     {applicant.passportNumber}
-                    <span className="block text-[11px] text-slate-400">exp. {formatDate(applicant.passportExpiryDate)}</span>
+                    <span className="block text-[11px] text-slate-400">exp. {formatDate(applicant.passportExpiryDate, uiLocale)}</span>
                   </td>
                   <td className="td">{applicant.nationality}</td>
-                  <td className="td whitespace-nowrap">{formatDate(applicant.dateOfBirth)}</td>
+                  <td className="td whitespace-nowrap">{formatDate(applicant.dateOfBirth, uiLocale)}</td>
                   <td className="td">
                     <Link href={`/admin/applications/${applicationId}`} className="text-navy-800 hover:underline">
                       {applicationReference}

@@ -1,4 +1,5 @@
 import { qualifiedTable } from "./database-schema";
+import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 /**
  * Document service — secure upload, review workflow, tenant-safe retrieval.
  * Post-submission locking: agency uploads are blocked unless staff explicitly
@@ -180,9 +181,8 @@ export async function uploadDocument(input: UploadDocumentInput) {
     throw new AppError("UNSUPPORTED_TYPE", "Allowed formats: PDF, JPEG, PNG, WEBP, DOC, DOCX.");
   }
   const name = input.file.name;
-  if (name.length > 200 || /[\\u0000-\\u001f\\\\/]/.test(name)) {
-    throw new AppError("INVALID_FILENAME", "Invalid file name.");
-  }
+  const problem = fileNameProblem(name);
+  if (problem) throw new AppError("INVALID_FILENAME", fileNameErrorMessage(problem));
 
   const dtRows = await db
     .select({ id: documentTypes.id, active: documentTypes.active })

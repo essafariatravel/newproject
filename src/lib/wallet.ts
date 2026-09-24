@@ -12,10 +12,18 @@ import { qualifiedTable } from "./database-schema";
  *  - DZD-only: all operational amounts are DZD.
  */
 import { and, eq, sql } from "drizzle-orm";
+import type { PoolClient } from "pg";
 import { db, pool } from "@/lib/db";
 import { agencies, applications, walletTransactions } from "@/db/schema";
 import { AppError, type AuthUser } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
+
+export interface WalletMutationResult {
+  transactionId: string;
+  reference: string | null;
+  balanceBefore: string;
+  balanceAfter: string;
+}
 
 export interface WalletTx {
   id: string;
@@ -51,6 +59,81 @@ export function formatMoney(money: string, _currency?: string | null, locale: st
   }
 }
 
+/**
+ * The ONE place a balance moves. Runs on a caller-supplied transaction client
+ * so composed operations (manual adjustment, top-up processing) share exactly
+ * the same locking, ledger and currency rules.
+ *
+ * Mapping of the atomicity guarantees:
+ *  - DEBIT uses `where balance >= amount` → concurrent spenders serialize,
+ *  - the ledger row carries before/after balances and is never updated,
+ *  - currency is always DZD (operational currency, §7).
+ */
+export async function applyWalletMutation(
+  client: PoolClient,
+  params: {
+    agencyId: string;
+    operation: "CREDIT" | "DEBIT";
+    /** Positive absolute amount, already rounded to 2 decimals. */
+    amountAbs: string;
+    reason: string;
+    actorId: string;
+    applicationId?: string | null;
+    /** CREDIT | DEBIT | APPLICATION_CHARGE | COMMERCIAL_DISCOUNT | COMMERCIAL_SURCHARGE */
+    type?: string;
+  },
+): Promise<WalletMutationResult> {
+  const credit = params.operation === "CREDIT";
+  const type = params.type ?? (credit ? "CREDIT" : "DEBIT");
+
+  const upd = await client.query<{ balance_after: string; balance_before: string }>(
+    credit
+      ? `update ${qualifiedTable("agencies")}
+           set balance = balance + $2::numeric, updated_at = now()
+         where id = $1
+         returning balance::text as balance_after, (balance - $2::numeric)::text as balance_before`
+      : `update ${qualifiedTable("agencies")}
+           set balance = balance - $2::numeric, updated_at = now()
+         where id = $1 and balance >= $2::numeric
+         returning balance::text as balance_after, (balance + $2::numeric)::text as balance_before`,
+    [params.agencyId, params.amountAbs],
+  );
+  if (!upd.rows[0]) {
+    const agency = await client.query<{ balance: string }>(
+      `select balance::text as balance from ${qualifiedTable("agencies")} where id = $1`,
+      [params.agencyId],
+    );
+    if (!agency.rows[0]) throw new AppError("NOT_FOUND", "Agency not found.");
+    throw new AppError(
+      "INSUFFICIENT_FUNDS",
+      `Insufficient funds: current balance is ${agency.rows[0].balance} DZD.`,
+    );
+  }
+  const { balance_before, balance_after } = upd.rows[0];
+  const tx = await client.query<{ id: string; reference: string }>(
+    `insert into ${qualifiedTable("wallet_transactions")}
+       (agency_id, application_id, type, amount, currency, balance_before, balance_after, reason, actor_id)
+     values ($1, $2, $3, $4, 'DZD', $5, $6, $7, $8)
+     returning id, reference`,
+    [
+      params.agencyId,
+      params.applicationId ?? null,
+      type,
+      params.amountAbs,
+      balance_before,
+      balance_after,
+      params.reason,
+      params.actorId,
+    ],
+  );
+  return {
+    transactionId: tx.rows[0]!.id,
+    reference: tx.rows[0]!.reference,
+    balanceBefore: balance_before,
+    balanceAfter: balance_after,
+  };
+}
+
 /** Manual adjustment by an authorized staff member. Returns the ledger row id. */
 export async function adjustWallet(params: {
   agencyId: string;
@@ -66,8 +149,7 @@ export async function adjustWallet(params: {
     if (!Number.isFinite(params.amount) || params.amount <= 0) {
       throw new AppError("INVALID_AMOUNT", "Amount must be a positive number.");
     }
-    const rounded = Math.round(params.amount * 100) / 100;
-    amountAbs = rounded.toFixed(2);
+    amountAbs = (Math.round(params.amount * 100) / 100).toFixed(2);
     operation = params.operation;
   } else {
     if (!Number.isFinite(params.amount) || params.amount === 0) {
@@ -77,63 +159,42 @@ export async function adjustWallet(params: {
     amountAbs = Math.abs(rounded).toFixed(2);
     operation = rounded > 0 ? "CREDIT" : "DEBIT";
   }
-  const credit = operation === "CREDIT";
-  const type = credit ? "CREDIT" : "DEBIT";
 
   const client = await pool.connect();
+  let result: WalletMutationResult;
   try {
     await client.query("begin");
-    const upd = await client.query<{ balance_after: string; balance_before: string }>(
-      credit
-        ? `update ${qualifiedTable("agencies")}
-             set balance = balance + $2::numeric, updated_at = now()
-           where id = $1
-           returning balance::text as balance_after, (balance - $2::numeric)::text as balance_before`
-        : `update ${qualifiedTable("agencies")}
-             set balance = balance - $2::numeric, updated_at = now()
-           where id = $1 and balance >= $2::numeric
-           returning balance::text as balance_after, (balance + $2::numeric)::text as balance_before`,
-      [params.agencyId, amountAbs],
-    );
-    if (!upd.rows[0]) {
-      await client.query("rollback");
-      const agency = await client.query<{ balance: string; currency: string }>(
-        `select balance::text as balance, currency from ${qualifiedTable("agencies")} where id = $1`,
-        [params.agencyId],
-      );
-      if (!agency.rows[0]) throw new AppError("NOT_FOUND", "Agency not found.");
-      throw new AppError(
-        "INSUFFICIENT_FUNDS",
-        `Insufficient funds: current balance is ${agency.rows[0].balance} DZD.`,
-      );
-    }
-    const { balance_before, balance_after } = upd.rows[0];
-    const tx = await client.query<{ id: string }>(
-      `insert into ${qualifiedTable("wallet_transactions")}
-         (agency_id, type, amount, currency, balance_before, balance_after, reason, actor_id)
-       values ($1, $2, $3, 'DZD', $4, $5, $6, $7)
-       returning id`,
-      [params.agencyId, type, amountAbs, balance_before, balance_after, params.reason, params.actor.id],
-    );
-    const txId = tx.rows[0]!.id;
-    await client.query("commit");
-
-    await recordAudit({
-      actor: params.actor,
-      action: credit ? "WALLET_CREDIT" : "WALLET_DEBIT",
-      entity: "wallet_transaction",
-      entityId: txId,
+    result = await applyWalletMutation(client, {
       agencyId: params.agencyId,
-      metadata: { amount: amountAbs, reason: params.reason, balanceBefore: balance_before, balanceAfter: balance_after, currency: "DZD" },
-      ipAddress: params.ipAddress ?? null,
+      operation,
+      amountAbs,
+      reason: params.reason,
+      actorId: params.actor.id,
     });
-    return txId;
+    await client.query("commit");
   } catch (err) {
     await client.query("rollback").catch(() => {});
     throw err;
   } finally {
     client.release();
   }
+
+  await recordAudit({
+    actor: params.actor,
+    action: operation === "CREDIT" ? "WALLET_CREDIT" : "WALLET_DEBIT",
+    entity: "wallet_transaction",
+    entityId: result.transactionId,
+    agencyId: params.agencyId,
+    metadata: {
+      amount: amountAbs,
+      reason: params.reason,
+      balanceBefore: result.balanceBefore,
+      balanceAfter: result.balanceAfter,
+      currency: "DZD",
+    },
+    ipAddress: params.ipAddress ?? null,
+  });
+  return result.transactionId;
 }
 
 export interface ChargeResult {

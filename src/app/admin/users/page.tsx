@@ -1,4 +1,5 @@
 import { pageUser } from "@/lib/page-auth";
+import { getUiLocale } from "@/lib/ui-i18n";
 import { hasPermission } from "@/lib/rbac";
 import { listAgencies, listUsers } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
@@ -18,6 +19,7 @@ export default async function AdminUsersPage({
 }) {
   const sp = await searchParams;
   const staff = await pageUser();
+  const uiLocale = await getUiLocale();
   if (!hasPermission(staff, "users.view")) {
     return (
       <>
@@ -82,7 +84,7 @@ export default async function AdminUsersPage({
                 <td className="td">
                   <span className={`badge ${u.status === "ACTIVE" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}`}>{u.status}</span>
                 </td>
-                <td className="td whitespace-nowrap text-xs text-slate-500">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "never"}</td>
+                <td className="td whitespace-nowrap text-xs text-slate-500">{u.lastLoginAt ? formatDateTime(u.lastLoginAt, uiLocale) : "never"}</td>
                 {canManage ? (
                   <td className="td text-right">
                     {u.id !== staff.id ? (

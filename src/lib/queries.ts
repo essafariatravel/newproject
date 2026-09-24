@@ -3,7 +3,7 @@ import { qualifiedTable } from "./database-schema";
  * Read-model queries with server-side filtering and pagination.
  * Every query takes the authenticated user and enforces tenant scope.
  */
-import { and, asc, count, desc, eq, gte, ilike, inArray, lte, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   agencies,
@@ -38,6 +38,12 @@ export interface ApplicationFilters {
   dateFrom?: string;
   dateTo?: string;
   page?: number;
+  /** §25/§27 — ownership: "me" | "unassigned" | a staff user id. */
+  assignedTo?: string;
+  /** §27 — document workflow: open staff request, or a required doc still missing. */
+  documents?: "requested" | "missing";
+  /** §27/§31 — dossiers waiting at least N whole days in the current status. */
+  agingDays?: number;
 }
 
 const applicationSelection = {
@@ -55,6 +61,16 @@ const applicationSelection = {
   )`,
   applicantCount: sql<number>`(select count(*)::int from ${sql.raw(qualifiedTable("applicants"))} p where p.application_id = applications.id)`,
   documentCount: sql<number>`(select count(*)::int from ${sql.raw(qualifiedTable("documents"))} d where d.application_id = applications.id)`,
+  /** ISO-3166 code of the destination — localizes the name shown to the user (§53). */
+  countryIso2: sql<string | null>`(select c.iso2 from ${sql.raw(qualifiedTable("countries"))} c where c.id = applications.country_id)`,
+  /** §21/§31 — when this dossier entered its CURRENT status (real history). */
+  statusSince: sql<string>`coalesce(
+    (select max(h.created_at) from ${sql.raw(qualifiedTable("application_status_history"))} h
+      where h.application_id = applications.id and h.to_status_id = applications.status_id),
+    applications.created_at
+  )`,
+  /** §25 — the case officer currently owning the dossier (null = unassigned). */
+  ownerName: sql<string | null>`(select u.name from ${sql.raw(qualifiedTable("users"))} u where u.id = applications.assigned_to)`,
 };
 
 export async function searchApplications(user: AuthUser, filters: ApplicationFilters) {
@@ -82,6 +98,40 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
   }
   if (filters.dateFrom) conditions.push(gte(applications.createdAt, new Date(filters.dateFrom)));
   if (filters.dateTo) conditions.push(lte(applications.createdAt, new Date(`${filters.dateTo}T23:59:59`)));
+  // §25/§27 — ownership scope.
+  if (filters.assignedTo === "me") {
+    conditions.push(eq(applications.assignedTo, user.id));
+  } else if (filters.assignedTo === "unassigned") {
+    conditions.push(isNull(applications.assignedTo));
+  } else if (filters.assignedTo && UUID_RE.test(filters.assignedTo)) {
+    conditions.push(eq(applications.assignedTo, filters.assignedTo));
+  }
+  // §27 — an OPEN staff document request is waiting on the agency.
+  if (filters.documents === "requested") {
+    conditions.push(
+      sql`exists (select 1 from ${sql.raw(qualifiedTable("document_requests"))} dr
+            where dr.application_id = applications.id and dr.status = 'OPEN')`,
+    );
+  }
+  // §27 — a required, still-active checklist item without a usable upload.
+  if (filters.documents === "missing") {
+    conditions.push(
+      sql`exists (select 1 from ${sql.raw(qualifiedTable("checklist_items"))} ci
+            where ci.application_id = applications.id and ci.required and ci.active
+              and not exists (select 1 from ${sql.raw(qualifiedTable("documents"))} d
+                    where d.checklist_item_id = ci.id and d.status <> 'REJECTED'))`,
+    );
+  }
+  // §27/§31 — waiting at least N whole days in the current status, from real history.
+  if (filters.agingDays && filters.agingDays > 0) {
+    conditions.push(
+      sql`coalesce(
+            (select max(h.created_at) from ${sql.raw(qualifiedTable("application_status_history"))} h
+              where h.application_id = applications.id and h.to_status_id = applications.status_id),
+            applications.created_at
+          ) <= now() - (${filters.agingDays} || ' days')::interval`,
+    );
+  }
   if (filters.q) {
     const term = `%${filters.q.trim()}%`;
     conditions.push(
@@ -119,6 +169,30 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** §18/§42 — embassy-stage applicability declared by the visa programme. */
+export type EmbassyApplicability = "NOT_APPLICABLE" | "OPTIONAL" | "APPLICABLE";
+
+export const EMBASSY_APPLICABILITY_VALUES: readonly EmbassyApplicability[] = [
+  "NOT_APPLICABLE",
+  "OPTIONAL",
+  "APPLICABLE",
+];
+
+/**
+ * Reads the embassy applicability of a visa programme. Unknown/missing rows
+ * fail safe to OPTIONAL — the stage stays available exactly as before.
+ */
+export async function getEmbassyApplicability(visaTypeId: string | null | undefined): Promise<EmbassyApplicability> {
+  if (!visaTypeId) return "OPTIONAL";
+  const rows = await db
+    .select({ value: visaTypes.embassyApplicability })
+    .from(visaTypes)
+    .where(eq(visaTypes.id, visaTypeId))
+    .limit(1);
+  const value = rows[0]?.value as EmbassyApplicability | undefined;
+  return value && EMBASSY_APPLICABILITY_VALUES.includes(value) ? value : "OPTIONAL";
+}
 
 export async function getApplicationDetail(applicationId: string, user: AuthUser) {
   if (!UUID_RE.test(applicationId)) return null;
@@ -448,17 +522,23 @@ export async function activeVisaOptions() {
       label: sql<string>`${countries.name} || ' — ' || ${visaTypes.name}`,
       name: visaTypes.name,
       countryName: countries.name,
+      /** ISO-3166 code — lets the UI localize the destination name (§53). */
+      countryIso2: countries.iso2,
       categoryName: visaCategories.name,
+      description: visaTypes.description,
       fee: visaTypes.fee,
       currency: visaTypes.currency,
       minDays: visaTypes.processingMinDays,
       maxDays: visaTypes.processingMaxDays,
+      embassyApplicability: visaTypes.embassyApplicability,
       countryId: visaTypes.countryId,
     })
     .from(visaTypes)
     .innerJoin(countries, eq(visaTypes.countryId, countries.id))
     .innerJoin(visaCategories, eq(visaTypes.categoryId, visaCategories.id))
-    .where(and(eq(visaTypes.active, true), eq(countries.active, true)))
+    // Bookable = active programme + active destination + DZD price (§7/§13):
+    // a non-DZD price is configuration debt, never something an agency can book.
+    .where(and(eq(visaTypes.active, true), eq(countries.active, true), eq(visaTypes.currency, "DZD")))
     .orderBy(asc(countries.name), asc(visaTypes.name));
 }
 
@@ -524,10 +604,42 @@ export async function listAuditLogs(filters: { q?: string; agencyId?: string; ac
   return { rows, total, page, pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
 }
 
-export async function listWalletTransactions(filters: { agencyId?: string; page?: number }) {
+export interface WalletLedgerFilters {
+  agencyId?: string;
+  /** CREDIT | DEBIT | APPLICATION_CHARGE | COMMERCIAL_DISCOUNT | COMMERCIAL_SURCHARGE */
+  type?: string;
+  /** Inclusive lower bound (transaction date). */
+  from?: Date;
+  /** Exclusive upper bound (transaction date). */
+  to?: Date;
+  /** Free text over the ledger reference, the application reference and the reason. */
+  q?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+/**
+ * One ledger query for both sides of the platform — always tenant-scoped when
+ * an agencyId is supplied, always server-side paginated (§57).
+ */
+export async function listWalletTransactions(filters: WalletLedgerFilters) {
+  const pageSize = filters.pageSize ?? PAGE_SIZE;
   const page = Math.max(1, filters.page ?? 1);
   const conditions = [];
   if (filters.agencyId) conditions.push(eq(walletTransactions.agencyId, filters.agencyId));
+  if (filters.type) conditions.push(eq(walletTransactions.type, filters.type));
+  if (filters.from) conditions.push(gte(walletTransactions.createdAt, filters.from));
+  if (filters.to) conditions.push(lt(walletTransactions.createdAt, filters.to));
+  if (filters.q?.trim()) {
+    const term = `%${filters.q.trim()}%`;
+    conditions.push(
+      or(
+        ilike(walletTransactions.reference, term),
+        ilike(walletTransactions.reason, term),
+        ilike(applications.reference, term),
+      )!,
+    );
+  }
   const where = conditions.length ? and(...conditions) : undefined;
   const rows = await db
     .select({
@@ -539,11 +651,11 @@ export async function listWalletTransactions(filters: { agencyId?: string; page?
     .leftJoin(applications, eq(walletTransactions.applicationId, applications.id))
     .where(where)
     .orderBy(desc(walletTransactions.createdAt))
-    .limit(PAGE_SIZE)
-    .offset((page - 1) * PAGE_SIZE);
-  const totalRows = await db.select({ total: count() }).from(walletTransactions).where(where);
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
+  const totalRows = await db.select({ total: count() }).from(walletTransactions).leftJoin(applications, eq(walletTransactions.applicationId, applications.id)).where(where);
   const total = Number(totalRows[0]?.total ?? 0);
-  return { rows, total, page, pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+  return { rows, total, page, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
 export async function listAllDocuments(filters: { status?: string; q?: string; page?: number; agencyId?: string }) {

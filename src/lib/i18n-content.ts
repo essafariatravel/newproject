@@ -321,9 +321,7 @@ const CONTENT: Record<string, Entry> = {
   /* ---------------------- 3-step request wizard (2.3) --------------------- */
   "New visa request": { fr: "Nouvelle demande de visa", ar: "طلب تأشيرة جديد" },
   "Three steps: choose the visa, upload the documents, preview and submit. Nothing is saved before the final confirmation.": { fr: "Trois étapes : choisissez le visa, téléversez les documents, vérifiez et soumettez. Rien n'est enregistré avant la confirmation finale.", ar: "ثلاث خطوات: اختر التأشيرة، ارفع المستندات، عاين ثم أرسل. لا يُحفظ أي شيء قبل التأكيد النهائي." },
-  "step.choose": { fr: "Choisir le visa", ar: "اختيار التأشيرة" },
-  "step.upload": { fr: "Téléverser les documents", ar: "رفع المستندات" },
-  "step.preview": { fr: "Aperçu, confirmer et soumettre", ar: "المعاينة والتأكيد والإرسال" },
+  "Preview, confirm & submit": { fr: "Aperçu, confirmer et soumettre", ar: "المعاينة والتأكيد والإرسال" },
   "Visa programme": { fr: "Programme de visa", ar: "برنامج التأشيرة" },
   "Select one visa programme to continue.": { fr: "Sélectionnez un programme de visa pour continuer.", ar: "اختر برنامج تأشيرة للمتابعة." },
   "No visa selected yet.": { fr: "Aucun visa sélectionné pour le moment.", ar: "لم يتم اختيار تأشيرة بعد." },
@@ -559,7 +557,7 @@ const CONTENT: Record<string, Entry> = {
   "Agency User": { fr: "Agency User", ar: "Agency User" },
   "Agency action / documents requested": { fr: "Agency action / documents requested", ar: "Agency action / documents requested" },
   "Agency users": { fr: "Agency users", ar: "Agency users" },
-  "Aging": { fr: "Aging", ar: "Aging" },
+  "Aging": { fr: "En attente", ar: "قيد الانتظار" },
   "Algerian Dinar": { fr: "Algerian Dinar", ar: "Algerian Dinar" },
   "Amount (DZD)": { fr: "Amount (DZD)", ar: "Amount (DZD)" },
   "Application charges": { fr: "Application charges", ar: "Application charges" },
@@ -673,6 +671,144 @@ const CONTENT: Record<string, Entry> = {
   "uploaded": { fr: "uploaded", ar: "uploaded" },
     "PDF, JPEG, PNG, WEBP, DOC, DOCX · 2 MB max": { fr: "PDF, JPEG, PNG, WEBP, DOC, DOCX · 2 MB max", ar: "PDF, JPEG, PNG, WEBP, DOC, DOCX · 2 MB max" },
   "About": { fr: "À propos", ar: "حول" },
+  "Request wallet top-up": { fr: "Demander une recharge du portefeuille", ar: "طلب تعبئة المحفظة" },
+  "Request a top-up": { fr: "Demander une recharge", ar: "طلب تعبئة الرصيد" },
+  "Top-up requests": { fr: "Demandes de recharge", ar: "طلبات التعبئة" },
+  "Requested amount (DZD)": { fr: "Montant demandé (DZD)", ar: "المبلغ المطلوب (دج)" },
+  "Amount to fund (DZD)": { fr: "Montant à créditer (DZD)", ar: "المبلغ المطلوب تعبئته (دج)" },
+  "Optional note (payment reference, transfer date…)": { fr: "Note facultative (référence, date du virement…)", ar: "ملاحظة اختيارية (المرجع، تاريخ التحويل…)" },
+  "Send top-up request": { fr: "Envoyer la demande de recharge", ar: "إرسال طلب التعبئة" },
+  "Sending…": { fr: "Envoi…", ar: "جارٍ الإرسال…" },
+  "Resulting balance": { fr: "Solde après recharge", ar: "الرصيد بعد التعبئة" },
+  "No top-up requests yet": { fr: "Aucune demande de recharge", ar: "لا توجد طلبات تعبئة" },
+  "Top-up requests you send to ESSAFARIA appear here with their status.": { fr: "Les demandes envoyées à ESSAFARIA apparaissent ici avec leur statut.", ar: "تظهر هنا طلبات التعبئة المرسلة إلى ESSAFARIA مع حالتها." },
+  "Pending": { fr: "En attente", ar: "قيد الانتظار" },
+  "Processed": { fr: "Traitée", ar: "تمت المعالجة" },
+  "Cancelled": { fr: "Annulée", ar: "ملغاة" },
+  "Wallet transaction": { fr: "Transaction du portefeuille", ar: "معاملة المحفظة" },
+  "Once ESSAFARIA confirms the funds, the credit appears in your ledger below.": { fr: "Dès qu'ESSAFARIA confirme les fonds, le crédit apparaît dans votre grand livre ci-dessous.", ar: "بمجرد تأكيد ESSAFARIA للمبلغ يظهر الإيداع في دفتر القيود أدناه." },
+  "Your wallet balance may be insufficient for a new application.": { fr: "Le solde de votre portefeuille pourrait être insuffisant pour un nouveau dossier.", ar: "قد يكون رصيد محفظتك غير كافٍ لطلب جديد." },
+  "You already have a pending top-up request.": { fr: "Vous avez déjà une demande de recharge en attente.", ar: "لديك بالفعل طلب تعبئة قيد الانتظار." },
+  "Pending top-up requests": { fr: "Demandes de recharge en attente", ar: "طلبات التعبئة المعلّقة" },
+  "No pending top-up requests.": { fr: "Aucune demande de recharge en attente.", ar: "لا توجد طلبات تعبئة معلّقة." },
+  "Reject request": { fr: "Refuser la demande", ar: "رفض الطلب" },
+  "Credit and close": { fr: "Créditer et clôturer", ar: "الإيداع وإغلاق الطلب" },
+  "Confirm rejection": { fr: "Confirmer le refus", ar: "تأكيد الرفض" },
+  "Processing…": { fr: "Traitement…", ar: "جارٍ المعالجة…" },
+  "Reason (sent to the agency)": { fr: "Motif (transmis à l'agence)", ar: "السبب (يُرسل إلى الوكالة)" },
+  "e.g. bank transfer received 23 Sep": { fr: "ex. virement reçu le 23 sept.", ar: "مثال: تم استلام التحويل في 23 سبتمبر" },
+  "Credit amounts above the requested value are not allowed — use a manual adjustment instead.": { fr: "Un crédit supérieur au montant demandé n'est pas autorisé — utilisez un ajustement manuel.", ar: "لا يُسمح بإيداع يتجاوز المبلغ المطلوب — استخدم تسوية يدوية." },
+  "The ledger entry is created by the normal wallet credit: no money is invented here.": { fr: "L'écriture est créée par le crédit normal du portefeuille : aucun montant n'est inventé ici.", ar: "تُنشأ قيود الدفتر من خلال الإيداع العادي: لا يتم إنشاء أي مبلغ هنا." },
+  "Filter transactions": { fr: "Filtrer les transactions", ar: "تصفية المعاملات" },
+  "All types": { fr: "Tous les types", ar: "كل الأنواع" },
+  "Application charge": { fr: "Facturation de dossier", ar: "خصم الطلب" },
+  "Credit": { fr: "Crédit", ar: "إيداع" },
+  "Debit": { fr: "Débit", ar: "خصم" },
+  "This month": { fr: "Ce mois-ci", ar: "هذا الشهر" },
+  "Last month": { fr: "Le mois dernier", ar: "الشهر الماضي" },
+  "Last 3 months": { fr: "3 derniers mois", ar: "آخر 3 أشهر" },
+  "Custom period": { fr: "Période personnalisée", ar: "فترة مخصصة" },
+  "Export CSV": { fr: "Exporter CSV", ar: "تصدير CSV" },
+  "Statement period": { fr: "Période du relevé", ar: "فترة الكشف" },
+  "All time": { fr: "Depuis le début", ar: "كل الفترات" },
+  "Where is your traveler going?": { fr: "Où se rend votre voyageur ?", ar: "إلى أين يسافر المسافر؟" },
+  "Search a destination…": { fr: "Rechercher une destination…", ar: "ابحث عن وجهة…" },
+  "No destination matches your search.": { fr: "Aucune destination ne correspond à votre recherche.", ar: "لا توجد وجهة مطابقة لبحثك." },
+  "Available visa programmes": { fr: "Programmes de visa disponibles", ar: "برامج التأشيرة المتاحة" },
+  "Processing time not specified": { fr: "Délai de traitement non précisé", ar: "لم يتم تحديد مدة المعالجة" },
+  "Insufficient wallet balance": { fr: "Solde du portefeuille insuffisant", ar: "رصيد المحفظة غير كافٍ" },
+  "Required amount": { fr: "Montant requis", ar: "المبلغ المطلوب" },
+  "Missing amount": { fr: "Montant manquant", ar: "المبلغ الناقص" },
+  "Submit application": { fr: "Soumettre le dossier", ar: "إرسال الطلب" },
+  "Documents are locked after submission. ESSAFARIA will request replacement or additional documents if needed.": { fr: "Les documents sont verrouillés après soumission. ESSAFARIA demandera un remplacement ou un document supplémentaire si nécessaire.", ar: "تُقفل المستندات بعد الإرسال. ستطلب ESSAFARIA استبدالاً أو مستنداً إضافياً عند الحاجة." },
+  "Embassy step": { fr: "Étape ambassade", ar: "خطوة السفارة" },
+  "Not applicable": { fr: "Non applicable", ar: "غير مطبّقة" },
+  "Applicable": { fr: "Applicable", ar: "مطبّقة" },
+  "Whether this programme can be sent to an embassy / external authority.": { fr: "Indique si ce programme peut être envoyé à une ambassade ou une autorité externe.", ar: "تحدد ما إذا كان يمكن إرسال هذا البرنامج إلى سفارة أو جهة خارجية." },
+  "This programme does not go through an embassy — the embassy action is blocked.": { fr: "Ce programme ne passe pas par une ambassade — l'action est bloquée.", ar: "هذا البرنامج لا يمر عبر السفارة — تم تعطيل الإجراء." },
+  "Search applications, agencies, countries, visa types…": { fr: "Rechercher dossiers, agences, pays, types de visa…", ar: "ابحث عن الطلبات والوكالات والدول وأنواع التأشيرات…" },
+  "No results": { fr: "Aucun résultat", ar: "لا توجد نتائج" },
+  "Saved views": { fr: "Vues enregistrées", ar: "طرق عرض محفوظة" },
+  "My applications": { fr: "Mes dossiers", ar: "طلباتي" },
+  "Documents requested": { fr: "Documents demandés", ar: "مستندات مطلوبة" },
+  "Time in status": { fr: "Temps dans le statut", ar: "المدة في الحالة" },
+  "Application communication timelines will appear here.": { fr: "Les échanges de communication des dossiers apparaîtront ici.", ar: "ستظهر هنا محادثات الطلبات." },
+  "Internal note": { fr: "Note interne", ar: "ملاحظة داخلية" },
+  "Agency-visible": { fr: "Visible par l'agence", ar: "مرئي للوكالة" },
+  "Latest messages across all application threads. Open an application to reply.": { fr: "Derniers messages de tous les fils de dossiers. Ouvrez un dossier pour répondre.", ar: "أحدث الرسائل في جميع محادثات الطلبات. افتح طلباً للرد." },
+  "Prepaid DZD wallet with an immutable ledger.": { fr: "Portefeuille DZD prépayé avec grand livre immuable.", ar: "محفظة بالدينار الجزائري مدفوعة مسبقاً بدفتر قيود غير قابل للتغيير." },
+  "Tell ESSAFARIA how much you need in your wallet. Your balance is credited once the funds are confirmed — no online payment is taken here.": { fr: "Indiquez à ESSAFARIA le montant souhaité. Le solde est crédité dès confirmation des fonds — aucun paiement en ligne n'est effectué ici.", ar: "أخبر ESSAFARIA بالمبلغ المطلوب. يُضاف الرصيد بعد تأكيد استلام الأموال — لا يتم أي دفع إلكتروني هنا." },
+  "Reference or reason": { fr: "Référence ou motif", ar: "المرجع أو السبب" },
+  "Filter the ledger by period, then export exactly what you see.": { fr: "Filtrez le grand livre par période, puis exportez exactement ce que vous voyez.", ar: "صفِّ دفتر القيود حسب الفترة ثم صدّر ما تراه بالضبط." },
+  "Only SUPER_ADMIN, ADMIN or ACCOUNTING may process top-ups.": { fr: "Seuls SUPER_ADMIN, ADMIN ou ACCOUNTING peuvent traiter les recharges.", ar: "يمكن فقط لـ SUPER_ADMIN أو ADMIN أو ACCOUNTING معالجة طلبات التعبئة." },
+  /* ------------------- destinations, payment & wallet help --------------- */
+  "Search a destination and pick a visa programme. Only destinations with a bookable DZD programme are shown.": {
+    fr: "Recherchez une destination et choisissez un programme de visa. Seules les destinations disposant d'un programme réservable en DZD sont affichées.",
+    ar: "ابحث عن الوجهة واختر برنامج التأشيرة. تُعرض فقط الوجهات التي تتضمن برنامجًا قابلًا للحجز بالدينار الجزائري.",
+  },
+  "{count} destinations available": { fr: "{count} destinations disponibles", ar: "{count} وجهة متاحة" },
+  "Popular destinations": { fr: "Destinations populaires", ar: "وجهات شائعة" },
+  "Change": { fr: "Modifier", ar: "تغيير" },
+  "Pick a destination to see its visa programmes.": {
+    fr: "Choisissez une destination pour voir ses programmes de visa.",
+    ar: "اختر وجهة لعرض برامج التأشيرة الخاصة بها.",
+  },
+  "Full name as in passport": { fr: "Nom complet tel qu'il figure sur le passeport", ar: "الاسم الكامل كما في جواز السفر" },
+  "Balance after submission": { fr: "Solde après soumission", ar: "الرصيد بعد التقديم" },
+  "Choose a destination to continue.": { fr: "Choisissez une destination pour continuer.", ar: "اختر وجهة للمتابعة." },
+  "Payment summary": { fr: "Récapitulatif du paiement", ar: "ملخص الدفع" },
+  "Three steps: choose the destination and visa, upload the documents, preview and submit. Nothing is saved before the final confirmation.": {
+    fr: "Trois étapes : choisissez la destination et le visa, téléversez les documents, vérifiez et soumettez. Rien n'est enregistré avant la confirmation finale.",
+    ar: "ثلاث خطوات: اختر الوجهة والتأشيرة، ارفع المستندات، راجع ثم قدّم. لا يُحفظ أي شيء قبل التأكيد النهائي.",
+  },
+  "Bank transfer #1234": { fr: "Virement bancaire n°1234", ar: "تحويل بنكي رقم 1234" },
+
+  /* --------------------------- wallet explainer -------------------------- */
+  "Your wallet is prepaid and denominated in Algerian dinars (DZD) only. Every movement is written to an immutable ledger with a numbered reference, a before/after balance and a reason — nothing can be edited or deleted, corrections are made with compensating entries.": {
+    fr: "Votre portefeuille est prépayé et libellé uniquement en dinars algériens (DZD). Chaque mouvement est inscrit dans un grand livre immuable avec une référence numérotée, le solde avant/après et un motif — rien ne peut être modifié ni supprimé, les corrections se font par écritures compensatoires.",
+    ar: "محفظتك مدفوعة مسبقًا وبالدينار الجزائري فقط. كل حركة تُسجَّل في دفتر قيود غير قابل للتغيير مع مرجع مرقّم والرصيد قبل وبعد وسبب العملية — لا يمكن التعديل أو الحذف، وتُصحَّح الأخطاء بقيود تعويضية.",
+  },
+
+  "This programme does not use an embassy stage: process the file and record the decision.": {
+    fr: "Ce programme ne passe pas par une ambassade : traitez le dossier et enregistrez la décision.",
+    ar: "هذا البرنامج لا يمر عبر السفارة: عالج الملف ثم سجّل القرار.",
+  },
+  "Embassy / external authority step": {
+    fr: "Étape ambassade / autorité externe",
+    ar: "مرحلة السفارة / الجهة الخارجية",
+  },
+  "Decision": { fr: "Décision", ar: "القرار" },
+
+  /* §28 global staff search + §25/§27 ownership & saved views */
+  "Owner": { fr: "Responsable", ar: "المسؤول" },
+  "Waiting": { fr: "Attente", ar: "مدة الانتظار" },
+  "Waiting over 7 days": { fr: "En attente depuis plus de 7 jours", ar: "قيد الانتظار منذ أكثر من 7 أيام" },
+  "Clear view": { fr: "Effacer la vue", ar: "إزالة العرض" },
+  "Documents missing": { fr: "Documents manquants", ar: "مستندات ناقصة" },
+  "Catalogue": { fr: "Catalogue", ar: "الكتالوج" },
+  "Find a dossier, an agency, an applicant or a catalogue entry.": {
+    fr: "Recherchez un dossier, une agence, un demandeur ou une entrée du catalogue.",
+    ar: "ابحث عن ملف أو وكالة أو مقدم طلب أو عنصر من الكتالوج.",
+  },
+  "Reference, applicant, agency, country or visa": {
+    fr: "Référence, demandeur, agence, pays ou visa",
+    ar: "المرجع أو مقدم الطلب أو الوكالة أو البلد أو التأشيرة",
+  },
+  "Start typing to search": { fr: "Commencez à saisir pour rechercher", ar: "ابدأ الكتابة للبحث" },
+  "Enter at least two characters. Results appear grouped by object type.": {
+    fr: "Saisissez au moins deux caractères. Les résultats sont regroupés par type d'objet.",
+    ar: "أدخل حرفين على الأقل. تظهر النتائج مجمّعة حسب نوع العنصر.",
+  },
+  "No matches": { fr: "Aucun résultat", ar: "لا توجد نتائج" },
+  "Nothing matched \u201c{term}\u201d. Try a shorter term, a reference, or an applicant name.": {
+    fr: "Aucun résultat pour \u00ab {term} \u00bb. Essayez un terme plus court, une référence ou un nom de demandeur.",
+    ar: "لا نتائج لـ \u00ab {term} \u00bb. جرّب مصطلحاً أقصر أو مرجعاً أو اسم مقدم الطلب.",
+  },
+  "Tip: search an agency name, a reference like EVT-2026-XXXXXX, an applicant name, a country or a visa type.": {
+    fr: "Astuce : recherchez un nom d'agence, une référence du type EVT-2026-XXXXXX, un nom de demandeur, un pays ou un type de visa.",
+    ar: "نصيحة: ابحث باسم وكالة أو مرجع مثل EVT-2026-XXXXXX أو اسم مقدم الطلب أو بلد أو نوع تأشيرة.",
+  },
+
 };
 
 /** All registered content keys (guard-test target). */
@@ -685,7 +821,7 @@ export function contentT(locale: UiLocale): (s: string) => string {
     const entry = CONTENT[s];
     if (!entry) return s;
     return locale === "fr" ? entry.fr : entry.ar;
-  };
+};
 }
 
 /** Localized greeting for a day-part (admin dashboards). */

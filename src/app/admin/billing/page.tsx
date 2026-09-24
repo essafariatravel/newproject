@@ -8,6 +8,9 @@ import { formatAmount, formatDateTime } from "@/lib/format";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { FilterBar, Pagination } from "@/components/app-widgets";
+import { TopupProcessForm } from "@/components/topup";
+import { processTopupAction } from "@/app/actions/topup";
+import { listTopupRequests } from "@/lib/topup";
 import { SubmitButton } from "@/components/forms";
 import { EmptyState, Flash, PageHeader, StatCard, TableWrap } from "@/components/ui";
 
@@ -33,9 +36,14 @@ export default async function AdminBillingPage({
   const flash = flashFrom(sp);
   const agencyFilter = typeof sp.agency === "string" ? sp.agency : undefined;
   const page = Number(sp.page ?? "1") || 1;
-  const [txs, agencies] = await Promise.all([listWalletTransactions({ agencyId: agencyFilter, page }), listAgencies()]);
+  const [txs, agencies, topups] = await Promise.all([
+    listWalletTransactions({ agencyId: agencyFilter, page }),
+    listAgencies(),
+    listTopupRequests({ status: "PENDING", limit: 50 }),
+  ]);
   const canAdjust = ["SUPER_ADMIN", "ADMIN", "ACCOUNTING"].includes(staff.role);
   const totalBalance = agencies.reduce((sum, a) => sum + Number(a.agency.balance), 0);
+  const balanceByAgency = new Map(agencies.map((a) => [a.agency.id, a.agency.balance]));
 
   return (
     <>
@@ -46,7 +54,73 @@ export default async function AdminBillingPage({
         <StatCard label={ct("Agencies")} value={agencies.length} href="/admin/agencies" />
         <StatCard label={ct("Combined balances")} value={formatAmount(totalBalance.toFixed(2), "DZD", uiLocale)} tone="gold" />
         <StatCard label={ct("Ledger entries")} value={txs.total} />
-        <StatCard label={ct("Unfiltered view")} value={agencyFilter ? ct("Filtered") : ct("All agencies")} />
+        <StatCard label={ct("Pending top-up requests")} value={topups.length} tone="gold" />
+      </div>
+
+      <div className="mt-8">
+        <h2 className="mb-1 font-serif text-xl text-navy-900">{ct("Pending top-up requests")}</h2>
+        <p className="mb-3 max-w-3xl text-sm text-slate-500">
+          {ct("The ledger entry is created by the normal wallet credit: no money is invented here.")}
+        </p>
+        {topups.length === 0 ? (
+          <div className="card">
+            <EmptyState title={ct("No pending top-up requests.")} />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {topups.map((t) => (
+              <div key={t.id} className="card p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="font-mono text-xs text-slate-500">{t.reference}</p>
+                    <p className="text-sm font-semibold text-navy-900">
+                      <Link href={`/admin/agencies/${t.agencyId}`} className="hover:underline">
+                        {t.agencyName}
+                      </Link>{" "}
+                      · {formatAmount(t.amount, "DZD", uiLocale)}
+                    </p>
+                    {t.note ? <p className="mt-0.5 text-xs text-slate-500">{t.note}</p> : null}
+                  </div>
+                  <p className="text-xs text-slate-400">{formatDateTime(t.createdAt, uiLocale)}</p>
+                </div>
+                {canAdjust ? (
+                  <div className="mt-3 max-w-2xl">
+                    <TopupProcessForm
+                      action={processTopupAction}
+                      back="/admin/billing"
+                      requestId={t.id}
+                      requestedAmount={t.amount}
+                      agencyBalance={balanceByAgency.get(t.agencyId) ?? "0"}
+                      locale={uiLocale}
+                      copy={{
+                        amountLabel: ct("Amount to fund (DZD)"),
+                        amountPlaceholder: "50000",
+                        noteLabel: ct("Optional note (payment reference, transfer date…)"),
+                        notePlaceholder: ct("e.g. bank transfer received 23 Sep"),
+                        submit: ct("Credit and close"),
+                        sending: ct("Sending…"),
+                        resultingBalance: ct("Resulting balance"),
+                        currentBalance: ct("Current balance"),
+                        creditLabel: ct("Credit wallet"),
+                        rejectLabel: ct("Reject request"),
+                        reasonLabel: ct("Reason (sent to the agency)"),
+                        reasonPlaceholder: ct("e.g. bank transfer received 23 Sep"),
+                        confirmCredit: ct("Credit and close"),
+                        confirmReject: ct("Confirm rejection"),
+                        processing: ct("Processing…"),
+                        requestedAmount: ct("Requested amount (DZD)"),
+                        creditedAmount: ct("Amount to fund (DZD)"),
+                        maxNote: ct("Credit amounts above the requested value are not allowed — use a manual adjustment instead."),
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-400">{ct("Only SUPER_ADMIN, ADMIN or ACCOUNTING may process top-ups.")}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="mt-6">
@@ -85,7 +159,7 @@ export default async function AdminBillingPage({
                 {txs.rows.map(({ tx, agencyName, applicationReference }) => (
                   <tr key={tx.id} className="tr-hover">
                     <td className="td whitespace-nowrap text-xs font-mono">{(tx as { reference?: string | null }).reference ?? tx.id.slice(0, 8)}</td>
-                    <td className="td whitespace-nowrap text-xs">{formatDateTime(tx.createdAt)}</td>
+                    <td className="td whitespace-nowrap text-xs">{formatDateTime(tx.createdAt, uiLocale)}</td>
                     <td className="td max-w-[160px] truncate">
                       <Link href={`/admin/agencies/${tx.agencyId}`} className="text-navy-800 hover:underline">
                         {agencyName}

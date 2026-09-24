@@ -54,8 +54,10 @@ type ChromeKey =
   | "Home" | "Visa Services" | "Destinations" | "B2B Services" | "Contact"
   | "Sign in" | "Register your agency" | "B2B travel" | "Partner-only" | "Skip to content"
   | "Sign out" | "Language" | "All rights reserved." | "Platform" | "Company"
+  | "Menu" | "Close menu"
   /* shell chrome */
   | "Back Office" | "Agency Portal" | "B2B Agency Portal"
+  | "Search" | "Search…"
   /* nav sections */
   | "Overview" | "Operations" | "Partners" | "Finance" | "Configuration" | "Insights"
   /* nav items */
@@ -79,6 +81,8 @@ const FR: ChromeDict = {
   "Partner-only": "Réservé aux partenaires",
   "Skip to content": "Aller au contenu",
   "Sign out": "Se déconnecter",
+  Menu: "Menu",
+  "Close menu": "Fermer le menu",
   Language: "Langue",
   "All rights reserved.": "Tous droits réservés.",
   Platform: "Plateforme",
@@ -86,6 +90,8 @@ const FR: ChromeDict = {
   "Back Office": "Back Office",
   "Agency Portal": "Portail Agence",
   "B2B Agency Portal": "Portail Agence B2B",
+  Search: "Rechercher",
+  "Search…": "Rechercher…",
   Overview: "Vue d'ensemble",
   Operations: "Opérations",
   Partners: "Partenaires",
@@ -129,6 +135,8 @@ const AR: ChromeDict = {
   "Partner-only": "للشركاء فقط",
   "Skip to content": "تخطَّ إلى المحتوى",
   "Sign out": "تسجيل الخروج",
+  Menu: "القائمة",
+  "Close menu": "إغلاق القائمة",
   Language: "اللغة",
   "All rights reserved.": "جميع الحقوق محفوظة.",
   Platform: "المنصة",
@@ -136,6 +144,8 @@ const AR: ChromeDict = {
   "Back Office": "المكتب الخلفي",
   "Agency Portal": "بوابة الوكالة",
   "B2B Agency Portal": "بوابة الوكالات (B2B)",
+  Search: "بحث",
+  "Search…": "بحث…",
   Overview: "نظرة عامة",
   Operations: "العمليات",
   Partners: "الشركاء",
@@ -186,7 +196,9 @@ export const ALL_CHROME_KEYS: ChromeKey[] = [
   "Home", "Visa Services", "Destinations", "B2B Services", "Contact",
   "Sign in", "Register your agency", "B2B travel", "Partner-only", "Skip to content",
   "Sign out", "Language", "All rights reserved.", "Platform", "Company",
+  "Menu", "Close menu",
   "Back Office", "Agency Portal", "B2B Agency Portal",
+  "Search", "Search…",
   "Overview", "Operations", "Partners", "Finance", "Configuration", "Insights",
   "Dashboard", "Notifications", "Applications", "New Application", "Applicants",
   "Documents", "Communications", "Profile", "Wallet & Transactions",

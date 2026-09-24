@@ -23,6 +23,7 @@ import {
 } from "@/lib/applications";
 import { runAction } from "@/lib/action-helpers";
 import { recordAudit } from "@/lib/audit";
+import { notifyUsers } from "@/lib/notifications";
 
 const idSchema = z.string().uuid("Invalid identifier.");
 
@@ -311,6 +312,26 @@ export async function assignOfficerAction(formData: FormData): Promise<void> {
       entityId: applicationId,
       metadata: { assignedTo },
     });
+    // §25 — the new case officer is told, with a deep link to the dossier.
+    if (assignedTo && assignedTo !== user.id) {
+      const app = (
+        await db
+          .select({ reference: applications.reference, agencyId: applications.agencyId })
+          .from(applications)
+          .where(eq(applications.id, applicationId))
+          .limit(1)
+      )[0];
+      if (app) {
+        await notifyUsers([assignedTo], {
+          type: "APPLICATION_ASSIGNED",
+          title: `Assigned: ${app.reference}`,
+          body: `${user.name} assigned this dossier to you.`,
+          link: `/admin/applications/${applicationId}`,
+          agencyId: app.agencyId,
+          applicationId,
+        });
+      }
+    }
     revalidatePath(back);
     return assignedTo ? "Case officer assigned." : "Assignment cleared.";
   });

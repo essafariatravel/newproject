@@ -8,6 +8,7 @@ import { AppShell, type NavSection } from "@/components/app-shell";
 import { readBranding, brandLogoUrl } from "@/lib/branding";
 import { chromeT, getUiLocale } from "@/lib/ui-i18n";
 import { UiLanguageSwitcher } from "@/components/ui-language-switcher";
+import { StaffSearch } from "@/components/staff-search";
 
 export const dynamic = "force-dynamic";
 
@@ -82,7 +83,12 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       brandSuffix="Back Office"
       platformLogoUrl={platformBranding ? brandLogoUrl(platformBranding) : null}
       brandName={platformBranding?.name}
-      headerExtras={<UiLanguageSwitcher locale={locale} compact />}
+      headerExtras={
+        <>
+          <StaffSearch label={tr("Search")} placeholder={tr("Search…")} />
+          <UiLanguageSwitcher locale={locale} compact />
+        </>
+      }
     >
       {children}
     </AppShell>

@@ -155,7 +155,7 @@ const VISA_TYPES: VisaTypeSeed[] = [
   {
     countryIso: "FR", categoryCode: "TOURIST", name: "France Schengen Tourist Visa", code: "FR-SCH-TOUR",
     description: "Short-stay Schengen visa (up to 90 days) for tourism in France.",
-    minDays: 10, maxDays: 25, fee: "120.00", currency: "EUR",
+    minDays: 10, maxDays: 25, fee: "24000.00", currency: "DZD",
     requirements: [
       ["PASSPORT", true, "Valid 3+ months beyond return date, 2 blank pages."],
       ["PHOTO", true],
@@ -170,7 +170,7 @@ const VISA_TYPES: VisaTypeSeed[] = [
   {
     countryIso: "DE", categoryCode: "BUSINESS", name: "Germany Schengen Business Visa", code: "DE-SCH-BUS",
     description: "Short-stay Schengen visa for business meetings and trade fairs in Germany.",
-    minDays: 10, maxDays: 30, fee: "120.00", currency: "EUR",
+    minDays: 10, maxDays: 30, fee: "28000.00", currency: "DZD",
     requirements: [
       ["PASSPORT", true],
       ["PHOTO", true],
@@ -184,7 +184,7 @@ const VISA_TYPES: VisaTypeSeed[] = [
   {
     countryIso: "IT", categoryCode: "TOURIST", name: "Italy Schengen Tourist Visa", code: "IT-SCH-TOUR",
     description: "Short-stay Schengen visa for tourism in Italy.",
-    minDays: 12, maxDays: 30, fee: "115.00", currency: "EUR",
+    minDays: 12, maxDays: 30, fee: "23500.00", currency: "DZD",
     requirements: [
       ["PASSPORT", true],
       ["PHOTO", true],
@@ -197,7 +197,7 @@ const VISA_TYPES: VisaTypeSeed[] = [
   {
     countryIso: "US", categoryCode: "BUSINESS", name: "USA B1/B2 Visitor Visa", code: "US-B1B2",
     description: "US visitor visa for business (B1) or tourism (B2).",
-    minDays: 20, maxDays: 60, fee: "220.00", currency: "USD",
+    minDays: 20, maxDays: 60, fee: "45000.00", currency: "DZD",
     requirements: [
       ["PASSPORT", true],
       ["PHOTO", true, "5x5cm, white background."],
@@ -209,7 +209,7 @@ const VISA_TYPES: VisaTypeSeed[] = [
   {
     countryIso: "GB", categoryCode: "TOURIST", name: "UK Standard Visitor Visa", code: "GB-STD-VIS",
     description: "UK visitor visa for tourism, family visits or short business trips.",
-    minDays: 15, maxDays: 30, fee: "160.00", currency: "GBP",
+    minDays: 15, maxDays: 30, fee: "32000.00", currency: "DZD",
     requirements: [
       ["PASSPORT", true],
       ["BANK_STATEMENT", true],
@@ -222,7 +222,7 @@ const VISA_TYPES: VisaTypeSeed[] = [
   {
     countryIso: "AE", categoryCode: "TOURIST", name: "UAE Tourist Visa (30 days)", code: "AE-TOUR-30",
     description: "30-day single-entry UAE tourist visa.",
-    minDays: 3, maxDays: 7, fee: "95.00", currency: "USD",
+    minDays: 3, maxDays: 7, fee: "12000.00", currency: "DZD",
     requirements: [
       ["PASSPORT", true],
       ["PHOTO", true],
@@ -233,7 +233,7 @@ const VISA_TYPES: VisaTypeSeed[] = [
   {
     countryIso: "TR", categoryCode: "TOURIST", name: "Türkiye Tourist e-Visa Support", code: "TR-TOUR",
     description: "Türkiye tourist visa application support service.",
-    minDays: 3, maxDays: 10, fee: "80.00", currency: "EUR",
+    minDays: 3, maxDays: 10, fee: "9500.00", currency: "DZD",
     requirements: [
       ["PASSPORT", true],
       ["HOTEL_RESERVATION", true],
@@ -243,7 +243,7 @@ const VISA_TYPES: VisaTypeSeed[] = [
   {
     countryIso: "CN", categoryCode: "BUSINESS", name: "China M Visa (Business)", code: "CN-M-BUS",
     description: "China business visa for trade and commercial activities.",
-    minDays: 7, maxDays: 15, fee: "180.00", currency: "USD",
+    minDays: 7, maxDays: 15, fee: "35000.00", currency: "DZD",
     requirements: [
       ["PASSPORT", true],
       ["PHOTO", true],
@@ -329,7 +329,7 @@ async function ensureAgency(a: {
       city: a.city,
       country: a.country,
       balance: a.balance ?? "0",
-      currency: "EUR",
+      currency: "DZD",
       billingName: a.legalName,
       billingEmail: a.email,
     })
@@ -450,7 +450,14 @@ async function main() {
   if (demoRefExists.rows.length === 0) {
     const superAdmin = (await db.select().from(users).where(sql`lower(${users.email}) = lower(${"superadmin@essafaria.example"})`).limit(1))[0]!;
     const visaType = (await db.select().from(visaTypes).where(eq(visaTypes.code, "FR-SCH-TOUR")).limit(1))[0]!;
-    await adjustWallet({ agencyId: agencyA.id, amount: 2000, reason: "Initial demo funding", actor: { ...superAdmin, role: superAdmin.role as Role, userStatus: superAdmin.status, agencyStatus: null, agencyName: null } });
+    // DZD-only platform (§7): fund the demo agency for a realistic batch of
+    // visa fees, otherwise the showcase submission cannot be charged.
+    await adjustWallet({
+      agencyId: agencyA.id,
+      amount: 250000,
+      reason: "Initial demo funding",
+      actor: { ...superAdmin, role: superAdmin.role as Role, userStatus: superAdmin.status, agencyStatus: null, agencyName: null },
+    });
     const app = await createDraftApplication({
       agencyId: agencyA.id,
       visaTypeId: visaType.id,
@@ -473,12 +480,21 @@ async function main() {
       country: "Morocco",
     });
     const actor = { ...agencyAdminA, role: agencyAdminA.role as Role, userStatus: "ACTIVE", agencyStatus: "ACTIVE", agencyName: agencyA.legalName } as AuthUser;
+    void actor;
     // Submit via the legitimate staff-override path (demo seed has no document files).
-    await submitApplication({
-      applicationId: app.id,
-      actor: { ...superAdmin, role: superAdmin.role as Role, userStatus: "ACTIVE", agencyStatus: null, agencyName: null },
-      overrideReason: "Demo seed dataset: showcase application created without physical document files.",
-    });
+    // The draft must never survive a failure here: an abandoned DRAFT would show
+    // up in agency lists as a phantom application (§13).
+    try {
+      await submitApplication({
+        applicationId: app.id,
+        actor: { ...superAdmin, role: superAdmin.role as Role, userStatus: "ACTIVE", agencyStatus: null, agencyName: null },
+        overrideReason: "Demo seed dataset: showcase application created without physical document files.",
+      });
+    } catch (err) {
+      await db.delete(applicants).where(eq(applicants.applicationId, app.id));
+      await db.delete(applications).where(eq(applications.id, app.id));
+      throw err;
+    }
     await db.update(applications).set({ reference: "EVT-DEMO-0001" }).where(eq(applications.id, app.id));
     await db.execute(sql`update ${sql.raw(qualifiedTable("wallet_transactions"))} set reason = 'Visa application EVT-DEMO-0001' where application_id = ${app.id}`);
   }

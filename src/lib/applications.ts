@@ -22,6 +22,7 @@ import {
 import { AppError, OVERRIDE_ROLES, type AuthUser, ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES } from "@/lib/types";
 import { chargeApplicationSubmission } from "@/lib/wallet";
 import { recordAudit } from "@/lib/audit";
+import { getEmbassyApplicability } from "@/lib/queries";
 import { agencyUserIds, staffUserIds, notifyUsers } from "@/lib/notifications";
 import { buildStorageKey, storageProvider } from "@/lib/storage";
 import { documents } from "@/db/schema";
@@ -446,6 +447,9 @@ const TERMINAL_TIMESTAMP_FIELDS: Record<string, "completedAt" | "decisionAt"> = 
  * (REFUSED is a deactivated legacy status — the canonical negative outcome
  * is REJECTED.)
  */
+/** §18 — statuses that represent the optional embassy stage. */
+const EMBASSY_STATUS_CODES = new Set(["EMBASSY_SENT", "EMBASSY_SUBMISSION"]);
+
 const DECISION_LOCKED_STATUSES = new Set(["APPROVED", "REJECTED"]);
 
 export async function changeApplicationStatus(params: {
@@ -475,6 +479,19 @@ export async function changeApplicationStatus(params: {
       "DECISION_REQUIRED",
       `${to.name} outcomes must be recorded through the final-decision panel: upload the decision document first.`,
     );
+  }
+
+  // §18 — the embassy stage is programme-driven, not a global step. A
+  // programme that declares NOT_APPLICABLE can never be moved there, and the
+  // guard lives here (server-side), not only in the UI.
+  if (EMBASSY_STATUS_CODES.has(to.code) && !params.viaDecision) {
+    const applicability = await getEmbassyApplicability(app.visaTypeId);
+    if (applicability === "NOT_APPLICABLE") {
+      throw new AppError(
+        "INVALID_TRANSITION",
+        "This visa programme does not use an embassy stage. Move the application to processing or record the decision instead.",
+      );
+    }
   }
 
   const transition = await db

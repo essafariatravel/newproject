@@ -1,11 +1,11 @@
 import { portalPageUser } from "@/lib/page-auth";
 import { activeVisaOptions } from "@/lib/queries";
 import { listRequirementsForVisaType } from "@/lib/requests";
-import { listPriorities } from "@/lib/applications";
 import { getBalance } from "@/lib/wallet";
 import { PageHeader } from "@/components/ui";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
+import { countryName } from "@/lib/country-names";
 import { NATIONALITIES, DEFAULT_NATIONALITY, nationalityLabel } from "@/lib/nationalities";
 import { RequestWizard, type WizardCountry, type WizardLabels, type WizardRequirement } from "./request-wizard";
 
@@ -30,9 +30,8 @@ export default async function NewApplicationPage({
   const locale = await getUiLocale(sp);
   const ct = contentT(locale);
 
-  const [visaOptions, priorities, wallet] = await Promise.all([
+  const [visaOptions, wallet] = await Promise.all([
     activeVisaOptions(),
-    listPriorities(true),
     getBalance(user.agencyId),
   ]);
 
@@ -42,7 +41,7 @@ export default async function NewApplicationPage({
   for (const v of visaOptions) {
     let c = countries.find((x) => x.id === v.countryId);
     if (!c) {
-      c = { id: v.countryId, name: v.countryName, visaTypes: [] };
+      c = { id: v.countryId, name: countryName({ name: v.countryName, iso2: v.countryIso2 }, locale), visaTypes: [] };
       countries.push(c);
     }
     c.visaTypes.push({
@@ -54,6 +53,7 @@ export default async function NewApplicationPage({
       currency: v.currency,
       minDays: v.minDays,
       maxDays: v.maxDays,
+      description: v.description ?? null,
     });
   }
 
@@ -64,6 +64,10 @@ export default async function NewApplicationPage({
     }),
   );
 
+  // ?destination=<countryId> deep link — shareable destination, and the only
+  // way to reach the programme cards without JavaScript.
+  const destinationParam = typeof sp.destination === "string" ? sp.destination : null;
+
   const errorCode = typeof sp.error === "string" ? sp.error : null;
   const serverError = errorCode
     ? ct(`request.error.${errorCode}`) === `request.error.${errorCode}`
@@ -72,21 +76,29 @@ export default async function NewApplicationPage({
     : null;
 
   const labels: WizardLabels = {
-    stepChoose: ct("step.choose"),
-    stepUpload: ct("step.upload"),
-    stepPreview: ct("step.preview"),
-    chooseCountry: ct("Choose country"),
-    selectCountry: ct("Select the destination country first."),
+    stepChoose: ct("Choose visa"),
+    stepUpload: ct("Upload documents"),
+    stepPreview: ct("Preview, confirm & submit"),
+    destinationQuestion: ct("Where is your traveler going?"),
+    destinationHint: ct("Search a destination and pick a visa programme. Only destinations with a bookable DZD programme are shown."),
+    searchDestination: ct("Search a destination…"),
+    noDestinationMatch: ct("No destination matches your search."),
+    destinationsAvailable: ct("{count} destinations available"),
+    popularDestinations: ct("Popular destinations"),
+    destination: ct("Destination"),
+    change: ct("Change"),
     chooseVisa: ct("Choose visa type"),
-    selectVisa: ct("Pick a country to see its visa types."),
+    selectVisa: ct("Pick a destination to see its visa programmes."),
+    availableProgrammes: ct("Available visa programmes"),
     fee: ct("Fee"),
     processing: ct("Processing time"),
     days: ct("days"),
-    priority: ct("Priority"),
+    processingUnspecified: ct("Processing time not specified"),
     notes: ct("Notes for ESSAFARIA (optional)"),
     notesPlaceholder: ct("Travel dates, group context, special requests…"),
     applicant: ct("Applicant"),
     fullName: ct("Full name"),
+    fullNamePlaceholder: ct("Full name as in passport"),
     nationality: ct("Nationality"),
     next: ct("Next"),
     back: ct("Back"),
@@ -99,17 +111,30 @@ export default async function NewApplicationPage({
     reviewTitle: ct("Preview & confirm"),
     reviewSubtitle: ct("Verify everything below before submitting. This is the only write: your application is created, charged and sent to ESSAFARIA in one step."),
     walletBalance: ct("Wallet balance"),
+    balanceAfter: ct("Balance after submission"),
     chargeNote: ct("Your wallet is charged once, automatically, when you confirm. Retrying a failed attempt can never charge twice."),
     confirmSubmit: ct("Confirm & submit"),
+    submitApplication: ct("Submit application"),
     submitting: ct("Submitting…"),
     missingPrefix: ct("Required documents missing"),
     summaryApplicant: ct("Applicant"),
-    summaryDocuments: ct("Documents attached"),
+    summaryDocuments: ct("Documents"),
     noDocumentsRequired: ct("This visa programme has no document requirements."),
-    validationChooseCountry: ct("Choose a destination country to continue."),
-    validationChooseVisa: ct("Choose a visa type to continue."),
+    validationChooseCountry: ct("Choose a destination to continue."),
+    validationChooseVisa: ct("Choose a visa programme to continue."),
     validationApplicant: ct("Enter the applicant's full name and choose a nationality."),
     searchNationality: ct("Choose nationality"),
+    sectionVisa: ct("Visa"),
+    programme: ct("Visa programme"),
+    sectionApplicant: ct("Applicant"),
+    sectionPayment: ct("Payment summary"),
+    insufficientTitle: ct("Insufficient wallet balance"),
+    requiredAmount: ct("Required amount"),
+    currentBalance: ct("Current balance"),
+    missingAmount: ct("Missing amount"),
+    requestTopup: ct("Request wallet top-up"),
+    uploaded: ct("uploaded"),
+    remove: ct("Remove"),
   };
 
   const uiLocale = locale === "ar" ? "ar" : locale === "fr" ? "fr" : "en";
@@ -118,19 +143,20 @@ export default async function NewApplicationPage({
     <>
       <PageHeader
         title={ct("New visa request")}
-        subtitle={ct("Three steps: choose the country and visa, upload the documents, preview and submit. Nothing is saved before the final confirmation.")}
+        subtitle={ct("Three steps: choose the destination and visa, upload the documents, preview and submit. Nothing is saved before the final confirmation.")}
       />
       <RequestWizard
         countries={countries}
         nationalities={NATIONALITIES.map((n) => ({ code: n.code, label: nationalityLabel(n.code, uiLocale) }))}
         defaultNationality={DEFAULT_NATIONALITY}
-        priorities={priorities.map((p) => ({ code: p.code, name: p.name }))}
         requirementsByVisaType={requirementMaps}
         walletBalance={wallet.balance}
         walletCurrency={wallet.currency}
         locale={uiLocale}
         labels={labels}
         serverError={serverError}
+        initialCountryId={destinationParam}
+        topupPath="/portal/wallet"
       />
     </>
   );

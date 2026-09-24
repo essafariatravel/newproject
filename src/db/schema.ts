@@ -169,6 +169,8 @@ export const visaTypes = pgTable(
     fee: money("fee").notNull().default("0"),
     currency: char("currency", { length: 3 }).notNull().default("DZD"),
     active: boolean("active").notNull().default(true),
+    /** NOT_APPLICABLE | OPTIONAL | APPLICABLE — §18/§42 embassy step */
+    embassyApplicability: text("embassy_applicability").notNull().default("OPTIONAL"),
     ...timestamps,
   },
   (t) => [
@@ -764,6 +766,46 @@ const bytea = customType<{ data: Buffer; notNull: true; default: false }>({
   },
 });
 
+/* ------------------------------------------------------------------ */
+/* Agency wallet top-up requests (no payment gateway in V1)            */
+/* ------------------------------------------------------------------ */
+
+export const walletTopupRequests = pgTable(
+  "wallet_topup_requests",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    /** Human-readable reference e.g. TOP-2026-000123 — unique, immutable */
+    reference: text("reference").notNull().default(sql`generate_topup_reference()`),
+    agencyId: uuid("agency_id")
+      .notNull()
+      .references(() => agencies.id, { onDelete: "cascade" }),
+    amount: money("amount").notNull(),
+    currency: char("currency", { length: 3 }).notNull().default("DZD"),
+    note: text("note"),
+    /** PENDING | PROCESSED | REJECTED | CANCELLED */
+    status: text("status").notNull().default("PENDING"),
+    requestedBy: uuid("requested_by").references(() => users.id, { onDelete: "set null" }),
+    processedBy: uuid("processed_by").references(() => users.id, { onDelete: "set null" }),
+    /** The ledger row that satisfied the request — unique: one credit, one request. */
+    walletTransactionId: uuid("wallet_transaction_id").references(() => walletTransactions.id, {
+      onDelete: "set null",
+    }),
+    decisionNote: text("decision_note"),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    unique("wallet_topup_requests_reference_unique").on(t.reference),
+    index("wallet_topup_requests_agency_idx").on(t.agencyId, t.createdAt),
+    index("wallet_topup_requests_status_idx").on(t.status, t.createdAt),
+    check("wallet_topup_amount_positive", sql`${t.amount} > 0`),
+    check(
+      "wallet_topup_status_check",
+      sql`${t.status} in ('PENDING','PROCESSED','REJECTED','CANCELLED')`,
+    ),
+  ],
+);
+
 export const documentBlobs = pgTable(
   "document_blobs",
   {
@@ -794,6 +836,7 @@ export type Applicant = typeof applicants.$inferSelect;
 export type ChecklistItem = typeof checklistItems.$inferSelect;
 export type DocumentRow = typeof documents.$inferSelect;
 export type WalletTransaction = typeof walletTransactions.$inferSelect;
+export type WalletTopupRequest = typeof walletTopupRequests.$inferSelect;
 export type DocumentRequest = typeof documentRequests.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type Communication = typeof communications.$inferSelect;

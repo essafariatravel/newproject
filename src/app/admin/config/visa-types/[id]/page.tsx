@@ -214,6 +214,24 @@ export default async function VisaTypeDetailPage({
                   <label className="label" htmlFor="e-desc">Description</label>
                   <textarea id="e-desc" name="description" rows={2} defaultValue={vt.description ?? ""} className="input" />
                 </div>
+                <fieldset className="rounded-xl border border-line/80 bg-ivory-50/50 p-3">
+                  <legend className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Workflow</legend>
+                  <label className="label" htmlFor="e-embassy">Embassy / external authority step</label>
+                  <select
+                    id="e-embassy"
+                    name="embassyApplicability"
+                    defaultValue={(vt as { embassyApplicability?: string }).embassyApplicability ?? "OPTIONAL"}
+                    className="input"
+                  >
+                    <option value="NOT_APPLICABLE">Not applicable — this programme never goes to an embassy</option>
+                    <option value="OPTIONAL">Optional — staff may send it, never required</option>
+                    <option value="APPLICABLE">Applicable — the embassy stage is part of this programme</option>
+                  </select>
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    When a programme is “Not applicable”, staff can no longer move an application to the embassy stage, and agencies
+                    never see an embassy step in their progress view.
+                  </p>
+                </fieldset>
                 <SubmitButton className="btn-primary w-full" pendingLabel="Saving…">Save visa type</SubmitButton>
               </form>
             </Card>

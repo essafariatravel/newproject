@@ -4,14 +4,16 @@ import { countries } from "@/db/schema";
 import { EmptyState } from "@/components/ui";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
+import { countryName } from "@/lib/country-names";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Destinations — ESSAFARIA TRAVEL" };
 
 export default async function CountriesPage() {
+  const uiLocale = await getUiLocale();
   // Countries are marketing-safe coverage information. Visa types, counts and
-  const ct = contentT(await getUiLocale());
+  const ct = contentT(uiLocale);
   // prices are B2B-only (Agency Portal) and deliberately not queried here.
   let rows: Array<{ id: string; name: string; region: string | null; iso2: string }> = [];
   let catalogueUnavailable = false;
@@ -68,7 +70,9 @@ export default async function CountriesPage() {
                 {list.map((c) => (
                   <div key={c.id} className="card flex items-center gap-2.5 p-4">
                     <span className="badge bg-navy-900/5 text-navy-800">{c.iso2}</span>
-                    <span className="text-sm font-medium text-navy-900">{c.name}</span>
+                    <span className="text-sm font-medium text-navy-900">
+                      {countryName(c, /* localized (§53) */ uiLocale)}
+                    </span>
                   </div>
                 ))}
               </div>

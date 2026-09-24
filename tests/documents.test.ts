@@ -15,7 +15,7 @@ import {
   uploadResubmission,
 } from "@/lib/documents";
 import { adjustWallet } from "@/lib/wallet";
-import { userByEmail, agencyByEmail } from "./helpers/fixtures";
+import { userByEmail, agencyByEmail, documentTypeIdByCode } from "./helpers/fixtures";
 import { MAX_UPLOAD_BYTES } from "@/lib/types";
 
 async function visaId() {
@@ -43,10 +43,12 @@ describe("document upload validation", () => {
     const agency = await agencyByEmail("ops@agencyb.example");
     const staffB = await userByEmail("b-admin@test.example");
     const app = (await db.select().from(applications).where(sql`${applications.agencyId} = ${agency.id} limit 1`))[0]!;
+    const documentTypeId = await documentTypeIdByCode("PASSPORT");
     await expect(
       uploadDocument({
         applicationId: app.id,
         actor: staffB,
+        documentTypeId,
         file: { name: "evil.exe", type: "application/x-msdownload", size: 10, data: Buffer.from("MZ") },
       }),
     ).rejects.toMatchObject({ code: "UNSUPPORTED_TYPE" });
@@ -54,6 +56,7 @@ describe("document upload validation", () => {
       uploadDocument({
         applicationId: app.id,
         actor: staffB,
+        documentTypeId,
         file: { name: "page.html", type: "text/html", size: 10, data: Buffer.from("<script>") },
       }),
     ).rejects.toMatchObject({ code: "UNSUPPORTED_TYPE" });
@@ -67,9 +70,34 @@ describe("document upload validation", () => {
       uploadDocument({
         applicationId: app.id,
         actor: staffB,
+        documentTypeId: await documentTypeIdByCode("PASSPORT"),
         file: { name: "big.pdf", type: "application/pdf", size: MAX_UPLOAD_BYTES + 1, data: Buffer.alloc(10) },
       }),
     ).rejects.toMatchObject({ code: "FILE_TOO_LARGE" });
+  });
+
+  it("accepts ordinary file names (regression: over-escaped sanitizer rejected every real name)", async () => {
+    const agency = await agencyByEmail("ops@agencyb.example");
+    const staffB = await userByEmail("b-admin@test.example");
+    const app = await createDraftApplication({ agencyId: agency.id, visaTypeId: await visaId(), createdBy: staffB });
+    const documentTypeId = await documentTypeIdByCode("PHOTO");
+    const names = [
+      "passport.pdf",
+      "visa scan 2026.jpg",
+      "IMG_2026-09-23.png",
+      "bank-statement (final).pdf",
+      "État civil.docx",
+      "photo_2.webp",
+    ];
+    for (const name of names) {
+      const doc = await uploadDocument({
+        applicationId: app.id,
+        actor: staffB,
+        documentTypeId,
+        file: { name, type: "application/pdf", size: 512, data: Buffer.from("%PDF-1.4 x") },
+      });
+      expect(doc.originalFilename).toBe(name);
+    }
   });
 
   it("rejects path-traversal filenames", async () => {
@@ -80,6 +108,7 @@ describe("document upload validation", () => {
       uploadDocument({
         applicationId: app.id,
         actor: staffB,
+        documentTypeId: await documentTypeIdByCode("PASSPORT"),
         file: { name: "../../etc/passwd", type: "application/pdf", size: 10, data: Buffer.from("x") },
       }),
     ).rejects.toMatchObject({ code: "INVALID_FILENAME" });

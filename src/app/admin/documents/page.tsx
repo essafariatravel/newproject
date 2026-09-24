@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
+import { getUiLocale } from "@/lib/ui-i18n";
 import { hasPermission } from "@/lib/rbac";
 import { listAllDocuments } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
@@ -17,6 +18,7 @@ export default async function AdminDocumentsPage({
 }) {
   const sp = await searchParams;
   const user = await pageUser();
+  const uiLocale = await getUiLocale();
   if (!hasPermission(user, "documents.view.all")) {
     return (
       <>
@@ -89,7 +91,7 @@ export default async function AdminDocumentsPage({
                   <td className="td max-w-[160px] truncate">{agencyName}</td>
                   <td className="td whitespace-nowrap text-xs">{bytes(doc.sizeBytes)}</td>
                   <td className="td"><DocStatusBadge status={doc.status} /></td>
-                  <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(doc.createdAt)}</td>
+                  <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(doc.createdAt, uiLocale)}</td>
                 </tr>
               ))}
             </tbody>

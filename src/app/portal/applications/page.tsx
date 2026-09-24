@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/badges";
 import { checklistProgress } from "@/lib/applications";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
+import { countryName } from "@/lib/country-names";
 
 export const dynamic = "force-dynamic";
 
@@ -101,13 +102,13 @@ export default async function PortalApplicationsPage({
                         immediately after REFERENCE. */}
                     <td className="td font-medium text-navy-900">{r.applicantSummary ?? "—"}</td>
                     <td className="td">
-                      {r.app.countryName}
+                      {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}
                       <span className="block text-xs text-slate-400">{r.app.visaTypeName}</span>
                     </td>
                     <td className="td">{p ? <Progress done={p.done} total={p.total} /> : "—"}</td>
                     <td className="td whitespace-nowrap tabular-nums">{r.app.fee} DZD</td>
                     <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
-                    <td className="td whitespace-nowrap text-xs text-slate-500">{formatDate(r.app.createdAt)}</td>
+                    <td className="td whitespace-nowrap text-xs text-slate-500">{formatDate(r.app.createdAt, uiLocale)}</td>
                   </tr>
                 );
               })}

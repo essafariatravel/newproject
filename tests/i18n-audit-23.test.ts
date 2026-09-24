@@ -103,7 +103,11 @@ describe("Phase 2.3 — Bug 1 localization audit (hard guards)", () => {
     expect(findRaw(SURFACES.portalNewRequest!, new Set())).toEqual([]);
     const src = readFileSync(path.join(ROOT, SURFACES.portalNewRequest!), "utf8");
     expect(src).not.toMatch(/>\s*CHOOSE\s*</);
-    expect(src).toContain("step.choose");
+    // Step labels are dictionary-driven; the pseudo-key "step.choose" is gone
+    // because it leaked untranslated text into the rendered wizard.
+    expect(src).toContain('ct("Choose visa")');
+    expect(src).toContain('ct("Upload documents")');
+    expect(src).toContain('ct("Preview, confirm & submit")');
     expect(src).toContain("request.error.");
   });
 

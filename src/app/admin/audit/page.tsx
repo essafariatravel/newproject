@@ -1,4 +1,5 @@
 import { pageUser } from "@/lib/page-auth";
+import { getUiLocale } from "@/lib/ui-i18n";
 import { hasPermission } from "@/lib/rbac";
 import { listAuditLogs } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
@@ -15,6 +16,7 @@ export default async function AdminAuditPage({
 }) {
   const sp = await searchParams;
   const staff = await pageUser();
+  const uiLocale = await getUiLocale();
   if (!hasPermission(staff, "audit.view")) {
     return (
       <>
@@ -54,7 +56,7 @@ export default async function AdminAuditPage({
             <tbody className="divide-y divide-slate-100">
               {result.rows.map(({ log, agencyName }) => (
                 <tr key={log.id} className="tr-hover">
-                  <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(log.createdAt)}</td>
+                  <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(log.createdAt, uiLocale)}</td>
                   <td className="td max-w-[160px] truncate text-xs">{log.actorEmail ?? "system"}</td>
                   <td className="td text-xs">{log.actorRole?.replaceAll("_", " ") ?? "—"}</td>
                   <td className="td max-w-[140px] truncate text-xs">{agencyName ?? "—"}</td>

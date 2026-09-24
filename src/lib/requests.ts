@@ -18,6 +18,7 @@
 /* application instead of charging twice.                               */
 /* ------------------------------------------------------------------ */
 
+import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 import { randomUUID } from "node:crypto";
 import { and, asc, eq } from "drizzle-orm";
 import { db, pool } from "@/lib/db";
@@ -192,7 +193,12 @@ function validateRequest(
 
   if (!input.idempotencyKey?.trim()) err("IDEMPOTENCY_KEY_REQUIRED", "Missing submission idempotency key.");
   if (!input.visaTypeId?.trim()) err("VISA_TYPE_REQUIRED", "Choose a visa type.");
-  if (!cfg) err("VISA_TYPE_INVALID", "Visa type not found or inactive.");
+  if (!cfg) {
+    err(
+      "VISA_TYPE_INVALID",
+      "This visa programme is not bookable. It is inactive, its destination is inactive, or its price is not configured in DZD.",
+    );
+  }
   if (!priorityOk) err("PRIORITY_INVALID", "Priority is not available.");
 
   if (!input.countryId?.trim()) err("COUNTRY_REQUIRED", "Choose a destination country.");
@@ -244,9 +250,8 @@ function validateRequest(
       if (!ALLOWED_MIME_TYPES.includes(file.type)) {
         err("UNSUPPORTED_TYPE", "Allowed formats: PDF, JPEG, PNG, WEBP, DOC, DOCX.");
       }
-      if (file.name.length > 200 || /[\u0000-\u001f\\/]/.test(file.name)) {
-        err("INVALID_FILENAME", "Invalid file name.");
-      }
+      const nameProblem = fileNameProblem(file.name);
+      if (nameProblem) err("INVALID_FILENAME", fileNameErrorMessage(nameProblem));
       usable.push(f);
     }
   }
@@ -292,7 +297,16 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
     .from(visaTypes)
     .innerJoin(countries, eq(visaTypes.countryId, countries.id))
     .innerJoin(visaCategories, eq(visaTypes.categoryId, visaCategories.id))
-    .where(and(eq(visaTypes.id, input.visaTypeId), eq(visaTypes.active, true), eq(countries.active, true)))
+    .where(
+      and(
+        eq(visaTypes.id, input.visaTypeId),
+        eq(visaTypes.active, true),
+        eq(countries.active, true),
+        // Operations are DZD-only (§7). A programme priced in another currency
+        // is not bookable until staff re-price it in DZD — no silent conversion.
+        eq(visaTypes.currency, "DZD"),
+      ),
+    )
     .limit(1);
   const cfg = cfgRows[0];
 
@@ -374,7 +388,7 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
           [
             applicationId, reference, agencyId, cfg.countryId, cfg.visaTypeId, submittedId,
             priorityRow[0]!.id, cfg.visaTypeName, cfg.visaTypeCode, cfg.categoryName, cfg.countryName,
-            cfg.fee, cfg.currency, cfg.processingMinDays, cfg.processingMaxDays,
+            cfg.fee, "DZD", cfg.processingMinDays, cfg.processingMaxDays,
             input.agencyNotes?.trim() || null, input.actor.id, input.idempotencyKey,
           ],
         );
@@ -467,7 +481,7 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
          (agency_id, application_id, type, amount, currency, balance_before, balance_after, reason, actor_id)
        values ($1,$2,'APPLICATION_CHARGE',$3,$4,$5,$6,$7,$8)
        returning id`,
-      [agencyId, applicationId, cfg.fee, cfg.currency, balance_before, balance_after, `Visa application ${reference}`, input.actor.id],
+      [agencyId, applicationId, cfg.fee, "DZD", balance_before, balance_after, `Visa application ${reference}`, input.actor.id],
     );
 
     await client.query(
@@ -483,7 +497,7 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
        values ($1,$2,$3,$4,'APPLICATION_SUBMITTED','application',$5,$6,$7)`,
       [
         input.actor.id, input.actor.email, input.actor.role, agencyId, applicationId,
-        JSON.stringify({ reference, visaTypeCode: cfg.visaTypeCode, fee: cfg.fee, currency: cfg.currency, source: "three-step-request" }),
+        JSON.stringify({ reference, visaTypeCode: cfg.visaTypeCode, fee: cfg.fee, currency: "DZD", source: "three-step-request" }),
         input.ipAddress ?? null,
       ],
     );
@@ -496,7 +510,7 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
       await notifyUsers(await staffUserIds(), {
         type: "APPLICATION_SUBMITTED",
         title: `Application ${reference} submitted`,
-        body: `${cfg.visaTypeName} (${cfg.countryName}) submitted with fee ${cfg.fee} ${cfg.currency}.`,
+        body: `${cfg.visaTypeName} (${cfg.countryName}) submitted with fee ${cfg.fee} DZD.`,
         link: `/admin/applications/${applicationId}`,
         agencyId,
         applicationId,
@@ -504,7 +518,7 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
       await notifyUsers(await agencyUserIds(agencyId), {
         type: "APPLICATION_SUBMITTED",
         title: `Application ${reference} submitted`,
-        body: `Your wallet was charged ${cfg.fee} ${cfg.currency}.`,
+        body: `Your wallet was charged ${cfg.fee} DZD.`,
         link: `/portal/applications/${applicationId}`,
         agencyId,
         applicationId,

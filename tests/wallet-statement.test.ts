@@ -105,12 +105,12 @@ describe("wallet statement — range validation", () => {
 });
 
 describe("wallet statement — math, strictly from the ledger", () => {
-  it("computes opening/credits/debits/closing per currency, excluding out-of-range rows", async () => {
+  it("computes opening/credits/debits/closing in DZD, excluding out-of-range rows", async () => {
     const { aAdmin, agencyA } = await actors();
-    await ledgerRow({ agencyId: agencyA.id, amount: "300.00", currency: "EUR", before: "0.00", after: "300.00", ageDays: 40, reason: "old top-up" });
-    await ledgerRow({ agencyId: agencyA.id, amount: "100.00", currency: "EUR", before: "300.00", after: "400.00", ageDays: 10, reason: "top-up" });
-    await ledgerRow({ agencyId: agencyA.id, amount: "40.00", currency: "EUR", before: "400.00", after: "360.00", ageDays: 8, type: "APPLICATION_CHARGE", reason: "charge" });
-    await ledgerRow({ agencyId: agencyA.id, amount: "55.50", currency: "DZD", before: "0.00", after: "55.50", ageDays: 6, reason: "DZD top-up" });
+    await ledgerRow({ agencyId: agencyA.id, amount: "300.00", currency: "DZD", before: "0.00", after: "300.00", ageDays: 40, reason: "old top-up" });
+    await ledgerRow({ agencyId: agencyA.id, amount: "100.00", currency: "DZD", before: "300.00", after: "400.00", ageDays: 10, reason: "top-up" });
+    await ledgerRow({ agencyId: agencyA.id, amount: "40.00", currency: "DZD", before: "400.00", after: "360.00", ageDays: 8, type: "APPLICATION_CHARGE", reason: "charge" });
+    await ledgerRow({ agencyId: agencyA.id, amount: "55.50", currency: "DZD", before: "360.00", after: "415.50", ageDays: 6, reason: "top-up" });
 
     const statement = await getAgencyWalletStatement({
       actor: { ...aAdmin, agencyId: agencyA.id },
@@ -118,21 +118,44 @@ describe("wallet statement — math, strictly from the ledger", () => {
       to: isoDay(new Date(NOW)),
     });
 
-    // primary currency section first
-    expect(statement.sections[0]!.currency).toBe("EUR");
-    const eur = statement.sections.find((s) => s.currency === "EUR")!;
-    expect(eur.openingBalance).toBe(300); // balance_before of first in-range row (the 20-day top-up)
-    expect(eur.totalCredits).toBe(100);
-    expect(eur.totalDebits).toBe(40);
-    expect(eur.closingBalance).toBe(360);
-    expect(eur.transactions.length).toBe(2);
-
-    const dzd = statement.sections.find((s) => s.currency === "DZD")!;
-    expect(dzd.totalCredits).toBe(55.5);
-    expect(dzd.totalDebits).toBe(0);
-    expect(dzd.transactions.length).toBe(1);
+    // §7 — DZD is the operational currency and therefore the primary section.
+    expect(statement.sections[0]!.currency).toBe("DZD");
+    const dzd = statement.sections[0]!;
+    expect(dzd.openingBalance).toBe(300); // balance_before of first in-range row (the 20-day top-up)
+    expect(dzd.totalCredits).toBe(155.5);
+    expect(dzd.totalDebits).toBe(40);
+    expect(dzd.closingBalance).toBe(415.5);
+    expect(dzd.transactions.length).toBe(3);
     // The 40-day-old row is out of range: it must not leak into totals.
-    expect(statement.sections.find((s) => s.currency === "EUR")!.transactions.some((t) => t.amount === 300)).toBe(false);
+    expect(dzd.transactions.some((t) => t.amount === 300)).toBe(false);
+  });
+
+  it("never reinterprets historical non-DZD rows: they stay in their own section, unconverted", async () => {
+    const { bAdmin, agencyB } = await actors();
+    // A legacy EUR row (pre-DZD-only migration) is history: it must not be
+    // converted into DZD, and must not pollute DZD totals.
+    await ledgerRow({ agencyId: agencyB.id, amount: "20.00", currency: "EUR", before: "0.00", after: "20.00", ageDays: 3, reason: "legacy euro top-up" });
+    await ledgerRow({ agencyId: agencyB.id, amount: "10.00", currency: "DZD", before: "0.00", after: "10.00", ageDays: 2, reason: "dz top-up" });
+
+    const statement = await getAgencyWalletStatement({
+      actor: { ...bAdmin, agencyId: agencyB.id },
+      from: isoDay(new Date(NOW - 6 * DAY)),
+      to: isoDay(new Date(NOW)),
+    });
+
+    // DZD leads the statement; the legacy currency follows in its own section.
+    expect(statement.sections[0]!.currency).toBe("DZD");
+    expect(statement.sections.map((s) => s.currency).sort()).toEqual(["DZD", "EUR"]);
+    const dzd = statement.sections.find((s) => s.currency === "DZD")!;
+    const eur = statement.sections.find((s) => s.currency === "EUR")!;
+    // The EUR amount is still 20 EUR (no conversion, no relabelling)…
+    expect(eur.transactions.some((t) => t.amount === 20 && t.description === "legacy euro top-up")).toBe(true);
+    expect(eur.totalCredits).toBeGreaterThanOrEqual(20);
+    // …and it is absent from the DZD section under any guise.
+    expect(dzd.transactions.some((t) => t.amount === 20)).toBe(false);
+    expect(dzd.transactions.some((t) => t.description === "legacy euro top-up")).toBe(false);
+    // Historical non-DZD rows are surfaced, never hidden.
+    expect(statement.nonDzdRowCount).toBeGreaterThan(0);
   });
 
   it("empty periods yield zeros with opening = closing = current balance", async () => {

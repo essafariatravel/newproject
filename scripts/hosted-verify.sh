@@ -143,10 +143,20 @@ CODE_AR=$(status_of "$BASE_URL/agency/register?lang=ar" "$WORK/reg-ar.html")
 [ "$CODE_AR" = "200" ] && grep -q 'dir="rtl"' "$WORK/reg-ar.html" && grep -q "سجّل وكالتك" "$WORK/reg-ar.html" \
   && ok "AR registration page + RTL ($CODE_AR)" || bad "AR registration page + RTL ($CODE_AR)"
 
-# Homepage CTA
+# Homepage CTA — §50: the sticky header carries exactly ONE register CTA,
+# and at mobile widths it is the only one visible (body CTAs are sm+).
 CODE_H=$(status_of "$BASE_URL/" "$WORK/home.html")
-[ "$CODE_H" = "200" ] && grep -q "Register your Agency" "$WORK/home.html" \
-  && ok "homepage header CTA present" || bad "homepage CTA ($CODE_H)"
+if [ "$CODE_H" = "200" ]; then
+  CTAS=$(grep -o 'data-testid="public-register-cta"' "$WORK/home.html" | wc -l | tr -d ' ')
+  MOBILE_VISIBLE=$(grep -o '<a[^>]*href="/agency/register"[^>]*>' "$WORK/home.html" | grep -vc 'hidden.*sm:inline-flex')
+  HAMBURGER=$(grep -c 'data-testid="public-menu-toggle"' "$WORK/home.html")
+  OVERFLOW=$(grep -c 'overflow-x-auto' "$WORK/home.html")
+  if [ "$CTAS" = "1" ] && [ "$MOBILE_VISIBLE" = "1" ] && [ "$HAMBURGER" -ge 1 ] && [ "$OVERFLOW" = "0" ]; then
+    ok "homepage §50: exactly one mobile register CTA + hamburger + no horizontal overflow"
+  else
+    bad "homepage §50 mobile CTA contract (header CTA=$CTAS mobile-visible=$MOBILE_VISIBLE hamburger=$HAMBURGER overflow=$OVERFLOW)"
+  fi
+else bad "homepage CTA ($CODE_H)"; fi
 
 STAMP=$(date +%s)
 LEGAL_EN="Hosted Verify EN $STAMP SARL"
@@ -457,8 +467,27 @@ else
   [ "$CODE_WIZ" = "200" ] && ok "NF-09 /portal/applications/new renders" || bad "NF-09 wizard ($CODE_WIZ)"
   [ "$(grep -o 'data-wizard-section=\"[0-9]\"' "$WORK/nf-wiz-en.html" | sort -u | wc -l)" = "3" ] \
     && ok "NF-10 exactly THREE wizard steps" || bad "NF-10 wizard steps"
-  grep -q 'data-testid="wizard-country"' "$WORK/nf-wiz-en.html" && ok "NF-11 destination-country buttons rendered" || bad "NF-11 country buttons"
-  grep -q "Choose country" "$WORK/nf-wiz-en.html" && ok "NF-12 'Choose country' step-1 header (EN)" || bad "NF-12 choose country"
+  grep -q 'data-testid="wizard-destination-search"' "$WORK/nf-wiz-en.html" && ok "NF-11 destination search field rendered (no country list)" || bad "NF-11 destination search"
+  grep -qi "Where is your traveler going" "$WORK/nf-wiz-en.html" && ok "NF-12 step-1 destination question (EN)" || bad "NF-12 destination question"
+  ! grep -q 'data-testid="wizard-country"' "$WORK/nf-wiz-en.html" && ok "NF-12b no giant country list in step 1" || bad "NF-12b country list present"
+  ! grep -q 'data-testid="wizard-country"' "$WORK/nf-wiz-en.html" && ok "NF-12c step 1 renders NO country grid" || bad "NF-12c country grid present"
+  # Destination deep link (?destination=<countryId>) is the SSR/no-JS entry point
+  # for the programme cards — exactly how the wizard works without JavaScript.
+  DEST=$(python3 - "$WORK/nf-wiz-en.html" <<'PYD' 2>/dev/null || true
+import re, sys
+src = open(sys.argv[1], encoding="utf-8").read()
+m = re.search(r'data-testid="wizard-destination-option"[^>]*data-country-id="([0-9a-f-]{36})"', src)
+if not m:
+    m = re.search(r'data-country-id="([0-9a-f-]{36})"[^>]*data-testid="wizard-destination-option"', src)
+print(m.group(1) if m else "")
+PYD
+)
+  if [ -n "$DEST" ]; then
+    statusb_of "$BASE_URL/portal/applications/new?destination=$DEST" "$WORK/nf-wiz-en.html" "$WORK/agency.txt" >/dev/null
+    ok "NF-13a destination deep link resolves ($DEST)"
+  else
+    bad "NF-13a destination deep link unresolved"
+  fi
   grep -q 'name="visaTypeId"' "$WORK/nf-wiz-en.html" && ok "NF-13 visa-type cards rendered in SSR DOM" || bad "NF-13 visa cards"
   grep -q 'name="t0_fullName"' "$WORK/nf-wiz-en.html" && ok "NF-14 full-name field" || bad "NF-14 full name"
   grep -q 'name="t0_nationality"' "$WORK/nf-wiz-en.html" && ok "NF-15 nationality selector" || bad "NF-15 nationality"
@@ -469,13 +498,15 @@ else
   ! grep -qi 'Email (optional)' "$WORK/nf-wiz-en.html" && ok "NF-20 NO email field" || bad "NF-20 email present"
   ! grep -qi 'Phone (optional)' "$WORK/nf-wiz-en.html" && ok "NF-21 NO phone field" || bad "NF-21 phone present"
 
-  statusbl_of "$BASE_URL/portal/applications/new?lang=fr" "$WORK/nf-wiz-fr.html" "$WORK/agency.txt" fr >/dev/null
-  grep -q "Choisir le pays" "$WORK/nf-wiz-fr.html" && ok "NF-22 wizard localized (FR)" || bad "NF-22 wizard FR"
+  statusbl_of "$BASE_URL/portal/applications/new?destination=$DEST&lang=fr" "$WORK/nf-wiz-fr.html" "$WORK/agency.txt" fr >/dev/null
+  grep -q "se rend votre voyageur" "$WORK/nf-wiz-fr.html" && ok "NF-22 wizard step-1 destination question localized (FR)" || bad "NF-22 wizard FR"
+  grep -q 'name="visaTypeId"' "$WORK/nf-wiz-fr.html" && ok "NF-22b programme cards localized (FR)" || bad "NF-22b programmes FR"
   grep -q "Nom complet" "$WORK/nf-wiz-fr.html" && ok "NF-23 full-name label (FR)" || bad "NF-23 full name FR"
   grep -qo '>Algérie</option>' "$WORK/nf-wiz-fr.html" && ok "NF-24 DZ option 'Algérie' (FR)" || bad "NF-24 DZ FR"
 
-  statusbl_of "$BASE_URL/portal/applications/new?lang=ar" "$WORK/nf-wiz-ar.html" "$WORK/agency.txt" ar >/dev/null
-  grep -q 'اختيار البلد' "$WORK/nf-wiz-ar.html" && ok "NF-25 wizard localized (AR)" || bad "NF-25 wizard AR"
+  statusbl_of "$BASE_URL/portal/applications/new?destination=$DEST&lang=ar" "$WORK/nf-wiz-ar.html" "$WORK/agency.txt" ar >/dev/null
+  grep -q 'إلى أين يسافر المسافر' "$WORK/nf-wiz-ar.html" && ok "NF-25 wizard step-1 destination question localized (AR)" || bad "NF-25 wizard AR"
+  grep -q 'name="visaTypeId"' "$WORK/nf-wiz-ar.html" && ok "NF-25b programme cards localized (AR)" || bad "NF-25b programmes AR"
   grep -qo '>الجزائر</option>' "$WORK/nf-wiz-ar.html" && ok "NF-26 DZ option 'الجزائر' (AR)" || bad "NF-26 DZ AR"
   grep -q 'dir="rtl"' "$WORK/nf-wiz-ar.html" && ok "NF-27 wizard page RTL (AR)" || bad "NF-27 wizard RTL"
 
@@ -495,17 +526,12 @@ else
   grep -qi "unread notifications" "$WORK/nf-dash.html" && ok "NF-34 dashboard exposes the per-user unread counter" || bad "NF-34 unread counter"
 
   # ---- Fund the agency via staff wallet adjustment (immutable ledger, real POST) ----
-  # Fund THE agency that owns the current portal session (its name is shown
-  # on the wallet page). Staff search narrows the list to that agency.
+  # Fund THE agency that owns the current portal session: it is the agency the
+  # harness itself provisioned through /agency/register → approval → activation,
+  # so its unique legal name ($LEGAL_EN) resolves it deterministically.
   AGID=""
   if [ -s "$WORK/staff.txt" ]; then
-    AGNAME=$(python3 - "$WORK/nf-wallet-en.html" <<'PYA' 2>/dev/null || true
-import re, sys
-src = open(sys.argv[1], encoding="utf-8").read()
-m = re.search(r">\s*([^<>\n]{2,80})\s*—\s*prepaid balance", src)
-print(m.group(1).strip() if m else "")
-PYA
-)
+    AGNAME="$LEGAL_EN"
     QAG=$(printf '%s' "$AGNAME" | sed 's/ /%20/g')
     if [ -n "$QAG" ]; then
       statusb_of "$BASE_URL/admin/agencies?q=$QAG" "$WORK/nf-agencies.html" "$WORK/staff.txt" >/dev/null
@@ -518,6 +544,9 @@ PYA
     statusb_of "$BASE_URL/admin/agencies/$AGID" "$WORK/nf-agency-detail.html" "$WORK/staff.txt" >/dev/null
     printf 'amount=1000000\nreason=Final-release hosted gate funding (Preview only)\n' > "$WORK/nf-fund.txt"
     submit_form "$WORK/nf-agency-detail.html" "$BASE_URL/admin/agencies/$AGID" "Apply adjustment" "$WORK/staff.txt" "$WORK/nf-fund.txt" >/dev/null && ok "NF-35 staff wallet credit posted over HTTP (ledger entry, agency $AGID)" || bad "NF-35 wallet adjust"
+    # The funded balance must be visible to the agency itself (tenant-correct credit).
+    statusb_of "$BASE_URL/portal/wallet" "$WORK/nf-wallet-funded.html" "$WORK/agency.txt" >/dev/null
+    grep -q "1,000,000" "$WORK/nf-wallet-funded.html" && ok "NF-35b funded balance visible in the agency wallet" || skp "NF-35b balance formatting not asserted"
   else
     bad "NF-35 wallet agency unresolved"
   fi
@@ -563,7 +592,9 @@ PYQ
         done <<< "$REQIDS"
       fi
     } > "$WORK/nf-request.txt"
-    CODE_SUB=$(submit_form "$WORK/nf-wiz-en.html" "$BASE_URL/portal/applications/new" "Confirm &amp; submit" "$WORK/agency.txt" "$WORK/nf-request.txt")
+    # The wizard's submit button only renders on client step 3, so the form is
+    # identified by its SSR-stable idempotency field instead.
+    CODE_SUB=$(submit_form "$WORK/nf-wiz-en.html" "$BASE_URL/portal/applications/new" 'name="idempotencyKey"' "$WORK/agency.txt" "$WORK/nf-request.txt")
     LOC_SUB=$(loc_header)
     if echo "$LOC_SUB" | grep -q "/portal/applications/[0-9a-f-]\{36\}"; then
       ok "NF-37 hosted single-applicant request submitted (SUBMITTED → $CODE_SUB)"
@@ -655,9 +686,14 @@ case "$P0P_TEXT" in *"Service temporarily unavailable"*) bad "PROD P0 repro: bog
 echo "$P0P_TEXT" | grep -qi "Invalid email or password" \
   && ok "PROD bogus login → normal invalid-credentials (auth + users query healthy on visa_os, http $CODE_P0P)" \
   || skp "PROD bogus-login probe inconclusive (http $CODE_P0P; login page http $CODE_PROD_L)"
-if [ -n "$STAFF_EMAIL" ] && [ -n "$STAFF_PASS" ]; then
+# Production is READ-ONLY for this harness: a real production login is only
+# attempted with credentials that were explicitly issued for production, never
+# with Preview/staff credentials (those must not be tried against visa_os).
+PROD_EMAIL="${PROD_VERIFY_EMAIL:-}"
+PROD_PASS="${PROD_VERIFY_PASSWORD:-}"
+if [ -n "$PROD_EMAIL" ] && [ -n "$PROD_PASS" ]; then
   CODE_PROD_L2=$(status_of "https://visa.essafariavoyages.com/login" "$WORK/prod-login2.html")
-  printf 'email=%s\npassword=%s\n' "$STAFF_EMAIL" "$STAFF_PASS" > "$WORK/prodloginfields.txt"
+  printf 'email=%s\npassword=%s\n' "$PROD_EMAIL" "$PROD_PASS" > "$WORK/prodloginfields.txt"
   CODE_RP=$(submit_form "$WORK/prod-login2.html" "https://visa.essafariavoyages.com/login" "Sign in" "$WORK/prodjar.txt" "$WORK/prodloginfields.txt")
   LOC_RP=$(loc_header)
   if grep -qi 'set-cookie:.*evos_session=' "$WORK/headers.txt" && echo "$LOC_RP" | grep -qE "/admin|/portal|/change-password"; then
@@ -671,7 +707,7 @@ if [ -n "$STAFF_EMAIL" ] && [ -n "$STAFF_PASS" ]; then
     bad "PROD real login failed (http $CODE_RP, ${LOC_RP:-no redirect}; login page http $CODE_PROD_L2; server-action outcome class=$RP_CLASS)"
   fi
 else
-  skp "PROD real login smoke (needs PREVIEW_VERIFY_STAFF_EMAIL/PASSWORD)"
+  skp "PROD real login smoke (needs dedicated PROD_VERIFY_EMAIL/PROD_VERIFY_PASSWORD — production stays read-only)"
 fi
 
 log ""

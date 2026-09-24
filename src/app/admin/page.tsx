@@ -94,7 +94,7 @@ export default async function AdminDashboardPage() {
                         <span className="block text-xs text-slate-400">{r.app.visaTypeName}</span>
                       </td>
                       <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
-                      <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(r.app.createdAt)}</td>
+                      <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(r.app.createdAt, uiLocale)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -162,7 +162,7 @@ export default async function AdminDashboardPage() {
                         {a.actorEmail ?? "system"} · {a.entity}
                       </p>
                     </div>
-                    <span className="whitespace-nowrap text-[11px] text-slate-400">{formatDateTime(a.createdAt)}</span>
+                    <span className="whitespace-nowrap text-[11px] text-slate-400">{formatDateTime(a.createdAt, uiLocale)}</span>
                   </li>
                 ))}
               </ul>

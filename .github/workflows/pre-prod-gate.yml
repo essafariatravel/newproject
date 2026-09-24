@@ -53,10 +53,11 @@ jobs:
           import json
           d=json.load(open('/tmp/prod.json'))
           ledger=d.get('schema',{}).get('migrationLedger',[])
-          assert '0011_dzd_only_and_wallet_ref.sql' not in ledger, 'prod has 0011'
-          assert '0012_document_requests.sql' not in ledger, 'prod has 0012'
+          assert '0013_embassy_applicability.sql' not in ledger, 'prod has 0013 — production must stay untouched'
+          assert '0014_wallet_topup_requests.sql' not in ledger, 'prod has 0014 — production must stay untouched'
+          assert '0012_document_requests.sql' in ledger, 'prod is behind the released 0012'
           assert d.get('schema',{}).get('name')=='visa_os', 'prod schema not visa_os'
-          print('PROD untouched verified: ledger through 0010 only')
+          print(f'PROD untouched verified: released state through 0012 ({len(ledger)} migrations)')
           "
           echo "Checking preview health..."
           # Use the latest preview deployment URL for this SHA
@@ -73,10 +74,10 @@ jobs:
           import json
           d=json.load(open('/tmp/preview.json'))
           ledger=d.get('schema',{}).get('migrationLedger',[])
-          assert '0011_dzd_only_and_wallet_ref.sql' in ledger, 'preview missing 0011'
-          assert '0012_document_requests.sql' in ledger, 'preview missing 0012'
+          for required in ('0011_dzd_only_and_wallet_ref.sql','0012_document_requests.sql','0013_embassy_applicability.sql','0014_wallet_topup_requests.sql'):
+              assert required in ledger, f'preview missing {required}'
           assert d.get('schema',{}).get('name')=='visa_os_preview', 'preview schema not preview'
-          print(f'PREVIEW verified: {len(ledger)} migrations through 0012')
+          print(f'PREVIEW verified: {len(ledger)} migrations through 0014')
           "
                 exit 0
               fi

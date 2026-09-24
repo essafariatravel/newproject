@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
+import { getUiLocale } from "@/lib/ui-i18n";
 import { hasPermission } from "@/lib/rbac";
 import {
   distinctRegistrationCountries,
@@ -29,6 +30,7 @@ export default async function AdminRegistrationsPage({
 }) {
   const sp = await searchParams;
   const user = await pageUser();
+  const uiLocale = await getUiLocale();
   if (!hasPermission(user, "registrations.view")) {
     return (
       <>
@@ -116,7 +118,7 @@ export default async function AdminRegistrationsPage({
                   <span className="block">{r.contactFirstName} {r.contactLastName}</span>
                   <span className="block text-xs text-slate-400">{r.contactEmail}</span>
                 </td>
-                <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(r.createdAt)}</td>
+                <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(r.createdAt, uiLocale)}</td>
                 <td className="td"><StatusBadge code={r.status} /></td>
               </tr>
             ))}

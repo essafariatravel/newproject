@@ -56,8 +56,11 @@ export default async function HomePage() {
               {brandName} {ct("runs visa operations for travel agencies, wholesalers and tour operators — one platform for applications, documents, checklists, wallets and embassy workflows.")}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/agency/register" className="btn-primary px-6 py-3">
-                {ct("Register your Agency")}
+              {/* §50 — at mobile widths the sticky header carries the ONE
+                  visible "Register your agency" CTA; the hero repeats it from
+                  `sm` up, where the header switches to its desktop layout. */}
+              <Link href="/agency/register" className="btn-primary hidden px-6 py-3 sm:inline-flex">
+                {ct("Register your agency")}
               </Link>
               <Link href="/visas" className="btn-secondary px-6 py-3">
                 {ct("Explore visa services")}
@@ -195,8 +198,11 @@ export default async function HomePage() {
                 {ct("Join the agencies and wholesalers running their entire visa desk on our platform.")}
               </p>
             </div>
-            <Link href="/agency/register" className="btn bg-white px-6 py-3 text-navy-900 shadow-[0_14px_30px_-12px_rgb(0_0_0/0.45)] hover:bg-gold-50">
-              {ct("Register your Agency")}
+            <Link
+              href="/agency/register"
+              className="btn hidden bg-white px-6 py-3 text-navy-900 shadow-[0_14px_30px_-12px_rgb(0_0_0/0.45)] hover:bg-gold-50 sm:inline-flex"
+            >
+              {ct("Register your agency")}
             </Link>
           </div>
         </div>
