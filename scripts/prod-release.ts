@@ -42,6 +42,8 @@
  * Production state can always be re-verified — and its verdict read — before a
  * release is armed. The write path additionally re-checks the same invariants
  * in-process, immediately before the first statement, and refuses on any drift.
+ * (A red audit never writes anything: the write job needs the sentinel AND a
+ * green audit AND the in-process pre-apply re-check.)
  */
 import "./lib/load-env";
 import path from "node:path";
