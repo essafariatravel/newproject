@@ -42,6 +42,7 @@ export interface Branding {
   logoKey: string | null;
   logoMime: string | null;
   logoVersion: string;
+  legacyIdentity?: boolean;
 }
 
 export const BRANDING_DEFAULTS: Branding = {
@@ -78,6 +79,7 @@ function s(map: Record<string, unknown>, key: string): string {
 /** Resolve the effective branding from site settings, with safe fallbacks. */
 export async function readBranding(): Promise<Branding> {
   const map = (await getSiteSettings()) as Record<string, unknown>;
+  const legacyIdentity = s(map, "brand.name") === "ESSAFARIA TRAVEL";
   const radius = RADIUS_PRESETS.includes(s(map, "brand.radius") as RadiusPreset)
     ? (s(map, "brand.radius") as RadiusPreset)
     : BRANDING_DEFAULTS.radius;
@@ -85,7 +87,7 @@ export async function readBranding(): Promise<Branding> {
     ? (s(map, "brand.fonts") as FontPreset)
     : BRANDING_DEFAULTS.fonts;
   return {
-    name: s(map, "brand.name") === "ESSAFARIA TRAVEL" ? BRANDING_DEFAULTS.name : s(map, "brand.name") || BRANDING_DEFAULTS.name,
+    name: legacyIdentity ? BRANDING_DEFAULTS.name : s(map, "brand.name") || BRANDING_DEFAULTS.name,
     tagline: s(map, "brand.tagline") || BRANDING_DEFAULTS.tagline,
     primary: s(map, "brand.primary").toLowerCase() === "#4a5bd0" ? BRANDING_DEFAULTS.primary : clampHex(s(map, "brand.primary"), BRANDING_DEFAULTS.primary),
     accent: s(map, "brand.accent").toLowerCase() === "#b2945e" ? BRANDING_DEFAULTS.accent : clampHex(s(map, "brand.accent"), BRANDING_DEFAULTS.accent),
@@ -95,6 +97,7 @@ export async function readBranding(): Promise<Branding> {
     logoKey: s(map, "brand.logoKey") || null,
     logoMime: s(map, "brand.logoMime") || null,
     logoVersion: s(map, "brand.logoVersion"),
+    legacyIdentity,
   };
 }
 
@@ -246,5 +249,7 @@ export function agencyLogoUrl(agency: {
 
 /** Public cache-busting URL for the platform logo (null → use built-in monogram). */
 export function brandLogoUrl(b: Branding): string | null {
-  return b.logoKey ? `/api/branding/logo?v=${encodeURIComponent(b.logoVersion)}` : null;
+  // The stored travel-company artwork belongs to the previous identity. Keep
+  // its file and settings intact while presenting the VISA OS mark in this UI.
+  return b.logoKey && !b.legacyIdentity ? `/api/branding/logo?v=${encodeURIComponent(b.logoVersion)}` : null;
 }
