@@ -9,7 +9,7 @@ Preview-first session · **STOP BEFORE PRODUCTION** · no production operation p
 
 The back-office, agency portal and public site are **implemented, tested and preview-verified** in-repo, and the session stopped exactly where instructed: before any production change.
 
-* Verification snapshot: `tsc` clean · `lint` clean · **409 automated tests in 51 files pass** · production build **exit 0** · rendered audit against a real server **542 passed / 0 failed / 2 classified** · local pre-production gate **ALL GATES PASSED** (34 sections).
+* Verification snapshot: `tsc` clean · `lint` clean · **412 automated tests in 52 files pass** · production build **exit 0** · rendered audit against a real server **542 passed / 0 failed / 2 classified** · local pre-production gate **ALL GATES PASSED** (34 sections).
 * Financial integrity: submission debits the prepaid DZD wallet **exactly once** (atomic, concurrency-tested), the ledger is immutable with human references, balances can never go negative, and all corrections are compensating entries.
 * Security: every authorisation decision is server-side; cross-tenant read/mutate/document/wallet/message/export attempts are refused (tests + live rendered checks); no secrets in audit metadata or error surfaces.
 * Product surface: 3-step wizard, post-submit document locking with staff-only reopen, staff work queue with saved views and safe bulk actions, DZD-only reporting/exports, agency wallet with 1/3/custom-month statements + CSV, and a public site whose mobile homepage has exactly one "Register your agency" CTA.
@@ -48,7 +48,7 @@ Delivered across the session (all committed on `arena/01a0ce58-newproject`):
 * **Public destinations** — accent-insensitive search, region filter, pagination standard, actionable empty states in EN/FR/AR; no B2B information (types/prices) on the public page.
 * **Agency application list** — real card list below `md`, table above; identical data and destinations.
 * **Rendered audit** — grown to 542 checks, including live audit of the wallet CSV (BOM, type, out-of-range window), XLSX zip magic, tenant refusals and localised password affordances.
-* **Tests** — `exports-bulk-37` (16), `settings-sections-38` (8), `config-editor-39` (8), plus additions to i18n and accounting guards; suite is now 51 files / 409 tests.
+* **Tests** — `exports-bulk-37` (16), `settings-sections-38` (8), `config-editor-39` (8), `activation-form-40` (3), plus additions to i18n and accounting guards; suite is now 52 files / 412 tests.
 
 ## 4. Requirement Completion Matrix
 
@@ -82,13 +82,13 @@ Verified by executed tests and by live rendered/HTTP checks (not by reading sour
 | --- | --- | --- |
 | Types | `npx tsc --noEmit` | clean |
 | Lint | `npm run lint` | clean |
-| Unit/integration | `npx vitest run` | **51 files / 409 tests passed** (`/tmp/vitest-run22.log`) |
-| Production build | `npm run build` | **exit 0** (`/tmp/build17.log`) |
-| Rendered audit (real server, real sessions) | `node scripts/rendered-audit.mjs` | **542 passed · 0 failed · 2 classified** (`/tmp/audit28.log`) |
-| Pre-production gate (preview schema) | `npx tsx scripts/pre-prod-gate.ts` (`visa_os_preview`) | **ALL GATES PASSED**, 34 sections (`/tmp/gate-local20.log`) |
+| Unit/integration | `npx vitest run` | **52 files / 412 tests passed** (`/tmp/vitest-run23.log`) |
+| Production build | `npm run build` | **exit 0** (`/tmp/build18.log`) |
+| Rendered audit (real server, real sessions) | `node scripts/rendered-audit.mjs` | **542 passed · 0 failed · 2 classified** (`/tmp/audit29.log`) |
+| Pre-production gate (preview schema) | `npx tsx scripts/pre-prod-gate.ts` (`visa_os_preview`) | **ALL GATES PASSED**, 34 sections (`/tmp/gate-local21.log`) |
 | Rendered state fixtures | `npx tsx scripts/rendered-state.ts` | regenerated (`/tmp/state12.log`) |
 
-Notable suites: `phase2-final` (24), `price-adjustments-22` (19), `agency-registration` (18), `document-workflow-33` (18), `exports-bulk-37` (16), `decision-workflow` (14), `notifications-35` (14), `topup` (13), `communications-36` (12), `i18n-audit-23` (12), `registration-approval` (12), `date-picker-22` (11), `tenant-isolation` (11), `wallet-statement` (11), `rbac` (11), `config-editor-39` (8), `settings-sections-38` (8).
+Notable suites: `phase2-final` (24), `price-adjustments-22` (19), `agency-registration` (18), `document-workflow-33` (18), `exports-bulk-37` (16), `decision-workflow` (14), `notifications-35` (14), `topup` (13), `communications-36` (12), `i18n-audit-23` (12), `registration-approval` (12), `date-picker-22` (11), `tenant-isolation` (11), `wallet-statement` (11), `rbac` (11), `config-editor-39` (8), `settings-sections-38` (8), `activation-form-40` (3).
 
 **Nothing unrun is reported as PASS.** Two rendered checks are explicitly classified as *not verified by rendering* (§11) and the browser-dependent E2E set is not claimed as executed (§12).
 
@@ -118,6 +118,7 @@ Notable suites: `phase2-final` (24), `price-adjustments-22` (19), `agency-regist
 * Password affordances are localised: the activation page, change-password and portal screens receive localised show/hide labels, so a French or Arabic screen can never display an English "Show"/"Hide" (live audit check).
 * Legal pages resolve `legal.X.<locale>` → `legal.X` → built-in fallback, so existing English legal text is preserved while French and Arabic can be added by staff, per language, without touching branding or website content.
 * Mixed-language regressions found during the session were fixed at the source (staff agencies page was hardcoded English and is now fully dictionary-driven).
+* A server-render test of the activation form caught a further real leak: the confirm-password field's hint fell back to the English default on French and Arabic screens. The field now receives the localised hint, and `tests/activation-form-40.test.ts` pins both languages plus the reveal-control wiring.
 * Classified: **visual** RTL correctness (text direction, number/date placement in situ) is verified structurally and by localisation tests, not by a browser screenshot — see §11.
 
 ## 11. Responsive / Mobile Verification

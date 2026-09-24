@@ -46,6 +46,7 @@ export default function ActivationForm(props: {
         required
         minLength={10}
         autoComplete="new-password"
+        hint={copy.activation.passwordHint}
         showLabel={props.showLabel}
         hideLabel={props.hideLabel}
       />

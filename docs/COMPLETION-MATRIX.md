@@ -16,10 +16,10 @@ Evidence legend
 Verification snapshot at `ae51ebd`:
 
 * `npx tsc --noEmit` clean · `npm run lint` clean
-* `npx vitest run` → **51 files / 409 tests passed** (`/tmp/vitest-run22.log`)
-* `npm run build` → **exit 0** (`/tmp/build17.log`)
-* `node scripts/rendered-audit.mjs` (real server on :3100) → **542 passed · 0 failed · 2 classified** (`/tmp/audit28.log`)
-* `npx tsx scripts/pre-prod-gate.ts` against `visa_os_preview` → **ALL GATES PASSED** (34 sections, `/tmp/gate-local20.log`)
+* `npx vitest run` → **52 files / 412 tests passed** (`/tmp/vitest-run23.log`)
+* `npm run build` → **exit 0** (`/tmp/build18.log`)
+* `node scripts/rendered-audit.mjs` (real server on :3100) → **542 passed · 0 failed · 2 classified** (`/tmp/audit29.log`)
+* `npx tsx scripts/pre-prod-gate.ts` against `visa_os_preview` → **ALL GATES PASSED** (34 sections, `/tmp/gate-local21.log`)
 * `npx tsx scripts/rendered-state.ts` → rendered-state fixtures rewritten (`/tmp/state12.log`)
 
 ---
@@ -59,7 +59,7 @@ Verification snapshot at `ae51ebd`:
 | 2.9 | Applications list: search by reference/applicant + filters status/destination/date + mobile cards | ✅ / 🟡 | filters + card list rendered (`data-testid="applications-cards"`, `md:hidden`) — card layout verified structurally, not pixel-rendered |
 | 2.10 | Notifications: title/explanation/date/read + deep link; mark-all → zero unread | ✅ | `tests/notifications-35.test.ts` (14) |
 | 2.11 | Communications = dossier inbox | ✅ | `tests/communications-36.test.ts` |
-| 2.12 | Profile: Agency / Team / My Account, logo ≤ 2 MB, AGENCY_ADMIN manages AGENCY_USER only, last-login fix, password show/hide + policy + duplicate-email check | ✅ | `tests/forced-password-change-22.test.ts`; audit §password affordances (toggle + policy on `/portal/profile`) |
+| 2.12 | Profile: Agency / Team / My Account, logo ≤ 2 MB, AGENCY_ADMIN manages AGENCY_USER only, last-login fix, password show/hide + policy + duplicate-email check | ✅ | `tests/activation-form-40.test.ts` (3 — activation screen toggles localised in EN/FR/AR); `tests/forced-password-change-22.test.ts`; audit §password affordances (toggle + policy on `/portal/profile`) |
 
 ## 3. Wallet & statements
 
