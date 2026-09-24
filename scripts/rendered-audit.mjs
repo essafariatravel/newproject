@@ -453,6 +453,35 @@ if (staff.cookie) {
   check("staff/users: agency view lists agency accounts only", !/SUPER_ADMIN|VISA_AGENT|ACCOUNTING/.test(visibleText(agencyUsers).replace(/ESSAFARIA staff · \d+/g, "")), "");
   check("staff/users: agency view offers an agency filter", /name="agency"/.test(agencyUsers), "");
 
+// §visa-type editor sections (INFORMATION / PRICING DZD / PROCESSING / DOC REQUIREMENTS / WORKFLOW / PUBLICATION).
+{
+  const list = await fetchPage("/admin/config/visa-types", { cookie: staff.cookie, locale: "en" });
+  const href = (list.html.match(/href="\/admin\/config\/visa-types\/([0-9a-f-]{36})"/) ?? [])[1];
+  if (!href) {
+    note("config/visa-types detail: sections", "no visa type id found on the list page");
+  } else {
+    const detail = await fetchPage(`/admin/config/visa-types/${href}`, { cookie: staff.cookie, locale: "en" });
+    const html = detail.html;
+    check("config/visa-type editor: all six named sections", ["information", "pricing", "processing", "docs", "workflow", "publication"].every((k) => html.includes(`data-testid="vt-section-${k}"`) || html.includes(`data-testid="vt-section-${k}-edit"`)), "");
+    check("config/visa-type editor: price is DZD-labelled", /Fee \(DZD\)/.test(html) && !/€|USD|EUR/.test(visibleText(html)), "");
+    check("config/visa-type editor: publication explains agency impact", /Published to agencies|Not published/.test(visibleText(html)) && /wizard/.test(visibleText(html)), "");
+    check("config/visa-type editor: no 0–0 days shown", !/0\s*[–-]\s*0 days/.test(visibleText(html)), "");
+    const h = await fetchPage(`/admin/config/visa-types/${href}`, { cookie: agency.cookie, locale: "en" });
+    check("config/visa-type editor: agency cannot open config", h.status >= 300 && !/vt-section-publication/.test(h.html), `status ${h.status}`);
+  }
+}
+
+// §visa-types list pagination standard.
+{
+  const list = await fetchPage("/admin/config/visa-types?per=50", { cookie: staff.cookie, locale: "en" });
+  const size50 = /<a[^>]*data-testid="page-size-50"[^>]*>/.exec(list.html)?.[0] ?? "";
+  check(
+    "config/visa-types: 20/50/100 standard honoured",
+    (list.html.match(/data-testid="page-size-\d+"/g) ?? []).length === 3 && /bg-navy-900 text-white/.test(size50),
+    "",
+  );
+}
+
   // §pagination standard — 20 / 50 / 100 on the list surfaces that carry it.
   for (const [label, path] of [["applications", "/admin/applications"], ["audit", "/admin/audit"], ["visa-types", "/admin/config/visa-types"], ["document-types", "/admin/config/document-types"]]) {
     for (const per of ["20", "50", "100"]) {

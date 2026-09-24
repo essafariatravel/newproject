@@ -23,9 +23,9 @@ export function Card(props: { children: ReactNode; className?: string }) {
   return <div className={`card ${props.className ?? ""}`}>{props.children}</div>;
 }
 
-export function CardHeader(props: { title: string; actions?: ReactNode; subtitle?: string }) {
+export function CardHeader(props: { title: string; actions?: ReactNode; subtitle?: string; testId?: string }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/70 px-5 py-3.5">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/70 px-5 py-3.5" data-testid={props.testId}>
       <div>
         <h2 className="text-sm font-bold text-navy-900">{props.title}</h2>
         {props.subtitle ? <p className="mt-0.5 text-xs text-slate-400">{props.subtitle}</p> : null}

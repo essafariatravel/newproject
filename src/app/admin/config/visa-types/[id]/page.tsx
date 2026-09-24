@@ -69,7 +69,11 @@ export default async function VisaTypeDetailPage({
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="space-y-4 xl:col-span-2">
           <Card>
-            <CardHeader title="Requirements & document checklist rules" subtitle="Applied to new applications. Draft applications re-sync automatically; submitted applications are never rewritten." />
+            <CardHeader
+              title="Document requirements"
+              subtitle="Applied to new applications. Draft applications re-sync automatically; submitted applications are never rewritten."
+              testId="vt-section-docs"
+            />
             <TableWrap>
               <thead className="border-b border-slate-100 bg-ivory-50/60">
                 <tr>
@@ -138,7 +142,7 @@ export default async function VisaTypeDetailPage({
 
           {canManage && missingDocTypes.length > 0 ? (
             <Card>
-              <CardHeader title="Add requirement" />
+              <CardHeader title="Document requirements — add" subtitle="A document already on this list cannot be added twice; change its row instead." />
               <form action={addRequirementAction} className="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-4">
                 <input type="hidden" name="visaTypeId" value={id} />
                 <div className="sm:col-span-2">
@@ -174,47 +178,90 @@ export default async function VisaTypeDetailPage({
 
         <div className="space-y-4">
           <Card>
-            <CardHeader title="Visa type" />
+            <CardHeader
+              title="Publication"
+              subtitle="Inactive programmes disappear from the agency wizard and cannot be chosen for new applications. Existing dossiers are untouched."
+              testId="vt-section-publication"
+            />
+            <div className="space-y-3 px-4 py-4">
+              <span className={`badge ${vt.active ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
+                {vt.active ? "Published to agencies" : "Not published"}
+              </span>
+              <p className="text-sm leading-relaxed text-slate-600">
+                {vt.active
+                  ? "Agencies can select this programme, they see its DZD price and processing time, and its document checklist is enforced on submit."
+                  : "Only staff can see this programme. Agencies cannot start an application against it."}
+              </p>
+              {canManage ? (
+                <form action={updateVisaTypeAction}>
+                  <input type="hidden" name="id" value={id} />
+                  <input type="hidden" name="back" value={`/admin/config/visa-types/${id}`} />
+                  <input type="hidden" name="toggle" value="1" />
+                  <SubmitButton className={vt.active ? "btn-danger btn-sm" : "btn-primary btn-sm"} pendingLabel="…">
+                    {vt.active ? "Unpublish" : "Publish to agencies"}
+                  </SubmitButton>
+                </form>
+              ) : null}
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader title="Information" subtitle="Internal and agency-facing name of this programme." testId="vt-section-information" />
             <KeyValue
               items={[
                 { label: "Code", value: vt.code },
-                { label: "Fee", value: formatAmount(vt.fee, "DZD") },
-                { label: "Processing", value: formatProcessingDays(vt.processingMinDays, vt.processingMaxDays) },
                 { label: "Description", value: vt.description ?? "—" },
+                { label: "Category", value: vt.categoryId ? "Linked to a category" : "No category" },
               ]}
             />
           </Card>
 
           {canManage ? (
             <Card>
-              <CardHeader title="Edit" subtitle="Existing applications keep their snapshot; new applications use these values." />
+              <CardHeader title="Edit programme" subtitle="Existing applications keep their snapshot; new applications use these values." />
               <form action={updateVisaTypeAction} className="space-y-3 px-4 py-4">
                 <input type="hidden" name="id" value={id} />
                 <input type="hidden" name="back" value={`/admin/config/visa-types/${id}`} />
-                <div>
-                  <label className="label" htmlFor="e-name">Name *</label>
-                  <input id="e-name" name="name" required defaultValue={vt.name} className="input" />
-                </div>
-                <div>
-                  <label className="label" htmlFor="e-fee">Fee (DZD) *</label>
-                  <input id="e-fee" name="fee" type="number" step="0.01" min="0" required defaultValue={vt.fee} className="input" />
-                  <input name="currency" value="DZD" type="hidden" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
+                <fieldset className="space-y-3 rounded-xl border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-information-edit">
+                  <legend className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Information</legend>
                   <div>
-                    <label className="label" htmlFor="e-min">Min days (0 = on request) *</label>
-                    <input id="e-min" name="processingMinDays" type="number" min="0" required defaultValue={vt.processingMinDays} className="input" />
+                    <label className="label" htmlFor="e-name">Name *</label>
+                    <input id="e-name" name="name" required defaultValue={vt.name} className="input" />
                   </div>
                   <div>
-                    <label className="label" htmlFor="e-max">Max days (0 = on request) *</label>
-                    <input id="e-max" name="processingMaxDays" type="number" min="0" required defaultValue={vt.processingMaxDays} className="input" />
+                    <label className="label" htmlFor="e-desc">Description</label>
+                    <textarea id="e-desc" name="description" rows={2} defaultValue={vt.description ?? ""} className="input" />
                   </div>
-                </div>
-                <div>
-                  <label className="label" htmlFor="e-desc">Description</label>
-                  <textarea id="e-desc" name="description" rows={2} defaultValue={vt.description ?? ""} className="input" />
-                </div>
-                <fieldset className="rounded-xl border border-line/80 bg-ivory-50/50 p-3">
+                </fieldset>
+                <fieldset className="space-y-3 rounded-xl border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-pricing">
+                  <legend className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Pricing (DZD)</legend>
+                  <div>
+                    <label className="label" htmlFor="e-fee">Fee (DZD) *</label>
+                    <input id="e-fee" name="fee" type="number" step="0.01" min="0" required defaultValue={vt.fee} className="input" />
+                    <input name="currency" value="DZD" type="hidden" />
+                    <p className="mt-1.5 text-xs text-slate-500">
+                      Currently {formatAmount(vt.fee, "DZD")} — charged in Algerian dinar from the agency prepaid balance at submission.
+                      Applications already submitted keep the price they were charged at.
+                    </p>
+                  </div>
+                </fieldset>
+                <fieldset className="space-y-3 rounded-xl border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-processing">
+                  <legend className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Processing</legend>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="label" htmlFor="e-min">Min days (0 = on request) *</label>
+                      <input id="e-min" name="processingMinDays" type="number" min="0" required defaultValue={vt.processingMinDays} className="input" />
+                    </div>
+                    <div>
+                      <label className="label" htmlFor="e-max">Max days (0 = on request) *</label>
+                      <input id="e-max" name="processingMaxDays" type="number" min="0" required defaultValue={vt.processingMaxDays} className="input" />
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Shown to agencies as {formatProcessingDays(vt.processingMinDays, vt.processingMaxDays)}. Zero means “on request”, never “0 days”.
+                  </p>
+                </fieldset>
+                <fieldset className="rounded-xl border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-workflow">
                   <legend className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Workflow</legend>
                   <label className="label" htmlFor="e-embassy">Embassy / external authority step</label>
                   <select
