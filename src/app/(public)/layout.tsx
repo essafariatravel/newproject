@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { getSiteSettings, settingObject, settingString } from "@/lib/settings";
+import { getSiteSettings, settingString } from "@/lib/settings";
+import { publicContactDetails } from "@/lib/public-contact";
 import { readBranding, brandLogoUrl } from "@/lib/branding";
 import { chromeT, getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
@@ -21,10 +22,8 @@ const NAV = [
 export default async function PublicLayout({ children }: { children: ReactNode }) {
   const settings = await getSiteSettings();
   const tagline = settingString(settings, "brand.tagline");
-  const email = settingString(settings, "site.contactEmail");
-  const phone = settingString(settings, "site.contactPhone");
-  const address = settingString(settings, "site.address");
-  const social = settingObject(settings, "site.social");
+  const { email, phone, address, social } = publicContactDetails(settings);
+  const hasContact = Boolean(email || phone || address || Object.keys(social).length);
   const branding = await readBranding();
   const brandName = branding.name;
   const logoUrl = brandLogoUrl(branding);
@@ -53,7 +52,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
       <main className="flex-1">{children}</main>
 
       <footer className="border-t border-white/10 bg-navy-950 text-white">
-        <div className="ess-container grid grid-cols-1 gap-10 py-12 sm:grid-cols-2 lg:grid-cols-4">
+        <div className={`ess-container grid grid-cols-1 gap-10 py-12 sm:grid-cols-2 ${hasContact ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
           <div>
             <p className="text-lg font-bold tracking-[0.04em] text-white">{brandName}</p>
             <p className="mt-2 max-w-xs text-sm leading-relaxed text-white/65">{tagline}</p>
@@ -76,12 +75,12 @@ export default async function PublicLayout({ children }: { children: ReactNode }
               <li><Link className="text-white/70 transition-colors hover:text-white" href="/terms">{ct("Terms of Service")}</Link></li>
             </ul>
           </div>
-          <div>
+          {hasContact ? <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-gold-400">{ct("Contact")}</p>
             <ul className="mt-3 space-y-2 text-sm text-white/70">
-              <li>{email}</li>
-              <li>{phone}</li>
-              <li>{address}</li>
+              {email ? <li>{email}</li> : null}
+              {phone ? <li>{phone}</li> : null}
+              {address ? <li>{address}</li> : null}
             </ul>
             {Object.entries(social).filter(([, url]) => url).length > 0 ? (
               <div className="mt-3 flex gap-3 text-sm">
@@ -94,7 +93,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
                   ))}
               </div>
             ) : null}
-          </div>
+          </div> : null}
         </div>
         <div className="border-t border-white/10">
           <div className="ess-container flex flex-wrap items-center justify-between gap-2 py-4 text-xs text-white/50">

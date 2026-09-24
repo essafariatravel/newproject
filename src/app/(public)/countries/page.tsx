@@ -9,7 +9,7 @@ import { resolvePageSize } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Destinations — ESSAFARIA TRAVEL" };
+export const metadata = { title: "Destinations — ESSAFARIA VISA" };
 
 /**
  * PUBLIC destinations index.

@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { getSiteSettings, settingString } from "@/lib/settings";
+import { getSiteSettings } from "@/lib/settings";
+import { publicContactDetails } from "@/lib/public-contact";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "B2B Partnership — ESSAFARIA TRAVEL" };
+export const metadata = { title: "B2B Partnership — ESSAFARIA VISA" };
 
 const BENEFITS = [
   {
@@ -28,7 +29,7 @@ const BENEFITS = [
 export default async function B2BPage() {
   const settings = await getSiteSettings();
   const ct = contentT(await getUiLocale());
-  const email = settingString(settings, "site.contactEmail");
+  const { email } = publicContactDetails(settings);
 
   return (
     <>
@@ -50,7 +51,7 @@ export default async function B2BPage() {
             {ct("Travel agencies, wholesalers, tour operators and corporate travel partners use ESSAFARIA VISA OS to submit, track and bill visa applications at scale — with a dedicated processing team behind every file.")}
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link href="/agency/register" className="btn-primary px-6 py-3">
+            <Link href="/agency/register" className="btn-gold px-6 py-3">
               {ct("Register your Agency")}
             </Link>
             <span className="max-w-xs text-xs leading-relaxed text-slate-400">
@@ -101,9 +102,9 @@ export default async function B2BPage() {
               <Link href="/agency/register" className="btn-gold px-5 py-2.5">
                 {ct("Register your Agency")}
               </Link>
-              <a href={`mailto:${email}?subject=B2B%20Partnership%20Enquiry`} className="text-sm font-medium text-navy-700 underline underline-offset-2 hover:text-navy-900">
+              {email ? <a href={`mailto:${email}?subject=B2B%20Partnership%20Enquiry`} className="text-sm font-medium text-navy-700 underline underline-offset-2 hover:text-navy-900">
                 {ct("Email the partnerships team")}
-              </a>
+              </a> : null}
             </div>
             <p className="mt-4 text-xs text-slate-500">
               {ct("Already a partner?")} <Link href="/login" className="text-navy-700 underline underline-offset-2">{ct("Sign in to your portal")}</Link>.

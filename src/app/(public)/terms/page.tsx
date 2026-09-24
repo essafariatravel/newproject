@@ -4,7 +4,7 @@ import { formatMonthYear } from "@/lib/format";
 import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Terms of Service — ESSAFARIA TRAVEL" };
+export const metadata = { title: "Terms of Service — ESSAFARIA VISA" };
 
 export default async function TermsPage() {
   const settings = await getSiteSettings();
