@@ -705,6 +705,134 @@ PYO3
 fi
 
 # ---- antibot probes run LAST: they intentionally burn the per-IP submission budget ----
+# -------------------------------------------------------------------------- #
+log "-- [11] Newest surfaces on the hosted Preview (wallet periods, exports, config, settings)"
+# Both sessions exist at this point: $WORK/staff.txt (staff) and $WORK/agency.txt
+# (the agency just activated). Everything here is read-only HTTP.
+
+CODE_WP=$(statusb_of "$BASE_URL/portal/wallet?period=last_3_months" "$WORK/hx-wallet.html" "$WORK/agency.txt")
+if [ "$CODE_WP" = "200" ]   && grep -q 'data-testid="wallet-periods"' "$WORK/hx-wallet.html"   && grep -q 'data-testid="wallet-period-this_month"' "$WORK/hx-wallet.html"   && grep -q 'data-testid="wallet-period-last_3_months"' "$WORK/hx-wallet.html"   && grep -q 'data-testid="wallet-period-custom"' "$WORK/hx-wallet.html"   && grep -q 'data-testid="wallet-period-all"' "$WORK/hx-wallet.html"; then
+  ok "HX-01 hosted wallet offers 1 month / 3 months / custom / all-time statement periods"
+else
+  bad "HX-01 hosted wallet statement periods (http $CODE_WP)"
+fi
+grep -q 'data-testid="wallet-period-range"' "$WORK/hx-wallet.html" \
+  && ok "HX-02 hosted wallet states the covered window in words" || bad "HX-02 wallet period range line"
+if grep -Eq "(€|EUR\\b|USD\\b)" "$WORK/hx-wallet.html"; then bad "HX-03 hosted wallet shows a non-DZD currency"; else ok "HX-03 hosted wallet is DZD-only"; fi
+CODE_WC=$(statusb_of "$BASE_URL/portal/wallet?period=custom&from=2000-01-01&to=2000-01-02" "$WORK/hx-wallet-custom.html" "$WORK/agency.txt")
+if [ "$CODE_WC" = "200" ] && grep -q 'period=custom' "$WORK/hx-wallet-custom.html"; then
+  ok "HX-04 hosted wallet custom window is preserved in the CSV export link"
+else
+  bad "HX-04 hosted wallet custom window (http $CODE_WC)"
+fi
+CURL_W=$(curl -s -b "$WORK/agency.txt" -o "$WORK/hx-wallet.csv" -w "%{http_code}" --max-time 30 "$BASE_URL/api/agency/wallet/export?period=custom&from=2000-01-01&to=2000-01-02")
+BOM_W=$(head -c 3 "$WORK/hx-wallet.csv" | od -An -tx1 | tr -d ' \n')
+LINES_W=$(tr -d '\r' < "$WORK/hx-wallet.csv" | grep -c . || true)
+if [ "$CURL_W" = "200" ] && [ "$BOM_W" = "efbbbf" ] && grep -q 'Reference,Date,Type' "$WORK/hx-wallet.csv" && [ "$LINES_W" = "1" ]; then
+  ok "HX-05 hosted wallet CSV export: BOM + header, header-only for an empty window (no invented rows)"
+else
+  bad "HX-05 hosted wallet CSV export (http $CURL_W, bom=$BOM_W, lines=$LINES_W)"
+fi
+CODE_WAX=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 -b "$WORK/staff.txt" "$BASE_URL/api/agency/wallet/export?period=all")
+case "$CODE_WAX" in
+  401|403|302|307) ok "HX-06 a staff session cannot pull an agency ledger CSV (http $CODE_WAX)";;
+  *) bad "HX-06 staff session reached the agency wallet export (http $CODE_WAX)";;
+esac
+
+CODE_EX=$(curl -s -b "$WORK/staff.txt" -o "$WORK/hx-apps.csv" -w "%{http_code}" --max-time 30 "$BASE_URL/api/admin/applications/export")
+BOM_EX=$(head -c 3 "$WORK/hx-apps.csv" | od -An -tx1 | tr -d ' \n')
+if [ "$CODE_EX" = "200" ] && [ "$BOM_EX" = "efbbbf" ] && head -1 "$WORK/hx-apps.csv" | grep -q "Reference"; then
+  ok "HX-07 staff applications CSV export is real CSV (BOM + Reference header)"
+elif [ "$CODE_EX" = "403" ] || [ "$CODE_EX" = "401" ]; then
+  skp "HX-07 staff applications export needs applications.view.all (staff account lacks it)"
+else
+  bad "HX-07 staff applications CSV export (http $CODE_EX)"
+fi
+CODE_XL=$(curl -s -b "$WORK/staff.txt" -o "$WORK/hx-apps.xlsx" -w "%{http_code}" --max-time 30 "$BASE_URL/api/admin/applications/export?format=xlsx")
+if [ "$CODE_XL" = "200" ] && [ "$(head -c 2 "$WORK/hx-apps.xlsx")" = "PK" ]; then
+  ok "HX-08 staff applications Excel export is a real XLSX (PK zip magic)"
+elif [ "$CODE_XL" = "403" ] || [ "$CODE_XL" = "401" ]; then
+  skp "HX-08 staff applications Excel export needs applications.view.all (staff account lacks it)"
+else
+  bad "HX-08 staff applications Excel export (http $CODE_XL)"
+fi
+CODE_AEX=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 -b "$WORK/agency.txt" "$BASE_URL/api/admin/applications/export")
+case "$CODE_AEX" in 403|401|302|307) ok "HX-09 an agency session cannot export the staff application list (http $CODE_AEX)";; *) bad "HX-09 agency reached the staff export (http $CODE_AEX)";; esac
+CODE_ANEX=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$BASE_URL/api/admin/applications/export")
+case "$CODE_ANEX" in 401|403|302|307) ok "HX-10 anonymous export refused (http $CODE_ANEX)";; *) bad "HX-10 anonymous reached the staff export (http $CODE_ANEX)";; esac
+
+CODE_BULK=$(statusb_of "$BASE_URL/admin/applications" "$WORK/hx-apps.html" "$WORK/staff.txt")
+if [ "$CODE_BULK" = "200" ]; then
+  grep -q 'data-testid="bulk-bar"' "$WORK/hx-apps.html" \
+    && ok "HX-11 staff work queue exposes the safe bulk bar" || bad "HX-11 bulk bar missing"
+  if grep -Eqi "approve selected|reject selected|bulk-approve|bulk-reject|bulkDebit|bulkDelete" "$WORK/hx-apps.html"; then
+    bad "HX-12 a forbidden bulk control is present on the work queue"
+  else
+    ok "HX-12 no bulk approve/reject/debit/delete control anywhere in the work queue"
+  fi
+  SIZE_COUNT=$(grep -o 'data-testid="page-size-[0-9]*"' "$WORK/hx-apps.html" | sort -u | wc -l | tr -d ' ')
+  grep -q 'data-testid="page-size-50"' "$WORK/hx-apps.html" && [ "$SIZE_COUNT" = "3" ] \
+    && ok "HX-13 20/50/100 page-size standard on the staff work queue" || bad "HX-13 page-size standard (found $SIZE_COUNT options)"
+  grep -q 'data-testid="saved-views"' "$WORK/hx-apps.html" \
+    && ok "HX-14 saved operational views present" || bad "HX-14 saved views missing"
+else
+  bad "HX-11..HX-14 staff work queue (http $CODE_BULK)"
+fi
+
+CODE_VT=$(statusb_of "$BASE_URL/admin/config/visa-types" "$WORK/hx-vt-list.html" "$WORK/staff.txt")
+if [ "$CODE_VT" = "200" ]; then
+  VT_HREF=$(grep -o '/admin/config/visa-types/[0-9a-f-]\{36\}' "$WORK/hx-vt-list.html" | head -1)
+  if [ -n "$VT_HREF" ]; then
+    CODE_VTD=$(statusb_of "$BASE_URL$VT_HREF" "$WORK/hx-vt.html" "$WORK/staff.txt")
+    MISSING_SECTIONS=""
+    for SEC in information-edit pricing processing workflow; do
+      grep -q "data-testid=\"vt-section-$SEC\"" "$WORK/hx-vt.html" || MISSING_SECTIONS="$MISSING_SECTIONS $SEC"
+    done
+    for SEC in information docs publication; do
+      grep -q "data-testid=\"vt-section-$SEC\"" "$WORK/hx-vt.html" || MISSING_SECTIONS="$MISSING_SECTIONS $SEC"
+    done
+    if [ "$CODE_VTD" = "200" ] && [ -z "$MISSING_SECTIONS" ]; then
+      ok "HX-15 visa-type editor renders all six named sections"
+    else
+      bad "HX-15 visa-type editor sections (http $CODE_VTD; missing:$MISSING_SECTIONS)"
+    fi
+    grep -q "Fee (DZD)" "$WORK/hx-vt.html" && ! grep -Eq "(€|EUR\\b|USD\\b)" "$WORK/hx-vt.html" \
+      && ok "HX-16 visa-type editor prices in DZD only" || bad "HX-16 visa-type editor currency"
+  else
+    bad "HX-15 visatype link not found on the config list"
+  fi
+elif [ "$CODE_VT" = "403" ] || [ "$CODE_VT" = "404" ]; then
+  skp "HX-15/HX-16 visa-type editor needs config.view (staff account lacks it)"
+else
+  bad "HX-15 config list (http $CODE_VT)"
+fi
+
+CODE_SET=$(statusb_of "$BASE_URL/admin/settings" "$WORK/hx-settings.html" "$WORK/staff.txt")
+if [ "$CODE_SET" = "200" ]; then
+  FORMS=$(grep -o '<form' "$WORK/hx-settings.html" | wc -l | tr -d ' ')
+  SAVES=$(grep -Eo 'Save website content|Save legal content|Save branding' "$WORK/hx-settings.html" | sort -u | wc -l | tr -d ' ')
+  LEGAL=$(grep -o 'name="legal\.[a-z]*\.\(en\|fr\|ar\)"' "$WORK/hx-settings.html" | sort -u | wc -l | tr -d ' ')
+  [ "$SAVES" -ge 3 ] && [ "$LEGAL" -ge 6 ] \
+    && ok "HX-17 settings: independent saves ($SAVES) and 6+ per-language legal fields ($FORMS forms)" \
+    || bad "HX-17 settings sections (saves=$SAVES legalFields=$LEGAL forms=$FORMS)"
+  grep -q 'dir="rtl"' "$WORK/hx-settings.html" \
+    && ok "HX-18 Arabic legal field is RTL on the settings screen" || bad "HX-18 Arabic legal field direction"
+elif [ "$CODE_SET" = "403" ] || [ "$CODE_SET" = "404" ]; then
+  skp "HX-17/HX-18 settings need settings.manage (staff account lacks it)"
+else
+  bad "HX-17 settings page (http $CODE_SET)"
+fi
+for L in en fr ar; do
+  CODE_LEG=$(curl -s -b "evos_ui_locale=$L" -o "$WORK/hx-privacy-$L.html" -w "%{http_code}" --max-time 30 "$BASE_URL/privacy")
+  [ "$CODE_LEG" = "200" ] && ok "HX-19 privacy page renders with the $L interface ($CODE_LEG)" || bad "HX-19 privacy page $L (http $CODE_LEG)"
+done
+grep -q 'Avis de confidentialité' "$WORK/hx-privacy-fr.html" \
+  && ok "HX-19b privacy heading localized (FR)" || bad "HX-19b privacy heading FR"
+grep -q 'إشعار الخصوصية' "$WORK/hx-privacy-ar.html" \
+  && ok "HX-19c privacy heading localized (AR)" || bad "HX-19c privacy heading AR"
+grep -q 'dir="rtl"' "$WORK/hx-privacy-ar.html" \
+  && ok "HX-20 Arabic privacy page is RTL" || bad "HX-20 Arabic privacy page direction"
+
 log "-- [11.5] Honeypot + rate limiting"
 make_form en "Honeypot Bot $STAMP" "hosted-bot-$STAMP@hosted-verify.invalid" "hosted-bot-$STAMP@hosted-verify.invalid" 0
 sed -i 's/^fax=$/fax=bot-filled-this/' "$WORK/form.txt"
