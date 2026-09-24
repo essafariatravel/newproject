@@ -9,7 +9,8 @@ Preview-first session · **STOP BEFORE PRODUCTION** · no production operation p
 
 The back-office, agency portal and public site are **implemented, tested and preview-verified** in-repo, and the session stopped exactly where instructed: before any production change.
 
-* Verification snapshot: `tsc` clean · `lint` clean · **412 automated tests in 52 files pass** · production build **exit 0** · rendered audit against a real server **542 passed / 0 failed / 2 classified** · local pre-production gate **ALL GATES PASSED** (34 sections).
+* Hosted Preview **verified by CI** on `6adf570`: pre-production gate 35 PASS / 0 FAIL against `visa_os_preview`, hosted end-to-end verification **119 PASS / 0 FAIL / 1 SKIP** against the live Vercel deployment, production read-only checks confirming `visa_os` is untouched at `0012`.
+* Local verification snapshot: `tsc` clean · `lint` clean · **412 automated tests in 52 files pass** · production build **exit 0** · rendered audit against a real server **542 passed / 0 failed / 2 classified** · local pre-production gate **ALL GATES PASSED** (34 sections).
 * Financial integrity: submission debits the prepaid DZD wallet **exactly once** (atomic, concurrency-tested), the ledger is immutable with human references, balances can never go negative, and all corrections are compensating entries.
 * Security: every authorisation decision is server-side; cross-tenant read/mutate/document/wallet/message/export attempts are refused (tests + live rendered checks); no secrets in audit metadata or error surfaces.
 * Product surface: 3-step wizard, post-submit document locking with staff-only reopen, staff work queue with saved views and safe bulk actions, DZD-only reporting/exports, agency wallet with 1/3/custom-month statements + CSV, and a public site whose mobile homepage has exactly one "Register your agency" CTA.
@@ -29,6 +30,8 @@ The session started from a running preview and a working suite, which is exactly
 | Lists behaved differently per screen (no page-size standard, no cards on phones, no search on `/countries`) | each list had grown its own controls | shared `PAGE_SIZE_OPTIONS`/`resolvePageSize`, shared `PageSizeSelector`, agency list gained mobile cards, public destinations gained search + region filter + pagination + actionable empty states |
 | Staff/agency user populations were mixed, and role dropdowns leaked staff roles onto agency rows | one list + one role list for two different populations | split views with real counts, population-filtered role options, server guards unchanged (escalation impossible) |
 | Legal text was not editable per language; saving content risked blanking other sections | one settings form writing a whole settings blob | per-section forms that write only their own keys; per-language legal keys with fallback; audit metadata records `{section, keys}` |
+| Hosted verification reported a product failure that did not exist | the harness extracted the one-time activation token by slicing the raw percent-encoded redirect header on a literal character, truncating any token containing it (~half of runs) — the flow then exercised an **invalid** token | decode `?activation=` properly, require a ≥32-char token, and require the activation page to expose the set-password form (a 200 alone is no longer enough). Root cause fixed in `scripts/hosted-verify.sh`; the next hosted run went 95 PASS / 0 FAIL |
+| CI gate verdicts were unreadable from restricted networks | CI log blobs live on external storage that is not reachable everywhere | the gate now captures its own PASS/FAIL + ledger lines and posts them as a commit comment (read-only gate token; a tiny reporting job holds the write permission and runs no repository code) |
 | Data bugs were being surfaced as UI text | e.g. "0–0 days" and misleading embassy steps in progress | catalogue processing rendered as "on request" when zero; embassy stage is per-visa-type (`NOT_APPLICABLE / OPTIONAL / APPLICABLE`) and is not shown when not applicable |
 
 ## 3. Implemented Changes
@@ -143,13 +146,26 @@ The rendered audit drives a **real production build over HTTP** (`http://localho
 
 ## 13. Hosted Preview Verification
 
-**Status: BLOCKED by a missing deployment credential — documented, not worked around.**
+**Status: VERIFIED on the hosted deployment.** The `PREVIEW_DATABASE_URL` secret is now configured on the GitHub `Preview` environment, so both hosted pipelines run against the real Preview database and the real Vercel deployment.
 
-* The GitHub environment `Preview` exists alongside `Production`, but the gate workflow `pre-prod-gate.yml` fails in its first step *Guard — secrets and schema pin* because `PREVIEW_DATABASE_URL` is not set for that environment (latest run `35982950166`, failure in ~11 s; identical failure on the four preceding pushes).
-* Consequence: hosted migration state for the preview schema is stale relative to local (hosted `visa_os_preview` was last known at `0012`; migrations `0013`–`0017` are applied locally only), and the hosted preview cannot be exercised end-to-end from CI.
-* Why it was not resolved here: the value is a database credential. It is not present in this workspace and must not be pasted into chat, so this is a genuine external blocker — adding it is a one-step action in the repository settings (Environments → `Preview` → add `PREVIEW_DATABASE_URL`, pointing at the preview schema of the existing project). No secret was requested, guessed or fabricated.
-* Everything else continues to be verified locally against the same schema name (`DATABASE_SCHEMA=visa_os_preview`) with the local Postgres, which is why the local gate can pass while the hosted gate is blocked.
-* Production health endpoints confirm the production release is serving and untouched: schema `visa_os`, ledger up to `0012` for that release, `connected: true`, `columnsValid: true`.
+| Run | Workflow | Commit | Result |
+| --- | --- | --- | --- |
+| 35988387317 | Pre-Production Gate — DB Security & Concurrency | `6adf570` | **success** — verdict comment 35 PASS / 0 FAIL, gate exit 0 |
+| 35988387360 | Hosted Phase-2 Preview verification | `6adf570` | **success** — verdict comment **119 PASS / 0 FAIL / 1 SKIP** |
+
+Evidence published by the runs themselves (commit comments, readable via the API):
+
+* `health ctx: schema=visa_os_preview … ledger=17 entries last=0017_decision_types_audience.sql`
+* `PASS health: Preview schema is visa_os_preview` — and the check FAILS if the deployment ever reports `visa_os` (validated: it fails against a `public`/production schema)
+* `PASS health: Preview ledger carries the preview work-set (0013, 0014, 0016, 0017)`
+* `Preview ledger (visa_os_preview): 0001 … 0017_decision_types_audience.sql` / `PASS LEDGER-PREVIEW: through 0014 verified (17 migrations)`
+* `Prod ledger (visa_os): 0001 … 0012_document_requests.sql` / `PASS LEDGER-PROD: released state through 0012 (12 migrations) — untouched by this run`
+* Stage A–T, DOC-AUDIENCE, COMMERCE, COMMS, CONC, U1–U3, REF, CLEANUP all PASS; fixtures created with the `gate-` prefix and cleaned up at the end
+* Hosted E2E over real HTTP: trilingual registration, duplicate/rate-limit/honeypot handling, staff review → information request → approve → activation → agency session, rejection path, cross-tenant isolation, wizard 3-step/applicant/DZD/RTL checks, wallet and notification behaviour, plus the new HX-01…HX-20 checks for the newest surfaces (wallet statement periods + CSV, exports RBAC, safe bulk, visa-type editor sections, settings sections, privacy in EN/FR/AR)
+
+Two harness defects were found and fixed while getting this green (neither was a product bug): the activation-token slicing described in §2, and a CSV header grep anchored past the UTF-8 BOM. In both cases the strengthened check stayed strict — a truncated token or an empty CSV window still fails.
+
+The only SKIP is `PROD real login smoke`, which deliberately requires dedicated production credentials so that production stays read-only; it is not a bypass of any Preview check.
 
 ## 14. Production Release Plan — PLAN ONLY, DO NOT EXECUTE
 
@@ -178,7 +194,7 @@ Explicit non-goals for this release: no bulk approve/reject/debit/delete, no cur
 
 | # | Item | Severity | Detail / next action |
 | --- | --- | --- | --- |
-| 1 | Hosted preview blocked | High (delivery, not product) | `PREVIEW_DATABASE_URL` missing in the GitHub `Preview` environment; hosted preview schema therefore stale (`0012` vs local `0017`). Owner action: add the secret, then re-run the gate workflow |
+| 1 | ~~Hosted preview blocked~~ **Resolved** | — | `PREVIEW_DATABASE_URL` configured; gate run `35988387317` and hosted verification `35988387360` are green on `6adf570`; hosted `visa_os_preview` is at 17 migrations through `0017`, production untouched at `0012` |
 | 2 | No browser engine in the sandbox | Medium | Pixel-level responsive (320–430) and visual RTL/date-picker inspection are **structural only**; two rendered-audit checks self-report as not verified. Requires a device/browser pass before production |
 | 3 | Browser-driven E2E A–I not executed | Medium | Server-side equivalents are green (`submission`, `topup`, `document-workflow-33`, `decision-workflow`, `tenant-isolation`, `registration-approval`, `public-mobile-50`), but the interaction-level runs remain outstanding |
 | 4 | Legacy non-DZD ledger rows | Low | Preserved unchanged and reported separately (never converted or summed into DZD); historical integrity is intentional |

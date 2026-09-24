@@ -22,6 +22,13 @@ Verification snapshot at `ae51ebd`:
 * `npx tsx scripts/pre-prod-gate.ts` against `visa_os_preview` → **ALL GATES PASSED** (34 sections, `/tmp/gate-local21.log`)
 * `npx tsx scripts/rendered-state.ts` → rendered-state fixtures rewritten (`/tmp/state12.log`)
 
+Hosted Preview (real Vercel deployment + the Preview database), verified by CI on commit `6adf570`:
+
+* `Pre-Production Gate — DB Security & Concurrency` run **35988387317** → **success**, verdict comment = **35 PASS / 0 FAIL**, gate exit 0
+  (Preview ledger `visa_os_preview` = 17 migrations incl. `0015`/`0016`/`0017`; Production ledger `visa_os` = through `0012` — untouched)
+* `Hosted Phase-2 Preview verification` run **35988387360** → **success**, verdict comment = **119 PASS / 0 FAIL / 1 SKIP**
+  (the single SKIP is the production *real-login* smoke, which intentionally requires dedicated production credentials and keeps production read-only)
+
 ---
 
 ## 1. P0 — Security, tenancy, financial integrity
@@ -115,7 +122,7 @@ Verification snapshot at `ae51ebd`:
 | # | Requirement | Status | Evidence |
 | --- | --- | --- | --- |
 | 6.1 | Mobile homepage: exactly ONE visible "Register your agency" CTA, hero fully visible, coherent responsive header with hamburger, no horizontal overflow | ✅ / 🟡 | `tests/public-mobile-50.test.ts` (5) + audit (`public-register-cta`, `public-menu-toggle`, overflow checks). Breakpoint structure verified; pixel rendering in a real browser unavailable in this sandbox |
-| 6.2 | Tested at 320/360/375/390/412/430 + tablet/desktop in EN/FR/AR | 🟡 | Width-agnostic fluid layout + documented breakpoint review; no browser to drive real viewports — see §11 of the final report |
+| 6.2 | Tested at 320/360/375/390/412/430 + tablet/desktop in EN/FR/AR | 🟡 | Fluid width-agnostic layout, documented breakpoint review, plus the hosted `homepage §50` check (one mobile CTA + hamburger + no horizontal overflow) and the trilingual hosted checks. Still no browser engine to drive real viewports — see §11 of the final report |
 | 6.3 | Genuine RTL, localized dates, RTL date picker | ✅ / 🟡 | `tests/date-picker-22.test.ts` (11); `tests/ui-i18n.test.ts` (7); audit `dir="rtl"` + Arabic copy checks |
 | 6.4 | Helpful empty states, actionable errors, config-first content | ✅ | audit empty-state checks (`No destination matches your search` + next-step copy) |
 | 6.5 | Search/filter/pagination standards on public lists | ✅ | new `/countries` search + region filter + 20/50/100 + `tests/config-editor-39.test.ts` |
@@ -127,5 +134,5 @@ Verification snapshot at `ae51ebd`:
 | # | Item | Status | Detail |
 | --- | --- | --- | --- |
 | 7.1 | Browser-driven E2E A–I (normal, insufficient+top-up, replacement, additional, direct approval, embassy, tenant attack, staff creation, mobile) | 🟡 | Server-side equivalents implemented and green (`submission`, `topup`, `document-workflow-33`, `decision-workflow`, `tenant-isolation`, `registration-approval`, `public-mobile-50`). No working browser in this sandbox (`playwright chromium` install fails) → interaction flows are **not** claimed as browser-verified |
-| 7.2 | Hosted preview (Vercel + GitHub `Preview` environment) | 🟡 | `PREVIEW_DATABASE_URL` is now configured on the GitHub `Preview` environment by the repository owner; the hosted gate re-run is being verified in this session (see final report §13 for the run id and result). Until that run is green, hosted `visa_os_preview` migration state is not yet re-confirmed |
+| 7.2 | Hosted preview (Vercel + GitHub `Preview` environment) | ✅ | `PREVIEW_DATABASE_URL` is configured on the GitHub `Preview` environment. Gate run **35988387317** (35 PASS / 0 FAIL) and hosted verification run **35988387360** (119 PASS / 0 FAIL / 1 SKIP) both green on `6adf570`; hosted health reports `schema=visa_os_preview`, ledger 17 entries through `0017_decision_types_audience.sql`, and production untouched at `0012` |
 | 7.3 | Production release | 🚫 | Not executed by instruction. Plan prepared only (final report §14) |
