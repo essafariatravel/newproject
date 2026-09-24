@@ -25,6 +25,8 @@
  *   - DATABASE_SCHEMA must equal "visa_os" (never derived).
  *   - DATABASE_URL host must be a Supabase host and the pooler username must be
  *     the recorded Production project identity.
+ *   - The live schema probe runs inside a transaction with a transaction-local
+ *     search_path, so it cannot be fooled (or fail) on pooled session state.
  *   - The schema_migrations ledger MUST exist — this script never bootstraps a
  *     ledger on Production (a missing ledger means a mispointed database).
  *   - Pre-apply state must equal the approved baseline EXACTLY (ledger, counts,
@@ -171,6 +173,37 @@ export interface SnapshotReport {
   schemaError: string | null;
   snapshotTables: string[];
   guardNotes: string[];
+}
+
+/**
+ * Run work inside an explicit transaction with a TRANSACTION-LOCAL search path.
+ *
+ * Production is reached through a transaction-mode pooler: a session-level
+ * `set search_path` is not guaranteed to be visible to the next statement (the
+ * next transaction can be served by a different backend, where the path
+ * silently reverts to the default), which is how the live schema probe once
+ * resolved 'public'. `set local` inside a transaction is pinned to the backend
+ * that serves that transaction, so anything that depends on the schema is
+ * scoped here — the only form the pooler is required to preserve.
+ */
+async function inSchema<T>(
+  client: import("pg").PoolClient,
+  fn: (c: import("pg").PoolClient) => Promise<T>,
+): Promise<T> {
+  await client.query("begin");
+  try {
+    await client.query(`set local search_path to ${SCHEMA}`);
+    const out = await fn(client);
+    await client.query("commit");
+    return out;
+  } catch (err) {
+    try {
+      await client.query("rollback");
+    } catch {
+      // the connection is already unusable; the original error is what matters
+    }
+    throw err;
+  }
 }
 
 export function ledgerEquals(a: readonly string[], b: readonly string[]): boolean {
@@ -453,14 +486,22 @@ async function main(): Promise<void> {
     let dbName = "";
     let before: SnapshotReport;
     try {
-      await client.query(`set search_path to ${SCHEMA}`);
-      const who = await client.query("select current_database() as db, current_schema() as sc");
-      if (who.rows[0].sc !== SCHEMA) fail(`resolved schema is '${who.rows[0].sc}', expected '${SCHEMA}'.`);
-      dbName = String(who.rows[0].db);
-      const ledgerProbe = await client.query(`select to_regclass('${SCHEMA}.schema_migrations') as t`);
-      if (!ledgerProbe.rows[0].t) {
-        fail("Production migration ledger is missing — this is not a managed Production database state. Nothing was changed.");
-      }
+      // Identity probe: must run in the same transaction as the `set local`, so
+      // the answer is the *live* schema of this release's connection and can
+      // never be a stale/default-schema artefact of the pooler.
+      await inSchema(client, async (probe) => {
+        const who = await probe.query("select current_database() as db, current_schema() as sc");
+        if (who.rows[0].sc !== SCHEMA) {
+          fail(
+            `resolved schema is '${who.rows[0].sc}', expected '${SCHEMA}' — the live session is not in the ${SCHEMA} schema. Refusing to run.`,
+          );
+        }
+        dbName = String(who.rows[0].db);
+        const ledgerProbe = await probe.query(`select to_regclass('${SCHEMA}.schema_migrations') as t`);
+        if (!ledgerProbe.rows[0].t) {
+          fail("Production migration ledger is missing — this is not a managed Production database state. Nothing was changed.");
+        }
+      });
       notes.push(`connected: database=${dbName} schema=${SCHEMA}; ${projectNote}`);
       before = await collect(client, notes);
     } finally {
@@ -535,7 +576,9 @@ async function main(): Promise<void> {
     const postClient = await pool.connect();
     let after: SnapshotReport;
     try {
-      await postClient.query(`set search_path to ${SCHEMA}`);
+      // No session-level `set search_path` here: every read in collect() is
+      // explicitly schema-qualified (`visa_os.<table>`), so nothing depends on
+      // pooled session state that the pooler may reset between statements.
       after = await collect(postClient, notes);
     } finally {
       postClient.release();
