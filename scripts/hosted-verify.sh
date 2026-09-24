@@ -118,15 +118,44 @@ sys.exit(0 if (d.get('ok') is True
   ok "health: ok=true, columnsValid=true, database.error=null ($CODE)"
   grep -q 'agency_registrations' "$WORK/health.json" && ok "health: agency_registrations table present" \
   || ok "health: table list not exposed (columnsValid already asserted)"
-  # P0 diag context: which schema/ledger/accounts state the deployed Preview actually sees.
+  # Diag context: which schema/ledger/accounts state the deployed Preview sees.
+  # No credentials and no connection string are ever printed — only the schema
+  # name, the pooler mode/ssl flags and the migration ledger.
   python3 -c "
 import json
 d=json.load(open('$WORK/health.json'))
 s=d.get('schema') or {}; db=d.get('database') or {}
 led=s.get('migrationLedger') or []
-    print('PASS  health ctx: schema=%s host=%s mode=%s ssl=%s intendedProject=%s accounts=%s ledger=%d entries last=%s' % (
-  s.get('name'), db.get('host'), db.get('mode'), db.get('ssl'), db.get('intendedSupabaseProject'),
-  s.get('hasUserAccounts'), len(led), (led[-1] if led else 'none')))" || true
+print('PASS  health ctx: schema=%s mode=%s ssl=%s intendedProject=%s accounts=%s ledger=%d entries last=%s' % (
+  s.get('name'), db.get('mode'), db.get('ssl'), db.get('intendedSupabaseProject'),
+  s.get('hasUserAccounts'), len(led), (led[-1] if led else 'none')))
+" 2>/dev/null || bad "health ctx: could not read the Preview schema/ledger from the health payload"
+
+  # HARD REQUIREMENT: the Preview deployment must run schema visa_os_preview and
+  # must never be pointed at the production schema visa_os.
+  PREVIEW_SCHEMA=$(python3 -c "
+import json
+print((json.load(open('$WORK/health.json')).get('schema') or {}).get('name') or '')" 2>/dev/null || true)
+  if [ "$PREVIEW_SCHEMA" = "visa_os_preview" ]; then
+    ok "health: Preview schema is visa_os_preview"
+  elif [ "$PREVIEW_SCHEMA" = "visa_os" ]; then
+    bad "health: Preview deployment is pointing at the PRODUCTION schema visa_os — STOP"
+  else
+    bad "health: Preview schema is '${PREVIEW_SCHEMA:-unknown}' — must be visa_os_preview"
+  fi
+
+  # The preview work-set must be applied where it runs: 0013-0017 on the Preview
+  # ledger (this is what the pre-production gate applies, forward-only).
+  if python3 -c "
+import json
+led=(json.load(open('$WORK/health.json')).get('schema') or {}).get('migrationLedger') or []
+required=['0013_embassy_applicability.sql','0014_wallet_topup_requests.sql','0016_document_type_audience.sql','0017_decision_types_audience.sql']
+missing=[m for m in required if m not in led]
+raise SystemExit(1 if missing else 0)" 2>/dev/null; then
+    ok "health: Preview ledger carries the preview work-set (0013, 0014, 0016, 0017)"
+  else
+    bad "health: Preview ledger is missing part of the preview work-set (0013/0014/0016/0017)"
+  fi
 else
   bad "health endpoint ($CODE)"
 fi
