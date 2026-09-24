@@ -1,13 +1,21 @@
 /**
- * Production release tooling — visa_os schema 0011+0012 release.
- * Updated baseline: ledger 0001-0010, live production audit 2026-05-13 run 35876904396.
- * Previous baselines preserved in git history.
+ * Production release tooling — visa_os.
+ *
+ * CURRENT RELEASE SCOPE: migrations 0013 → 0017 on top of an approved baseline
+ * of ledger 0001-0012 (live read-only Production audit, run 35993822270).
+ * It supersedes the 0011+0012 release (authorization d2bb0d3, already applied
+ * on 2026-09-23); older baselines stay in git history.
  *
  * MODES
- *   audit   — read-only: ledger, columnsValid, counts, wallet checksums,
- *             brand configuration, status-remap exposure. Never writes.
+ *   audit   — READ-ONLY: ledger, columnsValid, protected counts, wallet/ledger
+ *             checksums, brand configuration, status-remap exposure, the pending
+ *             migration set, the restore-snapshot inventory and a PREFLIGHT
+ *             VERDICT against the approved baseline. Never writes. Exits 2 (job
+ *             red, report still published) when live Production does not match
+ *             the approved baseline, so the pipeline can never call a drifted
+ *             database "ready".
  *   apply   — surgical in-place restore point (per-table snapshot copies),
- *             then the repository's pending migrations via the same
+ *             then exactly the approved pending migrations via the same
  *             transactional runner used everywhere, then a postflight that
  *             proves IDENTICAL levels of Production data + wallet/ledger
  *             integrity. Any guard failure aborts with the whole migration
@@ -15,15 +23,19 @@
  *
  * HARD SAFETY GUARDS (fail closed):
  *   - DATABASE_SCHEMA must equal "visa_os" (never derived).
- *   - DATABASE_URL host must belong to the intended Supabase project.
- *   - The schema_migrations ledger MUST exist — this script never
- *     bootstraps a ledger on Production (a missing ledger means a
- *     mispointed database, not a fresh install).
- *   - Protected-table counts/wallet checksums must be identical after.
- *   - branding (site_settings brand.*) must be byte-identical after.
+ *   - DATABASE_URL host must be a Supabase host and the pooler username must be
+ *     the recorded Production project identity.
+ *   - The schema_migrations ledger MUST exist — this script never bootstraps a
+ *     ledger on Production (a missing ledger means a mispointed database).
+ *   - Pre-apply state must equal the approved baseline EXACTLY (ledger, counts,
+ *     wallet checksum, agency balances), and the pending set must be exactly
+ *     this release's migrations — an unexpected pending file aborts the run.
+ *   - Protected counts / wallet checksum / agency balances / branding must be
+ *     identical afterwards, and column validation must end true.
  *
- * This tool never truncates, drops, deletes rows from, reseeds, or
- * resets ANY Production table.
+ * This tool never truncates, drops, deletes rows from, reseeds, or resets ANY
+ * Production table. It is the only writer permitted in the release pipeline and
+ * it runs only when a commit deliberately carries release/PROD_GO.
  */
 import "./lib/load-env";
 import path from "node:path";
@@ -41,6 +53,20 @@ const SCHEMA = "visa_os";
 const EXPECTED_SUPABASE_PROJECT = "xgetzgixalrsmuvfthpf";
 const STAMP = new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 12);
 const SNAP = (t: string) => `visa_os._restore_${STAMP}_${t}`;
+const MIGRATIONS_DIR = () => path.join(process.cwd(), "migrations");
+
+/**
+ * The migrations this release is authorized to apply — nothing else. The apply
+ * path refuses to run when the pending set is not exactly this list, so a later
+ * migration cannot ride along on this authorization.
+ */
+export const RELEASE_SCOPE = [
+  "0013_embassy_applicability.sql",
+  "0014_wallet_topup_requests.sql",
+  "0015_schema_safe_references.sql",
+  "0016_document_type_audience.sql",
+  "0017_decision_types_audience.sql",
+] as const;
 
 const PROTECTED_COUNTS = [
   "users",
@@ -76,13 +102,17 @@ const SNAPSHOT_TABLES = [
 ] as const;
 
 /**
- * The EXACT preflight state approved for the migration (live audit 2026-05-13).
- * For 0011+0012 release: production baseline is ledger 0001-0010,
- * counts from live audit run 35876904396 — commit bb839b7.
- * audit_logs may grow; others must match exactly.
- * columnsValid false pre-migration is expected (document_requests absent).
+ * The EXACT pre-apply state approved for THIS release.
+ * Source of truth: the read-only Production audit published on commit 2f41668
+ * (workflow run 35993822270, 2026-09-24) — ledger 0001-0012 with the live
+ * protected counts, wallet-ledger checksum and agency-balance checksum captured
+ * at that moment. Production is a live system: if any of these move before
+ * authorization, the apply path refuses and the baseline must be re-approved.
+ * `columnsValid` is expected to be FALSE pre-migration here — the release code
+ * requires document_types.agency_uploadable (0016), which is exactly what this
+ * release adds.
  */
-const APPROVED_BASELINE = {
+export const APPROVED_BASELINE = {
   ledger: [
     "0001_init.sql",
     "0002_branding.sql",
@@ -94,28 +124,34 @@ const APPROVED_BASELINE = {
     "0008_application_price_adjustments.sql",
     "0009_atomic_request_submission.sql",
     "0010_simplified_applicant.sql",
+    "0011_dzd_only_and_wallet_ref.sql",
+    "0012_document_requests.sql",
   ] as const,
   counts: {
     users: 4,
-    agencies: 3,
-    applications: 1,
-    applicants: 1,
-    notifications: 13,
+    agencies: 4,
+    applications: 2,
+    applicants: 2,
+    notifications: 29,
     communications: 0,
-    audit_logs: 45,
+    audit_logs: 64,
     site_settings: 13,
-    documents: 2,
-    document_blobs: 4,
-    checklist_items: 2,
-    wallet_transactions: 2,
-    application_status_history: 3,
+    documents: 6,
+    document_blobs: 8,
+    checklist_items: 4,
+    wallet_transactions: 3,
+    application_status_history: 8,
   } as Record<string, number>,
-  walletChecksum: "e1fdc33dc84212d28deb24429c4853d2",
-  agencyWalletsChecksum: "6b946ee161521be88d246ad359a78497",
+  walletChecksum: "8508159c7279636306f48efd9ddf30ac",
+  agencyWalletsChecksum: "0f091712b9965c5802b0811bfe07acaa",
 };
-const PROJECT_USER = `postgres.${EXPECTED_SUPABASE_PROJECT}`;
 
-interface SnapshotReport {
+/** Ledger state once this release has been applied. */
+export const TARGET_LEDGER = [...APPROVED_BASELINE.ledger, ...RELEASE_SCOPE];
+
+export const PROJECT_USER = `postgres.${EXPECTED_SUPABASE_PROJECT}`;
+
+export interface SnapshotReport {
   counts: Record<string, number | null>;
   walletChecksum: string | null;
   agencyWallets: string | null;
@@ -127,6 +163,83 @@ interface SnapshotReport {
   schemaError: string | null;
   snapshotTables: string[];
   guardNotes: string[];
+}
+
+export function ledgerEquals(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
+}
+
+/** Migrations present in the repo but not yet recorded in the live ledger. */
+export function pendingMigrations(liveLedger: readonly string[]): string[] {
+  return fs
+    .readdirSync(MIGRATIONS_DIR())
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .filter((f) => !liveLedger.includes(f));
+}
+
+/** Read-only: the in-place restore points the previous releases left behind. */
+async function listRestoreSnapshots(client: import("pg").PoolClient): Promise<string[]> {
+  try {
+    const res = await client.query(
+      `select table_name from information_schema.tables
+        where table_schema = 'visa_os' and left(table_name, 9) = '_restore_'
+        order by table_name`,
+    );
+    return res.rows.map((r) => String(r.table_name));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The single source of truth for "is Production in the approved pre-apply
+ * state?" — used by the read-only audit (verdict) and by apply (hard guard).
+ */
+export function preflightFindings(live: SnapshotReport, pending: readonly string[]): string[] {
+  const mismatches: string[] = [];
+  if (!ledgerEquals(live.ledger, APPROVED_BASELINE.ledger)) {
+    mismatches.push(
+      `ledger differs: live=[${live.ledger.join(", ")}] approved=[${APPROVED_BASELINE.ledger.join(", ")}]`,
+    );
+  }
+  for (const [table, expected] of Object.entries(APPROVED_BASELINE.counts)) {
+    const found = live.counts[table];
+    if (table === "audit_logs") {
+      // append-only by design: it may grow, never shrink
+      if (found == null || found < expected) mismatches.push(`audit_logs=${found} < approved ${expected}`);
+    } else if (found !== expected) {
+      mismatches.push(`${table}: live=${found} expected=${expected}`);
+    }
+  }
+  if (live.walletChecksum !== APPROVED_BASELINE.walletChecksum) {
+    mismatches.push(`wallet ledger checksum differs: live=${live.walletChecksum} expected=${APPROVED_BASELINE.walletChecksum}`);
+  }
+  if (live.agencyWallets !== APPROVED_BASELINE.agencyWalletsChecksum) {
+    mismatches.push(
+      `agency balances checksum differs: live=${live.agencyWallets} expected=${APPROVED_BASELINE.agencyWalletsChecksum}`,
+    );
+  }
+  if (!ledgerEquals(pending, RELEASE_SCOPE)) {
+    mismatches.push(
+      `pending migration set is not this release: pending=[${pending.join(", ") || "none"}] release=[${RELEASE_SCOPE.join(", ")}]`,
+    );
+  }
+  return mismatches;
+}
+
+/** Identity of the approved Production project (credentials never printed). */
+export function projectGuardFindings(url: string): string[] {
+  try {
+    const parsed = new URL(url);
+    const username = decodeURIComponent(parsed.username);
+    if (parsed.hostname.includes("pooler.supabase.com") && username !== PROJECT_USER) {
+      return [`pooler username '${username}' is not '${PROJECT_USER}' (identity of the approved production project)`];
+    }
+    return [];
+  } catch {
+    return ["DATABASE_URL is not parseable — cannot verify the Production project identity"];
+  }
 }
 
 function fail(msg: string): never {
@@ -239,6 +352,7 @@ function renderReport(
   after: SnapshotReport | null,
   findings: string[],
   applied: string[],
+  preflight?: { pending: string[]; mismatches: string[]; snapshots: string[] },
 ): string {
   const lines: string[] = [];
   lines.push(`### Production release — ${mode.toUpperCase()} report (schema visa_os)`);
@@ -264,6 +378,22 @@ function renderReport(
   lines.push("brand keys observed: " + Object.keys(before.brand).join(", "));
   lines.push(`brand.name=${JSON.stringify(before.brand["brand.name"] ?? null)}`);
   if (before.snapshotTables.length) lines.push(`restore snapshots: ${before.snapshotTables.join(", ")}`);
+  if (preflight) {
+    lines.push("");
+    lines.push(`release scope: [${RELEASE_SCOPE.join(", ")}]`);
+    lines.push(`pending migrations: [${preflight.pending.join(", ") || "none"}]`);
+    lines.push(
+      `existing restore points in visa_os: [${preflight.snapshots.join(", ") || "none"}]`,
+    );
+    lines.push(
+      preflight.mismatches.length
+        ? `approved-baseline comparison: MISMATCH (${preflight.mismatches.length})\n - ${preflight.mismatches.join("\n - ")}`
+        : "approved-baseline comparison: MATCH — ledger, protected counts, wallet-ledger checksum, agency balances and pending set all equal the approved release baseline.",
+    );
+    lines.push(
+      `PREFLIGHT VERDICT: ${preflight.mismatches.length ? "BLOCKED (do not release)" : "READY"}`,
+    );
+  }
   if (before.guardNotes.length) lines.push(`notes: ${before.guardNotes.join(" | ")}`);
   if (findings.length) {
     lines.push("");
@@ -330,51 +460,51 @@ async function main(): Promise<void> {
     }
 
     if (MODE === "audit") {
-      const md = renderReport("audit", host, before, null, [], []);
+      const pending = pendingMigrations(before.ledger);
+      const mismatches = [...preflightFindings(before, pending), ...projectGuardFindings(url)];
+      const snapClientForAudit = await pool.connect();
+      let snapshots: string[] = [];
+      try {
+        snapshots = await listRestoreSnapshots(snapClientForAudit);
+      } finally {
+        snapClientForAudit.release();
+      }
+      const md = renderReport("audit", host, before, null, [], [], { pending, mismatches, snapshots });
       fs.writeFileSync("/tmp/prod-release-report.md", md);
       console.log(md);
+      if (mismatches.length) {
+        console.error(
+          `PREFLIGHT VERDICT: BLOCKED — live Production does not match the approved baseline (${mismatches.length} difference(s)). Nothing was changed; the baseline must be re-approved before release.`,
+        );
+        process.exitCode = 2;
+      } else {
+        console.log(
+          `PREFLIGHT VERDICT: READY — live Production matches the approved baseline exactly; ${pending.length} approved migration(s) pending (${pending.join(", ")}).`,
+        );
+      }
       return;
     }
 
     // ---- apply mode: hard precondition — pre-apply state must equal the APPROVED preflight ----
     {
-      const mismatches: string[] = [];
-      const FULL_LEDGER_AFTER = [...APPROVED_BASELINE.ledger, "0011_dzd_only_and_wallet_ref.sql", "0012_document_requests.sql"];
-      // If already fully migrated to 0012, no-op
-      if (JSON.stringify(before.ledger) === JSON.stringify(FULL_LEDGER_AFTER)) {
-        const md = renderReport("apply", "", before, before, [], []);
-        fs.writeFileSync("/tmp/prod-release-report.md", md + "\n\nMIGRATIONS ALREADY APPLIED (ledger complete 0001-0012) — no-op run; restore point not recreated.\n");
+      const pending = pendingMigrations(before.ledger);
+      // Already released: idempotent no-op, nothing written, no restore point needed.
+      if (ledgerEquals(before.ledger, TARGET_LEDGER)) {
+        const md = renderReport("apply", host, before, before, [], [], { pending, mismatches: [], snapshots: [] });
+        fs.writeFileSync(
+          "/tmp/prod-release-report.md",
+          md + "\n\nMIGRATIONS ALREADY APPLIED (ledger complete 0001-0017) — no-op run; restore point not recreated.\n",
+        );
         console.log(md);
-        console.log("migrations already applied — ledger complete 0001-0012; exiting as successful no-op.");
+        console.log("migrations already applied — ledger complete 0001-0017; exiting as successful no-op.");
         pool.end();
         return;
       }
-      // Pre-apply must be exactly 0001-0010
-      if (JSON.stringify(before.ledger) !== JSON.stringify([...APPROVED_BASELINE.ledger])) {
-        mismatches.push(`ledger differs: live=[${before.ledger.join(", ")}] approved=[${APPROVED_BASELINE.ledger.join(", ")}]`);
-      }
-      for (const [table, expected] of Object.entries(APPROVED_BASELINE.counts)) {
-        const live = before.counts[table];
-        if (table === "audit_logs") {
-          if (live == null || live < expected) mismatches.push(`audit_logs=${live} < approved ${expected}`);
-        } else if (live !== expected) {
-          mismatches.push(`${table}: live=${live} expected=${expected}`);
-        }
-      }
-      if (before.walletChecksum !== APPROVED_BASELINE.walletChecksum) {
-        mismatches.push(`wallet ledger checksum differs: live=${before.walletChecksum} expected=${APPROVED_BASELINE.walletChecksum}`);
-      }
-      if (before.agencyWallets !== APPROVED_BASELINE.agencyWalletsChecksum) {
-        mismatches.push(`agency wallets checksum differs: live=${before.agencyWallets} expected=${APPROVED_BASELINE.agencyWalletsChecksum}`);
-      }
-      const currentUrl = process.env.DATABASE_URL ?? "";
-      const username = (() => { try { return decodeURIComponent(new URL(currentUrl).username); } catch { return ""; } })();
-      const hostname = (() => { try { return new URL(currentUrl).hostname; } catch { return ""; } })();
-      if (hostname.includes("pooler.supabase.com") && username !== PROJECT_USER) {
-        mismatches.push(`pooler username '${username}' is not '${PROJECT_USER}' (identity of the approved production project)`);
-      }
+      const mismatches = [...preflightFindings(before, pending), ...projectGuardFindings(url)];
       if (mismatches.length) {
-        fail(`PRE-APPLY STATE DIVERGES FROM THE APPROVED PREFLIGHT — refusing to apply anything:\n - ${mismatches.join("\n - ")}`);
+        fail(
+          `PRE-APPLY STATE DIVERGES FROM THE APPROVED PREFLIGHT — refusing to apply anything:\n - ${mismatches.join("\n - ")}`,
+        );
       }
     }
 
@@ -437,10 +567,18 @@ function persistError(text: string): void {
   }
 }
 
-main().catch((error) => {
-  const text = `${safeErrorCode(error) ? `(code ${safeErrorCode(error)}) ` : ""}${safeErrorText(error)}`;
-  console.error(`prod-release ${MODE} failed: ${text}`);
-  console.error("No reset, seed, or destructive repair was attempted. The migration transaction is all-or-nothing.");
-  persistError(text);
-  process.exitCode = 1;
-});
+/**
+ * Entry point. Guarded so that importing this module (tests exercising the
+ * preflight/guard helpers) can never connect to, or write to, any database:
+ * without an explicit CLI invocation `main()` is simply not called.
+ */
+const ENTRY = process.argv[1] ?? "";
+if (/prod-release\.(ts|js|mjs|cjs)$/.test(ENTRY)) {
+  main().catch((error) => {
+    const text = `${safeErrorCode(error) ? `(code ${safeErrorCode(error)}) ` : ""}${safeErrorText(error)}`;
+    console.error(`prod-release ${MODE} failed: ${text}`);
+    console.error("No reset, seed, or destructive repair was attempted. The migration transaction is all-or-nothing.");
+    persistError(text);
+    process.exitCode = 1;
+  });
+}
