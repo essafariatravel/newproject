@@ -36,6 +36,12 @@
  * This tool never truncates, drops, deletes rows from, reseeds, or resets ANY
  * Production table. It is the only writer permitted in the release pipeline and
  * it runs only when a commit deliberately carries release/PROD_GO.
+ *
+ * PRE-WRITE RE-AUDIT: touching this file (or the workflow / sentinel path)
+ * triggers the read-only audit job without the apply job, so the live
+ * Production state can always be re-verified — and its verdict read — before a
+ * release is armed. The write path additionally re-checks the same invariants
+ * in-process, immediately before the first statement, and refuses on any drift.
  */
 import "./lib/load-env";
 import path from "node:path";
