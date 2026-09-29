@@ -115,15 +115,30 @@ describe("Production target pinning", () => {
 });
 
 describe("apply authorization remains push + PROD_GO only", () => {
-  it("does not expose apply as a manual choice and keeps the push/sentinel gate", () => {
+  it("allows the RC branch but still requires push + PROD_GO + successful audit for apply", () => {
     const workflow = readFileSync(path.join(process.cwd(), ".github/workflows/prod-release.yml"), "utf8");
     const applySection = workflow.slice(workflow.indexOf("  apply:"));
-    expect(workflow).toContain("- baseline-candidate");
-    expect(workflow).not.toMatch(/options:[\s\S]*?\n\s*- apply(?:\n|$)/);
+    expect(workflow).toContain("- release/essafaria-rc-2026-09");
     expect(applySection).toContain("github.event_name == 'push'");
     expect(applySection).toContain("needs.audit.outputs.go == 'true'");
+    expect(applySection).toContain("needs.audit.result == 'success'");
     expect(workflow).toContain("release/PROD_GO");
     expect(workflow).toContain("DATABASE_SCHEMA: visa_os");
+  });
+
+  it("cannot run apply without PROD_GO and workflow_dispatch never exposes apply", () => {
+    const workflow = readFileSync(path.join(process.cwd(), ".github/workflows/prod-release.yml"), "utf8");
+    const dispatchSection = workflow.slice(
+      workflow.indexOf("  workflow_dispatch:"),
+      workflow.indexOf("\n\nconcurrency:"),
+    );
+    const applySection = workflow.slice(workflow.indexOf("  apply:"));
+    expect(dispatchSection).toContain("- audit");
+    expect(dispatchSection).toContain("- baseline-candidate");
+    expect(dispatchSection).not.toMatch(/\n\s*- apply(?:\n|$)/);
+    expect(applySection).toContain("github.event_name == 'push'");
+    expect(applySection).toContain("needs.audit.outputs.go == 'true'");
+    expect(workflow).toContain("if [ -f release/PROD_GO ]");
   });
 });
 

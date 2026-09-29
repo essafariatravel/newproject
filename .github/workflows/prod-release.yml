@@ -18,6 +18,7 @@ on:
     branches:
       - arena/01a0c3b8-newproject
       - arena/01a0ce58-newproject
+      - release/essafaria-rc-2026-09
     paths:
       - .github/workflows/prod-release.yml
       - scripts/prod-release.ts
