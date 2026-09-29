@@ -96,7 +96,7 @@ export default async function PortalApplicationDetailPage({
   const documentGroups = groupDocumentsForDisplay(checklist, docs);
 
   return (
-    <>
+    <div className="travel-dossier travel-workspace">
       <PageHeader
         title={applicantName}
         subtitle={`${app.reference} · ${countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)} · ${visaDisplayName}`}
@@ -112,7 +112,7 @@ export default async function PortalApplicationDetailPage({
       <Tabs tabs={TABS.map((t) => ({ ...t, label: ct(t.label), href: `${back}?tab=${t.id}` }))} current={tab} />
 
       {tab === "overview" ? (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="dossier-zone grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
           <div className="space-y-4 xl:col-span-2">
             <Card>
               <CardHeader title={ct("Application overview")} />
@@ -245,13 +245,13 @@ export default async function PortalApplicationDetailPage({
       ) : null}
 
       {tab === "documents" ? (
-        <div className="space-y-4">
+        <div className="dossier-zone space-y-0">
           {openRequests.length > 0 ? (
             <Card className="border-amber-200 bg-amber-50/50">
               <CardHeader title={ct("Action required")} subtitle={ct("ESSAFARIA requested replacement or additional documents")} />
               <div className="px-4 py-4 space-y-3">
                 {openRequests.map((r) => (
-                  <div key={r.req.id} id={`request-${r.req.id}`} className="scroll-mt-24 rounded-xl border border-amber-200 bg-white p-4">
+                  <div key={r.req.id} id={`request-${r.req.id}`} className="scroll-mt-24 border-s-2 border-amber-300 py-3 ps-3">
                     <p className="font-semibold text-navy-900">{localizedDocTypeName(r.docTypeCode, r.docTypeName, uiLocale)} — {r.req.type === "REPLACEMENT" ? ct("Replacement requested") : ct("Additional document requested")}</p>
                     <p className="mt-1 text-sm text-slate-600">{ct("Reason")}: {r.req.reason}</p>
                     <form action={uploadDocumentAction} encType="multipart/form-data" className="mt-3 flex flex-wrap items-center gap-2">
@@ -259,7 +259,7 @@ export default async function PortalApplicationDetailPage({
                       {r.req.checklistItemId ? <input type="hidden" name="checklistItemId" value={r.req.checklistItemId} /> : null}
                       <input type="hidden" name="documentTypeId" value={r.req.documentTypeId} />
                       <input type="hidden" name="back" value={`${back}?tab=documents`} />
-                      <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:me-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-3 file:py-1.5 file:text-xs file:text-white" />
+                      <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:me-2 file:rounded-md file:border-0 file:bg-iris-600 file:px-3 file:py-1.5 file:text-xs file:text-white" />
                       <button type="submit" className="btn-primary btn-sm">{ct("Upload replacement")}</button>
                     </form>
                   </div>
@@ -276,7 +276,7 @@ export default async function PortalApplicationDetailPage({
                 const latest = itemDocs[0];
                 const hasOpenRequest = openRequests.some((r) => r.req.checklistItemId === item.id || r.req.documentTypeId === item.documentTypeId);
                 return (
-                  <div key={item.id} className="px-4 py-4">
+                  <div key={item.id} className="document-row px-0 py-4">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <p className="font-medium text-navy-900">{localizedDocTypeName(item.documentTypeCode, item.documentTypeName, uiLocale)} {item.required ? <span className="badge bg-rose-50 text-rose-600 text-[10px]">{ct("Required")}</span> : <span className="badge bg-slate-100 text-slate-500 text-[10px]">{ct("Optional")}</span>}</p>
@@ -295,7 +295,7 @@ export default async function PortalApplicationDetailPage({
                     {itemDocs.length > 0 ? (
                       <ul className="mt-3 space-y-2">
                         {itemDocs.map(({ doc }) => (
-                          <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ivory-50 px-3 py-2 text-xs">
+                          <li key={doc.id} className="document-file flex flex-wrap items-center justify-between gap-2 text-xs">
                             <span className="flex items-center gap-2 min-w-0">
                               <a href={`/api/documents/${doc.id}`} target="_blank" className="font-medium text-navy-800 truncate hover:underline">{doc.originalFilename}</a>
                               <span className="text-slate-400">v{doc.version} · {bytes(doc.sizeBytes)} · {formatDateTime(doc.createdAt, uiLocale)}</span>
@@ -310,7 +310,7 @@ export default async function PortalApplicationDetailPage({
                         <input type="hidden" name="applicationId" value={id} />
                         <input type="hidden" name="checklistItemId" value={item.id} />
                         <input type="hidden" name="back" value={`${back}?tab=documents`} />
-                        <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:me-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-3 file:py-1.5 file:text-xs file:text-white" />
+                        <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:me-2 file:rounded-md file:border-0 file:bg-iris-600 file:px-3 file:py-1.5 file:text-xs file:text-white" />
                         <button type="submit" className="btn-secondary btn-sm">{latest ? ct("Replace") : ct("Upload")}</button>
                       </form>
                     ) : hasOpenRequest ? (
@@ -380,12 +380,12 @@ export default async function PortalApplicationDetailPage({
         <div className="space-y-4">
           <Card>
             <CardHeader title={ct("Activity timeline")} subtitle={ct("Human-readable business activity")} />
-            <div className="px-4 py-4">
+            <div className="document-row px-0 py-4">
               <ActivityTimeline history={history} locale={uiLocale} />
             </div>
           </Card>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }
