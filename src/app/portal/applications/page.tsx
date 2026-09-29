@@ -45,7 +45,7 @@ export default async function PortalApplicationsPage({
   );
 
   return (
-    <>
+    <div className="travel-list travel-workspace">
       <PageHeader
         title={ct("Applications")}
         subtitle={ct("Your agency's visa files.")}
@@ -70,7 +70,7 @@ export default async function PortalApplicationsPage({
       />
 
       {result.rows.length === 0 ? (
-        <div className="card">
+        <div className="travel-record-list">
           <EmptyState
             title={ct("No applications found")}
             body={ct("Create a new application to get started.")}
@@ -82,29 +82,27 @@ export default async function PortalApplicationsPage({
           {/* §"mobile cards" — on a phone a seven-column table is unusable, so the
               same rows are rendered as cards (same data, same links, same order).
               The table stays for pointer/desktop viewports. */}
-          <div className="space-y-3 md:hidden" data-testid="applications-cards">
+          <div className="travel-record-list md:hidden" data-testid="applications-cards">
             {result.rows.map((r) => {
               const p = progressById.get(r.app.id);
               return (
                 <Link
                   key={r.app.id}
                   href={`/portal/applications/${r.app.id}`}
-                  className="card block p-4"
+                  className="travel-record block"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="font-semibold text-navy-900">{r.applicantSummary ?? "—"}</span>
+                  <div className="travel-record-primary">
+                    <span className="travel-record-title">{r.applicantSummary ?? "—"}</span>
                     <StatusBadge code={r.statusCode} name={r.statusName} />
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">{r.app.reference}</p>
-                  <p className="mt-0.5 text-xs text-slate-500">
+                  <p className="travel-record-subtitle">
                     {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)} · {configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}
                   </p>
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                  <div className="travel-record-meta">
+                    <span>{r.app.reference}</span>
+                    <span>{formatDate(r.app.createdAt, uiLocale)}</span>
                     <span className="tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</span>
-                    <span className="flex items-center gap-2">
-                      {p ? <Progress done={p.done} total={p.total} /> : null}
-                      <span>{formatDate(r.app.createdAt, uiLocale)}</span>
-                    </span>
+                    {p ? <Progress done={p.done} total={p.total} /> : null}
                   </div>
                 </Link>
               );
@@ -152,6 +150,6 @@ export default async function PortalApplicationsPage({
           </div>
         </>
       )}
-    </>
+    </div>
   );
 }
