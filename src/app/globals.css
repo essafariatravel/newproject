@@ -278,6 +278,20 @@ body {
 .workspace-tabs a {
   transition: color var(--motion-micro) var(--motion-ease-standard), border-color var(--motion-micro) var(--motion-ease-standard);
 }
+.workspace-nav-link {
+  transition:
+    background-color var(--motion-micro) var(--motion-ease-standard),
+    color var(--motion-micro) var(--motion-ease-standard),
+    box-shadow var(--motion-micro) var(--motion-ease-standard);
+}
+.public-menu-panel {
+  transform-origin: top;
+  animation: public-menu-in var(--motion-standard) var(--motion-ease-out) both;
+}
+@keyframes public-menu-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 .workspace-agency .label, .workspace-staff .label { text-transform: none; letter-spacing: 0; font-size: .75rem; }
 .workspace-agency .badge, .workspace-staff .badge { border-radius: .375rem; }
 .workspace-agency .card .table-scroll, .workspace-staff .card .table-scroll { border: 0; border-radius: 0 0 var(--radius-card) var(--radius-card); box-shadow: none; }
@@ -333,7 +347,8 @@ body {
   html { scroll-behavior: auto; }
   .editorial-reveal,
   .surface-popover,
-  .wizard-panel:not([hidden]) { animation: none; }
+  .wizard-panel:not([hidden]),
+  .public-menu-panel { animation: none; }
   .public-motion-ready .public-reveal {
     opacity: 1;
     transform: none;
