@@ -1223,6 +1223,23 @@ const CONTENT: Record<string, Entry> = {
   "Not available yet": { fr: "Pas encore disponible", ar: "غير متاح بعد" },
   "Decided dossiers": { fr: "Dossiers décidés", ar: "ملفات تم البت فيها" },
 
+  "application(s) need a document replacement or additional upload.": { fr: "dossier(s) nécessitent un remplacement ou un document complémentaire.", ar: "طلب/طلبات تحتاج إلى استبدال مستند أو رفع مستند إضافي." },
+  "Review": { fr: "Vérifier", ar: "مراجعة" },
+  "No action required": { fr: "Aucune action requise", ar: "لا يوجد إجراء مطلوب" },
+  "All your applications are in order.": { fr: "Tous vos dossiers sont en ordre.", ar: "جميع طلباتك سليمة ولا تتطلب إجراءً." },
+  "unread": { fr: "non lues", ar: "غير مقروءة" },
+  "Your latest visa files and their current state": { fr: "Vos derniers dossiers visa et leur état actuel", ar: "أحدث ملفات التأشيرات وحالتها الحالية" },
+  "Recent financial activity": { fr: "Activité financière récente", ar: "النشاط المالي الأخير" },
+  "Latest wallet movements": { fr: "Derniers mouvements du portefeuille", ar: "أحدث حركات المحفظة" },
+  "Filename or reference…": { fr: "Nom du fichier ou référence…", ar: "اسم الملف أو المرجع…" },
+  "Review status": { fr: "Statut de vérification", ar: "حالة المراجعة" },
+  "Accepted": { fr: "Accepté", ar: "مقبول" },
+  "Upload documents from an application's checklist.": { fr: "Téléversez les documents depuis la liste du dossier concerné.", ar: "ارفع المستندات من قائمة التحقق الخاصة بالطلب." },
+  "File": { fr: "Fichier", ar: "الملف" },
+  "Size": { fr: "Taille", ar: "الحجم" },
+  "You're up to date": { fr: "Tout est à jour", ar: "أنت على اطلاع كامل" },
+  "Operational summary": { fr: "Résumé opérationnel", ar: "الملخص التشغيلي" },
+
   "Every configured agency document is already a requirement of this dossier. Use “Request replacement” on the requirement to ask for a new version — no duplicate requirement is created.": {
     fr: "Chaque document configuré pour les agences est déjà une exigence de ce dossier. Utilisez « Demander un remplacement » sur l'exigence pour demander une nouvelle version — aucune exigence en double n'est créée.",
     ar: "كل مستند مُهيّأ للوكالات مُدرج بالفعل ضمن متطلبات هذا الملف. استخدم «طلب استبدال» على المتطلب لطلب نسخة جديدة — دون إنشاء متطلب مكرر.",
