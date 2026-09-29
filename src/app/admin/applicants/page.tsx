@@ -7,6 +7,7 @@ import { flashFrom } from "@/lib/action-helpers";
 import { formatDate, personName } from "@/lib/format";
 import { FilterBar, Pagination } from "@/components/app-widgets";
 import { EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
+import { NavigableTableRow } from "@/components/navigable-table-row";
 
 export const dynamic = "force-dynamic";
 
