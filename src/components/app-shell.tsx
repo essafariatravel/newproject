@@ -63,7 +63,7 @@ export function AppShell(props: {
 
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col lg:ps-64">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-line bg-white/95 px-4 sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b border-line bg-white/95 px-3 sm:h-16 sm:px-6 lg:px-8">
           <MobileNavigation openLabel={t("Menu")} closeLabel={t("Close menu")}>
             <SidebarBrand suffix={props.brandSuffix} platformLogoUrl={props.platformLogoUrl} brandName={props.brandName} />
             <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5"><NavList sections={props.nav} /></nav>
@@ -74,8 +74,8 @@ export function AppShell(props: {
               {props.brandSuffix}
             </span>
           </div>
-          <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
-            <LivePresence staff={props.surface === "staff"} label={contentT(props.locale ?? "en")("Online now")} />
+          <div className="flex min-w-0 items-center gap-1.5 sm:gap-2.5">
+            <span className="hidden sm:inline-flex"><LivePresence staff={props.surface === "staff"} label={contentT(props.locale ?? "en")("Online now")} /></span>
             {props.headerExtras}
             {user.agencyName ? (
               <span className="workspace-header-context hidden max-w-[180px] items-center gap-1.5 truncate text-xs font-medium text-navy-700 sm:inline-flex">
