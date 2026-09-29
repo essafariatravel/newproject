@@ -42,7 +42,7 @@ export function AppShell(props: {
           <NavList sections={props.nav} />
         </nav>
         <div className="px-3 pb-4">
-          <div className="rounded-xl border border-white/15 bg-white/5 p-3">
+          <div className="border-t border-white/10 pt-3">
             <div className="flex items-center gap-3">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold-500 text-xs font-bold text-navy-950">
                 {initials(user.name)}
@@ -70,7 +70,7 @@ export function AppShell(props: {
             <form action={logoutAction} className="p-4"><button className="w-full rounded-lg border border-white/20 p-3 text-sm text-white">{t("Sign out")}</button></form>
           </MobileNavigation>
           <div className="hidden items-center gap-2 lg:flex">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+            <span className="text-xs font-medium tracking-[0.04em] text-slate-500">
               {props.brandSuffix}
             </span>
           </div>
@@ -78,7 +78,7 @@ export function AppShell(props: {
             <LivePresence staff={props.surface === "staff"} label={contentT(props.locale ?? "en")("Online now")} />
             {props.headerExtras}
             {user.agencyName ? (
-              <span className="badge hidden sm:inline-flex max-w-[180px] truncate bg-ivory-100 text-navy-800">
+              <span className="workspace-header-context hidden max-w-[180px] items-center gap-1.5 truncate text-xs font-medium text-navy-700 sm:inline-flex">
                 {props.agencyLogoUrl ? (
                     <img
                     src={props.agencyLogoUrl}
@@ -89,7 +89,7 @@ export function AppShell(props: {
                 {user.agencyName}
               </span>
             ) : null}
-            <span className="badge bg-gold-100 text-gold-700 hidden sm:inline-flex">
+            <span className="hidden text-xs text-slate-500 sm:inline">
               {businessLabel(user.role, props.locale ?? "en")}
             </span>
           </div>
