@@ -17,7 +17,7 @@ jobs:
           - label: before
             ref: ee947701f89ada45cf2ed6a68eddf9a8f222a96e
           - label: after
-            ref: 7117f5157505e0f0c9d9ce8f2d8ec39349a976a4
+            ref: 24674f33c7bb092ed23b7e37ce7a53d63b36caf7
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
