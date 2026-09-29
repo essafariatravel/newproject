@@ -23,7 +23,7 @@ export function FilterBar(props: {
 }) {
   const ct = contentT(props.locale ?? "en");
   return (
-    <form method="get" action={props.action} className="card mb-4 flex flex-wrap items-end gap-3 p-4">
+    <form method="get" action={props.action} className="filter-bar flex flex-wrap items-end gap-3">
       {Object.entries(props.hidden ?? {}).map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
       ))}
@@ -61,7 +61,7 @@ export function FilterBar(props: {
       ))}
       <div className="flex gap-2">
         <button type="submit" className="btn-primary btn-sm px-4 py-2">{ct("Filter")}</button>
-        <Link href={props.action} className="btn-secondary btn-sm px-4 py-2">{ct("Reset")}</Link>
+        <Link href={props.action} className="filter-reset">{ct("Reset")}</Link>
       </div>
     </form>
   );
@@ -95,8 +95,9 @@ export function PageSizeSelector(props: {
         <Link
           key={size}
           href={mk(size)}
-          className={props.pageSize === size ? "badge bg-navy-900 text-white" : "badge bg-navy-900/5 text-navy-800"}
+          className="page-size-option"
           data-testid={`page-size-${size}`}
+          aria-current={props.pageSize === size ? "page" : undefined}
         >
           {size}
         </Link>
@@ -131,18 +132,18 @@ export function Pagination(props: {
       </p>
       <div className="flex gap-2">
         {page > 1 ? (
-          <Link href={mk(page - 1)} className="btn-secondary btn-sm">
-            ← {ct("Previous")}
+          <Link href={mk(page - 1)} className="pagination-link">
+            <span className="directional" aria-hidden>←</span> {ct("Previous")}
           </Link>
         ) : (
-          <span className="btn-secondary btn-sm opacity-40">← {ct("Previous")}</span>
+          <span className="pagination-link" aria-disabled="true"><span className="directional" aria-hidden>←</span> {ct("Previous")}</span>
         )}
         {page < pageCount ? (
-          <Link href={mk(page + 1)} className="btn-secondary btn-sm">
-            {ct("Next")} →
+          <Link href={mk(page + 1)} className="pagination-link">
+            {ct("Next")} <span className="directional" aria-hidden>→</span>
           </Link>
         ) : (
-          <span className="btn-secondary btn-sm opacity-40">{ct("Next")} →</span>
+          <span className="pagination-link" aria-disabled="true">{ct("Next")} <span className="directional" aria-hidden>→</span></span>
         )}
       </div>
     </div>
