@@ -15,9 +15,9 @@ describe("Phase 2 Final — 3-step atomic request wizard + simplified dossier", 
     expect(NEW_PAGE).toContain("RequestWizard");
     // The three step labels must come from the content dictionary through ct():
     // they used to be pseudo-keys ("step.choose") that rendered literally.
-    expect(NEW_PAGE).toContain('ct("Choose visa")');
-    expect(NEW_PAGE).toContain('ct("Upload documents")');
-    expect(NEW_PAGE).toContain('ct("Preview, confirm & submit")');
+    expect(NEW_PAGE).toContain('ct("Visa & Traveller")');
+    expect(NEW_PAGE).toContain('ct("Documents")');
+    expect(NEW_PAGE).toContain('ct("Review & Submit")');
     expect(NEW_PAGE).not.toContain("use client");
     expect(NEW_PAGE).not.toContain("createApplicationAction");
   });

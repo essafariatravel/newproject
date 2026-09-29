@@ -90,11 +90,19 @@ describe("document upload validation", () => {
       "photo_2.webp",
     ];
     for (const name of names) {
+      const extension = name.split(".").at(-1)!;
+      const fixtures: Record<string, { type: string; data: Buffer }> = {
+        pdf: { type: "application/pdf", data: Buffer.from("%PDF-1.4 x") },
+        jpg: { type: "image/jpeg", data: Buffer.from("ffd8ffe000104a464946", "hex") },
+        png: { type: "image/png", data: Buffer.from("89504e470d0a1a0a", "hex") },
+        docx: { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", data: Buffer.from("PK\u0003\u0004word/document.xml") },
+        webp: { type: "image/webp", data: Buffer.from("RIFF0000WEBP") },
+      };
       const doc = await uploadDocument({
         applicationId: app.id,
         actor: staffB,
         documentTypeId,
-        file: { name, type: "application/pdf", size: 512, data: Buffer.from("%PDF-1.4 x") },
+        file: { name, size: fixtures[extension]!.data.length, ...fixtures[extension]! },
       });
       expect(doc.originalFilename).toBe(name);
     }
@@ -126,7 +134,7 @@ describe("document review workflow", () => {
     const doc = await uploadDocument({
       applicationId: app.id,
       actor: staffB,
-      file: { name: "bank.pdf", type: "application/pdf", size: 2048, data: Buffer.from("bank") },
+      file: { name: "bank.pdf", type: "application/pdf", size: 2048, data: Buffer.from("%PDF-1.4 bank") },
       checklistItemId: item.id,
     });
 
@@ -151,7 +159,7 @@ describe("document review workflow", () => {
       applicationId: app.id,
       originalDocumentId: doc.id,
       actor: staffB,
-      file: { name: "bank-v2.pdf", type: "application/pdf", size: 2048, data: Buffer.from("bank v2") },
+      file: { name: "bank-v2.pdf", type: "application/pdf", size: 2048, data: Buffer.from("%PDF-1.4 bank v2") },
     });
     expect(doc2.version).toBe(2);
 
@@ -174,7 +182,7 @@ describe("document review workflow", () => {
     const doc = await uploadDocument({
       applicationId: app.id,
       actor: staffB,
-      file: { name: "temp.pdf", type: "application/pdf", size: 128, data: Buffer.from("tmp") },
+      file: { name: "temp.pdf", type: "application/pdf", size: 128, data: Buffer.from("%PDF-1.4 tmp") },
       checklistItemId: item.id,
     });
     await deleteDocument(doc.id, staffB);
@@ -202,7 +210,7 @@ describe("document review workflow", () => {
       const d = await uploadDocument({
         applicationId: app2.id,
         actor: staffB,
-        file: { name: `${it.documentTypeCode}.pdf`, type: "application/pdf", size: 512, data: Buffer.from("d") },
+        file: { name: `${it.documentTypeCode}.pdf`, type: "application/pdf", size: 512, data: Buffer.from("%PDF-1.4 d") },
         checklistItemId: it.id,
       });
       keeper = d.id;
@@ -228,7 +236,7 @@ describe("document review workflow", () => {
       await uploadDocument({
         applicationId: app.id,
         actor: staffB,
-        file: { name: `${item.documentTypeCode}.pdf`, type: "application/pdf", size: 512, data: Buffer.from("d") },
+        file: { name: `${item.documentTypeCode}.pdf`, type: "application/pdf", size: 512, data: Buffer.from("%PDF-1.4 d") },
         checklistItemId: item.id,
       });
     }

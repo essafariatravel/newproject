@@ -35,7 +35,7 @@ async function setupSharedFile() {
   const doc = await uploadDocument({
     applicationId: app.id,
     actor: staffA,
-    file: { name: "passport.pdf", type: "application/pdf", size: 1024, data: Buffer.from("test-document") },
+    file: { name: "passport.pdf", type: "application/pdf", size: 1024, data: Buffer.from("%PDF-1.4 test document") },
     checklistItemId: checklist.id,
     applicantId: applicant.id,
   });

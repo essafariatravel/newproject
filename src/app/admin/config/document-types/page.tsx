@@ -1,18 +1,49 @@
+import { ConfigDialog } from "@/components/config-dialog";
+import { ConfigTranslations } from "@/components/config-translations";
+import { count } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { documentTypes, visaRequirements } from "@/db/schema";
+import { configDescription, configMatches, configName } from "@/lib/config-localization";
 import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
-import { getUiLocale } from "@/lib/ui-i18n";
+import { getUiLocale, type UiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { hasPermission } from "@/lib/rbac";
 import { listDocumentTypes } from "@/lib/applications-exports";
 import { resolvePageSize } from "@/lib/queries";
 import { PageSizeSelector } from "@/components/app-widgets";
 import { flashFrom } from "@/lib/action-helpers";
-import { createDocumentTypeAction, updateDocumentTypeAction } from "@/app/actions/config";
-import { SubmitButton } from "@/components/forms";
+import { createDocumentTypeAction, deleteDocumentTypeAction, updateDocumentTypeAction } from "@/app/actions/config";
+import { ConfirmButton, SubmitButton } from "@/components/forms";
 import { ActiveBadge, EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
+function DocumentFields({ value, locale }: { value?: typeof documentTypes.$inferSelect; locale: UiLocale }) {
+  const ct = contentT(locale);
+  return <>
+    {value ? <input type="hidden" name="id" value={value.id} /> : null}
+    <label className="block text-sm">{ct("Name *")} · EN
+      <input name="name" required minLength={2} maxLength={80} defaultValue={value?.name} dir="ltr" className="input mt-1" />
+    </label>
+    <label className="block text-sm">{ct("Code *")}
+      <input name="code" required minLength={2} maxLength={40} defaultValue={value?.code} readOnly={!!value} dir="ltr" className="input mt-1 uppercase" />
+    </label>
+    <label className="block text-sm sm:col-span-2">{ct("Description")} · EN
+      <textarea name="description" maxLength={500} rows={2} defaultValue={value?.description ?? ""} dir="ltr" className="input mt-1" />
+    </label>
+    <ConfigTranslations value={value} locale={locale} />
+    <label className="block text-sm">{ct("Provided by")}
+      <select name="agencyUploadable" className="input mt-1" defaultValue={value?.agencyUploadable === false ? "0" : "1"}>
+        <option value="1">{ct("Agency uploads it")}</option><option value="0">{ct("ESSAFARIA / authority issues it")}</option>
+      </select>
+    </label>
+    <label className="block text-sm">{ct("Sort order")}
+      <input name="sortOrder" type="number" min={0} max={9999} defaultValue={value?.sortOrder ?? 0} className="input mt-1" />
+    </label>
+    <div className="sm:col-span-2"><SubmitButton className="btn-primary" pendingLabel={ct("Saving…")}>{ct(value ? "Save" : "Add document type")}</SubmitButton></div>
+  </>;
+}
 
 export default async function DocumentTypesConfigPage({
   searchParams,
@@ -28,18 +59,19 @@ export default async function DocumentTypesConfigPage({
   }
   const flash = flashFrom(sp);
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
-  const page = Math.max(1, parseInt(typeof sp.page === "string" ? sp.page : "1", 10) || 1);
-  const allRows = await listDocumentTypes();
+  const status = sp.status === "active" || sp.status === "inactive" ? sp.status : "";
+  const [allRows, usageRows] = await Promise.all([
+    listDocumentTypes(),
+    db.select({ id: visaRequirements.documentTypeId, total: count() }).from(visaRequirements).groupBy(visaRequirements.documentTypeId),
+  ]);
+  const usage = new Map(usageRows.map((row) => [row.id, row.total]));
   const canManage = hasPermission(staff, "config.manage");
 
-  let rows = allRows;
-  if (q) {
-    const lower = q.toLowerCase();
-    rows = rows.filter((d) => d.name.toLowerCase().includes(lower) || d.code.toLowerCase().includes(lower) || (d.description ?? "").toLowerCase().includes(lower));
-  }
+  const rows = allRows.filter((d) => configMatches(d, q) && (!status || d.active === (status === "active")));
   const total = rows.length;
   const per = resolvePageSize(sp.per);
   const pageCount = Math.max(1, Math.ceil(total / per));
+  const page = Math.min(pageCount, Math.max(1, parseInt(typeof sp.page === "string" ? sp.page : "1", 10) || 1));
   const paged = rows.slice((page - 1) * per, page * per);
 
   return (
@@ -48,14 +80,26 @@ export default async function DocumentTypesConfigPage({
         title={ct("Document types")}
         subtitle={ct("Catalogue used by visa requirements and checklists.")}
         actions={
-          <form className="flex items-center gap-2">
-            <input name="q" defaultValue={q} placeholder={ct("Search document type…")} className="input w-64 text-sm" />
+          <form className="flex flex-wrap items-center gap-2">
+            <input name="q" defaultValue={q} placeholder={ct("Search document type…")} aria-label={ct("Search document type…")} className="input w-64 text-sm" />
+            <select name="status" defaultValue={status} aria-label={ct("Status")} className="input w-auto text-sm">
+              <option value="">{ct("All statuses")}</option><option value="active">{ct("Active")}</option><option value="inactive">{ct("Inactive")}</option>
+            </select>
+            <input type="hidden" name="per" value={per} />
             <button type="submit" className="btn-secondary btn-sm">{ct("Search")}</button>
-            {q ? <Link href="/admin/config/document-types" className="btn-secondary btn-sm">{ct("Clear")}</Link> : null}
+            {q || status ? <Link href="/admin/config/document-types" className="btn-secondary btn-sm">{ct("Clear")}</Link> : null}
           </form>
         }
       />
       <Flash {...flash} />
+      <div className="mb-5">
+      {canManage ? (
+        <ConfigDialog title={ct("Add document type")} closeLabel={ct("Close")}>
+
+          <form action={createDocumentTypeAction} className="grid gap-4 sm:grid-cols-2"><DocumentFields locale={locale} /></form>
+        </ConfigDialog>
+      ) : null}
+      </div>
 
       <TableWrap>
         <thead className="border-b border-slate-100 bg-ivory-50/60">
@@ -64,6 +108,7 @@ export default async function DocumentTypesConfigPage({
             <th className="th">{ct("Code")}</th>
             <th className="th">{ct("Description")}</th>
             <th className="th">{ct("Sort")}</th>
+            <th className="th">{ct("Used by")}</th>
             <th className="th">{ct("Agency upload")}</th>
             <th className="th">{ct("Status")}</th>
             {canManage ? <th className="th text-right">{ct("Actions")}</th> : null}
@@ -72,10 +117,11 @@ export default async function DocumentTypesConfigPage({
         <tbody className="divide-y divide-slate-100">
           {paged.map((d) => (
             <tr key={d.id} className="tr-hover">
-              <td className="td font-medium text-navy-900">{d.name}</td>
+              <td className="td font-medium text-navy-900">{configName(d, locale)}</td>
               <td className="td"><span className="badge bg-navy-900/5 text-navy-800">{d.code}</span></td>
-              <td className="td max-w-[320px] truncate text-xs text-slate-500">{d.description ?? "—"}</td>
+              <td className="td max-w-[320px] truncate text-xs text-slate-500" title={configDescription(d, locale)}>{configDescription(d, locale) || "—"}</td>
               <td className="td tabular-nums text-xs">{d.sortOrder}</td>
+              <td className="td tabular-nums text-xs">{usage.get(d.id) ?? 0} {ct("Visa types")}</td>
               <td className="td">
                 {d.agencyUploadable ? (
                   <span className="badge bg-teal-50 text-teal-700">{ct("Agency")}</span>
@@ -85,7 +131,10 @@ export default async function DocumentTypesConfigPage({
               </td>
               <td className="td"><ActiveBadge active={d.active} locale={locale} /></td>
       {canManage ? (
-                <td className="td text-right">
+                <td className="td text-end"><div className="flex flex-wrap justify-end gap-2">
+                  <ConfigDialog title={ct("Edit document type")} closeLabel={ct("Close")}>
+                    <form action={updateDocumentTypeAction} className="grid gap-4 sm:grid-cols-2"><DocumentFields value={d} locale={locale} /></form>
+                  </ConfigDialog>
                   <form action={updateDocumentTypeAction} className="inline">
                     <input type="hidden" name="id" value={d.id} />
                     <input type="hidden" name="name" value={d.name} />
@@ -98,59 +147,35 @@ export default async function DocumentTypesConfigPage({
                       {ct(d.active ? "Deactivate" : "Activate")}
                     </SubmitButton>
                   </form>
-                </td>
+                  <form action={deleteDocumentTypeAction}>
+                    <input type="hidden" name="id" value={d.id} />
+                    <ConfirmButton className="btn-danger btn-sm" message={ct("Delete this unused document type?")} title={ct("Only unused configuration can be deleted. Referenced records must be deactivated.")}>{ct("Delete document type")}</ConfirmButton>
+                  </form>
+                </div></td>
               ) : null}
             </tr>
           ))}
           {paged.length === 0 ? (
-            <tr><td colSpan={7} className="td py-8 text-center text-slate-500">No document types found{q ? ` for “${q}”` : ""}.</td></tr>
+            <tr><td colSpan={canManage ? 8 : 7} className="td py-8 text-center text-slate-500">{ct("No document types found")}{q ? ` ${ct("for")} “${q}”` : ""}.</td></tr>
           ) : null}
         </tbody>
       </TableWrap>
 
       {pageCount > 1 ? (
         <div className="mt-3 flex items-center justify-between text-xs">
-          <span className="text-slate-500">Page {page} / {pageCount} — {total} total</span>
+          <span className="text-slate-500">{ct("Page")} {page} / {pageCount} — {total} {ct("total")}</span>
           <span className="flex gap-1.5">
-            {page > 1 ? <Link href={`/admin/config/document-types?${new URLSearchParams({ ...(q ? { q } : {}), ...(per !== 20 ? { per: String(per) } : {}), page: String(page - 1) }).toString()}`} className="btn-secondary btn-sm">{ct("← Prev")}</Link> : null}
-            {page < pageCount ? <Link href={`/admin/config/document-types?${new URLSearchParams({ ...(q ? { q } : {}), ...(per !== 20 ? { per: String(per) } : {}), page: String(page + 1) }).toString()}`} className="btn-secondary btn-sm">{ct("Next →")}</Link> : null}
+            {page > 1 ? <Link href={`/admin/config/document-types?${new URLSearchParams({ ...(q ? { q } : {}), ...(status ? { status } : {}), ...(per !== 20 ? { per: String(per) } : {}), page: String(page - 1) }).toString()}`} className="btn-secondary btn-sm">{ct("← Prev")}</Link> : null}
+            {page < pageCount ? <Link href={`/admin/config/document-types?${new URLSearchParams({ ...(q ? { q } : {}), ...(status ? { status } : {}), ...(per !== 20 ? { per: String(per) } : {}), page: String(page + 1) }).toString()}`} className="btn-secondary btn-sm">{ct("Next →")}</Link> : null}
           </span>
         </div>
       ) : null}
 
       <div className="mt-2 flex justify-end">
-        <PageSizeSelector pageSize={per} basePath="/admin/config/document-types" query={{ q }} />
+        <PageSizeSelector pageSize={per} basePath="/admin/config/document-types" query={{ q, status }} />
       </div>
 
-      {canManage ? (
-        <div className="mt-8">
-          <h2 className="mb-3 font-serif text-xl text-navy-900">{ct("Add document type")}</h2>
-          <form action={createDocumentTypeAction} className="card grid grid-cols-1 gap-4 p-5 sm:grid-cols-4">
-            <div>
-              <label className="label">{ct("Name *")}</label>
-              <input name="name" required className="input" placeholder="Police Clearance" />
-            </div>
-            <div>
-              <label className="label">{ct("Code *")}</label>
-              <input name="code" required className="input uppercase" placeholder="POLICE_CLEARANCE" />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="label">{ct("Description")}</label>
-              <input name="description" className="input" />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="label">{ct("Provided by")}</label>
-              <select name="agencyUploadable" className="input" defaultValue="1">
-                <option value="1">{ct("Agency uploads it")}</option>
-                <option value="0">{ct("ESSAFARIA / authority issues it")}</option>
-              </select>
-            </div>
-            <div className="sm:col-span-2">
-              <SubmitButton className="btn-primary" pendingLabel={ct("Saving…")}>{ct("Add document type")}</SubmitButton>
-            </div>
-          </form>
-        </div>
-      ) : null}
+
     </>
   );
 }

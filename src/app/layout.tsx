@@ -33,7 +33,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   }
   const locale = await getUiLocale();
   return (
-    <html lang={locale} dir={isUiRtl(locale) ? "rtl" : "ltr"}>
+    <html lang={locale} dir={isUiRtl(locale) ? "rtl" : "ltr"} data-scroll-behavior="smooth">
       <head>{cssOverride ? <style dangerouslySetInnerHTML={{ __html: cssOverride }} /> : null}</head>
       <body>{children}</body>
     </html>

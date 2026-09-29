@@ -1,3 +1,4 @@
+import { businessLabel } from "@/lib/business-labels";
 import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
 import { getUiLocale } from "@/lib/ui-i18n";
@@ -124,14 +125,14 @@ export default async function AdminUsersPage({
                       <select name="role" defaultValue={u.role} className="input w-40 py-1 text-xs">
                         {roleOptions.map((r) => (
                           <option key={r} value={r}>
-                            {r.replaceAll("_", " ")}
+                            {businessLabel(r, uiLocale)}
                           </option>
                         ))}
                       </select>
                       <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">Save</SubmitButton>
                     </form>
                   ) : (
-                    <span className="badge bg-navy-900/5 text-navy-800">{u.role.replaceAll("_", " ")}</span>
+                    <span className="badge bg-navy-900/5 text-navy-800">{businessLabel(u.role, uiLocale)}</span>
                   )}
                 </td>
                 <td className="td max-w-[160px] truncate">{agencyName ?? <span className="text-slate-400">staff</span>}</td>
@@ -184,7 +185,7 @@ export default async function AdminUsersPage({
               <select id="n-role" name="role" required className="input" defaultValue={view === "staff" ? "VISA_AGENT" : "AGENCY_USER"}>
                 {roleOptions.map((r) => (
                   <option key={r} value={r}>
-                    {r.replaceAll("_", " ")}
+                    {businessLabel(r, uiLocale)}
                   </option>
                 ))}
               </select>

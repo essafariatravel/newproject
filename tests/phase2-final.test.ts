@@ -301,7 +301,7 @@ describe("C6 — nationality selector with localized labels and Algeria default"
     const reqs = (await db.execute(
       sql`select document_type_id as id from visa_requirements where visa_type_id = ${v.id} and active`,
     )).rows as { id: string }[];
-    const docs = reqs.map((r) => ({ documentTypeId: r.id, file: { name: "a.pdf", type: "application/pdf", size: 64, data: Buffer.alloc(64, 1) } }));
+    const docs = reqs.map((r) => ({ documentTypeId: r.id, file: { name: "a.pdf", type: "application/pdf", size: 64, data: Buffer.from("%PDF-1.4 test document") } }));
     await expect(
       submitVisaRequest({
         actor,
@@ -327,16 +327,14 @@ describe("C7 — Applications list APPLICANT column (order, search, fallback, lo
     // evaluate header order INSIDE the <thead> markup (labels like "Status"
     // also appear earlier in the filter bar).
     const thead = LIST_PAGE.slice(LIST_PAGE.indexOf("<thead"), LIST_PAGE.indexOf("</thead>"));
-    const refIdx = thead.indexOf('ct("Reference")');
     const applicantIdx = thead.indexOf('ct("Applicant")');
     const visaIdx = thead.indexOf('ct("Visa / Country")');
     const docsIdx = thead.indexOf('ct("Documents")');
     const feeIdx = thead.indexOf('ct("Fee")');
     const statusIdx = thead.indexOf('ct("Status")');
     const createdIdx = thead.indexOf('ct("Created")');
-    expect(refIdx).toBeGreaterThan(-1);
     expect(applicantIdx).toBeGreaterThan(-1);
-    expect(refIdx).toBeLessThan(applicantIdx);
+    expect(LIST_PAGE).toContain("{r.app.reference}</span>");
     expect(applicantIdx).toBeLessThan(visaIdx);
     expect(visaIdx).toBeLessThan(docsIdx);
     expect(docsIdx).toBeLessThan(feeIdx);
@@ -370,7 +368,7 @@ describe("C7 — Applications list APPLICANT column (order, search, fallback, lo
       countryId: v.country_id,
       visaTypeId: v.id,
       travellers: [{ fullName: uniqueName, nationality: "DZ" }],
-      documents: reqs.map((r) => ({ documentTypeId: r.id, file: { name: "a.pdf", type: "application/pdf", size: 64, data: Buffer.alloc(64, 1) } })),
+      documents: reqs.map((r) => ({ documentTypeId: r.id, file: { name: "a.pdf", type: "application/pdf", size: 64, data: Buffer.from("%PDF-1.4 test document") } })),
       ipAddress: null,
     });
     expect(res.reused).toBe(false);

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "codex/essafaria-product-excellence": false,
+      "release/essafaria-rc-2026-09": false
+    }
+  }
+}

@@ -1,3 +1,4 @@
+import { configName } from "@/lib/config-localization";
 import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
@@ -243,7 +244,7 @@ export default async function AdminApplicationsPage({
                   <td className="td max-w-[160px] truncate">{r.agencyName}</td>
                   <td className="td">
                     <span className="block">{countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}</span>
-                    <span className="block text-xs text-slate-400">{r.app.visaTypeName}</span>
+                    <span className="block text-xs text-slate-400">{configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}</span>
                   </td>
                   <td className="td whitespace-nowrap tabular-nums">
                     {formatAmount(r.app.fee, "DZD", uiLocale)}

@@ -121,7 +121,7 @@ export function Flash(props: { error?: string; success?: string }) {
 
 export function TableWrap(props: { children: ReactNode }) {
   return (
-    <div className="card overflow-x-auto">
+    <div className="card table-scroll overflow-x-auto" tabIndex={0}>
       <table className="w-full min-w-[640px] border-collapse">{props.children}</table>
     </div>
   );
@@ -133,7 +133,7 @@ export function Progress(props: { done: number; total: number }) {
     <div className="flex items-center gap-2">
       <div className="h-1.5 w-24 overflow-hidden rounded-full bg-ivory-200">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-iris-400 to-iris-600 transition-all"
+          className="h-full rounded-full bg-teal-600 transition-all"
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -146,15 +146,16 @@ export function Progress(props: { done: number; total: number }) {
 
 export function Tabs(props: { tabs: Array<{ id: string; label: string; href: string }>; current: string }) {
   return (
-    <div className="ess-segment mb-6 max-w-full overflow-x-auto">
+    <div className="workspace-tabs mb-6 flex max-w-full gap-5 overflow-x-auto border-b border-line">
       {props.tabs.map((t) => (
         <Link
           key={t.id}
           href={t.href}
-          className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm transition-colors ${
+          aria-current={t.id === props.current ? "page" : undefined}
+          className={`whitespace-nowrap border-b-2 px-1 py-3 text-sm transition-colors ${
             t.id === props.current
-              ? "bg-white font-semibold text-navy-900 shadow-[0_1px_3px_rgb(23_30_63/0.08)]"
-              : "text-slate-500 hover:text-navy-900"
+              ? "border-gold-500 font-semibold text-navy-900"
+              : "border-transparent text-slate-500 hover:text-navy-900"
           }`}
         >
           {t.label}

@@ -1,3 +1,4 @@
+import { businessReason } from "@/lib/business-labels";
 import Link from "next/link";
 import { portalPageUser } from "@/lib/page-auth";
 import { getBalance } from "@/lib/wallet";
@@ -61,6 +62,7 @@ export default async function PortalWalletPage({
     q,
   };
   const exportQuery = new URLSearchParams();
+  exportQuery.set("lang", uiLocale);
   for (const [k, v] of Object.entries(query)) if (v) exportQuery.set(k, v);
 
   return (
@@ -154,6 +156,7 @@ export default async function PortalWalletPage({
           >
             {ct("Export CSV")}
           </a>
+          <a href={`/api/agency/wallet/export?${exportQuery.toString()}&format=xlsx`} className="btn-secondary btn-sm mt-3 ms-2 inline-flex">{ct("Export Excel")}</a>
         </Card>
       </div>
 
@@ -237,8 +240,8 @@ export default async function PortalWalletPage({
                           "—"
                         )}
                       </td>
-                      <td className="td max-w-[260px] truncate text-xs text-slate-500" title={tx.reason}>
-                        {tx.reason}
+                      <td className="td max-w-[260px] truncate text-xs text-slate-500" title={businessReason(tx.reason, tx.type, applicationReference, uiLocale)}>
+                        {businessReason(tx.reason, tx.type, applicationReference, uiLocale)}
                       </td>
                     </tr>
                   );

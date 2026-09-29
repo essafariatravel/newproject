@@ -31,19 +31,21 @@ export type Row = Record<string, Cell>;
 /* --------------------------------- CSV ---------------------------------- */
 
 /** RFC 4180 cell escaping, with spreadsheet-formula neutralisation. */
-export function csvCell(value: Cell): string {
+export function csvCell(value: Cell, delimiter: "," | ";" = ","): string {
   if (value === null || value === undefined) return "";
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "";
   const raw = String(value);
   // A leading =, +, -, @ (or tab/CR) is executed as a formula by Excel/Sheets.
   const text = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
-  return /[",\n\r]/.test(text) || text !== raw ? `"${text.replaceAll('"', '""')}"` : text;
+  return /["\n\r]/.test(text) || text.includes(delimiter) || text !== raw ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
-export function toCsv(columns: readonly Column[], rows: readonly Row[]): string {
-  const header = columns.map((c) => csvCell(c.header)).join(",");
-  const body = rows.map((row) => columns.map((c) => csvCell(row[c.key])).join(","));
+export function toCsv(columns: readonly Column[], rows: readonly Row[], options: { locale?: string; excel?: boolean } = {}): string {
+  const delimiter = options.locale === "fr" ? ";" : ",";
+  const header = columns.map((c) => csvCell(c.header, delimiter)).join(delimiter);
+  const body = rows.map((row) => columns.map((c) => csvCell(row[c.key], delimiter)).join(delimiter));
   // \uFEFF = UTF-8 BOM (Excel + Arabic/French accents), CRLF per RFC 4180.
-  return `\uFEFF${[header, ...body].join("\r\n")}\r\n`;
+  return `\uFEFF${options.excel ? `sep=${delimiter}\r\n` : ""}${[header, ...body].join("\r\n")}\r\n`;
 }
 
 /* --------------------------------- ZIP ---------------------------------- */

@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { ZodError } from "zod";
 import { AppError } from "@/lib/types";
+import { actionFeedbackPath } from "@/lib/action-feedback";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 
 /**
  * Shared server-action wrapper: runs the mutation, converts expected errors to
@@ -24,7 +27,7 @@ export async function runAction(path: string, fn: () => Promise<string>): Promis
     }
     kind = "error";
   }
-  redirect(`${path}?${kind}=${encodeURIComponent(msg)}`);
+  redirect(actionFeedbackPath(path, kind, contentT(await getUiLocale())(msg)));
 }
 
 /** Read + clean flash feedback from search params. */

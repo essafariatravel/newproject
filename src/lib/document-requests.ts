@@ -11,6 +11,7 @@ export async function listDocumentRequests(applicationId: string) {
     .select({
       req: documentRequests,
       docTypeName: documentTypes.name,
+      docTypeCode: documentTypes.code,
     })
     .from(documentRequests)
     .innerJoin(documentTypes, eq(documentRequests.documentTypeId, documentTypes.id))
@@ -124,7 +125,7 @@ export async function requestDocumentReplacement(input: RequestReplacementInput)
     type: "DOCUMENT_REQUESTED",
     title: `Action required — ${item.documentTypeName} replacement requested`,
     body: reason,
-    link: `/portal/applications/${input.applicationId}`,
+    link: `/portal/applications/${input.applicationId}?tab=documents#request-${inserted[0]!.id}`,
     agencyId: access.agencyId,
     applicationId: input.applicationId,
   });
@@ -230,7 +231,7 @@ export async function requestAdditionalDocument(input: RequestAdditionalInput) {
     type: "DOCUMENT_REQUESTED",
     title: `Action required — additional document ${dt.name} requested`,
     body: reason,
-    link: `/portal/applications/${input.applicationId}`,
+    link: `/portal/applications/${input.applicationId}?tab=documents#request-${inserted[0]!.id}`,
     agencyId: access.agencyId,
     applicationId: input.applicationId,
   });

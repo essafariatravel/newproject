@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   serverExternalPackages: ["pg"],
+  // Individual 2 MB documents plus multipart overhead. The wizard sends files
+  // separately so a complete dossier never exceeds the hosting payload limit.
+  experimental: { serverActions: { bodySizeLimit: "3mb" } },
   async headers() {
     return [
       {

@@ -1,3 +1,4 @@
+import { configName } from "@/lib/config-localization";
 import Link from "next/link";
 import { portalPageUser } from "@/lib/page-auth";
 import { searchApplications, resolvePageSize } from "@/lib/queries";
@@ -30,7 +31,7 @@ export default async function PortalApplicationsPage({
   const page = Number(sp.page ?? "1") || 1;
 
   const [result, statuses] = await Promise.all([
-    searchApplications(user, { q: sp.q, statusCode: sp.status, dateFrom: sp.from, dateTo: sp.to, page, pageSize: resolvePageSize(sp.per) }),
+    searchApplications(user, { q: sp.q, documents: sp.documents === "requested" ? "requested" : undefined, statusCode: sp.status, dateFrom: sp.from, dateTo: sp.to, page, pageSize: resolvePageSize(sp.per) }),
     listStatuses(true),
   ]);
 
@@ -53,8 +54,9 @@ export default async function PortalApplicationsPage({
 
       <FilterBar locale={uiLocale}
         action="/portal/applications"
+        hidden={sp.documents === "requested" ? { documents: "requested" } : undefined}
         fields={[
-          { name: "q", label: ct("Search"), type: "text", value: sp.q, placeholder: ct("Reference, applicant, passport…") },
+          { name: "q", label: ct("Search"), type: "text", value: sp.q, placeholder: ct("Reference or applicant…") },
           {
             name: "status", label: ct("Status"), type: "select", value: sp.status,
             options: statuses
@@ -94,7 +96,7 @@ export default async function PortalApplicationsPage({
                   </div>
                   <p className="mt-1 text-xs text-slate-500">{r.app.reference}</p>
                   <p className="mt-0.5 text-xs text-slate-500">
-                    {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)} · {r.app.visaTypeName}
+                    {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)} · {configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}
                   </p>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
                     <span className="tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</span>
@@ -131,7 +133,7 @@ export default async function PortalApplicationsPage({
                     </td>
                     <td className="td">
                       {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}
-                      <span className="block text-xs text-slate-400">{r.app.visaTypeName}</span>
+                      <span className="block text-xs text-slate-400">{configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}</span>
                     </td>
                     <td className="td">{p ? <Progress done={p.done} total={p.total} /> : "—"}</td>
                     <td className="td whitespace-nowrap tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</td>

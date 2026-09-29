@@ -1,3 +1,4 @@
+import { businessLabel, notificationCategory } from "@/lib/business-labels";
 import Link from "next/link";
 import { listNotificationsForUser } from "@/lib/queries";
 import { markNotificationsReadAction } from "@/app/actions/communications";
@@ -17,15 +18,18 @@ export async function NotificationsPage({
   basePath: string;
   sp?: Record<string, unknown>;
 }) {
-  const ct = contentT(await getUiLocale(sp));
+  const locale = await getUiLocale(sp);
+  const ct = contentT(locale);
   const notifications = await listNotificationsForUser(user.id);
+  const filter = typeof sp?.filter === "string" ? sp.filter : "all";
+  const visible = notifications.filter((n) => filter === "all" || notificationCategory(n.type) === filter);
   const unread = notifications.filter((n) => !n.readAt).length;
 
   return (
     <>
       <PageHeader
         title={ct("Notifications")}
-        subtitle={`${unread} unread · ${notifications.length} total`}
+        subtitle={`${unread} ${ct("unread notifications")} · ${notifications.length} ${ct("total")}`}
         actions={
           unread > 0 ? (
             <form action={markNotificationsReadAction}>
@@ -35,22 +39,25 @@ export async function NotificationsPage({
           ) : undefined
         }
       />
-      {notifications.length === 0 ? (
-        <div className="card"><EmptyState title={ct("No notifications")} body="Events on your applications will appear here." /></div>
+      <nav className="mb-5 flex flex-wrap gap-2" aria-label={ct("Notifications")}>
+        {[["all", "All"], ["action", "Action required"], ["applications", "Applications"], ["messages", "Messages"], ["wallet", "Wallet"]].map(([id, label]) => <Link key={id} href={`${basePath}?filter=${id}`} aria-current={filter === id ? "page" : undefined} className={filter === id ? "btn-primary btn-sm" : "btn-secondary btn-sm"}>{ct(label!)}</Link>)}
+      </nav>
+      {visible.length === 0 ? (
+        <div className="card"><EmptyState title={ct("No notifications")} body={ct("Events on your applications will appear here.")} /></div>
       ) : (
         <div className="space-y-2.5">
-          {notifications.map((n) => (
+          {visible.map((n) => (
             <div
               key={n.id}
-              className={`card flex items-start justify-between gap-3 px-4 py-3.5 ${n.readAt ? "opacity-70" : "border-l-2 border-l-gold-500"}`}
+              className={`card flex items-start justify-between gap-3 px-4 py-3.5 ${n.readAt ? "opacity-70" : "border-s-2 border-s-gold-500"}`}
             >
               <div className="min-w-0">
                 <p className="text-sm font-medium text-navy-900">
-                  {n.title}
-                  {!n.readAt ? <span className="badge ml-2 bg-gold-100 text-gold-600">New</span> : null}
+                  {n.link ? <Link href={n.link} className="hover:underline">{businessLabel(n.type, locale)}</Link> : businessLabel(n.type, locale)}
+                  {!n.readAt ? <span className="badge ms-2 bg-gold-100 text-gold-600">{ct("New")}</span> : null}
                 </p>
-                <p className="mt-0.5 text-sm text-slate-600">{n.body}</p>
-                <p className="mt-1 text-[11px] text-slate-400">{formatDateTime(n.createdAt)}</p>
+                <p className="mt-0.5 text-sm text-slate-600">{["MESSAGE_POSTED", "DOCUMENT_REQUESTED"].includes(n.type) ? n.body : null}</p>
+                <p className="mt-1 text-[11px] text-slate-400">{formatDateTime(n.createdAt, locale)}</p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1.5">
                 {n.link ? (

@@ -264,6 +264,14 @@ export function localizedStatusName(
 }
 
 const DECISION_DOC_TYPE_LABELS: Record<string, Record<UiLocale, string>> = {
+  PASSPORT: { en: "Passport", fr: "Passeport", ar: "جواز السفر" },
+  PHOTO: { en: "Passport photo", fr: "Photo d’identité", ar: "صورة شخصية" },
+  PASSPORT_PHOTO: { en: "Passport photo", fr: "Photo d’identité", ar: "صورة شخصية" },
+  BANK_STATEMENT: { en: "Bank statement", fr: "Relevé bancaire", ar: "كشف حساب مصرفي" },
+  FLIGHT_RESERVATION: { en: "Flight reservation", fr: "Réservation de vol", ar: "حجز طيران" },
+  HOTEL_RESERVATION: { en: "Hotel reservation", fr: "Réservation d’hôtel", ar: "حجز فندق" },
+  TRAVEL_INSURANCE: { en: "Travel insurance", fr: "Assurance voyage", ar: "تأمين السفر" },
+
   DECISION_VISA_APPROVAL: {
     en: "Issued Visa / Approval Decision",
     fr: "Visa délivré / Décision d'approbation",

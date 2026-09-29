@@ -1,10 +1,16 @@
+import { listStatuses, listPriorities } from "@/lib/applications-exports";
+import { listCountries, listVisaTypesWithRelations, listUsers } from "@/lib/queries";
+import { countryName } from "@/lib/country-names";
+import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
-import { reportData } from "@/lib/queries";
+import { reportData, listAgencies } from "@/lib/queries";
+import { parseReportFilters } from "@/lib/report-filters";
+import { FilterBar } from "@/components/app-widgets";
 import { formatAmount } from "@/lib/format";
 import { Card, CardHeader, EmptyState, PageHeader, StatCard, TableWrap } from "@/components/ui";
 import { StatusBadge } from "@/components/badges";
-import { getUiLocale } from "@/lib/ui-i18n";
+import { getUiLocale, localizedStatusName, localizedPriority, localizedDocStatus } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +24,7 @@ function Bar({ max, value }: { max: number; value: number }) {
   );
 }
 
-export default async function AdminReportsPage() {
+export default async function AdminReportsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const staff = await pageUser();
   const uiLocale = await getUiLocale();
   const ct = contentT(uiLocale);
@@ -30,7 +36,15 @@ export default async function AdminReportsPage() {
       </>
     );
   }
-  const data = await reportData();
+  const sp = await searchParams;
+  const query = Object.fromEntries(["from", "to", "agency", "country", "visa", "status", "priority", "officer"].map((key) => [key, typeof sp[key] === "string" ? sp[key] : undefined])) as Record<string, string | undefined>;
+  let filters;
+  try { filters = parseReportFilters(query); } catch {
+    return <><PageHeader title={ct("Reports")} /><EmptyState title={ct("Choose a valid date range.")} action={<Link href="/admin/reports" className="btn-secondary">{ct("Reset")}</Link>} /></>;
+  }
+  const [data, agencyOptions, countryOptions, visaOptions, statusOptions, priorityOptions, officerOptions] = await Promise.all([reportData(filters), listAgencies(), listCountries(), listVisaTypesWithRelations(), listStatuses(), listPriorities(), listUsers(undefined, undefined, "staff")]);
+  const exportQuery = new URLSearchParams({ lang: uiLocale });
+  for (const [key, value] of Object.entries(query)) if (value) exportQuery.set(key, value);
   const walletFlow = data.walletFlow!;
   const processing = data.processing;
   const maxCountry = Math.max(1, ...data.byCountry.map((r) => Number(r.total)));
@@ -44,20 +58,41 @@ export default async function AdminReportsPage() {
         subtitle={ct("Operational and financial reporting from live database data. DZD only.")}
         actions={
           <div className="flex items-center gap-1.5">
-            <a href="/api/admin/reports/export" className="btn-secondary btn-sm" data-testid="reports-export-csv">{ct("Download CSV")}</a>
-            <a href="/api/admin/reports/export?format=xlsx" className="btn-secondary btn-sm" data-testid="reports-export-xlsx">{ct("Download Excel")}</a>
+            <a href={`/api/admin/reports/export?${exportQuery}`} className="btn-secondary btn-sm" data-testid="reports-export-csv">{ct("Download CSV")}</a>
+            <a href={`/api/admin/reports/export?${exportQuery}&format=xlsx`} className="btn-secondary btn-sm" data-testid="reports-export-xlsx">{ct("Download Excel")}</a>
           </div>
         }
       />
 
+      <nav aria-label={ct("Period")} className="mb-3 flex flex-wrap gap-2">{["Today", "This week", "This month", "This year"].map((period) => {
+        const now = new Date(), from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+        if (period === "This week") from.setUTCDate(from.getUTCDate() - (from.getUTCDay() + 6) % 7);
+        if (period === "This month") from.setUTCDate(1);
+        if (period === "This year") { from.setUTCMonth(0); from.setUTCDate(1); }
+        const params = new URLSearchParams(exportQuery); params.set("from", from.toISOString().slice(0, 10)); params.set("to", now.toISOString().slice(0, 10));
+        return <Link key={period} href={`/admin/reports?${params}`} className="btn-secondary btn-sm">{ct(period)}</Link>;
+      })}</nav>
+      <FilterBar action="/admin/reports" locale={uiLocale} fields={[
+        { name: "from", label: ct("From"), type: "date", value: query.from },
+        { name: "to", label: ct("To"), type: "date", value: query.to },
+        { name: "agency", label: ct("Agency"), type: "select", value: query.agency, options: agencyOptions.map(({ agency }) => ({ value: agency.id, label: agency.tradingName ?? agency.legalName })) },
+        { name: "country", label: ct("Country"), type: "select", value: query.country, options: countryOptions.map((c) => ({ value: c.id, label: countryName(c, uiLocale) })) },
+        { name: "visa", label: ct("Visa type"), type: "select", value: query.visa, options: visaOptions.map(({ vt }) => ({ value: vt.id, label: vt.name })) },
+        { name: "status", label: ct("Status"), type: "select", value: query.status, options: statusOptions.map((s) => ({ value: s.id, label: localizedStatusName(s.code, s.name, uiLocale) })) },
+        { name: "priority", label: ct("Priority"), type: "select", value: query.priority, options: priorityOptions.map((p) => ({ value: p.id, label: localizedPriority(p.code, p.name, uiLocale) })) },
+        { name: "officer", label: ct("Case officer"), type: "select", value: query.officer, options: officerOptions.filter(({ user }) => user.status === "ACTIVE" && ["SUPER_ADMIN", "ADMIN", "VISA_AGENT"].includes(user.role)).map(({ user }) => ({ value: user.id, label: user.name })) },
+      ]} />
+      <p className="mb-4 text-xs text-slate-500">{ct("Application metrics use the creation date; wallet totals use the transaction date. Exports use these same filters.")}</p>
+
+      <p className="mb-4 text-xs text-slate-500">{ct("Application filters include only linked wallet entries. Document review counts include rejected or replacement-required versions.")}</p>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label={ct("Wallet credits")} value={formatAmount(walletFlow.credits, "DZD", uiLocale)} tone="gold" />
         <StatCard label={ct("Manual debits")} value={formatAmount(walletFlow.debits, "DZD", uiLocale)} />
         <StatCard label={ct("Application charges")} value={formatAmount(walletFlow.charges, "DZD", uiLocale)} tone="navy" />
         <StatCard
-          label={ct("Document issues")}
+          label={ct("Documents requiring review")}
           value={data.docIssues.reduce((s, d) => s + Number(d.total), 0)}
-          hint={data.docIssues.map((d) => `${d.status.replaceAll("_", " ")}: ${d.total}`).join(" · ") || "none"}
+          hint={data.docIssues.map((d) => `${localizedDocStatus(d.status, uiLocale, d.status)}: ${d.total}`).join(" · ") || ct("None")}
         />
       </div>
 

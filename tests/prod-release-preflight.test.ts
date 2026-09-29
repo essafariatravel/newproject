@@ -42,7 +42,8 @@ function approvedSnapshot(): SnapshotReport {
   };
 }
 
-const approvedPending = () => pendingMigrations(APPROVED_BASELINE.ledger);
+// Historical release fixture stays pinned to its original approval.
+const approvedPending = () => [...RELEASE_SCOPE];
 
 describe("release scope and baseline", () => {
   it("authorizes exactly migrations 0013 → 0017 on top of ledger 0001-0012", () => {
@@ -70,8 +71,9 @@ describe("release scope and baseline", () => {
   });
 
   it("computes the pending set from the repository, not from a hard-coded list", () => {
-    const pending = approvedPending();
-    expect(pending).toEqual([...RELEASE_SCOPE]);
+    const pending = pendingMigrations(APPROVED_BASELINE.ledger);
+    expect(pending).toEqual([...RELEASE_SCOPE, "0018_session_presence.sql", "0019_config_translations.sql"]);
+    expect(preflightFindings(approvedSnapshot(), pending).some((f) => f.includes("pending migration set is not this release"))).toBe(true);
   });
 });
 

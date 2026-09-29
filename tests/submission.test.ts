@@ -92,7 +92,7 @@ describe("submission gate & charging", () => {
       await uploadDocument({
         applicationId: app.id,
         actor: staffA,
-        file: { name: `${item.documentTypeCode}.pdf`, type: "application/pdf", size: 2048, data: Buffer.from("doc") },
+        file: { name: `${item.documentTypeCode}.pdf`, type: "application/pdf", size: 2048, data: Buffer.from("%PDF-1.4 test document") },
         checklistItemId: item.id,
       });
     }
@@ -151,7 +151,7 @@ describe("submission gate & charging", () => {
       await uploadDocument({
         applicationId: app.id,
         actor: staffB,
-        file: { name: `${item.documentTypeCode}.pdf`, type: "application/pdf", size: 1024, data: Buffer.from("doc") },
+        file: { name: `${item.documentTypeCode}.pdf`, type: "application/pdf", size: 1024, data: Buffer.from("%PDF-1.4 test document") },
         checklistItemId: item.id,
       });
     }

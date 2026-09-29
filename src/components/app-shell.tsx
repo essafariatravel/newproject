@@ -1,4 +1,10 @@
 import Link from "next/link";
+import { MobileNavigation } from "@/components/mobile-navigation";
+import { WorkspaceNavigation } from "@/components/workspace-navigation";
+import { LivePresence } from "@/components/live-presence";
+import { contentT } from "@/lib/i18n-content";
+import { businessLabel } from "@/lib/business-labels";
+import type { UiLocale } from "@/lib/ui-i18n";
 import type { ReactNode } from "react";
 import { logoutAction } from "@/app/actions/auth";
 import { initials } from "@/lib/format";
@@ -10,6 +16,7 @@ export type { NavSection, NavItem } from "@/components/nav-list";
 
 export function AppShell(props: {
   user: AuthUser;
+  locale?: UiLocale;
   nav: NavSection[];
   /** Chrome translator (chromeT(locale)); defaults to EN pass-through. */
   t?: (s: string) => string;
@@ -27,7 +34,9 @@ export function AppShell(props: {
   const t = props.t ?? ((s: string) => s);
   return (
     <div className={`workspace-${props.surface ?? "agency"} flex min-h-screen`}>
-      <aside className="fixed inset-y-0 start-0 z-40 hidden w-64 flex-col border-e border-white/10 bg-navy-950 text-white lg:flex">
+      <WorkspaceNavigation />
+      <a className="workspace-skip" href="#workspace-main">{t("Skip to content")}</a>
+      <aside className="fixed inset-y-0 start-0 z-40 hidden w-64 flex-col border-e border-white/10 bg-navy-950 text-white lg:flex workspace-sidebar">
         <SidebarBrand suffix={props.brandSuffix} platformLogoUrl={props.platformLogoUrl} brandName={props.brandName} />
         <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
           <NavList sections={props.nav} />
@@ -52,50 +61,24 @@ export function AppShell(props: {
         </div>
       </aside>
 
-      {/* Mobile nav (CSS-only drawer) — .mobnav-panel handles LTR/RTL motion in globals.css */}
-      <div className="lg:hidden">
-        <input type="checkbox" id="mobnav" className="peer sr-only" />
-        <label
-          htmlFor="mobnav"
-          className="fixed inset-0 z-40 hidden bg-navy-950/30 backdrop-blur-sm peer-checked:block"
-          aria-label="Close navigation"
-        />
-        <div className="mobnav-panel fixed inset-y-0 start-0 z-50 flex w-72 flex-col border-e border-white/10 bg-navy-950 text-white transition-transform duration-300 peer-checked:!translate-x-0">
-          <SidebarBrand suffix={props.brandSuffix} platformLogoUrl={props.platformLogoUrl} brandName={props.brandName} />
-          <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
-            <NavList sections={props.nav} />
-          </nav>
-          <div className="px-3 pb-4">
-            <form action={logoutAction}>
-              <button className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-xs font-semibold text-white/75">
-                {t("Sign out")} ({user.name})
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col lg:ps-64">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-line bg-white/95 px-4 sm:px-6 lg:px-8">
-          <label
-            htmlFor="mobnav"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-ivory-200 bg-white text-slate-500 transition-colors hover:text-navy-900 lg:hidden"
-            aria-label="Open navigation"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-              <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-          </label>
+          <MobileNavigation openLabel={t("Menu")} closeLabel={t("Close menu")}>
+            <SidebarBrand suffix={props.brandSuffix} platformLogoUrl={props.platformLogoUrl} brandName={props.brandName} />
+            <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5"><NavList sections={props.nav} /></nav>
+            <form action={logoutAction} className="p-4"><button className="w-full rounded-lg border border-white/20 p-3 text-sm text-white">{t("Sign out")}</button></form>
+          </MobileNavigation>
           <div className="hidden items-center gap-2 lg:flex">
             <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
               {props.brandSuffix}
             </span>
           </div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
+            <LivePresence staff={props.surface === "staff"} label={contentT(props.locale ?? "en")("Online now")} />
             {props.headerExtras}
             {user.agencyName ? (
-              <span className="badge max-w-[220px] truncate bg-ivory-100 text-navy-800">
+              <span className="badge hidden sm:inline-flex max-w-[180px] truncate bg-ivory-100 text-navy-800">
                 {props.agencyLogoUrl ? (
                     <img
                     src={props.agencyLogoUrl}
@@ -107,11 +90,11 @@ export function AppShell(props: {
               </span>
             ) : null}
             <span className="badge bg-gold-100 text-gold-700 hidden sm:inline-flex">
-              {user.role.replaceAll("_", " ")}
+              {businessLabel(user.role, props.locale ?? "en")}
             </span>
           </div>
         </header>
-        <main className="flex-1 px-4 py-7 sm:px-6 lg:px-8">{props.children}</main>
+        <main id="workspace-main" className="min-w-0 flex-1 px-4 py-7 sm:px-6 lg:px-8">{props.children}</main>
       </div>
     </div>
   );
@@ -148,7 +131,7 @@ function SidebarBrand({
     <Link href="/" className="flex items-center gap-3 border-b border-white/10 px-5 py-4">
       <BrandMark className="h-10 w-10" />
       <span className="leading-tight">
-        <span className="block text-sm font-bold tracking-[0.06em] text-white">{brandName ?? "ESSAFARIA VISA"}</span>
+        <span className="block text-sm font-serif font-medium tracking-[0.13em] text-white">{brandName ?? "ESSAFARIA"}</span>
         <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-600">{suffix}</span>
       </span>
     </Link>

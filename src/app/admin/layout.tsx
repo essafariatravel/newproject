@@ -1,3 +1,5 @@
+import { LiveNotifications } from "@/components/live-notifications";
+import { contentT } from "@/lib/i18n-content";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { getSessionUser } from "@/lib/auth";
@@ -80,6 +82,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       surface="staff"
       t={tr}
       user={user}
+      locale={locale}
       nav={nav}
       brandSuffix={tr("Back Office")}
       platformLogoUrl={platformBranding ? brandLogoUrl(platformBranding) : null}
@@ -87,6 +90,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       headerExtras={
         <>
           <StaffSearch label={tr("Search")} placeholder={tr("Search…")} />
+          <LiveNotifications initialCount={unread} href="/admin/notifications" label={tr("Notifications")} soundLabel={contentT(locale)("Notification sounds")} closeLabel={contentT(locale)("Close")} />
           <UiLanguageSwitcher locale={locale} compact />
         </>
       }

@@ -17,6 +17,15 @@ let pg: any = null;
 let ready: Promise<void> | null = null;
 
 async function start(): Promise<void> {
+  // Optional externally managed LOCAL test cluster, useful on Windows where
+  // deeply nested package-manager paths exceed the native executable limit.
+  // The connection is deliberately fixed; this flag cannot target a remote DB.
+  if (process.env.ESSAFARIA_LOCAL_TEST_PG === "1") {
+    const admin = new Pool({ connectionString: `postgresql://postgres:postgres@localhost:${PORT}/essafaria_test` });
+    await applyMigrations(admin, path.join(process.cwd(), "migrations"));
+    await admin.end();
+    return;
+  }
   await rm(DATA_DIR, { recursive: true, force: true });
   pg = new EmbeddedPostgres({
     databaseDir: DATA_DIR,

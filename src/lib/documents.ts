@@ -1,3 +1,4 @@
+import { validateDocumentFormat } from "@/lib/upload-validation";
 import { qualifiedTable } from "./database-schema";
 import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 /**
@@ -16,6 +17,9 @@ import {
   documentTypes,
   documents,
   statuses,
+  users,
+  notifications,
+  auditLogs,
 } from "@/db/schema";
 import {
   ALLOWED_MIME_TYPES,
@@ -36,6 +40,7 @@ interface ApplicationAccess {
   statusId: string;
   statusCode: string;
   isDraft: boolean;
+  reference: string;
 }
 
 export async function assertApplicationAccess(
@@ -45,6 +50,7 @@ export async function assertApplicationAccess(
   const rows = await db
     .select({
       id: applications.id,
+      reference: applications.reference,
       agencyId: applications.agencyId,
       statusId: applications.statusId,
       statusCode: statuses.code,
@@ -61,6 +67,7 @@ export async function assertApplicationAccess(
   }
   return {
     applicationId: app.id,
+    reference: app.reference,
     agencyId: app.agencyId,
     statusId: app.statusId,
     statusCode: app.statusCode,
@@ -73,6 +80,7 @@ export async function listDocumentsForApplication(applicationId: string) {
     .select({
       doc: documents,
       documentTypeName: documentTypes.name,
+      documentTypeCode: documentTypes.code,
       applicantName: sql<string | null>`(
         select a.first_name || ' ' || a.last_name from ${sql.raw(qualifiedTable("applicants"))} a where a.id = documents.applicant_id
       )`,
@@ -173,8 +181,8 @@ export async function uploadDocument(input: UploadDocumentInput) {
     }
   }
 
-  if (input.file.size <= 0) throw new AppError("EMPTY_FILE", "The uploaded file is empty.");
-  if (input.file.size > MAX_UPLOAD_BYTES) {
+  if (input.file.size <= 0 || input.file.data.length === 0) throw new AppError("EMPTY_FILE", "The uploaded file is empty.");
+  if (input.file.size > MAX_UPLOAD_BYTES || input.file.data.length > MAX_UPLOAD_BYTES) {
     throw new AppError("FILE_TOO_LARGE", "Files must be 2 MB or smaller.");
   }
   if (!ALLOWED_MIME_TYPES.includes(input.file.type)) {
@@ -184,6 +192,7 @@ export async function uploadDocument(input: UploadDocumentInput) {
   const problem = fileNameProblem(name);
   if (problem) throw new AppError("INVALID_FILENAME", fileNameErrorMessage(problem));
 
+  validateDocumentFormat(input.file);
   const dtRows = await db
     .select({ id: documentTypes.id, name: documentTypes.name, active: documentTypes.active, agencyUploadable: documentTypes.agencyUploadable })
     .from(documentTypes)
@@ -211,85 +220,63 @@ export async function uploadDocument(input: UploadDocumentInput) {
     if (!rows[0]) throw new AppError("NOT_FOUND", "Applicant not found for this application.");
   }
 
-  let version = 1;
-  if (checklistItem) {
-    const v = await db
-      .select({ max: sql<number | null>`max(${documents.version})` })
-      .from(documents)
-      .where(and(eq(documents.checklistItemId, checklistItem.id), eq(documents.applicationId, input.applicationId)));
-    version = (v[0]?.max ?? 0) + 1;
-  }
-
   const documentId = randomUUID();
   const storageKey = buildStorageKey(input.applicationId, documentId);
   await storageProvider().put(storageKey, input.file.data, input.file.type);
-
-  const inserted = await db
-    .insert(documents)
-    .values({
-      id: documentId,
-      applicationId: input.applicationId,
-      applicantId: input.applicantId ?? null,
-      checklistItemId: checklistItem?.id ?? null,
-      documentTypeId,
-      originalFilename: name,
-      mimeType: input.file.type,
-      sizeBytes: input.file.size,
-      storageKey,
-      status: "UPLOADED",
-      uploadedBy: input.actor.id,
-      version,
-    })
-    .returning();
-  const doc = inserted[0]!;
-
-  // If agency fulfilled an open request, mark it fulfilled
-  if (input.actor.agencyId) {
-    const openReqs = await db
-      .select()
-      .from(documentRequests)
-      .where(
-        and(
-          eq(documentRequests.applicationId, input.applicationId),
-          eq(documentRequests.status, "OPEN"),
-        ),
-      );
-    for (const req of openReqs) {
-      const matchesChecklist = req.checklistItemId && checklistItem && req.checklistItemId === checklistItem.id;
-      const matchesType = req.documentTypeId === documentTypeId;
-      if (matchesChecklist || matchesType) {
-        await db
-          .update(documentRequests)
-          .set({
-            status: "FULFILLED",
-            fulfilledBy: input.actor.id,
-            fulfilledDocumentId: doc.id,
-            fulfilledAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(documentRequests.id, req.id));
-        // Notify staff
-        const sIds = await staffUserIds();
-        await notifyUsers(sIds, {
-          type: "DOCUMENTS_REQUIRED",
-          title: `Replacement document uploaded — ${access.applicationId.slice(0, 8)}`,
-          body: `${name} uploaded as replacement/additional for request ${req.id.slice(0, 8)}. Reason: ${req.reason}`,
-          link: `/admin/applications/${input.applicationId}`,
-        });
-        break; // fulfill only one request per upload
+  let doc: typeof documents.$inferSelect;
+  try {
+    doc = await db.transaction(async (tx) => {
+      // Lock the dossier across request validation, version allocation and insert.
+      // A concurrent replacement waits, then sees the request already fulfilled.
+      await tx.select({ id: applications.id }).from(applications)
+        .where(eq(applications.id, input.applicationId)).for("update");
+      const current = (await tx.select({ code: statuses.code, draft: statuses.isDraft })
+        .from(applications).innerJoin(statuses, eq(applications.statusId, statuses.id))
+        .where(eq(applications.id, input.applicationId)))[0]!;
+      let request: typeof documentRequests.$inferSelect | undefined;
+      if (input.actor.agencyId && !current.draft) {
+        if (["APPROVED", "REJECTED", "CANCELLED", "COMPLETED", "REFUSED"].includes(current.code)) {
+          throw new AppError("UPLOAD_NOT_ALLOWED", "Documents are locked after the final decision.");
+        }
+        const open = await tx.select().from(documentRequests).where(and(
+          eq(documentRequests.applicationId, input.applicationId), eq(documentRequests.status, "OPEN"),
+          eq(documentRequests.documentTypeId, documentTypeId),
+        )).for("update");
+        request = open.find((r) => !r.checklistItemId || r.checklistItemId === checklistItem?.id);
+        if (!request) throw new AppError("UPLOAD_NOT_ALLOWED", "This document request has already been fulfilled or closed.");
       }
-    }
+      const versions = await tx.select({ max: sql<number | null>`max(${documents.version})` }).from(documents)
+        .where(and(eq(documents.applicationId, input.applicationId), checklistItem
+          ? eq(documents.checklistItemId, checklistItem.id) : eq(documents.documentTypeId, documentTypeId)));
+      const version = (versions[0]?.max ?? 0) + 1;
+      const [created] = await tx.insert(documents).values({
+        id: documentId, applicationId: input.applicationId, applicantId: input.applicantId ?? null,
+        checklistItemId: checklistItem?.id ?? null, documentTypeId,
+        originalFilename: name, mimeType: input.file.type, sizeBytes: input.file.data.length,
+        storageKey, status: "UPLOADED", uploadedBy: input.actor.id, version,
+      }).returning();
+      if (request) {
+        await tx.update(documentRequests).set({ status: "FULFILLED", fulfilledBy: input.actor.id,
+          fulfilledDocumentId: created!.id, fulfilledAt: new Date(), updatedAt: new Date(),
+        }).where(and(eq(documentRequests.id, request.id), eq(documentRequests.status, "OPEN")));
+        const recipients = await tx.select({ id: users.id }).from(users).where(sql`${users.agencyId} is null and ${users.status} = 'ACTIVE'`);
+        if (recipients.length) await tx.insert(notifications).values(recipients.map(({ id }) => ({
+          userId: id, type: "DOCUMENT_REQUEST_FULFILLED", title: `Requested document received — ${access.reference}`,
+          body: name, agencyId: access.agencyId, applicationId: input.applicationId,
+          link: `/admin/applications/${input.applicationId}?tab=documents`,
+        })));
+      }
+      await tx.insert(auditLogs).values({ actorId: input.actor.id, actorEmail: input.actor.email,
+        actorRole: input.actor.role, agencyId: access.agencyId, action: "DOCUMENT_UPLOADED", entity: "document",
+        entityId: created!.id, metadata: { filename: name, sizeBytes: input.file.data.length, version, checklistItemId: checklistItem?.id ?? null },
+        ipAddress: input.ipAddress ?? null,
+      });
+      return created!;
+    });
+  } catch (error) {
+    await storageProvider().delete(storageKey).catch(() => {});
+    throw error;
   }
-
-  await recordAudit({
-    actor: input.actor,
-    action: "DOCUMENT_UPLOADED",
-    entity: "document",
-    entityId: doc.id,
-    agencyId: access.agencyId,
-    metadata: { filename: name, sizeBytes: input.file.size, version, checklistItemId: checklistItem?.id ?? null },
-    ipAddress: input.ipAddress ?? null,
-  });
 
   // Notify staff if agency uploaded outside fulfillment path (draft stage)
   if (input.actor.agencyId && access.isDraft) {

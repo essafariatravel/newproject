@@ -78,7 +78,7 @@ export async function postMessageAction(formData: FormData): Promise<void> {
         type: "MESSAGE_POSTED",
         title: `New message on ${app.reference}`,
         body: data.body.slice(0, 140),
-        link: user.agencyId ? `/admin/applications/${app.id}` : `/portal/applications/${app.id}`,
+        link: user.agencyId ? `/admin/applications/${app.id}?tab=communications` : `/portal/applications/${app.id}?tab=messages`,
         agencyId: app.agencyId,
         applicationId: app.id,
       });
@@ -106,8 +106,8 @@ export async function markNotificationsReadAction(formData: FormData): Promise<v
         .where(and(eq(notifications.userId, user.id), isNull(notifications.readAt)));
     }
     revalidatePath(back);
-    revalidatePath("/portal");
-    revalidatePath("/admin");
+    revalidatePath("/portal", "layout");
+    revalidatePath("/admin", "layout");
     return "Notifications marked as read.";
   });
 }

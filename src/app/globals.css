@@ -79,6 +79,7 @@ body {
 
 /* ---------- shared utility classes ---------- */
 
+@layer components {
 .ess-container {
   @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
 }
@@ -161,6 +162,7 @@ body {
 /* soft pill page-tab / segmented control helper */
 .ess-segment {
   @apply inline-flex gap-1 rounded-full bg-ivory-100/80 p-1;
+}
 }
 
 /* ------------------------------------------------------------------ */
@@ -245,3 +247,34 @@ body {
   .public-card, .public-cta { transition: none; }
   .public-card:hover, .public-cta:hover { transform: none; }
 }
+
+/* Shared operational system, derived from the approved ESSAFARIA boards. */
+.workspace-agency .btn-primary, .workspace-staff .btn-primary {
+  background: var(--color-gold-500); color: var(--color-navy-950); border: 1px solid rgb(138 100 25 / .22);
+}
+.workspace-agency .btn-primary:hover, .workspace-staff .btn-primary:hover { background: var(--color-gold-400); }
+.workspace-sidebar { background: var(--color-navy-900); }
+.workspace-agency .th, .workspace-staff .th { text-transform: none; letter-spacing: 0; font-size: .75rem; }
+.workspace-agency .label, .workspace-staff .label { text-transform: none; letter-spacing: 0; font-size: .75rem; }
+.workspace-agency .badge, .workspace-staff .badge { border-radius: .375rem; }
+.workspace-agency .card .table-scroll, .workspace-staff .card .table-scroll { border: 0; border-radius: 0 0 var(--radius-card) var(--radius-card); box-shadow: none; }
+.table-scroll:focus-visible { outline: 2px solid var(--color-gold-600); outline-offset: 2px; }
+.workspace-menu { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border: 1px solid var(--color-line); border-radius: .5rem; }
+.workspace-drawer { margin: 0; inset-inline-start: 0; width: min(290px, 90vw); max-width: 90vw; height: 100dvh; max-height: 100dvh; border: 0; padding: 0; color: white; background: var(--color-navy-900); }
+.workspace-drawer::backdrop { background: rgb(7 26 51 / .4); }
+.workspace-skip { position: fixed; inset-inline-start: 1rem; top: -5rem; z-index: 100; padding: .75rem 1rem; background: white; color: var(--color-navy-900); border-radius: .5rem; }
+.workspace-skip:focus { top: 1rem; }
+.workspace-agency a:focus-visible, .workspace-staff a:focus-visible, .workspace-agency button:focus-visible, .workspace-staff button:focus-visible { outline: 2px solid var(--color-gold-600); outline-offset: 3px; }
+[dir="rtl"] .directional { transform: scaleX(-1); }
+@media (min-width: 1024px) { .workspace-menu { display: none; } }
+@media (max-width: 639px) {
+  .workspace-agency .card, .workspace-staff .card { min-width: 0; }
+  .workspace-agency main, .workspace-staff main { padding-block: 1.25rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  .public-motion-ready .public-reveal { opacity: 1; transform: none; }
+}
+
+.config-dialog { margin: auto; padding: 0; width: min(760px, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); border: 1px solid var(--color-line); border-radius: .875rem; background: white; color: var(--color-navy-900); }
+.config-dialog::backdrop { background: rgb(7 26 51 / .45); }

@@ -1,3 +1,4 @@
+import { businessLabel } from "@/lib/business-labels";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { agencies, users } from "@/db/schema";
@@ -25,7 +26,8 @@ export default async function PortalProfilePage({
 }) {
   const sp = await searchParams;
   const user = await portalPageUser();
-  const ct = contentT(await getUiLocale());
+  const uiLocale = await getUiLocale();
+  const ct = contentT(uiLocale);
   const flash = flashFrom(sp);
 
   const [agencyRows, team, balance] = await Promise.all([
@@ -118,7 +120,7 @@ export default async function PortalProfilePage({
                       <span className="block font-medium text-navy-900">{u.name}</span>
                       <span className="block text-xs text-slate-400">{u.email}</span>
                     </td>
-                    <td className="td"><span className="badge bg-navy-900/5 text-navy-800">{u.role.replaceAll("_", " ")}</span></td>
+                    <td className="td"><span className="badge bg-navy-900/5 text-navy-800">{businessLabel(u.role, uiLocale)}</span></td>
                     <td className="td">
                       <span className={`badge ${u.status === "ACTIVE" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}`}>{u.status}</span>
                     </td>
@@ -193,7 +195,7 @@ export default async function PortalProfilePage({
               <p>{user.name}</p>
               <p className="text-xs text-slate-400">{user.email}</p>
               <p className="mt-2 text-xs">
-                {ct("Role")}: <span className="badge bg-gold-100 text-gold-600">{user.role.replaceAll("_", " ")}</span>
+                {ct("Role")}: <span className="badge bg-gold-100 text-gold-600">{businessLabel(user.role, uiLocale)}</span>
               </p>
             </div>
           </Card>

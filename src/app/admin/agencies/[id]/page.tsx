@@ -1,3 +1,4 @@
+import { businessLabel } from "@/lib/business-labels";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { pageUser } from "@/lib/page-auth";
@@ -297,7 +298,7 @@ export default async function AdminAgencyDetailPage({
                     <p className="truncate text-xs text-slate-400">{u.email}</p>
                   </div>
                   <div className="text-right">
-                    <span className="badge bg-navy-900/5 text-navy-800">{u.role.replaceAll("_", " ")}</span>
+                    <span className="badge bg-navy-900/5 text-navy-800">{businessLabel(u.role, uiLocale)}</span>
                     <span className={`mt-1 block text-[11px] ${u.status === "ACTIVE" ? "text-emerald-600" : "text-red-500"}`}>{u.status}</span>
                   </div>
                 </li>
@@ -333,7 +334,7 @@ export default async function AdminAgencyDetailPage({
                     <td className="td whitespace-nowrap text-xs">{formatDateTime(tx.createdAt, uiLocale)}</td>
                     <td className="td">
                       <span className={`badge ${tx.type === "CREDIT" ? "bg-emerald-100 text-emerald-800" : tx.type === "DEBIT" ? "bg-red-100 text-red-700" : "bg-navy-900/5 text-navy-800"}`}>
-                        {tx.type.replaceAll("_", " ")}
+                        {businessLabel(tx.type, uiLocale)}
                       </span>
                     </td>
                     <td className={`td whitespace-nowrap tabular-nums font-medium ${tx.type === "DEBIT" || tx.type === "APPLICATION_CHARGE" ? "text-red-700" : "text-emerald-700"}`}>

@@ -26,6 +26,7 @@ import {
 import { adjustWallet, findTransactionByApplication, getBalance } from "@/lib/wallet";
 import { agencyByEmail, userByEmail } from "./helpers/fixtures";
 import { AppError } from "@/lib/types";
+import { agencyDashboard } from "@/lib/queries";
 
 /**
  * §11–§13 — post-submission document workflow, verified END TO END through the
@@ -41,6 +42,26 @@ import { AppError } from "@/lib/types";
  */
 
 const STAFF_EMAIL = "agent@test.example";
+
+describe("attention and concurrent replacement", () => {
+  it("shows open requests regardless of application status and accepts only one concurrent replacement", async () => {
+    const { app, agency, staff } = await submittedApplication("concurrent");
+    const actor = await userByEmail("a-admin@test.example");
+    const item = (await getChecklist(app.id))[0]!;
+    const before = (await db.select().from(applications).where(eq(applications.id, app.id)))[0]!;
+    await requestDocumentReplacement({ applicationId: app.id, checklistItemId: item.id, reason: "Please replace this scan.", actor: staff });
+    const dashboard = await agencyDashboard(agency.id, actor.id);
+    expect(dashboard.needsAttention.some((r) => r.app.id === app.id)).toBe(true);
+    expect((await db.select().from(applications).where(eq(applications.id, app.id)))[0]!.statusId).toBe(before.statusId);
+    const other = await agencyByEmail("ops@agencyb.example");
+    expect((await agencyDashboard(other.id, (await userByEmail("b-admin@test.example")).id)).needsAttention.some((r) => r.app.id === app.id)).toBe(false);
+    const replies = await Promise.allSettled(["first.pdf", "second.pdf"].map((name) => uploadDocument({ applicationId: app.id, actor, checklistItemId: item.id, file: FILE(name) })));
+    expect(replies.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(replies.filter((r) => r.status === "rejected")).toHaveLength(1);
+    expect(await db.select().from(documents).where(eq(documents.checklistItemId, item.id))).toHaveLength(2);
+    expect((await agencyDashboard(agency.id, actor.id)).needsAttention.some((r) => r.app.id === app.id)).toBe(false);
+  });
+});
 
 const FILE = (name: string, body = "%PDF-1.4 essafaria") => ({
   name,
@@ -134,7 +155,7 @@ describe("§11 document workflow — locking, replacement, additional, fulfilmen
       .select()
       .from(notifications)
       .where(eq(notifications.applicationId, app.id));
-    expect(notif.some((n) => n.type === "DOCUMENT_REQUESTED" && n.link === `/portal/applications/${app.id}`)).toBe(true);
+    expect(notif.some((n) => n.type === "DOCUMENT_REQUESTED" && n.link === `/portal/applications/${app.id}?tab=documents#request-${request.id}`)).toBe(true);
   });
 
   it("3. only the requested slot becomes uploadable — the other requirements stay locked", async () => {

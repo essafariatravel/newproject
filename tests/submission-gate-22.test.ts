@@ -35,7 +35,7 @@ async function readyDraft(agencyId: string, actor: AuthUser, passportNumber: str
     await uploadDocument({
       applicationId: app.id,
       actor,
-      file: { name: `${item.documentTypeCode}.pdf`, type: "application/pdf", size: 2048, data: Buffer.from("doc") },
+      file: { name: `${item.documentTypeCode}.pdf`, type: "application/pdf", size: 2048, data: Buffer.from("%PDF-1.4 test document") },
       checklistItemId: item.id,
     });
   }

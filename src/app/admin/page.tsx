@@ -1,3 +1,5 @@
+import { configName } from "@/lib/config-localization";
+import { businessLabel } from "@/lib/business-labels";
 import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
@@ -32,7 +34,7 @@ export default async function AdminDashboardPage() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard label={ct("New applications")} value={totals.newApps} hint={ct("Submitted, awaiting intake")} href="/admin/applications?status=SUBMITTED" tone="navy" />
         <StatCard label={ct("Documents to verify")} value={totals.docsChecking} hint={ct("Documents checking")} href="/admin/applications?status=DOCUMENTS_CHECKING" tone="gold" />
-        <StatCard label={ct("Action required")} value={totals.docsRequested} hint={ct("Agency action / documents requested")} href="/admin/applications?status=DOCUMENTS_REQUESTED" />
+        <StatCard label={ct("Action required")} value={totals.docsRequested} hint={ct("Agency action / documents requested")} href="/admin/applications?documents=requested" />
         <StatCard label={ct("In process")} value={totals.inProcess} hint={ct("Actively processing")} href="/admin/applications?status=IN_PROCESS" tone="teal" />
         <StatCard label={ct("Unassigned")} value={totals.unassigned} hint={ct("No case officer")} href="/admin/applications?assigned=unassigned" />
         <StatCard label={ct("Urgent")} value={totals.urgent} hint={ct("Priority urgent")} href="/admin/applications?priority=URGENT" tone="gold" />
@@ -59,7 +61,7 @@ export default async function AdminDashboardPage() {
                 <tr key={r.app.id} className="tr-hover">
                   <td className="td"><Link href={`/admin/applications/${r.app.id}`} className="font-semibold text-navy-900 hover:underline">{r.applicantSummary}</Link><span className="block text-xs text-slate-500">{r.app.reference}</span></td>
                   <td className="td">{r.agencyName}</td>
-                  <td className="td">{countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}<span className="block text-xs text-slate-500">{r.app.visaTypeName}</span></td>
+                  <td className="td">{countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}<span className="block text-xs text-slate-500">{configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}</span></td>
                   <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
                   <td className="td">{r.priorityName}</td>
                   <td className="td whitespace-nowrap">{elapsedLabel(new Date(r.statusSince), uiLocale)}</td>
@@ -106,8 +108,8 @@ export default async function AdminDashboardPage() {
                       <td className="td max-w-[140px] truncate">{r.agencyName}</td>
                       <td className="td max-w-[140px] truncate font-medium text-navy-900">{(r as { applicantSummary?: string }).applicantSummary ?? "—"}</td>
                       <td className="td">
-                        <span className="block">{r.app.countryName}</span>
-                        <span className="block text-xs text-slate-400">{r.app.visaTypeName}</span>
+                        <span className="block">{countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}</span>
+                        <span className="block text-xs text-slate-400">{configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}</span>
                       </td>
                       <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
                       <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(r.app.createdAt, uiLocale)}</td>
@@ -173,9 +175,9 @@ export default async function AdminDashboardPage() {
                 {data.recentAudit.map((a) => (
                   <li key={a.id} className="flex items-start justify-between gap-3 py-2.5">
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-medium text-navy-900">{a.action.replaceAll("_", " ")}</p>
+                      <p className="truncate text-xs font-medium text-navy-900">{businessLabel(a.action, uiLocale)}</p>
                       <p className="truncate text-[11px] text-slate-400">
-                        {a.actorEmail ?? "system"} · {a.entity}
+                        {a.actorEmail ?? ct("System")}
                       </p>
                     </div>
                     <span className="whitespace-nowrap text-[11px] text-slate-400">{formatDateTime(a.createdAt, uiLocale)}</span>

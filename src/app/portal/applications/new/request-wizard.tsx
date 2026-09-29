@@ -16,7 +16,7 @@
  */
 
 import { useMemo, useRef, useState, useEffect } from "react";
-import { submitRequestAction } from "@/app/actions/applications";
+import { contentT } from "@/lib/i18n-content";
 
 export interface WizardVisaOption {
   id: string;
@@ -237,8 +237,8 @@ export function RequestWizard(props: Props) {
     setFiles((prev) => ({ ...prev, [documentTypeId]: incoming }));
   }
 
-  function removeFile(documentTypeId: string) {
-    setFiles((prev) => ({ ...prev, [documentTypeId]: [] }));
+  function removeFile(documentTypeId: string, index: number) {
+    setFiles((prev) => ({ ...prev, [documentTypeId]: (prev[documentTypeId] ?? []).filter((_, i) => i !== index) }));
   }
 
   function applicantSummary(): string {
@@ -265,8 +265,40 @@ export function RequestWizard(props: Props) {
 
   const totalDestinations = props.countries.filter((c) => c.visaTypes.length > 0).length;
 
+  async function submit(form: HTMLFormElement) {
+    if (pending || !validateStep(1) || !validateStep(2)) return;
+    setPending(true);
+    try {
+      const tokens: string[] = [];
+      // Each file travels in its own bounded request. Only final confirmation
+      // starts uploading; navigating away from earlier steps persists nothing.
+      for (const requirement of requirements) {
+        const selected = files[requirement.documentTypeId] ?? [];
+        for (let slot = 0; slot < selected.length; slot++) {
+          const body = new FormData();
+          body.set("attempt", idempotencyKey); body.set("visaTypeId", visaTypeId);
+          body.set("documentTypeId", requirement.documentTypeId); body.set("slot", String(slot)); body.set("file", selected[slot]!);
+          const response = await fetch("/api/agency/requests", { method: "POST", body });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error);
+          tokens.push(data.token);
+        }
+      }
+      const fields = new FormData(form);
+      const response = await fetch("/api/agency/requests", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attempt: idempotencyKey, countryId, visaTypeId, tokens,
+          fullName: String(fields.get("t0_fullName") ?? ""), nationality: String(fields.get("t0_nationality") ?? ""), notes: String(fields.get("agencyNotes") ?? "") }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      window.location.assign(`/portal/applications/${data.applicationId}?submitted=1`);
+    } catch (error) {
+      setClientError(error instanceof Error && error.message ? error.message : contentT(props.locale)("request.error.INTERNAL"));
+      setPending(false);
+    }
+  }
+
   return (
-    <form ref={formRef} action={submitRequestAction} className="space-y-5" onSubmit={() => setPending(true)}>
+    <form ref={formRef} className="space-y-5" onSubmit={(event) => { event.preventDefault(); void submit(event.currentTarget); }}>
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       {countryId ? <input type="hidden" name="countryId" value={countryId} /> : null}
       <input type="hidden" name="locale" value={props.locale} />
@@ -539,7 +571,7 @@ export function RequestWizard(props: Props) {
                             <span className="badge bg-emerald-100 text-emerald-800">{t.uploaded}</span>
                             <button
                               type="button"
-                              onClick={() => removeFile(r.documentTypeId)}
+                              onClick={() => removeFile(r.documentTypeId, idx)}
                               className="text-[11px] font-semibold text-rose-600 underline"
                             >
                               {t.remove}

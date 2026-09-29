@@ -52,7 +52,7 @@ async function submittedApp() {
     await uploadDocument({
       applicationId: app.id,
       actor: staffB,
-      file: { name: `${item.documentTypeCode}.pdf`, type: "application/pdf", size: 512, data: Buffer.from("d") },
+      file: { name: `${item.documentTypeCode}.pdf`, type: "application/pdf", size: 512, data: Buffer.from("%PDF-1.4 test document") },
       checklistItemId: item.id,
     });
   }

@@ -1,9 +1,10 @@
+import { configName, configDescription } from "@/lib/config-localization";
 import { portalPageUser } from "@/lib/page-auth";
 import { activeVisaOptions } from "@/lib/queries";
 import { listRequirementsForVisaType } from "@/lib/requests";
 import { getBalance } from "@/lib/wallet";
-import { PageHeader } from "@/components/ui";
-import { getUiLocale } from "@/lib/ui-i18n";
+import { PageHeader, EmptyState } from "@/components/ui";
+import { getUiLocale, localizedDocTypeName } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { countryName } from "@/lib/country-names";
 import { NATIONALITIES, DEFAULT_NATIONALITY, nationalityLabel } from "@/lib/nationalities";
@@ -30,10 +31,12 @@ export default async function NewApplicationPage({
   const locale = await getUiLocale(sp);
   const ct = contentT(locale);
 
-  const [visaOptions, wallet] = await Promise.all([
+  const load = await Promise.all([
     activeVisaOptions(),
     getBalance(user.agencyId),
-  ]);
+  ]).catch(() => null);
+  if (!load) return <div className="card"><EmptyState title={ct("Visa services are temporarily unavailable")} body={ct("Please try again. Your wallet has not been charged.")} action={<a href="/portal/applications/new" className="btn-primary">{ct("Try again")}</a>} /></div>;
+  const [visaOptions, wallet] = load;
 
   // Correction 3: group ACTIVE visa types under their ACTIVE destination
   // country; a country appears only when it has at least one active type.
@@ -47,22 +50,23 @@ export default async function NewApplicationPage({
     c.visaTypes.push({
       id: v.id,
       countryId: v.countryId,
-      name: v.name,
-      categoryName: v.categoryName,
+      name: configName(v, locale),
+      categoryName: configName({ name: v.categoryName, nameFr: v.categoryNameFr, nameAr: v.categoryNameAr }, locale),
       fee: v.fee,
       currency: v.currency,
       minDays: v.minDays,
       maxDays: v.maxDays,
-      description: v.description ?? null,
+      description: configDescription(v, locale) || null,
     });
   }
 
   const requirementMaps: Record<string, WizardRequirement[]> = {};
-  await Promise.all(
+  const requirementsLoaded = await Promise.all(
     visaOptions.map(async (v) => {
-      requirementMaps[v.id] = await listRequirementsForVisaType(v.id);
+      requirementMaps[v.id] = (await listRequirementsForVisaType(v.id)).map((r) => ({ ...r, name: (locale === "fr" ? r.nameFr : locale === "ar" ? r.nameAr : null)?.trim() || localizedDocTypeName(r.code, r.name, locale) }));
     }),
-  );
+  ).then(() => true).catch(() => false);
+  if (!requirementsLoaded) return <div className="card"><EmptyState title={ct("Visa services are temporarily unavailable")} body={ct("Please try again. Your wallet has not been charged.")} action={<a href="/portal/applications/new" className="btn-primary">{ct("Try again")}</a>} /></div>;
 
   // ?destination=<countryId> deep link — shareable destination, and the only
   // way to reach the programme cards without JavaScript.
@@ -76,9 +80,9 @@ export default async function NewApplicationPage({
     : null;
 
   const labels: WizardLabels = {
-    stepChoose: ct("Choose visa"),
-    stepUpload: ct("Upload documents"),
-    stepPreview: ct("Preview, confirm & submit"),
+    stepChoose: ct("Visa & Traveller"),
+    stepUpload: ct("Documents"),
+    stepPreview: ct("Review & Submit"),
     destinationQuestion: ct("Where is your traveler going?"),
     destinationHint: ct("Search a destination and pick a visa programme. Only destinations with a bookable DZD programme are shown."),
     searchDestination: ct("Search a destination…"),
@@ -109,10 +113,10 @@ export default async function NewApplicationPage({
     chooseFile: ct("Choose file"),
     documents: ct("Upload the required documents"),
     reviewTitle: ct("Preview & confirm"),
-    reviewSubtitle: ct("Verify everything below before submitting. This is the only write: your application is created, charged and sent to ESSAFARIA in one step."),
+    reviewSubtitle: ct("Check your visa, traveller and documents before submitting."),
     walletBalance: ct("Wallet balance"),
     balanceAfter: ct("Balance after submission"),
-    chargeNote: ct("Your wallet is charged once, automatically, when you confirm. Retrying a failed attempt can never charge twice."),
+    chargeNote: ct("Your wallet will be charged when your application is submitted."),
     confirmSubmit: ct("Confirm & submit"),
     submitApplication: ct("Submit application"),
     submitting: ct("Submitting…"),
@@ -133,7 +137,7 @@ export default async function NewApplicationPage({
     currentBalance: ct("Current balance"),
     missingAmount: ct("Missing amount"),
     requestTopup: ct("Request wallet top-up"),
-    uploaded: ct("uploaded"),
+    uploaded: ct("Selected"),
     remove: ct("Remove"),
   };
 
