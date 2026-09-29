@@ -3,6 +3,7 @@ import { pageUser } from "@/lib/page-auth";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { hasPermission } from "@/lib/rbac";
 import {
+import { NavigableTableRow } from "@/components/navigable-table-row";
   distinctRegistrationCountries,
   listRegistrations,
   pendingRegistrationCount,
