@@ -253,7 +253,7 @@ export async function changeStatusAction(formData: FormData): Promise<void> {
         toStatusCode: formData.get("toStatusCode"),
         reason: formData.get("reason") || undefined,
       });
-    const result = await changeApplicationStatus({
+    await changeApplicationStatus({
       applicationId,
       toStatusCode: data.toStatusCode,
       reason: data.reason ?? null,
@@ -263,7 +263,7 @@ export async function changeStatusAction(formData: FormData): Promise<void> {
     revalidatePath(back);
     revalidatePath("/admin");
     revalidatePath(`/portal/applications/${applicationId}`);
-    return `Status changed ${result.from} → ${result.to}.`;
+    return "Application status updated.";
   });
 }
 

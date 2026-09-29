@@ -67,7 +67,7 @@ export async function uploadResubmissionAction(formData: FormData): Promise<void
   await runAction(back, async () => {
     const user = await requireUser();
     const file = await fileFrom(formData);
-    const doc = await uploadResubmission({
+    await uploadResubmission({
       applicationId,
       originalDocumentId,
       actor: user,
@@ -76,7 +76,7 @@ export async function uploadResubmissionAction(formData: FormData): Promise<void
     });
     revalidatePath(back);
     revalidatePath("/admin/documents");
-    return `Document "${doc.originalFilename}" resubmitted for review.`;
+    return "Document resubmitted for review.";
   });
 }
 
@@ -110,7 +110,7 @@ export async function reviewDocumentAction(formData: FormData): Promise<void> {
     });
     revalidatePath(back);
     revalidatePath("/admin/documents");
-    return `Document marked ${data.status.replaceAll("_", " ").toLowerCase()}.`;
+    return "Document review saved.";
   });
 }
 

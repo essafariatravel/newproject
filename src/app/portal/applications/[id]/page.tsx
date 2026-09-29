@@ -103,7 +103,7 @@ export default async function PortalApplicationDetailPage({
         actions={
           <>
             <StatusBadge code={detail.statusCode} name={detail.statusName} />
-            <Link href="/portal/applications" className="btn-secondary btn-sm">← {ct("All applications")}</Link>
+            <Link href="/portal/applications" className="btn-secondary btn-sm"><span className="directional" aria-hidden="true">←</span> {ct("All applications")}</Link>
           </>
         }
       />
@@ -142,7 +142,7 @@ export default async function PortalApplicationDetailPage({
                   <ol className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs" data-testid="application-progress">
                     {progress.map((step, index) => (
                       <li key={step.key} className="flex items-center gap-2">
-                        {index > 0 ? <span aria-hidden className="text-slate-300">→</span> : null}
+                        {index > 0 ? <span aria-hidden className="directional text-slate-300">→</span> : null}
                         <span
                           data-step={step.key}
                           data-state={step.state}
@@ -259,7 +259,7 @@ export default async function PortalApplicationDetailPage({
                       {r.req.checklistItemId ? <input type="hidden" name="checklistItemId" value={r.req.checklistItemId} /> : null}
                       <input type="hidden" name="documentTypeId" value={r.req.documentTypeId} />
                       <input type="hidden" name="back" value={`${back}?tab=documents`} />
-                      <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:mr-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-3 file:py-1.5 file:text-xs file:text-white" />
+                      <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:me-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-3 file:py-1.5 file:text-xs file:text-white" />
                       <button type="submit" className="btn-primary btn-sm">{ct("Upload replacement")}</button>
                     </form>
                   </div>
@@ -310,7 +310,7 @@ export default async function PortalApplicationDetailPage({
                         <input type="hidden" name="applicationId" value={id} />
                         <input type="hidden" name="checklistItemId" value={item.id} />
                         <input type="hidden" name="back" value={`${back}?tab=documents`} />
-                        <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:mr-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-3 file:py-1.5 file:text-xs file:text-white" />
+                        <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:me-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-3 file:py-1.5 file:text-xs file:text-white" />
                         <button type="submit" className="btn-secondary btn-sm">{latest ? ct("Replace") : ct("Upload")}</button>
                       </form>
                     ) : hasOpenRequest ? (

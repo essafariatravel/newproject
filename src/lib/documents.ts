@@ -40,6 +40,7 @@ interface ApplicationAccess {
   statusId: string;
   statusCode: string;
   isDraft: boolean;
+  isTerminal: boolean;
   reference: string;
 }
 
@@ -55,6 +56,7 @@ export async function assertApplicationAccess(
       statusId: applications.statusId,
       statusCode: statuses.code,
       isDraft: statuses.isDraft,
+      isTerminal: statuses.isTerminal,
     })
     .from(applications)
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
@@ -72,6 +74,7 @@ export async function assertApplicationAccess(
     statusId: app.statusId,
     statusCode: app.statusCode,
     isDraft: app.isDraft,
+    isTerminal: app.isTerminal,
   };
 }
 

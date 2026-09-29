@@ -38,6 +38,19 @@ describe("visa-type editor is organised in the six named sections", () => {
     expect(page).toContain("Publication");
   });
 
+  it("keeps create/edit forms aligned with the strict visa-type server contract", () => {
+    const listPage = read("src/app/admin/config/visa-types/page.tsx");
+    for (const field of ["name", "code", "countryId", "categoryId", "fee", "processingMinDays", "processingMaxDays"]) {
+      expect(listPage, `create form missing ${field}`).toContain(`name="${field}"`);
+    }
+    const detailPage = read("src/app/admin/config/visa-types/[id]/page.tsx");
+    for (const field of ["name", "countryId", "categoryId", "fee", "processingMinDays", "processingMaxDays", "embassyApplicability"]) {
+      expect(detailPage, `edit form missing ${field}`).toContain(`name="${field}"`);
+    }
+    expect(listPage).toContain("<ConfigTranslations");
+    expect(detailPage).toContain("<ConfigTranslations");
+  });
+
   it("keeps every price in DZD and never presents another currency", () => {
     for (const file of [
       "src/app/admin/config/visa-types/[id]/page.tsx",

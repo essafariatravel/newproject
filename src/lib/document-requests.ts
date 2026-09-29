@@ -61,6 +61,9 @@ export async function requestDocumentReplacement(input: RequestReplacementInput)
     throw new AppError("FORBIDDEN", "Only staff can request document replacements.");
   }
   const access = await assertApplicationAccess(input.applicationId, input.actor);
+  if (access.isTerminal) {
+    throw new AppError("INVALID_STATE", "Document requests cannot be created for a closed application.");
+  }
 
   const itemRows = await db
     .select()
@@ -146,6 +149,9 @@ export async function requestAdditionalDocument(input: RequestAdditionalInput) {
     throw new AppError("FORBIDDEN", "Only staff can request additional documents.");
   }
   const access = await assertApplicationAccess(input.applicationId, input.actor);
+  if (access.isTerminal) {
+    throw new AppError("INVALID_STATE", "Document requests cannot be created for a closed application.");
+  }
 
   const dtRows = await db
     .select()

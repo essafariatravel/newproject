@@ -584,8 +584,33 @@ describe("§11 document workflow — review after fulfilment", () => {
     });
     expect(decision.statusCode).toBe("REJECTED");
 
-    // a staff request after the close must not reopen the file for the agency
-    await requestDocumentReplacement({ applicationId: app.id, checklistItemId: item.id, reason: "staff attempt after close", actor: staff }).catch(() => undefined);
+    // A closed dossier cannot create a new agency obligation at all. The old
+    // behaviour created an OPEN request + notification that the agency could
+    // never fulfil because terminal uploads are (correctly) locked.
+    await expect(
+      requestDocumentReplacement({
+        applicationId: app.id,
+        checklistItemId: item.id,
+        reason: "staff attempt after close",
+        actor: staff,
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_STATE" });
+
+    const { documentTypeIdByCode } = await import("./helpers/fixtures");
+    await expect(
+      requestAdditionalDocument({
+        applicationId: app.id,
+        documentTypeId: await documentTypeIdByCode("HOTEL_RESERVATION"),
+        reason: "additional request after close",
+        actor: staff,
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_STATE" });
+
+    const openAfterDecision = await db
+      .select()
+      .from(documentRequests)
+      .where(and(eq(documentRequests.applicationId, app.id), eq(documentRequests.status, "OPEN")));
+    expect(openAfterDecision).toHaveLength(0);
 
     await expect(
       uploadDocument({
