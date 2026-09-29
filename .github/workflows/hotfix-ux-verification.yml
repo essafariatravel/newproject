@@ -1,0 +1,41 @@
+name: Hotfix UX deterministic verification
+
+on:
+  push:
+    branches:
+      - hotfix/agency-list-navigation
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERCEL: "0"
+      VERCEL_ENV: ""
+      DATABASE_URL: ""
+      ALLOW_DEMO_SEED: "false"
+      STORAGE_PROVIDER: "db"
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Targeted UX/navigation tests
+        run: npm test -- tests/agency-list-navigation.test.ts tests/list-navigation-consistency.test.ts tests/tenant-isolation.test.ts
+      - name: Full deterministic suite
+        run: npm test
+      - name: Build without deployment or database access
+        run: npm run build
