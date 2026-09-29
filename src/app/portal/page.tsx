@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/badges";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { countryName } from "@/lib/country-names";
+import { NavigableTableRow } from "@/components/navigable-table-row";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +65,7 @@ export default async function PortalDashboardPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {needsAttention.map((r) => (
-                <tr key={r.app.id} className="tr-hover">
+                <NavigableTableRow key={r.app.id} href={`/portal/applications/${r.app.id}?tab=documents`} className="tr-hover">
                   <td className="td">
                     <Link href={`/portal/applications/${r.app.id}?tab=documents`} className="font-medium text-navy-900 hover:underline">
                       {r.applicantSummary}
@@ -77,7 +78,7 @@ export default async function PortalDashboardPage() {
                   </td>
                   <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
                   <td className="td tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</td>
-                </tr>
+                </NavigableTableRow>
               ))}
             </tbody>
           </TableWrap>
@@ -110,7 +111,7 @@ export default async function PortalDashboardPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {data.recentApplications.map((r) => (
-                    <tr key={r.app.id} className="tr-hover">
+                    <NavigableTableRow key={r.app.id} href={`/portal/applications/${r.app.id}`} className="tr-hover">
                       <td className="td">
                         <Link href={`/portal/applications/${r.app.id}`} className="font-semibold text-navy-900 hover:underline">{(r as { applicantSummary?: string }).applicantSummary ?? "—"}</Link>
                         <span className="block text-xs text-slate-500">{r.app.reference}</span>
@@ -121,7 +122,7 @@ export default async function PortalDashboardPage() {
                       </td>
                       <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
                       <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(r.app.createdAt, uiLocale)}</td>
-                    </tr>
+                    </NavigableTableRow>
                   ))}
                 </tbody>
               </TableWrap>
