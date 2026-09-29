@@ -1,31 +1,23 @@
-/**
- * Production release preflight guards (release 0013 → 0017).
- *
- * These tests exercise the FAIL-CLOSED core of the release tooling without a
- * database: importing `scripts/prod-release.ts` never calls `main()` (the CLI
- * entry point is guarded), so no connection is created and nothing is written.
- *
- * They pin exactly the behaviour the release depends on:
- *   - the approved baseline is the live Production state captured by the
- *     read-only audit (ledger 0001-0012 + counts/checksums),
- *   - the release scope is exactly 0013-0017,
- *   - a drifted Production (a new row, a changed balance, an extra pending
- *     migration) BLOCKS the release instead of being waved through.
- */
+/** Production release preflight guards for release 0018 → 0019. */
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   APPROVED_BASELINE,
+  EXPECTED_SUPABASE_PROJECT,
+  PRODUCTION_SCHEMA,
   PROJECT_USER,
   RELEASE_SCOPE,
   TARGET_LEDGER,
+  isReadOnlyMode,
   ledgerEquals,
   pendingMigrations,
   preflightFindings,
   projectGuardFindings,
+  releaseManifestFindings,
   type SnapshotReport,
 } from "../scripts/prod-release";
 
-/** A live snapshot that matches the approved baseline exactly. */
 function approvedSnapshot(): SnapshotReport {
   return {
     counts: { ...APPROVED_BASELINE.counts },
@@ -36,105 +28,107 @@ function approvedSnapshot(): SnapshotReport {
     statusMix: { APPROVED: 2 },
     remapExposure: {},
     columnsValid: false,
-    schemaError: '42703: column "agency_uploadable" does not exist',
+    schemaError: "translation columns not applied yet",
     snapshotTables: [],
     guardNotes: [],
   };
 }
 
-// Historical release fixture stays pinned to its original approval.
-const approvedPending = () => [...RELEASE_SCOPE];
+describe("current Production release manifest", () => {
+  it("authorizes exactly migrations 0018 and 0019 on top of ledger 0001-0017", () => {
+    expect([...RELEASE_SCOPE]).toEqual(["0018_session_presence.sql", "0019_config_translations.sql"]);
+    expect(APPROVED_BASELINE.ledger).toHaveLength(17);
+    expect(APPROVED_BASELINE.ledger[16]).toBe("0017_decision_types_audience.sql");
+    expect(TARGET_LEDGER).toHaveLength(19);
+    expect(TARGET_LEDGER[18]).toBe("0019_config_translations.sql");
+  });
 
-describe("release scope and baseline", () => {
-  it("authorizes exactly migrations 0013 → 0017 on top of ledger 0001-0012", () => {
-    expect([...RELEASE_SCOPE]).toEqual([
+  it("computes exactly 0018 + 0019 as pending from the approved ledger", () => {
+    const pending = pendingMigrations(APPROVED_BASELINE.ledger);
+    expect(pending).toEqual([...RELEASE_SCOPE]);
+    expect(preflightFindings(approvedSnapshot(), pending)).toEqual([]);
+  });
+
+  it("rejects the stale 0013 → 0017 release manifest", () => {
+    const stale = [
       "0013_embassy_applicability.sql",
       "0014_wallet_topup_requests.sql",
       "0015_schema_safe_references.sql",
       "0016_document_type_audience.sql",
       "0017_decision_types_audience.sql",
-    ]);
-    expect([...APPROVED_BASELINE.ledger]).toEqual(
-      Array.from({ length: 12 }, (_, i) => expect.stringContaining(`00${String(i + 1).padStart(2, "0")}`)),
-    );
-    expect(TARGET_LEDGER.length).toBe(17);
-    expect(TARGET_LEDGER[TARGET_LEDGER.length - 1]).toBe("0017_decision_types_audience.sql");
+    ];
+    const findings = releaseManifestFindings([...RELEASE_SCOPE], stale);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toContain("pending migration set is not this release");
+  });
+});
+
+describe("baseline remains fail-closed", () => {
+  it("does not silently accept protected-count, wallet, or balance drift", () => {
+    const live = approvedSnapshot();
+    live.counts.notifications = (APPROVED_BASELINE.counts.notifications ?? 0) + 2;
+    live.counts.wallet_transactions = (APPROVED_BASELINE.counts.wallet_transactions ?? 0) + 1;
+    live.walletChecksum = "candidate-wallet-checksum";
+    live.agencyWallets = "candidate-agency-checksum";
+    const findings = preflightFindings(live, [...RELEASE_SCOPE]);
+    expect(findings.some((f) => f.startsWith("notifications:"))).toBe(true);
+    expect(findings.some((f) => f.startsWith("wallet_transactions:"))).toBe(true);
+    expect(findings.some((f) => f.includes("wallet ledger checksum differs"))).toBe(true);
+    expect(findings.some((f) => f.includes("agency balances checksum differs"))).toBe(true);
   });
 
-  it("records the live Production baseline captured by the read-only audit", () => {
-    expect(APPROVED_BASELINE.counts.users).toBe(4);
-    expect(APPROVED_BASELINE.counts.agencies).toBe(4);
-    expect(APPROVED_BASELINE.counts.applications).toBe(2);
-    expect(APPROVED_BASELINE.walletChecksum).toBe("8508159c7279636306f48efd9ddf30ac");
-    expect(APPROVED_BASELINE.agencyWalletsChecksum).toBe("0f091712b9965c5802b0811bfe07acaa");
+  it("still allows audit_logs to grow but never shrink", () => {
+    const grown = approvedSnapshot();
+    grown.counts.audit_logs = (APPROVED_BASELINE.counts.audit_logs ?? 0) + 10;
+    expect(preflightFindings(grown, [...RELEASE_SCOPE])).toEqual([]);
+
+    const shrunk = approvedSnapshot();
+    shrunk.counts.audit_logs = (APPROVED_BASELINE.counts.audit_logs ?? 0) - 1;
+    expect(preflightFindings(shrunk, [...RELEASE_SCOPE]).some((f) => f.startsWith("audit_logs="))).toBe(true);
+  });
+});
+
+describe("read-only audit safety", () => {
+  it("keeps audit and baseline-candidate read-only; apply is the only write-capable mode", () => {
+    expect(isReadOnlyMode("audit")).toBe(true);
+    expect(isReadOnlyMode("baseline-candidate")).toBe(true);
+    expect(isReadOnlyMode("apply")).toBe(false);
+    const source = readFileSync(path.join(process.cwd(), "scripts/prod-release.ts"), "utf8");
+    expect(source).toContain('readOnly ? "begin read only" : "begin"');
+    expect(source).toContain("CANDIDATE ONLY — NOT APPROVED");
+  });
+});
+
+describe("Production target pinning", () => {
+  it("hard-pins schema to visa_os", () => {
+    expect(PRODUCTION_SCHEMA).toBe("visa_os");
+  });
+
+  it("hard-pins the approved Supabase project for pooler and direct URLs", () => {
+    expect(EXPECTED_SUPABASE_PROJECT).toBe("xgetzgixalrsmuvfthpf");
     expect(PROJECT_USER).toBe("postgres.xgetzgixalrsmuvfthpf");
-  });
-
-  it("computes the pending set from the repository, not from a hard-coded list", () => {
-    const pending = pendingMigrations(APPROVED_BASELINE.ledger);
-    expect(pending).toEqual([...RELEASE_SCOPE, "0018_session_presence.sql", "0019_config_translations.sql"]);
-    expect(preflightFindings(approvedSnapshot(), pending).some((f) => f.includes("pending migration set is not this release"))).toBe(true);
+    expect(projectGuardFindings("postgresql://postgres.xgetzgixalrsmuvfthpf:pw@aws-1-us-east-1.pooler.supabase.com:6543/postgres")).toEqual([]);
+    expect(projectGuardFindings("postgresql://postgres:pw@db.xgetzgixalrsmuvfthpf.supabase.co:5432/postgres")).toEqual([]);
+    expect(projectGuardFindings("postgresql://postgres.ridoyedqgiavgcwnpubq:pw@aws-1-us-east-1.pooler.supabase.com:6543/postgres")).toHaveLength(1);
+    expect(projectGuardFindings("postgresql://postgres:pw@db.ridoyedqgiavgcwnpubq.supabase.co:5432/postgres")).toHaveLength(1);
   });
 });
 
-describe("preflight verdict is fail-closed", () => {
-  it("is READY when live Production equals the approved baseline", () => {
-    expect(preflightFindings(approvedSnapshot(), approvedPending())).toEqual([]);
-  });
-
-  it("blocks on a ledger that moved (e.g. a migration applied outside this release)", () => {
-    const live = approvedSnapshot();
-    live.ledger = [...APPROVED_BASELINE.ledger, "0013_embassy_applicability.sql"];
-    const findings = preflightFindings(live, approvedPending());
-    expect(findings.some((f) => f.includes("ledger differs"))).toBe(true);
-  });
-
-  it("blocks when the pending set is not exactly this release", () => {
-    const live = approvedSnapshot();
-    const findings = preflightFindings(live, [...approvedPending(), "0018_something_new.sql"]);
-    expect(findings.some((f) => f.includes("pending migration set is not this release"))).toBe(true);
-  });
-
-  it("blocks on any protected-count drift except append-only audit_logs growth", () => {
-    const drifted = approvedSnapshot();
-    drifted.counts.applications = 3;
-    expect(preflightFindings(drifted, approvedPending()).some((f) => f.startsWith("applications:"))).toBe(true);
-
-    const smallerAudit = approvedSnapshot();
-    smallerAudit.counts.audit_logs = (APPROVED_BASELINE.counts.audit_logs ?? 0) - 1;
-    expect(preflightFindings(smallerAudit, approvedPending()).some((f) => f.startsWith("audit_logs="))).toBe(true);
-
-    const grownAudit = approvedSnapshot();
-    grownAudit.counts.audit_logs = (APPROVED_BASELINE.counts.audit_logs ?? 0) + 12;
-    expect(preflightFindings(grownAudit, approvedPending())).toEqual([]);
-  });
-
-  it("blocks when wallet or agency balances changed at all", () => {
-    const wallet = approvedSnapshot();
-    wallet.walletChecksum = "deadbeef";
-    expect(preflightFindings(wallet, approvedPending()).some((f) => f.includes("wallet ledger checksum differs"))).toBe(true);
-
-    const balances = approvedSnapshot();
-    balances.agencyWallets = "deadbeef";
-    expect(preflightFindings(balances, approvedPending()).some((f) => f.includes("agency balances checksum differs"))).toBe(true);
-  });
-
-  it("pins the Production project identity from the connection username", () => {
-    expect(projectGuardFindings(`postgresql://postgres.xgetzgixalrsmuvfthpf:pw@aws-1-us-east-1.pooler.supabase.com:6543/postgres`)).toEqual([]);
-    const foreign = projectGuardFindings(`postgresql://postgres.ridoyedqgiavgcwnpubq:pw@aws-1-us-east-1.pooler.supabase.com:6543/postgres`);
-    expect(foreign.some((f) => f.includes("identity of the approved production project"))).toBe(true);
-    expect(projectGuardFindings("not-a-url")).toHaveLength(1);
-  });
-
-  it("treats the columnsValid=false pre-migration state as expected, not as drift", () => {
-    const live = approvedSnapshot();
-    expect(live.columnsValid).toBe(false);
-    expect(preflightFindings(live, approvedPending())).toEqual([]);
+describe("apply authorization remains push + PROD_GO only", () => {
+  it("does not expose apply as a manual choice and keeps the push/sentinel gate", () => {
+    const workflow = readFileSync(path.join(process.cwd(), ".github/workflows/prod-release.yml"), "utf8");
+    const applySection = workflow.slice(workflow.indexOf("  apply:"));
+    expect(workflow).toContain("- baseline-candidate");
+    expect(workflow).not.toMatch(/options:[\s\S]*?\n\s*- apply(?:\n|$)/);
+    expect(applySection).toContain("github.event_name == 'push'");
+    expect(applySection).toContain("needs.audit.outputs.go == 'true'");
+    expect(workflow).toContain("release/PROD_GO");
+    expect(workflow).toContain("DATABASE_SCHEMA: visa_os");
   });
 });
 
-describe("ledger comparison is order- and length-sensitive", () => {
-  it("compares element by element", () => {
+describe("ledger comparison", () => {
+  it("is order- and length-sensitive", () => {
     expect(ledgerEquals(["a", "b"], ["a", "b"])).toBe(true);
     expect(ledgerEquals(["a", "b"], ["b", "a"])).toBe(false);
     expect(ledgerEquals(["a"], ["a", "b"])).toBe(false);

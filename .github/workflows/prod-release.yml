@@ -23,6 +23,15 @@ on:
       - scripts/prod-release.ts
       - release/PROD_GO
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "Read-only Production inspection mode"
+        required: true
+        default: audit
+        type: choice
+        options:
+          - audit
+          - baseline-candidate
 
 concurrency:
   group: prod-release-${{ github.workflow }}
@@ -115,11 +124,17 @@ jobs:
           fi
           set -e
 
-      - name: Run read-only Production audit
+      - name: Run read-only Production audit / baseline candidate
         run: |
+          MODE="${{ inputs.mode }}"
+          [ -n "$MODE" ] || MODE="audit"
+          case "$MODE" in
+            audit|baseline-candidate) ;;
+            *) echo "Refusing unsupported manual mode: $MODE"; exit 1 ;;
+          esac
           set +e
           set -o pipefail
-          node_modules/tsx/dist/cli.mjs scripts/prod-release.ts audit 2>&1 | tee /tmp/audit.log
+          node_modules/tsx/dist/cli.mjs scripts/prod-release.ts "$MODE" 2>&1 | tee /tmp/audit.log
           RC=$?
           echo "audit pipeline rc=$RC"
           set +o pipefail
