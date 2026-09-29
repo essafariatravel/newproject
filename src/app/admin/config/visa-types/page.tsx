@@ -8,6 +8,7 @@ import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
+import { NavigableTableRow } from "@/components/navigable-table-row";
 import { countryName as localizedCountryName } from "@/lib/country-names";
 import { hasPermission } from "@/lib/rbac";
 import { listCountries, listVisaCategories, listVisaTypesWithRelations } from "@/lib/applications-exports";
@@ -159,7 +160,7 @@ export default async function VisaTypesConfigPage({
         </thead>
         <tbody className="divide-y divide-slate-100">
           {paged.map(({ vt, countryName, categoryName }) => (
-            <tr key={vt.id} className="tr-hover">
+            <NavigableTableRow key={vt.id} href={`/admin/config/visa-types/${vt.id}`} className="tr-hover">
               <td className="td">
                 <Link href={`/admin/config/visa-types/${vt.id}`} className="font-medium text-navy-900 hover:underline">
                   {configName(vt, locale)}
@@ -183,7 +184,7 @@ export default async function VisaTypesConfigPage({
                   </form>
                 ) : null}
               </td>
-            </tr>
+            </NavigableTableRow>
           ))}
           {paged.length === 0 ? (
             <tr><td colSpan={8} className="td py-8 text-center text-slate-500">{ct("No visa types found")}{q ? ` ${ct("for")} “${q}”` : ""}.</td></tr>
