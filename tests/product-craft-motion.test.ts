@@ -28,6 +28,16 @@ describe("ESSAFARIA shared motion system", () => {
     expect(css).toMatch(/\.config-dialog[\s\S]*var\(--motion-spatial\)/);
   });
 
+  it("uses the shared motion language for workspace and public navigation", () => {
+    const css = read("src/app/globals.css");
+    const nav = read("src/components/nav-list.tsx");
+    const publicHeader = read("src/components/public-header.tsx");
+    expect(nav).toContain("workspace-nav-link");
+    expect(publicHeader).toContain("public-menu-panel");
+    expect(css).toContain(".workspace-nav-link");
+    expect(css).toContain(".public-menu-panel");
+  });
+
   it("uses an intentional reduced-motion path instead of a global 0.01ms kill switch", () => {
     const css = read("src/app/globals.css");
     expect(css).not.toContain("*, *::before, *::after { animation-duration: .01ms");
