@@ -46,7 +46,7 @@ export function ChecklistTable(props: {
 
   return (
     <div className="space-y-4">
-      <div className="card flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
+      <div className="document-summary flex flex-wrap items-center justify-between gap-3 px-1">
         <div>
           <p className="text-sm font-medium text-navy-900">
             {t("Required documents")}: {requiredDone} / {requiredItems.length} {t("complete")}
@@ -88,7 +88,7 @@ export function ChecklistTable(props: {
                 {docs.length > 0 ? (
                   <ul className="mt-2 space-y-1.5">
                     {docs.map((d) => (
-                      <li key={d.doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-ivory-50 px-3 py-1.5 text-xs">
+                      <li key={d.doc.id} className="document-file-settle flex flex-wrap items-center justify-between gap-2 rounded-md bg-ivory-50 px-3 py-1.5 text-xs">
                         <span className="flex items-center gap-2">
                           <a href={`/api/documents/${d.doc.id}`} target="_blank" rel="noopener noreferrer" className="font-medium text-navy-800 underline-offset-2 hover:underline">
                             {d.doc.originalFilename}
@@ -129,7 +129,7 @@ function UploadFormInline(props: {
 }) {
   const t = props.t;
   return (
-    <form action={uploadDocumentAction} className="mt-2.5 flex flex-wrap items-center gap-2">
+    <form action={uploadDocumentAction} className="document-upload-slot mt-2.5 flex flex-wrap items-center gap-2">
       <input type="hidden" name="applicationId" value={props.applicationId} />
       <input type="hidden" name="checklistItemId" value={props.checklistItemId} />
       <input type="hidden" name="documentTypeId" value={props.documentTypeId} />
@@ -174,15 +174,15 @@ export function DocumentList(props: {
   const t = contentT(props.locale ?? "en");
   if (props.documents.length === 0) {
     return (
-      <div className="card px-4 py-8 text-center text-sm text-slate-500">
+      <div className="document-list px-1 py-5 text-sm text-slate-500">
         {t("No documents uploaded yet.")}
       </div>
     );
   }
   return (
-    <div className="space-y-3">
+    <div className="document-list divide-y divide-line">
       {props.documents.map(({ doc, documentTypeName, documentTypeCode, applicantName }) => (
-        <div key={doc.id} className="card p-4">
+        <article key={doc.id} className="document-state document-file-settle px-1 py-4 sm:px-2">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-navy-900">
@@ -241,7 +241,7 @@ export function DocumentList(props: {
               <SubmitButton className="btn-primary btn-sm" pendingLabel={t("Saving…")}>{t("Save review")}</SubmitButton>
             </form>
           ) : ["REJECTED", "RESUBMISSION_REQUIRED"].includes(doc.status) && props.user.agencyId ? (
-            <form action={uploadResubmissionAction} className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+            <form action={uploadResubmissionAction} className="document-upload-slot mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
               <input type="hidden" name="applicationId" value={props.applicationId} />
               <input type="hidden" name="originalDocumentId" value={doc.id} />
               <input
@@ -255,7 +255,7 @@ export function DocumentList(props: {
               <SubmitButton className="btn-gold btn-sm" pendingLabel={t("Submitting…")}>{t("Resubmit corrected file")}</SubmitButton>
             </form>
           ) : null}
-        </div>
+        </article>
       ))}
     </div>
   );
