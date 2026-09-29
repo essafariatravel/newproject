@@ -305,13 +305,13 @@ export function RequestWizard(props: Props) {
   }
 
   return (
-    <form ref={formRef} className="space-y-5" onSubmit={(event) => { event.preventDefault(); void submit(event.currentTarget); }}>
+    <form ref={formRef} className="travel-wizard travel-workspace space-y-4" onSubmit={(event) => { event.preventDefault(); void submit(event.currentTarget); }}>
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       {countryId ? <input type="hidden" name="countryId" value={countryId} /> : null}
       <input type="hidden" name="locale" value={props.locale} />
 
       {/* Step rail */}
-      <ol className="grid grid-cols-3 gap-2 text-sm" data-testid="wizard-steps">
+      <ol className="grid grid-cols-3 gap-3 text-sm" data-testid="wizard-steps">
         {[
           { n: 1, label: t.stepChoose },
           { n: 2, label: t.stepUpload },
@@ -339,7 +339,7 @@ export function RequestWizard(props: Props) {
 
       {/* STEP 1 — destination search, then programmes, then applicant */}
       <section data-wizard-section="1" hidden={step !== 1} className="wizard-panel space-y-5" data-direction={wizardDirection}>
-        <div className="card space-y-4 p-5">
+        <div className="travel-task-flow space-y-4 py-4">
           <div>
             <h2 className="font-serif text-lg text-navy-900">{t.destinationQuestion}</h2>
             <p className="mt-1 text-xs text-slate-500">{t.destinationHint}</p>
@@ -461,7 +461,7 @@ export function RequestWizard(props: Props) {
         </div>
 
         {/* Applicant — one traveler, minimal data (§12) */}
-        <div className="card space-y-4 p-5">
+        <div className="travel-task-flow space-y-4 py-4">
           <h3 className="font-semibold text-navy-900">{t.applicant}</h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
@@ -512,7 +512,7 @@ export function RequestWizard(props: Props) {
 
       {/* STEP 2 — documents */}
       <section data-wizard-section="2" hidden={step !== 2} className="wizard-panel space-y-4" data-direction={wizardDirection}>
-        <div className="card p-5">
+        <div className="travel-task-flow py-4">
           <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-4">
             <div className="flex flex-col gap-0.5">
               <dt className="text-xs text-slate-400">{t.destination}</dt>
@@ -533,7 +533,7 @@ export function RequestWizard(props: Props) {
           </dl>
         </div>
 
-        <div className="card space-y-4 p-5">
+        <div className="travel-task-flow space-y-4 py-4">
           <h2 className="font-serif text-lg text-navy-900">{t.documents}</h2>
           {fileError ? (
             <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" data-testid="wizard-file-error">
@@ -601,7 +601,7 @@ export function RequestWizard(props: Props) {
 
       {/* STEP 3 — review & submit */}
       <section data-wizard-section="3" hidden={step !== 3} className="wizard-panel space-y-4" data-direction={wizardDirection}>
-        <div className="card space-y-5 p-5">
+        <div className="travel-task-flow space-y-5 py-4">
           <div>
             <h2 className="font-serif text-lg text-navy-900">{t.reviewTitle}</h2>
             <p className="mt-1 text-sm text-slate-500">{t.reviewSubtitle}</p>
