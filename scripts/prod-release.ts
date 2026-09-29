@@ -153,18 +153,18 @@ export const APPROVED_BASELINE = {
     agencies: 4,
     applications: 2,
     applicants: 2,
-    notifications: 29,
+    notifications: 31,
     communications: 0,
-    audit_logs: 64,
+    audit_logs: 67,
     site_settings: 13,
     documents: 6,
     document_blobs: 8,
     checklist_items: 4,
-    wallet_transactions: 3,
+    wallet_transactions: 4,
     application_status_history: 8,
   } as Record<string, number>,
-  walletChecksum: "8508159c7279636306f48efd9ddf30ac",
-  agencyWalletsChecksum: "0f091712b9965c5802b0811bfe07acaa",
+  walletChecksum: "9df70462ea533466b9b4c253d6208a89",
+  agencyWalletsChecksum: "9d29f5a06c17e89b105bc1073e647c4f",
 };
 
 /** Ledger state once this release has been applied. */
