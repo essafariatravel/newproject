@@ -15,6 +15,7 @@ import { bulkAssignAction, bulkPriorityAction } from "@/app/actions/applications
 import { getUiLocale, localizedPriority, localizedStatusName } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { countryName } from "@/lib/country-names";
+import { NavigableTableRow } from "@/components/navigable-table-row";
 
 export const dynamic = "force-dynamic";
 
@@ -106,7 +107,7 @@ export default async function AdminApplicationsPage({
           <Link
             key={v.id}
             href={`/admin/applications?view=${v.id}&${v.query}`}
-            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
               activeView === v.id
                 ? "border-iris-300 bg-iris-50 text-iris-700"
                 : "border-slate-200 bg-white text-slate-500 hover:border-iris-200 hover:text-navy-900"
@@ -222,7 +223,7 @@ export default async function AdminApplicationsPage({
             </thead>
             <tbody className="divide-y divide-slate-100">
               {result.rows.map((r) => (
-                <tr key={r.app.id} className="tr-hover">
+                <NavigableTableRow key={r.app.id} href={`/admin/applications/${r.app.id}`} className="tr-hover">
                   {canBulk ? (
                     <td className="td">
                       <input
@@ -270,7 +271,7 @@ export default async function AdminApplicationsPage({
                   <td className="td whitespace-nowrap text-xs text-slate-500">
                     {r.app.submittedAt ? formatDate(r.app.submittedAt, uiLocale) : "— (draft)"}
                   </td>
-                </tr>
+                </NavigableTableRow>
               ))}
             </tbody>
           </TableWrap>
