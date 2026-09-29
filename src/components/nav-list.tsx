@@ -37,7 +37,7 @@ export function NavList({ sections }: { sections: NavSection[] }) {
                 key={item.href}
                 href={item.href}
                 aria-current={activeHref === item.href ? "page" : undefined}
-                className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors ${
+                className={`workspace-nav-link flex items-center justify-between rounded-lg px-3 py-2 text-sm ${
                   activeHref === item.href
                     ? "bg-white/12 font-semibold text-white shadow-[inset_3px_0_0_var(--color-gold-500)] rtl:shadow-[inset_-3px_0_0_var(--color-gold-500)]"
                     : "text-white/70 hover:bg-white/8 hover:text-white"
