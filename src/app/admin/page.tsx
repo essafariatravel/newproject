@@ -1,5 +1,6 @@
 import { configName } from "@/lib/config-localization";
 import { businessLabel } from "@/lib/business-labels";
+import { NavigableTableRow } from "@/components/navigable-table-row";
 import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
@@ -58,14 +59,14 @@ export default async function AdminDashboardPage() {
             </thead>
             <tbody className="divide-y divide-line">
               {data.workQueue.map((r) => (
-                <tr key={r.app.id} className="tr-hover">
+                <NavigableTableRow key={r.app.id} href={`/admin/applications/${r.app.id}`} className="tr-hover">
                   <td className="td"><Link href={`/admin/applications/${r.app.id}`} className="font-semibold text-navy-900 hover:underline">{r.applicantSummary}</Link><span className="block text-xs text-slate-500">{r.app.reference}</span></td>
                   <td className="td">{r.agencyName}</td>
                   <td className="td">{countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}<span className="block text-xs text-slate-500">{configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}</span></td>
                   <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
                   <td className="td">{r.priorityName}</td>
                   <td className="td whitespace-nowrap">{elapsedLabel(new Date(r.statusSince), uiLocale)}</td>
-                </tr>
+                </NavigableTableRow>
               ))}
             </tbody>
           </TableWrap>
@@ -99,7 +100,7 @@ export default async function AdminDashboardPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {recent.map((r) => (
-                    <tr key={r.app.id} className="tr-hover">
+                    <NavigableTableRow key={r.app.id} href={`/admin/applications/${r.app.id}`} className="tr-hover">
                       <td className="td">
                         <Link href={`/admin/applications/${r.app.id}`} className="font-medium text-navy-900 hover:underline">
                           {r.app.reference}
@@ -113,7 +114,7 @@ export default async function AdminDashboardPage() {
                       </td>
                       <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
                       <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(r.app.createdAt, uiLocale)}</td>
-                    </tr>
+                    </NavigableTableRow>
                   ))}
                 </tbody>
               </TableWrap>
