@@ -7,9 +7,9 @@ import { publicDestinations } from "@/lib/public-destinations";
 export const dynamic = "force-dynamic";
 
 const BENEFITS = [
-  ["01", "End-to-end application handling", "From document checklist to embassy submission, every file is prepared, quality-checked and tracked by our operations team."],
-  ["02", "Full visibility for your team", "Your agency portal shows live status, document review results, wallet activity and direct communication with our case officers."],
-  ["03", "Configuration-driven precision", "Requirements, fees and processing times per destination are maintained centrally, so your agency always quotes the current rules."],
+  ["End-to-end application handling", "From document checklist to embassy submission, every file is prepared, quality-checked and tracked by our operations team."],
+  ["Full visibility for your team", "Your agency portal shows live status, document review results, wallet activity and direct communication with our case officers."],
+  ["Configuration-driven precision", "Requirements, fees and processing times per destination are maintained centrally, so your agency always quotes the current rules."],
 ] as const;
 
 const PROCESS = [
@@ -34,8 +34,7 @@ export default async function HomePage() {
       <section className="public-hero flex items-center" aria-labelledby="public-hero-title">
         <div className="ess-container relative z-10 py-24 sm:py-32 lg:py-40">
           <div className="max-w-[680px]">
-            <p className="editorial-reveal text-xs font-semibold uppercase tracking-[0.24em] text-gold-400">{ct("B2B Visa Processing Platform")}</p>
-            <h1 id="public-hero-title" className="editorial-reveal mt-6 font-serif text-[clamp(2.7rem,6vw,5.7rem)] leading-[1.04] tracking-tight text-white">{ct("Your trusted B2B visa partner")}</h1>
+            <h1 id="public-hero-title" className="editorial-reveal font-serif text-[clamp(2.7rem,6vw,5.7rem)] leading-[1.04] tracking-tight text-white">{ct("Your trusted B2B visa partner")}</h1>
             <p className="editorial-reveal mt-6 max-w-xl text-base leading-relaxed text-white/85 sm:text-lg">{ct("A professional visa service for agencies, with clear workflows, document support and live case tracking.")}</p>
             <div className="editorial-reveal mt-9 flex flex-wrap gap-3">
               <Link href="/agency/register" className="public-cta btn-gold hidden px-6 py-3 sm:inline-flex">{ct("Register your agency")} <span aria-hidden>→</span></Link>
@@ -61,10 +60,9 @@ export default async function HomePage() {
             <Link href="/b2b" className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-navy-900 underline decoration-gold-500 underline-offset-8">{ct("For Agencies")} <span aria-hidden>→</span></Link>
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
-            {BENEFITS.map(([number, title, body]) => (
-              <article key={number} className="public-card card p-6">
-                <span className="font-serif text-3xl text-gold-600">{number}</span>
-                <h3 className="mt-8 text-base font-semibold leading-snug text-navy-900">{ct(title)}</h3>
+            {BENEFITS.map(([title, body]) => (
+              <article key={title} className="border-t border-navy-900/15 pt-5">
+                <h3 className="text-base font-semibold leading-snug text-navy-900">{ct(title)}</h3>
                 <p className="mt-3 text-sm leading-relaxed text-slate-600">{ct(body)}</p>
               </article>
             ))}
