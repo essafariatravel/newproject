@@ -1,0 +1,99 @@
+name: Travel-grade before-after render
+
+on:
+  push:
+    branches:
+      - verify/travel-grade-render
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: before
+            ref: ee947701f89ada45cf2ed6a68eddf9a8f222a96e
+          - label: after
+            ref: 7117f5157505e0f0c9d9ce8f2d8ec39349a976a4
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/essafaria
+      MIGRATION_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/essafaria
+      VERCEL: "0"
+      VERCEL_ENV: "preview"
+      ALLOW_DEMO_SEED: "false"
+      STORAGE_PROVIDER: "db"
+      CI: "true"
+    steps:
+      - name: Checkout QA harness
+        uses: actions/checkout@v4
+        with:
+          ref: verify/travel-grade-render
+          persist-credentials: false
+
+      - name: Preserve QA script outside workspace
+        run: |
+          mkdir -p /tmp/essafaria-qa
+          cp .qa/visual-qa.mjs /tmp/essafaria-qa/visual-qa.mjs
+
+      - name: Checkout exact product SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.ref }}
+          clean: true
+          persist-credentials: false
+
+      - name: Verify exact product SHA
+        run: test "$(git rev-parse HEAD)" = "${{ matrix.ref }}"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+      - run: npm install --no-save --package-lock=false playwright@1.55.0
+      - run: npx playwright install --with-deps chromium
+
+      - name: Start local PostgreSQL
+        run: |
+          npm run db:up > /tmp/db-up.log 2>&1 &
+          for i in $(seq 1 90); do
+            if (echo > /dev/tcp/127.0.0.1/5432) >/dev/null 2>&1; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/db-up.log
+          exit 1
+
+      - name: Migrate and seed local demo
+        run: npm run db:setup
+
+      - name: Start exact-SHA app
+        run: |
+          npm run dev -- --hostname 127.0.0.1 > /tmp/next.log 2>&1 &
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/next.log
+          exit 1
+
+      - name: Capture screens
+        env:
+          QA_LABEL: ${{ matrix.label }}
+        run: |
+          mkdir -p .qa visual-qa
+          cp /tmp/essafaria-qa/visual-qa.mjs .qa/visual-qa.mjs
+          node .qa/visual-qa.mjs
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: travel-grade-${{ matrix.label }}
+          path: visual-qa
+          if-no-files-found: error
