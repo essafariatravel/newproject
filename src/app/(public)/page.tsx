@@ -43,7 +43,7 @@ export default async function HomePage() {
             </div>
           </div>
         </div>
-        <div className="absolute inset-x-0 bottom-0 z-10 border-t border-white/20 bg-navy-950/55 backdrop-blur-sm">
+        <div className="absolute inset-x-0 bottom-0 z-10 border-t border-white/20 bg-navy-950/80">
           <div className="ess-container grid grid-cols-2 gap-4 py-5 text-xs font-medium text-white/85 sm:grid-cols-4 sm:text-sm">
             {["Simple process", "Document assistance", "Live status tracking", "Professional support"].map((item, index) => (
               <span key={item} className="flex items-center gap-2"><span className="text-gold-400">0{index + 1}</span>{ct(item)}</span>
