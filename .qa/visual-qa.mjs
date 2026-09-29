@@ -18,8 +18,9 @@ async function login(context, email, password) {
   await page.locator("#email").fill(email);
   await page.locator("#password").fill(password);
   const loginForm = page.locator("form").filter({ has: page.locator("#email") }).first();
+  const expected = email.includes("@essafaria.example") ? /\/admin(?:\/|$)/ : /\/portal(?:\/|$)/;
   await loginForm.locator('button[type="submit"]').first().click();
-  await page.waitForLoadState("networkidle");
+  await page.waitForURL(expected, { timeout: 30000 });
   await page.close();
 }
 
