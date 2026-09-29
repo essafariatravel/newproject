@@ -80,8 +80,8 @@ export default async function AdminDashboardPage() {
         )}
       </Card>
 
-      <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="xl:col-span-2">
+      <div className="mt-5 grid grid-cols-1 gap-0 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-x-6">
+        <div>
           <Card>
             <CardHeader
               title={ct("Recent applications")}
@@ -129,7 +129,7 @@ export default async function AdminDashboardPage() {
           </Card>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-0">
           {canSeeBilling ? (
             <Card>
               <CardHeader title={ct("Wallet activity")} actions={<Link href="/admin/billing" className="btn-secondary btn-sm">{ct("Ledger")} →</Link>} />
