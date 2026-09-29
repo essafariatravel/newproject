@@ -128,7 +128,7 @@ export default async function AdminApplicationDetailPage({
   const _openRequests = docRequests.filter((r) => r.req.status === "OPEN");
 
   return (
-    <>
+    <div className="travel-dossier travel-workspace">
       <PageHeader
         title={applicant?.fullName || `${applicant?.firstName ?? ""} ${applicant?.lastName ?? ""}`.trim() || app.reference}
         subtitle={`${app.reference} · ${countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)} · ${visaDisplayName} — ${detail.agencyName ?? ""}`}
@@ -144,7 +144,7 @@ export default async function AdminApplicationDetailPage({
       <Tabs tabs={TABS.map((t) => ({ ...t, label: ct(t.label), href: `${back}?tab=${t.id}` }))} current={tab} />
 
       {tab === "overview" ? (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="dossier-zone grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
           <div className="space-y-4 xl:col-span-2">
             <Card>
               <CardHeader title={ct("Dossier")} />
@@ -209,7 +209,7 @@ export default async function AdminApplicationDetailPage({
                 {decisionDocs.length > 0 ? (
                   <ul className="space-y-2 px-4 py-3 text-sm">
                     {decisionDocs.map((d) => (
-                      <li key={d.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-ivory-50/60 px-3 py-2">
+                      <li key={d.id} className="document-file flex items-center justify-between gap-3 text-sm">
                         <div>
                           <p className="font-medium text-navy-900">{localizedDocTypeName(d.typeCode, d.typeName, uiLocale)}</p>
                           <p className="text-xs text-slate-500">{formatDateTime(d.createdAt, uiLocale)} · {localizedDocStatus(d.status, uiLocale, d.status)}</p>
@@ -249,7 +249,7 @@ export default async function AdminApplicationDetailPage({
             {canReview ? (
               <Card>
                 <CardHeader title={ct("Internal notes")} subtitle={ct("Never visible to the agency.")} />
-                <form action={updateInternalNotesAction} className="px-4 py-4">
+                <form action={updateInternalNotesAction} className="document-row px-0 py-4">
                   <input type="hidden" name="applicationId" value={id} />
                   <input type="hidden" name="back" value={back} />
                   <textarea name="internalNotes" rows={3} defaultValue={app.internalNotes ?? ""} className="input" placeholder={ct("Case-officer notes…")} />
@@ -331,7 +331,7 @@ export default async function AdminApplicationDetailPage({
       ) : null}
 
       {tab === "documents" ? (
-        <div className="space-y-4">
+        <div className="dossier-zone space-y-0">
           <Card>
             <CardHeader title={ct("Documents")} subtitle={`${docs.length} ${ct("uploaded")} · ${checklist.length} ${ct("requirements")}`} />
             <div className="divide-y divide-slate-100">
@@ -339,7 +339,7 @@ export default async function AdminApplicationDetailPage({
                 const itemDocs = documentGroups.byItem.get(item.id) ?? [];
                 const latest = itemDocs[0];
                 return (
-                  <div key={item.id} className="px-4 py-4">
+                  <div key={item.id} className="document-row px-0 py-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <p className="font-medium text-navy-900">{localizedDocTypeName(item.documentTypeCode, item.documentTypeName, uiLocale)} {item.required ? <span className="badge bg-rose-50 text-rose-600 text-[10px]">{ct("Required")}</span> : null}</p>
@@ -350,7 +350,7 @@ export default async function AdminApplicationDetailPage({
                     {itemDocs.length > 0 ? (
                       <ul className="mt-3 space-y-1.5">
                         {itemDocs.map(({ doc, applicantName }) => (
-                          <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ivory-50 px-3 py-2 text-xs">
+                          <li key={doc.id} className="document-file flex flex-wrap items-center justify-between gap-2 text-xs">
                             <span className="flex items-center gap-2 min-w-0">
                               <a href={`/api/documents/${doc.id}`} target="_blank" className="font-medium truncate hover:underline">{doc.originalFilename}</a>
                               <span className="text-slate-400">v{doc.version} · {localizedDocStatus(doc.status, uiLocale, doc.status)} · {formatDateTime(doc.createdAt, uiLocale)}</span>
@@ -505,6 +505,6 @@ export default async function AdminApplicationDetailPage({
           <ActivityTimeline history={history} locale={uiLocale} />
         </div>
       ) : null}
-    </>
+    </div>
   );
 }
