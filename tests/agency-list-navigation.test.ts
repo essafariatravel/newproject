@@ -8,9 +8,9 @@ import {
   normalizeOptionalAgencyName,
 } from "@/lib/agency-display";
 import {
-  AGENCY_ROW_INTERACTIVE_SELECTOR,
-  shouldIgnoreAgencyRowNavigation,
-} from "@/components/agency-table-row";
+  ROW_NAVIGATION_INTERACTIVE_SELECTOR,
+  shouldIgnoreRowNavigation,
+} from "@/components/navigable-table-row";
 import { hasPermission } from "@/lib/rbac";
 import type { AuthUser } from "@/lib/types";
 
@@ -96,17 +96,17 @@ describe("agency-name canonicalization", () => {
 describe("agency row navigation", () => {
   it("keeps semantic name links and adds double-click navigation to the existing ID route", () => {
     const page = read("src/app/admin/agencies/page.tsx");
-    const row = read("src/components/agency-table-row.tsx");
-    expect(page).toContain('<AgencyTableRow key={agency.id} href={`/admin/agencies/${agency.id}`}');
+    const row = read("src/components/navigable-table-row.tsx");
+    expect(page).toContain('<NavigableTableRow key={agency.id} href={`/admin/agencies/${agency.id}`}');
     expect(page).toContain("<AgencyListIdentity");
     expect(row).toContain("onDoubleClick={handleDoubleClick}");
     expect(row).toContain("router.push(props.href)");
   });
 
   it("does not hijack interactive controls inside a row", () => {
-    expect(AGENCY_ROW_INTERACTIVE_SELECTOR).toContain("a,button,input,select,textarea");
-    expect(shouldIgnoreAgencyRowNavigation({ closest: () => ({ tag: "button" }) })).toBe(true);
-    expect(shouldIgnoreAgencyRowNavigation({ closest: () => null })).toBe(false);
+    expect(ROW_NAVIGATION_INTERACTIVE_SELECTOR).toContain("a,button,input,select,textarea");
+    expect(shouldIgnoreRowNavigation({ closest: () => ({ tag: "button" }) })).toBe(true);
+    expect(shouldIgnoreRowNavigation({ closest: () => null })).toBe(false);
   });
 });
 
