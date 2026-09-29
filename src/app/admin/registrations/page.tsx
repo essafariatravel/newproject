@@ -3,11 +3,11 @@ import { pageUser } from "@/lib/page-auth";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { hasPermission } from "@/lib/rbac";
 import {
-import { NavigableTableRow } from "@/components/navigable-table-row";
   distinctRegistrationCountries,
   listRegistrations,
   pendingRegistrationCount,
 } from "@/lib/registrations";
+import { NavigableTableRow } from "@/components/navigable-table-row";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatDateTime } from "@/lib/format";
 import { FilterBar, Pagination } from "@/components/app-widgets";
