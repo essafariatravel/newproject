@@ -50,7 +50,7 @@
   --motion-instant: 80ms;
   --motion-micro: 120ms;
   --motion-standard: 200ms;
-  --motion-overlay: 240ms;
+  --motion-overlay: 220ms;
   --motion-spatial: 300ms;
   --motion-editorial: 420ms;
   --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -397,7 +397,7 @@ body {
   background: rgb(7 26 51 / .4);
   opacity: 0;
   transition:
-    opacity var(--motion-standard) var(--motion-ease-standard),
+    opacity var(--motion-overlay) var(--motion-ease-standard),
     display var(--motion-spatial) allow-discrete,
     overlay var(--motion-spatial) allow-discrete;
 }
@@ -472,7 +472,7 @@ body {
   background: rgb(7 26 51 / .45);
   opacity: 0;
   transition:
-    opacity var(--motion-standard) var(--motion-ease-standard),
+    opacity var(--motion-overlay) var(--motion-ease-standard),
     display var(--motion-spatial) allow-discrete,
     overlay var(--motion-spatial) allow-discrete;
 }
