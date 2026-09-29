@@ -97,7 +97,7 @@ export default async function AdminApplicationsPage({
   const officers = hasPermission(user, "applications.assign") ? await staffDirectory() : [];
 
   return (
-    <>
+    <div className="travel-list travel-workspace">
       <PageHeader title={ct("Applications")} subtitle={ct("All visa applications across partner agencies.")} />
       <Flash {...flash} />
 
@@ -107,10 +107,10 @@ export default async function AdminApplicationsPage({
           <Link
             key={v.id}
             href={`/admin/applications?view=${v.id}&${v.query}`}
-            className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`border-b-2 px-1 py-2 text-xs font-medium transition-colors ${
               activeView === v.id
-                ? "border-iris-300 bg-iris-50 text-iris-700"
-                : "border-slate-200 bg-white text-slate-500 hover:border-iris-200 hover:text-navy-900"
+                ? "border-gold-500 text-navy-900"
+                : "border-transparent text-slate-500 hover:border-slate-300 hover:text-navy-900"
             }`}
           >
             {v.label}
@@ -169,7 +169,7 @@ export default async function AdminApplicationsPage({
       ) : null}
 
       {result.rows.length === 0 ? (
-        <div className="card">
+        <div className="travel-record-list">
           <EmptyState title={ct("No applications found")} body={ct("Try adjusting the filters, or wait for agencies to submit applications.")} />
         </div>
       ) : (
@@ -177,7 +177,7 @@ export default async function AdminApplicationsPage({
           {/* §safe bulk — assign / priority only. No bulk approve, reject, debit
               or delete exists anywhere in the product. */}
           {canBulk ? (
-            <form id="bulk-form" action={bulkAssignAction} className="card mb-3 flex flex-wrap items-end gap-3 p-3" data-testid="bulk-bar">
+            <form id="bulk-form" action={bulkAssignAction} className="mb-3 flex flex-wrap items-end gap-3 border-y border-line bg-white/30 px-1 py-3" data-testid="bulk-bar">
               {canAssign ? (
                 <div className="min-w-[200px]">
                   <label className="label" htmlFor="bulk-assignedTo">{ct("Assign selected to")}</label>
@@ -292,6 +292,6 @@ export default async function AdminApplicationsPage({
           </div>
         </>
       )}
-    </>
+    </div>
   );
 }
