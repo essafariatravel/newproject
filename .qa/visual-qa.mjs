@@ -16,7 +16,8 @@ async function login(context, email, password) {
   await page.goto(base + "/login", { waitUntil: "networkidle" });
   await page.locator("#email").fill(email);
   await page.locator("#password").fill(password);
-  await page.locator('button[type="submit"]').click();
+  const loginForm = page.locator("form").filter({ has: page.locator("#email") }).first();
+  await loginForm.locator('button[type="submit"]').first().click();
   await page.waitForLoadState("networkidle");
   await page.close();
 }
