@@ -7,6 +7,7 @@ import { FilterBar, Pagination } from "@/components/app-widgets";
 import { EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
+import { NavigableTableRow } from "@/components/navigable-table-row";
 
 export const dynamic = "force-dynamic";
 
@@ -47,8 +48,8 @@ export default async function PortalApplicantsPage({
             </thead>
             <tbody className="divide-y divide-slate-100">
               {result.rows.map(({ applicant, applicationReference, applicationId }) => (
-                <tr key={applicant.id} className="tr-hover">
-                  <td className="td font-medium text-navy-900">{personName(applicant)}</td>
+                <NavigableTableRow key={applicant.id} href={`/portal/applications/${applicationId}`} className="tr-hover">
+                  <td className="td"><Link href={`/portal/applications/${applicationId}`} className="font-medium text-navy-900 hover:underline">{personName(applicant)}</Link></td>
                   <td className="td tabular-nums">
                     {applicant.passportNumber}
                     <span className="block text-[11px] text-slate-400">exp. {formatDate(applicant.passportExpiryDate)}</span>
@@ -60,7 +61,7 @@ export default async function PortalApplicantsPage({
                     </Link>
                   </td>
                   <td className="td whitespace-nowrap text-xs text-slate-500">{formatDate(applicant.createdAt)}</td>
-                </tr>
+                </NavigableTableRow>
               ))}
             </tbody>
           </TableWrap>
