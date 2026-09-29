@@ -712,11 +712,11 @@ export function RequestWizard(props: Props) {
 
       <div className="flex items-center justify-between">
         <button type="button" onClick={goBack} disabled={step === 1 || pending} className="btn-secondary">
-          ← {t.back}
+          <span className="directional" aria-hidden>←</span> {t.back}
         </button>
         {step < 3 ? (
           <button type="button" onClick={goNext} className="btn-primary">
-            {t.next} →
+            {t.next} <span className="directional" aria-hidden>→</span>
           </button>
         ) : null}
       </div>
