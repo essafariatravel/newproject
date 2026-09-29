@@ -26,10 +26,10 @@ export async function NotificationsPage({
   const unread = notifications.filter((n) => !n.readAt).length;
 
   return (
-    <>
+    <div className="travel-notifications travel-workspace">
       <PageHeader
         title={ct("Notifications")}
-        subtitle={`${unread} ${ct("unread notifications")} · ${notifications.length} ${ct("total")}`}
+        subtitle={unread > 0 ? `${unread} ${ct("unread notifications")}` : ct("You're up to date")}
         actions={
           unread > 0 ? (
             <form action={markNotificationsReadAction}>
@@ -39,44 +39,51 @@ export async function NotificationsPage({
           ) : undefined
         }
       />
-      <nav className="mb-5 flex flex-wrap gap-2" aria-label={ct("Notifications")}>
-        {[["all", "All"], ["action", "Action required"], ["applications", "Applications"], ["messages", "Messages"], ["wallet", "Wallet"]].map(([id, label]) => <Link key={id} href={`${basePath}?filter=${id}`} aria-current={filter === id ? "page" : undefined} className={filter === id ? "btn-primary btn-sm" : "btn-secondary btn-sm"}>{ct(label!)}</Link>)}
+
+      <nav className="notification-filters" aria-label={ct("Notifications")}>
+        {[["all", "All"], ["action", "Action required"], ["applications", "Applications"], ["messages", "Messages"], ["wallet", "Wallet"]].map(([id, label]) => (
+          <Link
+            key={id}
+            href={`${basePath}?filter=${id}`}
+            aria-current={filter === id ? "page" : undefined}
+            className="notification-filter"
+          >
+            {ct(label!)}
+          </Link>
+        ))}
       </nav>
+
       {visible.length === 0 ? (
-        <div className="card"><EmptyState title={ct("No notifications")} body={ct("Events on your applications will appear here.")} /></div>
+        <EmptyState title={ct("No notifications")} body={ct("Events on your applications will appear here.")} />
       ) : (
-        <div className="space-y-2.5">
+        <div className="notification-feed">
           {visible.map((n) => (
-            <div
-              key={n.id}
-              className={`card flex items-start justify-between gap-3 px-4 py-3.5 ${n.readAt ? "opacity-70" : "border-s-2 border-s-gold-500"}`}
-            >
+            <article key={n.id} className="notification-item" data-unread={!n.readAt}>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-navy-900">
-                  {n.link ? <Link href={n.link} className="hover:underline">{businessLabel(n.type, locale)}</Link> : businessLabel(n.type, locale)}
-                  {!n.readAt ? <span className="badge ms-2 bg-gold-100 text-gold-600">{ct("New")}</span> : null}
-                </p>
-                <p className="mt-0.5 text-sm text-slate-600">{["MESSAGE_POSTED", "DOCUMENT_REQUESTED"].includes(n.type) ? n.body : null}</p>
-                <p className="mt-1 text-[11px] text-slate-400">{formatDateTime(n.createdAt, locale)}</p>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-1.5">
-                {n.link ? (
-                  <Link href={n.link} className="btn-secondary btn-sm">
-                    {ct("Open")} →
-                  </Link>
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <h2 className="text-sm font-semibold text-navy-900">
+                    {n.link ? <Link href={n.link} className="hover:underline">{businessLabel(n.type, locale)}</Link> : businessLabel(n.type, locale)}
+                  </h2>
+                  <time className="text-[11px] text-slate-400">{formatDateTime(n.createdAt, locale)}</time>
+                </div>
+                {["MESSAGE_POSTED", "DOCUMENT_REQUESTED"].includes(n.type) && n.body ? (
+                  <p className="mt-1 text-sm leading-relaxed text-slate-600">{n.body}</p>
                 ) : null}
+              </div>
+              <div className="notification-item-actions flex items-center gap-3 text-xs">
+                {n.link ? <Link href={n.link} className="travel-inline-link">{ct("Open")} →</Link> : null}
                 {!n.readAt ? (
                   <form action={markNotificationsReadAction}>
                     <input type="hidden" name="id" value={n.id} />
                     <input type="hidden" name="back" value={basePath} />
-                    <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">{ct("Mark read")}</SubmitButton>
+                    <SubmitButton className="px-0 py-1 text-xs font-medium text-slate-500 hover:text-navy-900" pendingLabel="…">{ct("Mark read")}</SubmitButton>
                   </form>
                 ) : null}
               </div>
-            </div>
+            </article>
           ))}
         </div>
       )}
-    </>
+    </div>
   );
 }
