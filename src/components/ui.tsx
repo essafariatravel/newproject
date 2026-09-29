@@ -11,7 +11,7 @@ export function PageHeader(props: {
   return (
     <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="font-serif text-[1.75rem] leading-tight text-navy-900">{props.title}</h1>
+        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-tight text-navy-900">{props.title}</h1>
         {props.subtitle ? <p className="mt-1 text-sm text-slate-500">{props.subtitle}</p> : null}
       </div>
       {props.actions ? <div className="flex flex-wrap items-center gap-2">{props.actions}</div> : null}
@@ -44,21 +44,21 @@ export function StatCard(props: {
 }) {
   const toneClass =
     props.tone === "gold"
-      ? "border-gold-100 bg-gradient-to-b from-gold-50/80 to-white"
+      ? "border-gold-100 bg-gold-50/50"
       : props.tone === "teal"
-        ? "border-teal-100 bg-gradient-to-b from-teal-50/70 to-white"
+        ? "border-teal-100 bg-teal-50/40"
         : props.tone === "navy"
-          ? "border-iris-100 bg-gradient-to-b from-iris-50/70 to-white"
+          ? "border-navy-100 bg-navy-50/70"
           : "";
   const body = (
     <div className={`card h-full border px-5 py-4 ${toneClass}`}>
       <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">{props.label}</p>
-      <p className="mt-1.5 font-serif text-[1.65rem] leading-snug text-navy-900 tabular-nums">{props.value}</p>
+      <p className="mt-1.5 text-[1.65rem] font-semibold leading-snug tracking-tight text-navy-900 tabular-nums">{props.value}</p>
       {props.hint ? <p className="mt-1 text-xs text-slate-400">{props.hint}</p> : null}
     </div>
   );
   return props.href ? (
-    <Link href={props.href} className="block transition-transform hover:-translate-y-0.5">
+    <Link href={props.href} className="block transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-500">
       {body}
     </Link>
   ) : (
@@ -79,10 +79,11 @@ export function titleize(code: string): string {
 }
 
 
-export function ActiveBadge({ active }: { active: boolean }) {
+export function ActiveBadge({ active, locale = "en" }: { active: boolean; locale?: "en" | "fr" | "ar" }) {
+  const labels = { en: ["Active", "Inactive"], fr: ["Actif", "Inactif"], ar: ["نشط", "غير نشط"] };
   return (
     <span className={`badge ${active ? "bg-emerald-50 text-emerald-700" : "bg-ivory-100 text-slate-400"}`}>
-      {active ? "Active" : "Inactive"}
+      {labels[locale][active ? 0 : 1]}
     </span>
   );
 }
@@ -120,7 +121,7 @@ export function Flash(props: { error?: string; success?: string }) {
 
 export function TableWrap(props: { children: ReactNode }) {
   return (
-    <div className="card overflow-x-auto">
+    <div className="card table-scroll overflow-x-auto" tabIndex={0}>
       <table className="w-full min-w-[640px] border-collapse">{props.children}</table>
     </div>
   );
@@ -132,7 +133,7 @@ export function Progress(props: { done: number; total: number }) {
     <div className="flex items-center gap-2">
       <div className="h-1.5 w-24 overflow-hidden rounded-full bg-ivory-200">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-iris-400 to-iris-600 transition-all"
+          className="h-full rounded-full bg-teal-600 transition-all"
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -145,15 +146,16 @@ export function Progress(props: { done: number; total: number }) {
 
 export function Tabs(props: { tabs: Array<{ id: string; label: string; href: string }>; current: string }) {
   return (
-    <div className="ess-segment mb-6 max-w-full overflow-x-auto">
+    <div className="workspace-tabs mb-6 flex max-w-full gap-5 overflow-x-auto border-b border-line">
       {props.tabs.map((t) => (
         <Link
           key={t.id}
           href={t.href}
-          className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm transition-colors ${
+          aria-current={t.id === props.current ? "page" : undefined}
+          className={`whitespace-nowrap border-b-2 px-1 py-3 text-sm transition-colors ${
             t.id === props.current
-              ? "bg-white font-semibold text-navy-900 shadow-[0_1px_3px_rgb(23_30_63/0.08)]"
-              : "text-slate-500 hover:text-navy-900"
+              ? "border-gold-500 font-semibold text-navy-900"
+              : "border-transparent text-slate-500 hover:text-navy-900"
           }`}
         >
           {t.label}

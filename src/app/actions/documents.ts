@@ -12,6 +12,8 @@ import { AppError, DOCUMENT_REVIEW_ROLES } from "@/lib/types";
 import { deleteDocument, reviewDocument, uploadDocument, uploadResubmission } from "@/lib/documents";
 import { requestAdditionalDocument, requestDocumentReplacement } from "@/lib/document-requests";
 import { runAction } from "@/lib/action-helpers";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 
 const idSchema = z.string().uuid("Invalid identifier.");
 
@@ -42,7 +44,7 @@ export async function uploadDocumentAction(formData: FormData): Promise<void> {
     const checklistItemId = formData.get("checklistItemId");
     const documentTypeId = formData.get("documentTypeId");
     const applicantId = formData.get("applicantId");
-    const doc = await uploadDocument({
+    await uploadDocument({
       applicationId,
       actor: user,
       file,
@@ -54,7 +56,7 @@ export async function uploadDocumentAction(formData: FormData): Promise<void> {
     revalidatePath(back);
     revalidatePath("/portal/applications");
     revalidatePath("/admin/documents");
-    return `Document "${doc.originalFilename}" uploaded.`;
+    return contentT(await getUiLocale())("Document uploaded.");
   });
 }
 
@@ -65,7 +67,7 @@ export async function uploadResubmissionAction(formData: FormData): Promise<void
   await runAction(back, async () => {
     const user = await requireUser();
     const file = await fileFrom(formData);
-    const doc = await uploadResubmission({
+    await uploadResubmission({
       applicationId,
       originalDocumentId,
       actor: user,
@@ -74,7 +76,7 @@ export async function uploadResubmissionAction(formData: FormData): Promise<void
     });
     revalidatePath(back);
     revalidatePath("/admin/documents");
-    return `Document "${doc.originalFilename}" resubmitted for review.`;
+    return "Document resubmitted for review.";
   });
 }
 
@@ -108,7 +110,7 @@ export async function reviewDocumentAction(formData: FormData): Promise<void> {
     });
     revalidatePath(back);
     revalidatePath("/admin/documents");
-    return `Document marked ${data.status.replaceAll("_", " ").toLowerCase()}.`;
+    return "Document review saved.";
   });
 }
 

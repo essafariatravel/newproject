@@ -44,7 +44,7 @@ describe("audit logging", () => {
       await uploadDocument({
         applicationId: app.id,
         actor: staffA,
-        file: { name: `${item.documentTypeCode}.pdf`, type: "application/pdf", size: 512, data: Buffer.from("d") },
+        file: { name: `${item.documentTypeCode}.pdf`, type: "application/pdf", size: 512, data: Buffer.from("%PDF-1.4 test document") },
         checklistItemId: item.id,
       });
     }

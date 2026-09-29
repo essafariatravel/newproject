@@ -73,8 +73,8 @@ export function parseStatementRange(raw: { from?: string | null; to?: string | n
   const now = new Date();
   const to = raw.to ? parseDate(raw.to, "to") : now;
   const from = raw.from ? parseDate(raw.from, "from") : new Date(to.getTime() - 30 * DAY_MS);
-  from.setHours(0, 0, 0, 0); // inclusive from
-  to.setHours(23, 59, 59, 999); // inclusive to
+  from.setUTCHours(0, 0, 0, 0); // inclusive from
+  to.setUTCHours(23, 59, 59, 999); // inclusive to
   if (from.getTime() > to.getTime()) throw new AppError("VALIDATION", "The 'from' date must not be after the 'to' date.");
   if (to.getTime() > now.getTime() + DAY_MS) throw new AppError("VALIDATION", "The 'to' date cannot lie in the future.");
   if (to.getTime() - from.getTime() > 399 * DAY_MS)
@@ -86,7 +86,7 @@ function parseDate(value: string, field: string): Date {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value))
     throw new AppError("VALIDATION", `Invalid '${field}' date. Use YYYY-MM-DD.`);
   const d = new Date(`${value}T00:00:00.000Z`);
-  if (Number.isNaN(d.getTime())) throw new AppError("VALIDATION", `Invalid '${field}' date. Use YYYY-MM-DD.`);
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== value) throw new AppError("VALIDATION", `Invalid '${field}' date. Use YYYY-MM-DD.`);
   return d;
 }
 

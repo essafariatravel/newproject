@@ -159,6 +159,20 @@ describe("decision workflow — direct final outcomes are locked", () => {
 });
 
 describe("decision workflow — audit-proof success paths", () => {
+  it("records an optional note without a document and permits exactly one concurrent final decision", async () => {
+    const { app, staff } = await appAt("IN_PROCESS");
+    const results = await Promise.allSettled([
+      recordApplicationDecision({ applicationId: app.id, outcome: "APPROVED", actor: staff, note: "The visa is ready." }),
+      recordApplicationDecision({ applicationId: app.id, outcome: "REJECTED", actor: staff, note: "The embassy declined." }),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+    expect(await getDecisionDocuments(app.id)).toHaveLength(0);
+    const messages = await db.execute(sql`select body from communications where application_id=${app.id} and visibility='AGENCY'`);
+    expect(messages.rows).toHaveLength(1);
+    const audits = await db.select().from(auditLogs).where(and(eq(auditLogs.entityId, app.id), eq(auditLogs.action, "APPLICATION_DECISION_RECORDED")));
+    expect(audits).toHaveLength(1);
+  });
   it("APPROVED decision: document stored + typed + ACCEPTED, status+decisionAt stamped, history+audit+notifications written", async () => {
     const { app, agency, staff } = await appAt("IN_PROCESS");
     const result = await recordApplicationDecision({

@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { asc, eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { countries } from "@/db/schema";
+import { publicDestinations } from "@/lib/public-destinations";
 import { EmptyState } from "@/components/ui";
 import { Pagination, PageSizeSelector } from "@/components/app-widgets";
 import { getUiLocale } from "@/lib/ui-i18n";
@@ -11,13 +9,14 @@ import { resolvePageSize } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Destinations — ESSAFARIA TRAVEL" };
+export const metadata = { title: "Destinations" };
 
 /**
  * PUBLIC destinations index.
  *
- * Same catalogue rules as before — this page must never query visa programmes or
- * prices (B2B information lives in the Agency Portal) — but it now behaves like
+ * Public coverage includes only countries with an active visa programme.
+ * Programme names, categories and prices remain private in the Agency Portal.
+ * The list behaves like
  * every other list in the product: accent-insensitive search, a region filter,
  * the shared 20/50/100 pagination standard, and an empty state that tells the
  * visitor what to do next instead of showing nothing.
@@ -38,16 +37,7 @@ export default async function CountriesPage({
   let rows: Array<{ id: string; name: string; region: string | null; iso2: string }> = [];
   let catalogueUnavailable = false;
   try {
-    rows = await db
-      .select({
-        id: countries.id,
-        name: countries.name,
-        region: countries.region,
-        iso2: countries.iso2,
-      })
-      .from(countries)
-      .where(eq(countries.active, true))
-      .orderBy(asc(countries.name));
+    rows = await publicDestinations();
   } catch (err) {
     console.error("[countries] destinations unavailable", err);
     rows = [];
@@ -62,7 +52,7 @@ export default async function CountriesPage({
   const matches = (row: (typeof rows)[number]) => {
     if (region && (row.region ?? "Other") !== region) return false;
     if (!needle) return true;
-    const haystack = `${countryName(row, uiLocale)} ${row.name} ${row.region ?? ""}`
+    const haystack = `${countryName(row, uiLocale)} ${row.name} ${row.region ?? ""} ${row.region ? ct(row.region) : ""}`
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase();
@@ -99,7 +89,7 @@ export default async function CountriesPage({
           <select id="d-region" name="region" defaultValue={region} className="input">
             <option value="">{ct("All regions")}</option>
             {allRegions.map((r) => (
-              <option key={r} value={r}>{r}</option>
+              <option key={r} value={r}>{ct(r)}</option>
             ))}
           </select>
         </div>
@@ -129,7 +119,7 @@ export default async function CountriesPage({
             {paged.map((row) => (
               <div key={row.id} className="card flex items-center justify-between p-4">
                 <span className="font-medium text-navy-900">{countryName(row, uiLocale)}</span>
-                <span className="text-xs text-slate-400">{row.region ?? "—"}</span>
+                <span className="text-xs text-slate-400">{row.region ? ct(row.region) : "—"}</span>
               </div>
             ))}
           </div>

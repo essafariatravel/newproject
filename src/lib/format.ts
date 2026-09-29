@@ -58,8 +58,9 @@ export function formatDZD(amount: string | number, locale: string = "en"): strin
 }
 
 /** Zero denotes an unpublished processing estimate, never an immediate turnaround. */
-export function formatProcessingDays(min: number, max: number): string {
-  return min > 0 && max > 0 ? `${min}–${max} working days` : "On request";
+export function formatProcessingDays(min: number, max: number, locale: "en" | "fr" | "ar" = "en"): string {
+  if (min <= 0 || max <= 0) return { en: "On request", fr: "Sur demande", ar: "عند الطلب" }[locale];
+  return { en: `${min}–${max} working days`, fr: `${min}–${max} jours ouvrés`, ar: `${min}–${max} أيام عمل` }[locale];
 }
 
 export function titleize(code: string): string {

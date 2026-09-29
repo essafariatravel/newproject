@@ -8,6 +8,7 @@ import {
   SESSION_TTL_DAYS,
   type AuthUser,
   type Role,
+  isAgencyRole,
 } from "@/lib/types";
 import { generateSessionToken, hashToken } from "@/lib/crypto";
 import type { User } from "@/db/schema";
@@ -118,7 +119,7 @@ export async function requireStaff(): Promise<AuthUser> {
 /** Require an agency user bound to a tenant. */
 export async function requireAgencyUser(): Promise<AuthUser & { agencyId: string }> {
   const user = await requireUser();
-  if (!user.agencyId) {
+  if (!isAgencyRole(user.role) || !user.agencyId) {
     throw new AppError("FORBIDDEN", "This area is only available to agency users.");
   }
   return user as AuthUser & { agencyId: string };

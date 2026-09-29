@@ -105,7 +105,7 @@ describe("§34 notifications — every required event produces a notification", 
     const staff = await userByEmail("agent@test.example");
     const item = (await getChecklist(app.id))[0]!;
 
-    await requestDocumentReplacement({
+    const request = await requestDocumentReplacement({
       applicationId: app.id,
       checklistItemId: item.id,
       reason: "Please resend the passport page.",
@@ -116,7 +116,7 @@ describe("§34 notifications — every required event produces a notification", 
     const notif = rows.find((n) => n.type === "DOCUMENT_REQUESTED");
     expect(notif).toBeTruthy();
     expect(notif!.title).toContain("Action required");
-    expect(notif!.link).toBe(`/portal/applications/${app.id}`);
+    expect(notif!.link).toBe(`/portal/applications/${app.id}?tab=documents#request-${request.id}`);
     expect(notif!.applicationId).toBe(app.id);
     // body carries the human reason, never an internal id
     expect(notif!.body).toContain("Please resend the passport page.");
@@ -153,9 +153,9 @@ describe("§34 notifications — every required event produces a notification", 
     const staffRows = await db
       .select()
       .from(notifications)
-      .where(and(eq(notifications.userId, staff.id), eq(notifications.type, "DOCUMENTS_REQUIRED")));
+      .where(and(eq(notifications.userId, staff.id), eq(notifications.type, "DOCUMENT_REQUEST_FULFILLED")));
     expect(staffRows.length).toBeGreaterThan(0);
-    expect(staffRows.some((n) => n.link === `/admin/applications/${app.id}`)).toBe(true);
+    expect(staffRows.some((n) => n.link === `/admin/applications/${app.id}?tab=documents`)).toBe(true);
   });
 
   it("a status change notifies the agency, and the notification is human-readable", async () => {

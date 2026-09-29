@@ -11,6 +11,7 @@ export async function listDocumentRequests(applicationId: string) {
     .select({
       req: documentRequests,
       docTypeName: documentTypes.name,
+      docTypeCode: documentTypes.code,
     })
     .from(documentRequests)
     .innerJoin(documentTypes, eq(documentRequests.documentTypeId, documentTypes.id))
@@ -60,6 +61,9 @@ export async function requestDocumentReplacement(input: RequestReplacementInput)
     throw new AppError("FORBIDDEN", "Only staff can request document replacements.");
   }
   const access = await assertApplicationAccess(input.applicationId, input.actor);
+  if (access.isTerminal) {
+    throw new AppError("INVALID_STATE", "Document requests cannot be created for a closed application.");
+  }
 
   const itemRows = await db
     .select()
@@ -124,7 +128,7 @@ export async function requestDocumentReplacement(input: RequestReplacementInput)
     type: "DOCUMENT_REQUESTED",
     title: `Action required — ${item.documentTypeName} replacement requested`,
     body: reason,
-    link: `/portal/applications/${input.applicationId}`,
+    link: `/portal/applications/${input.applicationId}?tab=documents#request-${inserted[0]!.id}`,
     agencyId: access.agencyId,
     applicationId: input.applicationId,
   });
@@ -145,6 +149,9 @@ export async function requestAdditionalDocument(input: RequestAdditionalInput) {
     throw new AppError("FORBIDDEN", "Only staff can request additional documents.");
   }
   const access = await assertApplicationAccess(input.applicationId, input.actor);
+  if (access.isTerminal) {
+    throw new AppError("INVALID_STATE", "Document requests cannot be created for a closed application.");
+  }
 
   const dtRows = await db
     .select()
@@ -230,7 +237,7 @@ export async function requestAdditionalDocument(input: RequestAdditionalInput) {
     type: "DOCUMENT_REQUESTED",
     title: `Action required — additional document ${dt.name} requested`,
     body: reason,
-    link: `/portal/applications/${input.applicationId}`,
+    link: `/portal/applications/${input.applicationId}?tab=documents#request-${inserted[0]!.id}`,
     agencyId: access.agencyId,
     applicationId: input.applicationId,
   });

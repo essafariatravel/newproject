@@ -51,7 +51,7 @@ export async function getUiLocale(search?: Record<string, unknown>): Promise<UiL
 
 type ChromeKey =
   /* public header + footer */
-  | "Home" | "Visa Services" | "Destinations" | "B2B Services" | "Contact"
+  | "Home" | "Visa Services" | "Destinations" | "B2B Services" | "For Agencies" | "About" | "Contact"
   | "Sign in" | "Register your agency" | "B2B travel" | "Partner-only" | "Skip to content"
   | "Sign out" | "Language" | "All rights reserved." | "Platform" | "Company"
   | "Menu" | "Close menu"
@@ -59,7 +59,7 @@ type ChromeKey =
   | "Back Office" | "Agency Portal" | "B2B Agency Portal"
   | "Search" | "Search…"
   /* nav sections */
-  | "Overview" | "Operations" | "Partners" | "Finance" | "Configuration" | "Insights"
+  | "Overview" | "Operations" | "Partners" | "Finance" | "Configuration" | "Insights" | "Your agency" | "Workspace"
   /* nav items */
   | "Dashboard" | "Notifications" | "Applications" | "New Application" | "Applicants"
   | "Documents" | "Communications" | "Profile" | "Wallet & Transactions"
@@ -74,6 +74,8 @@ const FR: ChromeDict = {
   "Visa Services": "Services de visas",
   Destinations: "Destinations",
   "B2B Services": "Services B2B",
+  "For Agencies": "Pour les agences",
+  About: "À propos",
   Contact: "Contact",
   "Sign in": "Se connecter",
   "Register your agency": "Enregistrer votre agence",
@@ -96,6 +98,8 @@ const FR: ChromeDict = {
   Operations: "Opérations",
   Partners: "Partenaires",
   Finance: "Finance",
+  "Your agency": "Votre agence",
+  Workspace: "Espace de travail",
   Configuration: "Configuration",
   Insights: "Pilotage",
   Dashboard: "Tableau de bord",
@@ -128,6 +132,8 @@ const AR: ChromeDict = {
   "Visa Services": "خدمات التأشيرات",
   Destinations: "الوجهات",
   "B2B Services": "خدمات الشركات",
+  "For Agencies": "للوكالات",
+  About: "من نحن",
   Contact: "اتصل بنا",
   "Sign in": "تسجيل الدخول",
   "Register your agency": "سجّل وكالتك",
@@ -150,6 +156,8 @@ const AR: ChromeDict = {
   Operations: "العمليات",
   Partners: "الشركاء",
   Finance: "المالية",
+  "Your agency": "وكالتك",
+  Workspace: "مساحة العمل",
   Configuration: "الإعدادات",
   Insights: "الرؤى والتقارير",
   Dashboard: "لوحة التحكم",
@@ -193,13 +201,13 @@ export function chromeHas(locale: UiLocale, key: string): boolean {
 
 /** Every key a switcher-capable shell renders must exist in every dict. */
 export const ALL_CHROME_KEYS: ChromeKey[] = [
-  "Home", "Visa Services", "Destinations", "B2B Services", "Contact",
+  "Home", "Visa Services", "Destinations", "B2B Services", "For Agencies", "About", "Contact",
   "Sign in", "Register your agency", "B2B travel", "Partner-only", "Skip to content",
   "Sign out", "Language", "All rights reserved.", "Platform", "Company",
   "Menu", "Close menu",
   "Back Office", "Agency Portal", "B2B Agency Portal",
   "Search", "Search…",
-  "Overview", "Operations", "Partners", "Finance", "Configuration", "Insights",
+  "Overview", "Operations", "Partners", "Finance", "Configuration", "Insights", "Your agency", "Workspace",
   "Dashboard", "Notifications", "Applications", "New Application", "Applicants",
   "Documents", "Communications", "Profile", "Wallet & Transactions",
   "Agency Registrations", "Agencies", "Users", "Wallets & Billing",
@@ -256,6 +264,14 @@ export function localizedStatusName(
 }
 
 const DECISION_DOC_TYPE_LABELS: Record<string, Record<UiLocale, string>> = {
+  PASSPORT: { en: "Passport", fr: "Passeport", ar: "جواز السفر" },
+  PHOTO: { en: "Passport photo", fr: "Photo d’identité", ar: "صورة شخصية" },
+  PASSPORT_PHOTO: { en: "Passport photo", fr: "Photo d’identité", ar: "صورة شخصية" },
+  BANK_STATEMENT: { en: "Bank statement", fr: "Relevé bancaire", ar: "كشف حساب مصرفي" },
+  FLIGHT_RESERVATION: { en: "Flight reservation", fr: "Réservation de vol", ar: "حجز طيران" },
+  HOTEL_RESERVATION: { en: "Hotel reservation", fr: "Réservation d’hôtel", ar: "حجز فندق" },
+  TRAVEL_INSURANCE: { en: "Travel insurance", fr: "Assurance voyage", ar: "تأمين السفر" },
+
   DECISION_VISA_APPROVAL: {
     en: "Issued Visa / Approval Decision",
     fr: "Visa délivré / Décision d'approbation",

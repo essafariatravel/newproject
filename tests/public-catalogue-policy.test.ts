@@ -1,11 +1,8 @@
 /**
  * PHASE 2.1 regression — public catalogue/pricing policy.
  *
- * Visa programmes, categories, fees and the catalogue structure are private
- * B2B information (Agency Portal only). This guard scans the PUBLIC page
- * sources and fails if any of them re-introduces catalogue/pricing access:
- * not with CSS hiding — no fee/visa-type query or price formatter may exist
- * in public surfaces at all.
+ * Public pages may show the names of destinations with active visa products.
+ * Programme names, categories and fees remain private in the Agency Portal.
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
@@ -35,4 +32,14 @@ describe("public surfaces expose no B2B catalogue or pricing", () => {
       }
     });
   }
+
+  it("projects country names only from active visa coverage", () => {
+    const src = readFileSync("src/lib/public-destinations.ts", "utf8");
+    expect(src).toContain(".selectDistinct({");
+    expect(src).toContain("name: countries.name");
+    expect(src).toContain("eq(visaTypes.active, true)");
+    expect(src).toContain("eq(visaCategories.active, true)");
+    expect(src).toContain("eq(countries.active, true)");
+    expect(src).not.toMatch(/fee:\s*visaTypes\.fee|name:\s*visaTypes\.name|name:\s*visaCategories\.name/);
+  });
 });

@@ -16,20 +16,9 @@ export default function BrandMark({
   }
   return (
     <svg viewBox="0 0 40 40" className={className} aria-hidden>
-      <defs>
-        <linearGradient id="ess-mark-g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="var(--color-iris-400, #8290E6)" />
-          <stop offset="1" stopColor="var(--color-iris-600, #4A5BD0)" />
-        </linearGradient>
-      </defs>
-      <rect x="1" y="1" width="38" height="38" rx="13" fill="url(#ess-mark-g)" />
-      <rect x="1" y="1" width="38" height="38" rx="13" fill="none" stroke="#ffffff" strokeOpacity="0.25" strokeWidth="1" />
-      <path
-        d="M12 13.2h16v3.3H16.6v2.9h9.8v3.3h-9.8v2.9H28v3.3H12z"
-        fill="#ffffff"
-        fillOpacity="0.96"
-      />
-      <circle cx="31.5" cy="8.5" r="2.6" fill="var(--color-gold-400, #CBB287)" />
+      <circle cx="20" cy="20" r="17" fill="none" stroke="var(--color-gold-500, #C99A32)" strokeWidth="1.6" />
+      <ellipse cx="20" cy="20" rx="7.5" ry="17" fill="none" stroke="var(--color-gold-500, #C99A32)" strokeWidth="1.2" />
+      <path d="M3 20h34M7 11.5h26M7 28.5h26" fill="none" stroke="var(--color-gold-500, #C99A32)" strokeWidth="1.2" />
     </svg>
   );
 }

@@ -106,9 +106,9 @@ describe("Phase 2.3 — Bug 1 localization audit (hard guards)", () => {
     expect(src).not.toMatch(/>\s*CHOOSE\s*</);
     // Step labels are dictionary-driven; the pseudo-key "step.choose" is gone
     // because it leaked untranslated text into the rendered wizard.
-    expect(src).toContain('ct("Choose visa")');
-    expect(src).toContain('ct("Upload documents")');
-    expect(src).toContain('ct("Preview, confirm & submit")');
+    expect(src).toContain('ct("Visa & Traveller")');
+    expect(src).toContain('ct("Documents")');
+    expect(src).toContain('ct("Review & Submit")');
     expect(src).toContain("request.error.");
   });
 

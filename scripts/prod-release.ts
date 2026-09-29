@@ -1,10 +1,9 @@
 /**
  * Production release tooling — visa_os.
  *
- * CURRENT RELEASE SCOPE: migrations 0013 → 0017 on top of an approved baseline
- * of ledger 0001-0012 (live read-only Production audit, run 35993822270).
- * It supersedes the 0011+0012 release (authorization d2bb0d3, already applied
- * on 2026-09-23); older baselines stay in git history.
+ * CURRENT APPROVED STATE: post-release ledger 0001 → 0019 with no pending migrations.
+ * Counts/checksums remain explicitly human-approved values: live drift is
+ * NEVER adopted automatically. baseline-candidate is read-only evidence only.
  *
  * MODES
  *   audit   — READ-ONLY: ledger, columnsValid, protected counts, wallet/ledger
@@ -14,6 +13,8 @@
  *             red, report still published) when live Production does not match
  *             the approved baseline, so the pipeline can never call a drifted
  *             database "ready".
+ *   baseline-candidate — READ-ONLY current baseline values plus limited
+ *             record-review evidence. Never writes and never approves drift.
  *   apply   — surgical in-place restore point (per-table snapshot copies),
  *             then exactly the approved pending migrations via the same
  *             transactional runner used everywhere, then a postflight that
@@ -29,9 +30,10 @@
  *     search_path, so it cannot be fooled (or fail) on pooled session state.
  *   - The schema_migrations ledger MUST exist — this script never bootstraps a
  *     ledger on Production (a missing ledger means a mispointed database).
- *   - Pre-apply state must equal the approved baseline EXACTLY (ledger, counts,
+ *   - Live state must equal the approved baseline EXACTLY (ledger, counts,
  *     wallet checksum, agency balances), and the pending set must be exactly
- *     this release's migrations — an unexpected pending file aborts the run.
+ *     the authorized release scope — currently empty post-release. Any
+ *     unexpected pending file aborts the run.
  *   - Protected counts / wallet checksum / agency balances / branding must be
  *     identical afterwards, and column validation must end true.
  *
@@ -58,9 +60,18 @@ import { safeErrorCode, safeErrorText } from "../src/lib/safe-error";
 import { applyMigrations } from "./lib/migrations";
 
 
-const MODE = process.argv[2] === "apply" ? "apply" : "audit";
-const SCHEMA = "visa_os";
-const EXPECTED_SUPABASE_PROJECT = "xgetzgixalrsmuvfthpf";
+export type ReleaseMode = "audit" | "baseline-candidate" | "apply";
+export function resolveReleaseMode(value: string | undefined): ReleaseMode {
+  if (value === "apply" || value === "baseline-candidate") return value;
+  return "audit";
+}
+export function isReadOnlyMode(mode: ReleaseMode): boolean {
+  return mode !== "apply";
+}
+const MODE = resolveReleaseMode(process.argv[2]);
+export const PRODUCTION_SCHEMA = "visa_os";
+export const EXPECTED_SUPABASE_PROJECT = "xgetzgixalrsmuvfthpf";
+const SCHEMA = PRODUCTION_SCHEMA;
 const STAMP = new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 12);
 const SNAP = (t: string) => `visa_os._restore_${STAMP}_${t}`;
 const MIGRATIONS_DIR = () => path.join(process.cwd(), "migrations");
@@ -70,13 +81,7 @@ const MIGRATIONS_DIR = () => path.join(process.cwd(), "migrations");
  * path refuses to run when the pending set is not exactly this list, so a later
  * migration cannot ride along on this authorization.
  */
-export const RELEASE_SCOPE = [
-  "0013_embassy_applicability.sql",
-  "0014_wallet_topup_requests.sql",
-  "0015_schema_safe_references.sql",
-  "0016_document_type_audience.sql",
-  "0017_decision_types_audience.sql",
-] as const;
+export const RELEASE_SCOPE = [] as const;
 
 const PROTECTED_COUNTS = [
   "users",
@@ -103,6 +108,7 @@ const SNAPSHOT_TABLES = [
   "agencies",
   "users",
   "currencies",
+  "visa_categories",
   "visa_types",
   "document_types",
   "wallet_transactions",
@@ -112,15 +118,10 @@ const SNAPSHOT_TABLES = [
 ] as const;
 
 /**
- * The EXACT pre-apply state approved for THIS release.
- * Source of truth: the read-only Production audit published on commit 2f41668
- * (workflow run 35993822270, 2026-09-24) — ledger 0001-0012 with the live
- * protected counts, wallet-ledger checksum and agency-balance checksum captured
- * at that moment. Production is a live system: if any of these move before
- * authorization, the apply path refuses and the baseline must be re-approved.
- * `columnsValid` is expected to be FALSE pre-migration here — the release code
- * requires document_types.agency_uploadable (0016), which is exactly what this
- * release adds.
+ * The EXACT verified post-release Production state.
+ * Ledger 0001-0019 is the approved schema state and no migrations are pending.
+ * Counts/checksums remain explicit human-approved values; audit and
+ * baseline-candidate can never auto-accept drift.
  */
 export const APPROVED_BASELINE = {
   ledger: [
@@ -136,28 +137,35 @@ export const APPROVED_BASELINE = {
     "0010_simplified_applicant.sql",
     "0011_dzd_only_and_wallet_ref.sql",
     "0012_document_requests.sql",
+    "0013_embassy_applicability.sql",
+    "0014_wallet_topup_requests.sql",
+    "0015_schema_safe_references.sql",
+    "0016_document_type_audience.sql",
+    "0017_decision_types_audience.sql",
+    "0018_session_presence.sql",
+    "0019_config_translations.sql",
   ] as const,
   counts: {
     users: 4,
     agencies: 4,
     applications: 2,
     applicants: 2,
-    notifications: 29,
+    notifications: 31,
     communications: 0,
-    audit_logs: 64,
+    audit_logs: 67,
     site_settings: 13,
     documents: 6,
     document_blobs: 8,
     checklist_items: 4,
-    wallet_transactions: 3,
+    wallet_transactions: 4,
     application_status_history: 8,
   } as Record<string, number>,
-  walletChecksum: "8508159c7279636306f48efd9ddf30ac",
-  agencyWalletsChecksum: "0f091712b9965c5802b0811bfe07acaa",
+  walletChecksum: "9df70462ea533466b9b4c253d6208a89",
+  agencyWalletsChecksum: "9d29f5a06c17e89b105bc1073e647c4f",
 };
 
-/** Ledger state once this release has been applied. */
-export const TARGET_LEDGER = [...APPROVED_BASELINE.ledger, ...RELEASE_SCOPE];
+/** Current fully applied approved ledger. */
+export const TARGET_LEDGER = [...APPROVED_BASELINE.ledger];
 
 export const PROJECT_USER = `postgres.${EXPECTED_SUPABASE_PROJECT}`;
 
@@ -189,8 +197,9 @@ export interface SnapshotReport {
 async function inSchema<T>(
   client: import("pg").PoolClient,
   fn: (c: import("pg").PoolClient) => Promise<T>,
+  readOnly = false,
 ): Promise<T> {
-  await client.query("begin");
+  await client.query(readOnly ? "begin read only" : "begin");
   try {
     await client.query(`set local search_path to ${SCHEMA}`);
     const out = await fn(client);
@@ -237,6 +246,16 @@ async function listRestoreSnapshots(client: import("pg").PoolClient): Promise<st
  * The single source of truth for "is Production in the approved pre-apply
  * state?" — used by the read-only audit (verdict) and by apply (hard guard).
  */
+export function releaseManifestFindings(
+  pending: readonly string[],
+  releaseScope: readonly string[] = RELEASE_SCOPE,
+): string[] {
+  if (ledgerEquals(pending, releaseScope)) return [];
+  return [
+    `pending migration set is not this release: pending=[${pending.join(", ") || "none"}] release=[${releaseScope.join(", ")}]`,
+  ];
+}
+
 export function preflightFindings(live: SnapshotReport, pending: readonly string[]): string[] {
   const mismatches: string[] = [];
   if (!ledgerEquals(live.ledger, APPROVED_BASELINE.ledger)) {
@@ -261,11 +280,7 @@ export function preflightFindings(live: SnapshotReport, pending: readonly string
       `agency balances checksum differs: live=${live.agencyWallets} expected=${APPROVED_BASELINE.agencyWalletsChecksum}`,
     );
   }
-  if (!ledgerEquals(pending, RELEASE_SCOPE)) {
-    mismatches.push(
-      `pending migration set is not this release: pending=[${pending.join(", ") || "none"}] release=[${RELEASE_SCOPE.join(", ")}]`,
-    );
-  }
+  mismatches.push(...releaseManifestFindings(pending));
   return mismatches;
 }
 
@@ -273,9 +288,11 @@ export function preflightFindings(live: SnapshotReport, pending: readonly string
 export function projectGuardFindings(url: string): string[] {
   try {
     const parsed = new URL(url);
-    const username = decodeURIComponent(parsed.username);
-    if (parsed.hostname.includes("pooler.supabase.com") && username !== PROJECT_USER) {
-      return [`pooler username '${username}' is not '${PROJECT_USER}' (identity of the approved production project)`];
+    if (!targetsSupabaseProject(url, EXPECTED_SUPABASE_PROJECT)) {
+      const username = decodeURIComponent(parsed.username);
+      return [
+        `database target host='${parsed.hostname}' username='${username}' is not the approved Production Supabase project '${EXPECTED_SUPABASE_PROJECT}'`,
+      ];
     }
     return [];
   } catch {
@@ -371,6 +388,32 @@ async function collect(client: import("pg").PoolClient, notes: string[]): Promis
   return report;
 }
 
+export interface BaselineReview {
+  walletTransactions: Array<Record<string, unknown>>;
+  agencyBalances: Array<Record<string, unknown>>;
+  recentNotifications: Array<Record<string, unknown>>;
+}
+
+async function collectBaselineReview(client: import("pg").PoolClient): Promise<BaselineReview> {
+  const wallet = await client.query(
+    `select id, reference, agency_id, application_id, type, amount::text, currency,
+            balance_before::text, balance_after::text, reason, actor_id, created_at
+       from visa_os.wallet_transactions order by created_at, id`,
+  );
+  const agencies = await client.query(
+    `select id, legal_name, balance::text, currency, updated_at
+       from visa_os.agencies order by legal_name, id`,
+  );
+  const notifications = await client.query(
+    `select id, user_id, agency_id, application_id, type, link, read_at, created_at
+       from visa_os.notifications order by created_at desc, id desc limit 20`,
+  );
+  return {
+    walletTransactions: wallet.rows,
+    agencyBalances: agencies.rows,
+    recentNotifications: notifications.rows,
+  };
+}
 function diffReport(before: SnapshotReport, after: SnapshotReport): string[] {
   const findings: string[] = [];
   for (const table of PROTECTED_COUNTS) {
@@ -446,6 +489,43 @@ function renderReport(
   return lines.join("\n");
 }
 
+function renderBaselineCandidate(
+  head: string,
+  snapshot: SnapshotReport,
+  pending: string[],
+  snapshots: string[],
+  review: BaselineReview,
+): string {
+  const candidate = {
+    ledger: snapshot.ledger,
+    counts: snapshot.counts,
+    walletChecksum: snapshot.walletChecksum,
+    agencyWalletsChecksum: snapshot.agencyWallets,
+  };
+  return [
+    "### Production baseline candidate — READ ONLY",
+    "",
+    "```",
+    `host: ${head}`,
+    `schema: ${SCHEMA}`,
+    `release scope: [${RELEASE_SCOPE.join(", ")}]`,
+    `pending migrations: [${pending.join(", ") || "none"}]`,
+    `candidate baseline JSON: ${JSON.stringify(candidate)}`,
+    `existing restore points: [${snapshots.join(", ") || "none"}]`,
+    "",
+    "REVIEW EVIDENCE — wallet transactions:",
+    JSON.stringify(review.walletTransactions),
+    "",
+    "REVIEW EVIDENCE — agency balances:",
+    JSON.stringify(review.agencyBalances),
+    "",
+    "REVIEW EVIDENCE — latest 20 notifications (content omitted):",
+    JSON.stringify(review.recentNotifications),
+    "",
+    "CANDIDATE ONLY — NOT APPROVED. Update APPROVED_BASELINE in source only after human review.",
+    "```",
+  ].join("\n");
+}
 let TARGET_DESCRIPTOR = "(unresolved)";
 
 function describeTarget(value: string): string {
@@ -476,6 +556,9 @@ async function main(): Promise<void> {
     if (err instanceof Error && err.message.startsWith("DATABASE_URL")) throw err;
     fail("DATABASE_URL is not parseable.");
   }
+  const projectFindings = projectGuardFindings(url);
+  if (projectFindings.length) fail(projectFindings.join("\n - "));
+  projectNote = `targets the recorded project ${EXPECTED_SUPABASE_PROJECT}`;
   if ((process.env.DATABASE_SCHEMA ?? "").trim() !== SCHEMA) {
     fail(`DATABASE_SCHEMA must be exactly '${SCHEMA}' for this tool (got '${process.env.DATABASE_SCHEMA ?? ""}'). Refusing to run.`);
   }
@@ -489,7 +572,8 @@ async function main(): Promise<void> {
       // Identity probe: must run in the same transaction as the `set local`, so
       // the answer is the *live* schema of this release's connection and can
       // never be a stale/default-schema artefact of the pooler.
-      await inSchema(client, async (probe) => {
+      const readOnly = isReadOnlyMode(MODE);
+      const collected = await inSchema(client, async (probe) => {
         const who = await probe.query("select current_database() as db, current_schema() as sc");
         if (who.rows[0].sc !== SCHEMA) {
           fail(
@@ -501,22 +585,42 @@ async function main(): Promise<void> {
         if (!ledgerProbe.rows[0].t) {
           fail("Production migration ledger is missing — this is not a managed Production database state. Nothing was changed.");
         }
-      });
-      notes.push(`connected: database=${dbName} schema=${SCHEMA}; ${projectNote}`);
-      before = await collect(client, notes);
+        notes.push(`connected: database=${dbName} schema=${SCHEMA}; ${projectNote}`);
+        return readOnly ? collect(probe, notes) : null;
+      }, readOnly);
+      before = collected ?? await collect(client, notes);
     } finally {
       client.release();
     }
 
-    if (MODE === "audit") {
+    if (MODE === "audit" || MODE === "baseline-candidate") {
       const pending = pendingMigrations(before.ledger);
-      const mismatches = [...preflightFindings(before, pending), ...projectGuardFindings(url)];
+      const mismatches = preflightFindings(before, pending);
       const snapClientForAudit = await pool.connect();
       let snapshots: string[] = [];
+      let review: BaselineReview | null = null;
       try {
-        snapshots = await listRestoreSnapshots(snapClientForAudit);
+        const inspection = await inSchema(snapClientForAudit, async (probe) => ({
+          snapshots: await listRestoreSnapshots(probe),
+          review: MODE === "baseline-candidate" ? await collectBaselineReview(probe) : null,
+        }), true);
+        snapshots = inspection.snapshots;
+        review = inspection.review;
       } finally {
         snapClientForAudit.release();
+      }
+      if (MODE === "baseline-candidate") {
+        const md = renderBaselineCandidate(
+          host,
+          before,
+          pending,
+          snapshots,
+          review ?? { walletTransactions: [], agencyBalances: [], recentNotifications: [] },
+        );
+        fs.writeFileSync("/tmp/prod-release-report.md", md);
+        console.log(md);
+        console.log("BASELINE CANDIDATE GENERATED READ-ONLY — no Production data or approved baseline was changed.");
+        return;
       }
       const md = renderReport("audit", host, before, null, [], [], { pending, mismatches, snapshots });
       fs.writeFileSync("/tmp/prod-release-report.md", md);
@@ -528,7 +632,7 @@ async function main(): Promise<void> {
         process.exitCode = 2;
       } else {
         console.log(
-          `PREFLIGHT VERDICT: READY — live Production matches the approved baseline exactly; ${pending.length} approved migration(s) pending (${pending.join(", ")}).`,
+          `PREFLIGHT VERDICT: READY — live Production matches the approved baseline exactly; pending migrations: [${pending.join(", ") || "none"}].`,
         );
       }
       return;
@@ -542,10 +646,10 @@ async function main(): Promise<void> {
         const md = renderReport("apply", host, before, before, [], [], { pending, mismatches: [], snapshots: [] });
         fs.writeFileSync(
           "/tmp/prod-release-report.md",
-          md + "\n\nMIGRATIONS ALREADY APPLIED (ledger complete 0001-0017) — no-op run; restore point not recreated.\n",
+          md + "\n\nMIGRATIONS ALREADY APPLIED (ledger complete 0001-0019) — no-op run; restore point not recreated.\n",
         );
         console.log(md);
-        console.log("migrations already applied — ledger complete 0001-0017; exiting as successful no-op.");
+        console.log("migrations already applied — ledger complete 0001-0019; exiting as successful no-op.");
         pool.end();
         return;
       }

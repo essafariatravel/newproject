@@ -18,6 +18,7 @@
  *   marking a broken login/catalogue as ready.
  */
 import { spawnSync } from "node:child_process";
+import { automaticDatabaseChangesForbidden } from "./lib/build-policy";
 
 function run(script: string, args: string[]): number {
   const result = spawnSync(process.execPath, [script, ...args], { stdio: "inherit" });
@@ -27,8 +28,11 @@ function run(script: string, args: string[]): number {
 function main(): void {
   const isVercelPreview = process.env.VERCEL === "1" && process.env.VERCEL_ENV === "preview";
   const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
+  const databaseChangesForbidden = automaticDatabaseChangesForbidden(process.env.VERCEL_GIT_COMMIT_REF);
 
-  if (isVercelPreview && hasDatabaseUrl) {
+  if (databaseChangesForbidden && isVercelPreview) {
+    console.log("[build] Protected Preview branch: database migrations, seeding, and bootstrap verification are disabled.");
+  } else if (isVercelPreview && hasDatabaseUrl) {
     console.log("[build] Vercel Preview build with DATABASE_URL: applying migrations if any are outstanding.");
     if (run("node_modules/tsx/dist/cli.mjs", ["scripts/migrate.ts"]) !== 0) {
       console.error("[build] Migration failed. Deployment stopped; no seed will run.");

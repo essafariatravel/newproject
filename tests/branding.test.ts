@@ -35,7 +35,7 @@ describe("white-label branding", () => {
   it("falls back to defaults when nothing is configured", async () => {
     const b = await readBranding();
     expect(b.primary).toBe(BRANDING_DEFAULTS.primary);
-    expect(b.radius).toBe("soft");
+    expect(b.radius).toBe(BRANDING_DEFAULTS.radius);
     expect(b.logoKey).toBeNull();
   });
 

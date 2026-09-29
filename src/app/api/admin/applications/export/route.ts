@@ -123,7 +123,7 @@ export async function GET(request: Request) {
     });
   }
 
-  return new NextResponse(toCsv(columns, data), {
+  return new NextResponse(toCsv(columns, data, { locale, excel: true }), {
     headers: {
       ...headers,
       "Content-Type": "text/csv; charset=utf-8",

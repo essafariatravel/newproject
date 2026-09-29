@@ -1,3 +1,4 @@
+import { validateDocumentFormat } from "@/lib/upload-validation";
 /* ------------------------------------------------------------------ */
 /* Atomic 3-step visa request submission (Phase 2.3 §5–§12)            */
 /*                                                                     */
@@ -34,7 +35,7 @@ import {
   visaTypes,
 } from "@/db/schema";
 import type { AuthUser } from "@/lib/types";
-import { AppError, ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES } from "@/lib/types";
+import { AppError, ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES, isAgencyRole } from "@/lib/types";
 import { buildStorageKey, storageProvider } from "@/lib/storage";
 import { isValidNationality } from "@/lib/nationalities";
 
@@ -149,6 +150,8 @@ interface VisaConfigRow {
 }
 
 interface RequirementRow {
+  nameFr?: string | null;
+  nameAr?: string | null;
   documentTypeId: string;
   name: string;
   code: string;
@@ -163,6 +166,7 @@ export async function listRequirementsForVisaType(visaTypeId: string): Promise<R
     .select({
       documentTypeId: documentTypes.id,
       name: documentTypes.name,
+      nameFr: documentTypes.nameFr, nameAr: documentTypes.nameAr,
       code: documentTypes.code,
       required: visaRequirements.required,
       sortOrder: visaRequirements.sortOrder,
@@ -252,6 +256,7 @@ function validateRequest(
       }
       const nameProblem = fileNameProblem(file.name);
       if (nameProblem) err("INVALID_FILENAME", fileNameErrorMessage(nameProblem));
+      validateDocumentFormat(file);
       usable.push(f);
     }
   }
@@ -264,13 +269,13 @@ function validateRequest(
  */
 export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<SubmitVisaRequestResult> {
   const agencyId = input.actor.agencyId;
-  if (!agencyId) throw new AppError("FORBIDDEN", "Only agency users can submit requests.");
+  if (!agencyId || !isAgencyRole(input.actor.role) || input.actor.mustChangePassword) throw new AppError("FORBIDDEN", "Only agency users can submit requests.");
 
   // Idempotent retry? — return the existing application without charging again.
   const pre = await db
     .select({ id: applications.id, reference: applications.reference })
     .from(applications)
-    .where(eq(applications.idempotencyKey, input.idempotencyKey))
+    .where(and(eq(applications.idempotencyKey, input.idempotencyKey), eq(applications.agencyId, agencyId)))
     .limit(1);
   if (pre[0]) {
     return {
@@ -359,8 +364,8 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
     // Idempotency, re-checked inside the transaction (covers races between the
     // pre-check above and commit).
     const existing = await client.query<{ id: string; reference: string }>(
-      `select id, reference from ${qualifiedTable("applications")} where idempotency_key = $1 limit 1`,
-      [input.idempotencyKey],
+      `select id, reference from ${qualifiedTable("applications")} where idempotency_key = $1 and agency_id = $2 limit 1`,
+      [input.idempotencyKey, agencyId],
     );
     if (existing.rows[0]) {
       await client.query("commit");
@@ -405,7 +410,7 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
           const winner = await db
             .select({ id: applications.id, reference: applications.reference })
             .from(applications)
-            .where(eq(applications.idempotencyKey, input.idempotencyKey))
+            .where(and(eq(applications.idempotencyKey, input.idempotencyKey), eq(applications.agencyId, agencyId)))
             .limit(1);
           await Promise.allSettled(writtenKeys.map((k) => storageProvider().delete(k)));
           if (winner[0]) {

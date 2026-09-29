@@ -1,3 +1,4 @@
+import { businessLabel, businessReason } from "@/lib/business-labels";
 import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
@@ -167,7 +168,7 @@ export default async function AdminBillingPage({
                     </td>
                     <td className="td">
                       <span className={`badge ${tx.type === "CREDIT" || tx.type === "COMMERCIAL_DISCOUNT" ? "bg-emerald-100 text-emerald-800" : tx.type === "DEBIT" || tx.type === "COMMERCIAL_SURCHARGE" ? "bg-red-100 text-red-700" : "bg-navy-900/5 text-navy-800"}`}>
-                        {tx.type.replaceAll("_", " ")}
+                        {businessLabel(tx.type, uiLocale)}
                       </span>
                     </td>
                     <td className={`td whitespace-nowrap font-medium tabular-nums ${tx.type === "CREDIT" || tx.type === "COMMERCIAL_DISCOUNT" ? "text-emerald-700" : "text-red-700"}`}>
@@ -185,7 +186,7 @@ export default async function AdminBillingPage({
                         "—"
                       )}
                     </td>
-                    <td className="td max-w-[260px] truncate text-xs text-slate-500" title={tx.reason}>{tx.reason}</td>
+                    <td className="td max-w-[260px] truncate text-xs text-slate-500" title={businessReason(tx.reason, tx.type, applicationReference, uiLocale)}>{businessReason(tx.reason, tx.type, applicationReference, uiLocale)}</td>
                   </tr>
                 ))}
               </tbody>

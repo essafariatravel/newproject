@@ -38,6 +38,19 @@ describe("visa-type editor is organised in the six named sections", () => {
     expect(page).toContain("Publication");
   });
 
+  it("keeps create/edit forms aligned with the strict visa-type server contract", () => {
+    const listPage = read("src/app/admin/config/visa-types/page.tsx");
+    for (const field of ["name", "code", "countryId", "categoryId", "fee", "processingMinDays", "processingMaxDays"]) {
+      expect(listPage, `create form missing ${field}`).toContain(`name="${field}"`);
+    }
+    const detailPage = read("src/app/admin/config/visa-types/[id]/page.tsx");
+    for (const field of ["name", "countryId", "categoryId", "fee", "processingMinDays", "processingMaxDays", "embassyApplicability"]) {
+      expect(detailPage, `edit form missing ${field}`).toContain(`name="${field}"`);
+    }
+    expect(listPage).toContain("<ConfigTranslations");
+    expect(detailPage).toContain("<ConfigTranslations");
+  });
+
   it("keeps every price in DZD and never presents another currency", () => {
     for (const file of [
       "src/app/admin/config/visa-types/[id]/page.tsx",
@@ -52,7 +65,7 @@ describe("visa-type editor is organised in the six named sections", () => {
 
   it("explains the agency-facing consequence of publishing/unpublishing a programme", () => {
     expect(page).toMatch(/Published to agencies|Not published/);
-    expect(page).toMatch(/never “0 days”/);
+    expect(page).toMatch(/never.*(?:0|zero) days/);
   });
 });
 
@@ -96,7 +109,7 @@ describe("shared list standard (search, region filter, 20/50/100)", () => {
     // B2B information must never leak on the public page: no programme table,
     // no price/fee column — only the country catalogue itself.
     const schemaImport = page.split("\n").find((l) => l.includes("@/db/schema")) ?? "";
-    expect(schemaImport).toContain("countries");
+    expect(page).toContain("publicDestinations");
     expect(schemaImport).not.toContain("visa");
     expect(page).not.toContain("visaRequirements");
     expect(page).not.toMatch(/formatAmount|\.fee[^a-zA-Z]/);

@@ -11,9 +11,12 @@ import { db } from "@/lib/db";
 import {
   applicationStatusHistory,
   applications,
+  checklistItems,
   countries,
   currencies,
   documentTypes,
+  documentRequests,
+  documents,
   priorities,
   statusTransitions,
   statuses,
@@ -115,6 +118,10 @@ export async function deleteCountryAction(formData: FormData): Promise<void> {
 /* --------------------------- visa categories --------------------------- */
 
 const categorySchema = z.object({
+  nameFr: z.string().trim().max(120).optional().nullable(),
+  nameAr: z.string().trim().max(120).optional().nullable(),
+  descriptionFr: z.string().trim().max(1000).optional().nullable(),
+  descriptionAr: z.string().trim().max(1000).optional().nullable(),
   name: z.string().trim().min(2).max(60),
   code: codeSchema,
   description: z.string().trim().max(500).optional().nullable(),
@@ -143,7 +150,9 @@ export async function updateVisaCategoryAction(formData: FormData): Promise<void
       await db.update(visaCategories).set({ active: sql`not ${visaCategories.active}`, updatedAt: new Date() }).where(eq(visaCategories.id, id));
       await recordAudit({ actor: staff, action: "CONFIG_CATEGORY_TOGGLED", entity: "visa_category", entityId: id });
     } else {
-      const data = categorySchema.parse(Object.fromEntries(formData));
+      const existing = (await db.select().from(visaCategories).where(eq(visaCategories.id, id)).limit(1))[0];
+      if (!existing) throw new AppError("NOT_FOUND", "Category not found.");
+      const data = categorySchema.parse({ ...Object.fromEntries(formData), code: existing.code });
       await db.update(visaCategories).set({ ...data, updatedAt: new Date() }).where(eq(visaCategories.id, id));
       await recordAudit({ actor: staff, action: "CONFIG_CATEGORY_UPDATED", entity: "visa_category", entityId: id });
     }
@@ -154,7 +163,31 @@ export async function updateVisaCategoryAction(formData: FormData): Promise<void
 
 /* ------------------------------ visa types ----------------------------- */
 
+export async function deleteVisaCategoryAction(formData: FormData): Promise<void> {
+  await runAction("/admin/config/visa-categories", async () => {
+    const staff = await requireStaff();
+    requirePermission(staff, "config.manage");
+    const id = idSchema.parse(formData.get("id"));
+    const category = await db.transaction(async (tx) => {
+      // Lock the parent while checking references; concurrent FK inserts wait.
+      const row = (await tx.select().from(visaCategories).where(eq(visaCategories.id, id)).for("update"))[0];
+      if (!row) throw new AppError("NOT_FOUND", "Category not found.");
+      const references = await tx.select({ id: visaTypes.id }).from(visaTypes).where(eq(visaTypes.categoryId, id)).limit(1);
+      if (references.length) throw new AppError("REFERENCED", "This category is used by visa types. Deactivate it instead.");
+      await tx.delete(visaCategories).where(eq(visaCategories.id, id));
+      return row;
+    });
+    await recordAudit({ actor: staff, action: "CONFIG_CATEGORY_DELETED", entity: "visa_category", entityId: id, metadata: { code: category.code, mode: "hard" } });
+    revalidatePath("/admin/config/visa-categories");
+    return `Category "${category.name}" deleted.`;
+  });
+}
+
 const visaTypeSchema = z.object({
+  nameFr: z.string().trim().max(120).optional().nullable(),
+  nameAr: z.string().trim().max(120).optional().nullable(),
+  descriptionFr: z.string().trim().max(1000).optional().nullable(),
+  descriptionAr: z.string().trim().max(1000).optional().nullable(),
   countryId: idSchema,
   categoryId: idSchema,
   name: z.string().trim().min(2).max(120),
@@ -201,7 +234,9 @@ export async function updateVisaTypeAction(formData: FormData): Promise<void> {
       await db.update(visaTypes).set({ active: sql`not ${visaTypes.active}`, updatedAt: new Date() }).where(eq(visaTypes.id, id));
       await recordAudit({ actor: staff, action: "CONFIG_VISA_TYPE_TOGGLED", entity: "visa_type", entityId: id });
     } else {
-      const data = visaTypeSchema.parse(Object.fromEntries(formData));
+      const existing = (await db.select().from(visaTypes).where(eq(visaTypes.id, id)).limit(1))[0];
+      if (!existing) throw new AppError("NOT_FOUND", "Visa type not found.");
+      const data = visaTypeSchema.parse({ ...Object.fromEntries(formData), code: existing.code });
       await db.update(visaTypes).set({ ...data, fee: data.fee.toFixed(2), currency: "DZD", updatedAt: new Date() }).where(eq(visaTypes.id, id));
       await recordAudit({
         actor: staff,
@@ -219,6 +254,28 @@ export async function updateVisaTypeAction(formData: FormData): Promise<void> {
 }
 
 /* ----------------------------- requirements ---------------------------- */
+
+export async function deleteVisaTypeAction(formData: FormData): Promise<void> {
+  await runAction("/admin/config/visa-types", async () => {
+    const staff = await requireStaff();
+    requirePermission(staff, "config.manage");
+    const id = idSchema.parse(formData.get("id"));
+    const visaType = await db.transaction(async (tx) => {
+      const row = (await tx.select().from(visaTypes).where(eq(visaTypes.id, id)).for("update"))[0];
+      if (!row) throw new AppError("NOT_FOUND", "Visa type not found.");
+      const applicationRefs = await tx.select({ id: applications.id }).from(applications).where(eq(applications.visaTypeId, id)).limit(1);
+      const requirementRefs = await tx.select({ id: visaRequirements.id }).from(visaRequirements).where(eq(visaRequirements.visaTypeId, id)).limit(1);
+      // Explicitly block the schema's requirement cascade: deletion never removes related configuration.
+      if (applicationRefs.length || requirementRefs.length) throw new AppError("REFERENCED", "This visa type has applications or document requirements. Deactivate it instead.");
+      await tx.delete(visaTypes).where(eq(visaTypes.id, id));
+      return row;
+    });
+    await recordAudit({ actor: staff, action: "CONFIG_VISA_TYPE_DELETED", entity: "visa_type", entityId: id, metadata: { code: visaType.code, mode: "hard" } });
+    revalidatePath("/admin/config/visa-types");
+    revalidatePath("/visas");
+    return `Visa type "${visaType.name}" deleted.`;
+  });
+}
 
 export async function addRequirementAction(formData: FormData): Promise<void> {
   const visaTypeId = idSchema.parse(formData.get("visaTypeId"));
@@ -291,6 +348,10 @@ export async function removeRequirementAction(formData: FormData): Promise<void>
 /* ---------------------------- document types --------------------------- */
 
 const docTypeSchema = z.object({
+  nameFr: z.string().trim().max(120).optional().nullable(),
+  nameAr: z.string().trim().max(120).optional().nullable(),
+  descriptionFr: z.string().trim().max(1000).optional().nullable(),
+  descriptionAr: z.string().trim().max(1000).optional().nullable(),
   name: z.string().trim().min(2).max(80),
   code: codeSchema,
   description: z.string().trim().max(500).optional().nullable(),
@@ -328,15 +389,15 @@ export async function updateDocumentTypeAction(formData: FormData): Promise<void
         .update(documentTypes)
         .set({
           active: sql`not ${documentTypes.active}`,
-          agencyUploadable: docTypeSchema.shape.agencyUploadable.parse(formData.get("agencyUploadable") ?? "1"),
-          // toggling activation never re-classifies who provides a document
-          // beyond what the form carried (hidden field keeps the current value)
+          // Activation does not change the configured document origin.
           updatedAt: new Date(),
         })
         .where(eq(documentTypes.id, id));
       await recordAudit({ actor: staff, action: "CONFIG_DOCUMENT_TYPE_TOGGLED", entity: "document_type", entityId: id });
     } else {
-      const data = docTypeSchema.parse(Object.fromEntries(formData));
+      const existing = (await db.select().from(documentTypes).where(eq(documentTypes.id, id)).limit(1))[0];
+      if (!existing) throw new AppError("NOT_FOUND", "Document type not found.");
+      const data = docTypeSchema.parse({ ...Object.fromEntries(formData), code: existing.code });
       await db.update(documentTypes).set({ ...data, updatedAt: new Date() }).where(eq(documentTypes.id, id));
       await recordAudit({ actor: staff, action: "CONFIG_DOCUMENT_TYPE_UPDATED", entity: "document_type", entityId: id });
     }
@@ -346,6 +407,30 @@ export async function updateDocumentTypeAction(formData: FormData): Promise<void
 }
 
 /* ------------------------------ currencies ----------------------------- */
+
+export async function deleteDocumentTypeAction(formData: FormData): Promise<void> {
+  await runAction("/admin/config/document-types", async () => {
+    const staff = await requireStaff();
+    requirePermission(staff, "config.manage");
+    const id = idSchema.parse(formData.get("id"));
+    const docType = await db.transaction(async (tx) => {
+      const row = (await tx.select().from(documentTypes).where(eq(documentTypes.id, id)).for("update"))[0];
+      if (!row) throw new AppError("NOT_FOUND", "Document type not found.");
+      const requirements = await tx.select({ id: visaRequirements.id }).from(visaRequirements).where(eq(visaRequirements.documentTypeId, id)).limit(1);
+      const checklists = await tx.select({ id: checklistItems.id }).from(checklistItems).where(eq(checklistItems.documentTypeId, id)).limit(1);
+      const uploads = await tx.select({ id: documents.id }).from(documents).where(eq(documents.documentTypeId, id)).limit(1);
+      const requests = await tx.select({ id: documentRequests.id }).from(documentRequests).where(eq(documentRequests.documentTypeId, id)).limit(1);
+      if (requirements.length || checklists.length || uploads.length || requests.length) {
+        throw new AppError("REFERENCED", "This document type is used by requirements, checklists or document history. Deactivate it instead.");
+      }
+      await tx.delete(documentTypes).where(eq(documentTypes.id, id));
+      return row;
+    });
+    await recordAudit({ actor: staff, action: "CONFIG_DOCUMENT_TYPE_DELETED", entity: "document_type", entityId: id, metadata: { code: docType.code, mode: "hard" } });
+    revalidatePath("/admin/config/document-types");
+    return `Document type "${docType.name}" deleted.`;
+  });
+}
 
 const currencySchema = z.object({
   code: z.string().trim().length(3, "Currency code must be 3 letters.").transform((v) => v.toUpperCase()),

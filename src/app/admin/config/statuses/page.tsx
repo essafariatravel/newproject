@@ -1,4 +1,6 @@
 import { pageUser } from "@/lib/page-auth";
+import { getUiLocale, localizedStatusName } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 import { hasPermission } from "@/lib/rbac";
 import { listStatuses, listTransitions } from "@/lib/applications";
 import { flashFrom } from "@/lib/action-helpers";
@@ -22,8 +24,10 @@ export default async function StatusesConfigPage({
 }) {
   const sp = await searchParams;
   const staff = await pageUser();
+  const locale = await getUiLocale();
+  const ct = contentT(locale);
   if (!hasPermission(staff, "config.view")) {
-    return <div className="card"><EmptyState title="Not authorized" /></div>;
+    return <div className="card"><EmptyState title={ct("Not authorized")} /></div>;
   }
   const flash = flashFrom(sp);
   const [rows, transitions] = await Promise.all([listStatuses(), listTransitions()]);
@@ -38,34 +42,34 @@ export default async function StatusesConfigPage({
   return (
     <>
       <PageHeader
-        title="Statuses & transitions"
-        subtitle="The application workflow is data-driven: statuses below and their permitted transitions."
+        title={ct("Statuses & transitions")}
+        subtitle={ct("The application workflow is data-driven: statuses below and their permitted transitions.")}
       />
       <Flash {...flash} />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card>
-          <CardHeader title="Status catalog" />
+          <CardHeader title={ct("Status catalog")} />
           <TableWrap>
             <thead className="border-b border-slate-100 bg-ivory-50/60">
               <tr>
-                <th className="th">Status</th>
-                <th className="th">Code</th>
-                <th className="th">Flags</th>
-                <th className="th">Status</th>
-                {canManage ? <th className="th">Actions</th> : null}
+                <th className="th">{ct("Status")}</th>
+                <th className="th">{ct("Code")}</th>
+                <th className="th">{ct("Flags")}</th>
+                <th className="th">{ct("Status")}</th>
+                {canManage ? <th className="th">{ct("Actions")}</th> : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {rows.map((s) => (
                 <tr key={s.id} className="tr-hover">
-                  <td className="td"><StatusBadge code={s.code} name={s.name} /></td>
+                  <td className="td"><StatusBadge code={s.code} name={localizedStatusName(s.code, s.name, locale, s.nameFr, s.nameAr)} /></td>
                   <td className="td text-xs text-slate-500">{s.code}</td>
                   <td className="td">
-                    {s.isTerminal ? <span className="badge bg-slate-200 text-slate-600">Terminal</span> : null}
-                    {s.isDraft ? <span className="badge bg-ivory-100 text-slate-600">Draft-like</span> : null}
+                    {s.isTerminal ? <span className="badge bg-slate-200 text-slate-600">{ct("Terminal")}</span> : null}
+                    {s.isDraft ? <span className="badge bg-ivory-100 text-slate-600">{ct("Draft-like")}</span> : null}
                   </td>
-                  <td className="td"><ActiveBadge active={s.active} /></td>
+                  <td className="td"><ActiveBadge active={s.active} locale={locale} /></td>
                   {canManage ? (
                     <td className="td">
                       <div className="flex flex-wrap items-center gap-2">
@@ -73,14 +77,14 @@ export default async function StatusesConfigPage({
                           <input type="hidden" name="id" value={s.id} />
                           <input type="hidden" name="toggle" value="1" />
                           <SubmitButton className="btn-secondary btn-xs" pendingLabel="…">
-                            {s.active ? "Deactivate" : "Activate"}
+                            {ct(s.active ? "Deactivate" : "Activate")}
                           </SubmitButton>
                         </form>
                         <details className="relative">
-                          <summary className="btn-danger btn-xs cursor-pointer list-none">Delete</summary>
+                          <summary className="btn-danger btn-xs cursor-pointer list-none">{ct("Delete")}</summary>
                           <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-red-100 bg-white p-3 shadow-lg">
                             <p className="text-xs text-navy-800">
-                              Delete <strong>{s.name}</strong> (<code>{s.code}</code>)? Referenced statuses are deactivated instead of deleted.
+                              {ct("Delete status")} <strong>{localizedStatusName(s.code, s.name, locale, s.nameFr, s.nameAr)}</strong> (<code>{s.code}</code>)? {ct("Referenced statuses are deactivated instead of deleted.")}
                             </p>
                             <form action={deleteStatusAction} className="mt-2">
                               <input type="hidden" name="id" value={s.id} />
@@ -100,7 +104,7 @@ export default async function StatusesConfigPage({
         </Card>
 
         <Card>
-          <CardHeader title="Transition matrix" subtitle="Which status changes are permitted, and by whom." />
+          <CardHeader title={ct("Transition matrix")} subtitle={ct("Which status changes are permitted, and by whom.")} />
           <div className="space-y-3 px-4 py-4">
             {[...byFrom.entries()].map(([from, list]) => (
               <div key={from}>
@@ -117,7 +121,7 @@ export default async function StatusesConfigPage({
                 </div>
               </div>
             ))}
-            {transitions.length === 0 ? <p className="text-sm text-slate-500">No transitions configured.</p> : null}
+            {transitions.length === 0 ? <p className="text-sm text-slate-500">{ct("No transitions configured.")}</p> : null}
           </div>
         </Card>
       </div>
@@ -125,15 +129,15 @@ export default async function StatusesConfigPage({
       {canManage ? (
         <div className="mt-4">
           <Card>
-            <CardHeader title="Edit status labels & ordering" subtitle="EN label + FR / AR display labels. Codes never change; business logic uses codes." />
+            <CardHeader title={ct("Edit status labels & ordering")} subtitle={ct("EN label + FR / AR display labels. Codes never change; business logic uses codes.")} />
             <TableWrap>
               <thead className="border-b border-slate-100 bg-ivory-50/60">
                 <tr>
-                  <th className="th">Code</th>
-                  <th className="th">EN label</th>
-                  <th className="th">FR label</th>
-                  <th className="th">AR label</th>
-                  <th className="th">Order</th>
+                  <th className="th">{ct("Code")}</th>
+                  <th className="th">{ct("EN label")}</th>
+                  <th className="th">{ct("FR label")}</th>
+                  <th className="th">{ct("AR label")}</th>
+                  <th className="th">{ct("Order")}</th>
                   <th className="th"></th>
                 </tr>
               </thead>
@@ -148,7 +152,7 @@ export default async function StatusesConfigPage({
                       <td className="td py-2" dir="rtl"><input name="nameAr" defaultValue={s.nameAr ?? ""} className="input input-sm w-44" /></td>
                       <td className="td py-2"><input name="sortOrder" type="number" defaultValue={s.sortOrder} className="input input-sm w-20" /></td>
                       <td className="td py-2">
-                        <SubmitButton className="btn-primary btn-xs" pendingLabel="…">Save</SubmitButton>
+                        <SubmitButton className="btn-primary btn-xs" pendingLabel="…">{ct("Save")}</SubmitButton>
                       </td>
                     </form>
                   </tr>
@@ -162,18 +166,18 @@ export default async function StatusesConfigPage({
       {canManage ? (
         <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Card>
-            <CardHeader title="Add status" />
+            <CardHeader title={ct("Add status")} />
             <form action={createStatusAction} className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2">
               <div>
-                <label className="label" htmlFor="s-name">Name *</label>
+                <label className="label" htmlFor="s-name">{ct("Name *")}</label>
                 <input id="s-name" name="name" required className="input" placeholder="Visa Issued" />
               </div>
               <div>
-                <label className="label" htmlFor="s-code">Code *</label>
+                <label className="label" htmlFor="s-code">{ct("Code *")}</label>
                 <input id="s-code" name="code" required className="input uppercase" placeholder="VISA_ISSUED" />
               </div>
               <div>
-                <label className="label" htmlFor="s-order">Sort order</label>
+                <label className="label" htmlFor="s-order">{ct("Sort order")}</label>
                 <input id="s-order" name="sortOrder" type="number" defaultValue={120} className="input" />
               </div>
               <div className="flex items-end gap-4 pb-1 text-xs text-slate-600">
@@ -185,52 +189,52 @@ export default async function StatusesConfigPage({
                 </label>
               </div>
               <div>
-                <label className="label" htmlFor="s-name-fr">Label FR</label>
+                <label className="label" htmlFor="s-name-fr">{ct("Label FR")}</label>
                 <input id="s-name-fr" name="nameFr" className="input" placeholder="Ex. Visa délivré" />
               </div>
               <div dir="rtl">
-                <label className="label" htmlFor="s-name-ar">Label AR</label>
+                <label className="label" htmlFor="s-name-ar">{ct("Label AR")}</label>
                 <input id="s-name-ar" name="nameAr" className="input" placeholder="مثال: تأشيرة صادرة" />
               </div>
               <div className="sm:col-span-2">
-                <label className="label" htmlFor="s-desc">Description</label>
+                <label className="label" htmlFor="s-desc">{ct("Description")}</label>
                 <input id="s-desc" name="description" className="input" />
               </div>
               <div className="sm:col-span-2">
-                <SubmitButton className="btn-primary" pendingLabel="Saving…">Add status</SubmitButton>
+                <SubmitButton className="btn-primary" pendingLabel={ct("Saving…")}>{ct("Add status")}</SubmitButton>
               </div>
             </form>
           </Card>
 
           <Card>
-            <CardHeader title="Add transition" subtitle="Connect two statuses and define who may perform the change." />
+            <CardHeader title={ct("Add transition")} subtitle={ct("Connect two statuses and define who may perform the change.")} />
             <form action={addTransitionAction} className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-3">
               <div>
-                <label className="label" htmlFor="t-from">From *</label>
+                <label className="label" htmlFor="t-from">{ct("From *")}</label>
                 <select id="t-from" name="fromStatusId" required className="input">
                   {rows.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                    <option key={s.id} value={s.id}>{localizedStatusName(s.code, s.name, locale, s.nameFr, s.nameAr)}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="label" htmlFor="t-to">To *</label>
+                <label className="label" htmlFor="t-to">{ct("To *")}</label>
                 <select id="t-to" name="toStatusId" required className="input">
                   {rows.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                    <option key={s.id} value={s.id}>{localizedStatusName(s.code, s.name, locale, s.nameFr, s.nameAr)}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="label" htmlFor="t-scope">Allowed for *</label>
+                <label className="label" htmlFor="t-scope">{ct("Allowed for *")}</label>
                 <select id="t-scope" name="scope" required className="input" defaultValue="STAFF">
-                  <option value="STAFF">Staff only</option>
-                  <option value="AGENCY">Agency only</option>
-                  <option value="BOTH">Staff & agency</option>
+                  <option value="STAFF">{ct("Staff only")}</option>
+                  <option value="AGENCY">{ct("Agency only")}</option>
+                  <option value="BOTH">{ct("Staff & agency")}</option>
                 </select>
               </div>
               <div className="sm:col-span-3">
-                <SubmitButton className="btn-primary" pendingLabel="Saving…">Add transition</SubmitButton>
+                <SubmitButton className="btn-primary" pendingLabel={ct("Saving…")}>{ct("Add transition")}</SubmitButton>
               </div>
             </form>
           </Card>

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { suiteSetup } from "./helpers/global-state";
 import { Pool } from "pg";
@@ -18,16 +19,17 @@ describe("GET /api/health (deployment diagnostics, never a 500, never secrets)",
   it("does not report healthy when table names exist but columns are incompatible", async () => {
     const pool = new Pool({ connectionString: testConnectionString() });
     const previous = process.env.DATABASE_SCHEMA;
+    const isolatedSchema = `incompatible_${randomBytes(6).toString("hex")}`;
     try {
-      await pool.query(`create schema incompatible;
-        create table incompatible.agencies (id integer);
-        create table incompatible.users (id integer);
-        create table incompatible.site_settings (id integer);
-        create table incompatible.visa_types (id integer, active boolean);
-        create table incompatible.countries (id integer, active boolean);
-        create table incompatible.schema_migrations (name text);
-        insert into incompatible.schema_migrations values ('0001_init.sql'), ('0002_branding.sql');`);
-      process.env.DATABASE_SCHEMA = "incompatible";
+      await pool.query(`create schema ${isolatedSchema};
+        create table ${isolatedSchema}.agencies (id integer);
+        create table ${isolatedSchema}.users (id integer);
+        create table ${isolatedSchema}.site_settings (id integer);
+        create table ${isolatedSchema}.visa_types (id integer, active boolean);
+        create table ${isolatedSchema}.countries (id integer, active boolean);
+        create table ${isolatedSchema}.schema_migrations (name text);
+        insert into ${isolatedSchema}.schema_migrations values ('0001_init.sql'), ('0002_branding.sql');`);
+      process.env.DATABASE_SCHEMA = isolatedSchema;
       const body = await (await healthGET()).json();
       expect(body.database.connected).toBe(true);
       expect(Object.values(body.schema.requiredTables).every(Boolean)).toBe(true);

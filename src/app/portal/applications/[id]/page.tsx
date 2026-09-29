@@ -1,3 +1,4 @@
+import { configName } from "@/lib/config-localization";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { portalPageUser } from "@/lib/page-auth";
@@ -79,6 +80,7 @@ export default async function PortalApplicationDetailPage({
   const flash = flashFrom(sp);
   const uiLocale = await getUiLocale(sp);
   const ct = contentT(uiLocale);
+  const visaDisplayName = configName({ name: app.visaTypeName, nameFr: detail.visaNameFr, nameAr: detail.visaNameAr }, uiLocale);
 
   const pricing = app.submittedAt ? await getApplicationPricing(id) : null;
 
@@ -96,12 +98,12 @@ export default async function PortalApplicationDetailPage({
   return (
     <>
       <PageHeader
-        title={app.reference}
-        subtitle={`${countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)} · ${app.visaTypeName}`}
+        title={applicantName}
+        subtitle={`${app.reference} · ${countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)} · ${visaDisplayName}`}
         actions={
           <>
             <StatusBadge code={detail.statusCode} name={detail.statusName} />
-            <Link href="/portal/applications" className="btn-secondary btn-sm">← {ct("All applications")}</Link>
+            <Link href="/portal/applications" className="btn-secondary btn-sm"><span className="directional" aria-hidden="true">←</span> {ct("All applications")}</Link>
           </>
         }
       />
@@ -128,7 +130,7 @@ export default async function PortalApplicationDetailPage({
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Destination")}</p>
                   <p className="mt-1 font-medium text-navy-900">{countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)}</p>
-                  <p className="text-xs text-slate-500">{app.visaTypeName} · {app.categoryName}</p>
+                  <p className="text-xs text-slate-500">{visaDisplayName} · {app.categoryName}</p>
                 </div>
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Fee")}</p>
@@ -140,7 +142,7 @@ export default async function PortalApplicationDetailPage({
                   <ol className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs" data-testid="application-progress">
                     {progress.map((step, index) => (
                       <li key={step.key} className="flex items-center gap-2">
-                        {index > 0 ? <span aria-hidden className="text-slate-300">→</span> : null}
+                        {index > 0 ? <span aria-hidden className="directional text-slate-300">→</span> : null}
                         <span
                           data-step={step.key}
                           data-state={step.state}
@@ -165,7 +167,7 @@ export default async function PortalApplicationDetailPage({
                       <p className="text-sm font-semibold text-amber-800">{ct("Action required")} — {openRequests.length} {ct("document(s) requested")}</p>
                       <ul className="mt-1.5 space-y-1 text-xs text-amber-700">
                         {openRequests.map((r) => (
-                          <li key={r.req.id}>• {r.docTypeName}: {r.req.reason}</li>
+                          <li key={r.req.id}>• {localizedDocTypeName(r.docTypeCode, r.docTypeName, uiLocale)}: {r.req.reason}</li>
                         ))}
                       </ul>
                       <Link href={`${back}?tab=documents`} className="btn-secondary btn-sm mt-2">{ct("Upload requested documents")}</Link>
@@ -229,7 +231,7 @@ export default async function PortalApplicationDetailPage({
                     const hasDoc = docs.some((d) => d.doc.checklistItemId === c.id);
                     return (
                       <div key={c.id} className="flex items-center justify-between text-xs">
-                        <span className={hasDoc ? "text-emerald-700" : "text-slate-500"}>{c.documentTypeName} {c.required ? "*" : ""}</span>
+                        <span className={hasDoc ? "text-emerald-700" : "text-slate-500"}>{localizedDocTypeName(c.documentTypeCode, c.documentTypeName, uiLocale)} {c.required ? "*" : ""}</span>
                         <span className={hasDoc ? "text-emerald-600" : "text-amber-600"}>{hasDoc ? "✓" : "—"}</span>
                       </div>
                     );
@@ -249,15 +251,15 @@ export default async function PortalApplicationDetailPage({
               <CardHeader title={ct("Action required")} subtitle={ct("ESSAFARIA requested replacement or additional documents")} />
               <div className="px-4 py-4 space-y-3">
                 {openRequests.map((r) => (
-                  <div key={r.req.id} className="rounded-xl border border-amber-200 bg-white p-4">
-                    <p className="font-semibold text-navy-900">{r.docTypeName} — {r.req.type === "REPLACEMENT" ? ct("Replacement requested") : ct("Additional document requested")}</p>
+                  <div key={r.req.id} id={`request-${r.req.id}`} className="scroll-mt-24 rounded-xl border border-amber-200 bg-white p-4">
+                    <p className="font-semibold text-navy-900">{localizedDocTypeName(r.docTypeCode, r.docTypeName, uiLocale)} — {r.req.type === "REPLACEMENT" ? ct("Replacement requested") : ct("Additional document requested")}</p>
                     <p className="mt-1 text-sm text-slate-600">{ct("Reason")}: {r.req.reason}</p>
                     <form action={uploadDocumentAction} encType="multipart/form-data" className="mt-3 flex flex-wrap items-center gap-2">
                       <input type="hidden" name="applicationId" value={id} />
                       {r.req.checklistItemId ? <input type="hidden" name="checklistItemId" value={r.req.checklistItemId} /> : null}
                       <input type="hidden" name="documentTypeId" value={r.req.documentTypeId} />
                       <input type="hidden" name="back" value={`${back}?tab=documents`} />
-                      <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:mr-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-3 file:py-1.5 file:text-xs file:text-white" />
+                      <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:me-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-3 file:py-1.5 file:text-xs file:text-white" />
                       <button type="submit" className="btn-primary btn-sm">{ct("Upload replacement")}</button>
                     </form>
                   </div>
@@ -277,7 +279,7 @@ export default async function PortalApplicationDetailPage({
                   <div key={item.id} className="px-4 py-4">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
-                        <p className="font-medium text-navy-900">{item.documentTypeName} {item.required ? <span className="badge bg-rose-50 text-rose-600 text-[10px]">{ct("Required")}</span> : <span className="badge bg-slate-100 text-slate-500 text-[10px]">{ct("Optional")}</span>}</p>
+                        <p className="font-medium text-navy-900">{localizedDocTypeName(item.documentTypeCode, item.documentTypeName, uiLocale)} {item.required ? <span className="badge bg-rose-50 text-rose-600 text-[10px]">{ct("Required")}</span> : <span className="badge bg-slate-100 text-slate-500 text-[10px]">{ct("Optional")}</span>}</p>
                         {item.notes ? <p className="mt-0.5 text-xs text-slate-500">{item.notes}</p> : null}
                         <p className="mt-1 text-[11px] text-slate-400">{ct("PDF, JPEG, PNG, WEBP, DOC, DOCX · 2 MB max")}</p>
                       </div>
@@ -308,7 +310,7 @@ export default async function PortalApplicationDetailPage({
                         <input type="hidden" name="applicationId" value={id} />
                         <input type="hidden" name="checklistItemId" value={item.id} />
                         <input type="hidden" name="back" value={`${back}?tab=documents`} />
-                        <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:mr-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-3 file:py-1.5 file:text-xs file:text-white" />
+                        <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:me-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-3 file:py-1.5 file:text-xs file:text-white" />
                         <button type="submit" className="btn-secondary btn-sm">{latest ? ct("Replace") : ct("Upload")}</button>
                       </form>
                     ) : hasOpenRequest ? (
@@ -355,7 +357,7 @@ export default async function PortalApplicationDetailPage({
                         <span className="font-medium text-navy-900">
                           {r.req.type === "REPLACEMENT" ? ct("Replacement requested") : ct("Additional document requested")}
                         </span>
-                        <span className="text-slate-500">{r.docTypeName}</span>
+                        <span className="text-slate-500">{localizedDocTypeName(r.docTypeCode, r.docTypeName, uiLocale)}</span>
                       </span>
                       <span className="text-slate-500">
                         {formatDateTime(r.req.createdAt, uiLocale)}

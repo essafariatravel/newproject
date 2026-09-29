@@ -253,7 +253,7 @@ export async function changeStatusAction(formData: FormData): Promise<void> {
         toStatusCode: formData.get("toStatusCode"),
         reason: formData.get("reason") || undefined,
       });
-    const result = await changeApplicationStatus({
+    await changeApplicationStatus({
       applicationId,
       toStatusCode: data.toStatusCode,
       reason: data.reason ?? null,
@@ -263,7 +263,7 @@ export async function changeStatusAction(formData: FormData): Promise<void> {
     revalidatePath(back);
     revalidatePath("/admin");
     revalidatePath(`/portal/applications/${applicationId}`);
-    return `Status changed ${result.from} → ${result.to}.`;
+    return "Application status updated.";
   });
 }
 
@@ -279,15 +279,14 @@ export async function recordDecisionAction(formData: FormData): Promise<void> {
       throw new AppError("VALIDATION", "Choose a decision outcome (Approved / Rejected).");
     }
     const file = formData.get("file");
-    if (!(file instanceof File) || file.size === 0) {
-      throw new AppError("NO_FILE", "Upload the decision document (visa copy or refusal letter) before recording the decision.");
-    }
-    const buf = Buffer.from(await file.arrayBuffer());
+    const decisionFile = file instanceof File && file.size > 0
+      ? { name: file.name, type: file.type, size: file.size, data: Buffer.from(await file.arrayBuffer()) } : undefined;
     const result = await recordApplicationDecision({
       applicationId,
       outcome: outcomeRaw as DecisionOutcome,
       actor: user,
-      file: { name: file.name || "decision.pdf", type: file.type || "application/octet-stream", size: file.size, data: buf },
+      file: decisionFile,
+      note: String(formData.get("note") ?? ""),
       ipAddress: clientIp(await headersOf()),
     });
     revalidatePath(back);
@@ -295,7 +294,7 @@ export async function recordDecisionAction(formData: FormData): Promise<void> {
     revalidatePath(`/portal/applications/${applicationId}`);
     revalidatePath("/admin/documents");
     revalidatePath("/portal/documents");
-    return `Decision recorded (${result.statusCode}) — document accepted and visible to the agency.`;
+    return result.documentId ? "Decision recorded and document shared with the agency." : "Decision recorded and agency notified.";
   });
 }
 

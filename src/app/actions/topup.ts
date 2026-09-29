@@ -17,6 +17,8 @@ import { z } from "zod";
 import { requireStaff, requireUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/rbac";
 import { AppError } from "@/lib/types";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
 import { runAction } from "@/lib/action-helpers";
 import { createTopupRequest, processTopupRequest, TOPUP_PROCESSING_ROLES } from "@/lib/topup";
 
@@ -38,7 +40,7 @@ export async function requestTopupAction(formData: FormData): Promise<void> {
       amount: formData.get("amount"),
       note: formData.get("note") ?? "",
     });
-    const created = await createTopupRequest({
+    await createTopupRequest({
       agencyId: user.agencyId,
       amount: data.amount,
       note: data.note || null,
@@ -46,7 +48,7 @@ export async function requestTopupAction(formData: FormData): Promise<void> {
     });
     revalidatePath("/portal/wallet");
     revalidatePath("/admin/billing");
-    return `Top-up request ${created.reference} sent to ESSAFARIA (${created.amount} DZD). You will be notified once it is processed.`;
+    return contentT(await getUiLocale())("Top-up request sent. You will be notified once it is processed.");
   });
 }
 
@@ -81,8 +83,8 @@ export async function processTopupAction(formData: FormData): Promise<void> {
     });
     revalidatePath("/admin/billing");
     revalidatePath("/portal/wallet");
-    return result.status === "PROCESSED"
-      ? `Top-up ${result.reference} processed: ${result.amount} DZD credited. New balance ${result.balanceAfter} DZD.`
-      : `Top-up ${result.reference} rejected. The agency has been notified.`;
+    return contentT(await getUiLocale())(result.status === "PROCESSED"
+      ? "Top-up credited. The agency has been notified."
+      : "Top-up rejected. The agency has been notified.");
   });
 }

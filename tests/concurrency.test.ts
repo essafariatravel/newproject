@@ -35,7 +35,7 @@ async function makeSubmittableApp(agencyId: string, createdBy: ReturnType<typeof
     await uploadDocument({
       applicationId: app.id,
       actor: staff,
-      file: { name: `${item.documentTypeCode}.pdf`, type: "application/pdf", size: 512, data: Buffer.from("d") },
+      file: { name: `${item.documentTypeCode}.pdf`, type: "application/pdf", size: 512, data: Buffer.from("%PDF-1.4 test document") },
       checklistItemId: item.id,
     });
   }

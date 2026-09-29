@@ -1,39 +1,37 @@
 @import "tailwindcss";
 
 @theme {
-  /* ESSAFARIA "Aurora Porcelain" design tokens — soft, airy, premium.
-     Ink navy for text, soft iris for interaction, champagne gold for accents,
-     porcelain surfaces with diffuse layered shadows and generous radii. */
+  /* ESSAFARIA VISA: navy structure, warm ivory canvas, restrained gold accent. */
 
-  --color-navy-950: #151b36;
-  --color-navy-900: #1d2547;
-  --color-navy-800: #2b3563;
-  --color-navy-700: #3d4a85;
-  --color-navy-600: #5160a8;
-  --color-navy-500: #737fbe;
-  --color-navy-100: #e9ecf8;
-  --color-navy-50: #f3f5fb;
+  --color-navy-950: #041326;
+  --color-navy-900: #071a33;
+  --color-navy-800: #102a45;
+  --color-navy-700: #1c3a56;
+  --color-navy-600: #36556d;
+  --color-navy-500: #657d91;
+  --color-navy-100: #dce5eb;
+  --color-navy-50: #f1f5f6;
 
-  --color-iris-700: #3f4fbe;
-  --color-iris-600: #4a5bd0;
-  --color-iris-500: #5b6cda;
-  --color-iris-400: #8290e6;
-  --color-iris-200: #d6daf6;
-  --color-iris-100: #e9ebfb;
-  --color-iris-50: #f2f3fd;
+  --color-iris-700: #071a33;
+  --color-iris-600: #102a45;
+  --color-iris-500: #1c3a56;
+  --color-iris-400: #657d91;
+  --color-iris-200: #c4d1d9;
+  --color-iris-100: #e7edf0;
+  --color-iris-50: #f4f7f7;
 
-  --color-ivory-50: #f5f6fa;
-  --color-ivory-100: #eef0f6;
-  --color-ivory-200: #e3e6ef;
+  --color-ivory-50: #f8f7f3;
+  --color-ivory-100: #f1f0eb;
+  --color-ivory-200: #e5e2d9;
 
-  --color-line: #eaecf4;
+  --color-line: #e5e8eb;
 
-  --color-gold-700: #7e6539;
-  --color-gold-600: #977a47;
-  --color-gold-500: #b2945e;
-  --color-gold-400: #cbb287;
-  --color-gold-100: #f4edde;
-  --color-gold-50: #faf6ec;
+  --color-gold-700: #8a6419;
+  --color-gold-600: #a77c23;
+  --color-gold-500: #c99a32;
+  --color-gold-400: #dab66b;
+  --color-gold-100: #f7ecd0;
+  --color-gold-50: #fcf7e9;
 
   --color-teal-700: #23685c;
   --color-teal-600: #2e7d6e;
@@ -41,14 +39,13 @@
   --color-teal-100: #deefea;
   --color-teal-50: #edf6f4;
 
-  --font-sans: "Manrope", "Nunito Sans", ui-rounded, "SF Pro Rounded", ui-sans-serif, system-ui,
-    -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans: "Inter", "Segoe UI", ui-sans-serif, system-ui, -apple-system, Arial, sans-serif;
   --font-serif: "Fraunces", "Playfair Display", "Iowan Old Style", "Palatino Linotype", Palatino,
     Georgia, "Times New Roman", serif;
 
-  --shadow-card: 0 1px 2px rgb(23 30 63 / 0.04), 0 14px 36px -24px rgb(23 30 63 / 0.18);
-  --shadow-soft: 0 2px 10px -4px rgb(23 30 63 / 0.10);
-  --shadow-pop: 0 28px 70px -30px rgb(23 30 63 / 0.32);
+  --shadow-card: 0 1px 2px rgb(7 26 51 / 0.03), 0 14px 36px -30px rgb(7 26 51 / 0.18);
+  --shadow-soft: 0 2px 10px -4px rgb(7 26 51 / 0.08);
+  --shadow-pop: 0 24px 60px -32px rgb(7 26 51 / 0.25);
 }
 
 html {
@@ -59,15 +56,14 @@ body {
   @apply font-sans text-slate-600 antialiased;
   font-feature-settings: "kern";
   background-color: var(--color-ivory-50);
-  background-image:
-    radial-gradient(1100px 480px at 88% -220px, rgb(130 144 230 / 0.16), transparent 62%),
-    radial-gradient(900px 420px at -12% -200px, rgb(203 178 135 / 0.13), transparent 58%);
-  background-repeat: no-repeat;
+  background-image: none;
 }
 
-h1, h2, h3 {
-  @apply text-navy-900;
-  letter-spacing: -0.01em;
+@layer base {
+  h1, h2, h3 {
+    @apply text-navy-900;
+    letter-spacing: -0.01em;
+  }
 }
 
 ::selection {
@@ -83,8 +79,9 @@ h1, h2, h3 {
 
 /* ---------- shared utility classes ---------- */
 
+@layer components {
 .ess-container {
-  @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
+  @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
 }
 
 .btn,
@@ -93,31 +90,27 @@ h1, h2, h3 {
 .btn-cta,
 .btn-secondary,
 .btn-danger {
-  @apply inline-flex items-center justify-center gap-2 rounded-[var(--radius-btn,999px)] text-sm font-semibold
+  @apply inline-flex items-center justify-center gap-2 rounded-[var(--radius-btn,0.75rem)] text-sm font-semibold
          transition duration-200 active:scale-[0.98]
          focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-iris-500
          disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
 }
 
 .btn-primary {
-  @apply bg-gradient-to-b from-iris-500 to-iris-600 px-5 py-2.5 text-white
-         shadow-[0_10px_24px_-10px_rgb(74_91_208/0.55)]
-         hover:from-iris-400 hover:to-iris-500 hover:shadow-[0_12px_28px_-10px_rgb(74_91_208/0.6)]
-         active:from-iris-600 active:to-iris-700;
+  @apply bg-navy-900 px-5 py-2.5 text-white shadow-sm
+         hover:bg-navy-800 active:bg-navy-950;
 }
 
 .btn-gold {
-  @apply bg-gradient-to-b from-gold-500 to-gold-600 px-5 py-2.5 text-navy-950 shadow-[0_10px_24px_-12px_rgb(151_122_71/0.7)]
-         hover:from-gold-400 hover:to-gold-500 active:from-gold-600 active:to-gold-700
-         disabled:from-gold-500 disabled:to-gold-600 disabled:text-navy-950/70 disabled:shadow-none disabled:opacity-60 disabled:ring-1 disabled:ring-gold-700/40;
+  @apply bg-gold-500 px-5 py-2.5 text-navy-950 shadow-sm
+         hover:bg-gold-400 active:bg-gold-600;
 }
 
 /* High-contrast primary CTA reserved for top-level navigation (e.g. the
    public header "Register your Agency"): deep ink background keeps it clearly
    visible on the light header in every locale; gold accent keeps it on-brand. */
 .btn-cta {
-  @apply border border-navy-900 bg-navy-900 px-5 py-2.5 text-gold-100
-         shadow-[0_10px_24px_-12px_rgb(23_30_63/0.65)]
+  @apply border border-navy-900 bg-navy-900 px-5 py-2.5 text-white
          hover:bg-navy-800 hover:text-white active:bg-navy-950;
 }
 
@@ -147,11 +140,11 @@ h1, h2, h3 {
 }
 
 .card {
-  @apply rounded-[var(--radius-card,1.25rem)] border border-line bg-white shadow-[var(--shadow-card)];
+  @apply rounded-[var(--radius-card,0.875rem)] border border-line bg-white shadow-[var(--shadow-card)];
 }
 
 .th {
-  @apply px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400;
+  @apply px-4 py-3 text-start text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500;
 }
 
 .td {
@@ -170,6 +163,7 @@ h1, h2, h3 {
 .ess-segment {
   @apply inline-flex gap-1 rounded-full bg-ivory-100/80 p-1;
 }
+}
 
 /* ------------------------------------------------------------------ */
 /* RTL + motion helpers (Phase 2.1)                                    */
@@ -186,3 +180,101 @@ h1, h2, h3 {
 .peer:checked ~ .mobnav-panel {
   transform: none;
 }
+
+/* Public storytelling is animated; the workspaces keep motion functional. */
+:root {
+  --motion-fast: 160ms;
+  --motion-ui: 260ms;
+  --motion-editorial: 680ms;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.public-site { background: #fff; }
+.public-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: min(760px, 86vh);
+  color: #fff;
+  background: #071a33 url('/images/essafaria-airport-hero.webp') center / cover no-repeat;
+}
+.public-hero::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: linear-gradient(90deg, rgb(4 19 38 / .94) 0%, rgb(4 19 38 / .78) 38%, rgb(4 19 38 / .20) 72%);
+}
+.public-hero h1, .public-hero h2, .public-hero h3 { color: inherit; }
+.editorial-reveal { animation: editorial-in var(--motion-editorial) var(--motion-ease) both; }
+.editorial-reveal:nth-child(2) { animation-delay: 100ms; }
+.editorial-reveal:nth-child(3) { animation-delay: 180ms; }
+.editorial-reveal:nth-child(4) { animation-delay: 260ms; }
+.public-motion-ready .public-reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity var(--motion-editorial) var(--motion-ease), transform var(--motion-editorial) var(--motion-ease);
+}
+.public-motion-ready .public-reveal.is-visible { opacity: 1; transform: none; }
+@keyframes editorial-in {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.public-card {
+  transition: transform var(--motion-ui) var(--motion-ease), box-shadow var(--motion-ui) ease;
+}
+.public-card:hover { transform: translateY(-5px); box-shadow: var(--shadow-pop); }
+.public-cta { transition: transform var(--motion-fast) ease, background-color var(--motion-fast) ease; }
+.public-cta:hover { transform: translateY(-2px); }
+
+.workspace-agency, .workspace-staff { background: #f8f7f3; }
+.workspace-staff .card { box-shadow: 0 1px 2px rgb(7 26 51 / .04); }
+.workspace-staff .td { padding-block: .65rem; }
+.workspace-staff .th { padding-block: .65rem; }
+.workspace-staff .font-serif { font-family: var(--font-sans); }
+
+[dir="rtl"] .public-hero::before {
+  background: linear-gradient(270deg, rgb(4 19 38 / .94) 0%, rgb(4 19 38 / .78) 38%, rgb(4 19 38 / .20) 72%);
+}
+
+@media (max-width: 640px) {
+  .public-hero { min-height: 650px; background-position: 64% center; }
+  .public-hero::before { background: linear-gradient(90deg, rgb(4 19 38 / .95), rgb(4 19 38 / .60)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .editorial-reveal { animation: none; }
+  .public-card, .public-cta { transition: none; }
+  .public-card:hover, .public-cta:hover { transform: none; }
+}
+
+/* Shared operational system, derived from the approved ESSAFARIA boards. */
+.workspace-agency .btn-primary, .workspace-staff .btn-primary {
+  background: var(--color-gold-500); color: var(--color-navy-950); border: 1px solid rgb(138 100 25 / .22);
+}
+.workspace-agency .btn-primary:hover, .workspace-staff .btn-primary:hover { background: var(--color-gold-400); }
+.workspace-sidebar { background: var(--color-navy-900); }
+.workspace-agency .th, .workspace-staff .th { text-transform: none; letter-spacing: 0; font-size: .75rem; }
+.workspace-agency .label, .workspace-staff .label { text-transform: none; letter-spacing: 0; font-size: .75rem; }
+.workspace-agency .badge, .workspace-staff .badge { border-radius: .375rem; }
+.workspace-agency .card .table-scroll, .workspace-staff .card .table-scroll { border: 0; border-radius: 0 0 var(--radius-card) var(--radius-card); box-shadow: none; }
+.table-scroll:focus-visible { outline: 2px solid var(--color-gold-600); outline-offset: 2px; }
+.workspace-menu { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border: 1px solid var(--color-line); border-radius: .5rem; }
+.workspace-drawer { margin: 0; inset-inline-start: 0; width: min(290px, 90vw); max-width: 90vw; height: 100dvh; max-height: 100dvh; border: 0; padding: 0; color: white; background: var(--color-navy-900); }
+.workspace-drawer::backdrop { background: rgb(7 26 51 / .4); }
+.workspace-skip { position: fixed; inset-inline-start: 1rem; top: -5rem; z-index: 100; padding: .75rem 1rem; background: white; color: var(--color-navy-900); border-radius: .5rem; }
+.workspace-skip:focus { top: 1rem; }
+.workspace-agency a:focus-visible, .workspace-staff a:focus-visible, .workspace-agency button:focus-visible, .workspace-staff button:focus-visible { outline: 2px solid var(--color-gold-600); outline-offset: 3px; }
+[dir="rtl"] .directional { transform: scaleX(-1); }
+@media (min-width: 1024px) { .workspace-menu { display: none; } }
+@media (max-width: 639px) {
+  .workspace-agency .card, .workspace-staff .card { min-width: 0; }
+  .workspace-agency main, .workspace-staff main { padding-block: 1.25rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  .public-motion-ready .public-reveal { opacity: 1; transform: none; }
+}
+
+.config-dialog { margin: auto; padding: 0; width: min(760px, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); border: 1px solid var(--color-line); border-radius: .875rem; background: white; color: var(--color-navy-900); }
+.config-dialog::backdrop { background: rgb(7 26 51 / .45); }

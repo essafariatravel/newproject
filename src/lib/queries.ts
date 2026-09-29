@@ -1,3 +1,5 @@
+import type { ReportFilters } from "@/lib/report-filters";
+import { agencyAttentionCondition } from "@/lib/attention";
 import { qualifiedTable } from "./database-schema";
 
 /**
@@ -62,6 +64,8 @@ export interface ApplicationFilters {
 }
 
 const applicationSelection = {
+  visaNameFr: sql<string | null>`(select v.name_fr from ${sql.raw(qualifiedTable("visa_types"))} v where v.id = applications.visa_type_id and v.name = applications.visa_type_name)`,
+  visaNameAr: sql<string | null>`(select v.name_ar from ${sql.raw(qualifiedTable("visa_types"))} v where v.id = applications.visa_type_id and v.name = applications.visa_type_name)`,
   app: applications,
   statusCode: statuses.code,
   statusName: statuses.name,
@@ -129,8 +133,7 @@ export async function buildApplicationConditions(user: AuthUser, filters: Applic
   // §27 — an OPEN staff document request is waiting on the agency.
   if (filters.documents === "requested") {
     conditions.push(
-      sql`exists (select 1 from ${sql.raw(qualifiedTable("document_requests"))} dr
-            where dr.application_id = applications.id and dr.status = 'OPEN')`,
+      agencyAttentionCondition(),
     );
   }
   // §27 — a required, still-active checklist item without a usable upload.
@@ -291,7 +294,7 @@ export async function adminDashboard() {
       // Work queue metrics
       newApps: sql<number>`count(*) filter (where ${statuses.code} = 'SUBMITTED')::int`,
       docsChecking: sql<number>`count(*) filter (where ${statuses.code} = 'DOCUMENTS_CHECKING')::int`,
-      docsRequested: sql<number>`count(*) filter (where ${statuses.code} = 'DOCUMENTS_REQUESTED')::int`,
+      docsRequested: sql<number>`count(*) filter (where ${agencyAttentionCondition()})::int`,
       inProcess: sql<number>`count(*) filter (where ${statuses.code} = 'IN_PROCESS')::int`,
       embassySent: sql<number>`count(*) filter (where ${statuses.code} = 'EMBASSY_SENT')::int`,
       unassigned: sql<number>`count(*) filter (where ${applications.assignedTo} is null and ${statuses.code} not in ('APPROVED','REJECTED','COMPLETED','CANCELLED','REFUSED'))::int`,
@@ -325,6 +328,15 @@ export async function adminDashboard() {
     .orderBy(desc(applications.createdAt))
     .limit(8);
 
+  const workQueue = await db
+    .select(applicationSelection)
+    .from(applications)
+    .innerJoin(statuses, eq(applications.statusId, statuses.id))
+    .innerJoin(priorities, eq(applications.priorityId, priorities.id))
+    .where(inArray(statuses.code, ["SUBMITTED", "DOCUMENTS_CHECKING", "DOCUMENTS_REQUESTED", "IN_PROCESS", "EMBASSY_SENT"]))
+    .orderBy(desc(priorities.weight), asc(applications.createdAt))
+    .limit(8);
+
   const recentAudit = await db
     .select()
     .from(auditLogs)
@@ -349,6 +361,7 @@ export async function adminDashboard() {
     agencyAgg: agencyAgg!,
     walletAgg: walletAgg!,
     recentApplications,
+    workQueue,
     recentAudit,
     documentsInReview: Number(reviewQueue[0]?.total ?? 0),
     pendingRegistrations: Number(pendingRegs?.pending ?? 0),
@@ -363,7 +376,7 @@ export async function agencyDashboard(agencyId: string, userId: string) {
       active: sql<number>`count(*) filter (where ${statuses.code} not in ('APPROVED','COMPLETED','CANCELLED','REJECTED','REFUSED') and ${statuses.code} <> 'DRAFT')::int`,
       completed: sql<number>`count(*) filter (where ${statuses.code} in ('APPROVED','COMPLETED'))::int`,
       refused: sql<number>`count(*) filter (where ${statuses.code} in ('REJECTED','REFUSED'))::int`,
-      actionRequired: sql<number>`count(*) filter (where ${statuses.code} = 'DOCUMENTS_REQUESTED')::int`,
+      actionRequired: sql<number>`count(*) filter (where ${agencyAttentionCondition()})::int`,
       drafts: sql<number>`count(*) filter (where ${statuses.code} = 'DRAFT')::int`,
     })
     .from(applications)
@@ -374,6 +387,12 @@ export async function agencyDashboard(agencyId: string, userId: string) {
     .select({ balance: agencies.balance, currency: agencies.currency })
     .from(agencies)
     .where(eq(agencies.id, agencyId));
+
+  const needsAttention = await db.select(applicationSelection).from(applications)
+    .innerJoin(statuses, eq(applications.statusId, statuses.id))
+    .innerJoin(priorities, eq(applications.priorityId, priorities.id))
+    .where(and(eq(applications.agencyId, agencyId), agencyAttentionCondition()))
+    .orderBy(desc(applications.updatedAt)).limit(5);
 
   const recentTx = await db
     .select()
@@ -403,12 +422,33 @@ export async function agencyDashboard(agencyId: string, userId: string) {
     recentTx,
     recentApplications,
     unreadNotifications: unread,
+    needsAttention,
   };
 }
 
 /* -------------------------------- reports ------------------------------- */
 
-export async function reportData() {
+export async function reportData(filters: ReportFilters = {}) {
+  const dimensions = and(
+    filters.countryId ? eq(applications.countryId, filters.countryId) : undefined,
+    filters.visaTypeId ? eq(applications.visaTypeId, filters.visaTypeId) : undefined,
+    filters.statusId ? eq(applications.statusId, filters.statusId) : undefined,
+    filters.priorityId ? eq(applications.priorityId, filters.priorityId) : undefined,
+    filters.officerId ? eq(applications.assignedTo, filters.officerId) : undefined,
+  );
+  const appWhere = and(dimensions,
+    filters.from ? gte(applications.createdAt, filters.from) : undefined,
+    filters.to ? lt(applications.createdAt, filters.to) : undefined,
+    filters.agencyId ? eq(applications.agencyId, filters.agencyId) : undefined,
+  );
+  // Application dimensions apply only to ledger entries linked to matching
+  // dossiers. Unallocated credits/debits correctly contribute zero in that scope.
+  const walletWhere = and(
+    dimensions ? inArray(walletTransactions.applicationId, db.select({ id: applications.id }).from(applications).where(dimensions)) : undefined,
+    filters.from ? gte(walletTransactions.createdAt, filters.from) : undefined,
+    filters.to ? lt(walletTransactions.createdAt, filters.to) : undefined,
+    filters.agencyId ? eq(walletTransactions.agencyId, filters.agencyId) : undefined,
+  );
   const byAgency = await db
     .select({
       agencyId: agencies.id,
@@ -417,7 +457,8 @@ export async function reportData() {
       charged: sql<string>`coalesce(sum(${applications.fee}) filter (where ${applications.submittedAt} is not null), 0)::text`,
     })
     .from(agencies)
-    .leftJoin(applications, eq(applications.agencyId, agencies.id))
+    .leftJoin(applications, and(eq(applications.agencyId, agencies.id), appWhere))
+    .where(filters.agencyId ? eq(agencies.id, filters.agencyId) : undefined)
     .groupBy(agencies.id)
     .orderBy(desc(count(applications.id)));
 
@@ -428,6 +469,7 @@ export async function reportData() {
       revenue: sql<string>`coalesce(sum(${applications.fee}) filter (where ${applications.submittedAt} is not null), 0)::text`,
     })
     .from(applications)
+    .where(appWhere)
     .groupBy(applications.countryName)
     .orderBy(desc(count()));
 
@@ -437,6 +479,7 @@ export async function reportData() {
       total: count(),
     })
     .from(applications)
+    .where(appWhere)
     .groupBy(applications.visaTypeName)
     .orderBy(desc(count()));
 
@@ -444,6 +487,7 @@ export async function reportData() {
     .select({ statusCode: statuses.code, statusName: statuses.name, total: count() })
     .from(applications)
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
+    .where(appWhere)
     .groupBy(statuses.code, statuses.name, statuses.sortOrder)
     .orderBy(asc(statuses.sortOrder));
 
@@ -451,13 +495,15 @@ export async function reportData() {
     .select({ priorityName: priorities.name, total: count() })
     .from(applications)
     .innerJoin(priorities, eq(applications.priorityId, priorities.id))
+    .where(appWhere)
     .groupBy(priorities.name, priorities.weight)
     .orderBy(desc(priorities.weight));
 
   const docIssues = await db
     .select({ status: documents.status, total: count() })
     .from(documents)
-    .where(inArray(documents.status, ["REJECTED", "RESUBMISSION_REQUIRED"]))
+    .innerJoin(applications, eq(documents.applicationId, applications.id))
+    .where(and(appWhere, inArray(documents.status, ["REJECTED", "RESUBMISSION_REQUIRED"])))
     .groupBy(documents.status);
 
   const [walletFlow] = await db
@@ -466,7 +512,7 @@ export async function reportData() {
       debits: sql<string>`coalesce(sum(${walletTransactions.amount}) filter (where ${walletTransactions.type} = 'DEBIT'), 0)::text`,
       charges: sql<string>`coalesce(sum(${walletTransactions.amount}) filter (where ${walletTransactions.type} = 'APPLICATION_CHARGE'), 0)::text`,
     })
-    .from(walletTransactions);
+    .from(walletTransactions).where(walletWhere);
 
   const workload = await db
     .select({
@@ -474,8 +520,8 @@ export async function reportData() {
       assigned: count(applications.id),
     })
     .from(users)
-    .leftJoin(applications, eq(applications.assignedTo, users.id))
-    .where(inArray(users.role, ["SUPER_ADMIN", "ADMIN", "VISA_AGENT"]))
+    .leftJoin(applications, and(eq(applications.assignedTo, users.id), appWhere, isNull(applications.completedAt), isNull(applications.decisionAt), notInArray(applications.statusId, db.select({ id: statuses.id }).from(statuses).where(inArray(statuses.code, ["CANCELLED", "COMPLETED", "APPROVED", "REJECTED"])))))
+    .where(and(inArray(users.role, ["SUPER_ADMIN", "ADMIN", "VISA_AGENT"]), eq(users.status, "ACTIVE"), filters.officerId ? eq(users.id, filters.officerId) : undefined))
     .groupBy(users.id, users.name)
     .orderBy(desc(count(applications.id)));
 
@@ -491,7 +537,7 @@ export async function reportData() {
       slowestDays: sql<string | null>`max(extract(epoch from (${applications.decisionAt} - ${applications.submittedAt})) / 86400.0)::text`,
     })
     .from(applications)
-    .where(and(isNotNull(applications.submittedAt), isNotNull(applications.decisionAt)));
+    .where(and(appWhere, isNotNull(applications.submittedAt), isNotNull(applications.decisionAt)));
 
   return {
     byAgency,
@@ -620,10 +666,13 @@ export async function activeVisaOptions() {
       id: visaTypes.id,
       label: sql<string>`${countries.name} || ' — ' || ${visaTypes.name}`,
       name: visaTypes.name,
+      nameFr: visaTypes.nameFr, nameAr: visaTypes.nameAr,
+      descriptionFr: visaTypes.descriptionFr, descriptionAr: visaTypes.descriptionAr,
       countryName: countries.name,
       /** ISO-3166 code — lets the UI localize the destination name (§53). */
       countryIso2: countries.iso2,
       categoryName: visaCategories.name,
+      categoryNameFr: visaCategories.nameFr, categoryNameAr: visaCategories.nameAr,
       description: visaTypes.description,
       fee: visaTypes.fee,
       currency: visaTypes.currency,
@@ -689,17 +738,48 @@ export async function listUsers(
     .orderBy(asc(users.role), asc(users.name));
 }
 
-export async function listAuditLogs(filters: { q?: string; agencyId?: string; action?: string; page?: number; pageSize?: number }) {
-  const page = Math.max(1, filters.page ?? 1);
-  const pageSize = resolvePageSize(filters.pageSize ?? DEFAULT_PAGE_SIZE);
+export async function listAuditLogs(filters: { q?: string; agencyId?: string; actorId?: string; action?: string; entity?: string; from?: string; to?: string; page?: number; pageSize?: number }) {
+  const requestedPage = Number.isSafeInteger(filters.page) && filters.page! > 0 ? filters.page! : 1;
+  const pageSize = resolvePageSize(String(filters.pageSize ?? DEFAULT_PAGE_SIZE));
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  let filterError: string | undefined;
+  if (filters.agencyId && !uuid.test(filters.agencyId)) filterError = "Choose a valid agency filter.";
+  if (filters.actorId && filters.actorId !== "system" && !uuid.test(filters.actorId)) filterError = "Choose a valid actor filter.";
+  function day(value?: string) {
+    if (!value) return undefined;
+    const date = new Date(`${value}T00:00:00.000Z`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+      filterError = "Choose a valid date range.";
+      return undefined;
+    }
+    return date;
+  }
+  const from = day(filters.from);
+  const lastDay = day(filters.to);
+  if (from && lastDay && from > lastDay) filterError = "The start date must precede the end date.";
   const conditions = [];
   if (filters.q) {
     const term = `%${filters.q.trim()}%`;
     conditions.push(or(ilike(auditLogs.action, term), ilike(auditLogs.entity, term), ilike(auditLogs.actorEmail, term))!);
   }
-  if (filters.agencyId) conditions.push(eq(auditLogs.agencyId, filters.agencyId));
-  if (filters.action) conditions.push(ilike(auditLogs.action, `%${filters.action}%`));
+  // Never send malformed UUIDs/dates to PostgreSQL or silently broaden an invalid search.
+  if (filterError) conditions.push(sql`false`);
+  if (filters.agencyId && uuid.test(filters.agencyId)) conditions.push(eq(auditLogs.agencyId, filters.agencyId));
+  if (filters.actorId === "system") conditions.push(and(isNull(auditLogs.actorId), isNull(auditLogs.actorEmail))!);
+  else if (filters.actorId && uuid.test(filters.actorId)) conditions.push(eq(auditLogs.actorId, filters.actorId));
+  if (filters.action) conditions.push(eq(auditLogs.action, filters.action));
+  if (filters.entity) conditions.push(eq(auditLogs.entity, filters.entity));
+  if (from) conditions.push(gte(auditLogs.createdAt, from));
+  if (lastDay) conditions.push(lt(auditLogs.createdAt, new Date(lastDay.getTime() + 86_400_000)));
   const where = conditions.length ? and(...conditions) : undefined;
+
+  const [totalRows, filterOptions] = await Promise.all([
+    db.select({ total: count() }).from(auditLogs).where(where),
+    db.selectDistinct({ action: auditLogs.action, entity: auditLogs.entity }).from(auditLogs).orderBy(asc(auditLogs.action), asc(auditLogs.entity)),
+  ]);
+  const total = Number(totalRows[0]?.total ?? 0);
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(requestedPage, pageCount);
 
   const rows = await db
     .select({
@@ -708,12 +788,10 @@ export async function listAuditLogs(filters: { q?: string; agencyId?: string; ac
     })
     .from(auditLogs)
     .where(where)
-    .orderBy(desc(auditLogs.createdAt))
+    .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
     .limit(pageSize)
     .offset((page - 1) * pageSize);
-  const totalRows = await db.select({ total: count() }).from(auditLogs).where(where);
-  const total = Number(totalRows[0]?.total ?? 0);
-  return { rows, total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
+  return { rows, total, page, pageSize, pageCount, filterError, filterOptions };
 }
 
 export interface WalletLedgerFilters {

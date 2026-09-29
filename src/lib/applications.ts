@@ -7,6 +7,10 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   applicants,
+  auditLogs,
+  notifications,
+  communications,
+  users,
   applicationStatusHistory,
   applications,
   checklistItems,
@@ -19,7 +23,7 @@ import {
   visaRequirements,
   visaTypes,
 } from "@/db/schema";
-import { AppError, OVERRIDE_ROLES, type AuthUser, ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES } from "@/lib/types";
+import { AppError, OVERRIDE_ROLES, type AuthUser, MAX_UPLOAD_BYTES } from "@/lib/types";
 import { chargeApplicationSubmission } from "@/lib/wallet";
 import { recordAudit } from "@/lib/audit";
 import { getEmbassyApplicability } from "@/lib/queries";
@@ -525,6 +529,8 @@ export async function changeApplicationStatus(params: {
   if (tsField) patch[tsField] = new Date();
 
   await db.transaction(async (tx) => {
+    const [current] = await tx.select({ statusId: applications.statusId }).from(applications).where(eq(applications.id, app.id)).for("update");
+    if (!current || current.statusId !== from.id) throw new AppError("BAD_STATE", "This application changed. Refresh before changing its status.");
     await tx.update(applications).set(patch).where(eq(applications.id, app.id));
     await tx.insert(applicationStatusHistory).values({
       applicationId: app.id,
@@ -638,141 +644,79 @@ export async function getDecisionDocuments(applicationId: string) {
  * and the status-history trail. Storage pre-stages the blob first so a
  * failed transaction never leaves a half-visible decision; retry is safe.
  */
-export async function recordApplicationDecision(params: {
-  applicationId: string;
-  outcome: DecisionOutcome;
-  actor: AuthUser;
-  file: { name: string; type: string; size: number; data: Buffer };
-  ipAddress?: string | null;
-}): Promise<{ documentId: string; statusCode: string }> {
-  const { actor } = params;
-  if (!["SUPER_ADMIN", "ADMIN", "VISA_AGENT"].includes(actor.role)) {
+interface DecisionInput {
+  applicationId: string; outcome: DecisionOutcome; actor: AuthUser;
+  file?: { name: string; type: string; size: number; data: Buffer };
+  note?: string | null; ipAddress?: string | null;
+}
+export function recordApplicationDecision(params: DecisionInput & { file: NonNullable<DecisionInput["file"]> }): Promise<{ documentId: string; statusCode: string }>;
+export function recordApplicationDecision(params: DecisionInput): Promise<{ documentId: string | null; statusCode: string }>;
+export async function recordApplicationDecision(params: DecisionInput): Promise<{ documentId: string | null; statusCode: string }> {
+  const { actor, file: f } = params;
+  if (!["SUPER_ADMIN", "ADMIN", "VISA_AGENT"].includes(actor.role) || actor.agencyId) {
     throw new AppError("FORBIDDEN", "Only ESSAFARIA staff can record application decisions.");
   }
-  if (!["APPROVED", "REJECTED"].includes(params.outcome)) {
-    throw new AppError("VALIDATION", "Outcome must be APPROVED or REJECTED.");
+  if (!["APPROVED", "REJECTED"].includes(params.outcome)) throw new AppError("VALIDATION", "Choose a final decision.");
+  const note = params.note?.trim() || null;
+  if (note && note.length > 4000) throw new AppError("VALIDATION", "The note is too long.");
+  if (f) {
+    if (f.size <= 0 || !f.data.length) throw new AppError("NO_FILE", "The uploaded file is empty.");
+    if (f.size > MAX_UPLOAD_BYTES || f.data.length > MAX_UPLOAD_BYTES) throw new AppError("UPLOAD_TOO_LARGE", "Files must be 2 MB or smaller.");
+    const valid = (f.type === "application/pdf" && f.data.subarray(0, 4).toString("latin1") === "%PDF")
+      || (f.type === "image/jpeg" && f.data.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])))
+      || (f.type === "image/png" && f.data.subarray(0, 8).equals(PNG_MAGIC));
+    if (!valid) throw new AppError("UPLOAD_TYPE", "Only matching PDF, JPG or PNG decision documents are accepted.");
   }
-
-  // validate the file hard server-side: size, mime allowlist, magic bytes
-  const f = params.file;
-  if (!f || f.size === 0) throw new AppError("NO_FILE", "The decision document is required before a decision can be recorded.");
-  if (f.size > MAX_UPLOAD_BYTES) throw new AppError("UPLOAD_TOO_LARGE", `The file exceeds the ${Math.floor(MAX_UPLOAD_BYTES / 1024 / 1024)} MB limit.`);
-  if (!ALLOWED_MIME_TYPES.includes(f.type)) throw new AppError("UPLOAD_TYPE", "Only PDF, JPG or PNG decision documents are accepted.");
-  const isPdf = f.type === "application/pdf";
-  const isImage = f.type === "image/jpeg" || f.type === "image/png";
-  if (!isPdf && !isImage) throw new AppError("UPLOAD_TYPE", "Decisions embed PDF or JPG/PNG scans of the embassy outcome.");
-  const magicOk =
-    (isPdf && f.data.subarray(0, 4).toString("latin1") === "%PDF") ||
-    (isImage && (f.data.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])) || f.data.subarray(0, 8).equals(PNG_MAGIC)));
-  if (!magicOk) throw new AppError("UPLOAD_TYPE", "The file content does not match its declared type.");
-
-  const row = await getApplicationForUser(params.applicationId, actor);
-  const app = row.app;
-  const fromRows = await db.select().from(statuses).where(eq(statuses.id, app.statusId)).limit(1);
-  const from = fromRows[0];
-  if (!from) throw new AppError("CONFIG_ERROR", "Current status is not configured.");
-  const allowed = DECISION_SOURCES[from.code] ?? [];
-  if (!allowed.includes(params.outcome)) {
-    const terminal = boolToTerminal(from.code);
-    throw new AppError(
-      "BAD_STATE",
-      terminal
-        ? `A ${params.outcome} decision cannot be recorded: the application already finished at ${from.name}.`
-        : `A final ${params.outcome} decision requires the application to be In Process (or at the Embassy); it is currently ${from.name}.`,
-    );
+  const app = (await getApplicationForUser(params.applicationId, actor)).app;
+  const documentId = f ? crypto.randomUUID() : null;
+  const storageKey = documentId ? buildStorageKey(app.id, documentId) : null;
+  if (f && storageKey) await storageProvider().put(storageKey, f.data, f.type);
+  try {
+    return await db.transaction(async (tx) => {
+      const [locked] = await tx.select().from(applications).where(eq(applications.id, app.id)).for("update");
+      const [from] = await tx.select().from(statuses).where(eq(statuses.id, locked!.statusId));
+      const [to] = await tx.select().from(statuses).where(and(eq(statuses.code, params.outcome), eq(statuses.active, true)));
+      if (!from || !to) throw new AppError("CONFIG_ERROR", "Decision workflow is not configured.");
+      if (!(DECISION_SOURCES[from.code] ?? []).includes(params.outcome)) {
+        throw new AppError("BAD_STATE", "The application must be in Processing or at the Embassy and must not already be decided.");
+      }
+      const [transition] = await tx.select().from(statusTransitions).where(and(
+        eq(statusTransitions.fromStatusId, from.id), eq(statusTransitions.toStatusId, to.id),
+      ));
+      if (!transition || !["STAFF", "BOTH"].includes(transition.scope)) throw new AppError("BAD_STATE", "This decision is not allowed by the configured workflow.");
+      const now = new Date();
+      if (f && documentId && storageKey) {
+        const [dt] = await tx.select().from(documentTypes).where(and(eq(documentTypes.code, documentTypeForOutcome(params.outcome)), eq(documentTypes.active, true)));
+        if (!dt) throw new AppError("CONFIG_ERROR", "Decision document type is not available.");
+        await tx.insert(documents).values({ id: documentId, applicationId: app.id, documentTypeId: dt.id,
+          originalFilename: f.name, mimeType: f.type, sizeBytes: f.data.length, storageKey, status: "ACCEPTED",
+          uploadedBy: actor.id, version: 1, reviewedBy: actor.id, reviewedAt: now,
+          reviewNotes: "Official decision document",
+        });
+      }
+      await tx.update(applications).set({ statusId: to.id, decisionAt: now, updatedAt: now }).where(eq(applications.id, app.id));
+      await tx.insert(applicationStatusHistory).values({ applicationId: app.id, fromStatusId: from.id,
+        toStatusId: to.id, changedBy: actor.id, reason: note ?? `Final decision: ${to.name}`,
+      });
+      if (note) await tx.insert(communications).values({ applicationId: app.id, authorId: actor.id, visibility: "AGENCY", body: note });
+      await tx.insert(auditLogs).values({ actorId: actor.id, actorEmail: actor.email, actorRole: actor.role,
+        agencyId: app.agencyId, action: "APPLICATION_DECISION_RECORDED", entity: "application", entityId: app.id,
+        metadata: { outcome: params.outcome, documentId, from: from.code }, ipAddress: params.ipAddress ?? null,
+      });
+      const recipients = await tx.select({ id: users.id, agencyId: users.agencyId }).from(users)
+        .where(sql`${users.status} = 'ACTIVE' and (${users.agencyId} = ${app.agencyId} or ${users.agencyId} is null)`);
+      const events = recipients.filter((u) => u.id !== actor.id).map((u) => ({ userId: u.id,
+        agencyId: app.agencyId, applicationId: app.id, type: "APPLICATION_DECISION",
+        title: `Application ${app.reference}: ${to.name}`, body: note ?? to.name,
+        link: `/${u.agencyId ? "portal" : "admin"}/applications/${app.id}`,
+      }));
+      if (events.length) await tx.insert(notifications).values(events);
+      return { documentId, statusCode: to.code };
+    });
+  } catch (error) {
+    if (storageKey) await storageProvider().delete(storageKey).catch(() => {});
+    throw error;
   }
-
-  const to = await getStatusByCode(params.outcome);
-
-  const typeRows = await db
-    .select({ id: documentTypes.id, active: documentTypes.active })
-    .from(documentTypes)
-    .where(eq(documentTypes.code, documentTypeForOutcome(params.outcome)))
-    .limit(1);
-  const dt = typeRows[0];
-  if (!dt?.active) throw new AppError("CONFIG_ERROR", "Decision document types are not configured—run migrations.");
-
-  const documentId = crypto.randomUUID();
-  const storageKey = buildStorageKey(app.id, documentId);
-  // Pre-stage the blob first: if the DB transaction below fails, a retry is
-  // safe — the worst case is an orphaned blob, never a half-visible decision.
-  await storageProvider().put(storageKey, f.data, f.type);
-
-  const now = new Date();
-  await db.transaction(async (tx) => {
-    await tx.insert(documents).values({
-      id: documentId,
-      applicationId: app.id,
-      applicantId: null,
-      checklistItemId: null,
-      documentTypeId: dt.id,
-      originalFilename: f.name,
-      mimeType: f.type,
-      sizeBytes: f.size,
-      storageKey,
-      status: "ACCEPTED",
-      uploadedBy: actor.id,
-      version: 1,
-      reviewedBy: actor.id,
-      reviewedAt: now,
-      reviewNotes: "System decision document (auto-accepted by the decision workflow).",
-    });
-    await tx
-      .update(applications)
-      .set({ statusId: to.id, decisionAt: now, updatedAt: now })
-      .where(eq(applications.id, app.id));
-    await tx.insert(applicationStatusHistory).values({
-      applicationId: app.id,
-      fromStatusId: from.id,
-      toStatusId: to.id,
-      changedBy: actor.id,
-      reason: `Final decision recorded: ${to.name} (decision document ${documentId}).`,
-    });
-  });
-
-  await recordAudit({
-    actor,
-    action: "APPLICATION_DECISION_RECORDED",
-    entity: "application",
-    entityId: app.id,
-    agencyId: app.agencyId,
-    metadata: { outcome: params.outcome, documentId, filename: f.name, sizeBytes: f.size, from: from.code },
-    ipAddress: params.ipAddress ?? null,
-  });
-
-  const firstApplicant = (
-    await db
-      .select({ firstName: applicants.firstName, lastName: applicants.lastName })
-      .from(applicants)
-      .where(eq(applicants.applicationId, app.id))
-      .orderBy(asc(applicants.createdAt))
-      .limit(1)
-  )[0];
-  const applicantName = firstApplicant ? `${firstApplicant.firstName} ${firstApplicant.lastName}`.trim() : null;
-  const applicantLine = applicantName ? ` for ${applicantName}` : "";
-  await notifyUsers(await agencyUserIds(app.agencyId), {
-    type: "APPLICATION_DECISION",
-    title: `Application ${app.reference}: ${to.name}`,
-    body: `The final decision${applicantLine} is ${to.name}. The decision document is available in the application file.`,
-    link: `/portal/applications/${app.id}`,
-    agencyId: app.agencyId,
-    applicationId: app.id,
-  });
-  const sIds = (await staffUserIds()).filter((id) => id !== actor.id);
-  await notifyUsers(sIds, {
-    type: "APPLICATION_DECISION",
-    title: `Application ${app.reference}: ${to.name}`,
-    body: `${actor.name ?? actor.email} recorded the final ${to.name} decision.`,
-    link: `/admin/applications/${app.id}`,
-    agencyId: app.agencyId,
-    applicationId: app.id,
-  });
-
-  return { documentId, statusCode: to.code };
-}
-
-function boolToTerminal(code: string): boolean {
-  return ["APPROVED", "REFUSED", "REJECTED", "COMPLETED", "CANCELLED"].includes(code); // REFUSED kept: legacy terminal
 }
 
 /* ------------------------------------------------------------------ */

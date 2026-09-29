@@ -2,9 +2,10 @@
  * Nationality dictionary (Phase 2-Final, Correction 6).
  *
  * Stable identifiers = ISO 3166-1 alpha-2 codes ("DZ"), never display
- * labels. Display names are UI-localized (en/fr/ar) with an English
- * fallback for rarely-used entries. Algeria is the platform default.
+ * labels. Display names are UI-localized (en/fr/ar) through explicit labels
+ * or the platform's ISO country names. Algeria is the platform default.
  */
+import { countryName } from "@/lib/country-names";
 
 export interface Nationality {
   code: string;
@@ -101,7 +102,7 @@ const LOCALIZED: Nationality[] = [
   { code: "YE", en: "Yemen", fr: "Yémen", ar: "اليمن" },
 ];
 
-/** Additional ISO-3166 entries (English display; falls back in fr/ar). */
+/** Additional ISO-3166 entries; ICU supplies their FR / AR labels. */
 const EXTRA: Nationality[] = [
   "Albania:AL", "Andorra:AD", "Anguilla:AI", "Antigua and Barbuda:AG", "Azerbaijan:AZ",
   "Bahamas:BS", "Barbados:BB", "Belarus:BY", "Belize:BZ", "Bermuda:BM", "Bolivia:BO",
@@ -149,5 +150,6 @@ export function nationalityLabel(code: string | null | undefined, locale: "en" |
   if (!code) return "—";
   const n = BY_CODE.get(code.trim().toUpperCase());
   if (!n) return code; // legacy free-text value stays untouched
-  return (locale === "fr" ? n.fr : locale === "ar" ? n.ar : n.en) ?? n.en;
+  return (locale === "fr" ? n.fr : locale === "ar" ? n.ar : n.en)
+    ?? countryName({ name: n.en, iso2: n.code }, locale);
 }

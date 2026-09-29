@@ -43,7 +43,7 @@ async function requirementTypeIds(vId: string) {
 }
 
 function doc(typeId: string, name = "scan.pdf", size = 2048) {
-  return { documentTypeId: typeId, file: { name, type: "application/pdf", size, data: Buffer.alloc(size, 1) } };
+  return { documentTypeId: typeId, file: { name, type: "application/pdf", size, data: Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(Math.max(0, size - 9), 1)]) } };
 }
 
 function applicant() {
@@ -73,6 +73,12 @@ async function baseInput(key: string) {
 }
 
 describe("Phase 2-Final — atomic simplified request submission", () => {
+  it("never returns another agency's application for a reused submission key", async () => {
+    const { input } = await baseInput(crypto.randomUUID());
+    await submitVisaRequest(input);
+    const other = await userByEmail("a-admin@test.example");
+    await expect(submitVisaRequest({ ...input, actor: other })).rejects.toBeDefined();
+  });
   it("exposes the final enumerated validation codes (18, stable identifiers)", () => {
     expect(REQUEST_VALIDATION_CODES).toHaveLength(18);
     expect(new Set(REQUEST_VALIDATION_CODES).size).toBe(18);

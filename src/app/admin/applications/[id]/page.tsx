@@ -1,3 +1,5 @@
+import { configName } from "@/lib/config-localization";
+import { businessLabel } from "@/lib/business-labels";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { pageUser } from "@/lib/page-auth";
@@ -15,7 +17,7 @@ import { listAgencyRequestableDocumentTypes, listDocumentRequests } from "@/lib/
 import { findTransactionByApplication } from "@/lib/wallet";
 import { listCommunications } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
-import { getUiLocale, localizedStatusName, localizedDocTypeName } from "@/lib/ui-i18n";
+import { getUiLocale, localizedStatusName, localizedDocTypeName, localizedDocStatus } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { countryName } from "@/lib/country-names";
 import { formatAmount, formatDateTime } from "@/lib/format";
@@ -29,7 +31,7 @@ import {
   updateInternalNotesAction,
 } from "@/app/actions/applications";
 import { requestAdditionalDocumentAction, requestReplacementAction, reviewDocumentAction } from "@/app/actions/documents";
-import { SubmitButton } from "@/components/forms";
+import { ConfirmButton, SubmitButton } from "@/components/forms";
 import { Card, CardHeader, Flash, PageHeader, Tabs } from "@/components/ui";
 import { PriorityBadge, StatusBadge } from "@/components/badges";
 import {
@@ -114,25 +116,27 @@ export default async function AdminApplicationDetailPage({
       ),
   );
   const allowedDecisionOutcomes = decisionOutcomesForStatus(detail.statusCode);
+  const isClosed = ["APPROVED", "REJECTED", "CANCELLED", "COMPLETED", "REFUSED"].includes(detail.statusCode);
   const canStatusChange = hasPermission(user, "applications.status.change");
   const canReview = hasPermission(user, "applications.review");
   const _canOverride = hasPermission(user, "applications.submit.override") && OVERRIDE_ROLES.includes(user.role);
   const flash = flashFrom(sp);
   const uiLocale = await getUiLocale();
   const ct = contentT(uiLocale);
+  const visaDisplayName = configName({ name: app.visaTypeName, nameFr: detail.visaNameFr, nameAr: detail.visaNameAr }, uiLocale);
   const applicant = applicants[0];
   const _openRequests = docRequests.filter((r) => r.req.status === "OPEN");
 
   return (
     <>
       <PageHeader
-        title={app.reference}
-        subtitle={`${countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)} · ${app.visaTypeName} — ${detail.agencyName ?? ""}`}
+        title={applicant?.fullName || `${applicant?.firstName ?? ""} ${applicant?.lastName ?? ""}`.trim() || app.reference}
+        subtitle={`${app.reference} · ${countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)} · ${visaDisplayName} — ${detail.agencyName ?? ""}`}
         actions={
           <>
             <StatusBadge code={detail.statusCode} name={detail.statusName} />
             <PriorityBadge name={detail.priorityName} weight={detail.priorityWeight} />
-            <Link href="/admin/applications" className="btn-secondary btn-sm">← All applications</Link>
+            <Link href="/admin/applications" className="btn-secondary btn-sm">{uiLocale === "ar" ? "→" : "←"} {ct("All applications")}</Link>
           </>
         }
       />
@@ -158,7 +162,7 @@ export default async function AdminApplicationDetailPage({
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Destination")}</p>
                   <p className="mt-1 font-medium text-navy-900">{countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)}</p>
-                  <p className="text-xs text-slate-500">{app.visaTypeName} · {app.categoryName}</p>
+                  <p className="text-xs text-slate-500">{visaDisplayName} · {app.categoryName}</p>
                 </div>
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Fee")}</p>
@@ -175,7 +179,7 @@ export default async function AdminApplicationDetailPage({
                   subtitle={
                     embassyApplicability === "NOT_APPLICABLE"
                       ? ct("This programme does not use an embassy stage: process the file and record the decision.")
-                      : ct("Direct transition IN_PROCESS → APPROVED/REJECTED via decision only. Routine transitions validated.")
+                      : ct("Choose the next processing step. Use Final decision to approve or refuse the application.")
                   }
                 />
                 <form action={changeStatusAction} className="flex flex-wrap items-end gap-3 px-4 py-4">
@@ -183,32 +187,32 @@ export default async function AdminApplicationDetailPage({
                   <input type="hidden" name="back" value={back} />
                   <div>
                     <label className="label">{ct("Change status to")}</label>
-                    <select name="toStatusCode" className="input w-56" required>
+                    <select aria-label={ct("Change status to")} name="toStatusCode" className="input w-56" required>
                       {selectableStatuses.length === 0 ? <option value="">{ct("No routine transitions available")}</option> : null}
                       {selectableStatuses.map((s) => (
-                        <option key={s.status.id} value={s.status.code}>{s.status.name}</option>
+                        <option key={s.status.id} value={s.status.code}>{localizedStatusName(s.status.code, s.status.name, uiLocale)}</option>
                       ))}
                     </select>
                   </div>
                   <div className="min-w-[220px] flex-1">
                     <label className="label">{ct("Reason (recommended)")}</label>
-                    <input name="reason" className="input" placeholder={ct("Why is the status changing?")} />
+                    <input aria-label={ct("Reason (recommended)")} name="reason" className="input" placeholder={ct("Why is the status changing?")} />
                   </div>
-                  <SubmitButton className="btn-primary" pendingLabel="Updating…">{ct("Update status")}</SubmitButton>
+                  <SubmitButton className="btn-primary" pendingLabel={ct("Updating…")}>{ct("Update status")}</SubmitButton>
                 </form>
               </Card>
             ) : null}
 
             {canReview ? (
               <Card className="border-navy-200">
-                <CardHeader title={ct("Final decision")} subtitle={ct("Upload embassy outcome and record atomically — the only path to APPROVED/REJECTED.")} />
+                <CardHeader title={ct("Final decision")} subtitle={ct("Record the final decision and optionally attach the official document.")} />
                 {decisionDocs.length > 0 ? (
                   <ul className="space-y-2 px-4 py-3 text-sm">
                     {decisionDocs.map((d) => (
                       <li key={d.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-ivory-50/60 px-3 py-2">
                         <div>
                           <p className="font-medium text-navy-900">{localizedDocTypeName(d.typeCode, d.typeName, uiLocale)}</p>
-                          <p className="text-xs text-slate-500">{formatDateTime(d.createdAt, uiLocale)} · {d.status}</p>
+                          <p className="text-xs text-slate-500">{formatDateTime(d.createdAt, uiLocale)} · {localizedDocStatus(d.status, uiLocale, d.status)}</p>
                         </div>
                         <a href={`/api/documents/${d.id}`} className="btn-secondary btn-sm">{ct("Download")}</a>
                       </li>
@@ -223,17 +227,18 @@ export default async function AdminApplicationDetailPage({
                     <input type="hidden" name="back" value={back} />
                     <div>
                       <label className="label">{ct("Outcome")}</label>
-                      <select name="outcome" className="input w-44" required>
+                      <select aria-label={ct("Outcome")} name="outcome" className="input w-44" required>
                         {allowedDecisionOutcomes.map((o) => (
                           <option key={o} value={o}>{localizedStatusName(o, o, uiLocale)}</option>
                         ))}
                       </select>
                     </div>
                     <div className="min-w-[260px] flex-1">
-                      <label className="label">{ct("Decision document (PDF/JPG/PNG, mandatory)")}</label>
-                      <input name="file" type="file" accept="application/pdf,image/jpeg,image/png" required className="input" />
+                      <label className="label">{ct("Decision document (PDF/JPG/PNG, optional, 2 MB)")}</label>
+                      <input aria-label={ct("Decision document (PDF/JPG/PNG, optional, 2 MB)")} name="file" type="file" accept="application/pdf,image/jpeg,image/png" className="input" />
                     </div>
-                    <SubmitButton className="btn-primary" pendingLabel="Recording…">{ct("Record decision")}</SubmitButton>
+                    <div className="w-full"><label className="label" htmlFor="decision-note">{ct("Message to agency (optional)")}</label><textarea id="decision-note" name="note" maxLength={4000} className="input" rows={2} /></div>
+                    <ConfirmButton className="btn-primary" message={ct("Confirm this final decision? The application will be closed.")}>{ct("Record decision")}</ConfirmButton>
                   </form>
                 ) : (
                   <p className="px-4 pb-4 text-xs text-slate-500">{["APPROVED","REJECTED","COMPLETED","CANCELLED"].includes(detail.statusCode) ? ct("File closed.") : ct("Decisions unlock in Processing / Awaiting Decision.")}</p>
@@ -248,7 +253,7 @@ export default async function AdminApplicationDetailPage({
                   <input type="hidden" name="applicationId" value={id} />
                   <input type="hidden" name="back" value={back} />
                   <textarea name="internalNotes" rows={3} defaultValue={app.internalNotes ?? ""} className="input" placeholder={ct("Case-officer notes…")} />
-                  <div className="mt-2.5"><SubmitButton className="btn-secondary btn-sm" pendingLabel="Saving…">{ct("Save notes")}</SubmitButton></div>
+                  <div className="mt-2.5"><SubmitButton className="btn-secondary btn-sm" pendingLabel={ct("Saving…")}>{ct("Save notes")}</SubmitButton></div>
                 </form>
               </Card>
             ) : null}
@@ -263,14 +268,14 @@ export default async function AdminApplicationDetailPage({
                   <input type="hidden" name="back" value={back} />
                   <div className="flex-1">
                     <label className="label">{ct("Assigned to")}</label>
-                    <select name="assignedTo" defaultValue={app.assignedTo ?? ""} className="input">
+                    <select aria-label={ct("Assigned to")} name="assignedTo" defaultValue={app.assignedTo ?? ""} className="input">
                       <option value="">{ct("Unassigned")}</option>
                       {officers.map((o) => (
-                        <option key={o.id} value={o.id}>{o.name} ({o.role.replaceAll("_"," ")})</option>
+                        <option key={o.id} value={o.id}>{o.name} ({businessLabel(o.role, uiLocale)})</option>
                       ))}
                     </select>
                   </div>
-                  <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">Save</SubmitButton>
+                  <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">{ct("Save")}</SubmitButton>
                 </form>
               </Card>
             ) : null}
@@ -299,7 +304,7 @@ export default async function AdminApplicationDetailPage({
                   <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
                   <div>
                     <label className="label">{ct("Type")} *</label>
-                    <select name="type" required className="input" defaultValue="DISCOUNT">
+                    <select aria-label={ct("Type")} name="type" required className="input" defaultValue="DISCOUNT">
                       <option value="DISCOUNT">{ct("Discount")}</option>
                       <option value="REFUND">{ct("Refund")}</option>
                       <option value="SURCHARGE">{ct("Surcharge")}</option>
@@ -307,11 +312,11 @@ export default async function AdminApplicationDetailPage({
                   </div>
                   <div>
                     <label className="label">{ct("Amount (DZD)")} *</label>
-                    <input name="amount" required inputMode="decimal" className="input" placeholder="2000.00" />
+                    <input aria-label={ct("Amount (DZD)")} name="amount" required inputMode="decimal" className="input" placeholder="2000.00" />
                   </div>
                   <div>
                     <label className="label">{ct("Reason")} *</label>
-                    <input name="reason" required minLength={8} className="input" />
+                    <input aria-label={ct("Reason")} name="reason" required minLength={8} className="input" />
                   </div>
                   <div className="flex items-center gap-2">
                     <input name="confirm" type="checkbox" required className="h-4 w-4 rounded border-slate-300" />
@@ -337,10 +342,10 @@ export default async function AdminApplicationDetailPage({
                   <div key={item.id} className="px-4 py-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <p className="font-medium text-navy-900">{item.documentTypeName} {item.required ? <span className="badge bg-rose-50 text-rose-600 text-[10px]">Required</span> : null}</p>
+                        <p className="font-medium text-navy-900">{localizedDocTypeName(item.documentTypeCode, item.documentTypeName, uiLocale)} {item.required ? <span className="badge bg-rose-50 text-rose-600 text-[10px]">{ct("Required")}</span> : null}</p>
                         {item.notes ? <p className="mt-0.5 text-xs text-slate-500">{item.notes}</p> : null}
                       </div>
-                      {latest ? <span className="badge bg-emerald-50 text-emerald-700">Uploaded</span> : <span className="badge bg-amber-50 text-amber-700">Missing</span>}
+                      {latest ? <span className="badge bg-emerald-50 text-emerald-700">{ct("Uploaded")}</span> : <span className="badge bg-amber-50 text-amber-700">{ct("Missing")}</span>}
                     </div>
                     {itemDocs.length > 0 ? (
                       <ul className="mt-3 space-y-1.5">
@@ -348,60 +353,74 @@ export default async function AdminApplicationDetailPage({
                           <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ivory-50 px-3 py-2 text-xs">
                             <span className="flex items-center gap-2 min-w-0">
                               <a href={`/api/documents/${doc.id}`} target="_blank" className="font-medium truncate hover:underline">{doc.originalFilename}</a>
-                              <span className="text-slate-400">v{doc.version} · {doc.status} · {formatDateTime(doc.createdAt, uiLocale)}</span>
+                              <span className="text-slate-400">v{doc.version} · {localizedDocStatus(doc.status, uiLocale, doc.status)} · {formatDateTime(doc.createdAt, uiLocale)}</span>
                               {applicantName ? <span className="text-slate-500">· {applicantName}</span> : null}
                             </span>
                             <span className="flex items-center gap-1.5">
-                              <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-xs">Preview</a>
+                              <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-xs">{ct("Preview")}</a>
+                              {canReview && latest?.doc.id === doc.id && doc.status !== "ACCEPTED" ? (
+                                <form action={reviewDocumentAction}>
+                                  <input type="hidden" name="documentId" value={doc.id} />
+                                  <input type="hidden" name="applicationId" value={id} />
+                                  <input type="hidden" name="back" value={`${back}?tab=documents`} />
+                                  <SubmitButton name="status" value="ACCEPTED" className="btn-secondary btn-xs" pendingLabel="…">{ct("Accept")}</SubmitButton>
+                                </form>
+                              ) : null}
                             </span>
                           </li>
                         ))}
                       </ul>
                     ) : null}
-                    <form action={requestReplacementAction} className="mt-3 flex flex-wrap items-end gap-2">
-                      <input type="hidden" name="applicationId" value={id} />
-                      <input type="hidden" name="checklistItemId" value={item.id} />
-                      <input type="hidden" name="back" value={`${back}?tab=documents`} />
-                      <div className="flex-1 min-w-[180px]">
-                        <input name="reason" required minLength={5} placeholder={ct("Reason to request replacement")} className="input text-xs" />
-                      </div>
-                      <SubmitButton className="btn-secondary btn-xs" pendingLabel="…">{ct("Request replacement")}</SubmitButton>
-                    </form>
+                    {!isClosed ? (
+                      <form action={requestReplacementAction} className="mt-3 flex flex-wrap items-end gap-2">
+                        <input type="hidden" name="applicationId" value={id} />
+                        <input type="hidden" name="checklistItemId" value={item.id} />
+                        <input type="hidden" name="back" value={`${back}?tab=documents`} />
+                        <div className="flex-1 min-w-[180px]">
+                          <input name="reason" required minLength={5} placeholder={ct("Reason to request replacement")} className="input text-xs" />
+                        </div>
+                        <SubmitButton className="btn-secondary btn-xs" pendingLabel="…">{ct("Request replacement")}</SubmitButton>
+                      </form>
+                    ) : (
+                      <p className="mt-2 text-xs text-slate-400">{ct("File closed.")}</p>
+                    )}
                   </div>
                 );
               })}
             </div>
           </Card>
 
-          <Card>
-            <CardHeader title={ct("Request additional document")} subtitle={ct("Creates an extra requirement and notifies agency")} />
-            <form action={requestAdditionalDocumentAction} className="flex flex-wrap items-end gap-3 p-4">
-              <input type="hidden" name="applicationId" value={id} />
-              <input type="hidden" name="back" value={`${back}?tab=documents`} />
-              {availableRequestableTypes.length === 0 ? (
-                <p className="w-full text-xs text-slate-600">
-                  {ct("Every configured agency document is already a requirement of this dossier. Use “Request replacement” on the requirement to ask for a new version — no duplicate requirement is created.")}
-                </p>
-              ) : (
-                <>
-                  <div className="min-w-[200px] flex-1">
-                    <label className="label">{ct("Document type")} *</label>
-                    <select name="documentTypeId" required className="input">
-                      <option value="">{ct("Select type")}</option>
-                      {availableRequestableTypes.map((t) => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="min-w-[240px] flex-1">
-                    <label className="label">{ct("Reason")} *</label>
-                    <input name="reason" required minLength={5} className="input" placeholder={ct("Embassy requested additional…")} />
-                  </div>
-                  <SubmitButton className="btn-primary btn-sm" pendingLabel="Requesting…">{ct("Request additional")}</SubmitButton>
-                </>
-              )}
-            </form>
-          </Card>
+          {!isClosed ? (
+            <Card>
+              <CardHeader title={ct("Request additional document")} subtitle={ct("Creates an extra requirement and notifies agency")} />
+              <form action={requestAdditionalDocumentAction} className="flex flex-wrap items-end gap-3 p-4">
+                <input type="hidden" name="applicationId" value={id} />
+                <input type="hidden" name="back" value={`${back}?tab=documents`} />
+                {availableRequestableTypes.length === 0 ? (
+                  <p className="w-full text-xs text-slate-600">
+                    {ct("Every configured agency document is already a requirement of this dossier. Use “Request replacement” on the requirement to ask for a new version — no duplicate requirement is created.")}
+                  </p>
+                ) : (
+                  <>
+                    <div className="min-w-[200px] flex-1">
+                      <label className="label">{ct("Document type")} *</label>
+                      <select aria-label={ct("Document type")} name="documentTypeId" required className="input">
+                        <option value="">{ct("Select type")}</option>
+                        {availableRequestableTypes.map((t) => (
+                          <option key={t.id} value={t.id}>{localizedDocTypeName(t.code, t.name, uiLocale)}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="min-w-[240px] flex-1">
+                      <label className="label">{ct("Reason")} *</label>
+                      <input aria-label={ct("Reason")} name="reason" required minLength={5} className="input" placeholder={ct("Embassy requested additional…")} />
+                    </div>
+                    <SubmitButton className="btn-primary btn-sm" pendingLabel={ct("Requesting…")}>{ct("Request additional")}</SubmitButton>
+                  </>
+                )}
+              </form>
+            </Card>
+          ) : null}
 
           {documentGroups.unassigned.length > 0 ? (
             <Card>
@@ -443,7 +462,7 @@ export default async function AdminApplicationDetailPage({
                       <span className={`badge ${r.req.status === "OPEN" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
                         {r.req.status === "OPEN" ? ct("Awaiting your upload") : r.req.status === "FULFILLED" ? ct("Received") : ct("Cancelled")}
                       </span>{" "}
-                      {r.req.type === "REPLACEMENT" ? ct("Replacement requested") : ct("Additional document requested")} · {r.docTypeName}
+                      {r.req.type === "REPLACEMENT" ? ct("Replacement requested") : ct("Additional document requested")} · {localizedDocTypeName(r.docTypeCode, r.docTypeName, uiLocale)}
                     </span>
                     <span className="text-slate-500">
                       {r.req.reason} · {formatDateTime(r.req.createdAt, uiLocale)}

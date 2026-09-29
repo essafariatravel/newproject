@@ -143,6 +143,10 @@ export const visaCategories = pgTable(
   {
     id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
     name: text("name").notNull(),
+    nameFr: text("name_fr"),
+    nameAr: text("name_ar"),
+    descriptionFr: text("description_fr"),
+    descriptionAr: text("description_ar"),
     code: text("code").notNull().unique(),
     description: text("description"),
     active: boolean("active").notNull().default(true),
@@ -162,6 +166,10 @@ export const visaTypes = pgTable(
       .notNull()
       .references(() => visaCategories.id),
     name: text("name").notNull(),
+    nameFr: text("name_fr"),
+    nameAr: text("name_ar"),
+    descriptionFr: text("description_fr"),
+    descriptionAr: text("description_ar"),
     code: text("code").notNull().unique(),
     description: text("description"),
     processingMinDays: integer("processing_min_days").notNull().default(5),
@@ -185,6 +193,10 @@ export const documentTypes = pgTable(
   {
     id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
     name: text("name").notNull(),
+    nameFr: text("name_fr"),
+    nameAr: text("name_ar"),
+    descriptionFr: text("description_fr"),
+    descriptionAr: text("description_ar"),
     code: text("code").notNull().unique(),
     description: text("description"),
     active: boolean("active").notNull().default(true),

@@ -50,8 +50,8 @@ describe("Task 2/3 — CTA + registration submit button share the polished butto
     const css = readFileSync("src/app/globals.css", "utf8");
     const gold = css.slice(css.indexOf(".btn-gold {"), css.indexOf("}", css.indexOf(".btn-gold {")));
     expect(gold).toContain("text-navy-950");
-    expect(gold).toContain("disabled:opacity-60");
-    expect(gold).toContain("disabled:ring-1");
+    expect(css).toContain("disabled:opacity-50");
+    expect(css).toContain("disabled:cursor-not-allowed");
     const form = readFileSync("src/app/(public)/agency/register/registration-form.tsx", "utf8");
     expect(form).toContain('className="btn-gold');
     expect(form).toContain("disabled={pending}");

@@ -1,3 +1,4 @@
+import { businessLabel } from "@/lib/business-labels";
 import type { ChecklistItem, Applicant, Application } from "@/db/schema";
 import { formatDateTime, formatAmount, personName, bytes } from "@/lib/format";
 import type { DocumentRow } from "@/db/schema";
@@ -14,7 +15,7 @@ import { postMessageAction } from "@/app/actions/communications";
 import type { AuthUser } from "@/lib/types";
 import { DOCUMENT_REVIEW_ROLES } from "@/lib/types";
 import { contentT } from "@/lib/i18n-content";
-import type { UiLocale } from "@/lib/ui-i18n";
+import { localizedDocTypeName, type UiLocale } from "@/lib/ui-i18n";
 
 /* ------------------------------- checklist ------------------------------- */
 
@@ -48,10 +49,10 @@ export function ChecklistTable(props: {
       <div className="card flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
         <div>
           <p className="text-sm font-medium text-navy-900">
-            Required documents: {requiredDone} / {requiredItems.length} complete
+            {t("Required documents")}: {requiredDone} / {requiredItems.length} {t("complete")}
           </p>
           <p className="text-xs text-slate-500">
-            Optional: {optionalDone}/{optionalItems.length} · Checklist generated from the visa requirements at application creation
+            {t("Optional")}: {optionalDone}/{optionalItems.length} · {t("Checklist generated from the visa requirements at application creation")}
           </p>
         </div>
         <Progress done={requiredDone} total={requiredItems.length} />
@@ -70,7 +71,7 @@ export function ChecklistTable(props: {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="text-sm font-medium text-navy-900">
-                      {item.documentTypeName}{" "}
+                      {localizedDocTypeName(item.documentTypeCode, item.documentTypeName, props.locale ?? "en")}{" "}
                       {item.required ? (
                         <span className="badge bg-red-100 text-red-700">{t("Required")}</span>
                       ) : (
@@ -81,7 +82,7 @@ export function ChecklistTable(props: {
                     {item.notes ? <p className="mt-0.5 text-xs text-slate-500">{item.notes}</p> : null}
                   </div>
                   <span className={`badge ${satisfied ? "bg-emerald-100 text-emerald-800" : rejected ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"}`}>
-                    {satisfied ? "Provided" : rejected ? "Action needed" : "Missing"}
+                    {t(satisfied ? "Provided" : rejected ? "Action needed" : "Missing")}
                   </span>
                 </div>
                 {docs.length > 0 ? (
@@ -137,10 +138,11 @@ function UploadFormInline(props: {
         name="file"
         required
         accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
-        className="max-w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-2.5 file:py-1.5 file:text-xs file:text-white"
+        aria-label={t("Upload document")}
+        className="max-w-full text-xs file:me-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-2.5 file:py-1.5 file:text-xs file:text-white"
       />
       {props.applicants.length > 1 ? (
-        <select name="applicantId" className="input max-w-[180px] py-1.5 text-xs">
+        <select name="applicantId" aria-label={t("Applicant…")} className="input max-w-[180px] py-1.5 text-xs">
           <option value="">{t("Applicant…")}</option>
           {props.applicants.map((a) => (
             <option key={a.id} value={a.id}>
@@ -162,7 +164,7 @@ function UploadFormInline(props: {
 /* ------------------------------- documents ------------------------------- */
 
 export function DocumentList(props: {
-  documents: Array<{ doc: DocumentRow; documentTypeName: string; applicantName: string | null }>;
+  documents: Array<{ doc: DocumentRow; documentTypeName: string; documentTypeCode?: string; applicantName: string | null }>;
   user: AuthUser;
   applicationId: string;
   isDraft: boolean;
@@ -173,13 +175,13 @@ export function DocumentList(props: {
   if (props.documents.length === 0) {
     return (
       <div className="card px-4 py-8 text-center text-sm text-slate-500">
-        No documents uploaded yet.
+        {t("No documents uploaded yet.")}
       </div>
     );
   }
   return (
     <div className="space-y-3">
-      {props.documents.map(({ doc, documentTypeName, applicantName }) => (
+      {props.documents.map(({ doc, documentTypeName, documentTypeCode, applicantName }) => (
         <div key={doc.id} className="card p-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
@@ -190,15 +192,15 @@ export function DocumentList(props: {
                 <DocStatusBadge status={doc.status} />
               </p>
               <p className="mt-0.5 text-xs text-slate-500">
-                {documentTypeName}
-                {applicantName ? ` · ${applicantName}` : ""} · v{doc.version} · {bytes(doc.sizeBytes)} · uploaded {formatDateTime(doc.createdAt, props.locale ?? "en")}
+                {localizedDocTypeName(documentTypeCode ?? "", documentTypeName, props.locale ?? "en")}
+                {applicantName ? ` · ${applicantName}` : ""} · v{doc.version} · {bytes(doc.sizeBytes)} · {t("uploaded")} {formatDateTime(doc.createdAt, props.locale ?? "en")}
               </p>
               {doc.rejectionReason ? (
                 <p className="mt-1.5 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
-                  Reason: {doc.rejectionReason}
+                  {t("Reason")}: {doc.rejectionReason}
                 </p>
               ) : null}
-              {doc.reviewNotes ? <p className="mt-1 text-xs text-slate-500">Reviewer note: {doc.reviewNotes}</p> : null}
+              {doc.reviewNotes ? <p className="mt-1 text-xs text-slate-500">{t("Reviewer note")}: {doc.reviewNotes}</p> : null}
             </div>
             {props.user.agencyId && props.isDraft ? (
               <form action={deleteDocumentAction}>
@@ -206,10 +208,10 @@ export function DocumentList(props: {
                 <input type="hidden" name="applicationId" value={props.applicationId} />
                 <input type="hidden" name="back" value={`/portal/applications/${props.applicationId}`} />
                 <ConfirmButton
-                  message={`Remove "${doc.originalFilename}"?`}
+                  message={t('Remove "{filename}"?').replace("{filename}", () => doc.originalFilename)}
                   className="btn-danger btn-sm"
                 >
-                  Remove
+                  {t("Remove")}
                 </ConfirmButton>
               </form>
             ) : null}
@@ -247,7 +249,8 @@ export function DocumentList(props: {
                 name="file"
                 required
                 accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
-                className="text-xs file:mr-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-2.5 file:py-1.5 file:text-xs file:text-white"
+                aria-label={t("Resubmit corrected file")}
+                className="max-w-full text-xs file:me-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-2.5 file:py-1.5 file:text-xs file:text-white"
               />
               <SubmitButton className="btn-gold btn-sm" pendingLabel={t("Submitting…")}>{t("Resubmit corrected file")}</SubmitButton>
             </form>
@@ -279,10 +282,10 @@ export function CommunicationsPanel(props: {
             <div key={message.id} className="px-4 py-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-medium text-navy-900">
-                  {authorName} <span className="font-normal text-slate-400">· {authorRole.replaceAll("_", " ")}</span>
+                  {authorName} <span className="font-normal text-slate-400">· {businessLabel(authorRole, props.locale ?? "en")}</span>
                   {isStaff ? (
-                    <span className={`badge ml-2 ${message.visibility === "INTERNAL" ? "bg-slate-200 text-slate-600" : "bg-teal-100 text-teal-700"}`}>
-                      {message.visibility === "INTERNAL" ? "Internal note" : "Visible to agency"}
+                    <span className={`badge ms-2 ${message.visibility === "INTERNAL" ? "bg-slate-200 text-slate-600" : "bg-teal-100 text-teal-700"}`}>
+                      {t(message.visibility === "INTERNAL" ? "Internal note" : "Visible to agency")}
                     </span>
                   ) : null}
                 </p>
@@ -303,7 +306,7 @@ export function CommunicationsPanel(props: {
           {isStaff ? (
             <label className="flex items-center gap-2 text-xs text-slate-500">
               <input type="checkbox" name="visibility" value="INTERNAL" className="h-3.5 w-3.5" />
-              Internal note (not visible to the agency)
+              {t("Internal note (not visible to the agency)")}
             </label>
           ) : (
             <p className="text-xs text-slate-400">{t("Messages are visible to both your agency and ESSAFARIA staff.")}</p>
@@ -338,7 +341,7 @@ export function BillingSummary(props: {
           <>
             <div className="flex items-center justify-between">
               <span className="text-slate-500">{t("Charge type")}</span>
-              <span className="badge bg-navy-900/5 text-navy-800">{props.charge.type.replaceAll("_", " ")}</span>
+              <span className="badge bg-navy-900/5 text-navy-800">{businessLabel(props.charge.type, props.locale ?? "en")}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-slate-500">{t("Balance before → after")}</span>
@@ -353,7 +356,7 @@ export function BillingSummary(props: {
           </>
         ) : (
           <p className="rounded-md bg-ivory-100 px-3 py-2 text-xs text-slate-500">
-            No wallet charge yet — the fee is debited automatically when the application is submitted.
+            {t("No wallet charge yet — the fee is debited automatically when the application is submitted.")}
           </p>
         )}
       </div>
@@ -375,14 +378,14 @@ export function ActivityTimeline(props: {
   }
   return (
     <div className="card px-4 py-4">
-      <ol className="relative space-y-5 border-l border-slate-200 pl-5">
+      <ol className="relative space-y-5 border-s border-slate-200 ps-5">
         {props.history.map((h) => (
           <li key={h.history.id} className="relative">
-            <span className="absolute -left-[26.5px] top-1 flex h-3 w-3 items-center justify-center rounded-full border-2 border-white bg-gold-400" />
+            <span className="absolute -start-[26.5px] top-1 flex h-3 w-3 items-center justify-center rounded-full border-2 border-white bg-gold-400" />
             <p className="text-sm text-navy-900">
               → <StatusBadge code={h.toStatus.code} name={h.toStatus.name} />
             </p>
-            {h.history.reason ? <p className="mt-1 text-xs text-slate-500">Reason: {h.history.reason}</p> : null}
+            {h.history.reason ? <p className="mt-1 text-xs text-slate-500">{t("Reason")}: {h.toStatus.code === "SUBMITTED" && h.history.reason === "Request submitted" ? t("Request submitted") : h.history.reason}</p> : null}
             <p className="mt-0.5 text-[11px] text-slate-400">{formatDateTime(h.history.createdAt, props.locale ?? "en")}</p>
           </li>
         ))}
@@ -408,7 +411,7 @@ export function PriceAdjustmentHistory(props: {
   const p = props.pricing;
   if (!p.submittedPrice) return null;
   const _currency = p.submittedCurrency ?? "";
-  const label = props.formatLabel ?? ((t: "DISCOUNT" | "SURCHARGE" | "REFUND") => t.replace("_", " "));
+  const label = props.formatLabel ?? ((code: "DISCOUNT" | "SURCHARGE" | "REFUND") => t({ DISCOUNT: "Discount", SURCHARGE: "Surcharge", REFUND: "Refund" }[code]));
   return (
     <div className="card">
       <div className="border-b border-slate-100 px-4 py-3">
@@ -421,7 +424,7 @@ export function PriceAdjustmentHistory(props: {
         </div>
         {p.adjustments.length === 0 ? (
           <p className="rounded-md bg-ivory-100 px-3 py-2 text-xs text-slate-500">
-            No commercial adjustment on this application.
+            {t("No commercial adjustment on this application.")}
           </p>
         ) : (
           <>
@@ -431,10 +434,10 @@ export function PriceAdjustmentHistory(props: {
                   <span className={`badge ${a.type === "SURCHARGE" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-800"}`}>
                     {label(a.type)}
                   </span>
-                  <span className="ml-2 text-xs text-slate-400">{a.reason}</span>
+                  <span className="ms-2 text-xs text-slate-400">{a.reason}</span>
                 </div>
                 <span className={`whitespace-nowrap tabular-nums ${a.type === "SURCHARGE" ? "text-red-700" : "text-emerald-700"}`}>
-                  {a.type === "SURCHARGE" ? "+" : "−"}{Number(a.amount).toFixed(2)} DZD
+                  {a.type === "SURCHARGE" ? "+" : "−"}{formatAmount(a.amount, "DZD", props.locale ?? "en")}
                 </span>
               </div>
             ))}

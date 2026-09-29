@@ -1,9 +1,10 @@
+import { configName } from "@/lib/config-localization";
 import Link from "next/link";
 import { portalPageUser } from "@/lib/page-auth";
 import { searchApplications, resolvePageSize } from "@/lib/queries";
 import { listStatuses } from "@/lib/applications";
 import { flashFrom } from "@/lib/action-helpers";
-import { formatDate } from "@/lib/format";
+import { formatAmount, formatDate } from "@/lib/format";
 import { FilterBar, Pagination, PageSizeSelector } from "@/components/app-widgets";
 import { localizedStatusName } from "@/lib/ui-i18n";
 import { EmptyState, Flash, PageHeader, Progress, TableWrap } from "@/components/ui";
@@ -30,7 +31,7 @@ export default async function PortalApplicationsPage({
   const page = Number(sp.page ?? "1") || 1;
 
   const [result, statuses] = await Promise.all([
-    searchApplications(user, { q: sp.q, statusCode: sp.status, dateFrom: sp.from, dateTo: sp.to, page, pageSize: resolvePageSize(sp.per) }),
+    searchApplications(user, { q: sp.q, documents: sp.documents === "requested" ? "requested" : undefined, statusCode: sp.status, dateFrom: sp.from, dateTo: sp.to, page, pageSize: resolvePageSize(sp.per) }),
     listStatuses(true),
   ]);
 
@@ -53,8 +54,9 @@ export default async function PortalApplicationsPage({
 
       <FilterBar locale={uiLocale}
         action="/portal/applications"
+        hidden={sp.documents === "requested" ? { documents: "requested" } : undefined}
         fields={[
-          { name: "q", label: ct("Search"), type: "text", value: sp.q, placeholder: ct("Reference, applicant, passport…") },
+          { name: "q", label: ct("Search"), type: "text", value: sp.q, placeholder: ct("Reference or applicant…") },
           {
             name: "status", label: ct("Status"), type: "select", value: sp.status,
             options: statuses
@@ -89,15 +91,15 @@ export default async function PortalApplicationsPage({
                   className="card block p-4"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <span className="font-medium text-navy-900">{r.app.reference}</span>
+                    <span className="font-semibold text-navy-900">{r.applicantSummary ?? "—"}</span>
                     <StatusBadge code={r.statusCode} name={r.statusName} />
                   </div>
-                  <p className="mt-1 text-sm text-navy-900">{r.applicantSummary ?? "—"}</p>
+                  <p className="mt-1 text-xs text-slate-500">{r.app.reference}</p>
                   <p className="mt-0.5 text-xs text-slate-500">
-                    {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)} · {r.app.visaTypeName}
+                    {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)} · {configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}
                   </p>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-                    <span className="tabular-nums">{r.app.fee} DZD</span>
+                    <span className="tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</span>
                     <span className="flex items-center gap-2">
                       {p ? <Progress done={p.done} total={p.total} /> : null}
                       <span>{formatDate(r.app.createdAt, uiLocale)}</span>
@@ -112,7 +114,6 @@ export default async function PortalApplicationsPage({
           <TableWrap>
             <thead className="border-b border-slate-100 bg-ivory-50/60">
               <tr>
-                <th className="th">{ct("Reference")}</th>
                 <th className="th">{ct("Applicant")}</th>
                 <th className="th">{ct("Visa / Country")}</th>
                 <th className="th">{ct("Documents")}</th>
@@ -127,19 +128,15 @@ export default async function PortalApplicationsPage({
                 return (
                   <tr key={r.app.id} className="tr-hover">
                     <td className="td">
-                      <Link href={`/portal/applications/${r.app.id}`} className="font-medium text-navy-900 hover:underline">
-                        {r.app.reference}
-                      </Link>
+                      <Link href={`/portal/applications/${r.app.id}`} className="font-semibold text-navy-900 hover:underline">{r.applicantSummary ?? "—"}</Link>
+                      <span className="block text-xs text-slate-500">{r.app.reference}</span>
                     </td>
-                    {/* Phase 2-Final Correction 7: APPLICANT (full name)
-                        immediately after REFERENCE. */}
-                    <td className="td font-medium text-navy-900">{r.applicantSummary ?? "—"}</td>
                     <td className="td">
                       {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}
-                      <span className="block text-xs text-slate-400">{r.app.visaTypeName}</span>
+                      <span className="block text-xs text-slate-400">{configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}</span>
                     </td>
                     <td className="td">{p ? <Progress done={p.done} total={p.total} /> : "—"}</td>
-                    <td className="td whitespace-nowrap tabular-nums">{r.app.fee} DZD</td>
+                    <td className="td whitespace-nowrap tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</td>
                     <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
                     <td className="td whitespace-nowrap text-xs text-slate-500">{formatDate(r.app.createdAt, uiLocale)}</td>
                   </tr>

@@ -1,3 +1,5 @@
+import { LiveNotifications } from "@/components/live-notifications";
+import { contentT } from "@/lib/i18n-content";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { getSessionUser } from "@/lib/auth";
@@ -33,7 +35,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
 
   const nav: NavSection[] = [
     {
-      title: "Your agency",
+      title: tr("Your agency"),
       items: [
         { href: "/portal", label: tr("Dashboard")},
         { href: "/portal/applications", label: tr("Applications")},
@@ -41,11 +43,11 @@ export default async function PortalLayout({ children }: { children: ReactNode }
       ],
     },
     {
-      title: "Finance",
+      title: tr("Finance"),
       items: [{ href: "/portal/wallet", label: tr("Wallet & Transactions")}],
     },
     {
-      title: "Workspace",
+      title: tr("Workspace"),
       items: [
         { href: "/portal/notifications", label: tr("Notifications"), badge: unread },
         { href: "/portal/communications", label: tr("Communications")},
@@ -58,14 +60,16 @@ export default async function PortalLayout({ children }: { children: ReactNode }
 
   return (
     <AppShell
+      surface="agency"
       t={tr}
       user={user}
+      locale={locale}
       nav={nav}
-      brandSuffix="Agency Portal"
+      brandSuffix={tr("Agency Portal")}
       agencyLogoUrl={agencyLogo}
       platformLogoUrl={platformBranding ? brandLogoUrl(platformBranding) : null}
       brandName={platformBranding?.name}
-      headerExtras={<UiLanguageSwitcher locale={locale} compact />}
+      headerExtras={<><LiveNotifications initialCount={unread} href="/portal/notifications" label={tr("Notifications")} soundLabel={contentT(locale)("Notification sounds")} closeLabel={contentT(locale)("Close")} /><UiLanguageSwitcher locale={locale} compact /></>}
     >
       {children}
     </AppShell>

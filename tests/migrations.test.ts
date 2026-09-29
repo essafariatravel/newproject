@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -9,6 +10,8 @@ import { applyMigrations } from "../scripts/lib/migrations";
 import { readdirSync } from "node:fs";
 
 /** Every migration shipped on disk, in ledger order. */
+const isolatedSchema = `preview_test_${randomBytes(6).toString("hex")}`;
+const legacySchema = `legacy_test_${randomBytes(6).toString("hex")}`;
 const MIGRATION_FILES = readdirSync(path.join(__dirname, "..", "migrations"))
   .filter((f) => f.endsWith(".sql"))
   .sort();
@@ -21,9 +24,9 @@ describe("safe migrations against isolated test PostgreSQL", () => {
     try {
       const before = await pool.query("select id from public.users order by id");
       const directory = path.join(process.cwd(), "migrations");
-      expect(await applyMigrations(pool, directory, "visa_os_preview")).toEqual(MIGRATION_FILES);
-      expect(await applyMigrations(pool, directory, "visa_os_preview")).toEqual([]);
-      await pool.query("select password_hash, name, role from visa_os_preview.users limit 0");
+      expect(await applyMigrations(pool, directory, isolatedSchema)).toEqual(MIGRATION_FILES);
+      expect(await applyMigrations(pool, directory, isolatedSchema)).toEqual([]);
+      await pool.query(`select password_hash, name, role from ${isolatedSchema}.users limit 0`);
       expect((await pool.query("select id from public.users order by id")).rows).toEqual(before.rows);
     } finally {
       await pool.end();
@@ -33,11 +36,11 @@ describe("safe migrations against isolated test PostgreSQL", () => {
   it("refuses an unrelated users table and rolls back its ledger", async () => {
     const pool = new Pool({ connectionString: testConnectionString() });
     try {
-      await pool.query("create schema legacy_app; create table legacy_app.users (id int); insert into legacy_app.users values (1)");
-      await expect(applyMigrations(pool, path.join(process.cwd(), "migrations"), "legacy_app"))
+      await pool.query(`create schema ${legacySchema}; create table ${legacySchema}.users (id int); insert into ${legacySchema}.users values (1)`);
+      await expect(applyMigrations(pool, path.join(process.cwd(), "migrations"), legacySchema))
         .rejects.toThrow("Existing users table");
-      expect((await pool.query("select * from legacy_app.users")).rows).toEqual([{ id: 1 }]);
-      expect((await pool.query("select to_regclass('legacy_app.schema_migrations') as name")).rows[0].name).toBeNull();
+      expect((await pool.query(`select * from ${legacySchema}.users`)).rows).toEqual([{ id: 1 }]);
+      expect((await pool.query(`select to_regclass('${legacySchema}.schema_migrations') as name`)).rows[0].name).toBeNull();
     } finally {
       await pool.end();
     }

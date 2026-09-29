@@ -58,7 +58,7 @@ async function inProcessApplication(visaTypeId: string) {
     await uploadDocument({
       applicationId: app.id,
       actor: superAdmin,
-      file: { name: `${item.documentTypeCode}.pdf`, type: "application/pdf", size: 512, data: Buffer.from("d") },
+      file: { name: `${item.documentTypeCode}.pdf`, type: "application/pdf", size: 512, data: Buffer.from("%PDF-1.4 test document") },
       checklistItemId: item.id,
     });
   }
@@ -175,7 +175,12 @@ describe("§18 — the admin surface exposes the choice", () => {
     expect(src).toContain('value="NOT_APPLICABLE"');
     expect(src).toContain('value="OPTIONAL"');
     expect(src).toContain('value="APPLICABLE"');
-    expect(src).toContain("never see an embassy step");
+    const explanation = "When a programme is not applicable, staff cannot move an application to the embassy stage and agencies do not see an embassy step.";
+    expect(src).toContain(`ct("${explanation}")`);
+    const { contentT } = await import("@/lib/i18n-content");
+    for (const locale of ["fr", "ar"] as const) {
+      expect(contentT(locale)(explanation)).not.toBe(explanation);
+    }
 
     const action = readFileSync("src/app/actions/config.ts", "utf8");
     expect(action).toContain('"NOT_APPLICABLE", "OPTIONAL", "APPLICABLE"');

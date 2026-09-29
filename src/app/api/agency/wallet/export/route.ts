@@ -13,13 +13,12 @@ import { hasPermission } from "@/lib/rbac";
 import { listWalletTransactions } from "@/lib/queries";
 import { resolveLedgerPeriod } from "@/lib/ledger-filters";
 
-export const dynamic = "force-dynamic";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
+import { businessLabel, businessReason } from "@/lib/business-labels";
+import { toCsv, toXlsx, XLSX_CONTENT_TYPE, type Column } from "@/lib/tabular-export";
 
-/** Escape a value for CSV (RFC 4180): quotes doubled, cell quoted when needed. */
-function csvCell(value: unknown): string {
-  const s = value === null || value === undefined ? "" : String(value);
-  return /[",\n\r;]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
-}
+export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
@@ -27,6 +26,7 @@ export async function GET(request: Request) {
     if (!user) {
       return NextResponse.json({ error: "Please sign in to continue.", code: "UNAUTHENTICATED" }, { status: 401 });
     }
+    if (user.mustChangePassword) return NextResponse.json({ code: "PASSWORD_CHANGE_REQUIRED" }, { status: 403 });
     if (!isAgencyRole(user.role) || !user.agencyId) {
       return NextResponse.json({ error: "This export is only available to agency users.", code: "FORBIDDEN" }, { status: 403 });
     }
@@ -51,30 +51,28 @@ export async function GET(request: Request) {
       pageSize: 10_000, // exports are bounded by the agency's own history
     });
 
-    const header = ["Reference", "Date", "Type", "Amount (DZD)", "Balance before (DZD)", "Balance after (DZD)", "Application", "Reason"];
-    const lines = [header.join(",")];
-    for (const { tx, applicationReference } of rows) {
-      lines.push(
-        [
-          tx.reference ?? tx.id,
-          tx.createdAt instanceof Date ? tx.createdAt.toISOString() : String(tx.createdAt),
-          tx.type,
-          tx.amount,
-          tx.balanceBefore,
-          tx.balanceAfter,
-          applicationReference ?? "",
-          tx.reason,
-        ]
-          .map(csvCell)
-          .join(","),
-      );
-    }
-    const body = `\uFEFF${lines.join("\r\n")}\r\n`;
+    const locale = await getUiLocale({ lang: url.searchParams.get("lang") });
+    const ct = contentT(locale);
+    const columns: Column[] = [
+      { key: "reference", header: ct("Reference") }, { key: "date", header: ct("Date") },
+      { key: "type", header: ct("Type") }, { key: "amount", header: `${ct("Amount")} (DZD)`, kind: "money" },
+      { key: "before", header: `${ct("Balance before")} (DZD)`, kind: "money" },
+      { key: "after", header: `${ct("Balance after")} (DZD)`, kind: "money" },
+      { key: "application", header: ct("Application") }, { key: "reason", header: ct("Reason") },
+    ];
+    const data = rows.map(({ tx, applicationReference }) => ({
+      reference: tx.reference ?? "—", date: new Date(tx.createdAt).toISOString(),
+      type: businessLabel(tx.type, locale), amount: Number(tx.amount),
+      before: Number(tx.balanceBefore), after: Number(tx.balanceAfter),
+      application: applicationReference ?? "", reason: businessReason(tx.reason, tx.type, applicationReference, locale),
+    }));
+    const xlsx = url.searchParams.get("format") === "xlsx";
+    const body = xlsx ? new Uint8Array(toXlsx(ct("Wallet"), columns, data)) : toCsv(columns, data, { locale, excel: true });
     const stamp = new Date().toISOString().slice(0, 10);
     return new NextResponse(body, {
       headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="wallet-ledger-${stamp}.csv"`,
+        "Content-Type": xlsx ? XLSX_CONTENT_TYPE : "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="wallet-ledger-${stamp}.${xlsx ? "xlsx" : "csv"}"`,
         "Cache-Control": "no-store",
         "X-Content-Type-Options": "nosniff",
       },
