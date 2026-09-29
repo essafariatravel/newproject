@@ -58,7 +58,7 @@ export function StatCard(props: {
     </div>
   );
   return props.href ? (
-    <Link href={props.href} className="block transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-500">
+    <Link href={props.href} className="block focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-500">
       {body}
     </Link>
   ) : (
@@ -92,10 +92,7 @@ export function ActiveBadge({ active, locale = "en" }: { active: boolean; locale
 
 export function EmptyState(props: { title: string; body?: string; action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2.5 px-6 py-16 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ivory-100 text-lg text-gold-500">
-        ✦
-      </div>
+    <div className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-center">
       <p className="text-sm font-semibold text-navy-900">{props.title}</p>
       {props.body ? <p className="max-w-sm text-xs leading-relaxed text-slate-400">{props.body}</p> : null}
       {props.action ? <div className="mt-2">{props.action}</div> : null}
@@ -108,7 +105,7 @@ export function Flash(props: { error?: string; success?: string }) {
   return (
     <div
       role="status"
-      className={`mb-5 rounded-2xl border px-4 py-3 text-sm ${
+      className={`mb-5 rounded-lg border px-4 py-3 text-sm ${
         props.error
           ? "border-red-100 bg-red-50 text-red-700"
           : "border-emerald-100 bg-emerald-50 text-emerald-700"
