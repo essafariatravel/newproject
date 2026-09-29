@@ -13,7 +13,7 @@ import { agencyLogoUrl } from "@/lib/branding";
 import { contentT } from "@/lib/i18n-content";
 import { agencyPrimaryLabel } from "@/lib/agency-display";
 import { AgencyListIdentity } from "@/components/agency-list-identity";
-import { AgencyTableRow } from "@/components/agency-table-row";
+import { NavigableTableRow } from "@/components/navigable-table-row";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +64,7 @@ export default async function AdminAgenciesPage({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.map(({ agency, userCount, applicationCount }) => (
-              <AgencyTableRow key={agency.id} href={`/admin/agencies/${agency.id}`} className="tr-hover">
+              <NavigableTableRow key={agency.id} href={`/admin/agencies/${agency.id}`} className="tr-hover">
                 <td className="td">
                   <div className="flex items-center gap-2.5">
                     <BrandMark className="h-8 w-8 shrink-0" src={agencyLogoUrl(agency)} alt={agencyPrimaryLabel(agency)} />
@@ -81,7 +81,7 @@ export default async function AdminAgenciesPage({
                 <td className="td tabular-nums">{userCount}</td>
                 <td className="td tabular-nums">{applicationCount}</td>
                 <td className="td whitespace-nowrap font-medium tabular-nums">{formatAmount(agency.balance, "DZD", uiLocale)}</td>
-              </AgencyTableRow>
+              </NavigableTableRow>
             ))}
           </tbody>
         </TableWrap>
