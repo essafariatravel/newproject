@@ -116,6 +116,7 @@ export default async function AdminApplicationDetailPage({
       ),
   );
   const allowedDecisionOutcomes = decisionOutcomesForStatus(detail.statusCode);
+  const isClosed = ["APPROVED", "REJECTED", "CANCELLED", "COMPLETED", "REFUSED"].includes(detail.statusCode);
   const canStatusChange = hasPermission(user, "applications.status.change");
   const canReview = hasPermission(user, "applications.review");
   const _canOverride = hasPermission(user, "applications.submit.override") && OVERRIDE_ROLES.includes(user.role);
@@ -370,50 +371,56 @@ export default async function AdminApplicationDetailPage({
                         ))}
                       </ul>
                     ) : null}
-                    <form action={requestReplacementAction} className="mt-3 flex flex-wrap items-end gap-2">
-                      <input type="hidden" name="applicationId" value={id} />
-                      <input type="hidden" name="checklistItemId" value={item.id} />
-                      <input type="hidden" name="back" value={`${back}?tab=documents`} />
-                      <div className="flex-1 min-w-[180px]">
-                        <input name="reason" required minLength={5} placeholder={ct("Reason to request replacement")} className="input text-xs" />
-                      </div>
-                      <SubmitButton className="btn-secondary btn-xs" pendingLabel="…">{ct("Request replacement")}</SubmitButton>
-                    </form>
+                    {!isClosed ? (
+                      <form action={requestReplacementAction} className="mt-3 flex flex-wrap items-end gap-2">
+                        <input type="hidden" name="applicationId" value={id} />
+                        <input type="hidden" name="checklistItemId" value={item.id} />
+                        <input type="hidden" name="back" value={`${back}?tab=documents`} />
+                        <div className="flex-1 min-w-[180px]">
+                          <input name="reason" required minLength={5} placeholder={ct("Reason to request replacement")} className="input text-xs" />
+                        </div>
+                        <SubmitButton className="btn-secondary btn-xs" pendingLabel="…">{ct("Request replacement")}</SubmitButton>
+                      </form>
+                    ) : (
+                      <p className="mt-2 text-xs text-slate-400">{ct("File closed.")}</p>
+                    )}
                   </div>
                 );
               })}
             </div>
           </Card>
 
-          <Card>
-            <CardHeader title={ct("Request additional document")} subtitle={ct("Creates an extra requirement and notifies agency")} />
-            <form action={requestAdditionalDocumentAction} className="flex flex-wrap items-end gap-3 p-4">
-              <input type="hidden" name="applicationId" value={id} />
-              <input type="hidden" name="back" value={`${back}?tab=documents`} />
-              {availableRequestableTypes.length === 0 ? (
-                <p className="w-full text-xs text-slate-600">
-                  {ct("Every configured agency document is already a requirement of this dossier. Use “Request replacement” on the requirement to ask for a new version — no duplicate requirement is created.")}
-                </p>
-              ) : (
-                <>
-                  <div className="min-w-[200px] flex-1">
-                    <label className="label">{ct("Document type")} *</label>
-                    <select aria-label={ct("Document type")} name="documentTypeId" required className="input">
-                      <option value="">{ct("Select type")}</option>
-                      {availableRequestableTypes.map((t) => (
-                        <option key={t.id} value={t.id}>{localizedDocTypeName(t.code, t.name, uiLocale)}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="min-w-[240px] flex-1">
-                    <label className="label">{ct("Reason")} *</label>
-                    <input aria-label={ct("Reason")} name="reason" required minLength={5} className="input" placeholder={ct("Embassy requested additional…")} />
-                  </div>
-                  <SubmitButton className="btn-primary btn-sm" pendingLabel={ct("Requesting…")}>{ct("Request additional")}</SubmitButton>
-                </>
-              )}
-            </form>
-          </Card>
+          {!isClosed ? (
+            <Card>
+              <CardHeader title={ct("Request additional document")} subtitle={ct("Creates an extra requirement and notifies agency")} />
+              <form action={requestAdditionalDocumentAction} className="flex flex-wrap items-end gap-3 p-4">
+                <input type="hidden" name="applicationId" value={id} />
+                <input type="hidden" name="back" value={`${back}?tab=documents`} />
+                {availableRequestableTypes.length === 0 ? (
+                  <p className="w-full text-xs text-slate-600">
+                    {ct("Every configured agency document is already a requirement of this dossier. Use “Request replacement” on the requirement to ask for a new version — no duplicate requirement is created.")}
+                  </p>
+                ) : (
+                  <>
+                    <div className="min-w-[200px] flex-1">
+                      <label className="label">{ct("Document type")} *</label>
+                      <select aria-label={ct("Document type")} name="documentTypeId" required className="input">
+                        <option value="">{ct("Select type")}</option>
+                        {availableRequestableTypes.map((t) => (
+                          <option key={t.id} value={t.id}>{localizedDocTypeName(t.code, t.name, uiLocale)}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="min-w-[240px] flex-1">
+                      <label className="label">{ct("Reason")} *</label>
+                      <input aria-label={ct("Reason")} name="reason" required minLength={5} className="input" placeholder={ct("Embassy requested additional…")} />
+                    </div>
+                    <SubmitButton className="btn-primary btn-sm" pendingLabel={ct("Requesting…")}>{ct("Request additional")}</SubmitButton>
+                  </>
+                )}
+              </form>
+            </Card>
+          ) : null}
 
           {documentGroups.unassigned.length > 0 ? (
             <Card>
