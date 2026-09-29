@@ -1,4 +1,4 @@
-/** Production release preflight guards for release 0018 → 0019. */
+/** Production release preflight guards for the verified post-release state through 0019. */
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -27,37 +27,37 @@ function approvedSnapshot(): SnapshotReport {
     brand: { "brand.name": "ESSAFARIA TRAVEL" },
     statusMix: { APPROVED: 2 },
     remapExposure: {},
-    columnsValid: false,
-    schemaError: "translation columns not applied yet",
+    columnsValid: true,
+    schemaError: null,
     snapshotTables: [],
     guardNotes: [],
   };
 }
 
 describe("current Production release manifest", () => {
-  it("authorizes exactly migrations 0018 and 0019 on top of ledger 0001-0017", () => {
-    expect([...RELEASE_SCOPE]).toEqual(["0018_session_presence.sql", "0019_config_translations.sql"]);
-    expect(APPROVED_BASELINE.ledger).toHaveLength(17);
-    expect(APPROVED_BASELINE.ledger[16]).toBe("0017_decision_types_audience.sql");
-    expect(TARGET_LEDGER).toHaveLength(19);
-    expect(TARGET_LEDGER[18]).toBe("0019_config_translations.sql");
-  });
-
-  it("computes exactly 0018 + 0019 as pending from the approved ledger", () => {
+  it("accepts the verified post-release ledger through 0019 with no pending migrations", () => {
+    expect([...RELEASE_SCOPE]).toEqual([]);
+    expect(APPROVED_BASELINE.ledger).toHaveLength(19);
+    expect(APPROVED_BASELINE.ledger[18]).toBe("0019_config_translations.sql");
+    expect(TARGET_LEDGER).toEqual([...APPROVED_BASELINE.ledger]);
     const pending = pendingMigrations(APPROVED_BASELINE.ledger);
-    expect(pending).toEqual([...RELEASE_SCOPE]);
+    expect(pending).toEqual([]);
     expect(preflightFindings(approvedSnapshot(), pending)).toEqual([]);
   });
 
-  it("rejects the stale 0013 → 0017 release manifest", () => {
-    const stale = [
-      "0013_embassy_applicability.sql",
-      "0014_wallet_topup_requests.sql",
-      "0015_schema_safe_references.sql",
-      "0016_document_type_audience.sql",
-      "0017_decision_types_audience.sql",
-    ];
-    const findings = releaseManifestFindings([...RELEASE_SCOPE], stale);
+  it("rejects the stale pre-release ledger ending at 0017", () => {
+    const stale = approvedSnapshot();
+    stale.ledger = stale.ledger.slice(0, 17);
+    const findings = preflightFindings(stale, [
+      "0018_session_presence.sql",
+      "0019_config_translations.sql",
+    ]);
+    expect(findings.some((f) => f.startsWith("ledger differs:"))).toBe(true);
+    expect(findings.some((f) => f.includes("pending migration set is not this release"))).toBe(true);
+  });
+
+  it("rejects any unexpected future migration", () => {
+    const findings = releaseManifestFindings(["0020_future.sql"]);
     expect(findings).toHaveLength(1);
     expect(findings[0]).toContain("pending migration set is not this release");
   });
@@ -70,7 +70,7 @@ describe("baseline remains fail-closed", () => {
     live.counts.wallet_transactions = (APPROVED_BASELINE.counts.wallet_transactions ?? 0) + 1;
     live.walletChecksum = "candidate-wallet-checksum";
     live.agencyWallets = "candidate-agency-checksum";
-    const findings = preflightFindings(live, [...RELEASE_SCOPE]);
+    const findings = preflightFindings(live, []);
     expect(findings.some((f) => f.startsWith("notifications:"))).toBe(true);
     expect(findings.some((f) => f.startsWith("wallet_transactions:"))).toBe(true);
     expect(findings.some((f) => f.includes("wallet ledger checksum differs"))).toBe(true);
@@ -80,11 +80,11 @@ describe("baseline remains fail-closed", () => {
   it("still allows audit_logs to grow but never shrink", () => {
     const grown = approvedSnapshot();
     grown.counts.audit_logs = (APPROVED_BASELINE.counts.audit_logs ?? 0) + 10;
-    expect(preflightFindings(grown, [...RELEASE_SCOPE])).toEqual([]);
+    expect(preflightFindings(grown, [])).toEqual([]);
 
     const shrunk = approvedSnapshot();
     shrunk.counts.audit_logs = (APPROVED_BASELINE.counts.audit_logs ?? 0) - 1;
-    expect(preflightFindings(shrunk, [...RELEASE_SCOPE]).some((f) => f.startsWith("audit_logs="))).toBe(true);
+    expect(preflightFindings(shrunk, []).some((f) => f.startsWith("audit_logs="))).toBe(true);
   });
 });
 

@@ -1,7 +1,7 @@
 /**
  * Production release tooling — visa_os.
  *
- * CURRENT RELEASE SCOPE: migrations 0018 → 0019 on top of ledger 0001-0017.
+ * CURRENT APPROVED STATE: post-release ledger 0001 → 0019 with no pending migrations.
  * Counts/checksums remain explicitly human-approved values: live drift is
  * NEVER adopted automatically. baseline-candidate is read-only evidence only.
  *
@@ -30,9 +30,10 @@
  *     search_path, so it cannot be fooled (or fail) on pooled session state.
  *   - The schema_migrations ledger MUST exist — this script never bootstraps a
  *     ledger on Production (a missing ledger means a mispointed database).
- *   - Pre-apply state must equal the approved baseline EXACTLY (ledger, counts,
+ *   - Live state must equal the approved baseline EXACTLY (ledger, counts,
  *     wallet checksum, agency balances), and the pending set must be exactly
- *     this release's migrations — an unexpected pending file aborts the run.
+ *     the authorized release scope — currently empty post-release. Any
+ *     unexpected pending file aborts the run.
  *   - Protected counts / wallet checksum / agency balances / branding must be
  *     identical afterwards, and column validation must end true.
  *
@@ -80,10 +81,7 @@ const MIGRATIONS_DIR = () => path.join(process.cwd(), "migrations");
  * path refuses to run when the pending set is not exactly this list, so a later
  * migration cannot ride along on this authorization.
  */
-export const RELEASE_SCOPE = [
-  "0018_session_presence.sql",
-  "0019_config_translations.sql",
-] as const;
+export const RELEASE_SCOPE = [] as const;
 
 const PROTECTED_COUNTS = [
   "users",
@@ -120,13 +118,10 @@ const SNAPSHOT_TABLES = [
 ] as const;
 
 /**
- * The EXACT pre-apply state approved for THIS release.
- * Ledger 0001-0017 is the required schema starting point for 0018-0019.
- * Counts/checksums intentionally remain the last human-approved values until
- * legitimate Production drift is reviewed and explicitly committed in source.
- * audit/baseline-candidate can never auto-accept those values.
- * `columnsValid` may be false before 0019 because code already references the
- * additive translation columns introduced by that migration.
+ * The EXACT verified post-release Production state.
+ * Ledger 0001-0019 is the approved schema state and no migrations are pending.
+ * Counts/checksums remain explicit human-approved values; audit and
+ * baseline-candidate can never auto-accept drift.
  */
 export const APPROVED_BASELINE = {
   ledger: [
@@ -147,6 +142,8 @@ export const APPROVED_BASELINE = {
     "0015_schema_safe_references.sql",
     "0016_document_type_audience.sql",
     "0017_decision_types_audience.sql",
+    "0018_session_presence.sql",
+    "0019_config_translations.sql",
   ] as const,
   counts: {
     users: 4,
@@ -167,8 +164,8 @@ export const APPROVED_BASELINE = {
   agencyWalletsChecksum: "9d29f5a06c17e89b105bc1073e647c4f",
 };
 
-/** Ledger state once this release has been applied. */
-export const TARGET_LEDGER = [...APPROVED_BASELINE.ledger, ...RELEASE_SCOPE];
+/** Current fully applied approved ledger. */
+export const TARGET_LEDGER = [...APPROVED_BASELINE.ledger];
 
 export const PROJECT_USER = `postgres.${EXPECTED_SUPABASE_PROJECT}`;
 
@@ -635,7 +632,7 @@ async function main(): Promise<void> {
         process.exitCode = 2;
       } else {
         console.log(
-          `PREFLIGHT VERDICT: READY — live Production matches the approved baseline exactly; ${pending.length} approved migration(s) pending (${pending.join(", ")}).`,
+          `PREFLIGHT VERDICT: READY — live Production matches the approved baseline exactly; pending migrations: [${pending.join(", ") || "none"}].`,
         );
       }
       return;
