@@ -139,7 +139,7 @@ function UploadFormInline(props: {
         required
         accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
         aria-label={t("Upload document")}
-        className="max-w-full text-xs file:me-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-2.5 file:py-1.5 file:text-xs file:text-white"
+        className="max-w-full text-xs file:me-2 file:rounded-md file:border-0 file:bg-iris-600 file:px-2.5 file:py-1.5 file:text-xs file:text-white"
       />
       {props.applicants.length > 1 ? (
         <select name="applicantId" aria-label={t("Applicant…")} className="input max-w-[180px] py-1.5 text-xs">
@@ -250,7 +250,7 @@ export function DocumentList(props: {
                 required
                 accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
                 aria-label={t("Resubmit corrected file")}
-                className="max-w-full text-xs file:me-2 file:rounded-full file:border-0 file:bg-iris-600 file:px-2.5 file:py-1.5 file:text-xs file:text-white"
+                className="max-w-full text-xs file:me-2 file:rounded-md file:border-0 file:bg-iris-600 file:px-2.5 file:py-1.5 file:text-xs file:text-white"
               />
               <SubmitButton className="btn-gold btn-sm" pendingLabel={t("Submitting…")}>{t("Resubmit corrected file")}</SubmitButton>
             </form>
