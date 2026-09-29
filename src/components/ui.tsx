@@ -9,10 +9,10 @@ export function PageHeader(props: {
   actions?: ReactNode;
 }) {
   return (
-    <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-tight text-navy-900">{props.title}</h1>
-        {props.subtitle ? <p className="mt-1 text-sm text-slate-500">{props.subtitle}</p> : null}
+    <div className="page-header flex flex-wrap items-end justify-between gap-3">
+      <div className="min-w-0">
+        <h1 className="page-header-title font-semibold tracking-tight text-navy-900">{props.title}</h1>
+        {props.subtitle ? <p className="page-header-subtitle mt-1 text-sm leading-relaxed text-slate-500">{props.subtitle}</p> : null}
       </div>
       {props.actions ? <div className="flex flex-wrap items-center gap-2">{props.actions}</div> : null}
     </div>
@@ -27,7 +27,7 @@ export function CardHeader(props: { title: string; actions?: ReactNode; subtitle
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/70 px-5 py-3.5" data-testid={props.testId}>
       <div>
-        <h2 className="text-sm font-bold text-navy-900">{props.title}</h2>
+        <h2 className="text-sm font-semibold text-navy-900">{props.title}</h2>
         {props.subtitle ? <p className="mt-0.5 text-xs text-slate-400">{props.subtitle}</p> : null}
       </div>
       {props.actions ? <div className="flex items-center gap-2">{props.actions}</div> : null}
@@ -44,17 +44,17 @@ export function StatCard(props: {
 }) {
   const toneClass =
     props.tone === "gold"
-      ? "border-gold-100 bg-gold-50/50"
+      ? "text-gold-700"
       : props.tone === "teal"
-        ? "border-teal-100 bg-teal-50/40"
+        ? "text-teal-700"
         : props.tone === "navy"
-          ? "border-navy-100 bg-navy-50/70"
-          : "";
+          ? "text-navy-700"
+          : "text-slate-500";
   const body = (
-    <div className={`card h-full border px-5 py-4 ${toneClass}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">{props.label}</p>
-      <p className="mt-1.5 text-[1.65rem] font-semibold leading-snug tracking-tight text-navy-900 tabular-nums">{props.value}</p>
-      {props.hint ? <p className="mt-1 text-xs text-slate-400">{props.hint}</p> : null}
+    <div className="card h-full px-4 py-3.5">
+      <p className={`text-xs font-medium ${toneClass}`}>{props.label}</p>
+      <p className="mt-1 text-[1.5rem] font-semibold leading-snug tracking-tight text-navy-900 tabular-nums">{props.value}</p>
+      {props.hint ? <p className="mt-1 text-xs leading-snug text-slate-500">{props.hint}</p> : null}
     </div>
   );
   return props.href ? (
@@ -130,7 +130,7 @@ export function Progress(props: { done: number; total: number }) {
     <div className="flex items-center gap-2">
       <div className="h-1.5 w-24 overflow-hidden rounded-full bg-ivory-200">
         <div
-          className="h-full rounded-full bg-teal-600 transition-all"
+          className="h-full rounded-full bg-teal-600 transition-[width] duration-200 motion-reduce:transition-none"
           style={{ width: `${pct}%` }}
         />
       </div>
