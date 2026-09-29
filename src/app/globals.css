@@ -161,7 +161,7 @@ body {
 
 /* soft pill page-tab / segmented control helper */
 .ess-segment {
-  @apply inline-flex gap-1 rounded-full bg-ivory-100/80 p-1;
+  @apply inline-flex gap-1 rounded-lg bg-ivory-100/80 p-1;
 }
 }
 
@@ -253,6 +253,8 @@ body {
   background: var(--color-gold-500); color: var(--color-navy-950); border: 1px solid rgb(138 100 25 / .22);
 }
 .workspace-agency .btn-primary:hover, .workspace-staff .btn-primary:hover { background: var(--color-gold-400); }
+.workspace-agency .btn:active, .workspace-agency .btn-primary:active, .workspace-agency .btn-secondary:active,
+.workspace-staff .btn:active, .workspace-staff .btn-primary:active, .workspace-staff .btn-secondary:active { transform: none; }
 .workspace-sidebar { background: var(--color-navy-900); }
 .workspace-agency .th, .workspace-staff .th { text-transform: none; letter-spacing: 0; font-size: .75rem; }
 .workspace-agency .label, .workspace-staff .label { text-transform: none; letter-spacing: 0; font-size: .75rem; }
