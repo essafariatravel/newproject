@@ -14,7 +14,7 @@ const report = [];
 
 async function login(context, email, password) {
   const page = await context.newPage();
-  await page.goto(base + "/login", { waitUntil: "networkidle" });
+  await page.goto(base + "/login", { waitUntil: "domcontentloaded" });
   await page.locator("#email").fill(email);
   await page.locator("#password").fill(password);
   const loginForm = page.locator("form").filter({ has: page.locator("#email") }).first();
@@ -30,7 +30,8 @@ async function snap(context, route, name) {
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
   page.on("pageerror", e => errors.push(String(e)));
   const started = Date.now();
-  const response = await page.goto(base + route, { waitUntil: "networkidle" });
+  const response = await page.goto(base + route, { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(700);
   const metrics = await page.evaluate(() => ({
     width: innerWidth,
     height: innerHeight,
@@ -97,7 +98,7 @@ for (const width of [320, 360, 430, 768]) {
 const reduced = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });
 await login(reduced, "admin@horizonvoyages.example", agencyPassword);
 const motionPage = await reduced.newPage();
-await motionPage.goto(base + "/portal/applications/new", { waitUntil: "networkidle" });
+await motionPage.goto(base + "/portal/applications/new", { waitUntil: "domcontentloaded" });
 const reducedMotion = await motionPage.evaluate(() => {
   const panel = document.querySelector(".wizard-panel");
   const style = panel ? getComputedStyle(panel) : null;
