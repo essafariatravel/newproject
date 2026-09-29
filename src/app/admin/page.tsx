@@ -6,7 +6,7 @@ import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
 import { adminDashboard } from "@/lib/queries";
 import { formatAmount, formatDateTime } from "@/lib/format";
-import { Card, CardHeader, EmptyState, PageHeader, StatCard, TableWrap } from "@/components/ui";
+import { Card, CardHeader, EmptyState, PageHeader, TableWrap } from "@/components/ui";
 import { StatusBadge } from "@/components/badges";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT, localizedGreeting } from "@/lib/i18n-content";
@@ -26,22 +26,29 @@ export default async function AdminDashboardPage() {
   const canSeeBilling = hasPermission(user, "wallet.view.all");
 
   return (
-    <>
+    <div className="travel-staff-dashboard travel-dashboard travel-workspace">
       <PageHeader
         title={uiLocale === "en" ? `Good ${greeting()}, ${user.name.split(" ")[0]}` : `${localizedGreeting(greeting() as "morning" | "afternoon" | "evening", uiLocale)}, ${user.name.split(" ")[0]}`}
         subtitle={ct("Operational overview of the ESSAFARIA visa desk — work queue.")}
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
-        <StatCard label={ct("New applications")} value={totals.newApps} hint={ct("Submitted, awaiting intake")} href="/admin/applications?status=SUBMITTED" tone="navy" />
-        <StatCard label={ct("Documents to verify")} value={totals.docsChecking} hint={ct("Documents checking")} href="/admin/applications?status=DOCUMENTS_CHECKING" tone="gold" />
-        <StatCard label={ct("Action required")} value={totals.docsRequested} hint={ct("Agency action / documents requested")} href="/admin/applications?documents=requested" />
-        <StatCard label={ct("In process")} value={totals.inProcess} hint={ct("Actively processing")} href="/admin/applications?status=IN_PROCESS" tone="teal" />
-        <StatCard label={ct("Unassigned")} value={totals.unassigned} hint={ct("No case officer")} href="/admin/applications?assigned=unassigned" />
-        <StatCard label={ct("Urgent")} value={totals.urgent} hint={ct("Priority urgent")} href="/admin/applications?priority=URGENT" tone="gold" />
-      </div>
+      <nav className="staff-summary" aria-label={ct("Operational summary")}>
+        {[
+          [ct("New applications"), totals.newApps, "/admin/applications?status=SUBMITTED"],
+          [ct("Documents to verify"), totals.docsChecking, "/admin/applications?status=DOCUMENTS_CHECKING"],
+          [ct("Action required"), totals.docsRequested, "/admin/applications?documents=requested"],
+          [ct("In process"), totals.inProcess, "/admin/applications?status=IN_PROCESS"],
+          [ct("Unassigned"), totals.unassigned, "/admin/applications?assigned=unassigned"],
+          [ct("Urgent"), totals.urgent, "/admin/applications?priority=URGENT"],
+        ].map(([label, value, href]) => (
+          <Link key={String(label)} href={String(href)} className="block hover:bg-white/45">
+            <p className="metric-label">{label}</p>
+            <p className="metric-value">{value}</p>
+          </Link>
+        ))}
+      </nav>
 
-      <Card className="mt-6">
+      <Card className="mt-5 border-x-0 rounded-none">
         <CardHeader title={ct("Work queue")} subtitle={ct("Priority and oldest open files first")} actions={<Link href="/admin/applications" className="btn-secondary btn-sm">{ct("View all")} →</Link>} />
         {data.workQueue.length === 0 ? (
           <EmptyState title={ct("No applications yet")} body={ct("Applications submitted by partner agencies will appear here.")} />
@@ -73,7 +80,7 @@ export default async function AdminDashboardPage() {
         )}
       </Card>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
+      <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="xl:col-span-2">
           <Card>
             <CardHeader
@@ -189,7 +196,7 @@ export default async function AdminDashboardPage() {
           ) : null}
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
