@@ -57,6 +57,7 @@ describe("wizard craft", () => {
     expect(wizard).toContain("wizardDirection");
     expect(wizard).toContain('data-direction={wizardDirection}');
     expect(wizard).toContain("setStep(Math.min(3, step + 1))");
+    expect(wizard.match(/className="directional"/g)?.length).toBeGreaterThanOrEqual(2);
   });
 
   it("avoids pill-heavy destination controls in the high-frequency wizard", () => {
