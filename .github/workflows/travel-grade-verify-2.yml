@@ -1,0 +1,44 @@
+name: Travel-grade design verification 2
+
+on:
+  push:
+    branches:
+      - verify/travel-grade-portal-2
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERCEL: "0"
+      VERCEL_ENV: ""
+      DATABASE_URL: ""
+      ALLOW_DEMO_SEED: "false"
+      STORAGE_PROVIDER: "db"
+      CI: "true"
+    steps:
+      - name: Checkout exact design SHA
+        uses: actions/checkout@v4
+        with:
+          ref: 7117f5157505e0f0c9d9ce8f2d8ec39349a976a4
+          persist-credentials: false
+      - name: Verify exact checkout
+        run: test "$(git rev-parse HEAD)" = "7117f5157505e0f0c9d9ce8f2d8ec39349a976a4"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Product craft navigation tenant and RTL tests
+        run: npm test -- tests/product-craft-premium.test.ts tests/product-craft-motion.test.ts tests/agency-list-navigation.test.ts tests/list-navigation-consistency.test.ts tests/tenant-isolation.test.ts tests/ui-locale.test.ts
+      - name: Full deterministic suite
+        run: npm test
+      - name: Production-style build
+        run: npm run build
