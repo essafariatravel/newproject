@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
 import { listAgencies } from "@/lib/queries";
@@ -12,6 +11,9 @@ import { ActiveBadge, EmptyState, Flash, PageHeader, TableWrap } from "@/compone
 import BrandMark from "@/components/brand-mark";
 import { agencyLogoUrl } from "@/lib/branding";
 import { contentT } from "@/lib/i18n-content";
+import { agencyPrimaryLabel } from "@/lib/agency-display";
+import { AgencyListIdentity } from "@/components/agency-list-identity";
+import { AgencyTableRow } from "@/components/agency-table-row";
 
 export const dynamic = "force-dynamic";
 
@@ -62,16 +64,16 @@ export default async function AdminAgenciesPage({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.map(({ agency, userCount, applicationCount }) => (
-              <tr key={agency.id} className="tr-hover">
+              <AgencyTableRow key={agency.id} href={`/admin/agencies/${agency.id}`} className="tr-hover">
                 <td className="td">
                   <div className="flex items-center gap-2.5">
-                    <BrandMark className="h-8 w-8 shrink-0" src={agencyLogoUrl(agency)} alt={agency.tradingName ?? agency.legalName} />
-                    <span className="min-w-0">
-                      <Link href={`/admin/agencies/${agency.id}`} className="block truncate font-medium text-navy-900 hover:underline">
-                        {agency.tradingName ?? agency.legalName}
-                      </Link>
-                      <span className="block truncate text-xs text-slate-400">{agency.email}</span>
-                    </span>
+                    <BrandMark className="h-8 w-8 shrink-0" src={agencyLogoUrl(agency)} alt={agencyPrimaryLabel(agency)} />
+                    <AgencyListIdentity
+                      id={agency.id}
+                      legalName={agency.legalName}
+                      tradingName={agency.tradingName}
+                      email={agency.email}
+                    />
                   </div>
                 </td>
                 <td className="td">{agency.country ?? "—"}</td>
@@ -79,7 +81,7 @@ export default async function AdminAgenciesPage({
                 <td className="td tabular-nums">{userCount}</td>
                 <td className="td tabular-nums">{applicationCount}</td>
                 <td className="td whitespace-nowrap font-medium tabular-nums">{formatAmount(agency.balance, "DZD", uiLocale)}</td>
-              </tr>
+              </AgencyTableRow>
             ))}
           </tbody>
         </TableWrap>

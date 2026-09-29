@@ -20,6 +20,7 @@ import { StatusBadge } from "@/components/badges";
 import { WALLET_MANAGE_ROLES } from "@/lib/types";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
+import { agencyPrimaryLabel } from "@/lib/agency-display";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,7 @@ export default async function AdminAgencyDetailPage({
   if (!agency) notFound();
 
   const flash = flashFrom(sp);
+  const agencyLabel = agencyPrimaryLabel(agency);
   const canManage = hasPermission(staff, "agencies.manage");
   const canAdjust = WALLET_MANAGE_ROLES.includes(staff.role);
   const canUsers = hasPermission(staff, "users.manage");
@@ -56,8 +58,8 @@ export default async function AdminAgencyDetailPage({
   return (
     <>
       <PageHeader
-        title={agency.tradingName ?? agency.legalName}
-        subtitle={`${agency.legalName} · ${agency.city ?? ""} ${agency.country ?? ""} · DZD wallet`}
+        title={agencyLabel}
+        subtitle={`${agency.legalName.trim() || agencyLabel} · ${agency.city ?? ""} ${agency.country ?? ""} · DZD wallet`}
         actions={
           <>
             <ActiveBadge active={agency.status === "ACTIVE"} />
@@ -80,7 +82,7 @@ export default async function AdminAgencyDetailPage({
             <CardHeader title={ct("Agency logo")} subtitle={ct("Shown across the agency portal and partner surfaces.")} />
             <div className="flex flex-wrap items-center gap-4 px-5 py-5">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-ivory-200 bg-ivory-50">
-                <BrandMark className="h-11 w-11" src={agencyLogoUrl(agency)} alt={agency.tradingName ?? agency.legalName} />
+                <BrandMark className="h-11 w-11" src={agencyLogoUrl(agency)} alt={agencyLabel} />
               </div>
               {canManage ? (
                 <>

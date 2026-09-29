@@ -16,6 +16,7 @@ import { hashPassword } from "@/lib/crypto";
 import { runAction } from "@/lib/action-helpers";
 import { updateSetting } from "@/lib/settings";
 import { adjustWallet } from "@/lib/wallet";
+import { normalizeOptionalAgencyName } from "@/lib/agency-display";
 
 const idSchema = z.string().uuid("Invalid identifier.");
 const emailSchema = z.string().trim().toLowerCase().email("Enter a valid email address.");
@@ -24,7 +25,7 @@ const emailSchema = z.string().trim().toLowerCase().email("Enter a valid email a
 
 const agencySchema = z.object({
   legalName: z.string().trim().min(2, "Legal name is required.").max(160),
-  tradingName: z.string().trim().max(160).optional().nullable(),
+  tradingName: z.string().trim().max(160).optional().nullable().transform(normalizeOptionalAgencyName),
   email: emailSchema,
   phone: z.string().trim().max(40).optional().nullable(),
   addressLine: z.string().trim().max(300).optional().nullable(),
