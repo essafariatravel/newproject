@@ -1,5 +1,6 @@
 import { chromium } from "playwright";
 import fs from "node:fs";
+import pg from "pg";
 
 const base = "http://127.0.0.1:3000";
 const label = process.env.QA_LABEL ?? "after";
@@ -53,13 +54,15 @@ async function snap(context, route, name) {
   await page.close();
 }
 
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const appQuery = await pool.query("select id from applications where reference = $1 limit 1", ["EVT-DEMO-0001"]);
+await pool.end();
+const appId = appQuery.rows[0]?.id;
+if (!appId) throw new Error("Seeded EVT-DEMO-0001 application was not found in the local QA database.");
+const dossierHref = `/portal/applications/${appId}`;
+
 const agency = await browser.newContext({ viewport: { width: 390, height: 844 } });
 await login(agency, "admin@horizonvoyages.example", agencyPassword);
-const listPage = await agency.newPage();
-await listPage.goto(base + "/portal/applications", { waitUntil: "networkidle" });
-const dossierHref = await listPage.locator('a[href^="/portal/applications/"]').first().getAttribute("href");
-await listPage.close();
-if (!dossierHref) throw new Error("No seeded dossier link found.");
 
 await snap(agency, "/portal", "agency-dashboard-mobile");
 await snap(agency, "/portal/applications", "agency-applications-mobile");
