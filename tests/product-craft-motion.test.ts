@@ -66,12 +66,23 @@ describe("wizard craft", () => {
 });
 
 describe("visual craft restraint", () => {
-  it("removes public card lift and the hero glass strip while keeping directional CTA motion", () => {
+  it("removes public card lift and generic hero/benefit template patterns while keeping directional CTA motion", () => {
     const css = read("src/app/globals.css");
     const home = read("src/app/(public)/page.tsx");
     expect(css).not.toContain("public-card:hover { transform: translateY(-5px)");
     expect(home).not.toContain("backdrop-blur-sm");
+    expect(home).not.toContain("B2B Visa Processing Platform");
+    expect(home).not.toContain('className="public-card card p-6"');
     expect(home).toContain("group-hover:translate-x-1");
+  });
+
+  it("uses restrained file controls on operational upload surfaces", () => {
+    const detail = read("src/components/application-detail.tsx");
+    const profile = read("src/app/portal/profile/page.tsx");
+    expect(detail).not.toContain("file:rounded-full");
+    expect(profile).not.toContain("file:rounded-full");
+    expect(detail).toContain("file:rounded-md");
+    expect(profile).toContain("file:rounded-md");
   });
 
   it("uses quieter workspace typography and control geometry", () => {
