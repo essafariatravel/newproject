@@ -1,0 +1,69 @@
+name: RC deterministic verification
+
+on:
+  push:
+    branches:
+      - release/essafaria-rc-2026-09
+  workflow_dispatch:
+
+concurrency:
+  group: rc-deterministic-verification-${{ github.ref }}
+  cancel-in-progress: true
+
+# Non-deploying by construction: no environments, no secrets, no deployment
+# permissions, no database credentials, and no write permission to the repo.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Typecheck, lint, tests, build
+    if: github.ref == 'refs/heads/release/essafaria-rc-2026-09'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Explicitly prevent build.ts from entering any Vercel Preview DB path.
+      VERCEL: "0"
+      VERCEL_ENV: ""
+      DATABASE_URL: ""
+      DATABASE_SCHEMA: ""
+      ALLOW_DEMO_SEED: "false"
+      STORAGE_PROVIDER: "db"
+      CI: "true"
+
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify checkout
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "Verified commit: $GITHUB_SHA"
+
+      - name: Setup Node 22 with npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies from package-lock
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Targeted build-preview guard
+        run: npm test -- tests/build-preview-guard.test.ts
+
+      - name: Broader deterministic test suite
+        run: npm test
+
+      - name: Build without deployment or database access
+        run: npm run build
