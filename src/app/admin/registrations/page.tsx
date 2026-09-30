@@ -7,6 +7,7 @@ import {
   listRegistrations,
   pendingRegistrationCount,
 } from "@/lib/registrations";
+import { NavigableTableRow } from "@/components/navigable-table-row";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatDateTime } from "@/lib/format";
 import { FilterBar, Pagination } from "@/components/app-widgets";
@@ -103,7 +104,7 @@ export default async function AdminRegistrationsPage({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {data.rows.map((r) => (
-              <tr key={r.id} className="tr-hover">
+              <NavigableTableRow key={r.id} href={`/admin/registrations/${r.id}`} className="tr-hover">
                 <td className="td">
                   <Link href={`/admin/registrations/${r.id}`} className="block font-medium text-navy-900 hover:underline">
                     {r.legalName}
@@ -120,7 +121,7 @@ export default async function AdminRegistrationsPage({
                 </td>
                 <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(r.createdAt, uiLocale)}</td>
                 <td className="td"><StatusBadge code={r.status} /></td>
-              </tr>
+              </NavigableTableRow>
             ))}
           </tbody>
         </TableWrap>

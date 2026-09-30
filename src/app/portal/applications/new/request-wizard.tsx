@@ -143,6 +143,7 @@ function normalize(value: string): string {
 export function RequestWizard(props: Props) {
   const { labels: t } = props;
   const [step, setStep] = useState(1);
+  const [wizardDirection, setWizardDirection] = useState<"forward" | "back">("forward");
   const [countryId, setCountryId] = useState(() => {
     const initial = props.initialCountryId;
     return initial && props.countries.some((c) => c.id === initial) ? initial : "";
@@ -222,7 +223,13 @@ export function RequestWizard(props: Props) {
 
   function goNext() {
     if (!validateStep(step)) return;
+    setWizardDirection("forward");
     setStep(Math.min(3, step + 1));
+  }
+
+  function goBack() {
+    setWizardDirection("back");
+    setStep((s) => Math.max(1, s - 1));
   }
 
   function onFileChange(documentTypeId: string, list: FileList | null) {
@@ -304,14 +311,18 @@ export function RequestWizard(props: Props) {
       <input type="hidden" name="locale" value={props.locale} />
 
       {/* Step rail */}
-      <ol className="flex flex-wrap items-center gap-2 text-sm" data-testid="wizard-steps">
+      <ol className="grid grid-cols-3 gap-2 text-sm" data-testid="wizard-steps">
         {[
           { n: 1, label: t.stepChoose },
           { n: 2, label: t.stepUpload },
           { n: 3, label: t.stepPreview },
         ].map((s) => (
-          <li key={s.n} className="flex items-center gap-2">
-            <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${step === s.n ? "bg-iris-600 text-white" : step > s.n ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-500"}`}>
+          <li
+            key={s.n}
+            className="wizard-step flex min-w-0 items-center gap-2 border-b pb-2"
+            data-state={step === s.n ? "active" : step > s.n ? "complete" : "pending"}
+          >
+            <span className={`flex h-7 w-7 items-center justify-center rounded-md text-xs font-semibold ${step === s.n ? "bg-navy-900 text-white" : step > s.n ? "bg-emerald-50 text-emerald-700" : "bg-ivory-100 text-slate-500"}`}>
               {s.n}
             </span>
             <span className={step === s.n ? "font-semibold text-navy-900" : "text-slate-500"}>{s.label}</span>
@@ -320,14 +331,14 @@ export function RequestWizard(props: Props) {
       </ol>
 
       {props.serverError ? (
-        <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{props.serverError}</p>
+        <p className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{props.serverError}</p>
       ) : null}
       {clientError ? (
-        <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{clientError}</p>
+        <p className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{clientError}</p>
       ) : null}
 
       {/* STEP 1 — destination search, then programmes, then applicant */}
-      <section data-wizard-section="1" hidden={step !== 1} className="space-y-5">
+      <section data-wizard-section="1" hidden={step !== 1} className="wizard-panel space-y-5" data-direction={wizardDirection}>
         <div className="card space-y-4 p-5">
           <div>
             <h2 className="font-serif text-lg text-navy-900">{t.destinationQuestion}</h2>
@@ -335,7 +346,7 @@ export function RequestWizard(props: Props) {
           </div>
 
           {country ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-iris-200 bg-iris-50/50 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-iris-200 bg-iris-50/50 px-4 py-3">
               <p className="text-sm">
                 <span className="text-slate-500">{t.destination}: </span>
                 <span className="font-semibold text-navy-900" data-testid="wizard-destination-selected">
@@ -377,7 +388,7 @@ export function RequestWizard(props: Props) {
               </p>
 
               {suggestions.length === 0 ? (
-                <p className="rounded-xl bg-ivory-50 px-3 py-2 text-sm text-slate-500">{t.noDestinationMatch}</p>
+                <p className="rounded-lg bg-ivory-50 px-3 py-2 text-sm text-slate-500">{t.noDestinationMatch}</p>
               ) : (
                 <div id="destination-suggestions" role="listbox" aria-label={t.searchDestination}>
                   {!countrySearch ? (
@@ -402,7 +413,7 @@ export function RequestWizard(props: Props) {
                           setCountrySearch("");
                           if (c.visaTypes.length !== 1) setVisaTypeId("");
                         }}
-                        className="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-navy-900 transition-colors hover:border-iris-300 hover:bg-iris-50"
+                        className="wizard-choice rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-navy-900 hover:bg-iris-50"
                       >
                         {c.name}
                         <span className="ms-2 text-[11px] text-slate-400">{c.visaTypes.length}</span>
@@ -425,7 +436,7 @@ export function RequestWizard(props: Props) {
                   <label
                     key={v.id}
                     data-testid="wizard-visa-type"
-                    className={`cursor-pointer rounded-xl border p-3 transition ${visaTypeId === v.id ? "border-iris-500 bg-iris-50 ring-2 ring-iris-200" : "border-slate-200 hover:border-iris-300"}`}
+                    className={`wizard-choice cursor-pointer rounded-lg border p-3 ${visaTypeId === v.id ? "border-gold-500 bg-gold-50/60 shadow-[inset_0_0_0_1px_rgb(201_154_50/0.12)]" : "border-slate-200"}`}
                   >
                     <input
                       type="radio"
@@ -500,7 +511,7 @@ export function RequestWizard(props: Props) {
       </section>
 
       {/* STEP 2 — documents */}
-      <section data-wizard-section="2" hidden={step !== 2} className="space-y-4">
+      <section data-wizard-section="2" hidden={step !== 2} className="wizard-panel space-y-4" data-direction={wizardDirection}>
         <div className="card p-5">
           <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-4">
             <div className="flex flex-col gap-0.5">
@@ -525,23 +536,23 @@ export function RequestWizard(props: Props) {
         <div className="card space-y-4 p-5">
           <h2 className="font-serif text-lg text-navy-900">{t.documents}</h2>
           {fileError ? (
-            <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" data-testid="wizard-file-error">
+            <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" data-testid="wizard-file-error">
               {fileError}
             </p>
           ) : null}
           {requirements.length === 0 ? (
             <p className="text-sm text-slate-500">{t.noDocumentsRequired}</p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="border-y border-line">
               {requirements.map((r) => {
                 const picked = files[r.documentTypeId] ?? [];
                 return (
-                  <li key={r.documentTypeId} className="rounded-2xl border border-slate-200 p-4">
+                  <li key={r.documentTypeId} className="border-b border-line py-4 last:border-b-0">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <p className="font-semibold text-navy-900">
                           {r.name}{" "}
-                          <span className={`ms-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${r.required ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-500"}`}>
+                          <span className={`ms-1 rounded-md px-2 py-0.5 text-[10px] font-semibold ${r.required ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-500"}`}>
                             {r.required ? t.required : t.optional}
                           </span>
                         </p>
@@ -564,7 +575,7 @@ export function RequestWizard(props: Props) {
                     {picked.length > 0 ? (
                       <ul className="mt-2 space-y-1 text-xs text-slate-600">
                         {picked.map((f, idx) => (
-                          <li key={idx} className="flex flex-wrap items-center gap-2">
+                          <li key={idx} className="wizard-file-settle flex flex-wrap items-center gap-2">
                             <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
                             <span className="font-medium text-navy-800">{f.name}</span>
                             <span className="text-slate-400">{(f.size / 1024).toFixed(0)} KB</span>
@@ -589,7 +600,7 @@ export function RequestWizard(props: Props) {
       </section>
 
       {/* STEP 3 — review & submit */}
-      <section data-wizard-section="3" hidden={step !== 3} className="space-y-4">
+      <section data-wizard-section="3" hidden={step !== 3} className="wizard-panel space-y-4" data-direction={wizardDirection}>
         <div className="card space-y-5 p-5">
           <div>
             <h2 className="font-serif text-lg text-navy-900">{t.reviewTitle}</h2>
@@ -600,15 +611,15 @@ export function RequestWizard(props: Props) {
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{t.sectionVisa}</h3>
             <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
-              <div className="flex justify-between gap-3 rounded-xl bg-ivory-50 px-3 py-2">
+              <div className="flex justify-between gap-3 rounded-md bg-ivory-50 px-3 py-2">
                 <dt className="text-slate-500">{t.destination}</dt>
                 <dd className="font-medium text-navy-900">{country?.name ?? "—"}</dd>
               </div>
-              <div className="flex justify-between gap-3 rounded-xl bg-ivory-50 px-3 py-2">
+              <div className="flex justify-between gap-3 rounded-md bg-ivory-50 px-3 py-2">
                 <dt className="text-slate-500">{t.programme}</dt>
                 <dd className="font-medium text-navy-900">{visa?.name ?? "—"}</dd>
               </div>
-              <div className="flex justify-between gap-3 rounded-xl bg-ivory-50 px-3 py-2">
+              <div className="flex justify-between gap-3 rounded-md bg-ivory-50 px-3 py-2">
                 <dt className="text-slate-500">{t.processing}</dt>
                 <dd className="font-medium text-navy-900">{visa ? processingLabel(visa) : "—"}</dd>
               </div>
@@ -619,7 +630,7 @@ export function RequestWizard(props: Props) {
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{t.sectionApplicant}</h3>
             <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-              <div className="flex justify-between gap-3 rounded-xl bg-ivory-50 px-3 py-2 sm:col-span-2">
+              <div className="flex justify-between gap-3 rounded-md bg-ivory-50 px-3 py-2 sm:col-span-2">
                 <dt className="text-slate-500">{t.summaryApplicant}</dt>
                 <dd className="font-medium text-navy-900" data-testid="wizard-applicant-summary">{applicantSummary()}</dd>
               </div>
@@ -634,7 +645,7 @@ export function RequestWizard(props: Props) {
                 const count = (files[r.documentTypeId] ?? []).length;
                 const missingHere = r.required && count === 0;
                 return (
-                  <li key={r.documentTypeId} className="flex items-center justify-between gap-3 rounded-xl bg-ivory-50 px-3 py-2">
+                  <li key={r.documentTypeId} className="flex items-center justify-between gap-3 rounded-md bg-ivory-50 px-3 py-2">
                     <span className="text-slate-600">{r.name}</span>
                     <span className={missingHere ? "font-semibold text-rose-600" : "font-medium text-emerald-700"}>
                       {missingHere ? t.missingPrefix : `${count} × ${t.uploaded}`}
@@ -650,11 +661,11 @@ export function RequestWizard(props: Props) {
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{t.sectionPayment}</h3>
             <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
-              <div className="flex justify-between gap-3 rounded-xl bg-ivory-50 px-3 py-2">
+              <div className="flex justify-between gap-3 rounded-md bg-ivory-50 px-3 py-2">
                 <dt className="text-slate-500">{t.fee}</dt>
                 <dd className="font-medium tabular-nums text-navy-900">{visa ? `${visa.fee} DZD` : "—"}</dd>
               </div>
-              <div className="flex justify-between gap-3 rounded-xl bg-ivory-50 px-3 py-2">
+              <div className="flex justify-between gap-3 rounded-md bg-ivory-50 px-3 py-2">
                 <dt className="text-slate-500">{t.currentBalance}</dt>
                 <dd className="font-medium tabular-nums text-navy-900">{props.walletBalance} DZD</dd>
               </div>
@@ -704,12 +715,12 @@ export function RequestWizard(props: Props) {
       </section>
 
       <div className="flex items-center justify-between">
-        <button type="button" onClick={() => setStep((s) => Math.max(1, s - 1))} disabled={step === 1 || pending} className="btn-secondary">
-          ← {t.back}
+        <button type="button" onClick={goBack} disabled={step === 1 || pending} className="btn-secondary">
+          <span className="directional" aria-hidden>←</span> {t.back}
         </button>
         {step < 3 ? (
           <button type="button" onClick={goNext} className="btn-primary">
-            {t.next} →
+            {t.next} <span className="directional" aria-hidden>→</span>
           </button>
         ) : null}
       </div>

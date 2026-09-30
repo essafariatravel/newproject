@@ -128,7 +128,7 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
 
       {/* Mobile / tablet navigation panel — no register CTA here (one only) */}
       {open ? (
-        <div id={panelId} className="border-t border-white/10 bg-navy-950 lg:hidden">
+        <div id={panelId} className="public-menu-panel border-t border-white/10 bg-navy-950 lg:hidden">
           <nav className="ess-container flex flex-col py-2" aria-label={labels.menu}>
             {nav.map((item) => (
               <Link

@@ -7,6 +7,7 @@ import { flashFrom } from "@/lib/action-helpers";
 import { formatDate, personName } from "@/lib/format";
 import { FilterBar, Pagination } from "@/components/app-widgets";
 import { EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
+import { NavigableTableRow } from "@/components/navigable-table-row";
 
 export const dynamic = "force-dynamic";
 
@@ -58,8 +59,8 @@ export default async function AdminApplicantsPage({
             </thead>
             <tbody className="divide-y divide-slate-100">
               {result.rows.map(({ applicant, applicationReference, applicationId, agencyName }) => (
-                <tr key={applicant.id} className="tr-hover">
-                  <td className="td font-medium text-navy-900">{personName(applicant)}</td>
+                <NavigableTableRow key={applicant.id} href={`/admin/applications/${applicationId}`} className="tr-hover">
+                  <td className="td"><Link href={`/admin/applications/${applicationId}`} className="font-medium text-navy-900 hover:underline">{personName(applicant)}</Link></td>
                   <td className="td tabular-nums">
                     {applicant.passportNumber}
                     <span className="block text-[11px] text-slate-400">exp. {formatDate(applicant.passportExpiryDate, uiLocale)}</span>
@@ -72,7 +73,7 @@ export default async function AdminApplicantsPage({
                     </Link>
                   </td>
                   <td className="td max-w-[160px] truncate">{agencyName}</td>
-                </tr>
+                </NavigableTableRow>
               ))}
             </tbody>
           </TableWrap>

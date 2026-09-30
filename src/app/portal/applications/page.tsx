@@ -13,6 +13,7 @@ import { checklistProgress } from "@/lib/applications";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { countryName } from "@/lib/country-names";
+import { NavigableTableRow } from "@/components/navigable-table-row";
 
 export const dynamic = "force-dynamic";
 
@@ -126,7 +127,7 @@ export default async function PortalApplicationsPage({
               {result.rows.map((r) => {
                 const p = progressById.get(r.app.id);
                 return (
-                  <tr key={r.app.id} className="tr-hover">
+                  <NavigableTableRow key={r.app.id} href={`/portal/applications/${r.app.id}`} className="tr-hover">
                     <td className="td">
                       <Link href={`/portal/applications/${r.app.id}`} className="font-semibold text-navy-900 hover:underline">{r.applicantSummary ?? "—"}</Link>
                       <span className="block text-xs text-slate-500">{r.app.reference}</span>
@@ -139,7 +140,7 @@ export default async function PortalApplicationsPage({
                     <td className="td whitespace-nowrap tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</td>
                     <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
                     <td className="td whitespace-nowrap text-xs text-slate-500">{formatDate(r.app.createdAt, uiLocale)}</td>
-                  </tr>
+                  </NavigableTableRow>
                 );
               })}
             </tbody>

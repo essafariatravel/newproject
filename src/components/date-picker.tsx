@@ -204,7 +204,7 @@ export function DatePicker(props: DatePickerProps) {
           aria-haspopup="dialog"
           aria-expanded={open}
           aria-label={display || props.placeholder || "Choose date"}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-ivory-200 bg-white text-slate-500 transition-colors hover:text-navy-900"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-ivory-200 bg-white text-slate-500 transition-colors hover:border-iris-200 hover:text-navy-900"
         >
           <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
             <rect x="1.5" y="2.5" width="13" height="12" rx="2" />
@@ -218,7 +218,7 @@ export function DatePicker(props: DatePickerProps) {
           role="dialog"
           aria-label={fmtMonth.format(new Date(viewYear, viewMonth, 1))}
           onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); setOpen(false); } }}
-          className="absolute z-40 mt-2 w-72 rounded-2xl border border-ivory-200 bg-white p-3 shadow-[0_24px_48px_-24px_rgb(15_23_42/0.35)]"
+          className="surface-popover absolute z-40 mt-2 w-72 rounded-xl border border-ivory-200 bg-white p-3 shadow-[0_18px_40px_-24px_rgb(15_23_42/0.32)]"
         >
           <div className="flex items-center justify-between pb-2">
             <button

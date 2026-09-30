@@ -72,7 +72,7 @@ export default async function PortalProfilePage({
                       name="logo"
                       accept="image/png,image/jpeg,image/webp"
                       required
-                      className="max-w-full text-xs file:mr-2 file:cursor-pointer file:rounded-full file:border-0 file:bg-iris-600 file:px-3.5 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+                      className="max-w-full text-xs file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-iris-600 file:px-3.5 file:py-1.5 file:text-xs file:font-semibold file:text-white"
                     />
                     <SubmitButton className="btn-secondary btn-sm" pendingLabel={ct("Uploading…")}>
                       {agency.logoKey ? ct("Replace logo") : ct("Upload logo")}

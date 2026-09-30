@@ -37,9 +37,9 @@ export function NavList({ sections }: { sections: NavSection[] }) {
                 key={item.href}
                 href={item.href}
                 aria-current={activeHref === item.href ? "page" : undefined}
-                className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors ${
+                className={`workspace-nav-link flex items-center justify-between rounded-md px-3 py-2 text-sm ${
                   activeHref === item.href
-                    ? "bg-white/12 font-semibold text-white shadow-[inset_3px_0_0_var(--color-gold-500)] rtl:shadow-[inset_-3px_0_0_var(--color-gold-500)]"
+                    ? "font-semibold text-white"
                     : "text-white/70 hover:bg-white/8 hover:text-white"
                 }`}
               >
@@ -69,5 +69,5 @@ function NavIcon({ href }: { href: string }) {
     : href.includes("communications") || href.includes("notifications") ? "M4 4h16v12H9l-5 4V4Z"
     : href.includes("config") || href.includes("settings") ? "M4 6h16M4 12h16M4 18h16M8 3v6m8 0v6m-6 0v6"
     : "M6 3h8l4 4v14H6V3Zm8 0v5h4M9 12h6m-6 4h6";
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden="true"><path d={path} /></svg>;
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="workspace-nav-icon shrink-0" aria-hidden="true"><path d={path} /></svg>;
 }

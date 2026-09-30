@@ -9,10 +9,10 @@ export function PageHeader(props: {
   actions?: ReactNode;
 }) {
   return (
-    <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-tight text-navy-900">{props.title}</h1>
-        {props.subtitle ? <p className="mt-1 text-sm text-slate-500">{props.subtitle}</p> : null}
+    <div className="page-header flex flex-wrap items-end justify-between gap-3">
+      <div className="min-w-0">
+        <h1 className="page-header-title font-semibold tracking-tight text-navy-900">{props.title}</h1>
+        {props.subtitle ? <p className="page-header-subtitle mt-1 text-sm leading-relaxed text-slate-500">{props.subtitle}</p> : null}
       </div>
       {props.actions ? <div className="flex flex-wrap items-center gap-2">{props.actions}</div> : null}
     </div>
@@ -27,7 +27,7 @@ export function CardHeader(props: { title: string; actions?: ReactNode; subtitle
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/70 px-5 py-3.5" data-testid={props.testId}>
       <div>
-        <h2 className="text-sm font-bold text-navy-900">{props.title}</h2>
+        <h2 className="text-sm font-semibold text-navy-900">{props.title}</h2>
         {props.subtitle ? <p className="mt-0.5 text-xs text-slate-400">{props.subtitle}</p> : null}
       </div>
       {props.actions ? <div className="flex items-center gap-2">{props.actions}</div> : null}
@@ -44,21 +44,21 @@ export function StatCard(props: {
 }) {
   const toneClass =
     props.tone === "gold"
-      ? "border-gold-100 bg-gold-50/50"
+      ? "text-gold-700"
       : props.tone === "teal"
-        ? "border-teal-100 bg-teal-50/40"
+        ? "text-teal-700"
         : props.tone === "navy"
-          ? "border-navy-100 bg-navy-50/70"
-          : "";
+          ? "text-navy-700"
+          : "text-slate-500";
   const body = (
-    <div className={`card h-full border px-5 py-4 ${toneClass}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">{props.label}</p>
-      <p className="mt-1.5 text-[1.65rem] font-semibold leading-snug tracking-tight text-navy-900 tabular-nums">{props.value}</p>
-      {props.hint ? <p className="mt-1 text-xs text-slate-400">{props.hint}</p> : null}
+    <div className="card h-full px-4 py-3.5">
+      <p className={`text-xs font-medium ${toneClass}`}>{props.label}</p>
+      <p className="mt-1 text-[1.5rem] font-semibold leading-snug tracking-tight text-navy-900 tabular-nums">{props.value}</p>
+      {props.hint ? <p className="mt-1 text-xs leading-snug text-slate-500">{props.hint}</p> : null}
     </div>
   );
   return props.href ? (
-    <Link href={props.href} className="block transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-500">
+    <Link href={props.href} className="block focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-500">
       {body}
     </Link>
   ) : (
@@ -92,10 +92,7 @@ export function ActiveBadge({ active, locale = "en" }: { active: boolean; locale
 
 export function EmptyState(props: { title: string; body?: string; action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2.5 px-6 py-16 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ivory-100 text-lg text-gold-500">
-        ✦
-      </div>
+    <div className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-center">
       <p className="text-sm font-semibold text-navy-900">{props.title}</p>
       {props.body ? <p className="max-w-sm text-xs leading-relaxed text-slate-400">{props.body}</p> : null}
       {props.action ? <div className="mt-2">{props.action}</div> : null}
@@ -108,7 +105,7 @@ export function Flash(props: { error?: string; success?: string }) {
   return (
     <div
       role="status"
-      className={`mb-5 rounded-2xl border px-4 py-3 text-sm ${
+      className={`mb-5 rounded-lg border px-4 py-3 text-sm ${
         props.error
           ? "border-red-100 bg-red-50 text-red-700"
           : "border-emerald-100 bg-emerald-50 text-emerald-700"
@@ -133,7 +130,7 @@ export function Progress(props: { done: number; total: number }) {
     <div className="flex items-center gap-2">
       <div className="h-1.5 w-24 overflow-hidden rounded-full bg-ivory-200">
         <div
-          className="h-full rounded-full bg-teal-600 transition-all"
+          className="h-full rounded-full bg-teal-600 transition-[width] duration-200 motion-reduce:transition-none"
           style={{ width: `${pct}%` }}
         />
       </div>
