@@ -14,6 +14,7 @@ import { BrandStudio } from "@/components/brand-studio";
 import { Card, CardHeader, EmptyState, Flash, PageHeader } from "@/components/ui";
 import { contentT } from "@/lib/i18n-content";
 import { getUiLocale } from "@/lib/ui-i18n";
+import { readPublishedLegal } from "@/lib/legal";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export default async function AdminSettingsPage({
   const ct = contentT(uiLocale);
   const branding = await readBranding();
   const logoUrl = brandLogoUrl(branding);
+  const publishedLegal = Object.fromEntries(await Promise.all((["en","fr","ar"] as const).flatMap(locale => (["terms","privacy"] as const).map(async kind => [`legal.${kind}.${locale}`,await readPublishedLegal(kind,locale)] as const))));
 
   return (
     <>
@@ -107,6 +109,9 @@ export default async function AdminSettingsPage({
               side and the public page picks the current interface language. */}
           <form action={updateSiteSettingsAction} className="mt-4 space-y-4">
             <input type="hidden" name="section" value="legal" />
+            <label className="label" htmlFor="legal-published-at">{ct("Actual publication date")}</label>
+            <input id="legal-published-at" name="legal.publishedAt" type="date" required className="input max-w-xs" max={new Date().toISOString().slice(0,10)}/>
+            <p className="text-sm text-slate-600">{ct("Publish owner-approved text only. Each change creates an immutable legal version.")}</p>
             <Card>
               <CardHeader title="Legal content" subtitle="Rendered on the public /privacy and /terms pages, per interface language." />
               <div className="space-y-5 px-5 py-5">
@@ -125,7 +130,7 @@ export default async function AdminSettingsPage({
                           name={`legal.privacy.${code}`}
                           rows={4}
                           dir={code === "ar" ? "rtl" : undefined}
-                          defaultValue={settingString(settings, `legal.privacy.${code}`)}
+                          defaultValue={publishedLegal[`legal.privacy.${code}`]?.body ?? ""}
                           className="input"
                         />
                       </div>
@@ -136,7 +141,7 @@ export default async function AdminSettingsPage({
                           name={`legal.terms.${code}`}
                           rows={4}
                           dir={code === "ar" ? "rtl" : undefined}
-                          defaultValue={settingString(settings, `legal.terms.${code}`)}
+                          defaultValue={publishedLegal[`legal.terms.${code}`]?.body ?? ""}
                           className="input"
                         />
                       </div>
