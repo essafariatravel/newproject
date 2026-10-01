@@ -74,7 +74,9 @@ describe("visual craft restraint", () => {
     expect(home).not.toContain("backdrop-blur-sm");
     expect(home).not.toContain("B2B Visa Processing Platform");
     expect(home).not.toContain('className="public-card card p-6"');
-    expect(home).toContain("group-hover:translate-x-1");
+    expect(home).toContain('className="public-cta');
+    expect(home).toContain('className="directional-arrow"');
+    expect(css).toContain(".public-cta:hover .directional-arrow");
   });
 
   it("uses restrained file controls on operational upload surfaces", () => {
