@@ -4,7 +4,7 @@
  * Configuration management actions (ESSAFARIA staff only).
  * Every mutation is validated, permission-checked and audited.
  */
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -30,6 +30,7 @@ import { recordAudit } from "@/lib/audit";
 import { AppError } from "@/lib/types";
 import { draftApplicationIdsForVisaType, resyncChecklist } from "@/lib/applications";
 import { runAction } from "@/lib/action-helpers";
+import { assertWorkflowCode, assertMutableWorkflowState, assertMutableDocumentType, assertProgrammeRequirementType, assertActiveProgrammeChecklist, assertWorkflowTransition, validateVisaActivation } from "@/lib/configuration-policy";
 
 const idSchema = z.string().uuid("Invalid identifier.");
 const codeSchema = z
@@ -44,13 +45,15 @@ const codeSchema = z
 
 const countrySchema = z.object({
   name: z.string().trim().min(2, "Country name is required.").max(80),
+  nameFr: z.string().trim().max(120).optional().nullable(),
+  nameAr: z.string().trim().max(120).optional().nullable(),
   iso2: z
     .string()
     .trim()
     .length(2, "ISO code must be exactly 2 letters.")
     .regex(/^[A-Za-z]{2}$/)
     .transform((v) => v.toUpperCase()),
-  region: z.string().trim().max(60).optional().nullable(),
+  region: z.enum(["Africa", "Asia", "Europe", "Middle East", "North America", "South America", "Oceania"]).optional().nullable(),
   sortOrder: z.coerce.number().int().min(0).max(9999).default(0),
 });
 
@@ -213,7 +216,7 @@ export async function createVisaTypeAction(formData: FormData): Promise<void> {
     const data = visaTypeSchema.parse(Object.fromEntries(formData));
     const inserted = await db
       .insert(visaTypes)
-      .values({ ...data, fee: data.fee.toFixed(2), currency: "DZD" })
+      .values({ ...data, fee: data.fee.toFixed(2), currency: "DZD", active: false })
       .onConflictDoNothing()
       .returning();
     if (!inserted[0]) throw new AppError("DUPLICATE", `Visa type code ${data.code} already exists.`);
@@ -231,12 +234,28 @@ export async function updateVisaTypeAction(formData: FormData): Promise<void> {
     const staff = await requireStaff();
     requirePermission(staff, "config.manage");
     if (formData.get("toggle")) {
-      await db.update(visaTypes).set({ active: sql`not ${visaTypes.active}`, updatedAt: new Date() }).where(eq(visaTypes.id, id));
+      await db.transaction(async tx => {
+        const existing = (await tx.select().from(visaTypes).where(eq(visaTypes.id,id)).for("update"))[0];
+        if (!existing) throw new AppError("NOT_FOUND", "Visa type not found.");
+        if (!existing.active) {
+          const country = (await tx.select().from(countries).where(eq(countries.id, existing.countryId)))[0];
+          const category = (await tx.select().from(visaCategories).where(eq(visaCategories.id, existing.categoryId)))[0];
+          const requirements = await tx.select({id:visaRequirements.id}).from(visaRequirements).innerJoin(documentTypes,eq(visaRequirements.documentTypeId,documentTypes.id)).where(and(eq(visaRequirements.visaTypeId,id),eq(visaRequirements.active,true),eq(documentTypes.active,true),eq(documentTypes.agencyUploadable,true)));
+          validateVisaActivation({countryActive:country?.active??false,categoryActive:category?.active??false,name:existing.name,nameFr:existing.nameFr,nameAr:existing.nameAr,fee:existing.fee,minDays:existing.processingMinDays,maxDays:existing.processingMaxDays,agencyRequirements:requirements.length});
+        }
+        await tx.update(visaTypes).set({active:!existing.active,updatedAt:new Date()}).where(eq(visaTypes.id,id));
+      });
       await recordAudit({ actor: staff, action: "CONFIG_VISA_TYPE_TOGGLED", entity: "visa_type", entityId: id });
     } else {
       const existing = (await db.select().from(visaTypes).where(eq(visaTypes.id, id)).limit(1))[0];
       if (!existing) throw new AppError("NOT_FOUND", "Visa type not found.");
       const data = visaTypeSchema.parse({ ...Object.fromEntries(formData), code: existing.code });
+      if (existing.active) {
+        const country = (await db.select().from(countries).where(eq(countries.id,data.countryId)))[0];
+        const category = (await db.select().from(visaCategories).where(eq(visaCategories.id,data.categoryId)))[0];
+        const requirements = await db.select({id:visaRequirements.id}).from(visaRequirements).innerJoin(documentTypes,eq(visaRequirements.documentTypeId,documentTypes.id)).where(and(eq(visaRequirements.visaTypeId,id),eq(visaRequirements.active,true),eq(documentTypes.active,true),eq(documentTypes.agencyUploadable,true)));
+        validateVisaActivation({countryActive:country?.active??false,categoryActive:category?.active??false,name:data.name,nameFr:data.nameFr??null,nameAr:data.nameAr??null,fee:String(data.fee),minDays:data.processingMinDays,maxDays:data.processingMaxDays,agencyRequirements:requirements.length});
+      }
       await db.update(visaTypes).set({ ...data, fee: data.fee.toFixed(2), currency: "DZD", updatedAt: new Date() }).where(eq(visaTypes.id, id));
       await recordAudit({
         actor: staff,
@@ -286,11 +305,14 @@ export async function addRequirementAction(formData: FormData): Promise<void> {
     const required = formData.get("required") === "on" || formData.get("required") === "true";
     const notes = z.string().trim().max(500).optional().nullable().parse(formData.get("notes") || null);
     const sortOrder = z.coerce.number().int().min(0).max(999).default(0).parse(formData.get("sortOrder") ?? 0);
-    const inserted = await db
-      .insert(visaRequirements)
-      .values({ visaTypeId, documentTypeId, required, notes: notes ?? null, sortOrder })
-      .onConflictDoNothing()
-      .returning();
+    const inserted = await db.transaction(async (tx) => {
+      const [visa] = await tx.select({ id: visaTypes.id }).from(visaTypes).where(eq(visaTypes.id, visaTypeId)).for("update");
+      if (!visa) throw new AppError("NOT_FOUND", "Visa type not found.");
+      const [type] = await tx.select().from(documentTypes).where(eq(documentTypes.id, documentTypeId)).for("share");
+      if (!type?.active) throw new AppError("NOT_FOUND", "Document type not found or inactive.");
+      assertProgrammeRequirementType(type.code);
+      return tx.insert(visaRequirements).values({ visaTypeId, documentTypeId, required, notes: notes ?? null, sortOrder }).onConflictDoNothing().returning();
+    });
     if (!inserted[0]) throw new AppError("DUPLICATE", "This document type is already a requirement for the visa.");
     // Propagate to draft applications of this visa type (additions only).
     const draftIds = await draftApplicationIdsForVisaType(visaTypeId);
@@ -313,14 +335,28 @@ export async function updateRequirementAction(formData: FormData): Promise<void>
     const staff = await requireStaff();
     requirePermission(staff, "config.manage");
     const id = idSchema.parse(formData.get("id"));
-    const rows = await db.select().from(visaRequirements).where(eq(visaRequirements.id, id)).limit(1);
-    const req = rows[0];
-    if (!req || req.visaTypeId !== visaTypeId) throw new AppError("NOT_FOUND", "Requirement not found.");
+    const req = await db.transaction(async (tx) => {
+      const [visa] = await tx.select().from(visaTypes).where(eq(visaTypes.id, visaTypeId)).for("update");
+      const [row] = await tx.select().from(visaRequirements).where(and(eq(visaRequirements.id, id), eq(visaRequirements.visaTypeId, visaTypeId)));
+      if (!visa || !row) throw new AppError("NOT_FOUND", "Requirement not found.");
+      if (formData.get("toggleActive")) {
+        if (row.active && visa.active) {
+          const remaining = await tx.select({ id: visaRequirements.id }).from(visaRequirements).innerJoin(documentTypes, eq(visaRequirements.documentTypeId, documentTypes.id)).where(and(eq(visaRequirements.visaTypeId, visaTypeId), ne(visaRequirements.id, id), eq(visaRequirements.active, true), eq(documentTypes.active, true), eq(documentTypes.agencyUploadable, true)));
+          assertActiveProgrammeChecklist(visa.active, remaining.length);
+        } else if (!row.active) {
+          const [type] = await tx.select().from(documentTypes).where(eq(documentTypes.id, row.documentTypeId)).for("share");
+          if (!type?.active) throw new AppError("VALIDATION", "Activate the document type before its requirement.");
+          assertProgrammeRequirementType(type.code);
+        }
+        await tx.update(visaRequirements).set({ active: !row.active, updatedAt: new Date() }).where(eq(visaRequirements.id, id));
+      } else if (formData.get("toggleRequired")) {
+        await tx.update(visaRequirements).set({ required: !row.required, updatedAt: new Date() }).where(eq(visaRequirements.id, id));
+      }
+      return row;
+    });
     if (formData.get("toggleActive")) {
-      await db.update(visaRequirements).set({ active: !req.active, updatedAt: new Date() }).where(eq(visaRequirements.id, id));
       await recordAudit({ actor: staff, action: "CONFIG_REQUIREMENT_TOGGLED", entity: "visa_requirement", entityId: id, metadata: { active: !req.active } });
     } else if (formData.get("toggleRequired")) {
-      await db.update(visaRequirements).set({ required: !req.required, updatedAt: new Date() }).where(eq(visaRequirements.id, id));
       await recordAudit({ actor: staff, action: "CONFIG_REQUIREMENT_TOGGLED", entity: "visa_requirement", entityId: id, metadata: { required: !req.required } });
     }
     revalidatePath(`/admin/config/visa-types/${visaTypeId}`);
@@ -334,11 +370,16 @@ export async function removeRequirementAction(formData: FormData): Promise<void>
     const staff = await requireStaff();
     requirePermission(staff, "config.manage");
     const id = idSchema.parse(formData.get("id"));
-    const deleted = await db
-      .delete(visaRequirements)
-      .where(and(eq(visaRequirements.id, id), eq(visaRequirements.visaTypeId, visaTypeId)))
-      .returning();
-    if (!deleted[0]) throw new AppError("NOT_FOUND", "Requirement not found.");
+    await db.transaction(async (tx) => {
+      const [visa] = await tx.select().from(visaTypes).where(eq(visaTypes.id, visaTypeId)).for("update");
+      const [req] = await tx.select().from(visaRequirements).where(and(eq(visaRequirements.id, id), eq(visaRequirements.visaTypeId, visaTypeId)));
+      if (!visa || !req) throw new AppError("NOT_FOUND", "Requirement not found.");
+      if (visa.active) {
+        const remaining = await tx.select({ id: visaRequirements.id }).from(visaRequirements).innerJoin(documentTypes, eq(visaRequirements.documentTypeId, documentTypes.id)).where(and(eq(visaRequirements.visaTypeId, visaTypeId), ne(visaRequirements.id, id), eq(visaRequirements.active, true), eq(documentTypes.active, true), eq(documentTypes.agencyUploadable, true)));
+        assertActiveProgrammeChecklist(visa.active, remaining.length);
+      }
+      await tx.delete(visaRequirements).where(eq(visaRequirements.id, id));
+    });
     await recordAudit({ actor: staff, action: "CONFIG_REQUIREMENT_REMOVED", entity: "visa_requirement", entityId: id, metadata: { visaTypeId } });
     revalidatePath(`/admin/config/visa-types/${visaTypeId}`);
     return "Requirement removed. Existing application checklists are preserved.";
@@ -379,26 +420,49 @@ export async function createDocumentTypeAction(formData: FormData): Promise<void
   });
 }
 
+async function lockDocumentTypeForChange(tx: Pick<typeof db, "select">, id: string) {
+  // Requirement edits and activation lock the visa first. Use that same order
+  // and sort parents so two type changes cannot both remove the last valid type.
+  const programmes = await tx.select({ id: visaTypes.id }).from(visaTypes)
+    .where(and(eq(visaTypes.active, true), inArray(visaTypes.id, tx.select({ id: visaRequirements.visaTypeId }).from(visaRequirements).where(and(eq(visaRequirements.documentTypeId, id), eq(visaRequirements.active, true))))))
+    .orderBy(asc(visaTypes.id)).for("update");
+  const [type] = await tx.select().from(documentTypes).where(eq(documentTypes.id, id)).for("update");
+  if (!type) throw new AppError("NOT_FOUND", "Document type not found.");
+  return { type, programmes };
+}
+
+async function keepAgencyRequirements(tx: Pick<typeof db, "select">, programmes: { id: string }[], documentTypeId: string) {
+  for (const programme of programmes) {
+    const remaining = await tx.select({ id: visaRequirements.id }).from(visaRequirements)
+      .innerJoin(documentTypes, eq(visaRequirements.documentTypeId, documentTypes.id))
+      .where(and(eq(visaRequirements.visaTypeId, programme.id), ne(documentTypes.id, documentTypeId), eq(visaRequirements.active, true), eq(documentTypes.active, true), eq(documentTypes.agencyUploadable, true)));
+    assertActiveProgrammeChecklist(true, remaining.length);
+  }
+}
+
 export async function updateDocumentTypeAction(formData: FormData): Promise<void> {
   await runAction("/admin/config/document-types", async () => {
     const staff = await requireStaff();
     requirePermission(staff, "config.manage");
     const id = idSchema.parse(formData.get("id"));
     if (formData.get("toggle")) {
-      await db
-        .update(documentTypes)
-        .set({
-          active: sql`not ${documentTypes.active}`,
-          // Activation does not change the configured document origin.
-          updatedAt: new Date(),
-        })
-        .where(eq(documentTypes.id, id));
+      await db.transaction(async (tx) => {
+        const { type, programmes } = await lockDocumentTypeForChange(tx, id);
+        if (type.active) {
+          assertMutableDocumentType(type.code);
+          if (type.agencyUploadable) await keepAgencyRequirements(tx, programmes, id);
+        }
+        await tx.update(documentTypes).set({ active: !type.active, updatedAt: new Date() }).where(eq(documentTypes.id, id));
+      });
       await recordAudit({ actor: staff, action: "CONFIG_DOCUMENT_TYPE_TOGGLED", entity: "document_type", entityId: id });
     } else {
-      const existing = (await db.select().from(documentTypes).where(eq(documentTypes.id, id)).limit(1))[0];
-      if (!existing) throw new AppError("NOT_FOUND", "Document type not found.");
-      const data = docTypeSchema.parse({ ...Object.fromEntries(formData), code: existing.code });
-      await db.update(documentTypes).set({ ...data, updatedAt: new Date() }).where(eq(documentTypes.id, id));
+      await db.transaction(async (tx) => {
+        const { type, programmes } = await lockDocumentTypeForChange(tx, id);
+        const data = docTypeSchema.parse({ ...Object.fromEntries(formData), code: type.code });
+        if (type.code.startsWith("DECISION_") && data.agencyUploadable) throw new AppError("FORBIDDEN", "Official decision types must remain Staff-issued.");
+        if (type.active && type.agencyUploadable && !data.agencyUploadable) await keepAgencyRequirements(tx, programmes, id);
+        await tx.update(documentTypes).set({ ...data, updatedAt: new Date() }).where(eq(documentTypes.id, id));
+      });
       await recordAudit({ actor: staff, action: "CONFIG_DOCUMENT_TYPE_UPDATED", entity: "document_type", entityId: id });
     }
     revalidatePath("/admin/config/document-types");
@@ -416,6 +480,7 @@ export async function deleteDocumentTypeAction(formData: FormData): Promise<void
     const docType = await db.transaction(async (tx) => {
       const row = (await tx.select().from(documentTypes).where(eq(documentTypes.id, id)).for("update"))[0];
       if (!row) throw new AppError("NOT_FOUND", "Document type not found.");
+      assertMutableDocumentType(row.code);
       const requirements = await tx.select({ id: visaRequirements.id }).from(visaRequirements).where(eq(visaRequirements.documentTypeId, id)).limit(1);
       const checklists = await tx.select({ id: checklistItems.id }).from(checklistItems).where(eq(checklistItems.documentTypeId, id)).limit(1);
       const uploads = await tx.select({ id: documents.id }).from(documents).where(eq(documents.documentTypeId, id)).limit(1);
@@ -497,6 +562,7 @@ export async function createStatusAction(formData: FormData): Promise<void> {
         isTerminal: formData.get("isTerminal") === "on",
         isDraft: formData.get("isDraft") === "on",
       });
+    assertWorkflowCode(data.code);
     const inserted = await db.insert(statuses).values(data).onConflictDoNothing().returning();
     if (!inserted[0]) throw new AppError("DUPLICATE", `Status ${data.code} already exists.`);
     await recordAudit({ actor: staff, action: "CONFIG_STATUS_CREATED", entity: "status", entityId: inserted[0].id, metadata: { code: data.code } });
@@ -513,6 +579,7 @@ export async function updateStatusAction(formData: FormData): Promise<void> {
     if (formData.get("toggle")) {
       const st = (await db.select().from(statuses).where(eq(statuses.id, id)))[0];
       if (!st) throw new AppError("NOT_FOUND", "Status not found");
+      assertMutableWorkflowState(st.code);
       // Q12 — terminal statuses are locked and cannot be deactivated
       if (st.isTerminal && st.active) throw new AppError("FORBIDDEN", "Terminal statuses (APPROVED / REJECTED / CANCELLED) cannot be deactivated.");
       await db.update(statuses).set({ active: sql`not ${statuses.active}`, updatedAt: new Date() }).where(eq(statuses.id, id));
@@ -530,6 +597,10 @@ export async function updateStatusAction(formData: FormData): Promise<void> {
         revalidatePath("/admin/config/statuses");
         return "Transition removed.";
       }
+      const [from] = await db.select().from(statuses).where(eq(statuses.id, fromStatusId));
+      const [to] = await db.select().from(statuses).where(eq(statuses.id, toStatusId));
+      if (!from || !to) throw new AppError("NOT_FOUND", "Status not found.");
+      assertWorkflowTransition(from.code, to.code, scope);
       await db
         .insert(statusTransitions)
         .values({ fromStatusId, toStatusId, scope })
@@ -576,6 +647,7 @@ export async function deleteStatusAction(formData: FormData): Promise<void> {
     const rows = await db.select().from(statuses).where(eq(statuses.id, id)).limit(1);
     const status = rows[0];
     if (!status) throw new AppError("NOT_FOUND", "Status not found.");
+    assertMutableWorkflowState(status.code);
 
     const appRef = await db.select({ id: applications.id }).from(applications).where(eq(applications.statusId, id)).limit(1);
     const histRef = await db
@@ -613,6 +685,10 @@ export async function addTransitionAction(formData: FormData): Promise<void> {
     const toStatusId = idSchema.parse(formData.get("toStatusId"));
     const scope = z.enum(["STAFF", "AGENCY", "BOTH"]).parse(formData.get("scope") ?? "STAFF");
     if (fromStatusId === toStatusId) throw new AppError("VALIDATION", "A status cannot transition to itself.");
+    const [from] = await db.select().from(statuses).where(eq(statuses.id, fromStatusId));
+    const [to] = await db.select().from(statuses).where(eq(statuses.id, toStatusId));
+    if (!from || !to) throw new AppError("NOT_FOUND", "Status not found.");
+    assertWorkflowTransition(from.code, to.code, scope);
     await db
       .insert(statusTransitions)
       .values({ fromStatusId, toStatusId, scope })

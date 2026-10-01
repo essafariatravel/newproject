@@ -48,12 +48,15 @@ describe("Task 2/3 — CTA + registration submit button share the polished butto
   });
   it("registration submit remains visibly a button when enabled/disabled/loading", () => {
     const css = readFileSync("src/app/globals.css", "utf8");
-    const gold = css.slice(css.indexOf(".btn-gold {"), css.indexOf("}", css.indexOf(".btn-gold {")));
-    expect(gold).toContain("text-navy-950");
+    const primary = css.slice(css.indexOf(".btn-primary {"), css.indexOf("}", css.indexOf(".btn-primary {")));
+    expect(primary).toContain("text-white");
+    expect(primary).toContain("bg-navy-900");
     expect(css).toContain("disabled:opacity-50");
     expect(css).toContain("disabled:cursor-not-allowed");
     const form = readFileSync("src/app/(public)/agency/register/registration-form.tsx", "utf8");
-    expect(form).toContain('className="btn-gold');
+    expect(form).toContain('className="btn-primary');
+    expect(form).toContain("copy.submitPending");
+    expect(form).toContain("<Spinner/>");
     expect(form).toContain("disabled={pending}");
   });
 });

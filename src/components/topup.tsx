@@ -15,6 +15,8 @@
 import { useState } from "react";
 import { SubmitButton } from "@/components/forms";
 import { formatAmount } from "@/lib/format";
+import { contentT } from "@/lib/i18n-content";
+import { MAX_UPLOAD_BYTES } from "@/lib/types";
 
 export interface TopupCopy {
   amountLabel: string;
@@ -55,6 +57,9 @@ export function TopupRequestForm({
   disabledReason?: string;
 }) {
   const [amount, setAmount] = useState("");
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
+  const [proofError, setProofError] = useState<string | null>(null);
+  const ct = contentT(locale);
   const numeric = Number(amount.replace(/[^\d.]/g, ""));
   const valid = Number.isFinite(numeric) && numeric > 0;
   const after = valid ? Number(currentBalance) + numeric : null;
@@ -62,6 +67,7 @@ export function TopupRequestForm({
   return (
     <form action={action} className="space-y-3" id="topup">
       <input type="hidden" name="back" value={back} />
+      <input type="hidden" name="idempotencyKey" value={idempotencyKey} suppressHydrationWarning />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="topup-amount">
@@ -94,6 +100,13 @@ export function TopupRequestForm({
           />
         </div>
       </div>
+      <div>
+        <label className="label" htmlFor="topup-proof">{ct("Bank transfer receipt")} *</label>
+        <input id="topup-proof" name="proof" type="file" required accept=".pdf,.jpg,.jpeg,.png" className="input" aria-describedby="topup-proof-help"
+          onChange={(event) => setProofError(event.target.files?.[0] && event.target.files[0].size > MAX_UPLOAD_BYTES ? ct("Files must be 2 MB or smaller.") : null)} />
+        <p id="topup-proof-help" className="mt-1 text-xs text-slate-500">{ct("PDF, JPG or PNG, up to 2 MB. Your balance changes only after ESSAFARIA confirms the transfer.")}</p>
+        {proofError ? <p role="alert" className="mt-1 text-xs text-red-700">{proofError}</p> : null}
+      </div>
 
       <dl className="grid grid-cols-1 gap-2 rounded-xl border border-line/70 bg-ivory-50/60 p-3 text-sm sm:grid-cols-2">
         <div className="flex items-center justify-between gap-2">
@@ -103,7 +116,7 @@ export function TopupRequestForm({
           </dd>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <dt className="text-slate-500">{copy.resultingBalance}</dt>
+          <dt className="text-slate-500">{ct("Balance after confirmation")}</dt>
           <dd className="font-semibold tabular-nums text-navy-900">
             {after === null ? "—" : formatAmount(after.toFixed(2), "DZD", locale)}
           </dd>
@@ -114,7 +127,7 @@ export function TopupRequestForm({
         <p className="rounded-xl border border-gold-200 bg-gold-50 px-3 py-2 text-xs text-gold-800">{disabledReason}</p>
       ) : null}
 
-      <SubmitButton className="btn-primary" pendingLabel={copy.sending} disabled={disabled}>
+      <SubmitButton className="btn-primary" pendingLabel={copy.sending} disabled={disabled || Boolean(proofError)}>
         {copy.submit}
       </SubmitButton>
     </form>
@@ -129,6 +142,7 @@ export function TopupProcessForm({
   agencyBalance,
   locale,
   copy,
+  proofAvailable = false,
 }: {
   action: (formData: FormData) => Promise<void>;
   back: string;
@@ -137,7 +151,9 @@ export function TopupProcessForm({
   agencyBalance: string;
   locale: "en" | "fr" | "ar";
   copy: TopupCopy;
+  proofAvailable?: boolean;
 }) {
+  const ct = contentT(locale);
   const [decision, setDecision] = useState<"CREDIT" | "REJECT">("CREDIT");
   const [amount, setAmount] = useState(requestedAmount);
   const numeric = Number(String(amount).replace(/[^\d.]/g, ""));
@@ -149,6 +165,8 @@ export function TopupProcessForm({
       <input type="hidden" name="back" value={back} />
       <input type="hidden" name="requestId" value={requestId} />
       <input type="hidden" name="decision" value={decision} />
+      {proofAvailable ? <a className="btn-secondary btn-sm" href={`/api/topups/${requestId}/proof`}>{ct("Open bank transfer receipt")}</a>
+        : <p className="text-sm text-red-700">{ct("A receipt is required before approval. Reject this request with instructions to send a new request and receipt.")}</p>}
 
       <div className="flex flex-wrap gap-2">
         <button
@@ -212,7 +230,7 @@ export function TopupProcessForm({
               </dd>
             </div>
           </dl>
-          <SubmitButton className="btn-primary btn-sm" pendingLabel={copy.processing}>
+          <SubmitButton className="btn-primary btn-sm" pendingLabel={copy.processing} disabled={!proofAvailable}>
             {copy.confirmCredit}
           </SubmitButton>
         </>

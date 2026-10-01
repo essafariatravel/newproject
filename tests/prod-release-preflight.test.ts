@@ -35,14 +35,20 @@ function approvedSnapshot(): SnapshotReport {
 }
 
 describe("current Production release manifest", () => {
-  it("accepts the verified post-release ledger through 0019 with no pending migrations", () => {
+  it("keeps the approved Production ledger through 0019 and blocks the unapproved hardening migrations", () => {
     expect([...RELEASE_SCOPE]).toEqual([]);
     expect(APPROVED_BASELINE.ledger).toHaveLength(19);
     expect(APPROVED_BASELINE.ledger[18]).toBe("0019_config_translations.sql");
     expect(TARGET_LEDGER).toEqual([...APPROVED_BASELINE.ledger]);
     const pending = pendingMigrations(APPROVED_BASELINE.ledger);
-    expect(pending).toEqual([]);
-    expect(preflightFindings(approvedSnapshot(), pending)).toEqual([]);
+    expect(pending).toEqual([
+      "0020_identity_security.sql",
+      "0021_business_invariants.sql",
+      "0022_registration_review.sql",
+      "0023_operations_legal.sql",
+      "0024_preview_api_lockdown.sql",
+    ]);
+    expect(preflightFindings(approvedSnapshot(), pending).some((finding) => finding.includes("pending migration set is not this release"))).toBe(true);
   });
 
   it("rejects the stale pre-release ledger ending at 0017", () => {

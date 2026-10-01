@@ -15,7 +15,7 @@ beforeEach(async () => {
 suiteSetup();
 
 import { db } from "@/lib/db";
-import { applications, checklistItems, walletTransactions } from "@/db/schema";
+import { agencies, applications, checklistItems, walletTransactions } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { createDraftApplication, getChecklist, submitApplication } from "@/lib/applications";
 import { adjustWallet, applyWalletMutation } from "@/lib/wallet";
@@ -42,15 +42,27 @@ async function visaId(code = "FR-SCH-TOUR") {
   return ((await db.execute(sql`select id from visa_types where code=${code}`)).rows[0] as { id: string }).id;
 }
 
+/** Historical fixture rows receive their date on INSERT; immutable rows are never backdated. */
+async function historicalAdjustment(agencyId: string, amount: number, reason: string, actorId: string, createdAt: Date) {
+  return db.transaction(async (tx) => {
+    const [agency] = await tx.select().from(agencies).where(eq(agencies.id, agencyId)).for("update");
+    const balanceBefore = Number(agency!.balance), balanceAfter = balanceBefore + amount;
+    await tx.update(agencies).set({ balance: balanceAfter.toFixed(2) }).where(eq(agencies.id, agencyId));
+    const [row] = await tx.insert(walletTransactions).values({ agencyId, type: amount > 0 ? "CREDIT" : "DEBIT", amount: Math.abs(amount).toFixed(2), currency: "DZD", balanceBefore: balanceBefore.toFixed(2), balanceAfter: balanceAfter.toFixed(2), reason, actorId, createdAt }).returning();
+    return row!;
+  });
+}
+
 /** Ledger rows for agency A spread over three months, plus a foreign row. */
 async function ledgerFixture() {
   const agencyA = await agencyByEmail("ops@agencya.example");
   const agencyB = await agencyByEmail("ops@agencyb.example");
   const staff = await userByEmail("superadmin@test.example");
-  const docs = await userByEmail("a-admin@test.example");
-
-  await adjustWallet({ agencyId: agencyA.id, amount: 1000, reason: "opening credit", actor: staff });
-  await adjustWallet({ agencyId: agencyA.id, amount: -100, reason: "manual correction", actor: staff });
+  const now = new Date();
+  const prevMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15, 12, 0, 0));
+  const twoMonthsAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 10, 12, 0, 0));
+  const opening = await historicalAdjustment(agencyA.id, 1000, "opening credit", staff.id, twoMonthsAgo);
+  const correction = await historicalAdjustment(agencyA.id, -100, "manual correction", staff.id, prevMonth);
   await adjustWallet({ agencyId: agencyB.id, amount: 777, reason: "agency B only", actor: staff });
 
   // A submitted application produces the APPLICATION_CHARGE row (real service path).
@@ -79,18 +91,9 @@ async function ledgerFixture() {
   }
   await submitApplication({ applicationId: app.id, actor: staff });
 
-  // Backdate two rows into the previous and the month-before months so the period
-  // filters have something real to separate (never done through the service).
   const rows = await db.select().from(walletTransactions).where(eq(walletTransactions.agencyId, agencyA.id));
-  const [opening, correction, charge] = rows;
-  const now = new Date();
-  const prevMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15, 12, 0, 0));
-  const twoMonthsAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 10, 12, 0, 0));
-  await db.update(walletTransactions).set({ createdAt: prevMonth }).where(eq(walletTransactions.id, correction!.id));
-  await db.update(walletTransactions).set({ createdAt: twoMonthsAgo }).where(eq(walletTransactions.id, opening!.id));
-
-  void docs;
-  return { agencyA, agencyB, app, charge: charge!, opening: opening!, correction: correction! };
+  const charge = rows.find((row) => row.type === "APPLICATION_CHARGE")!;
+  return { agencyA, agencyB, app, charge, opening, correction };
 }
 
 describe("§11 wallet ledger — period resolution agrees between view and export", () => {

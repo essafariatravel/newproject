@@ -5,6 +5,9 @@ import {
 } from "../scripts/lib/build-policy";
 
 describe("Preview build database-change guard", () => {
+  it("forbids automatic writes on the preproduction hardening branch before identity and backup verification", () => {
+    expect(automaticDatabaseChangesForbidden("preprod/essafaria-final-hardening")).toBe(true);
+  });
   it("forbids automatic database changes during North Star design Preview builds", () => {
     expect(automaticDatabaseChangesForbidden("design/essafaria-northstar")).toBe(true);
   });

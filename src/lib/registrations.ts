@@ -20,17 +20,23 @@
  *  - No wallet credit is ever created by registration or approval.
  */
 import { randomBytes, randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, ilike, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, pool } from "@/lib/db";
 import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 import { qualifiedTable } from "@/lib/database-schema";
+import { requirePermission } from "@/lib/rbac";
+import { legacyAgencyUsername } from "@/lib/identity-policy";
+import { lockIdentityState, recordIdentityAudit, requireRecoveryManager, revokeUnusedAccessTokens, revokeUserAccess } from "@/lib/account-security";
 import {
   accountActivationTokens,
   agencies,
   agencyRegistrationDocuments,
   agencyRegistrationHistory,
+  agencyRegistrationRequests,
+  agencyRegistrationFollowupTokens,
   agencyRegistrations,
+  auditLogs,
   users,
   type AgencyRegistration,
 } from "@/db/schema";
@@ -65,6 +71,7 @@ const ACTIVE_REGISTRATION_STATUSES: RegistrationStatus[] = [
 ];
 
 export const REGISTRATION_PAGE_SIZE = 20;
+
 
 /* ------------------------------------------------------------------ */
 /* Validation (localized, server-side)                                 */
@@ -112,14 +119,18 @@ export function registrationFormSchema(msg: ErrorCopy) {
   const choice = <T extends readonly [string, ...string[]]>(values: T) =>
     z.enum(values, { errorMap: () => ({ message: msg.invalidChoice }) });
 
-  return z.object({
+  return z.preprocess((input) => {
+    if (!input || typeof input !== "object") return input;
+    const values = input as Record<string, unknown>;
+    return { ...values, contactEmail: values.contactEmail ?? values.email, contactPhone: values.contactPhone ?? values.phone };
+  }, z.object({
     /* company */
     legalName: text(2, 160),
     tradingName: optText(160),
-    country: text(2, 80),
+    country: optText(80),
     region: optText(80),
-    city: text(2, 80),
-    addressLine: text(5, 300),
+    city: optText(80),
+    addressLine: optText(300),
     phone: text(5, 40),
     email,
     website: z
@@ -130,17 +141,17 @@ export function registrationFormSchema(msg: ErrorCopy) {
           ctx.addIssue({ code: z.ZodIssueCode.custom, message: msg.invalidWebsite });
         }
       }),
-    commercialRegistrationNumber: text(3, 80),
+    commercialRegistrationNumber: optText(80),
     taxId: optText(80),
     licenceNumber: optText(80),
     /* primary contact */
-    contactFirstName: text(2, 80),
-    contactLastName: text(2, 80),
-    contactPosition: text(2, 100),
+    contactFirstName: text(2, 160),
+    contactLastName: z.string().trim().max(80, msg.tooLong).optional().default(""),
+    contactPosition: optText(100),
     contactEmail: email,
     contactPhone: text(5, 40),
     /* business profile */
-    businessType: choice(REGISTRATION_BUSINESS_TYPES),
+    businessType: choice(REGISTRATION_BUSINESS_TYPES).optional().default("OTHER"),
     monthlyVolume: choice(MONTHLY_VOLUMES).optional().transform((v) => v ?? null),
     mainMarkets: optText(300),
     message: optText(2000),
@@ -148,11 +159,12 @@ export function registrationFormSchema(msg: ErrorCopy) {
     terms: consent,
     privacy: consent,
     accuracy: consent,
-  });
+  }));
 }
 
 export type RegistrationData = z.infer<ReturnType<typeof registrationFormSchema>> & {
   locale: RegistrationLocale;
+  legalConsentVersions?: {terms:number;privacy:number;locale:RegistrationLocale};
 };
 
 /** Map a zod failure into `{ field: localizedMessage }`. */
@@ -283,54 +295,22 @@ export async function assertRegistrationRateLimit(ipAddress: string | null): Pro
 /* Duplicate detection (existing accounts + in-flight applications)     */
 /* ------------------------------------------------------------------ */
 
-async function assertNoDuplicates(data: RegistrationData): Promise<void> {
-  // 1. A live user account already owns the primary contact email.
-  const existingUser = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(sql`lower(${users.email}) = ${data.contactEmail}`)
-    .limit(1);
-  if (existingUser[0]) {
-    throw new AppError("DUPLICATE", "An account already exists for this contact email.");
-  }
-  // 2. An in-flight registration matches identity signals.
-  const inFlight = await db
-    .select({ id: agencyRegistrations.id })
-    .from(agencyRegistrations)
-    .where(
-      and(
-        inArray(agencyRegistrations.status, ACTIVE_REGISTRATION_STATUSES),
-        or(
-          eq(agencyRegistrations.contactEmail, data.contactEmail),
-          eq(agencyRegistrations.email, data.email),
-          sql`lower(${agencyRegistrations.legalName}) = lower(${data.legalName})`,
-          and(
-            sql`lower(${agencyRegistrations.country}) = lower(${data.country})`,
-            sql`lower(${agencyRegistrations.commercialRegistrationNumber}) = lower(${data.commercialRegistrationNumber})`,
-          ),
-        )!,
-      ),
-    )
-    .limit(1);
-  if (inFlight[0]) {
-    throw new AppError("DUPLICATE", "A registration for this agency is already being processed.");
-  }
-  // 3. An existing tenant matches legal name or company email.
-  const existingAgency = await db
-    .select({ id: agencies.id })
-    .from(agencies)
-    .where(
-      or(
-        sql`lower(${agencies.legalName}) = lower(${data.legalName})`,
-        sql`lower(${agencies.email}) = lower(${data.email})`,
-      )!,
-    )
-    .limit(1);
-  if (existingAgency[0]) {
-    throw new AppError("DUPLICATE", "A partner agency with this legal name or email already exists.");
-  }
+export async function getRegistrationDuplicateCandidates(id: string, actor: AuthUser): Promise<Array<{id: string; kind: string; name: string; signals: string[]}>> {
+  requirePermission(actor, "registrations.view");
+  if (!z.string().uuid().safeParse(id).success) return [];
+  const [reg] = await db.select().from(agencyRegistrations).where(eq(agencyRegistrations.id,id));
+  if (!reg) return [];
+  const normalizedPhone = reg.phone.replace(/\D/g, "");
+  const rows = await pool.query(`select id,kind,name,email,phone from (
+    select id,'registration' as kind,legal_name as name,email,phone from ${qualifiedTable("agency_registrations")} where id<>$1 and status in ('PENDING','UNDER_REVIEW','MORE_INFORMATION_REQUIRED','APPROVED')
+    union all select id,'agency' as kind,legal_name as name,email,phone from ${qualifiedTable("agencies")} where id is distinct from $5::uuid
+  ) candidates where lower(trim(name))=lower(trim($2)) or lower(trim(email))=lower(trim($3)) or ($4<>'' and regexp_replace(coalesce(phone,''),'[^0-9]','','g')=$4) limit 12`,[id,reg.legalName,reg.email,normalizedPhone,reg.agencyId]);
+  return rows.rows.map((row) => ({ id:row.id,kind:row.kind,name:row.name,signals:[
+    row.name.trim().toLowerCase() === reg.legalName.trim().toLowerCase() ? "name" : "",
+    row.email?.trim().toLowerCase() === reg.email.trim().toLowerCase() ? "email" : "",
+    normalizedPhone && row.phone?.replace(/\D/g, "") === normalizedPhone ? "phone" : "",
+  ].filter(Boolean) }));
 }
-
 /* ------------------------------------------------------------------ */
 /* Public submission                                                   */
 /* ------------------------------------------------------------------ */
@@ -362,7 +342,6 @@ export async function submitAgencyRegistration(params: {
   const { data, files } = params;
   validateRegistrationFiles(files);
   await assertRegistrationRateLimit(params.ipAddress);
-  await assertNoDuplicates(data);
 
   const id = randomUUID();
   // 1. Private storage first (keys are server-generated, never from input).
@@ -398,7 +377,7 @@ export async function submitAgencyRegistration(params: {
       },
       ipAddress: params.ipAddress,
     });
-    const staff = await staffUserIds(["SUPER_ADMIN", "ADMIN"]).catch(() => [] as string[]);
+    const staff = await staffUserIds([...REGISTRATION_DECIDE_ROLES]).catch(() => [] as string[]);
     await notifyUsers(staff, {
       type: "REGISTRATION_SUBMITTED",
       title: `New agency registration — ${data.legalName}`,
@@ -453,6 +432,7 @@ async function persistRegistration(
           privacyAcknowledged: data.privacy === "true",
           infoConfirmed: data.accuracy === "true",
           consentedAt: new Date(),
+          legalConsentVersions: data.legalConsentVersions ?? {},
           status: "PENDING",
           ipAddress,
         });
@@ -549,7 +529,7 @@ export async function distinctRegistrationCountries(): Promise<string[]> {
     .selectDistinct({ country: agencyRegistrations.country })
     .from(agencyRegistrations)
     .orderBy(asc(agencyRegistrations.country));
-  return rows.map((r) => r.country);
+  return rows.map((r) => r.country).filter((country): country is string => Boolean(country));
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -583,7 +563,7 @@ export async function getRegistrationDetail(id: string) {
       : Promise.resolve([]),
     registration.adminUserId
       ? db
-          .select({ id: users.id, email: users.email, name: users.name, status: users.status })
+          .select({ id: users.id, email: users.email, name: users.name, status: users.status, username: users.username })
           .from(users)
           .where(eq(users.id, registration.adminUserId))
           .limit(1)
@@ -618,160 +598,84 @@ export async function getRegistrationDocument(registrationId: string, documentId
 /* Admin workflow                                                      */
 /* ------------------------------------------------------------------ */
 
-async function loadRegistration(id: string): Promise<AgencyRegistration> {
-  const rows = await db.select().from(agencyRegistrations).where(eq(agencyRegistrations.id, id)).limit(1);
-  if (!rows[0]) throw new AppError("NOT_FOUND", "Registration not found.");
-  return rows[0];
+type RegistrationTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function lockRegistration(tx: RegistrationTransaction, id: string): Promise<AgencyRegistration> {
+  if (!UUID_RE.test(id)) throw new AppError("NOT_FOUND", "Registration not found.");
+  const [reg] = await tx.select().from(agencyRegistrations).where(eq(agencyRegistrations.id, id)).for("update");
+  if (!reg) throw new AppError("NOT_FOUND", "Registration not found.");
+  return reg;
 }
 
-export async function startRegistrationReview(
-  id: string,
-  actor: AuthUser,
-  ipAddress?: string | null,
-): Promise<void> {
-  const reg = await loadRegistration(id);
-  // PENDING / MORE_INFORMATION_REQUIRED start (or resume) review; REJECTED
-  // can be reopened through review — every path is audited.
-  if (!["PENDING", "MORE_INFORMATION_REQUIRED", "REJECTED"].includes(reg.status)) {
-    throw new AppError("INVALID_STATE", "This registration cannot be moved to review.");
-  }
-  const updated = await db
-    .update(agencyRegistrations)
-    .set({
-      status: "UNDER_REVIEW",
-      reviewedBy: actor.id,
-      reviewedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(and(eq(agencyRegistrations.id, id), eq(agencyRegistrations.status, reg.status)))
-    .returning({ id: agencyRegistrations.id });
-  if (!updated[0]) throw new AppError("RACE", "The registration changed while updating. Refresh and try again.");
-  await db.insert(agencyRegistrationHistory).values({
-    registrationId: id,
-    kind: "STATUS",
-    fromStatus: reg.status,
-    toStatus: "UNDER_REVIEW",
-    actorId: actor.id,
-  });
-  await recordAudit({
-    actor,
-    action: "REGISTRATION_UNDER_REVIEW",
-    entity: "agency_registration",
-    entityId: id,
-    metadata: { from: reg.status },
-    ipAddress: ipAddress ?? null,
+async function closeRegistrationFollowups(tx: RegistrationTransaction, id: string): Promise<void> {
+  await tx.update(agencyRegistrationFollowupTokens).set({ revokedAt: new Date() }).where(and(
+    eq(agencyRegistrationFollowupTokens.registrationId, id), isNull(agencyRegistrationFollowupTokens.revokedAt), isNull(agencyRegistrationFollowupTokens.usedAt),
+  ));
+  await tx.update(agencyRegistrationRequests).set({ status: "CANCELLED" }).where(and(
+    eq(agencyRegistrationRequests.registrationId, id), eq(agencyRegistrationRequests.status, "OPEN"),
+  ));
+}
+
+async function registrationAudit(tx: RegistrationTransaction, id: string, actor: AuthUser, action: string, metadata?: Record<string, unknown>, ipAddress?: string | null): Promise<void> {
+  await tx.insert(auditLogs).values({ actorId: actor.id, actorEmail: actor.email, actorRole: actor.role, action,
+    entity: "agency_registration", entityId: id, metadata: metadata ?? null, ipAddress: ipAddress ?? null });
+}
+
+export async function startRegistrationReview(id: string, actor: AuthUser, ipAddress?: string | null): Promise<void> {
+  requirePermission(actor, "registrations.manage");
+  await db.transaction(async (tx) => {
+    const reg = await lockRegistration(tx, id);
+    if (!["PENDING", "MORE_INFORMATION_REQUIRED", "REJECTED"].includes(reg.status)) {
+      throw new AppError("INVALID_STATE", "This registration cannot be moved to review.");
+    }
+    await closeRegistrationFollowups(tx, id);
+    await tx.update(agencyRegistrations).set({ status: "UNDER_REVIEW", reviewedBy: actor.id, reviewedAt: new Date(), updatedAt: new Date() }).where(eq(agencyRegistrations.id, id));
+    await tx.insert(agencyRegistrationHistory).values({ registrationId: id, kind: "STATUS", fromStatus: reg.status, toStatus: "UNDER_REVIEW", actorId: actor.id });
+    await registrationAudit(tx, id, actor, "REGISTRATION_UNDER_REVIEW", { from: reg.status }, ipAddress);
   });
 }
 
-export async function requestMoreInformation(
-  id: string,
-  actor: AuthUser,
-  note: string,
-  ipAddress?: string | null,
-): Promise<void> {
-  const reg = await loadRegistration(id);
-  if (!["PENDING", "UNDER_REVIEW"].includes(reg.status)) {
-    throw new AppError("INVALID_STATE", "More information can only be requested while the application is open.");
-  }
+export async function requestMoreInformation(id: string, actor: AuthUser, note: string, ipAddress?: string | null): Promise<void> {
+  requirePermission(actor, "registrations.manage");
   const clean = note.trim();
-  if (clean.length < 10) {
-    throw new AppError("VALIDATION", "Describe the information required (min 10 characters).");
-  }
-  if (clean.length > 2000) throw new AppError("VALIDATION", "The note is too long.");
-  await db
-    .update(agencyRegistrations)
-    .set({ status: "MORE_INFORMATION_REQUIRED", reviewedBy: actor.id, reviewedAt: new Date(), updatedAt: new Date() })
-    .where(eq(agencyRegistrations.id, id));
-  await db.insert(agencyRegistrationHistory).values({
-    registrationId: id,
-    kind: "INFO_REQUEST",
-    fromStatus: reg.status,
-    toStatus: "MORE_INFORMATION_REQUIRED",
-    actorId: actor.id,
-    note: clean,
-  });
-  await recordAudit({
-    actor,
-    action: "REGISTRATION_INFO_REQUESTED",
-    entity: "agency_registration",
-    entityId: id,
-    metadata: { note: clean },
-    ipAddress: ipAddress ?? null,
+  if (clean.length < 10 || clean.length > 2000) throw new AppError("VALIDATION", "Describe the information required (10–2000 characters).");
+  await db.transaction(async (tx) => {
+    const reg = await lockRegistration(tx, id);
+    if (!["PENDING", "UNDER_REVIEW"].includes(reg.status)) throw new AppError("INVALID_STATE", "More information can only be requested while the application is open.");
+    await closeRegistrationFollowups(tx, id);
+    await tx.update(agencyRegistrations).set({ status: "MORE_INFORMATION_REQUIRED", reviewedBy: actor.id, reviewedAt: new Date(), updatedAt: new Date() }).where(eq(agencyRegistrations.id, id));
+    await tx.insert(agencyRegistrationHistory).values({ registrationId: id, kind: "INFO_REQUEST", fromStatus: reg.status, toStatus: "MORE_INFORMATION_REQUIRED", actorId: actor.id, note: clean });
+    await registrationAudit(tx, id, actor, "REGISTRATION_INFO_REQUESTED", { note: clean }, ipAddress);
   });
 }
 
-export async function rejectRegistration(
-  id: string,
-  actor: AuthUser,
-  reason: string,
-  ipAddress?: string | null,
-): Promise<void> {
-  const reg = await loadRegistration(id);
-  if (!["PENDING", "UNDER_REVIEW", "MORE_INFORMATION_REQUIRED"].includes(reg.status)) {
-    throw new AppError("INVALID_STATE", "Only an open application can be rejected.");
-  }
+export async function rejectRegistration(id: string, actor: AuthUser, reason: string, ipAddress?: string | null): Promise<void> {
+  requirePermission(actor, "registrations.manage");
   const clean = reason.trim();
-  if (clean.length < 10) {
-    throw new AppError("VALIDATION", "A rejection reason (min 10 characters) is mandatory.");
-  }
-  if (clean.length > 2000) throw new AppError("VALIDATION", "The reason is too long.");
-  await db
-    .update(agencyRegistrations)
-    .set({
-      status: "REJECTED",
-      rejectionReason: clean,
-      decidedBy: actor.id,
-      decidedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(eq(agencyRegistrations.id, id));
-  await db.insert(agencyRegistrationHistory).values({
-    registrationId: id,
-    kind: "STATUS",
-    fromStatus: reg.status,
-    toStatus: "REJECTED",
-    actorId: actor.id,
-    note: clean,
-  });
-  await recordAudit({
-    actor,
-    action: "REGISTRATION_REJECTED",
-    entity: "agency_registration",
-    entityId: id,
-    metadata: { reason: clean, legalName: reg.legalName },
-    ipAddress: ipAddress ?? null,
+  if (clean.length < 10 || clean.length > 2000) throw new AppError("VALIDATION", "A rejection reason (10–2000 characters) is mandatory.");
+  await db.transaction(async (tx) => {
+    const reg = await lockRegistration(tx, id);
+    if (!ACTIVE_REGISTRATION_STATUSES.includes(reg.status as RegistrationStatus)) throw new AppError("INVALID_STATE", "Only an open application can be rejected.");
+    await closeRegistrationFollowups(tx, id);
+    await tx.update(agencyRegistrations).set({ status: "REJECTED", rejectionReason: clean, decidedBy: actor.id, decidedAt: new Date(), updatedAt: new Date() }).where(eq(agencyRegistrations.id, id));
+    await tx.insert(agencyRegistrationHistory).values({ registrationId: id, kind: "STATUS", fromStatus: reg.status, toStatus: "REJECTED", actorId: actor.id, note: clean });
+    await registrationAudit(tx, id, actor, "REGISTRATION_REJECTED", { reason: clean, legalName: reg.legalName }, ipAddress);
   });
 }
 
-export async function addInternalNote(
-  id: string,
-  actor: AuthUser,
-  note: string,
-  ipAddress?: string | null,
-): Promise<void> {
-  const reg = await loadRegistration(id);
+export async function addInternalNote(id: string, actor: AuthUser, note: string, ipAddress?: string | null): Promise<void> {
+  requirePermission(actor, "registrations.manage");
   const clean = note.trim();
-  if (clean.length < 3) throw new AppError("VALIDATION", "The note is too short.");
-  if (clean.length > 2000) throw new AppError("VALIDATION", "The note is too long.");
-  const appended = reg.internalNotes ? `${reg.internalNotes}\n\n${clean}` : clean;
-  await db
-    .update(agencyRegistrations)
-    .set({ internalNotes: appended, updatedAt: new Date() })
-    .where(eq(agencyRegistrations.id, id));
-  await db.insert(agencyRegistrationHistory).values({
-    registrationId: id,
-    kind: "NOTE",
-    actorId: actor.id,
-    note: clean,
-  });
-  await recordAudit({
-    actor,
-    action: "REGISTRATION_NOTE_ADDED",
-    entity: "agency_registration",
-    entityId: id,
-    ipAddress: ipAddress ?? null,
+  if (clean.length < 3 || clean.length > 2000) throw new AppError("VALIDATION", "The note must contain 3–2000 characters.");
+  await db.transaction(async (tx) => {
+    const reg = await lockRegistration(tx, id);
+    const appended = reg.internalNotes ? reg.internalNotes + "\n\n" + clean : clean;
+    await tx.update(agencyRegistrations).set({ internalNotes: appended, updatedAt: new Date() }).where(eq(agencyRegistrations.id, id));
+    await tx.insert(agencyRegistrationHistory).values({ registrationId: id, kind: "NOTE", actorId: actor.id, note: clean });
+    await registrationAudit(tx, id, actor, "REGISTRATION_NOTE_ADDED", undefined, ipAddress);
   });
 }
+
 
 /* ------------------------------------------------------------------ */
 /* Approval — the privileged, transactional, idempotent operation      */
@@ -782,6 +686,7 @@ export interface ApprovalResult {
   adminUserId: string;
   legalName: string;
   contactEmail: string;
+  username: string;
   alreadyApproved: boolean;
 }
 
@@ -847,12 +752,14 @@ export async function approveRegistration(params: {
     // Idempotency: approval completed earlier (e.g. double-click or a
     // concurrent admin) — return the existing links, create nothing new.
     if (reg.status === "APPROVED" && reg.agency_id && reg.admin_user_id) {
+      const account = await client.query(`select username from ${q("users")} where id=$1`,[reg.admin_user_id]);
       await client.query("commit");
       return {
         agencyId: reg.agency_id,
         adminUserId: reg.admin_user_id,
         legalName: reg.legal_name,
-        contactEmail: reg.contact_email,
+        contactEmail: reg.email,
+        username: account.rows[0]?.username ?? legacyAgencyUsername(reg.admin_user_id),
         alreadyApproved: true,
       };
     }
@@ -861,29 +768,7 @@ export async function approveRegistration(params: {
       throw new AppError("INVALID_STATE", "Only an open application can be approved.");
     }
 
-    // Re-validate server-side at decision time.
-    const dupUser = await client.query(
-      `select id from ${q("users")} where lower(email) = lower($1) limit 1`,
-      [reg.contact_email],
-    );
-    if (dupUser.rows[0]) {
-      await client.query("rollback");
-      throw new AppError(
-        "CONFLICT",
-        "A user account already exists for the primary contact email. Resolve the conflict before approving.",
-      );
-    }
-    const dupAgency = await client.query(
-      `select id from ${q("agencies")} where lower(legal_name) = lower($1) or lower(email) = lower($2) limit 1`,
-      [reg.legal_name, reg.email],
-    );
-    if (dupAgency.rows[0]) {
-      await client.query("rollback");
-      throw new AppError(
-        "CONFLICT",
-        "A partner agency with this legal name or email already exists. Resolve the conflict before approving.",
-      );
-    }
+    // Possible duplicate identities are reviewed by Staff, never auto-rejected.
 
     // 1. Create the Agency with the existing agency model. The wallet is
     //    NOT touched: balance stays the platform default (0).
@@ -914,15 +799,18 @@ export async function approveRegistration(params: {
     //    the only way in is the secure activation flow.
     const placeholderSecret = randomBytes(32).toString("base64url");
     const passwordHash = await hashPassword(placeholderSecret);
+    const newAdminId = randomUUID();
     const userRows = await client.query(
-      `insert into ${q("users")} (email, password_hash, name, role, agency_id, status)
-       values ($1,$2,$3,'AGENCY_ADMIN',$4,'ACTIVE')
+      `insert into ${q("users")} (email, password_hash, name, role, agency_id, status, id, username, activation_pending, must_change_password)
+       values ($1,$2,$3,'AGENCY_ADMIN',$4,'ACTIVE',$5,$6,true,true)
        returning id`,
       [
-        reg.contact_email,
+        reg.email,
         passwordHash,
-        `${reg.contact_first_name} ${reg.contact_last_name}`,
+        `${reg.contact_first_name} ${reg.contact_last_name}`.trim(),
         agencyId,
+        newAdminId,
+        legacyAgencyUsername(newAdminId),
       ],
     );
     const adminUserId = userRows.rows[0]!.id as string;
@@ -939,7 +827,7 @@ export async function approveRegistration(params: {
            reviewed_by = coalesce(reviewed_by, $4),
            reviewed_at = coalesce(reviewed_at, now()),
            updated_at = now()
-       where id = $1 and status <> 'APPROVED'`,
+       where id = $1 and status in ('PENDING','UNDER_REVIEW','MORE_INFORMATION_REQUIRED')`,
       [registrationId, agencyId, adminUserId, actor.id],
     );
     if (linked.rowCount !== 1) {
@@ -951,13 +839,23 @@ export async function approveRegistration(params: {
        values ($1,'STATUS',$2,'APPROVED',$3)`,
       [registrationId, reg.status, actor.id],
     );
+    await client.query(`update ${q("agency_registration_followup_tokens")} set revoked_at=now() where registration_id=$1 and revoked_at is null and used_at is null`,[registrationId]);
+    await client.query(`update ${q("agency_registration_requests")} set status='CANCELLED' where registration_id=$1 and status='OPEN'`,[registrationId]);
+    for (const event of [
+      { action:"REGISTRATION_APPROVED",entity:"agency_registration",id:registrationId,metadata:{legalName:reg.legal_name,adminUserId} },
+      { action:"AGENCY_CREATED",entity:"agency",id:agencyId,metadata:{legalName:reg.legal_name,source:"agency_registration",registrationId} },
+      { action:"USER_CREATED",entity:"user",id:adminUserId,metadata:{role:"AGENCY_ADMIN",email:reg.email,username:legacyAgencyUsername(newAdminId),source:"agency_registration",registrationId} },
+    ]) {
+      await client.query(`insert into ${q("audit_logs")} (actor_id,actor_email,actor_role,agency_id,action,entity,entity_id,metadata,ip_address) values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)`,[actor.id,actor.email,actor.role,agencyId,event.action,event.entity,event.id,JSON.stringify(event.metadata),params.ipAddress??null]);
+    }
 
     await client.query("commit");
     result = {
       agencyId,
       adminUserId,
       legalName: reg.legal_name,
-      contactEmail: reg.contact_email,
+      contactEmail: reg.email,
+      username: legacyAgencyUsername(newAdminId),
       alreadyApproved: false,
     };
   } catch (err) {
@@ -967,34 +865,7 @@ export async function approveRegistration(params: {
     client.release();
   }
 
-  // Post-commit side effects — audited and notified, never fatal.
-  await recordAudit({
-    actor,
-    action: "REGISTRATION_APPROVED",
-    entity: "agency_registration",
-    entityId: registrationId,
-    agencyId: result.agencyId,
-    metadata: { legalName: result.legalName, adminUserId: result.adminUserId },
-    ipAddress: params.ipAddress ?? null,
-  });
-  await recordAudit({
-    actor,
-    action: "AGENCY_CREATED",
-    entity: "agency",
-    entityId: result.agencyId,
-    agencyId: result.agencyId,
-    metadata: { legalName: result.legalName, source: "agency_registration", registrationId },
-    ipAddress: params.ipAddress ?? null,
-  });
-  await recordAudit({
-    actor,
-    action: "USER_CREATED",
-    entity: "user",
-    entityId: result.adminUserId,
-    agencyId: result.agencyId,
-    metadata: { email: result.contactEmail, role: "AGENCY_ADMIN", source: "agency_registration" },
-    ipAddress: params.ipAddress ?? null,
-  });
+  // Notifications run after the atomic decision and audit transaction.
   // Existing onboarding/notification mechanism: welcome the agency admin
   // and keep staff informed.
   await notifyUsers([result.adminUserId], {
@@ -1004,7 +875,7 @@ export async function approveRegistration(params: {
     link: "/portal",
     agencyId: result.agencyId,
   }).catch((err) => console.error("[registrations] onboarding notification failed", err));
-  const staff = await staffUserIds(["SUPER_ADMIN", "ADMIN"]).catch(() => [] as string[]);
+  const staff = await staffUserIds([...REGISTRATION_DECIDE_ROLES]).catch(() => [] as string[]);
   await notifyUsers(staff, {
     type: "REGISTRATION_APPROVED",
     title: `Registration approved — ${result.legalName}`,
@@ -1029,33 +900,33 @@ export async function createActivationTokenForRegistration(
   registrationId: string,
   actor: AuthUser,
 ): Promise<{ token: string; expiresAt: Date; email: string }> {
-  const reg = await loadRegistration(registrationId);
-  if (reg.status !== "APPROVED" || !reg.adminUserId) {
-    throw new AppError("INVALID_STATE", "Activation links are available once the registration is approved.");
-  }
   const token = generateSessionToken();
   const expiresAt = new Date(Date.now() + ACTIVATION_TTL_HOURS * 60 * 60 * 1000);
-  await db.transaction(async (tx) => {
+  const reg = await db.transaction(async (tx) => {
+    await lockIdentityState(tx);
+    const current = await requireRecoveryManager(actor, tx);
+    const [reg] = await tx.select().from(agencyRegistrations).where(eq(agencyRegistrations.id, registrationId)).for("update").limit(1);
+    if (!reg || reg.status !== "APPROVED" || !reg.adminUserId) {
+      throw new AppError("INVALID_STATE", "Activation links are available once the registration is approved.");
+    }
+    const [account] = await tx.select({ user: users, agencyStatus: agencies.status }).from(users)
+      .leftJoin(agencies, eq(users.agencyId, agencies.id)).where(eq(users.id, reg.adminUserId!)).limit(1);
+    if (!account || account.user.status !== "ACTIVE" || account.agencyStatus !== "ACTIVE") {
+      throw new AppError("INVALID_STATE", "Reactivate the account and agency before issuing access.");
+    }
     // single live link at a time: revoke previous unused tokens
-    await tx
-      .delete(accountActivationTokens)
-      .where(and(eq(accountActivationTokens.userId, reg.adminUserId!), isNull(accountActivationTokens.usedAt)));
+    await revokeUnusedAccessTokens(tx, reg.adminUserId!);
     await tx.insert(accountActivationTokens).values({
       userId: reg.adminUserId!,
       tokenHash: hashToken(token),
       expiresAt,
-      createdBy: actor.id,
+      createdBy: current.id,
     });
+    await recordIdentityAudit(tx, { actor: current, action: "ACTIVATION_LINK_CREATED", entity: "user", entityId: reg.adminUserId,
+      agencyId: reg.agencyId, metadata: { registrationId, email: reg.email, expiresAt: expiresAt.toISOString() } });
+    return reg;
   });
-  await recordAudit({
-    actor,
-    action: "ACTIVATION_LINK_CREATED",
-    entity: "user",
-    entityId: reg.adminUserId,
-    agencyId: reg.agencyId,
-    metadata: { registrationId, email: reg.contactEmail, expiresAt: expiresAt.toISOString() },
-  });
-  return { token, expiresAt, email: reg.contactEmail };
+  return { token, expiresAt, email: reg.email };
 }
 
 export interface ActivationInfo {
@@ -1075,20 +946,22 @@ export async function resolveActivation(token: string): Promise<ActivationInfo |
       userName: users.name,
       userEmail: users.email,
       userStatus: users.status,
+      agencyStatus: agencies.status,
       locale: agencyRegistrations.locale,
       agencyName: agencies.legalName,
     })
     .from(accountActivationTokens)
     .innerJoin(users, eq(accountActivationTokens.userId, users.id))
     .leftJoin(agencyRegistrations, eq(agencyRegistrations.adminUserId, users.id))
-    .leftJoin(agencies, eq(agencyRegistrations.agencyId, agencies.id))
-    .where(eq(accountActivationTokens.tokenHash, hashToken(token)))
+    .leftJoin(agencies, eq(users.agencyId, agencies.id))
+    .where(and(eq(accountActivationTokens.tokenHash, hashToken(token)), eq(accountActivationTokens.purpose, "AGENCY_ADMIN_ACTIVATION")))
     .limit(1);
   const row = rows[0];
   if (!row) return null;
   if (row.t.usedAt) return null;
   if (row.t.expiresAt < new Date()) return null;
   if (row.userStatus !== "ACTIVE") return null;
+  if (row.agencyStatus !== "ACTIVE") return null;
   const locale = row.locale === "fr" || row.locale === "ar" ? row.locale : "en";
   return {
     userId: row.t.userId,
@@ -1108,28 +981,23 @@ export async function activateAccount(
   token: string,
   password: string,
   ipAddress?: string | null,
-): Promise<{ id: string; email: string; name: string; role: string; agencyId: string | null }> {
+): Promise<{ id: string; email: string; username: string | null; name: string; role: string; agencyId: string | null; credentialVersion: number }> {
   if (!/^[A-Za-z0-9_-]{20,90}$/.test(token)) {
     throw new AppError("INVALID_TOKEN", "This activation link is invalid or has expired.");
   }
   if (password.length < 10 || password.length > 200) {
     throw new AppError("PASSWORD_POLICY", "Password must be at least 10 characters.");
   }
-  const rows = await db
-    .select({ t: accountActivationTokens, u: users })
-    .from(accountActivationTokens)
-    .innerJoin(users, eq(accountActivationTokens.userId, users.id))
-    .where(eq(accountActivationTokens.tokenHash, hashToken(token)))
-    .limit(1);
-  const row = rows[0];
-  if (!row || row.t.usedAt || row.t.expiresAt < new Date()) {
-    throw new AppError("INVALID_TOKEN", "This activation link is invalid or has expired.");
-  }
-  if (row.u.status !== "ACTIVE") {
-    throw new AppError("USER_SUSPENDED", "This account has been suspended. Contact ESSAFARIA support.");
-  }
   const passwordHash = await hashPassword(password);
-  await db.transaction(async (tx) => {
+  const { row, credentialVersion } = await db.transaction(async (tx) => {
+    await lockIdentityState(tx);
+    const [row] = await tx.select({ t: accountActivationTokens, u: users, agencyStatus: agencies.status }).from(accountActivationTokens)
+      .innerJoin(users, eq(accountActivationTokens.userId, users.id)).leftJoin(agencies, eq(users.agencyId, agencies.id))
+      .where(and(eq(accountActivationTokens.tokenHash, hashToken(token)), eq(accountActivationTokens.purpose, "AGENCY_ADMIN_ACTIVATION"),
+        isNull(accountActivationTokens.usedAt), gt(accountActivationTokens.expiresAt, new Date()))).limit(1);
+    if (!row || row.u.status !== "ACTIVE" || row.agencyStatus !== "ACTIVE") {
+      throw new AppError("INVALID_TOKEN", "This activation link is invalid or has expired.");
+    }
     const consumed = await tx
       .update(accountActivationTokens)
       .set({ usedAt: new Date() })
@@ -1140,37 +1008,22 @@ export async function activateAccount(
     }
     await tx
       .update(users)
-      .set({ passwordHash, updatedAt: new Date() })
+      .set({ passwordHash, mustChangePassword: false, activationPending: false, updatedAt: new Date() })
       .where(eq(users.id, row.u.id));
-    await tx
-      .delete(accountActivationTokens)
-      .where(
-        and(eq(accountActivationTokens.userId, row.u.id), isNull(accountActivationTokens.usedAt)),
-      );
-  });
-  await recordAudit({
-    actor: {
-      id: row.u.id,
-      email: row.u.email,
-      name: row.u.name,
-      role: row.u.role as AuthUser["role"],
-      agencyId: row.u.agencyId,
-      userStatus: row.u.status,
-      agencyStatus: null,
-      agencyName: null,
-    },
-    action: "ACCOUNT_ACTIVATED",
-    entity: "user",
-    entityId: row.u.id,
-    agencyId: row.u.agencyId,
-    metadata: { method: "activation_link" },
-    ipAddress: ipAddress ?? null,
+    const credentialVersion = await revokeUserAccess(tx, row.u.id);
+    await recordIdentityAudit(tx, { actor: { id: row.u.id, email: row.u.email, username: row.u.username, name: row.u.name,
+      role: row.u.role as AuthUser["role"], agencyId: row.u.agencyId, userStatus: row.u.status, agencyStatus: row.agencyStatus, agencyName: null },
+      action: "ACCOUNT_ACTIVATED", entity: "user", entityId: row.u.id, agencyId: row.u.agencyId,
+      metadata: { method: "activation_link" }, ipAddress: ipAddress ?? null });
+    return { row, credentialVersion };
   });
   return {
     id: row.u.id,
     email: row.u.email,
+    username: row.u.username,
     name: row.u.name,
     role: row.u.role,
     agencyId: row.u.agencyId,
+    credentialVersion,
   };
 }

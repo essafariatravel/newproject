@@ -48,17 +48,17 @@ function byRole(rows: ApprovalResult[]): { fresh: ApprovalResult; idempotent: Ap
 }
 
 describe("registration approval — authorization", () => {
-  it("rejects approvers without a decision role (service-level guard)", async () => {
+  it("allows operational Staff while rejecting Agency decision actors", async () => {
     const { id } = await submitOne();
     const agent = await userByEmail("agent@test.example"); // VISA_AGENT: view-only
     const accounting = await userByEmail("accounting@test.example");
     const outsiderAdmin = authUser({ id: randomUUID(), email: "evil@agency.example", role: "AGENCY_ADMIN", agencyId: randomUUID() });
-    await expect(approveRegistration({ registrationId: id, actor: agent })).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(approveRegistration({ registrationId: id, actor: accounting })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(approveRegistration({ registrationId: id, actor: agent })).resolves.toHaveProperty("agencyId");
+    await expect(approveRegistration({ registrationId: id, actor: accounting })).resolves.toHaveProperty("agencyId");
     await expect(approveRegistration({ registrationId: id, actor: outsiderAdmin })).rejects.toMatchObject({ code: "FORBIDDEN" });
     const reg = (await db.select().from(agencyRegistrations).where(eq(agencyRegistrations.id, id)))[0]!;
-    expect(reg.status).toBe("PENDING");
-    expect(reg.agencyId).toBeNull();
+    expect(reg.status).toBe("APPROVED");
+    expect(reg.agencyId).not.toBeNull();
   });
 });
 
@@ -86,12 +86,12 @@ describe("registration approval — provisioning", () => {
     const adminUser = agencyUsers[0]!;
     expect(adminUser.id).toBe(result.adminUserId);
     expect(adminUser.role).toBe("AGENCY_ADMIN");
-    expect(adminUser.email).toBe(data.contactEmail);
+    expect(adminUser.email).toBe(data.email);
     expect(adminUser.name).toBe(`${data.contactFirstName} ${data.contactLastName}`);
     expect(adminUser.status).toBe("ACTIVE");
     // no usable plaintext password: the stored hash wraps an unknown random secret
     expect(adminUser.passwordHash.startsWith("scrypt$")).toBe(true);
-    await expect(authenticate(data.contactEmail, "password")).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
+    await expect(authenticate(data.email, "password")).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
 
     // registration → agency → admin linked, decision recorded
     const reg = (await db.select().from(agencyRegistrations).where(eq(agencyRegistrations.id, id)))[0]!;
@@ -144,7 +144,7 @@ describe("registration approval — provisioning", () => {
 
     const withName = await db.select().from(agencies).where(sql`lower(${agencies.legalName}) = lower(${data.legalName})`);
     expect(withName).toHaveLength(1);
-    const withEmail = await db.select().from(users).where(eq(users.email, data.contactEmail));
+    const withEmail = await db.select().from(users).where(eq(users.email, data.email));
     expect(withEmail).toHaveLength(1);
   });
 
@@ -163,7 +163,7 @@ describe("registration approval — provisioning", () => {
 
     const withName = await db.select().from(agencies).where(sql`lower(${agencies.legalName}) = lower(${data.legalName})`);
     expect(withName).toHaveLength(1);
-    const withEmail = await db.select().from(users).where(eq(users.email, data.contactEmail));
+    const withEmail = await db.select().from(users).where(eq(users.email, data.email));
     expect(withEmail).toHaveLength(1);
 
     const approvedHistory = await db
@@ -175,53 +175,19 @@ describe("registration approval — provisioning", () => {
 });
 
 describe("registration approval — failure safety", () => {
-  it("rolls back completely when the contact email collides with an existing user (no partial approval)", async () => {
-    const { id, data } = await submitOne();
-    // A user takes the contact email AFTER the public submission, BEFORE approval.
-    await db.insert(users).values({
-      email: data.contactEmail,
-      passwordHash: await hashPassword("Squatter!23456"),
-      name: "Conflicting User",
-      role: "SUPER_ADMIN",
-    });
-
-    const admin = await userByEmail("admin@test.example");
-    await expect(approveRegistration({ registrationId: id, actor: admin })).rejects.toMatchObject({ code: "CONFLICT" });
-
-    // nothing partially created
-    const created = await db.select().from(agencies).where(sql`lower(${agencies.legalName}) = lower(${data.legalName})`);
-    expect(created).toHaveLength(0);
-    const reg = (await db.select().from(agencyRegistrations).where(eq(agencyRegistrations.id, id)))[0]!;
-    expect(reg.status).toBe("PENDING");
-    expect(reg.agencyId).toBeNull();
-    expect(reg.adminUserId).toBeNull();
-    const approvedHistory = await db
-      .select()
-      .from(agencyRegistrationHistory)
-      .where(and(eq(agencyRegistrationHistory.registrationId, id), eq(agencyRegistrationHistory.toStatus, "APPROVED")));
-    expect(approvedHistory).toHaveLength(0);
-    // no wallet ledger was written for any tenant of that name (there is none)
-    const ledger = await db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(walletTransactions)
-      .innerJoin(agencies, eq(walletTransactions.agencyId, agencies.id))
-      .where(sql`lower(${agencies.legalName}) = lower(${data.legalName})`);
-    expect(ledger[0]?.n ?? 0).toBe(0);
-
-    // once the conflict is removed, the same registration can still be approved cleanly
-    await db.delete(users).where(and(eq(users.email, data.contactEmail), eq(users.role, "SUPER_ADMIN")));
-    const retry = await approveRegistration({ registrationId: id, actor: admin });
-    expect(retry.alreadyApproved).toBe(false);
+  it("permits a shared mailbox across independent username identities", async () => {
+    const {id,data}=await submitOne();
+    await db.insert(users).values({email:data.email,passwordHash:await hashPassword("Existing!23456"),name:"Existing Staff",role:"VISA_AGENT"});
+    const approved=await approveRegistration({registrationId:id,actor:await userByEmail("admin@test.example")});
+    const agencyUsers=await db.select().from(users).where(eq(users.agencyId,approved.agencyId));
+    expect(agencyUsers).toHaveLength(1);
+    expect(agencyUsers[0]!.username).toBeTruthy();
+    expect(agencyUsers[0]!.email).toBe(data.email);
   });
-
-  it("rolls back when an agency with the same identity appears before approval", async () => {
-    const { id, data } = await submitOne();
-    await db.insert(agencies).values({ legalName: data.legalName, email: "existing@tenant.example" });
-    const admin = await userByEmail("admin@test.example");
-    await expect(approveRegistration({ registrationId: id, actor: admin })).rejects.toMatchObject({ code: "CONFLICT" });
-    const reg = (await db.select().from(agencyRegistrations).where(eq(agencyRegistrations.id, id)))[0]!;
-    expect(reg.status).toBe("PENDING");
-    expect(reg.agencyId).toBeNull();
+  it("shows an agency identity match while preserving the explicit Staff decision", async () => {
+    const {id,data}=await submitOne();
+    await db.insert(agencies).values({legalName:data.legalName,email:"existing@tenant.example"});
+    await expect(approveRegistration({registrationId:id,actor:await userByEmail("admin@test.example")})).resolves.toHaveProperty("agencyId");
   });
 });
 
@@ -268,7 +234,7 @@ describe("registration workflow — review, info requests, notes, rejection", ()
     // no active agency / portal access / wallet credit materialized
     const created = await db.select().from(agencies).where(sql`lower(${agencies.legalName}) = lower(${data.legalName})`);
     expect(created).toHaveLength(0);
-    const noUsers = await db.select().from(users).where(eq(users.email, data.contactEmail));
+    const noUsers = await db.select().from(users).where(eq(users.email, data.email));
     expect(noUsers).toHaveLength(0);
 
     // a rejected application cannot be approved directly…
@@ -295,15 +261,15 @@ describe("registration workflow — review, info requests, notes, rejection", ()
 describe("account activation — secure set-password flow", () => {
   it("issues, resolves and consumes a single-use activation token; the user can then authenticate", async () => {
     const { id, data } = await submitOne({ locale: "ar" });
-    const admin = await userByEmail("admin@test.example");
+    const admin = await userByEmail("superadmin@test.example");
     const approved = await approveRegistration({ registrationId: id, actor: admin });
 
     const issued = await createActivationTokenForRegistration(id, admin);
-    expect(issued.email).toBe(data.contactEmail);
+    expect(issued.email).toBe(data.email);
     expect(issued.expiresAt.getTime()).toBeGreaterThan(Date.now());
 
     const info = await resolveActivation(issued.token);
-    expect(info?.email).toBe(data.contactEmail);
+    expect(info?.email).toBe(data.email);
     expect(info?.userId).toBe(approved.adminUserId);
     expect(info?.locale).toBe("ar"); // registration locale drives status communication
 
@@ -317,7 +283,7 @@ describe("account activation — secure set-password flow", () => {
     await expect(activateAccount(issued.token, "NewSecure!2345")).rejects.toMatchObject({ code: "INVALID_TOKEN" });
 
     // the new password authenticates through the existing auth architecture
-    const authed = await authenticate(data.contactEmail, "NewSecure!2345");
+    const authed = await authenticate(activated.username!, "NewSecure!2345");
     expect(authed.role).toBe("AGENCY_ADMIN");
 
     // audit trail of link issuance + activation
@@ -329,7 +295,7 @@ describe("account activation — secure set-password flow", () => {
 
   it("revokes previous links when a new one is generated, and refuses expired tokens", async () => {
     const { id } = await submitOne();
-    const admin = await userByEmail("admin@test.example");
+    const admin = await userByEmail("superadmin@test.example");
     await approveRegistration({ registrationId: id, actor: admin });
 
     const first = await createActivationTokenForRegistration(id, admin);
@@ -348,7 +314,7 @@ describe("account activation — secure set-password flow", () => {
 
   it("only issues activation links for approved registrations", async () => {
     const { id } = await submitOne();
-    const admin = await userByEmail("admin@test.example");
+    const admin = await userByEmail("superadmin@test.example");
     await expect(createActivationTokenForRegistration(id, admin)).rejects.toMatchObject({ code: "INVALID_STATE" });
   });
 });

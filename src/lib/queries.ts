@@ -18,7 +18,7 @@ export function resolvePageSize(value: unknown): number {
  * Read-model queries with server-side filtering and pagination.
  * Every query takes the authenticated user and enforces tenant scope.
  */
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, getTableColumns, gte, ilike, inArray, isNotNull, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   agencies,
@@ -39,7 +39,7 @@ import {
   visaTypes,
   walletTransactions,
 } from "@/db/schema";
-import type { AuthUser } from "@/lib/types";
+import { STAFF_ROLES, type AuthUser } from "@/lib/types";
 
 export const PAGE_SIZE = 20;
 
@@ -49,6 +49,7 @@ export interface ApplicationFilters {
   countryId?: string;
   visaTypeId?: string;
   statusCode?: string;
+  queue?: "active" | "completed";
   priorityCode?: string;
   dateFrom?: string;
   dateTo?: string;
@@ -120,6 +121,7 @@ export async function buildApplicationConditions(user: AuthUser, filters: Applic
     const p = await db.select().from(priorities).where(eq(priorities.code, filters.priorityCode)).limit(1);
     if (p[0]) conditions.push(eq(applications.priorityId, p[0].id));
   }
+  if (filters.queue) conditions.push(eq(statuses.isTerminal,filters.queue==="completed"));
   if (filters.dateFrom) conditions.push(gte(applications.createdAt, new Date(filters.dateFrom)));
   if (filters.dateTo) conditions.push(lte(applications.createdAt, new Date(`${filters.dateTo}T23:59:59`)));
   // §25/§27 — ownership scope.
@@ -289,7 +291,7 @@ export async function adminDashboard() {
       processing: sql<number>`count(*) filter (where ${statuses.code} in ('IN_PROCESS','EMBASSY_SENT'))::int`,
       completed: sql<number>`count(*) filter (where ${statuses.code} in ('APPROVED','COMPLETED'))::int`,
       refused: sql<number>`count(*) filter (where ${statuses.code} in ('REJECTED','REFUSED'))::int`,
-      missingDocs: sql<number>`count(*) filter (where ${statuses.code} = 'DOCUMENTS_REQUESTED')::int`,
+      missingDocs: sql<number>`count(*) filter (where ${agencyAttentionCondition()})::int`,
       last30: sql<number>`count(*) filter (where ${applications.createdAt} > now() - interval '30 days')::int`,
       // Work queue metrics
       newApps: sql<number>`count(*) filter (where ${statuses.code} = 'SUBMITTED')::int`,
@@ -346,7 +348,9 @@ export async function adminDashboard() {
   const reviewQueue = await db
     .select({ total: count() })
     .from(documents)
-    .where(inArray(documents.status, ["UPLOADED", "UNDER_REVIEW"]));
+    .innerJoin(applications,eq(documents.applicationId,applications.id))
+    .innerJoin(statuses,eq(applications.statusId,statuses.id))
+    .where(and(eq(statuses.isTerminal,false),inArray(documents.status,["UPLOADED","UNDER_REVIEW"]),sql`${documents.version}=(select max(history.version) from ${sql.raw(qualifiedTable("documents"))} history where history.application_id=${documents.applicationId} and history.document_type_id=${documents.documentTypeId})`));
 
   const [pendingRegs] = await db
     .select({
@@ -495,7 +499,8 @@ export async function reportData(filters: ReportFilters = {}) {
     .select({ priorityName: priorities.name, total: count() })
     .from(applications)
     .innerJoin(priorities, eq(applications.priorityId, priorities.id))
-    .where(appWhere)
+    .innerJoin(statuses, eq(applications.statusId, statuses.id))
+    .where(and(appWhere, eq(statuses.isTerminal, false)))
     .groupBy(priorities.name, priorities.weight)
     .orderBy(desc(priorities.weight));
 
@@ -521,7 +526,7 @@ export async function reportData(filters: ReportFilters = {}) {
     })
     .from(users)
     .leftJoin(applications, and(eq(applications.assignedTo, users.id), appWhere, isNull(applications.completedAt), isNull(applications.decisionAt), notInArray(applications.statusId, db.select({ id: statuses.id }).from(statuses).where(inArray(statuses.code, ["CANCELLED", "COMPLETED", "APPROVED", "REJECTED"])))))
-    .where(and(inArray(users.role, ["SUPER_ADMIN", "ADMIN", "VISA_AGENT"]), eq(users.status, "ACTIVE"), filters.officerId ? eq(users.id, filters.officerId) : undefined))
+    .where(and(inArray(users.role, [...STAFF_ROLES]), isNull(users.agencyId), eq(users.status, "ACTIVE"), filters.officerId ? eq(users.id, filters.officerId) : undefined))
     .groupBy(users.id, users.name)
     .orderBy(desc(count(applications.id)));
 
@@ -554,11 +559,43 @@ export async function reportData(filters: ReportFilters = {}) {
 
 /* ------------------------------ notifications --------------------------- */
 
-export async function listNotificationsForUser(userId: string, limit = 50) {
+export type NotificationFilter = "all" | "action" | "applications" | "messages" | "wallet";
+export async function listNotificationsForUser(userId: string, limit = 50, filter: NotificationFilter = "all") {
+  const conditions = [eq(notifications.userId, userId)];
+  const table = (name: string) => sql.raw(qualifiedTable(name));
+  if (filter === "messages") conditions.push(eq(notifications.type, "MESSAGE_POSTED"));
+  if (filter === "wallet") conditions.push(sql`(${notifications.type} like '%WALLET%' or ${notifications.type} = 'TOPUP_REQUESTED')`);
+  if (filter === "applications") conditions.push(sql`${notifications.applicationId} is not null and ${notifications.type} <> 'MESSAGE_POSTED' and ${notifications.type} not like '%WALLET%'`);
+  if (filter === "action") conditions.push(sql`(
+    exists (select 1 from ${table("users")} recipient
+      join ${table("applications")} dossier on dossier.id = ${notifications.applicationId}
+      join ${table("statuses")} state on state.id = dossier.status_id
+      where recipient.id = ${userId} and not state.is_terminal and (
+        (recipient.agency_id = dossier.agency_id and ${notifications.type} in ('DOCUMENT_REQUESTED','DOCUMENT_REJECTED','RESUBMISSION_REQUIRED')
+          and exists (select 1 from ${table("document_requests")} requested where requested.application_id = dossier.id and requested.status = 'OPEN'
+            and requested.id = ${notifications.documentRequestId}))
+        or (recipient.agency_id is null and (
+          (${notifications.type} = 'APPLICATION_SUBMITTED' and state.code = 'SUBMITTED')
+          or (${notifications.type} = 'DOCUMENT_REQUEST_FULFILLED' and exists (
+            select 1 from ${table("document_requests")} requested join ${table("documents")} file on file.id=requested.fulfilled_document_id
+            where requested.id=${notifications.documentRequestId} and requested.application_id=dossier.id and requested.status='FULFILLED' and file.status in ('UPLOADED','UNDER_REVIEW') and file.version = (
+              select max(history.version) from ${table("documents")} history where history.application_id = dossier.id and history.checklist_item_id = file.checklist_item_id)))))))
+    or (${notifications.type} = 'TOPUP_REQUESTED' and exists (
+      select 1 from ${table("wallet_topup_requests")} topup where topup.id=${notifications.topupRequestId} and topup.agency_id = ${notifications.agencyId} and topup.status = 'PENDING'))
+    or (${notifications.type} = 'REGISTRATION_SUBMITTED' and exists (
+      select 1 from ${table("agency_registrations")} registration where ${notifications.link}='/admin/registrations/' || registration.id::text and registration.status in ('PENDING','UNDER_REVIEW')))
+  )`);
   return db
-    .select()
+    .select({
+      ...getTableColumns(notifications),
+      travellerName: sql<string | null>`(select coalesce(traveller.full_name, concat_ws(' ',traveller.first_name,traveller.last_name)) from ${table("applicants")} traveller where traveller.application_id = ${notifications.applicationId} limit 1)`,
+      destination: sql<string | null>`(select dossier.country_name from ${table("applications")} dossier where dossier.id = ${notifications.applicationId})`,
+      visaName: sql<string | null>`(select dossier.visa_type_name from ${table("applications")} dossier where dossier.id = ${notifications.applicationId})`,
+      reference: sql<string | null>`(select dossier.reference from ${table("applications")} dossier where dossier.id = ${notifications.applicationId})`,
+      agencyName: sql<string | null>`(select coalesce(agency.trading_name,agency.legal_name) from ${table("agencies")} agency where agency.id = ${notifications.agencyId})`,
+    })
     .from(notifications)
-    .where(eq(notifications.userId, userId))
+    .where(and(...conditions))
     .orderBy(desc(notifications.createdAt))
     .limit(limit);
 }
@@ -587,7 +624,7 @@ export async function listCommunications(applicationId: string, user: AuthUser) 
     .select({
       message: communications,
       authorName: users.name,
-      authorRole: users.role,
+      authorRole: user.agencyId ? sql<string>`case when ${users.agencyId} is null then 'ESSAFARIA_TEAM' else ${users.role} end` : users.role,
     })
     .from(communications)
     .innerJoin(users, eq(communications.authorId, users.id))
@@ -632,7 +669,7 @@ export async function recentCommunications(
 /* --------------------------------- config ------------------------------- */
 
 export async function listCountries() {
-  return db.select().from(countries).orderBy(asc(countries.sortOrder), asc(countries.name));
+  return db.select({...getTableColumns(countries), usageCount:sql<number>`(select count(*)::int from ${sql.raw(qualifiedTable("visa_types"))} visa where visa.country_id=${countries.id})`}).from(countries).orderBy(asc(countries.sortOrder), asc(countries.name));
 }
 
 export async function listVisaCategories() {
@@ -686,7 +723,7 @@ export async function activeVisaOptions() {
     .innerJoin(visaCategories, eq(visaTypes.categoryId, visaCategories.id))
     // Bookable = active programme + active destination + DZD price (§7/§13):
     // a non-DZD price is configuration debt, never something an agency can book.
-    .where(and(eq(visaTypes.active, true), eq(countries.active, true), eq(visaTypes.currency, "DZD")))
+    .where(and(eq(visaTypes.active, true), eq(countries.active, true), eq(visaCategories.active,true), eq(visaTypes.currency, "DZD")))
     .orderBy(asc(countries.name), asc(visaTypes.name));
 }
 
@@ -723,7 +760,7 @@ export async function listUsers(
   const conditions = [];
   if (q) {
     const term = `%${q.trim()}%`;
-    conditions.push(or(ilike(users.name, term), ilike(users.email, term))!);
+    conditions.push(or(ilike(users.name, term), ilike(users.email, term), ilike(users.username, term))!);
   }
   if (scope === "staff") conditions.push(isNull(users.agencyId));
   if (scope === "agency") conditions.push(isNotNull(users.agencyId));

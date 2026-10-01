@@ -115,7 +115,7 @@ export default async function AdminApplicationDetailPage({
         ["EMBASSY_SENT", "EMBASSY_SUBMISSION"].includes(s.status.code)
       ),
   );
-  const allowedDecisionOutcomes = decisionOutcomesForStatus(detail.statusCode);
+  const allowedDecisionOutcomes = embassyApplicability === "APPLICABLE" && detail.statusCode !== "EMBASSY_SENT" ? [] : decisionOutcomesForStatus(detail.statusCode);
   const isClosed = ["APPROVED", "REJECTED", "CANCELLED", "COMPLETED", "REFUSED"].includes(detail.statusCode);
   const canStatusChange = hasPermission(user, "applications.status.change");
   const canReview = hasPermission(user, "applications.review");
@@ -205,7 +205,7 @@ export default async function AdminApplicationDetailPage({
 
             {canReview ? (
               <Card className="border-navy-200">
-                <CardHeader title={ct("Final decision")} subtitle={ct("Record the final decision and optionally attach the official document.")} />
+                <CardHeader title={ct("Final decision")} subtitle={ct("Record the final decision with its official approval or refusal document.")} />
                 {decisionDocs.length > 0 ? (
                   <ul className="space-y-2 px-4 py-3 text-sm">
                     {decisionDocs.map((d) => (
@@ -234,8 +234,8 @@ export default async function AdminApplicationDetailPage({
                       </select>
                     </div>
                     <div className="min-w-[260px] flex-1">
-                      <label className="label">{ct("Decision document (PDF/JPG/PNG, optional, 2 MB)")}</label>
-                      <input aria-label={ct("Decision document (PDF/JPG/PNG, optional, 2 MB)")} name="file" type="file" accept="application/pdf,image/jpeg,image/png" className="input" />
+                      <label className="label" htmlFor="decision-file">{ct("Official decision document (PDF/JPG/PNG, required, 2 MB)")}</label>
+                      <input id="decision-file" aria-label={ct("Official decision document (PDF/JPG/PNG, required, 2 MB)")} name="file" type="file" required accept="application/pdf,image/jpeg,image/png" className="input" />
                     </div>
                     <div className="w-full"><label className="label" htmlFor="decision-note">{ct("Message to agency (optional)")}</label><textarea id="decision-note" name="note" maxLength={4000} className="input" rows={2} /></div>
                     <ConfirmButton className="btn-primary" message={ct("Confirm this final decision? The application will be closed.")}>{ct("Record decision")}</ConfirmButton>
@@ -351,7 +351,7 @@ export default async function AdminApplicationDetailPage({
                       <ul className="mt-3 space-y-1.5">
                         {itemDocs.map(({ doc, applicantName }) => (
                           <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ivory-50 px-3 py-2 text-xs">
-                            <span className="flex items-center gap-2 min-w-0">
+                            <span className="flex min-w-0 flex-wrap items-center gap-2">
                               <a href={`/api/documents/${doc.id}`} target="_blank" className="font-medium truncate hover:underline">{doc.originalFilename}</a>
                               <span className="text-slate-400">v{doc.version} · {localizedDocStatus(doc.status, uiLocale, doc.status)} · {formatDateTime(doc.createdAt, uiLocale)}</span>
                               {applicantName ? <span className="text-slate-500">· {applicantName}</span> : null}
@@ -484,9 +484,9 @@ export default async function AdminApplicationDetailPage({
               <div className="flex justify-between"><span className="text-slate-500">{ct("Fee")}</span><span className="font-medium tabular-nums">{formatAmount(app.fee, "DZD", uiLocale)}</span></div>
               {charge ? (
                 <>
-                  <div className="flex justify-between"><span className="text-slate-500">{ct("Amount")}</span><span>{formatAmount(charge.amount, "DZD", uiLocale)}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">{ct("Balance before")}</span><span>{formatAmount(charge.balanceBefore, "DZD", uiLocale)}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">{ct("Balance after")}</span><span>{formatAmount(charge.balanceAfter, "DZD", uiLocale)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">{ct("Amount")}</span><span className="tabular-nums">{formatAmount(charge.amount, "DZD", uiLocale)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">{ct("Balance before")}</span><span className="tabular-nums">{formatAmount(charge.balanceBefore, "DZD", uiLocale)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">{ct("Balance after")}</span><span className="tabular-nums">{formatAmount(charge.balanceAfter, "DZD", uiLocale)}</span></div>
                   <div className="flex justify-between"><span className="text-slate-500">{ct("Reference")}</span><span className="font-mono text-xs">{(charge as { reference?: string | null }).reference ?? charge.id.slice(0,8)}</span></div>
                 </>
               ) : <p className="text-xs text-slate-500">{ct("No charge recorded")}</p>}

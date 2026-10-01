@@ -16,11 +16,10 @@ import {
   applications,
   communications,
   notifications,
-  statuses as statusesTb,
   users,
 } from "@/db/schema";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { createDraftApplication, getChecklist } from "@/lib/applications";
+import { changeApplicationStatus, createDraftApplication, getChecklist } from "@/lib/applications";
 import { listCommunications } from "@/lib/queries";
 import { agencyByEmail, userByEmail } from "./helpers/fixtures";
 
@@ -130,7 +129,8 @@ describe("§37 communications — dossier scoping and audiences", () => {
 
     const agencyView = await listCommunications(app.id, aUser);
     expect(agencyView.map((m) => m.message.body)).toEqual(["Your appointment is confirmed.", "Noted, thank you."]);
-    expect(agencyView[0]!.authorRole).toBe("VISA_AGENT");
+    expect(agencyView[0]!.authorRole).toBe("ESSAFARIA_TEAM");
+    expect((await listCommunications(app.id, staff))[0]!.authorRole).toBe("VISA_AGENT");
     expect(agencyView[1]!.authorRole).toBe("AGENCY_USER");
     // agency-authored messages are always agency-visible
     expect(agencyView[1]!.message.visibility).toBe("AGENCY");
@@ -303,10 +303,15 @@ describe("§44 communications — notification + inbox behaviour", () => {
     const forStaff = await recentCommunications(100);
     expect(forStaff.length).toBe(2);
 
-    // …and the portal page can only ever pass the session agency (source contract)
+    // The current inbox receives the session user and applies the same tenancy.
+    const { conversationInbox } = await import("@/lib/inbox");
+    const inboxA = await conversationInbox(await userByEmail("a-user@test.example"));
+    expect(inboxA.map((thread) => thread.applicationId)).toEqual([a.app.id]);
+    expect(inboxA[0]!.body).toBe("Agency A only message.");
     const { readFileSync } = await import("node:fs");
     const portalInbox = readFileSync("src/app/portal/communications/page.tsx", "utf8");
-    expect(portalInbox).toContain("agencyId: user.agencyId");
+    expect(portalInbox).toContain("portalPageUser()");
+    expect(portalInbox).toContain("ConversationInbox user={user}");
     expect(portalInbox).not.toMatch(/searchParams[\s\S]{0,80}agencyId/);
   });
 
@@ -332,8 +337,7 @@ describe("§44 communications — notification + inbox behaviour", () => {
     const staff = await userByEmail("agent@test.example");
     await postMessage({ applicationId: app.id, actor: staff, body: "Closing note." });
 
-    const closed = await db.select({ id: statusesTb.id }).from(statusesTb).where(eq(statusesTb.code, "APPROVED"));
-    await db.update(applications).set({ statusId: closed[0]!.id }).where(eq(applications.id, app.id));
+    await changeApplicationStatus({ applicationId: app.id, toStatusCode: "CANCELLED", actor: await userByEmail("a-admin@test.example"), reason: "Closed conversation fixture" });
 
     const after = await listCommunications(app.id, staff);
     expect(after.map((m) => m.message.body)).toEqual(["Closing note."]);

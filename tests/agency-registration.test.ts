@@ -22,10 +22,11 @@ import {
   registrationFormSchema,
   submitAgencyRegistration,
   validateRegistrationFile,
+  getRegistrationDuplicateCandidates,
 } from "@/lib/registrations";
 import { registrationCopy } from "@/lib/i18n";
 import { submitRegistrationAction } from "@/app/actions/registrations";
-import { nextIp, registrationData, registrationPdf } from "./helpers/fixtures";
+import { nextIp, registrationData, registrationPdf, userByEmail } from "./helpers/fixtures";
 
 const schemaEn = registrationFormSchema(registrationCopy("en").errors);
 
@@ -46,9 +47,7 @@ describe("public agency registration — validation", () => {
     expect(parsed.success).toBe(false);
     const fieldErrors = fieldErrorsFrom(parsed.error!);
     for (const key of [
-      "legalName", "country", "city", "addressLine", "phone", "email",
-      "commercialRegistrationNumber", "contactFirstName", "contactLastName",
-      "contactPosition", "contactEmail", "contactPhone", "businessType",
+      "legalName", "phone", "email", "contactFirstName", "contactEmail", "contactPhone",
       "terms", "privacy", "accuracy",
     ]) {
       expect(fieldErrors[key], `missing error for ${key}`).toBeTruthy();
@@ -207,7 +206,8 @@ describe("public agency registration — document safety", () => {
     const roles = new Set(notifs.map((n) => n.users.role));
     expect(roles.has("SUPER_ADMIN")).toBe(true);
     expect(roles.has("ADMIN")).toBe(true);
-    expect(roles.has("ACCOUNTING")).toBe(false);
+    expect(roles.has("ACCOUNTING")).toBe(true);
+    expect(roles.has("VISA_AGENT")).toBe(true);
 
     const audit = await db
       .select()
@@ -227,33 +227,22 @@ describe("public agency registration — document safety", () => {
 });
 
 describe("public agency registration — duplicates & rate limiting", () => {
-  it("blocks a duplicate submission (same contact email while in flight)", async () => {
+  it("accepts likely duplicates for Staff review rather than rejecting them", async () => {
     const data = registrationData();
-    await submitAgencyRegistration({ data, files: [], ipAddress: nextIp() });
-    await expect(
-      submitAgencyRegistration({ data: registrationData({ contactEmail: data.contactEmail, email: "other@company.example", legalName: "Completely Different Name SARL", commercialRegistrationNumber: "RC-OTHER-1" }), files: [], ipAddress: nextIp() }),
-    ).rejects.toMatchObject({ code: "DUPLICATE" });
-
-    await expect(
-      submitAgencyRegistration({ data: registrationData({ legalName: data.legalName }), files: [], ipAddress: nextIp() }),
-    ).rejects.toMatchObject({ code: "DUPLICATE" });
+    const first = await submitAgencyRegistration({ data, files: [], ipAddress: nextIp() });
+    const second = await submitAgencyRegistration({ data, files: [], ipAddress: nextIp() });
+    expect(first.id).not.toBe(second.id);
+    const matches = await getRegistrationDuplicateCandidates(second.id, await userByEmail("admin@test.example"));
+    expect(matches.some((match) => match.id === first.id && match.signals.includes("email"))).toBe(true);
   });
-
-  it("blocks emails that already belong to platform users", async () => {
-    await expect(
-      submitAgencyRegistration({ data: registrationData({ contactEmail: "a-admin@test.example" }), files: [], ipAddress: nextIp() }),
-    ).rejects.toMatchObject({ code: "DUPLICATE" });
+  it("accepts a shared mailbox already used by a platform user", async () => {
+    await expect(submitAgencyRegistration({ data: registrationData({contactEmail:"a-admin@test.example"}), files:[], ipAddress:nextIp() })).resolves.toHaveProperty("reference");
   });
-
-  it("blocks companies that already exist as partner agencies", async () => {
-    await expect(
-      submitAgencyRegistration({ data: registrationData({ legalName: "Agency A Ltd" }), files: [], ipAddress: nextIp() }),
-    ).rejects.toMatchObject({ code: "DUPLICATE" });
-    await expect(
-      submitAgencyRegistration({ data: registrationData({ email: "ops@agencya.example" }), files: [], ipAddress: nextIp() }),
-    ).rejects.toMatchObject({ code: "DUPLICATE" });
+  it("assists Staff with an existing partner name match", async () => {
+    const submitted=await submitAgencyRegistration({data:registrationData({legalName:"Agency A Ltd"}),files:[],ipAddress:nextIp()});
+    const matches=await getRegistrationDuplicateCandidates(submitted.id,await userByEmail("admin@test.example"));
+    expect(matches.some((match)=>match.kind==="agency" && match.signals.includes("name"))).toBe(true);
   });
-
   it("rate limits abusive velocity from one source IP", async () => {
     const ip = nextIp();
     for (let i = 0; i < 5; i += 1) {
@@ -274,6 +263,8 @@ describe("public registration action — anti-automation & safe errors", () => {
       ...data,
       locale: "en",
       renderedAt: String(Date.now() - 10_000),
+      termsVersion: "1",
+      privacyVersion: "1",
       ...overrides,
     })) {
       if (typeof v === "string") form.set(k, v);

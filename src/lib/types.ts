@@ -17,15 +17,15 @@ export function isAgencyRole(role: string): role is AgencyRole {
 }
 
 /** Roles allowed to change application status (staff-side workflow roles). */
-export const STATUS_CHANGE_ROLES: readonly string[] = ["SUPER_ADMIN", "ADMIN", "VISA_AGENT"];
+export const STATUS_CHANGE_ROLES: readonly string[] = STAFF_ROLES;
 /** Roles allowed to manage the wallet (credit / debit). */
-export const WALLET_MANAGE_ROLES: readonly string[] = ["SUPER_ADMIN", "ADMIN", "ACCOUNTING"];
+export const WALLET_MANAGE_ROLES: readonly string[] = STAFF_ROLES;
 /** Roles allowed to review documents. */
-export const DOCUMENT_REVIEW_ROLES: readonly string[] = ["SUPER_ADMIN", "ADMIN", "VISA_AGENT"];
+export const DOCUMENT_REVIEW_ROLES: readonly string[] = STAFF_ROLES;
 /** Roles allowed to submit with gate override. */
-export const OVERRIDE_ROLES: readonly string[] = ["SUPER_ADMIN", "ADMIN", "VISA_AGENT"];
+export const OVERRIDE_ROLES: readonly string[] = STAFF_ROLES;
 /** Roles authorized to decide (approve / reject / review) agency registrations. */
-export const REGISTRATION_DECIDE_ROLES: readonly string[] = ["SUPER_ADMIN", "ADMIN"];
+export const REGISTRATION_DECIDE_ROLES: readonly string[] = STAFF_ROLES;
 
 export const DOCUMENT_STATUSES = [
   "UPLOADED",
@@ -72,6 +72,8 @@ export const SESSION_TTL_DAYS = 7;
 export interface AuthUser {
   id: string;
   email: string;
+  /** Agency login identity. Staff continue to sign in with professional email. */
+  username?: string | null;
   name: string;
   role: Role;
   agencyId: string | null;

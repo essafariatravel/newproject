@@ -89,7 +89,7 @@ export function ChecklistTable(props: {
                   <ul className="mt-2 space-y-1.5">
                     {docs.map((d) => (
                       <li key={d.doc.id} className="document-file-settle flex flex-wrap items-center justify-between gap-2 rounded-md bg-ivory-50 px-3 py-1.5 text-xs">
-                        <span className="flex items-center gap-2">
+                        <span className="flex min-w-0 flex-wrap items-center gap-2">
                           <a href={`/api/documents/${d.doc.id}`} target="_blank" rel="noopener noreferrer" className="font-medium text-navy-800 underline-offset-2 hover:underline">
                             {d.doc.originalFilename}
                           </a>
@@ -217,7 +217,7 @@ export function DocumentList(props: {
             ) : null}
           </div>
 
-          {isStaff ? (
+          {isStaff && !documentTypeCode?.startsWith("DECISION_") ? (
             <form action={reviewDocumentAction} className="mt-3 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
               <input type="hidden" name="documentId" value={doc.id} />
               <input type="hidden" name="applicationId" value={props.applicationId} />
@@ -282,7 +282,8 @@ export function CommunicationsPanel(props: {
             <div key={message.id} className="px-4 py-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-medium text-navy-900">
-                  {authorName} <span className="font-normal text-slate-400">· {businessLabel(authorRole, props.locale ?? "en")}</span>
+                  {isStaff ? authorName : ["ESSAFARIA_TEAM", "SUPER_ADMIN", "ADMIN", "VISA_AGENT", "ACCOUNTING"].includes(authorRole) ? t("ESSAFARIA Team") : authorName}
+                  {isStaff ? <span className="font-normal text-slate-400"> · {businessLabel(authorRole, props.locale ?? "en")}</span> : null}
                   {isStaff ? (
                     <span className={`badge ms-2 ${message.visibility === "INTERNAL" ? "bg-slate-200 text-slate-600" : "bg-teal-100 text-teal-700"}`}>
                       {t(message.visibility === "INTERNAL" ? "Internal note" : "Visible to agency")}

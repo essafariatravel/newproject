@@ -7,6 +7,7 @@ import { flashFrom } from "@/lib/action-helpers";
 import { addTransitionAction, createStatusAction, deleteStatusAction, updateStatusAction } from "@/app/actions/config";
 import { SubmitButton } from "@/components/forms";
 import { ActiveBadge, Card, CardHeader, EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
+import { CORE_WORKFLOW_CODES } from "@/lib/configuration-policy";
 import { StatusBadge } from "@/components/badges";
 
 export const dynamic = "force-dynamic";
@@ -72,7 +73,7 @@ export default async function StatusesConfigPage({
                   <td className="td"><ActiveBadge active={s.active} locale={locale} /></td>
                   {canManage ? (
                     <td className="td">
-                      <div className="flex flex-wrap items-center gap-2">
+                      {(CORE_WORKFLOW_CODES as readonly string[]).includes(s.code) ? <span className="text-xs text-slate-500">{ct("Protected workflow")}</span> : <div className="flex flex-wrap items-center gap-2">
                         <form action={updateStatusAction}>
                           <input type="hidden" name="id" value={s.id} />
                           <input type="hidden" name="toggle" value="1" />
@@ -94,7 +95,7 @@ export default async function StatusesConfigPage({
                             </form>
                           </div>
                         </details>
-                      </div>
+                      </div>}
                     </td>
                   ) : null}
                 </tr>
@@ -115,7 +116,7 @@ export default async function StatusesConfigPage({
                   {list.map((t) => (
                     <span key={`${t.fromCode}-${t.toCode}`} className="badge bg-ivory-100 text-slate-600">
                       {t.toName}
-                      <span className="text-[9px] uppercase tracking-wide text-gold-600">{SCOPE_LABEL[t.scope]}</span>
+                      <span className="text-[9px] uppercase tracking-wide text-gold-600">{ct(SCOPE_LABEL[t.scope] ?? t.scope)}</span>
                     </span>
                   ))}
                 </div>
@@ -145,16 +146,11 @@ export default async function StatusesConfigPage({
                 {rows.map((s) => (
                   <tr key={s.id} className="tr-hover align-middle">
                     <td className="td text-xs text-slate-500">{s.code}</td>
-                    <form action={updateStatusAction}>
-                      <input type="hidden" name="id" value={s.id} />
-                      <td className="td py-2"><input name="name" defaultValue={s.name} required className="input input-sm w-44" /></td>
-                      <td className="td py-2"><input name="nameFr" defaultValue={s.nameFr ?? ""} className="input input-sm w-44" /></td>
-                      <td className="td py-2" dir="rtl"><input name="nameAr" defaultValue={s.nameAr ?? ""} className="input input-sm w-44" /></td>
-                      <td className="td py-2"><input name="sortOrder" type="number" defaultValue={s.sortOrder} className="input input-sm w-20" /></td>
-                      <td className="td py-2">
-                        <SubmitButton className="btn-primary btn-xs" pendingLabel="…">{ct("Save")}</SubmitButton>
-                      </td>
-                    </form>
+                    <td className="td py-2"><input form={`status-${s.id}`} aria-label={`${ct("EN label")} ${s.code}`} name="name" defaultValue={s.name} required className="input input-sm w-44" /></td>
+                      <td className="td py-2"><input form={`status-${s.id}`} aria-label={`${ct("FR label")} ${s.code}`} name="nameFr" defaultValue={s.nameFr ?? ""} className="input input-sm w-44" /></td>
+                      <td className="td py-2" dir="rtl"><input form={`status-${s.id}`} aria-label={`${ct("AR label")} ${s.code}`} name="nameAr" defaultValue={s.nameAr ?? ""} className="input input-sm w-44" /></td>
+                      <td className="td py-2"><input form={`status-${s.id}`} aria-label={`${ct("Order")} ${s.code}`} name="sortOrder" type="number" defaultValue={s.sortOrder} className="input input-sm w-20" /></td>
+                      <td className="td py-2"><form id={`status-${s.id}`} action={updateStatusAction}><input type="hidden" name="id" value={s.id} /><SubmitButton className="btn-primary btn-xs" pendingLabel="…">{ct("Save")}</SubmitButton></form></td>
                   </tr>
                 ))}
               </tbody>
@@ -170,11 +166,11 @@ export default async function StatusesConfigPage({
             <form action={createStatusAction} className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2">
               <div>
                 <label className="label" htmlFor="s-name">{ct("Name *")}</label>
-                <input id="s-name" name="name" required className="input" placeholder="Visa Issued" />
+                <input id="s-name" name="name" required className="input" placeholder="Embassy sent" />
               </div>
               <div>
                 <label className="label" htmlFor="s-code">{ct("Code *")}</label>
-                <input id="s-code" name="code" required className="input uppercase" placeholder="VISA_ISSUED" />
+                <input id="s-code" name="code" required className="input uppercase" placeholder="EMBASSY_SENT" />
               </div>
               <div>
                 <label className="label" htmlFor="s-order">{ct("Sort order")}</label>

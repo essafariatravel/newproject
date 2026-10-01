@@ -95,24 +95,12 @@ describe("shared list standard (search, region filter, 20/50/100)", () => {
     }
   });
 
-  it("public destinations use search + filter + pagination and an actionable empty state", () => {
+  it("former public destination route directs visitors to authentication without reading the catalogue", () => {
     const page = read("src/app/(public)/countries/page.tsx");
-    expect(page).toContain("resolvePageSize");
-    expect(page).toContain("<Pagination");
-    expect(page).toContain("<PageSizeSelector");
-    expect(page).toContain("destinations-filter");
-    // accent-insensitive matching (NFD strip) on both localized and stored names
-    expect(page).toMatch(/normalize\("NFD"\)/);
-    // empty states must tell the visitor what to do next, never a bare blank list
-    expect(page).toContain("No destination matches your search");
-    expect(page).toMatch(/contact us/);
-    // B2B information must never leak on the public page: no programme table,
-    // no price/fee column — only the country catalogue itself.
-    const schemaImport = page.split("\n").find((l) => l.includes("@/db/schema")) ?? "";
-    expect(page).toContain("publicDestinations");
-    expect(schemaImport).not.toContain("visa");
-    expect(page).not.toContain("visaRequirements");
-    expect(page).not.toMatch(/formatAmount|\.fee[^a-zA-Z]/);
+    expect(page).toContain('redirect("/login")');
+    expect(page).toMatch(/robots:\s*\{\s*index:\s*false,\s*follow:\s*false/);
+    expect(page).not.toMatch(/publicDestinations|activeVisaOptions|@\/db\/schema|formatAmount|\.fee[^a-zA-Z]/);
+    expect(read("src/app/(public)/layout.tsx")).not.toMatch(/href:\s*["']\/(countries|visas)["']/);
   });
 
   it("agency application list renders cards for phones and keeps the table for desktop", () => {

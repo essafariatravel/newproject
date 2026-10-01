@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - release/essafaria-rc-2026-09
+      - preprod/essafaria-final-hardening
   workflow_dispatch:
 
 concurrency:
@@ -18,7 +19,7 @@ permissions:
 jobs:
   verify:
     name: Typecheck, lint, tests, build
-    if: github.ref == 'refs/heads/release/essafaria-rc-2026-09'
+    if: github.ref == 'refs/heads/release/essafaria-rc-2026-09' || github.ref == 'refs/heads/preprod/essafaria-final-hardening'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

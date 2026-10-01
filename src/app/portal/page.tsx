@@ -8,6 +8,8 @@ import { StatusBadge } from "@/components/badges";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { countryName } from "@/lib/country-names";
+import { configName } from "@/lib/config-localization";
+import { hasPermission } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +30,10 @@ export default async function PortalDashboardPage() {
           <Link className="travel-record" href={`/portal/applications/${row.app.id}${attention ? "?tab=documents" : ""}`}>
             <span className="travel-record-destination">
               <span className="destination-code" aria-hidden="true">{row.countryIso2}</span>
-              <span><strong>{countryName({ name: row.app.countryName, iso2: row.countryIso2 }, locale)}</strong><small>{row.app.visaTypeName}</small></span>
+              <span><strong>{countryName({ name: row.app.countryName, iso2: row.countryIso2 }, locale)}</strong><small>{configName({ name: row.app.visaTypeName, nameFr: row.visaNameFr, nameAr: row.visaNameAr }, locale)}</small></span>
             </span>
             <span className="travel-record-traveller"><strong>{row.applicantSummary}</strong><small><bdi>{row.app.reference}</bdi></small></span>
-            <span className="travel-record-status"><StatusBadge code={row.statusCode} name={row.statusName} /><small>{formatDateTime(row.app.createdAt, locale)}</small></span>
+            <span className="travel-record-status"><StatusBadge code={row.statusCode} name={row.statusName} /><small>{formatDateTime(row.app.updatedAt, locale)}</small></span>
             <span className="travel-record-action">{ct(attention ? "Upload requested documents" : "Open dossier")}<span aria-hidden="true" className="directional-arrow"> →</span></span>
           </Link>
         </li>
@@ -66,23 +68,23 @@ export default async function PortalDashboardPage() {
       </section>
 
       <nav className="agency-stats" aria-label={ct("Agency dashboard")}>
-        <Link href="/portal/applications"><strong>{totals.active}</strong><span>{ct("Active applications")}</span></Link>
+        <Link href="/portal/applications?queue=active"><strong>{totals.active}</strong><span>{ct("Active applications")}</span></Link>
         <Link href="/portal/applications?documents=requested"><strong>{(totals as { actionRequired?: number }).actionRequired ?? 0}</strong><span>{ct("Action required")}</span></Link>
         <Link href="/portal/applications?status=APPROVED"><strong>{totals.completed}</strong><span>{ct("Completed")}</span></Link>
-        <Link href="/portal/wallet"><strong className="wallet-value">{formatAmount(wallet.balance, "DZD", locale)}</strong><span>{ct("Wallet balance")}</span></Link>
+        <Link href="/portal/wallet"><strong className="wallet-value tabular-nums">{formatAmount(wallet.balance, "DZD", locale)}</strong><span>{ct("Wallet balance")}</span></Link>
       </nav>
 
-      <section className="agency-record-section" aria-labelledby="attention-heading">
+      {data.needsAttention.length > 0 ? <section className="agency-record-section" aria-labelledby="attention-heading">
         <div className="agency-section-header"><h2 id="attention-heading">{ct("Needs your attention")}</h2><Link href="/portal/applications?documents=requested">{ct("View all")} <span aria-hidden="true" className="directional-arrow">→</span></Link></div>
         {data.needsAttention.length ? records(data.needsAttention, true) : <p className="quiet-empty">{ct("No action required — all your applications are in order.")}</p>}
-      </section>
+      </section> : null}
 
       <section className="agency-record-section" aria-labelledby="recent-heading">
         <div className="agency-section-header"><h2 id="recent-heading">{ct("Recent applications")}</h2><Link href="/portal/applications">{ct("View all")} <span aria-hidden="true" className="directional-arrow">→</span></Link></div>
         {data.recentApplications.length ? records(data.recentApplications) : <EmptyState title={ct("No applications yet")} body={ct("Submit your first visa application to see it tracked here.")} action={<Link href="/portal/applications/new" className="btn-primary">{ct("Create application")}</Link>} />}
       </section>
 
-      <Card>
+      {hasPermission(user,"transactions.view.own") ? <Card>
         <CardHeader title={ct("Recent wallet activity")} actions={<Link href="/portal/wallet" className="btn-secondary btn-sm">{ct("Ledger")}</Link>} />
         <ul className="divide-y divide-slate-100 px-4">
           {data.recentTx.length === 0 ? <li className="py-5 text-sm text-slate-500">{ct("No transactions yet.")}</li> : data.recentTx.map((tx) => (
@@ -92,7 +94,7 @@ export default async function PortalDashboardPage() {
             </li>
           ))}
         </ul>
-      </Card>
+      </Card> : null}
     </>
   );
 }

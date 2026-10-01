@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { loginAction } from "@/app/actions/auth";
 import { SubmitButton } from "@/components/forms";
+import Link from "next/link";
 
 /**
  * Form only. The page (src/app/(public)/login/page.tsx) owns the layout
@@ -15,6 +16,7 @@ export interface LoginCopy {
   signIn: string;
   signingIn: string;
   footer: string;
+  forgotPassword: string;
 }
 
 export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
@@ -31,12 +33,13 @@ export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
           <label htmlFor="email" className="label">{copy.email}</label>
           <input
             id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
+            name="identifier"
+            type="text"
+            autoComplete="username"
+            maxLength={254}
+            dir="ltr"
             required
             className="input"
-            placeholder="you@agency.example"
           />
         </div>
         <div>
@@ -55,6 +58,7 @@ export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
           {copy.signIn}
         </SubmitButton>
       </form>
+      <Link href="/forgot-password" className="mt-4 block text-center text-sm text-iris-700 underline">{copy.forgotPassword}</Link>
       <p className="mt-6 text-center text-xs text-slate-500">
         {copy.footer}
       </p>

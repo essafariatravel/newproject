@@ -53,7 +53,7 @@ export function LiveNotifications({ initialCount, href, label, soundLabel, close
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
       {count > 0 ? <span className="absolute end-0 top-0 min-w-4 rounded-full bg-red-600 px-1 text-center text-[10px] text-white">{count > 99 ? "99+" : count}</span> : null}
     </Link>
-    <button type="button" aria-label={soundLabel} title={soundLabel} aria-pressed={sound} className="h-9 w-9 shrink-0 rounded-lg border border-line text-xs" onClick={() => {
+    <button type="button" aria-label={soundLabel} title={soundLabel} aria-pressed={sound} className="notification-sound-toggle h-9 w-9 shrink-0 rounded-lg border border-line text-xs" onClick={() => {
       const next = !sound; soundEnabled.current = next; setSound(next);
       try { localStorage.setItem("essafaria.notification-sound", next ? "on" : "off"); } catch { /* Optional preference. */ }
       if (next) { try { audio.current ??= new AudioContext(); void audio.current.resume().catch(() => {}); } catch { /* Browser audio restrictions. */ } }

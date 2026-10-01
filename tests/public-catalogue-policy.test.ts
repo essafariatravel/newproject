@@ -1,8 +1,7 @@
 /**
  * PHASE 2.1 regression — public catalogue/pricing policy.
  *
- * Public pages may show the names of destinations with active visa products.
- * Programme names, categories and fees remain private in the Agency Portal.
+ * All configured catalogue and destination availability is private.
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
@@ -17,6 +16,7 @@ const PUBLIC_SURFACES = [
 const FORBIDDEN_PATTERNS: Array<{ re: RegExp; why: string }> = [
   { re: /visaTypes|visa_types/, why: "public surface must not touch the visa catalogue table" },
   { re: /visaCategories|visa_categories/, why: "public surface must not touch visa categories" },
+  { re: /publicDestinations|activeVisaOptions/, why: "public surface must not query live destination availability" },
   { re: /formatAmount\(/, why: "public surface must not format prices" },
   { re: /\.fee\b|\bfee:/, why: "public surface must not reference fees" },
   { re: /€|USD|US\$/, why: "public surface must not hard-code prices" },
@@ -33,13 +33,16 @@ describe("public surfaces expose no B2B catalogue or pricing", () => {
     });
   }
 
-  it("projects country names only from active visa coverage", () => {
+  it("legacy destination loader enforces Agency authentication", () => {
     const src = readFileSync("src/lib/public-destinations.ts", "utf8");
-    expect(src).toContain(".selectDistinct({");
-    expect(src).toContain("name: countries.name");
-    expect(src).toContain("eq(visaTypes.active, true)");
-    expect(src).toContain("eq(visaCategories.active, true)");
-    expect(src).toContain("eq(countries.active, true)");
-    expect(src).not.toMatch(/fee:\s*visaTypes\.fee|name:\s*visaTypes\.name|name:\s*visaCategories\.name/);
+    expect(src.indexOf("await requireAgencyUser()")).toBeGreaterThan(-1);
+    expect(src.indexOf("await requireAgencyUser()")).toBeLessThan(src.indexOf(".selectDistinct({"));
+  });
+  it("direct former catalogue routes cannot render anonymous coverage", () => {
+    for (const route of ["countries", "visas"]) {
+      const src = readFileSync(`src/app/(public)/${route}/page.tsx`, "utf8");
+      expect(src).toContain('redirect("/login")');
+    }
+    expect(readFileSync("src/app/(public)/layout.tsx", "utf8")).not.toMatch(/href=["']\/(?:visas|countries)|href:\s*["']\/(?:visas|countries)/);
   });
 });

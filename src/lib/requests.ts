@@ -307,6 +307,7 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
         eq(visaTypes.id, input.visaTypeId),
         eq(visaTypes.active, true),
         eq(countries.active, true),
+        eq(visaCategories.active, true),
         // Operations are DZD-only (§7). A programme priced in another currency
         // is not bookable until staff re-price it in DZD — no silent conversion.
         eq(visaTypes.currency, "DZD"),
@@ -347,202 +348,243 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
     throw e;
   }
 
-  const submitted = await db
-    .select({ id: statuses.id })
-    .from(statuses)
-    .where(eq(statuses.code, "SUBMITTED"))
-    .limit(1);
+  const commitRequest = async (): Promise<SubmitVisaRequestResult> => {
+    const submitted = await db
+      .select({ id: statuses.id })
+      .from(statuses)
+      .where(eq(statuses.code, "SUBMITTED"))
+      .limit(1);
 
-  const client = await pool.connect();
-  try {
-    await client.query("begin");
-    await client.query(`set local search_path to "${databaseSchema().replaceAll('"', '""')}"`);
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      await client.query(`set local search_path to "${databaseSchema().replaceAll('"', '""')}"`);
 
-    const submittedId = submitted[0]?.id;
-    if (!submittedId || !cfg) throw new AppError("CONFIG_ERROR", "Workflow is not configured.");
+      const submittedId = submitted[0]?.id;
+      if (!submittedId || !cfg) throw new AppError("CONFIG_ERROR", "Workflow is not configured.");
+      const agency = await client.query<{ status: string }>(`select status from ${qualifiedTable("agencies")} where id=$1 for update`, [agencyId]);
+      if (agency.rows[0]?.status !== "ACTIVE") throw new AppError("FORBIDDEN", "This agency is not active.");
 
-    // Idempotency, re-checked inside the transaction (covers races between the
-    // pre-check above and commit).
-    const existing = await client.query<{ id: string; reference: string }>(
-      `select id, reference from ${qualifiedTable("applications")} where idempotency_key = $1 and agency_id = $2 limit 1`,
-      [input.idempotencyKey, agencyId],
-    );
-    if (existing.rows[0]) {
-      await client.query("commit");
-      await Promise.allSettled(writtenKeys.map((k) => storageProvider().delete(k)));
-      return {
-        applicationId: existing.rows[0].id,
-        reference: existing.rows[0].reference,
-        reused: true,
-        charge: { balanceBefore: "0", balanceAfter: "0", transactionId: "" },
-      };
-    }
+      // Idempotency, re-checked inside the transaction (covers races between the
+      // pre-check above and commit).
+      const existing = await client.query<{ id: string; reference: string }>(
+        `select id, reference from ${qualifiedTable("applications")} where idempotency_key = $1 and agency_id = $2 limit 1`,
+        [input.idempotencyKey, agencyId],
+      );
+      if (existing.rows[0]) {
+        await client.query("commit");
+        return {
+          applicationId: existing.rows[0].id,
+          reference: existing.rows[0].reference,
+          reused: true,
+          charge: { balanceBefore: "0", balanceAfter: "0", transactionId: "" },
+        };
+      }
 
-    // The application row itself (SUBMITTED from birth — no draft stage).
-    let reference = generateReference();
-    for (let attempt = 0; attempt < 5; attempt++) {
-      try {
+      // Storage can take time. Lock and re-read the programme and its checklist
+      // before making business rows or a charge; a changed preview must be reopened.
+      const current = await client.query<VisaConfigRow>(
+        `select visa.id as "visaTypeId", visa.name as "visaTypeName", visa.code as "visaTypeCode",
+                category.name as "categoryName", country.id as "countryId", country.name as "countryName",
+                visa.fee::text as fee, visa.currency, visa.processing_min_days as "processingMinDays", visa.processing_max_days as "processingMaxDays"
+           from ${qualifiedTable("visa_types")} visa
+           join ${qualifiedTable("countries")} country on country.id=visa.country_id
+           join ${qualifiedTable("visa_categories")} category on category.id=visa.category_id
+          where visa.id=$1 and visa.active and country.active and category.active and visa.currency='DZD'
+          for share of visa, country, category`, [cfg.visaTypeId],
+      );
+      const latest = current.rows[0];
+      if (!latest || (Object.keys(cfg) as (keyof VisaConfigRow)[]).some((key) => latest[key] !== cfg[key])) {
+        throw new AppError("VISA_TYPE_INVALID", "This programme changed while preparing your request. Reopen the request preview before confirming.");
+      }
+      const currentRequirements = await client.query<RequirementRow>(
+        `select type.id as "documentTypeId", type.name, type.name_fr as "nameFr", type.name_ar as "nameAr", type.code,
+                requirement.required, requirement.sort_order as "sortOrder", requirement.notes
+           from ${qualifiedTable("visa_requirements")} requirement
+           join ${qualifiedTable("document_types")} type on type.id=requirement.document_type_id
+          where requirement.visa_type_id=$1 and requirement.active and type.active
+          order by requirement.sort_order, requirement.id for share of requirement, type`, [cfg.visaTypeId],
+      );
+      const requirementSnapshot = (rows: RequirementRow[]) => JSON.stringify(rows.map((row) => [row.documentTypeId, row.name, row.nameFr ?? null, row.nameAr ?? null, row.code, row.required, row.sortOrder, row.notes]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
+      if (requirementSnapshot(requirements) !== requirementSnapshot(currentRequirements.rows)) {
+        throw new AppError("VISA_TYPE_INVALID", "The document checklist changed. Reopen the request preview before confirming.");
+      }
+
+      // The application row itself (SUBMITTED from birth — no draft stage).
+      let reference = generateReference();
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          await client.query(
+            `insert into ${qualifiedTable("applications")}
+               (id, reference, agency_id, country_id, visa_type_id, status_id, priority_id,
+                visa_type_name, visa_type_code, category_name, country_name,
+                fee, currency, processing_min_days, processing_max_days,
+                agency_notes, created_by, idempotency_key,
+                submitted_at, submitted_price, submitted_currency, effective_price)
+             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::numeric,$13,$14,$15,$16,$17,$18, now(), $12::numeric, $13, $12::numeric)`,
+            [
+              applicationId, reference, agencyId, cfg.countryId, cfg.visaTypeId, submittedId,
+              priorityRow[0]!.id, cfg.visaTypeName, cfg.visaTypeCode, cfg.categoryName, cfg.countryName,
+              cfg.fee, "DZD", cfg.processingMinDays, cfg.processingMaxDays,
+              input.agencyNotes?.trim() || null, input.actor.id, input.idempotencyKey,
+            ],
+          );
+          break;
+        } catch (e: unknown) {
+          const msg = (e as { message?: string })?.message ?? "";
+          if (msg.includes("applications_reference") && attempt < 4) {
+            reference = generateReference();
+            continue;
+          }
+          if (msg.includes("applications_idempotency_key_uq")) {
+            // Concurrent identical submit won: fetch and return it.
+            await client.query("rollback");
+            const winner = await client.query<{ id: string; reference: string }>(
+              `select id, reference from ${qualifiedTable("applications")} where idempotency_key=$1 and agency_id=$2 limit 1`,
+              [input.idempotencyKey, agencyId],
+            );
+            if (winner.rows[0]) {
+              return {
+                applicationId: winner.rows[0].id,
+                reference: winner.rows[0].reference,
+                reused: true,
+                charge: { balanceBefore: "0", balanceAfter: "0", transactionId: "" },
+              };
+            }
+          }
+          throw e;
+        }
+      }
+
+      // Checklist snapshot from the visa configuration.
+      for (const req of requirements) {
         await client.query(
-          `insert into ${qualifiedTable("applications")}
-             (id, reference, agency_id, country_id, visa_type_id, status_id, priority_id,
-              visa_type_name, visa_type_code, category_name, country_name,
-              fee, currency, processing_min_days, processing_max_days,
-              agency_notes, created_by, idempotency_key,
-              submitted_at, submitted_price, submitted_currency, effective_price)
-           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::numeric,$13,$14,$15,$16,$17,$18, now(), $12::numeric, $13, $12::numeric)`,
+          `insert into ${qualifiedTable("checklist_items")}
+             (application_id, document_type_id, document_type_name, document_type_code, required, sort_order, notes)
+           values ($1,$2,$3,$4,$5,$6,$7)
+           on conflict do nothing`,
+          [applicationId, req.documentTypeId, req.name, req.code, req.required, req.sortOrder, req.notes],
+        );
+      }
+      const checklist = await client.query<{ id: string; document_type_id: string }>(
+        `select id, document_type_id from ${qualifiedTable("checklist_items")} where application_id = $1`,
+        [applicationId],
+      );
+      const itemByType = new Map(checklist.rows.map((r) => [r.document_type_id, r.id]));
+
+      // The single applicant (full name + nationality code).
+      const t = input.travellers[0]!;
+      const fullName = (t.fullName ?? `${t.firstName ?? ""} ${t.lastName ?? ""}`).trim();
+      await client.query(
+        `insert into ${qualifiedTable("applicants")}
+           (application_id, first_name, last_name, full_name, date_of_birth, nationality,
+            passport_number, passport_issue_date, passport_expiry_date, email, phone)
+         values ($1,$2,'',$3,null,$4,null,null,null,null,null)`,
+        [applicationId, fullName, fullName, t.nationality.trim().toUpperCase()],
+      );
+
+      // Document records (blobs are already in storage).
+      for (const d of docRows) {
+        await client.query(
+          `insert into ${qualifiedTable("documents")}
+             (id, application_id, checklist_item_id, document_type_id, original_filename,
+              mime_type, size_bytes, storage_key, status, uploaded_by)
+           values ($1,$2,$3,$4,$5,$6,$7,$8,'UPLOADED',$9)`,
           [
-            applicationId, reference, agencyId, cfg.countryId, cfg.visaTypeId, submittedId,
-            priorityRow[0]!.id, cfg.visaTypeName, cfg.visaTypeCode, cfg.categoryName, cfg.countryName,
-            cfg.fee, "DZD", cfg.processingMinDays, cfg.processingMaxDays,
-            input.agencyNotes?.trim() || null, input.actor.id, input.idempotencyKey,
+            d.id, applicationId, itemByType.get(d.documentTypeId) ?? null, d.documentTypeId,
+            d.file.name.slice(0, 200), d.file.type, d.file.data.length,
+            buildStorageKey(applicationId, d.id), input.actor.id,
           ],
         );
-        break;
-      } catch (e: unknown) {
-        const msg = (e as { message?: string })?.message ?? "";
-        if (msg.includes("applications_reference") && attempt < 4) {
-          reference = generateReference();
-          continue;
-        }
-        if (msg.includes("applications_idempotency_key_uq")) {
-          // Concurrent identical submit won: fetch and return it.
-          await client.query("rollback");
-          const winner = await db
-            .select({ id: applications.id, reference: applications.reference })
-            .from(applications)
-            .where(and(eq(applications.idempotencyKey, input.idempotencyKey), eq(applications.agencyId, agencyId)))
-            .limit(1);
-          await Promise.allSettled(writtenKeys.map((k) => storageProvider().delete(k)));
-          if (winner[0]) {
-            return {
-              applicationId: winner[0].id,
-              reference: winner[0].reference,
-              reused: true,
-              charge: { balanceBefore: "0", balanceAfter: "0", transactionId: "" },
-            };
-          }
-        }
-        throw e;
       }
-    }
 
-    // Checklist snapshot from the visa configuration.
-    for (const req of requirements) {
-      await client.query(
-        `insert into ${qualifiedTable("checklist_items")}
-           (application_id, document_type_id, document_type_name, document_type_code, required, sort_order, notes)
-         values ($1,$2,$3,$4,$5,$6,$7)
-         on conflict do nothing`,
-        [applicationId, req.documentTypeId, req.name, req.code, req.required, req.sortOrder, req.notes],
+      // Wallet debit — the agencies row lock serializes concurrent spenders.
+      const upd = await client.query<{ balance_after: string; balance_before: string }>(
+        `update ${qualifiedTable("agencies")}
+           set balance = balance - $2::numeric, updated_at = now()
+         where id = $1 and balance >= $2::numeric
+         returning balance::text as balance_after, (balance + $2::numeric)::text as balance_before`,
+        [agencyId, cfg.fee],
       );
-    }
-    const checklist = await client.query<{ id: string; document_type_id: string }>(
-      `select id, document_type_id from ${qualifiedTable("checklist_items")} where application_id = $1`,
-      [applicationId],
-    );
-    const itemByType = new Map(checklist.rows.map((r) => [r.document_type_id, r.id]));
+      if (!upd.rows[0]) {
+        throw new AppError("INSUFFICIENT_FUNDS", "Wallet balance is too low for this request.");
+      }
+      const { balance_before, balance_after } = upd.rows[0];
 
-    // The single applicant (full name + nationality code).
-    const t = input.travellers[0]!;
-    const fullName = (t.fullName ?? `${t.firstName ?? ""} ${t.lastName ?? ""}`).trim();
-    await client.query(
-      `insert into ${qualifiedTable("applicants")}
-         (application_id, first_name, last_name, full_name, date_of_birth, nationality,
-          passport_number, passport_issue_date, passport_expiry_date, email, phone)
-       values ($1,$2,'',$3,null,$4,null,null,null,null,null)`,
-      [applicationId, fullName, fullName, t.nationality.trim().toUpperCase()],
-    );
+      const txRes = await client.query<{ id: string }>(
+        `insert into ${qualifiedTable("wallet_transactions")}
+           (agency_id, application_id, type, amount, currency, balance_before, balance_after, reason, actor_id)
+         values ($1,$2,'APPLICATION_CHARGE',$3,$4,$5,$6,$7,$8)
+         returning id`,
+        [agencyId, applicationId, cfg.fee, "DZD", balance_before, balance_after, `Visa application ${reference}`, input.actor.id],
+      );
 
-    // Document records (blobs are already in storage).
-    for (const d of docRows) {
       await client.query(
-        `insert into ${qualifiedTable("documents")}
-           (id, application_id, checklist_item_id, document_type_id, original_filename,
-            mime_type, size_bytes, storage_key, status, uploaded_by)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,'UPLOADED',$9)`,
+        `insert into ${qualifiedTable("application_status_history")}
+           (application_id, from_status_id, to_status_id, changed_by, reason)
+         values ($1, null, $2, $3, 'Request submitted')`,
+        [applicationId, submittedId, input.actor.id],
+      );
+
+      await client.query(
+        `insert into ${qualifiedTable("audit_logs")}
+           (actor_id, actor_email, actor_role, agency_id, action, entity, entity_id, metadata, ip_address)
+         values ($1,$2,$3,$4,'APPLICATION_SUBMITTED','application',$5,$6,$7)`,
         [
-          d.id, applicationId, itemByType.get(d.documentTypeId) ?? null, d.documentTypeId,
-          d.file.name.slice(0, 200), d.file.type, d.file.data.length,
-          buildStorageKey(applicationId, d.id), input.actor.id,
+          input.actor.id, input.actor.email, input.actor.role, agencyId, applicationId,
+          JSON.stringify({ reference, visaTypeCode: cfg.visaTypeCode, fee: cfg.fee, currency: "DZD", source: "three-step-request" }),
+          input.ipAddress ?? null,
         ],
       );
-    }
 
-    // Wallet debit — the agencies row lock serializes concurrent spenders.
-    const upd = await client.query<{ balance_after: string; balance_before: string }>(
-      `update ${qualifiedTable("agencies")}
-         set balance = balance - $2::numeric, updated_at = now()
-       where id = $1 and balance >= $2::numeric
-       returning balance::text as balance_after, (balance + $2::numeric)::text as balance_before`,
-      [agencyId, cfg.fee],
-    );
-    if (!upd.rows[0]) {
-      throw new AppError("INSUFFICIENT_FUNDS", "Wallet balance is too low for this request.");
-    }
-    const { balance_before, balance_after } = upd.rows[0];
-
-    const txRes = await client.query<{ id: string }>(
-      `insert into ${qualifiedTable("wallet_transactions")}
-         (agency_id, application_id, type, amount, currency, balance_before, balance_after, reason, actor_id)
-       values ($1,$2,'APPLICATION_CHARGE',$3,$4,$5,$6,$7,$8)
-       returning id`,
-      [agencyId, applicationId, cfg.fee, "DZD", balance_before, balance_after, `Visa application ${reference}`, input.actor.id],
-    );
-
-    await client.query(
-      `insert into ${qualifiedTable("application_status_history")}
-         (application_id, from_status_id, to_status_id, changed_by, reason)
-       values ($1, null, $2, $3, 'Request submitted')`,
-      [applicationId, submittedId, input.actor.id],
-    );
-
-    await client.query(
-      `insert into ${qualifiedTable("audit_logs")}
-         (actor_id, actor_email, actor_role, agency_id, action, entity, entity_id, metadata, ip_address)
-       values ($1,$2,$3,$4,'APPLICATION_SUBMITTED','application',$5,$6,$7)`,
-      [
-        input.actor.id, input.actor.email, input.actor.role, agencyId, applicationId,
-        JSON.stringify({ reference, visaTypeCode: cfg.visaTypeCode, fee: cfg.fee, currency: "DZD", source: "three-step-request" }),
-        input.ipAddress ?? null,
-      ],
-    );
-
-    await client.query("commit");
-
-    // Best-effort notifications (outside the transaction — never fail the submit).
-    try {
-      const { staffUserIds, agencyUserIds, notifyUsers } = await import("@/lib/notifications");
-      await notifyUsers(await staffUserIds(), {
-        type: "APPLICATION_SUBMITTED",
-        title: `Application ${reference} submitted`,
-        body: `${cfg.visaTypeName} (${cfg.countryName}) submitted with fee ${cfg.fee} DZD.`,
-        link: `/admin/applications/${applicationId}`,
-        agencyId,
+      await client.query("commit");
+      return {
         applicationId,
-      });
-      await notifyUsers(await agencyUserIds(agencyId), {
-        type: "APPLICATION_SUBMITTED",
-        title: `Application ${reference} submitted`,
-        body: `Your wallet was charged ${cfg.fee} DZD.`,
-        link: `/portal/applications/${applicationId}`,
-        agencyId,
-        applicationId,
-      });
-    } catch (e) {
-      console.error("request-submit-notification-failed", e);
+        reference,
+        reused: false,
+        charge: { balanceBefore: balance_before, balanceAfter: balance_after, transactionId: txRes.rows[0]!.id },
+      };
+    } catch (err) {
+      await client.query("rollback").catch(() => {});
+      throw err;
+    } finally {
+      client.release();
     }
+  };
 
-    return {
-      applicationId,
-      reference,
-      reused: false,
-      charge: { balanceBefore: balance_before, balanceAfter: balance_after, transactionId: txRes.rows[0]!.id },
-    };
-  } catch (err) {
-    await client.query("rollback").catch(() => {});
-    await Promise.allSettled(writtenKeys.map((k) => storageProvider().delete(k)));
-    throw err;
-  } finally {
-    client.release();
+  let result: SubmitVisaRequestResult;
+  try {
+    result = await commitRequest();
+  } catch (error) {
+    await Promise.allSettled(writtenKeys.map((key) => storageProvider().delete(key)));
+    throw error;
   }
+  if (result.reused) {
+    await Promise.allSettled(writtenKeys.map((key) => storageProvider().delete(key)));
+    return result;
+  }
+
+  // Best-effort notifications use the shared pool after the client is released.
+  try {
+    const { staffUserIds, agencyUserIds, notifyUsers } = await import("@/lib/notifications");
+    await notifyUsers(await staffUserIds(), {
+      type: "APPLICATION_SUBMITTED",
+      title: `Application ${result.reference} submitted`,
+      body: `${cfg!.visaTypeName} (${cfg!.countryName}) submitted with fee ${cfg!.fee} DZD.`,
+      link: `/admin/applications/${result.applicationId}`,
+      agencyId,
+      applicationId: result.applicationId,
+    });
+    await notifyUsers(await agencyUserIds(agencyId), {
+      type: "APPLICATION_SUBMITTED",
+      title: `Application ${result.reference} submitted`,
+      body: `Your wallet was charged ${cfg!.fee} DZD.`,
+      link: `/portal/applications/${result.applicationId}`,
+      agencyId,
+      applicationId: result.applicationId,
+    });
+  } catch (error) {
+    console.error("request-submit-notification-failed", error);
+  }
+  return result;
 }

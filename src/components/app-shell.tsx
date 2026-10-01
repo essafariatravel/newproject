@@ -12,6 +12,8 @@ import type { AuthUser } from "@/lib/types";
 import { NavList, type NavSection } from "@/components/nav-list";
 import { AgencyBottomNavigation } from "@/components/agency-bottom-navigation";
 import { presenceWritesSuppressed } from "@/lib/presence-preview-policy";
+import { AccountMenu } from "@/components/account-menu";
+import { SessionActivity } from "@/components/session-activity";
 
 export type { NavSection, NavItem } from "@/components/nav-list";
 
@@ -36,6 +38,7 @@ export function AppShell(props: {
   return (
     <div className={`workspace-${props.surface ?? "agency"} flex min-h-screen`}>
       <WorkspaceNavigation />
+      <SessionActivity />
       <a className="workspace-skip" href="#workspace-main">{t("Skip to content")}</a>
       <aside className="fixed inset-y-0 start-0 z-40 hidden w-64 flex-col border-e border-white/10 bg-navy-950 text-white lg:flex workspace-sidebar">
         <SidebarBrand suffix={props.brandSuffix} platformLogoUrl={props.platformLogoUrl} brandName={props.brandName} />
@@ -94,6 +97,7 @@ export function AppShell(props: {
             <span className="hidden text-xs text-slate-500 sm:inline">
               {businessLabel(user.role, props.locale ?? "en")}
             </span>
+            <AccountMenu user={user} locale={props.locale ?? "en"} />
           </div>
         </header>
         {props.surface !== "staff" ? <nav className="agency-desktop-navigation" aria-label={props.brandSuffix}><NavList sections={props.nav} /></nav> : null}

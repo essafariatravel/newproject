@@ -6,6 +6,7 @@
  * Database changes for these branches are handled explicitly outside build.
  */
 export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
+  "preprod/essafaria-final-hardening",
   "design/essafaria-northstar",
   "codex/essafaria-premium-redesign",
   "codex/essafaria-product-excellence",
