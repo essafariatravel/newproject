@@ -11,6 +11,18 @@ import type { UiLocale } from "@/lib/ui-i18n";
 type Entry = { fr: string; ar: string };
 
 const CONTENT: Record<string, Entry> = {
+  "Home": { fr: "Accueil", ar: "الرئيسية" },
+  "Dossiers": { fr: "Dossiers", ar: "الملفات" },
+  "Updates": { fr: "Actualités", ar: "التحديثات" },
+  "Account access is managed per role and agency.": { fr: "Les accès sont gérés par rôle et par agence.", ar: "تُدار صلاحيات الحساب حسب الدور والوكالة." },
+  "Their next journey. Your visa partner.": { fr: "Leur prochain voyage. Votre partenaire visa.", ar: "رحلتهم القادمة. شريككم في التأشيرات." },
+  "Your next departure starts here.": { fr: "Le prochain départ commence ici.", ar: "رحلتهم القادمة تبدأ هنا." },
+  "Visa services for your travellers.": { fr: "Des visas pour vos voyageurs.", ar: "خدمات التأشيرات لمسافريكم." },
+  "Travel illustration": { fr: "Illustration de voyage", ar: "صورة توضيحية للسفر" },
+  "Start a visa dossier": { fr: "Ouvrir un dossier visa", ar: "فتح ملف تأشيرة" },
+  "Choose a destination": { fr: "Choisir une destination", ar: "اختيار الوجهة" },
+  "Continue": { fr: "Continuer", ar: "متابعة" },
+  "Open dossier": { fr: "Ouvrir le dossier", ar: "فتح الملف" },
   "Updating…": { fr: "Mise à jour…", ar: "جارٍ التحديث…" },
   "Requesting…": { fr: "Envoi de la demande…", ar: "جارٍ إرسال الطلب…" },
   "Active": { fr: "Actif", ar: "نشط" },

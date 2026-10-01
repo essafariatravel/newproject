@@ -35,3 +35,8 @@ SHA256SUMS.txt
 tests/.pgdata-test/
 pnpm-lock.yaml
 pnpm-workspace.yaml
+
+# agent screenshot scratch
+/.screenshots/
+/.playwright-cli/
+/.superpowers/

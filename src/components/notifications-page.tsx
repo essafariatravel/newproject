@@ -39,17 +39,17 @@ export async function NotificationsPage({
           ) : undefined
         }
       />
-      <nav className="mb-5 flex flex-wrap gap-2" aria-label={ct("Notifications")}>
-        {[["all", "All"], ["action", "Action required"], ["applications", "Applications"], ["messages", "Messages"], ["wallet", "Wallet"]].map(([id, label]) => <Link key={id} href={`${basePath}?filter=${id}`} aria-current={filter === id ? "page" : undefined} className={filter === id ? "btn-primary btn-sm" : "btn-secondary btn-sm"}>{ct(label!)}</Link>)}
+      <nav className="notification-filters" aria-label={ct("Notifications")}>
+        {[["all", "All"], ["action", "Action required"], ["applications", "Applications"], ["messages", "Messages"], ["wallet", "Wallet"]].map(([id, label]) => <Link key={id} href={`${basePath}?filter=${id}`} aria-current={filter === id ? "page" : undefined}>{ct(label!)}</Link>)}
       </nav>
       {visible.length === 0 ? (
         <div className="card"><EmptyState title={ct("No notifications")} body={ct("Events on your applications will appear here.")} /></div>
       ) : (
-        <div className="space-y-2.5">
+        <ol className="notification-feed">
           {visible.map((n) => (
-            <div
+            <li
               key={n.id}
-              className={`card flex items-start justify-between gap-3 px-4 py-3.5 ${n.readAt ? "opacity-70" : "border-s-2 border-s-gold-500"}`}
+              className={`notification-event flex items-start justify-between gap-3 px-4 py-3.5 ${n.readAt ? "notification-event-read" : "border-s-2 border-s-gold-500"}`}
             >
               <div className="min-w-0">
                 <p className="text-sm font-medium text-navy-900">
@@ -73,9 +73,9 @@ export async function NotificationsPage({
                   </form>
                 ) : null}
               </div>
-            </div>
+            </li>
           ))}
-        </div>
+        </ol>
       )}
     </>
   );

@@ -25,7 +25,7 @@ export function Card(props: { children: ReactNode; className?: string }) {
 
 export function CardHeader(props: { title: string; actions?: ReactNode; subtitle?: string; testId?: string }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/70 px-5 py-3.5" data-testid={props.testId}>
+    <div className="card-header flex flex-wrap items-center justify-between gap-2 border-b border-line/70 px-5 py-3.5" data-testid={props.testId}>
       <div>
         <h2 className="text-sm font-semibold text-navy-900">{props.title}</h2>
         {props.subtitle ? <p className="mt-0.5 text-xs text-slate-400">{props.subtitle}</p> : null}
@@ -51,9 +51,9 @@ export function StatCard(props: {
           ? "text-navy-700"
           : "text-slate-500";
   const body = (
-    <div className="card h-full px-4 py-3.5">
+    <div className="stat-card card h-full px-4 py-3.5">
       <p className={`text-xs font-medium ${toneClass}`}>{props.label}</p>
-      <p className="mt-1 text-[1.5rem] font-semibold leading-snug tracking-tight text-navy-900 tabular-nums">{props.value}</p>
+      <p className="stat-value mt-1 text-[1.5rem] font-semibold leading-snug tracking-tight text-navy-900 tabular-nums">{props.value}</p>
       {props.hint ? <p className="mt-1 text-xs leading-snug text-slate-500">{props.hint}</p> : null}
     </div>
   );

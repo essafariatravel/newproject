@@ -1,160 +1,98 @@
-import { businessLabel } from "@/lib/business-labels";
 import Link from "next/link";
+import { businessLabel } from "@/lib/business-labels";
 import { portalPageUser } from "@/lib/page-auth";
-import { agencyDashboard } from "@/lib/queries";
+import { activeVisaOptions, agencyDashboard } from "@/lib/queries";
 import { formatAmount, formatDateTime } from "@/lib/format";
-import { Card, CardHeader, EmptyState, PageHeader, StatCard, TableWrap } from "@/components/ui";
+import { Card, CardHeader, EmptyState } from "@/components/ui";
 import { StatusBadge } from "@/components/badges";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { countryName } from "@/lib/country-names";
-import { NavigableTableRow } from "@/components/navigable-table-row";
 
 export const dynamic = "force-dynamic";
 
 export default async function PortalDashboardPage() {
   const user = await portalPageUser();
-  const uiLocale = await getUiLocale();
-  const ct = contentT(uiLocale);
-  const data = await agencyDashboard(user.agencyId, user.id);
-  const needsAttention = data.needsAttention;
+  const locale = await getUiLocale();
+  const ct = contentT(locale);
+  const [data, options] = await Promise.all([
+    agencyDashboard(user.agencyId, user.id),
+    activeVisaOptions(),
+  ]);
+  const destinations = [...new Map(options.map((option) => [option.countryId, option])).values()];
   const { totals, wallet } = data;
+  const records = (rows: typeof data.recentApplications, attention = false) => (
+    <ul className="travel-records">
+      {rows.map((row) => (
+        <li key={row.app.id}>
+          <Link className="travel-record" href={`/portal/applications/${row.app.id}${attention ? "?tab=documents" : ""}`}>
+            <span className="travel-record-destination">
+              <span className="destination-code" aria-hidden="true">{row.countryIso2}</span>
+              <span><strong>{countryName({ name: row.app.countryName, iso2: row.countryIso2 }, locale)}</strong><small>{row.app.visaTypeName}</small></span>
+            </span>
+            <span className="travel-record-traveller"><strong>{row.applicantSummary}</strong><small><bdi>{row.app.reference}</bdi></small></span>
+            <span className="travel-record-status"><StatusBadge code={row.statusCode} name={row.statusName} /><small>{formatDateTime(row.app.createdAt, locale)}</small></span>
+            <span className="travel-record-action">{ct(attention ? "Upload requested documents" : "Open dossier")}<span aria-hidden="true" className="directional-arrow"> →</span></span>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
 
   return (
     <>
-      <PageHeader
-        title={`${ct("Welcome")}, ${user.agencyName ?? user.name}`}
-        subtitle={ct("Agency dashboard")}
-        actions={
-          <Link href="/portal/applications/new" className="btn-primary btn-sm">
-            {ct("+ New application")}
-          </Link>
-        }
-      />
+      <section className="agency-departure" aria-labelledby="agency-departure-heading">
+        <div className="agency-departure-copy">
+          <p className="travel-eyebrow">{ct("Welcome")}, {user.agencyName ?? user.name}</p>
+          <h1 id="agency-departure-heading">{ct("Your next departure starts here.")}</h1>
+          <p>{ct("Visa services for your travellers.")}</p>
+        </div>
+        <div className="agency-start">
+          <img src="/images/departure-atelier.webp" alt="" />
+          <form action="/portal/applications/new" method="get" className="agency-start-form">
+            <div className="agency-start-fields">
+              <div>
+              <label htmlFor="home-destination" className="label">{ct("Destination")}</label>
+              <select id="home-destination" name="destination" className="input" defaultValue="">
+                <option value="">{ct("Choose a destination")}</option>
+                {destinations.map((option) => <option key={option.countryId} value={option.countryId}>{countryName({ name: option.countryName, iso2: option.countryIso2 }, locale)}</option>)}
+              </select>
+              </div>
+              <button className="btn-primary" type="submit">{ct("Continue")} <span aria-hidden="true" className="directional-arrow">→</span></button>
+            </div>
+            <p className="start-caption">{ct("Visa & Traveller")} <span aria-hidden="true"> / </span>{ct("Documents")} <span aria-hidden="true"> / </span>{ct("Review & Submit")}</p>
+          </form>
+        </div>
+      </section>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label={ct("Active applications")} value={totals.active} hint={ct("Submitted and in progress")} href="/portal/applications" tone="navy" />
-        <StatCard label={ct("Action required")} value={(totals as { actionRequired?: number }).actionRequired ?? 0} hint={ct("Replacement or additional document requested")} href="/portal/applications?documents=requested" tone="gold" />
-        <StatCard label={ct("Completed")} value={totals.completed} href="/portal/applications?status=APPROVED" tone="teal" />
-        <StatCard
-          label={ct("Wallet balance")}
-          value={<span className="whitespace-nowrap text-[1.05rem] sm:text-[1.65rem]">{formatAmount(wallet.balance, "DZD", uiLocale)}</span>}
-          href="/portal/wallet"
-          hint={data.unreadNotifications === 0 ? ct("No unread notifications") : `${data.unreadNotifications} ${ct("unread notifications")}`}
-        />
-      </div>
+      <nav className="agency-stats" aria-label={ct("Agency dashboard")}>
+        <Link href="/portal/applications"><strong>{totals.active}</strong><span>{ct("Active applications")}</span></Link>
+        <Link href="/portal/applications?documents=requested"><strong>{(totals as { actionRequired?: number }).actionRequired ?? 0}</strong><span>{ct("Action required")}</span></Link>
+        <Link href="/portal/applications?status=APPROVED"><strong>{totals.completed}</strong><span>{ct("Completed")}</span></Link>
+        <Link href="/portal/wallet"><strong className="wallet-value">{formatAmount(wallet.balance, "DZD", locale)}</strong><span>{ct("Wallet balance")}</span></Link>
+      </nav>
+
+      <section className="agency-record-section" aria-labelledby="attention-heading">
+        <div className="agency-section-header"><h2 id="attention-heading">{ct("Needs your attention")}</h2><Link href="/portal/applications?documents=requested">{ct("View all")} <span aria-hidden="true" className="directional-arrow">→</span></Link></div>
+        {data.needsAttention.length ? records(data.needsAttention, true) : <p className="quiet-empty">{ct("No action required — all your applications are in order.")}</p>}
+      </section>
+
+      <section className="agency-record-section" aria-labelledby="recent-heading">
+        <div className="agency-section-header"><h2 id="recent-heading">{ct("Recent applications")}</h2><Link href="/portal/applications">{ct("View all")} <span aria-hidden="true" className="directional-arrow">→</span></Link></div>
+        {data.recentApplications.length ? records(data.recentApplications) : <EmptyState title={ct("No applications yet")} body={ct("Submit your first visa application to see it tracked here.")} action={<Link href="/portal/applications/new" className="btn-primary">{ct("Create application")}</Link>} />}
+      </section>
 
       <Card>
-        <CardHeader
-          title={ct("Needs your attention")}
-          subtitle={ct("Applications requiring your action — replacement or additional document requested")}
-        />
-        {needsAttention.length === 0 ? (
-          <div className="px-4 py-8 text-center">
-            <p className="text-sm text-slate-500">{ct("No action required — all your applications are in order.")}</p>
-          </div>
-        ) : (
-          <TableWrap>
-            <thead className="border-b border-slate-100 bg-ivory-50/60">
-              <tr>
-                <th className="th">{ct("Applicant")}</th>
-                <th className="th">{ct("Visa / Country")}</th>
-                <th className="th">{ct("Status")}</th>
-                <th className="th">{ct("Fee")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {needsAttention.map((r) => (
-                <NavigableTableRow key={r.app.id} href={`/portal/applications/${r.app.id}?tab=documents`} className="tr-hover">
-                  <td className="td">
-                    <Link href={`/portal/applications/${r.app.id}?tab=documents`} className="font-medium text-navy-900 hover:underline">
-                      {r.applicantSummary}
-                    </Link>
-                    <span className="block text-xs text-slate-500">{r.app.reference}</span>
-                  </td>
-                  <td className="td">
-                    {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}
-                    <span className="block text-xs text-slate-400">{r.app.visaTypeName}</span>
-                  </td>
-                  <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
-                  <td className="td tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</td>
-                </NavigableTableRow>
-              ))}
-            </tbody>
-          </TableWrap>
-        )}
+        <CardHeader title={ct("Recent wallet activity")} actions={<Link href="/portal/wallet" className="btn-secondary btn-sm">{ct("Ledger")}</Link>} />
+        <ul className="divide-y divide-slate-100 px-4">
+          {data.recentTx.length === 0 ? <li className="py-5 text-sm text-slate-500">{ct("No transactions yet.")}</li> : data.recentTx.map((tx) => (
+            <li key={tx.id} className="flex items-center justify-between gap-3 py-3">
+              <div className="min-w-0"><p className="text-sm font-medium text-navy-900">{(tx as { reference?: string | null }).reference ?? businessLabel(tx.type, locale)}</p><p className="text-xs text-slate-500">{formatDateTime(tx.createdAt, locale)}</p></div>
+              <span className={`whitespace-nowrap text-sm font-medium tabular-nums ${tx.type === "CREDIT" ? "text-emerald-700" : "text-red-700"}`}>{tx.type === "CREDIT" ? "+" : "-"}{formatAmount(tx.amount, "DZD", locale)}</span>
+            </li>
+          ))}
+        </ul>
       </Card>
-
-
-      <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2 space-y-4">
-          <Card>
-            <CardHeader
-              title={ct("Recent applications")}
-              actions={<Link href="/portal/applications" className="btn-secondary btn-sm">{ct("View all")} →</Link>}
-            />
-            {data.recentApplications.length === 0 ? (
-              <EmptyState
-                title={ct("No applications yet")}
-                body={ct("Submit your first visa application to see it tracked here.")}
-                action={<Link href="/portal/applications/new" className="btn-primary btn-sm">{ct("Create application")}</Link>}
-              />
-            ) : (
-              <TableWrap>
-                <thead className="border-b border-slate-100 bg-ivory-50/60">
-                  <tr>
-                    <th className="th">{ct("Applicant")}</th>
-                    <th className="th">{ct("Visa")}</th>
-                    <th className="th">{ct("Status")}</th>
-                    <th className="th">{ct("Created")}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {data.recentApplications.map((r) => (
-                    <NavigableTableRow key={r.app.id} href={`/portal/applications/${r.app.id}`} className="tr-hover">
-                      <td className="td">
-                        <Link href={`/portal/applications/${r.app.id}`} className="font-semibold text-navy-900 hover:underline">{(r as { applicantSummary?: string }).applicantSummary ?? "—"}</Link>
-                        <span className="block text-xs text-slate-500">{r.app.reference}</span>
-                      </td>
-                      <td className="td">
-                        {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}
-                        <span className="block text-xs text-slate-400">{r.app.visaTypeName}</span>
-                      </td>
-                      <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
-                      <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(r.app.createdAt, uiLocale)}</td>
-                    </NavigableTableRow>
-                  ))}
-                </tbody>
-              </TableWrap>
-            )}
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader
-            title={ct("Recent wallet activity")}
-            actions={<Link href="/portal/wallet" className="btn-secondary btn-sm">{ct("Ledger")} →</Link>}
-          />
-          <ul className="divide-y divide-slate-100 px-4">
-            {data.recentTx.length === 0 ? (
-              <li className="py-6 text-center text-sm text-slate-500">{ct("No transactions yet.")}</li>
-            ) : (
-              data.recentTx.map((tx) => (
-                <li key={tx.id} className="flex items-center justify-between gap-3 py-2.5">
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-medium text-navy-900">{(tx as { reference?: string | null }).reference ?? businessLabel(tx.type, uiLocale)}</p>
-                    <p className="truncate text-[11px] text-slate-400">{formatDateTime(tx.createdAt, uiLocale)}</p>
-                  </div>
-                  <span className={`whitespace-nowrap text-sm font-medium tabular-nums ${tx.type === "CREDIT" ? "text-emerald-700" : "text-red-700"}`}>
-                    {tx.type === "CREDIT" ? "+" : "−"}
-                    {formatAmount(tx.amount, "DZD", uiLocale)}
-                  </span>
-                </li>
-              ))
-            )}
-          </ul>
-        </Card>
-      </div>
     </>
   );
 }

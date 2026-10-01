@@ -54,36 +54,32 @@ export default async function AdminUsersPage({
     <>
       <PageHeader
         title={view === "staff" ? ct("Staff users") : ct("Agency users")}
-        subtitle="Roles are enforced server-side on every action. Agency accounts are always bound to exactly one agency."
+        subtitle={ct("Account access is managed per role and agency.")}
       />
       <Flash {...flash} />
 
-      <div className="mb-4 flex flex-wrap items-center gap-1.5" data-testid="user-views">
+      <nav className="notification-filters" data-testid="user-views" aria-label={ct("Users")}>
         <Link
           href="/admin/users?view=staff"
-          className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-            view === "staff" ? "border-iris-300 bg-iris-50 text-iris-700" : "border-slate-200 bg-white text-slate-500 hover:text-navy-900"
-          }`}
+          aria-current={view === "staff" ? "page" : undefined}
           data-testid="users-view-staff"
         >
-          ESSAFARIA staff · {staffRows.length}
+          {ct("ESSAFARIA staff")} · {staffRows.length}
         </Link>
         <Link
           href="/admin/users?view=agency"
-          className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-            view === "agency" ? "border-iris-300 bg-iris-50 text-iris-700" : "border-slate-200 bg-white text-slate-500 hover:text-navy-900"
-          }`}
+          aria-current={view === "agency" ? "page" : undefined}
           data-testid="users-view-agency"
         >
-          Agency users · {agencyRows.length}
+          {ct("Agency users")} · {agencyRows.length}
         </Link>
-      </div>
+      </nav>
 
       <FilterBar action="/admin/users" fields={[
-        { name: "q", label: "Search", type: "text", value: q, placeholder: "Name or email…" },
+        { name: "q", label: ct("Search"), type: "text", value: q, placeholder: ct("Name or email…") },
         ...(view === "agency" ? [{
           name: "agency",
-          label: "Agency",
+          label: ct("Agency"),
           type: "select" as const,
           value: agencyFilter,
           options: agencies.map((a) => ({ value: a.agency.id, label: a.agency.tradingName ?? a.agency.legalName })),
@@ -101,12 +97,12 @@ export default async function AdminUsersPage({
         <TableWrap>
           <thead className="border-b border-slate-100 bg-ivory-50/60">
             <tr>
-              <th className="th">User</th>
-              <th className="th">Role</th>
-              <th className="th">Agency</th>
-              <th className="th">Status</th>
-              <th className="th">Last login</th>
-              {canManage ? <th className="th text-right">Actions</th> : null}
+              <th className="th">{ct("User")}</th>
+              <th className="th">{ct("Role")}</th>
+              <th className="th">{ct("Agency")}</th>
+              <th className="th">{ct("Status")}</th>
+              <th className="th">{ct("Last login")}</th>
+              {canManage ? <th className="th text-end">{ct("Actions")}</th> : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -122,14 +118,14 @@ export default async function AdminUsersPage({
                       <input type="hidden" name="id" value={u.id} />
                       <input type="hidden" name="back" value="/admin/users" />
                       <input type="hidden" name="name" value={u.name} />
-                      <select name="role" defaultValue={u.role} className="input w-40 py-1 text-xs">
+                      <select name="role" defaultValue={u.role} className="input w-40 py-1 text-xs" aria-label={`${ct("Role")} — ${u.name}`}>
                         {roleOptions.map((r) => (
                           <option key={r} value={r}>
                             {businessLabel(r, uiLocale)}
                           </option>
                         ))}
                       </select>
-                      <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">Save</SubmitButton>
+                      <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">{ct("Save")}</SubmitButton>
                     </form>
                   ) : (
                     <span className="badge bg-navy-900/5 text-navy-800">{businessLabel(u.role, uiLocale)}</span>
@@ -137,11 +133,11 @@ export default async function AdminUsersPage({
                 </td>
                 <td className="td max-w-[160px] truncate">{agencyName ?? <span className="text-slate-400">staff</span>}</td>
                 <td className="td">
-                  <span className={`badge ${u.status === "ACTIVE" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}`}>{u.status}</span>
+                  <span className={`badge ${u.status === "ACTIVE" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}`}>{businessLabel(u.status, uiLocale)}</span>
                 </td>
-                <td className="td whitespace-nowrap text-xs text-slate-500">{u.lastLoginAt ? formatDateTime(u.lastLoginAt, uiLocale) : "never"}</td>
+                <td className="td whitespace-nowrap text-xs text-slate-500">{u.lastLoginAt ? formatDateTime(u.lastLoginAt, uiLocale) : ct("never")}</td>
                 {canManage ? (
-                  <td className="td text-right">
+                  <td className="td text-end">
                     {u.id !== staff.id ? (
                       <form action={updateUserAction} className="inline">
                         <input type="hidden" name="id" value={u.id} />
@@ -153,11 +149,11 @@ export default async function AdminUsersPage({
                           message={u.status === "ACTIVE" ? `Suspend ${u.email}?` : `Reactivate ${u.email}?`}
                           className="btn-secondary btn-sm"
                         >
-                          {u.status === "ACTIVE" ? "Suspend" : "Activate"}
+                          {ct(u.status === "ACTIVE" ? "Suspend" : "Activate")}
                         </ConfirmButton>
                       </form>
                     ) : (
-                      <span className="text-xs text-slate-400">you</span>
+                      <span className="text-xs text-slate-400">{ct("you")}</span>
                     )}
                   </td>
                 ) : null}
@@ -213,7 +209,7 @@ export default async function AdminUsersPage({
               hideLabel={ct("Hide")}
             />
             <div className="lg:col-span-5">
-              <SubmitButton className="btn-primary" pendingLabel="Creating…">Create user</SubmitButton>
+              <SubmitButton className="btn-primary" pendingLabel="Creating…">{ct("Create user")}</SubmitButton>
             </div>
           </form>
         </div>

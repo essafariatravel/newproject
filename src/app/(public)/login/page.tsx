@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { isAgencyRole } from "@/lib/types";
 import { readBranding, brandLogoUrl, BRANDING_DEFAULTS } from "@/lib/branding";
-import BrandMark from "@/components/brand-mark";
 import { LoginForm } from "./login-form";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
@@ -34,10 +33,10 @@ export default async function LoginPage() {
   const logoUrl = brandLogoUrl(branding);
 
   return (
-    <div className="grid min-h-[calc(100vh-4rem)] grid-cols-1 lg:grid-cols-2">
-      <div className="relative hidden flex-col justify-between overflow-hidden border-r border-white/10 bg-navy-950 bg-[url('/images/essafaria-airport-hero.webp')] bg-cover bg-center p-12 text-white lg:flex">
+    <div className="auth-entrance grid min-h-[calc(100vh-4rem)] grid-cols-1 lg:grid-cols-2">
+      <div className="auth-story relative hidden flex-col justify-between overflow-hidden border-e border-white/10 bg-navy-950 bg-[url('/images/departure-atelier.webp')] bg-cover bg-center p-12 text-white lg:flex">
         <div aria-hidden className="pointer-events-none absolute inset-0 bg-navy-950/65" />
-        <BrandMark className="relative h-10 w-10" src={logoUrl} alt={branding.name} />
+        <img className="relative h-20 w-28 rounded bg-white p-2 object-contain" src={logoUrl ?? "/images/essafaria-logo.png"} alt={branding.name} width="112" height="80" />
         <div className="relative">
           <h2 className="font-serif text-4xl leading-snug text-white">
             {ct("One platform for your entire")}
@@ -54,7 +53,7 @@ export default async function LoginPage() {
       <div className="flex items-center justify-center p-6">
         <div className="w-full max-w-sm">
           <div className="mb-8 flex justify-center lg:hidden">
-            <BrandMark className="h-12 w-12" src={logoUrl} alt={branding.name} />
+            <img className="h-20 w-28 object-contain" src={logoUrl ?? "/images/essafaria-logo.png"} alt={branding.name} width="112" height="80" />
           </div>
           <h1 className="font-serif text-2xl text-navy-900">{ct("Sign in")}</h1>
           <p className="mt-1 text-sm text-slate-500">{ct("Agency portal and Back Office access.")}</p>

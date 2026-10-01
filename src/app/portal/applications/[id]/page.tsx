@@ -97,7 +97,7 @@ export default async function PortalApplicationDetailPage({
 
   return (
     <>
-      <PageHeader
+      <div className="dossier-masthead"><PageHeader
         title={applicantName}
         subtitle={`${app.reference} · ${countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)} · ${visaDisplayName}`}
         actions={
@@ -106,7 +106,7 @@ export default async function PortalApplicationDetailPage({
             <Link href="/portal/applications" className="btn-secondary btn-sm"><span className="directional" aria-hidden="true">←</span> {ct("All applications")}</Link>
           </>
         }
-      />
+      /></div>
       <Flash {...flash} />
 
       <Tabs tabs={TABS.map((t) => ({ ...t, label: ct(t.label), href: `${back}?tab=${t.id}` }))} current={tab} />
@@ -163,7 +163,7 @@ export default async function PortalApplicationDetailPage({
                     ))}
                   </ol>
                   {openRequests.length > 0 ? (
-                    <div className="mt-3 rounded-xl bg-amber-50 border border-amber-200 p-3">
+                    <div className="dossier-next-action">
                       <p className="text-sm font-semibold text-amber-800">{ct("Action required")} — {openRequests.length} {ct("document(s) requested")}</p>
                       <ul className="mt-1.5 space-y-1 text-xs text-amber-700">
                         {openRequests.map((r) => (

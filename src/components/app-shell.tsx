@@ -9,8 +9,8 @@ import type { ReactNode } from "react";
 import { logoutAction } from "@/app/actions/auth";
 import { initials } from "@/lib/format";
 import type { AuthUser } from "@/lib/types";
-import BrandMark from "@/components/brand-mark";
 import { NavList, type NavSection } from "@/components/nav-list";
+import { AgencyBottomNavigation } from "@/components/agency-bottom-navigation";
 
 export type { NavSection, NavItem } from "@/components/nav-list";
 
@@ -63,13 +63,14 @@ export function AppShell(props: {
 
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col lg:ps-64">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-line bg-white/95 px-4 sm:px-6 lg:px-8">
+        <header className="workspace-topbar sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-line bg-white px-4 sm:px-6 lg:px-8">
+          {props.surface !== "staff" ? <Link href="/portal" className="agency-header-brand" aria-label={props.brandName ?? "ESSAFARIA"}><img src={props.platformLogoUrl ?? "/images/essafaria-logo.png"} alt="" width="64" height="46" /><span>{props.brandName ?? "ESSAFARIA"}<small>{props.brandSuffix}</small></span></Link> : null}
           <MobileNavigation openLabel={t("Menu")} closeLabel={t("Close menu")}>
             <SidebarBrand suffix={props.brandSuffix} platformLogoUrl={props.platformLogoUrl} brandName={props.brandName} />
             <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5"><NavList sections={props.nav} /></nav>
             <form action={logoutAction} className="p-4"><button className="w-full rounded-lg border border-white/20 p-3 text-sm text-white">{t("Sign out")}</button></form>
           </MobileNavigation>
-          <div className="hidden items-center gap-2 lg:flex">
+          <div className="workspace-header-suffix hidden items-center gap-2 lg:flex">
             <span className="text-xs font-medium tracking-[0.04em] text-slate-500">
               {props.brandSuffix}
             </span>
@@ -94,8 +95,10 @@ export function AppShell(props: {
             </span>
           </div>
         </header>
-        <main id="workspace-main" className="min-w-0 flex-1 px-4 py-7 sm:px-6 lg:px-8">{props.children}</main>
+        {props.surface !== "staff" ? <nav className="agency-desktop-navigation" aria-label={props.brandSuffix}><NavList sections={props.nav} /></nav> : null}
+        <main id="workspace-main" className="min-w-0 flex-1 px-4 py-7 sm:px-6 lg:px-8"><div className="workspace-page">{props.children}</div></main>
       </div>
+      {props.surface !== "staff" ? <AgencyBottomNavigation sections={props.nav} label={props.brandSuffix} locale={props.locale ?? "en"} /> : null}
     </div>
   );
 }
@@ -129,7 +132,7 @@ function SidebarBrand({
   }
   return (
     <Link href="/" className="flex items-center gap-3 border-b border-white/10 px-5 py-4">
-      <BrandMark className="h-10 w-10" />
+      <img src="/images/essafaria-logo.png" alt="" width="64" height="46" className="h-12 w-16 shrink-0 rounded bg-white p-1 object-contain" />
       <span className="leading-tight">
         <span className="block text-sm font-serif font-medium tracking-[0.13em] text-white">{brandName ?? "ESSAFARIA"}</span>
         <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-600">{suffix}</span>

@@ -15,7 +15,6 @@
  */
 import Link from "next/link";
 import { useEffect, useId, useState, type ReactNode } from "react";
-import BrandMark from "@/components/brand-mark";
 
 export interface PublicHeaderProps {
   brandName: string;
@@ -66,7 +65,7 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
             />
           ) : (
             <>
-              <BrandMark className="h-9 w-9 shrink-0" alt={brandName} />
+              <img src="/images/essafaria-logo.png" alt="" width="64" height="46" className="h-11 w-16 shrink-0 object-contain" />
               <span className="hidden min-w-0 leading-tight sm:block">
                 <span className="block truncate text-[15px] font-bold tracking-[0.04em] text-white">{brandName}</span>
                 <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-600">

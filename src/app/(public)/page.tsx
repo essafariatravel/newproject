@@ -31,25 +31,21 @@ export default async function HomePage() {
   const destinations = await publicDestinations().catch(() => []);
   return (
     <>
-      <section className="public-hero flex items-center" aria-labelledby="public-hero-title">
-        <div className="ess-container relative z-10 py-24 sm:py-32 lg:py-40">
-          <div className="max-w-[680px]">
-            <h1 id="public-hero-title" className="editorial-reveal font-serif text-[clamp(2.7rem,6vw,5.7rem)] leading-[1.04] tracking-tight text-white">{ct("Your trusted B2B visa partner")}</h1>
-            <p className="editorial-reveal mt-6 max-w-xl text-base leading-relaxed text-white/85 sm:text-lg">{ct("A professional visa service for agencies, with clear workflows, document support and live case tracking.")}</p>
+      <section className="travel-public-hero" aria-labelledby="public-hero-title">
+        <div className="travel-public-copy">
+          <div>
+            <p className="travel-eyebrow">{ct("For professional partners")}</p>
+            <h1 id="public-hero-title" className="editorial-reveal">{ct("Their next journey. Your visa partner.")}</h1>
+            <p className="editorial-reveal">{ct("A professional visa service for agencies, with clear workflows, document support and live case tracking.")}</p>
             <div className="editorial-reveal mt-9 flex flex-wrap gap-3">
               <Link href="/agency/register" className="public-cta btn-gold hidden px-6 py-3 sm:inline-flex">{ct("Register your agency")} <span aria-hidden>→</span></Link>
               <Link href="/login" className="public-cta btn border border-white/55 bg-transparent px-6 py-3 text-white hover:bg-white/10">{ct("Access Agency Portal")} <span aria-hidden>→</span></Link>
             </div>
           </div>
         </div>
-        <div className="absolute inset-x-0 bottom-0 z-10 border-t border-white/20 bg-navy-950/80">
-          <div className="ess-container grid grid-cols-2 gap-4 py-5 text-xs font-medium text-white/85 sm:grid-cols-4 sm:text-sm">
-            {["Simple process", "Document assistance", "Live status tracking", "Professional support"].map((item, index) => (
-              <span key={item} className="flex items-center gap-2"><span className="text-gold-400">0{index + 1}</span>{ct(item)}</span>
-            ))}
-          </div>
-        </div>
+        <figure className="travel-public-photo"><img src="/images/departure-atelier.webp" alt="" width="1536" height="1024" fetchPriority="high" /><figcaption>{ct("Travel illustration")}</figcaption></figure>
       </section>
+      <div className="ess-container travel-public-assurance">{["Simple process", "Document assistance", "Live status tracking", "Professional support"].map((item,index)=><span key={item}><b>0{index+1}</b>{ct(item)}</span>)}</div>
 
       <section className="public-reveal ess-container py-20 sm:py-28" aria-labelledby="benefits-heading">
         <div className="grid gap-8 lg:grid-cols-[.85fr_1.15fr] lg:gap-16">
