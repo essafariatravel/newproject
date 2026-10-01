@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
 import { suiteSetup } from "./helpers/global-state";
 import { agencyByEmail, userByEmail } from "./helpers/fixtures";
-import { db } from "@/lib/db";
+import { db, pool } from "@/lib/db";
+import { qualifiedTable } from "@/lib/database-schema";
 import { applications, applicants, documents, documentRequests, visaTypes, walletTopupRequests, walletTransactions } from "@/db/schema";
 import { changeApplicationStatus, createDraftApplication, getChecklist, getDecisionDocuments, recordApplicationDecision, submitApplication } from "@/lib/applications";
 import { requestAdditionalDocument, requestDocumentReplacement } from "@/lib/document-requests";
@@ -174,6 +175,83 @@ describe("proof and immutable money", () => {
     await expect(processTopupRequest({ requestId: request!.id, decision: "CREDIT", actor: staff })).rejects.toMatchObject({ code: "PROOF_REQUIRED" });
     expect(await getBalance(agency.id)).toEqual(before);
     expect((await topupRequestById(request!.id))!.status).toBe("PENDING");
+  });
+
+  it("does not credit when the receipt key changes during proof verification", async () => {
+    const agency = await agencyByEmail("ops@agencya.example"), actor = await userByEmail("a-admin@test.example"), staff = await userByEmail("admin@test.example");
+    const created = await createTopupRequest({ agencyId: agency.id, amount: 100, actor, proof: receipt() });
+    const original = (await topupRequestById(created.id))!;
+    const replacementKey = `${original.proofStorageKey}/replacement`;
+    const provider = storageProvider();
+    await provider.put(replacementKey, receipt().data, receipt().type);
+    const before = await getBalance(agency.id);
+    const ledgerBefore = await db.select().from(walletTransactions).where(eq(walletTransactions.agencyId, agency.id));
+    const getProof = provider.get.bind(provider);
+    const proofRead = vi.spyOn(provider, "get").mockImplementationOnce(async (key) => {
+      const stored = await getProof(key);
+      const receiptUpdater = await pool.connect();
+      try {
+        await receiptUpdater.query("begin");
+        // Bound failures if proof verification regresses into holding the request lock.
+        await receiptUpdater.query("set local lock_timeout = '500ms'");
+        await receiptUpdater.query(`update ${qualifiedTable("wallet_topup_requests")} set proof_storage_key = $2 where id = $1`, [created.id, replacementKey]);
+        await receiptUpdater.query("commit");
+      } catch (error) {
+        await receiptUpdater.query("rollback");
+        throw error;
+      } finally { receiptUpdater.release(); }
+      return stored;
+    });
+    try {
+      await expect(processTopupRequest({ requestId: created.id, decision: "CREDIT", actor: staff })).rejects.toMatchObject({ code: "PROOF_CHANGED" });
+    } finally { proofRead.mockRestore(); }
+    const current = (await topupRequestById(created.id))!;
+    expect(current.proofStorageKey).toBe(replacementKey);
+    expect(current.status).toBe("PENDING");
+    expect(current.walletTransactionId).toBeNull();
+    expect(current.processedAt).toBeNull();
+    expect(await getBalance(agency.id)).toEqual(before);
+    expect(await db.select().from(walletTransactions).where(eq(walletTransactions.agencyId, agency.id))).toEqual(ledgerBefore);
+  });
+
+  it("does not credit a pending request whose stored receipt is missing", async () => {
+    const agency = await agencyByEmail("ops@agencya.example"), actor = await userByEmail("a-admin@test.example"), staff = await userByEmail("admin@test.example");
+    const created = await createTopupRequest({ agencyId: agency.id, amount: 100, actor, proof: receipt() });
+    const original = (await topupRequestById(created.id))!;
+    await storageProvider().delete(original.proofStorageKey!);
+    const before = await getBalance(agency.id);
+    await expect(processTopupRequest({ requestId: created.id, decision: "CREDIT", actor: staff })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(await getBalance(agency.id)).toEqual(before);
+    expect(await topupRequestById(created.id)).toEqual(original);
+  });
+
+  it("keeps duplicate processing precise after the credited receipt is unavailable", async () => {
+    const agency = await agencyByEmail("ops@agencya.example"), actor = await userByEmail("a-admin@test.example"), staff = await userByEmail("admin@test.example");
+    const created = await createTopupRequest({ agencyId: agency.id, amount: 100, actor, proof: receipt() });
+    await processTopupRequest({ requestId: created.id, decision: "CREDIT", actor: staff });
+    const processed = (await topupRequestById(created.id))!;
+    await storageProvider().delete(processed.proofStorageKey!);
+    const before = await getBalance(agency.id);
+    await expect(processTopupRequest({ requestId: created.id, decision: "CREDIT", actor: staff })).rejects.toMatchObject({ code: "TOPUP_ALREADY_PROCESSED" });
+    expect(await getBalance(agency.id)).toEqual(before);
+    expect(await topupRequestById(created.id)).toEqual(processed);
+  });
+
+  it("keeps the duplicate error precise when another caller credits during a failed receipt read", async () => {
+    const agency = await agencyByEmail("ops@agencya.example"), actor = await userByEmail("a-admin@test.example"), staff = await userByEmail("admin@test.example");
+    const created = await createTopupRequest({ agencyId: agency.id, amount: 100, actor, proof: receipt() });
+    const before = await getBalance(agency.id);
+    const proofRead = vi.spyOn(storageProvider(), "get").mockImplementationOnce(async () => {
+      await processTopupRequest({ requestId: created.id, decision: "CREDIT", actor: staff });
+      throw new Error("Receipt unavailable after concurrent credit");
+    });
+    try {
+      await expect(processTopupRequest({ requestId: created.id, decision: "CREDIT", actor: staff })).rejects.toMatchObject({ code: "TOPUP_ALREADY_PROCESSED" });
+    } finally { proofRead.mockRestore(); }
+    expect(Number((await getBalance(agency.id)).balance) - Number(before.balance)).toBe(100);
+    const processed = (await topupRequestById(created.id))!;
+    expect(processed.status).toBe("PROCESSED");
+    expect(await db.select().from(walletTransactions).where(eq(walletTransactions.id, processed.walletTransactionId!))).toHaveLength(1);
   });
 
   it("manual wallet service refuses agency actors", async () => {

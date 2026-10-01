@@ -49,37 +49,39 @@ export async function resolveRegistrationFollowup(token: string): Promise<{regis
 export async function uploadRegistrationFollowup(input: {token: string; slotId: string; file: RegistrationFileInput}): Promise<void> {
   if (!tokenPattern.test(input.token) || !z.string().uuid().safeParse(input.slotId).success) throw invalid();
   const tokenHash = hashToken(input.token);
-  // Resolve the registration to obtain locks in the same order as Staff issuance.
-  const lookup = await pool.query(`select registration_id from ${q("agency_registration_followup_tokens")} where token_hash=$1`,[tokenHash]);
+  // Pre-stage only for a currently authorised slot. Every gate is checked again
+  // under the registration lock after storage has released its pool connection.
+  const lookup = await pool.query(`select t.registration_id,s.category from ${q("agency_registration_followup_tokens")} t join ${q("agency_registrations")} r on r.id=t.registration_id join ${q("agency_registration_requests")} s on s.registration_id=r.id and s.id=$2 and s.status='OPEN' where t.token_hash=$1 and t.expires_at>now() and t.revoked_at is null and t.used_at is null and r.status='MORE_INFORMATION_REQUIRED'`,[tokenHash,input.slotId]);
   const registrationId = lookup.rows[0]?.registration_id as string | undefined;
   if (!registrationId) throw invalid();
-  const client = await pool.connect();
-  let storageKey: string | null = null;
+  const file = {...input.file,category:lookup.rows[0]!.category as RegistrationDocumentCategory};
+  if (file.size !== file.data.length) throw new AppError("FILE_CONTENT", "Invalid file size.");
+  validateRegistrationFile(file);
+  const storageKey = `agency-registrations/${registrationId}/${randomUUID()}`;
   let committed = false;
   try {
-    await client.query("begin");
-    await client.query("set local statement_timeout = '30s'");
-    const reg = await client.query(`select status from ${q("agency_registrations")} where id=$1 for update`,[registrationId]);
-    const validToken = await client.query(`select id from ${q("agency_registration_followup_tokens")} where token_hash=$1 and registration_id=$2 and expires_at>now() and revoked_at is null and used_at is null for update`,[tokenHash,registrationId]);
-    if (reg.rows[0]?.status !== "MORE_INFORMATION_REQUIRED" || !validToken.rows[0]) throw invalid();
-    const found = await client.query(`select category from ${q("agency_registration_requests")} where id=$1 and registration_id=$2 and status='OPEN' for update`,[input.slotId,registrationId]);
-    const slot = found.rows[0];
-    if (!slot) throw invalid();
-    const file = {...input.file,category:slot.category as RegistrationDocumentCategory};
-    if (file.size !== file.data.length) throw new AppError("FILE_CONTENT", "Invalid file size.");
-    validateRegistrationFile(file);
-    storageKey = `agency-registrations/${registrationId}/${randomUUID()}`;
     await storageProvider().put(storageKey,file.data,file.type);
-    const inserted = await client.query(`insert into ${q("agency_registration_documents")} (registration_id,category,original_filename,mime_type,size_bytes,storage_key) values ($1,$2,$3,$4,$5,$6) returning id`,[registrationId,file.category,file.name,file.type,file.size,storageKey]);
-    await client.query(`update ${q("agency_registration_requests")} set status='RECEIVED',document_id=$2,received_at=now() where id=$1`,[input.slotId,inserted.rows[0]!.id]);
-    const remaining = await client.query(`select id from ${q("agency_registration_requests")} where registration_id=$1 and status='OPEN' limit 1`,[registrationId]);
-    if (!remaining.rows.length) {
-      await client.query(`update ${q("agency_registration_followup_tokens")} set used_at=now() where id=$1`,[validToken.rows[0]!.id]);
-      await client.query(`update ${q("agency_registrations")} set status='UNDER_REVIEW',updated_at=now() where id=$1`,[registrationId]);
-    }
-    await client.query(`insert into ${q("agency_registration_history")} (registration_id,kind,from_status,to_status,note) values ($1,'INFO_REQUEST','MORE_INFORMATION_REQUIRED',$2,$3)`,[registrationId,remaining.rows.length?"MORE_INFORMATION_REQUIRED":"UNDER_REVIEW",`Administrative document received: ${file.category}`]);
-    await client.query(`insert into ${q("audit_logs")} (action,entity,entity_id,metadata) values ('REGISTRATION_DOCUMENT_RECEIVED','agency_registration',$1,$2)`,[registrationId,JSON.stringify({requestId:input.slotId,documentId:inserted.rows[0]!.id})]);
-    await client.query("commit"); committed=true;
-  } catch (error) { await client.query("rollback").catch(()=>{}); throw error; }
-  finally { client.release(); if (storageKey && !committed) await storageProvider().delete(storageKey).catch(()=>{}); }
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      await client.query("set local statement_timeout = '30s'");
+      const reg = await client.query(`select status from ${q("agency_registrations")} where id=$1 for update`,[registrationId]);
+      const validToken = await client.query(`select id from ${q("agency_registration_followup_tokens")} where token_hash=$1 and registration_id=$2 and expires_at>now() and revoked_at is null and used_at is null for update`,[tokenHash,registrationId]);
+      if (reg.rows[0]?.status !== "MORE_INFORMATION_REQUIRED" || !validToken.rows[0]) throw invalid();
+      const found = await client.query(`select category from ${q("agency_registration_requests")} where id=$1 and registration_id=$2 and status='OPEN' for update`,[input.slotId,registrationId]);
+      const slot = found.rows[0];
+      if (!slot || slot.category !== file.category) throw invalid();
+      const inserted = await client.query(`insert into ${q("agency_registration_documents")} (registration_id,category,original_filename,mime_type,size_bytes,storage_key) values ($1,$2,$3,$4,$5,$6) returning id`,[registrationId,file.category,file.name,file.type,file.size,storageKey]);
+      await client.query(`update ${q("agency_registration_requests")} set status='RECEIVED',document_id=$2,received_at=now() where id=$1`,[input.slotId,inserted.rows[0]!.id]);
+      const remaining = await client.query(`select id from ${q("agency_registration_requests")} where registration_id=$1 and status='OPEN' limit 1`,[registrationId]);
+      if (!remaining.rows.length) {
+        await client.query(`update ${q("agency_registration_followup_tokens")} set used_at=now() where id=$1`,[validToken.rows[0]!.id]);
+        await client.query(`update ${q("agency_registrations")} set status='UNDER_REVIEW',updated_at=now() where id=$1`,[registrationId]);
+      }
+      await client.query(`insert into ${q("agency_registration_history")} (registration_id,kind,from_status,to_status,note) values ($1,'INFO_REQUEST','MORE_INFORMATION_REQUIRED',$2,$3)`,[registrationId,remaining.rows.length?"MORE_INFORMATION_REQUIRED":"UNDER_REVIEW",`Administrative document received: ${file.category}`]);
+      await client.query(`insert into ${q("audit_logs")} (action,entity,entity_id,metadata) values ('REGISTRATION_DOCUMENT_RECEIVED','agency_registration',$1,$2)`,[registrationId,JSON.stringify({requestId:input.slotId,documentId:inserted.rows[0]!.id})]);
+      await client.query("commit"); committed=true;
+    } catch (error) { await client.query("rollback").catch(()=>{}); throw error; }
+    finally { client.release(); }
+  } finally { if (!committed) await storageProvider().delete(storageKey).catch(()=>{}); }
 }

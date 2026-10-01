@@ -209,10 +209,10 @@ export async function listTopupRequests(options?: {
 /**
  * Process a pending request.
  *
- * Everything happens in ONE transaction: claim the request (conditional on
- * status = 'PENDING'), move the money, link the ledger row. If anything fails,
- * nothing changed — and a retry can never double-credit, because the second
- * attempt finds no PENDING row.
+ * Claiming the request, moving the money and linking the ledger happen in ONE
+ * transaction. Receipt storage is read first, then its key is checked under
+ * the request lock. A retry can never double-credit because the second attempt
+ * finds no PENDING row.
  */
 export async function processTopupRequest(params: {
   requestId: string;
@@ -241,6 +241,32 @@ export async function processTopupRequest(params: {
   if (note && note.length > 500) throw new AppError("VALIDATION", "The decision note is too long.");
   if (params.decision === "REJECT" && !note) {
     throw new AppError("REASON_REQUIRED", "Give a reason for rejecting this top-up request.");
+  }
+
+  // The database storage provider needs its own pool connection. Complete the
+  // read before holding a transaction client or the request's row lock.
+  let verifiedProofKey: string | null = null;
+  let proofVerificationFailure: { error: unknown } | undefined;
+  if (params.decision === "CREDIT") {
+    const [request] = await db.select({
+      reference: walletTopupRequests.reference,
+      status: walletTopupRequests.status,
+      proofStorageKey: walletTopupRequests.proofStorageKey,
+    }).from(walletTopupRequests).where(eq(walletTopupRequests.id, params.requestId)).limit(1);
+    if (!request) throw new AppError("NOT_FOUND", "Top-up request not found.");
+    if (request.status !== "PENDING") {
+      throw new AppError("TOPUP_ALREADY_PROCESSED", `Top-up request ${request.reference} was already ${request.status.toLowerCase()}.`);
+    }
+    verifiedProofKey = request.proofStorageKey;
+    if (verifiedProofKey) {
+      try {
+        await storageProvider().get(verifiedProofKey);
+      } catch (error) {
+        // The locked status guard must still take precedence if another caller
+        // processed this request while its receipt was being read.
+        proofVerificationFailure = { error };
+      }
+    }
   }
 
   const client = await pool.connect();
@@ -303,7 +329,8 @@ export async function processTopupRequest(params: {
       };
     } else {
       if (!req.proof_storage_key) throw new AppError("PROOF_REQUIRED", "A bank transfer receipt is required before crediting this request.");
-      await storageProvider().get(req.proof_storage_key);
+      if (req.proof_storage_key !== verifiedProofKey) throw new AppError("PROOF_CHANGED", "The bank transfer receipt changed. Review the request again before crediting it.");
+      if (proofVerificationFailure) throw proofVerificationFailure.error;
       const requested = Number(req.amount);
       const credit = params.amount === undefined ? requested : params.amount;
       if (!Number.isFinite(credit) || credit <= 0) {
