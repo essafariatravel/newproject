@@ -26,6 +26,7 @@ import { hashPassword } from "@/lib/crypto";
 import { databaseSchema } from "@/lib/database-schema";
 import { db } from "@/lib/db";
 import { users } from "@/db/schema";
+import { automaticDatabaseChangesForbidden } from "../../../../../scripts/lib/build-policy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,6 +52,7 @@ function isLocalDatabase(): boolean {
 }
 
 function guard(): boolean {
+  if (automaticDatabaseChangesForbidden(process.env.VERCEL_GIT_COMMIT_REF)) return false;
   const schema = databaseSchema();
   if (process.env.VERCEL_ENV === "production") return false;
   if (schema === PRODUCTION_SCHEMA) return false;

@@ -86,13 +86,17 @@ export const users = pgTable(
     id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
     email: text("email").notNull(),
     passwordHash: text("password_hash").notNull(),
+    username: text("username"),
+    activationPending: boolean("activation_pending").notNull().default(false),
+    /** Incremented whenever access is revoked; prevents racing logins reviving it. */
+    credentialVersion: integer("credential_version").notNull().default(0),
     name: text("name").notNull(),
     /** SUPER_ADMIN | ADMIN | VISA_AGENT | ACCOUNTING | AGENCY_ADMIN | AGENCY_USER */
     role: text("role").notNull(),
     agencyId: uuid("agency_id").references(() => agencies.id),
     status: text("status").notNull().default("ACTIVE"), // ACTIVE | SUSPENDED
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
-  mustChangePassword: boolean("must_change_password").notNull().default(false),
+    mustChangePassword: boolean("must_change_password").notNull().default(false),
     ...timestamps,
   },
   (t) => [
@@ -113,6 +117,8 @@ export const sessions = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     tokenHash: text("token_hash").notNull().unique(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).notNull().defaultNow(),
+    credentialVersion: integer("credential_version").notNull().default(0),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -129,6 +135,8 @@ export const countries = pgTable(
   {
     id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
     name: text("name").notNull(),
+    nameFr: text("name_fr"),
+    nameAr: text("name_ar"),
     iso2: char("iso2", { length: 2 }).notNull(),
     region: text("region"),
     active: boolean("active").notNull().default(true),
@@ -575,6 +583,8 @@ export const notifications = pgTable(
     title: text("title").notNull(),
     body: text("body").notNull(),
     link: text("link"),
+    documentRequestId: uuid("document_request_id").references(() => documentRequests.id),
+    topupRequestId: uuid("topup_request_id"),
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -650,20 +660,20 @@ export const agencyRegistrations = pgTable(
     /* company */
     legalName: text("legal_name").notNull(),
     tradingName: text("trading_name"),
-    country: text("country").notNull(),
+    country: text("country"),
     region: text("region"),
-    city: text("city").notNull(),
-    addressLine: text("address_line").notNull(),
+    city: text("city"),
+    addressLine: text("address_line"),
     phone: text("phone").notNull(),
     email: text("email").notNull(), // normalized lowercase
     website: text("website"),
-    commercialRegistrationNumber: text("commercial_registration_number").notNull(),
+    commercialRegistrationNumber: text("commercial_registration_number"),
     taxId: text("tax_id"),
     licenceNumber: text("licence_number"),
     /* primary contact */
     contactFirstName: text("contact_first_name").notNull(),
     contactLastName: text("contact_last_name").notNull(),
-    contactPosition: text("contact_position").notNull(),
+    contactPosition: text("contact_position"),
     contactEmail: text("contact_email").notNull(), // normalized lowercase
     contactPhone: text("contact_phone").notNull(),
     /* business profile */
@@ -676,6 +686,7 @@ export const agencyRegistrations = pgTable(
     privacyAcknowledged: boolean("privacy_acknowledged").notNull().default(false),
     infoConfirmed: boolean("info_confirmed").notNull().default(false),
     consentedAt: timestamp("consented_at", { withTimezone: true }),
+    legalConsentVersions: jsonb("legal_consent_versions").notNull().default({}),
     /* workflow */
     status: text("status").notNull().default("PENDING"),
     internalNotes: text("internal_notes"),
@@ -744,6 +755,31 @@ export const agencyRegistrationHistory = pgTable(
   (t) => [index("agency_registration_history_registration_idx").on(t.registrationId, t.createdAt)],
 );
 
+/** Requested administrative documents, separate from traveller dossiers. */
+export const agencyRegistrationRequests = pgTable("agency_registration_requests", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  registrationId: uuid("registration_id").notNull().references(() => agencyRegistrations.id),
+  category: text("category").notNull(),
+  label: text("label").notNull(),
+  note: text("note").notNull(),
+  status: text("status").notNull().default("OPEN"),
+  documentId: uuid("document_id").references(() => agencyRegistrationDocuments.id),
+  requestedBy: uuid("requested_by").notNull().references(() => users.id),
+  receivedAt: timestamp("received_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("agency_registration_requests_reg_idx").on(t.registrationId)]);
+
+export const agencyRegistrationFollowupTokens = pgTable("agency_registration_followup_tokens", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  registrationId: uuid("registration_id").notNull().references(() => agencyRegistrations.id),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdBy: uuid("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("agency_registration_followup_tokens_reg_idx").on(t.registrationId)]);
+
 /** Single-use, expiring, hashed activation tokens (set-password flow). */
 export const accountActivationTokens = pgTable(
   "account_activation_tokens",
@@ -800,6 +836,12 @@ export const walletTopupRequests = pgTable(
     amount: money("amount").notNull(),
     currency: char("currency", { length: 3 }).notNull().default("DZD"),
     note: text("note"),
+    /** Private transfer receipt; legacy requests may have no proof. */
+    proofStorageKey: text("proof_storage_key"),
+    proofFilename: text("proof_filename"),
+    proofMimeType: text("proof_mime_type"),
+    proofSizeBytes: integer("proof_size_bytes"),
+    idempotencyKey: uuid("idempotency_key"),
     /** PENDING | PROCESSED | REJECTED | CANCELLED */
     status: text("status").notNull().default("PENDING"),
     requestedBy: uuid("requested_by").references(() => users.id, { onDelete: "set null" }),
@@ -864,3 +906,32 @@ export type AgencyRegistrationDocument = typeof agencyRegistrationDocuments.$inf
 export type AgencyRegistrationHistoryEntry = typeof agencyRegistrationHistory.$inferSelect;
 export type AccountActivationToken = typeof accountActivationTokens.$inferSelect;
 export type SiteSetting = typeof siteSettings.$inferSelect;
+
+/** Manual recovery queue. Public requests never receive secrets or identity hints. */
+export const accountRecoveryRequests = pgTable("account_recovery_requests", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  identifier: text("identifier").notNull(),
+  userId: uuid("user_id").references(() => users.id),
+  status: text("status").notNull().default("PENDING"),
+  resolvedBy: uuid("resolved_by").references(() => users.id),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("account_recovery_requests_queue_idx").on(t.status, t.createdAt)]);
+
+export const accountAccessTokens = pgTable("account_access_tokens", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull().unique(),
+  purpose: text("purpose").notNull(), // ACTIVATION | PASSWORD_RESET
+  credentialVersion: integer("credential_version").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdBy: uuid("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("account_access_tokens_user_idx").on(t.userId)]);
+
+export const authRateLimits = pgTable("auth_rate_limits", {
+  key: text("key").primaryKey(),
+  attempts: integer("attempts").notNull().default(1),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull().defaultNow(),
+});

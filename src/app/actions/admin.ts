@@ -16,7 +16,10 @@ import { hashPassword } from "@/lib/crypto";
 import { runAction } from "@/lib/action-helpers";
 import { updateSetting } from "@/lib/settings";
 import { adjustWallet } from "@/lib/wallet";
+import { publishLegalContent } from "@/lib/legal";
 import { normalizeOptionalAgencyName } from "@/lib/agency-display";
+import { createAccount, currentAccountActor, lockIdentityState, recordIdentityAudit, toggleAgencyAccess, updateAccount } from "@/lib/account-security";
+import { normalizeAgencyUsername } from "@/lib/identity-policy";
 
 const idSchema = z.string().uuid("Invalid identifier.");
 const emailSchema = z.string().trim().toLowerCase().email("Enter a valid email address.");
@@ -43,13 +46,16 @@ export async function createAgencyAction(formData: FormData): Promise<void> {
     const staff = await requireStaff();
     requirePermission(staff, "agencies.manage");
     const data = agencySchema.parse(Object.fromEntries(formData));
-    const dup = await db.select({ id: agencies.id }).from(agencies).where(sql`lower(${agencies.legalName}) = lower(${data.legalName})`).limit(1);
-    if (dup[0]) throw new AppError("DUPLICATE", "An agency with this legal name already exists.");
-    const inserted = await db
-      .insert(agencies)
-      .values({ ...data, currency: data.currency ?? "DZD", billingName: data.billingName ?? data.legalName, billingEmail: data.billingEmail ?? data.email })
-      .returning();
-    await recordAudit({ actor: staff, action: "AGENCY_CREATED", entity: "agency", entityId: inserted[0]!.id, metadata: { legalName: data.legalName } });
+    await db.transaction(async (tx) => {
+      await lockIdentityState(tx);
+      const current = await currentAccountActor(tx, staff);
+      requirePermission(current, "agencies.manage");
+      const dup = await tx.select({ id: agencies.id }).from(agencies).where(sql`lower(${agencies.legalName}) = lower(${data.legalName})`).limit(1);
+      if (dup[0]) throw new AppError("DUPLICATE", "An agency with this legal name already exists.");
+      const inserted = await tx.insert(agencies)
+        .values({ ...data, currency: data.currency ?? "DZD", billingName: data.billingName ?? data.legalName, billingEmail: data.billingEmail ?? data.email }).returning();
+      await recordIdentityAudit(tx, { actor: current, action: "AGENCY_CREATED", entity: "agency", entityId: inserted[0]!.id, metadata: { legalName: data.legalName } });
+    });
     revalidatePath("/admin/agencies");
     revalidatePath("/admin");
     return `Agency "${data.legalName}" created. Create its first user next.`;
@@ -62,8 +68,14 @@ export async function updateAgencyAction(formData: FormData): Promise<void> {
     const staff = await requireStaff();
     requirePermission(staff, "agencies.manage");
     const data = agencySchema.parse(Object.fromEntries(formData));
-    await db.update(agencies).set({ ...data, updatedAt: new Date() }).where(eq(agencies.id, id));
-    await recordAudit({ actor: staff, action: "AGENCY_UPDATED", entity: "agency", entityId: id });
+    await db.transaction(async (tx) => {
+      await lockIdentityState(tx);
+      const current = await currentAccountActor(tx, staff);
+      requirePermission(current, "agencies.manage");
+      await tx.update(agencies).set({ ...data, updatedAt: new Date() }).where(eq(agencies.id, id));
+      await tx.update(users).set({ email: data.email, updatedAt: new Date() }).where(eq(users.agencyId, id));
+      await recordIdentityAudit(tx, { actor: current, action: "AGENCY_UPDATED", entity: "agency", entityId: id });
+    });
     revalidatePath(`/admin/agencies/${id}`);
     revalidatePath("/admin/agencies");
     return "Agency saved.";
@@ -75,15 +87,28 @@ export async function toggleAgencyStatusAction(formData: FormData): Promise<void
   await runAction(`/admin/agencies/${id}`, async () => {
     const staff = await requireStaff();
     requirePermission(staff, "agencies.manage");
-    const rows = await db.select().from(agencies).where(eq(agencies.id, id)).limit(1);
-    const agency = rows[0];
-    if (!agency) throw new AppError("NOT_FOUND", "Agency not found.");
-    const next = agency.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
-    await db.update(agencies).set({ status: next, updatedAt: new Date() }).where(eq(agencies.id, id));
-    await recordAudit({ actor: staff, action: next === "ACTIVE" ? "AGENCY_ACTIVATED" : "AGENCY_SUSPENDED", entity: "agency", entityId: id });
+    const next = await toggleAgencyAccess(staff, id);
     revalidatePath(`/admin/agencies/${id}`);
     revalidatePath("/admin/agencies");
     return `Agency ${next === "ACTIVE" ? "activated" : "suspended"}.`;
+  });
+}
+
+/** Agency administrators may maintain operational contact details, never legal/billing identity. */
+export async function updateOwnAgencyContactAction(formData: FormData): Promise<void> {
+  await runAction("/portal/profile", async () => {
+    const user = await requireUser();
+    if (user.role !== "AGENCY_ADMIN" || !user.agencyId) throw new AppError("FORBIDDEN", "Only the agency administrator can update contact details.");
+    const data = z.object({ phone: z.string().trim().max(40), addressLine: z.string().trim().max(300), city: z.string().trim().max(80) }).parse(Object.fromEntries(formData));
+    await db.transaction(async (tx) => {
+      await lockIdentityState(tx);
+      const current = await currentAccountActor(tx, user);
+      if (current.role !== "AGENCY_ADMIN" || !current.agencyId) throw new AppError("FORBIDDEN", "Only the agency administrator can update contact details.");
+      await tx.update(agencies).set({ ...data, updatedAt: new Date() }).where(eq(agencies.id, current.agencyId));
+      await recordIdentityAudit(tx, { actor: current, action: "AGENCY_CONTACT_UPDATED", entity: "agency", entityId: current.agencyId, agencyId: current.agencyId, metadata: data });
+    });
+    revalidatePath("/portal/profile");
+    return "Agency saved.";
   });
 }
 
@@ -91,7 +116,7 @@ export async function toggleAgencyStatusAction(formData: FormData): Promise<void
 
 const createAgencyWithAdminSchema = agencySchema.omit({ billingName: true, billingEmail: true, notes: true }).extend({
   adminName: z.string().trim().min(2, "Administrator name is required.").max(120),
-  adminEmail: z.string().trim().toLowerCase().email("A valid administrator email is required."),
+  adminUsername: z.string().transform(normalizeAgencyUsername),
   adminPassword: z
     .string()
     .min(10, "Temporary password must be at least 10 characters.")
@@ -116,12 +141,15 @@ export async function createAgencyWithAdminAction(formData: FormData): Promise<v
       // delegated roles keep the separate agency/user dashboards.
       throw new AppError("FORBIDDEN", "Only SUPER_ADMIN can onboard an agency with its first administrator.");
     }
-    const dupAgency = await db.select({ id: agencies.id }).from(agencies).where(sql`lower(${agencies.legalName}) = lower(${data.legalName})`).limit(1);
-    if (dupAgency[0]) throw new AppError("DUPLICATE", "An agency with this legal name already exists.");
-    const dupUser = await db.select({ id: users.id }).from(users).where(sql`lower(${users.email}) = lower(${data.adminEmail})`).limit(1);
-    if (dupUser[0]) throw new AppError("DUPLICATE", "A user with this email already exists.");
     const passwordHash = await hashPassword(data.adminPassword); // hashed before any DB write
-    const created = await db.transaction(async (tx) => {
+    await db.transaction(async (tx) => {
+      await lockIdentityState(tx);
+      const current = await currentAccountActor(tx, staff);
+      if (current.role !== "SUPER_ADMIN") throw new AppError("FORBIDDEN", "Only SUPER_ADMIN can create an agency administrator.");
+      const dupAgency = await tx.select({ id: agencies.id }).from(agencies).where(sql`lower(${agencies.legalName}) = lower(${data.legalName})`).limit(1);
+      if (dupAgency[0]) throw new AppError("DUPLICATE", "An agency with this legal name already exists.");
+      const dupUser = await tx.select({ id: users.id }).from(users).where(eq(users.username, data.adminUsername)).limit(1);
+      if (dupUser[0]) throw new AppError("DUPLICATE", "This username is unavailable.");
       const agency = (
         await tx
           .insert(agencies)
@@ -138,7 +166,8 @@ export async function createAgencyWithAdminAction(formData: FormData): Promise<v
           .insert(users)
           .values({
             name: data.adminName,
-            email: data.adminEmail,
+            email: data.email,
+            username: data.adminUsername,
             passwordHash,
             role: "AGENCY_ADMIN",
             agencyId: agency.id,
@@ -146,24 +175,12 @@ export async function createAgencyWithAdminAction(formData: FormData): Promise<v
           })
           .returning()
       )[0]!;
-      return { agency, admin };
-    });
-    await recordAudit({
-      actor: staff,
-      action: "AGENCY_ONBOARDED",
-      entity: "agency",
-      entityId: created.agency.id,
-      agencyId: created.agency.id,
-      metadata: {
-        legalName: data.legalName,
-        adminEmail: data.adminEmail, // email only — never the password
-        firstAdminUserId: created.admin.id,
-        mustChangePassword: true,
-      },
+      await recordIdentityAudit(tx, { actor: current, action: "AGENCY_ONBOARDED", entity: "agency", entityId: agency.id, agencyId: agency.id,
+        metadata: { legalName: data.legalName, adminUsername: data.adminUsername, firstAdminUserId: admin.id, mustChangePassword: true } });
     });
     revalidatePath("/admin/agencies");
     revalidatePath("/admin");
-    return `Agency "${data.legalName}" created with administrator ${data.adminEmail} (password change required at first login).`;
+    return `Agency "${data.legalName}" created with administrator ${data.adminUsername} (password change required at first login).`;
   });
 }
 
@@ -171,7 +188,8 @@ export async function createAgencyWithAdminAction(formData: FormData): Promise<v
 
 const createUserSchema = z.object({
   name: z.string().trim().min(2, "Name is required.").max(120),
-  email: emailSchema,
+  email: emailSchema.optional(),
+  username: z.string().optional(),
   password: z.string().min(10, "Password must be at least 10 characters.").max(200),
   role: z.enum(["SUPER_ADMIN", "ADMIN", "VISA_AGENT", "ACCOUNTING", "AGENCY_ADMIN", "AGENCY_USER"]),
 });
@@ -181,31 +199,8 @@ export async function createUserAction(formData: FormData): Promise<void> {
   await runAction(back, async () => {
     const staff = await requireUser();
     const isAgencyAdmin = staff.role === "AGENCY_ADMIN";
-    if (isAgencyAdmin) {
-      requirePermission(staff, "users.manage");
-    } else {
-      requireStaff();
-      requirePermission(staff, "users.manage");
-    }
+    requirePermission(staff, "users.manage");
     const data = createUserSchema.parse(Object.fromEntries(formData));
-    // Phase 2.2 §9 — an AGENCY_ADMIN may ONLY create AGENCY_USER accounts
-    if (isAgencyAdmin && data.role !== "AGENCY_USER") {
-      throw new AppError("FORBIDDEN", "Agency administrators can only create AGENCY_USER accounts.");
-    }
-
-    // Prevent privilege escalation for staff role creation
-    if (!isAgencyRole(data.role)) {
-      // Staff role creation — only SUPER_ADMIN and ADMIN may create staff users
-      if (isAgencyAdmin) throw new AppError("FORBIDDEN", "You cannot create staff accounts.");
-      if (!["SUPER_ADMIN", "ADMIN"].includes(staff.role)) {
-        throw new AppError("FORBIDDEN", "Only SUPER_ADMIN or ADMIN can create staff accounts.");
-      }
-      // Only SUPER_ADMIN can create SUPER_ADMIN
-      if (data.role === "SUPER_ADMIN" && staff.role !== "SUPER_ADMIN") {
-        throw new AppError("FORBIDDEN", "Only SUPER_ADMIN can create a SUPER_ADMIN account.");
-      }
-    }
-
     let agencyId: string | null = null;
     if (isAgencyRole(data.role)) {
       if (isAgencyAdmin) {
@@ -231,17 +226,9 @@ export async function createUserAction(formData: FormData): Promise<void> {
       agencyId = null;
     }
 
-    const dup = await db.select({ id: users.id }).from(users).where(sql`lower(${users.email}) = lower(${data.email})`).limit(1);
-    if (dup[0]) throw new AppError("DUPLICATE", "A user with this email already exists.");
-
-    const passwordHash = await hashPassword(data.password);
-    const inserted = await db
-      .insert(users)
-      .values({ name: data.name, email: data.email, passwordHash, role: data.role, agencyId, mustChangePassword: true })
-      .returning();
-    await recordAudit({ actor: staff, action: "USER_CREATED", entity: "user", entityId: inserted[0]!.id, agencyId, metadata: { email: data.email, role: data.role } });
+    const inserted = await createAccount(staff, { ...data, agencyId });
     revalidatePath(back);
-    return `User ${data.email} created.`;
+    return `User ${inserted.username ?? inserted.email} created.`;
   });
 }
 
@@ -251,23 +238,15 @@ export async function updateUserAction(formData: FormData): Promise<void> {
   await runAction(back, async () => {
     const staff = await requireUser();
     requirePermission(staff, "users.manage");
-    const rows = await db.select().from(users).where(eq(users.id, id)).limit(1);
-    const target = rows[0];
-    if (!target) throw new AppError("NOT_FOUND", "User not found.");
-    if (staff.role === "AGENCY_ADMIN" && target.agencyId !== staff.agencyId) {
-      throw new AppError("NOT_FOUND", "User not found.");
-    }
-    if (staff.role === "AGENCY_ADMIN" && !isAgencyRole(target.role)) {
-      throw new AppError("FORBIDDEN", "You cannot modify staff accounts.");
-    }
-
     if (formData.get("toggleStatus")) {
-      const next = target.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
-      if (target.id === staff.id) throw new AppError("VALIDATION", "You cannot suspend your own account.");
-      await db.update(users).set({ status: next, updatedAt: new Date() }).where(eq(users.id, id));
-      await recordAudit({ actor: staff, action: next === "ACTIVE" ? "USER_ACTIVATED" : "USER_SUSPENDED", entity: "user", entityId: id, agencyId: target.agencyId });
+      const { nextStatus: next } = await updateAccount(staff, id, { toggleStatus: true });
       revalidatePath(back);
       return `User ${next === "ACTIVE" ? "activated" : "suspended"}.`;
+    }
+    if (formData.get("forceSignOut")) {
+      await updateAccount(staff, id, { forceSignOut: true });
+      revalidatePath(back);
+      return "All sessions were signed out.";
     }
 
     const data = z
@@ -281,23 +260,14 @@ export async function updateUserAction(formData: FormData): Promise<void> {
         role: formData.get("role"),
         password: formData.get("password") ?? "",
       });
-    if (staff.role === "AGENCY_ADMIN" && !isAgencyRole(data.role)) {
-      throw new AppError("FORBIDDEN", "You cannot assign staff roles.");
-    }
-    if (staff.role === "AGENCY_ADMIN" && data.role !== "AGENCY_USER") {
-      throw new AppError("FORBIDDEN", "Agency administrators can only hold the AGENCY_USER role assignable.");
-    }
-    if (target.id === staff.id && data.role !== target.role) {
-      throw new AppError("VALIDATION", "You cannot change your own role.");
-    }
-    const patch: Record<string, unknown> = { name: data.name, role: data.role, updatedAt: new Date() };
     if (data.password) {
       if (data.password.length < 10) throw new AppError("VALIDATION", "Password must be at least 10 characters.");
-      patch.passwordHash = await hashPassword(data.password);
-      patch.mustChangePassword = true; // §11 — a staff-set reset also forces a change at next login
     }
-    await db.update(users).set(patch).where(eq(users.id, id));
-    await recordAudit({ actor: staff, action: "USER_UPDATED", entity: "user", entityId: id, agencyId: target.agencyId, metadata: { role: data.role, passwordReset: Boolean(data.password) } });
+    const [target] = await db.select({ role: users.role }).from(users).where(eq(users.id, id)).limit(1);
+    if (target && target.role !== data.role && formData.get("confirmRoleChange") !== "1") {
+      throw new AppError("VALIDATION", "Confirm the role change before saving.");
+    }
+    await updateAccount(staff, id, data);
     revalidatePath(back);
     return "User saved.";
   });
@@ -317,6 +287,7 @@ export async function adjustWalletAction(formData: FormData): Promise<void> {
     const operation = z.enum(["CREDIT", "DEBIT"]).parse(formData.get("operation") ?? formData.get("type") ?? "CREDIT");
     const amount = z.coerce.number().positive("Amount must be positive.").max(10000000).parse(formData.get("amount"));
     const reason = z.string().trim().min(5, "A reason (min 5 characters) is mandatory.").max(500).parse(formData.get("reason"));
+    if (formData.get("confirmed") !== "yes") throw new AppError("VALIDATION", "Confirm the agency, amount and resulting balance before applying this adjustment.");
     await adjustWallet({ agencyId, amount, reason, actor: staff, operation });
     revalidatePath(back);
     revalidatePath("/admin/billing");
@@ -334,6 +305,16 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
     // section actually carries are written, so saving the website copy cannot
     // overwrite legal text (and the legal section never touches the CMS fields).
     const section = String(formData.get("section") ?? "");
+    if (section === "legal") {
+      const publishedAt = new Date(String(formData.get("legal.publishedAt") ?? ""));
+      if (!Number.isFinite(publishedAt.getTime()) || publishedAt.getTime() > Date.now()) throw new AppError("VALIDATION", "Supply the actual publication date of owner-approved legal text.");
+      const publications = (["en","fr","ar"] as const).flatMap(locale => (["terms","privacy"] as const).map(kind => ({kind,locale,body:String(formData.get(`legal.${kind}.${locale}`)??"").trim(),publishedAt,actor:staff}))).filter(p => p.body);
+      if (!publications.length) throw new AppError("VALIDATION", "Supply owner-approved legal content before publishing.");
+      if (publications.some(p=>p.body.length>50_000)) throw new AppError("VALIDATION", "Legal content is too long.");
+      for (const publication of publications) await publishLegalContent(publication);
+      revalidatePath("/admin/settings"); revalidatePath("/terms"); revalidatePath("/privacy"); revalidatePath("/register");
+      return "Legal versions published.";
+    }
     const entries: Array<[string, unknown]> = [];
     const simpleKeys = [
       "brand.name",

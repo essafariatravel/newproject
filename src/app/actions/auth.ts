@@ -6,21 +6,26 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/db/schema";
 import { z } from "zod";
-import { authenticate, createSession, destroySession, requirePasswordChangeSession, setSessionCookie } from "@/lib/auth";
-import { hashPassword, verifyPassword } from "@/lib/crypto";
+import { authenticate, createSession, destroySession, requirePasswordChangeSession, setSessionCookie, touchCurrentSession } from "@/lib/auth";
+import { changeAccountPassword } from "@/lib/account-security";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import { AppError, isAgencyRole, type AuthUser, type Role } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
 import type { ActionState } from "@/components/forms";
 import { runAction } from "@/lib/action-helpers";
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const email = String(formData.get("email") ?? "").trim();
+  const email = String(formData.get("identifier") ?? formData.get("email") ?? "").trim().slice(0, 254);
   const password = String(formData.get("password") ?? "");
   if (!email || !password) {
-    return { error: "Enter your email and password." };
+    return { error: "Enter your username or staff email and password." };
   }
   let user;
   try {
+    const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const ipAllowed = await consumeAuthRateLimit("login-ip", ip, 40, 15 * 60_000);
+    const accountAllowed = await consumeAuthRateLimit("login-identity", email.toLowerCase(), 10, 15 * 60_000);
+    if (!ipAllowed || !accountAllowed) return { error: "Sign-in is temporarily unavailable. Please try again later." };
     user = await authenticate(email, password);
   } catch (err) {
     // Never expose raw database errors (e.g. Failed query: select ... from users) to the user.
@@ -33,7 +38,7 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   let token: string;
   let expiresAt: Date;
   try {
-    const session = await createSession(user.id);
+    const session = await createSession(user.id, { expectedCredentialVersion: user.credentialVersion });
     token = session.token;
     expiresAt = session.expiresAt;
     await setSessionCookie(token, expiresAt);
@@ -51,6 +56,7 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   const authUser: AuthUser = {
     id: user.id,
     email: user.email,
+    username: user.username,
     name: user.name,
     role: user.role as Role,
     agencyId: user.agencyId,
@@ -82,10 +88,15 @@ export async function logoutAction(): Promise<void> {
   redirect("/login");
 }
 
+/** Called only by the shell's real user-interaction timer, never background polls. */
+export async function touchSessionAction(): Promise<{ expired: boolean }> {
+  return { expired: !await touchCurrentSession() };
+}
+
 /* ---------------- Phase 2.2 §11 — forced first password change ---------------- */
 
 const changePasswordSchema = z.object({
-  current: z.string().min(1, "Enter your current (temporary) password."),
+  current: z.string().min(1, "Enter your current password."),
   password: z
     .string()
     .min(10, "Password must be at least 10 characters.")
@@ -96,8 +107,8 @@ const changePasswordSchema = z.object({
 
 /**
  * The ONLY action allowed while `mustChangePassword` is set
- * (requireUser() blocks everything else; this one uses the bypass session
- * fetcher, which itself refuses when no change is pending).
+ * (requireUser() blocks other protected mutations; this action accepts both
+ * normal password changes and the required first password change).
  * The new hash is stored, the flag is cleared, and a PASSWORD_CHANGED audit
  * row records the actor + timestamp — never any secret material.
  */
@@ -110,26 +121,11 @@ export async function changePasswordAction(formData: FormData): Promise<void> {
       throw new AppError("VALIDATION", "The confirmation does not match the new password.");
     }
     if (parsed.data.password === parsed.data.current) {
-      throw new AppError("VALIDATION", "Choose a different password than the temporary one.");
+      throw new AppError("VALIDATION", "Choose a different password.");
     }
-    const rows = await db.select().from(users).where(eq(users.id, user.id)).limit(1);
-    const me = rows[0];
-    if (!me) throw new AppError("NOT_FOUND", "User not found.");
-    const match = await verifyPassword(parsed.data.current, me.passwordHash);
-    if (!match) throw new AppError("UNAUTHENTICATED", "Current password is incorrect.");
-    const passwordHash = await hashPassword(parsed.data.password);
-    await db
-      .update(users)
-      .set({ passwordHash, mustChangePassword: false, updatedAt: new Date() })
-      .where(eq(users.id, user.id));
-    await recordAudit({
-      actor: { ...user, mustChangePassword: false },
-      action: "PASSWORD_CHANGED",
-      entity: "user",
-      entityId: user.id,
-      agencyId: user.agencyId,
-      metadata: { forced: true },
-    });
+    const version = await changeAccountPassword(user, parsed.data.current, parsed.data.password);
+    const session = await createSession(user.id, { expectedCredentialVersion: version });
+    await setSessionCookie(session.token, session.expiresAt);
     return "Password updated. Welcome!";
   });
 }
