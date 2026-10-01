@@ -307,6 +307,7 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
         eq(visaTypes.id, input.visaTypeId),
         eq(visaTypes.active, true),
         eq(countries.active, true),
+        eq(visaCategories.active, true),
         // Operations are DZD-only (§7). A programme priced in another currency
         // is not bookable until staff re-price it in DZD — no silent conversion.
         eq(visaTypes.currency, "DZD"),
@@ -360,6 +361,8 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
 
     const submittedId = submitted[0]?.id;
     if (!submittedId || !cfg) throw new AppError("CONFIG_ERROR", "Workflow is not configured.");
+    const agency = await client.query<{ status: string }>(`select status from ${qualifiedTable("agencies")} where id=$1 for update`, [agencyId]);
+    if (agency.rows[0]?.status !== "ACTIVE") throw new AppError("FORBIDDEN", "This agency is not active.");
 
     // Idempotency, re-checked inside the transaction (covers races between the
     // pre-check above and commit).
@@ -376,6 +379,35 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
         reused: true,
         charge: { balanceBefore: "0", balanceAfter: "0", transactionId: "" },
       };
+    }
+
+    // Storage can take time. Lock and re-read the programme and its checklist
+    // before making business rows or a charge; a changed preview must be reopened.
+    const current = await client.query<VisaConfigRow>(
+      `select visa.id as "visaTypeId", visa.name as "visaTypeName", visa.code as "visaTypeCode",
+              category.name as "categoryName", country.id as "countryId", country.name as "countryName",
+              visa.fee::text as fee, visa.currency, visa.processing_min_days as "processingMinDays", visa.processing_max_days as "processingMaxDays"
+         from ${qualifiedTable("visa_types")} visa
+         join ${qualifiedTable("countries")} country on country.id=visa.country_id
+         join ${qualifiedTable("visa_categories")} category on category.id=visa.category_id
+        where visa.id=$1 and visa.active and country.active and category.active and visa.currency='DZD'
+        for share of visa, country, category`, [cfg.visaTypeId],
+    );
+    const latest = current.rows[0];
+    if (!latest || (Object.keys(cfg) as (keyof VisaConfigRow)[]).some((key) => latest[key] !== cfg[key])) {
+      throw new AppError("VISA_TYPE_INVALID", "This programme changed while preparing your request. Reopen the request preview before confirming.");
+    }
+    const currentRequirements = await client.query<RequirementRow>(
+      `select type.id as "documentTypeId", type.name, type.name_fr as "nameFr", type.name_ar as "nameAr", type.code,
+              requirement.required, requirement.sort_order as "sortOrder", requirement.notes
+         from ${qualifiedTable("visa_requirements")} requirement
+         join ${qualifiedTable("document_types")} type on type.id=requirement.document_type_id
+        where requirement.visa_type_id=$1 and requirement.active and type.active
+        order by requirement.sort_order, requirement.id for share of requirement, type`, [cfg.visaTypeId],
+    );
+    const requirementSnapshot = (rows: RequirementRow[]) => JSON.stringify(rows.map((row) => [row.documentTypeId, row.name, row.nameFr ?? null, row.nameAr ?? null, row.code, row.required, row.sortOrder, row.notes]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
+    if (requirementSnapshot(requirements) !== requirementSnapshot(currentRequirements.rows)) {
+      throw new AppError("VISA_TYPE_INVALID", "The document checklist changed. Reopen the request preview before confirming.");
     }
 
     // The application row itself (SUBMITTED from birth — no draft stage).

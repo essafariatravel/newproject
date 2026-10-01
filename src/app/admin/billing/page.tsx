@@ -4,7 +4,7 @@ import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
 import { listAgencies, listWalletTransactions } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
-import { adjustWalletAction } from "@/app/actions/admin";
+import { WalletAdjustmentForm } from "@/components/wallet-adjustment-form";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
@@ -12,7 +12,7 @@ import { FilterBar, Pagination } from "@/components/app-widgets";
 import { TopupProcessForm } from "@/components/topup";
 import { processTopupAction } from "@/app/actions/topup";
 import { listTopupRequests } from "@/lib/topup";
-import { SubmitButton } from "@/components/forms";
+
 import { EmptyState, Flash, PageHeader, StatCard, TableWrap } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +42,7 @@ export default async function AdminBillingPage({
     listAgencies(),
     listTopupRequests({ status: "PENDING", limit: 50 }),
   ]);
-  const canAdjust = ["SUPER_ADMIN", "ADMIN", "ACCOUNTING"].includes(staff.role);
+  const canAdjust = hasPermission(staff,"wallet.adjust");
   const totalBalance = agencies.reduce((sum, a) => sum + Number(a.agency.balance), 0);
   const balanceByAgency = new Map(agencies.map((a) => [a.agency.id, a.agency.balance]));
 
@@ -70,7 +70,7 @@ export default async function AdminBillingPage({
         ) : (
           <div className="space-y-3">
             {topups.map((t) => (
-              <div key={t.id} className="card p-4">
+              <div key={t.id} id={`topup-${t.id}`} className="card p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="font-mono text-xs text-slate-500">{t.reference}</p>
@@ -81,6 +81,7 @@ export default async function AdminBillingPage({
                       · {formatAmount(t.amount, "DZD", uiLocale)}
                     </p>
                     {t.note ? <p className="mt-0.5 text-xs text-slate-500">{t.note}</p> : null}
+                    {t.proofFilename ? <Link className="text-sm underline" href={`/api/topups/${t.id}/proof`}>{ct("Open bank transfer receipt")}</Link> : <p className="text-sm text-red-700">{ct("A receipt is required before approval. Reject this request with instructions to send a new request and receipt.")}</p>}
                   </div>
                   <p className="text-xs text-slate-400">{formatDateTime(t.createdAt, uiLocale)}</p>
                 </div>
@@ -90,6 +91,7 @@ export default async function AdminBillingPage({
                       action={processTopupAction}
                       back="/admin/billing"
                       requestId={t.id}
+                      proofAvailable={Boolean(t.proofFilename)}
                       requestedAmount={t.amount}
                       agencyBalance={balanceByAgency.get(t.agencyId) ?? "0"}
                       locale={uiLocale}
@@ -199,37 +201,7 @@ export default async function AdminBillingPage({
       {canAdjust ? (
         <div className="mt-8">
           <h2 className="mb-3 font-serif text-xl text-navy-900">{ct("Manual wallet adjustment")}</h2>
-          <form action={adjustWalletAction} className="card grid grid-cols-1 gap-4 p-5 sm:grid-cols-5">
-            <input type="hidden" name="back" value="/admin/billing" />
-            <div>
-              <label className="label" htmlFor="agencyId">{ct("Agency")} *</label>
-              <select id="agencyId" name="agencyId" required className="input">
-                {agencies.map((a) => (
-                  <option key={a.agency.id} value={a.agency.id}>
-                    {a.agency.tradingName ?? a.agency.legalName}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label" htmlFor="operation">{ct("Operation")} *</label>
-              <select id="operation" name="operation" required className="input" defaultValue="CREDIT">
-                <option value="CREDIT">{ct("Credit wallet")}</option>
-                <option value="DEBIT">{ct("Debit wallet")}</option>
-              </select>
-            </div>
-            <div>
-              <label className="label" htmlFor="amount">{ct("Amount (DZD)")} *</label>
-              <input id="amount" name="amount" type="number" step="0.01" min="0.01" required className="input" placeholder="50000" />
-            </div>
-            <div>
-              <label className="label" htmlFor="reason">{ct("Reason (mandatory)")} *</label>
-              <input id="reason" name="reason" required minLength={5} className="input" placeholder={ct("Bank transfer #1234, refund…")} />
-            </div>
-            <div className="flex items-end">
-              <SubmitButton className="btn-primary" pendingLabel={ct("Adjusting…")}>{ct("Apply adjustment")}</SubmitButton>
-            </div>
-          </form>
+          <WalletAdjustmentForm agencies={agencies.map(({agency})=>({id:agency.id,name:agency.tradingName??agency.legalName,balance:agency.balance}))} back="/admin/billing" locale={uiLocale}/>
         </div>
       ) : null}
     </>

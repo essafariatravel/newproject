@@ -279,8 +279,9 @@ export async function recordDecisionAction(formData: FormData): Promise<void> {
       throw new AppError("VALIDATION", "Choose a decision outcome (Approved / Rejected).");
     }
     const file = formData.get("file");
-    const decisionFile = file instanceof File && file.size > 0
-      ? { name: file.name, type: file.type, size: file.size, data: Buffer.from(await file.arrayBuffer()) } : undefined;
+    if (!(file instanceof File) || file.size <= 0) throw new AppError("NO_FILE", "Select the official approval or refusal document before recording the decision.");
+    if (file.size > 2 * 1024 * 1024) throw new AppError("UPLOAD_TOO_LARGE", "Files must be 2 MB or smaller.");
+    const decisionFile = { name: file.name, type: file.type, size: file.size, data: Buffer.from(await file.arrayBuffer()) };
     const result = await recordApplicationDecision({
       applicationId,
       outcome: outcomeRaw as DecisionOutcome,
