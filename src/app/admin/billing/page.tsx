@@ -78,7 +78,7 @@ export default async function AdminBillingPage({
                       <Link href={`/admin/agencies/${t.agencyId}`} className="hover:underline">
                         {t.agencyName}
                       </Link>{" "}
-                      · {formatAmount(t.amount, "DZD", uiLocale)}
+                      · <bdi dir="ltr">{formatAmount(t.amount, "DZD", uiLocale)}</bdi>
                     </p>
                     {t.note ? <p className="mt-0.5 text-xs text-slate-500">{t.note}</p> : null}
                     {t.proofFilename ? <Link className="text-sm underline" href={`/api/topups/${t.id}/proof`}>{ct("Open bank transfer receipt")}</Link> : <p className="text-sm text-red-700">{ct("A receipt is required before approval. Reject this request with instructions to send a new request and receipt.")}</p>}

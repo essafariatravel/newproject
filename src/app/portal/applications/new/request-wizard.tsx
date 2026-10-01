@@ -688,7 +688,7 @@ export function RequestWizard(props: Props) {
               className="btn-primary w-full sm:w-auto disabled:opacity-50"
               data-testid="wizard-submit"
             >
-              {pending ? t.submitting : `${t.submitApplication} — ${visa ? formatDZD(visa.fee) : "—"}`}
+              {pending ? t.submitting : <>{t.submitApplication} — <bdi dir="ltr">{visa ? formatDZD(visa.fee) : "—"}</bdi></>}
             </button>
           ) : (
             <div className="space-y-3 rounded-2xl border border-gold-200 bg-gold-50 p-4">

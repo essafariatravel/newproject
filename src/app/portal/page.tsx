@@ -71,7 +71,7 @@ export default async function PortalDashboardPage() {
         <Link href="/portal/applications?queue=active"><strong>{totals.active}</strong><span>{ct("Active applications")}</span></Link>
         <Link href="/portal/applications?documents=requested"><strong>{(totals as { actionRequired?: number }).actionRequired ?? 0}</strong><span>{ct("Action required")}</span></Link>
         <Link href="/portal/applications?status=APPROVED"><strong>{totals.completed}</strong><span>{ct("Completed")}</span></Link>
-        <Link href="/portal/wallet"><strong className="wallet-value">{formatAmount(wallet.balance, "DZD", locale)}</strong><span>{ct("Wallet balance")}</span></Link>
+        <Link href="/portal/wallet"><strong className="wallet-value tabular-nums">{formatAmount(wallet.balance, "DZD", locale)}</strong><span>{ct("Wallet balance")}</span></Link>
       </nav>
 
       {data.needsAttention.length > 0 ? <section className="agency-record-section" aria-labelledby="attention-heading">

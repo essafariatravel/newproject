@@ -233,7 +233,7 @@ export default async function AdminAgencyDetailPage({
         <div className="space-y-4">
           {canAdjust ? (
             <Card>
-              <CardHeader title={ct("Wallet adjustment")} subtitle={`${ct("Current balance")} ${formatAmount(balance.balance, "DZD", uiLocale)}. DZD only. ${ct("Every adjustment is logged.")}`} />
+              <CardHeader title={ct("Wallet adjustment")} subtitle={<>{ct("Current balance")} <bdi dir="ltr">{formatAmount(balance.balance, "DZD", uiLocale)}</bdi>. DZD only. {ct("Every adjustment is logged.")}</>} />
               <WalletAdjustmentForm agencies={[{id:agency.id,name:agency.tradingName??agency.legalName,balance:balance.balance}]} back={`/admin/agencies/${id}`} locale={uiLocale}/>
             </Card>
           ) : null}

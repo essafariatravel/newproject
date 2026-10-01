@@ -484,9 +484,9 @@ export default async function AdminApplicationDetailPage({
               <div className="flex justify-between"><span className="text-slate-500">{ct("Fee")}</span><span className="font-medium tabular-nums">{formatAmount(app.fee, "DZD", uiLocale)}</span></div>
               {charge ? (
                 <>
-                  <div className="flex justify-between"><span className="text-slate-500">{ct("Amount")}</span><span>{formatAmount(charge.amount, "DZD", uiLocale)}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">{ct("Balance before")}</span><span>{formatAmount(charge.balanceBefore, "DZD", uiLocale)}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">{ct("Balance after")}</span><span>{formatAmount(charge.balanceAfter, "DZD", uiLocale)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">{ct("Amount")}</span><span className="tabular-nums">{formatAmount(charge.amount, "DZD", uiLocale)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">{ct("Balance before")}</span><span className="tabular-nums">{formatAmount(charge.balanceBefore, "DZD", uiLocale)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">{ct("Balance after")}</span><span className="tabular-nums">{formatAmount(charge.balanceAfter, "DZD", uiLocale)}</span></div>
                   <div className="flex justify-between"><span className="text-slate-500">{ct("Reference")}</span><span className="font-mono text-xs">{(charge as { reference?: string | null }).reference ?? charge.id.slice(0,8)}</span></div>
                 </>
               ) : <p className="text-xs text-slate-500">{ct("No charge recorded")}</p>}

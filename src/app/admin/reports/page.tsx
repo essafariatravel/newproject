@@ -123,7 +123,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
         <Card className="p-4">
           <h3 className="text-sm font-semibold text-navy-900">{ct("Wallet credits vs charges")}</h3>
           <p className="mt-1 text-sm text-slate-600">
-            {formatAmount(walletFlow.credits, "DZD", uiLocale)} {ct("credited")} · {formatAmount(walletFlow.charges, "DZD", uiLocale)} {ct("charged")}
+            <bdi dir="ltr">{formatAmount(walletFlow.credits, "DZD", uiLocale)}</bdi> {ct("credited")} · <bdi dir="ltr">{formatAmount(walletFlow.charges, "DZD", uiLocale)}</bdi> {ct("charged")}
           </p>
           <p className="mt-0.5 text-xs text-slate-400">{ct("All amounts are DZD. Correction entries appear as their own ledger rows.")}</p>
         </Card>
