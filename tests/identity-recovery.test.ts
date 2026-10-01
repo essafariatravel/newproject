@@ -9,6 +9,8 @@ import { authenticate, createSession, destroySession, getSessionUser, touchCurre
 import { createAccount, toggleAgencyAccess, updateAccount } from "@/lib/account-security";
 import { issueAccessToken, listRecoveryQueue, RECOVERY_ACKNOWLEDGEMENT, requestAccountRecovery, resetAccountFromToken, resolveAccessToken } from "@/lib/account-recovery";
 import { hashToken } from "@/lib/crypto";
+import { nextIp, registrationData } from "./helpers/fixtures";
+import { activateAccount, approveRegistration, createActivationTokenForRegistration, resolveActivation, submitAgencyRegistration } from "@/lib/registrations";
 
 suiteSetup();
 afterEach(() => { request.cookie = ""; });
@@ -134,5 +136,36 @@ describe("idle, absolute, logout and agency revocation", () => {
     await updateAccount(actor, target.id, { forceSignOut: true });
     await expect(createSession(target.id, { expectedCredentialVersion: target.credentialVersion })).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
     expect((await db.select().from(users).where(eq(users.id, target.id)))[0]?.credentialVersion).toBeGreaterThan(target.credentialVersion);
+  });
+});
+
+describe("replacement access links revoke both token generations", () => {
+  async function approvedRegistration() {
+    const actor = await superAdmin();
+    const registration = await submitAgencyRegistration({ data: registrationData(), files: [], ipAddress: nextIp() });
+    const approved = await approveRegistration({ actor, registrationId: registration.id });
+    return { actor, registration, approved };
+  }
+
+  it.each(["ACTIVATION", "PASSWORD_RESET"] as const)("a new %s link invalidates an unused legacy activation", async (purpose) => {
+    const { actor, registration, approved } = await approvedRegistration();
+    const old = await createActivationTokenForRegistration(registration.id, actor);
+    expect(await resolveActivation(old.token)).not.toBeNull();
+    const replacement = await issueAccessToken(actor, approved.adminUserId, purpose);
+    expect(await resolveActivation(old.token)).toBeNull();
+    await expect(activateAccount(old.token, "OldLink-Password-123")).rejects.toMatchObject({ code: "INVALID_TOKEN" });
+    await resetAccountFromToken(replacement.token, "Replacement-Password-123");
+    expect((await authenticate(approved.username, "Replacement-Password-123")).id).toBe(approved.adminUserId);
+  });
+
+  it("a legacy replacement invalidates unused access tokens while remaining consumable", async () => {
+    const { actor, registration, approved } = await approvedRegistration();
+    const old = await issueAccessToken(actor, approved.adminUserId);
+    expect(await resolveAccessToken(old.token)).not.toBeNull();
+    const replacement = await createActivationTokenForRegistration(registration.id, actor);
+    expect(await resolveAccessToken(old.token)).toBeNull();
+    await expect(resetAccountFromToken(old.token, "OldLink-Password-123")).rejects.toMatchObject({ code: "INVALID_TOKEN" });
+    await activateAccount(replacement.token, "LegacyReplacement-Password-123");
+    expect((await authenticate(approved.username, "LegacyReplacement-Password-123")).id).toBe(approved.adminUserId);
   });
 });

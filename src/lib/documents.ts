@@ -96,6 +96,7 @@ export async function listDocumentsForApplication(applicationId: string) {
 }
 
 export async function getDocumentForUser(documentId: string, user: AuthUser) {
+  if (user.mustChangePassword) throw new AppError("PASSWORD_CHANGE_REQUIRED", "You must set a new password before continuing.");
   const rows = await db
     .select({
       doc: documents,
@@ -337,15 +338,20 @@ export async function reviewDocument(input: ReviewInput) {
   const rows = await db
     .select({
       doc: documents,
+      documentTypeCode: documentTypes.code,
       appAgencyId: applications.agencyId,
       appReference: applications.reference,
     })
     .from(documents)
     .innerJoin(applications, eq(documents.applicationId, applications.id))
+    .leftJoin(documentTypes, eq(documents.documentTypeId, documentTypes.id))
     .where(eq(documents.id, input.documentId))
     .limit(1);
   const row = rows[0];
   if (!row) throw new AppError("NOT_FOUND", "Document not found.");
+  if (row.documentTypeCode?.startsWith("DECISION_")) {
+    throw new AppError("DECISION_DOCUMENT_LOCKED", "Official decision documents cannot be changed through document review.");
+  }
 
   const requiresReason = input.status === "REJECTED" || input.status === "RESUBMISSION_REQUIRED";
   const reason = input.rejectionReason?.trim() ?? "";

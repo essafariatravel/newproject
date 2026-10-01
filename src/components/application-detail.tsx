@@ -217,7 +217,7 @@ export function DocumentList(props: {
             ) : null}
           </div>
 
-          {isStaff ? (
+          {isStaff && !documentTypeCode?.startsWith("DECISION_") ? (
             <form action={reviewDocumentAction} className="mt-3 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
               <input type="hidden" name="documentId" value={doc.id} />
               <input type="hidden" name="applicationId" value={props.applicationId} />

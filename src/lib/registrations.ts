@@ -27,7 +27,7 @@ import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 import { qualifiedTable } from "@/lib/database-schema";
 import { requirePermission } from "@/lib/rbac";
 import { legacyAgencyUsername } from "@/lib/identity-policy";
-import { lockIdentityState, recordIdentityAudit, requireRecoveryManager, revokeUserAccess } from "@/lib/account-security";
+import { lockIdentityState, recordIdentityAudit, requireRecoveryManager, revokeUnusedAccessTokens, revokeUserAccess } from "@/lib/account-security";
 import {
   accountActivationTokens,
   agencies,
@@ -915,9 +915,7 @@ export async function createActivationTokenForRegistration(
       throw new AppError("INVALID_STATE", "Reactivate the account and agency before issuing access.");
     }
     // single live link at a time: revoke previous unused tokens
-    await tx
-      .delete(accountActivationTokens)
-      .where(and(eq(accountActivationTokens.userId, reg.adminUserId!), isNull(accountActivationTokens.usedAt)));
+    await revokeUnusedAccessTokens(tx, reg.adminUserId!);
     await tx.insert(accountActivationTokens).values({
       userId: reg.adminUserId!,
       tokenHash: hashToken(token),

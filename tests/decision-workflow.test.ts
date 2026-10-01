@@ -26,13 +26,28 @@ import {
   recordApplicationDecision,
   submitApplication,
 } from "@/lib/applications";
-import { getDocumentForUser, uploadDocument } from "@/lib/documents";
+import { getDocumentForUser, reviewDocument, uploadDocument } from "@/lib/documents";
 import { adjustWallet } from "@/lib/wallet";
 import { storageProvider } from "@/lib/storage";
 
 suiteSetup();
 
 const PDF = Buffer.from("%PDF-1.7 decision letter stub content");
+
+describe("official final documents retain their decision record", () => {
+  for (const outcome of ["APPROVED", "REJECTED"] as const) {
+    it.each(["UNDER_REVIEW", "REJECTED", "RESUBMISSION_REQUIRED"] as const)(`generic %s review cannot alter an official ${outcome} document`, async (reviewStatus) => {
+      const { app, staff } = await appAt();
+      const recorded = await recordApplicationDecision({ applicationId: app.id, actor: staff, outcome, file: { name: "official.pdf", type: "application/pdf", size: PDF.length, data: PDF } });
+      const [before] = await db.select().from(documents).where(eq(documents.id, recorded.documentId));
+      await expect(reviewDocument({ documentId: recorded.documentId, actor: staff, status: reviewStatus, rejectionReason: "Generic review must not invalidate a decision." })).rejects.toMatchObject({ code: "DECISION_DOCUMENT_LOCKED" });
+      const [after] = await db.select().from(documents).where(eq(documents.id, recorded.documentId));
+      expect(after).toEqual(before);
+      expect(await currentStatus(app.id)).toBe(outcome);
+      expect((await getDocumentForUser(recorded.documentId, staff)).doc.status).toBe("ACCEPTED");
+    });
+  }
+});
 
 async function particularStaff(role: "ADMIN" | "VISA_AGENT" = "ADMIN") {
   return userByEmail(role === "ADMIN" ? "admin@test.example" : "agent@test.example");

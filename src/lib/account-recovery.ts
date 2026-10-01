@@ -4,7 +4,7 @@ import { accountAccessTokens, accountRecoveryRequests, agencies, users } from "@
 import { generateSessionToken, hashPassword, hashToken } from "@/lib/crypto";
 import { AppError, type AuthUser, type Role } from "@/lib/types";
 import { assertAccountManager, normalizeAgencyUsername } from "@/lib/identity-policy";
-import { currentAccountActor, lockIdentityState, recordIdentityAudit, requireRecoveryManager, revokeUserAccess } from "@/lib/account-security";
+import { currentAccountActor, lockIdentityState, recordIdentityAudit, requireRecoveryManager, revokeUnusedAccessTokens, revokeUserAccess } from "@/lib/account-security";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 
 export const RECOVERY_ACKNOWLEDGEMENT = "If this account is eligible, your access request will be reviewed. Contact your account manager if you need help.";
@@ -54,7 +54,7 @@ export async function issueAccessToken(actor: AuthUser, userId: string, purpose:
       if (!request || request.status !== "PENDING" || request.userId !== userId) throw new AppError("VALIDATION", "This recovery request is no longer actionable.");
       await tx.update(accountRecoveryRequests).set({ status: "LINK_ISSUED", resolvedBy: current.id, resolvedAt: new Date() }).where(eq(accountRecoveryRequests.id, requestId));
     }
-    await tx.delete(accountAccessTokens).where(and(eq(accountAccessTokens.userId, userId), isNull(accountAccessTokens.usedAt)));
+    await revokeUnusedAccessTokens(tx, userId);
     await tx.insert(accountAccessTokens).values({ userId, tokenHash: hashToken(token), purpose, credentialVersion: row.user.credentialVersion, expiresAt, createdBy: current.id });
     await recordIdentityAudit(tx, { actor: current, action: purpose === "ACTIVATION" ? "ACTIVATION_LINK_CREATED" : "PASSWORD_RESET_LINK_CREATED", entity: "user", entityId: userId,
       agencyId: row.user.agencyId, metadata: { purpose, expiresAt: expiresAt.toISOString(), recoveryRequestId: requestId } });

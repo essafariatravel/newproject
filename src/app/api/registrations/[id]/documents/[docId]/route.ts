@@ -16,15 +16,18 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string; docId: string }> },
 ) {
-  const { id, docId } = await params;
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  }
+  if (user.mustChangePassword) {
+    return NextResponse.json({ error: "You must set a new password before continuing.", code: "PASSWORD_CHANGE_REQUIRED" }, { status: 403 });
   }
   if (!hasPermission(user, "registrations.view")) {
     // Do not leak existence of the record.
     return NextResponse.json({ error: "Not found." }, { status: 404 });
   }
+  const { id, docId } = await params;
   try {
     const doc = await getRegistrationDocument(id, docId);
     if (!doc) {

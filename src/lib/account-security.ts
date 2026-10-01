@@ -32,12 +32,17 @@ export async function currentAccountActor(tx: IdentityTransaction, actor: AuthUs
 }
 
 /** Must run in the same transaction as the state/credential mutation. */
+export async function revokeUnusedAccessTokens(tx: IdentityTransaction, userId: string): Promise<void> {
+  await tx.delete(accountAccessTokens).where(and(eq(accountAccessTokens.userId, userId), isNull(accountAccessTokens.usedAt)));
+  await tx.delete(accountActivationTokens).where(and(eq(accountActivationTokens.userId, userId), isNull(accountActivationTokens.usedAt)));
+}
+
+/** Must run in the same transaction as the state/credential mutation. */
 export async function revokeUserAccess(tx: IdentityTransaction, userId: string): Promise<number> {
   const [changed] = await tx.update(users).set({ credentialVersion: sql`${users.credentialVersion} + 1` })
     .where(eq(users.id, userId)).returning({ version: users.credentialVersion });
   await tx.delete(sessions).where(eq(sessions.userId, userId));
-  await tx.delete(accountAccessTokens).where(and(eq(accountAccessTokens.userId, userId), isNull(accountAccessTokens.usedAt)));
-  await tx.delete(accountActivationTokens).where(and(eq(accountActivationTokens.userId, userId), isNull(accountActivationTokens.usedAt)));
+  await revokeUnusedAccessTokens(tx, userId);
   return changed?.version ?? 0;
 }
 
