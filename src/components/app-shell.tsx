@@ -11,6 +11,7 @@ import { initials } from "@/lib/format";
 import type { AuthUser } from "@/lib/types";
 import { NavList, type NavSection } from "@/components/nav-list";
 import { AgencyBottomNavigation } from "@/components/agency-bottom-navigation";
+import { presenceWritesSuppressed } from "@/lib/presence-preview-policy";
 
 export type { NavSection, NavItem } from "@/components/nav-list";
 
@@ -76,7 +77,7 @@ export function AppShell(props: {
             </span>
           </div>
           <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
-            <LivePresence staff={props.surface === "staff"} label={contentT(props.locale ?? "en")("Online now")} />
+            {!presenceWritesSuppressed() ? <LivePresence staff={props.surface === "staff"} label={contentT(props.locale ?? "en")("Online now")} /> : null}
             {props.headerExtras}
             {user.agencyName ? (
               <span className="workspace-header-context hidden max-w-[180px] items-center gap-1.5 truncate text-xs font-medium text-navy-700 sm:inline-flex">

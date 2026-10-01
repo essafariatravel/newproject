@@ -1,9 +1,11 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { qualifiedTable } from "@/lib/database-schema";
+import { presenceWritesSuppressed } from "@/lib/presence-preview-policy";
 
 /** Visible authenticated tabs send a heartbeat; multiple sessions count once. */
 export async function touchPresence(userId: string, tokenHash: string) {
+  if (presenceWritesSuppressed()) return;
   await db.execute(sql`insert into ${sql.raw(qualifiedTable("session_presence"))} (session_id, last_seen_at)
     select id, now() from ${sql.raw(qualifiedTable("sessions"))} where user_id=${userId} and token_hash=${tokenHash} and expires_at>now()
     on conflict (session_id) do update set last_seen_at=excluded.last_seen_at`);
