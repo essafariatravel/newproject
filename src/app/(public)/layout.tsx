@@ -12,8 +12,7 @@ import { PublicMotion } from "@/components/public-motion";
 export const dynamic = "force-dynamic";
 
 const NAV = [
-  { href: "/visas", label: "Visa Services" },
-  { href: "/countries", label: "Destinations" },
+  { href: "/", label: "Home" },
   { href: "/b2b", label: "For Agencies" },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
@@ -60,10 +59,9 @@ export default async function PublicLayout({ children }: { children: ReactNode }
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-gold-400">{tr("Platform")}</p>
             <ul className="mt-3 space-y-2 text-sm">
-              <li><Link className="text-white/70 transition-colors hover:text-white" href="/visas">{tr("Visa Services")}</Link></li>
-              <li><Link className="text-white/70 transition-colors hover:text-white" href="/countries">{tr("Destinations")}</Link></li>
-              <li><Link className="text-white/70 transition-colors hover:text-white" href="/b2b">{tr("B2B Services")}</Link></li>
-              <li><Link className="text-white/70 transition-colors hover:text-white" href="/login">{ct("Agency & Staff Login")}</Link></li>
+              <li><Link className="text-white/70 transition-colors hover:text-white" href="/b2b">{tr("For Agencies")}</Link></li>
+              <li><Link className="text-white/70 transition-colors hover:text-white" href="/login">{tr("Sign in")}</Link></li>
+              <li><Link className="text-white/70 transition-colors hover:text-white" href="/agency/register">{tr("Register your agency")}</Link></li>
             </ul>
           </div>
           <div>

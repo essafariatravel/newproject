@@ -78,6 +78,8 @@ function publicForm(): FormData {
   form.set("message", "Agence établie depuis 2012, 4 agences physiques.");
   form.set("terms", "true");
   form.set("privacy", "true");
+  form.set("termsVersion", "1");
+  form.set("privacyVersion", "1");
   form.set("accuracy", "true");
   // Mass-assignment attempt — must be ignored by the action input model.
   form.set("role", "SUPER_ADMIN");
@@ -133,7 +135,7 @@ describe("Phase 2 E2E — registration to portal", () => {
     expect((await getTransactions(agency.id)).length).toBe(0);
 
     /* 4 — ACTIVATION: generate link → set password through the public action */
-    const issued = await createActivationTokenForRegistration(reg.id, admin);
+    const issued = await createActivationTokenForRegistration(reg.id, await userByEmail("superadmin@test.example"));
     const activationForm = new FormData();
     activationForm.set("token", issued.token);
     activationForm.set("locale", "fr");
@@ -150,7 +152,7 @@ describe("Phase 2 E2E — registration to portal", () => {
     );
     const sessionUser = await getSessionUser();
     expect(sessionUser).not.toBeNull();
-    expect(sessionUser!.email).toBe("y.kaci@atlas-cristal.example");
+    expect(sessionUser!.email).toBe("contact@atlas-cristal.example");
     expect(sessionUser!.role).toBe("AGENCY_ADMIN");
     expect(sessionUser!.agencyId).toBe(agency.id);
 
