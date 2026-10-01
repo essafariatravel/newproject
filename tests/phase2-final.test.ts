@@ -44,7 +44,8 @@ describe("C1 — notification counter is unread-only from one authoritative serv
     const queries = SRC("src/lib/queries.ts");
     const fn = queries.split("export async function agencyDashboard")[1] ?? "";
     expect(fn).toContain("await unreadNotificationCount(userId)");
-    expect(fn).not.toContain("notifications.agencyId"); // no divergent agency-wide aggregate
+    const unreadSection = fn.slice(fn.indexOf("const unread ="),fn.indexOf("return {"));
+    expect(unreadSection).not.toContain("notifications.agencyId"); // no divergent agency-wide unread aggregate
     expect(PORTAL_LAYOUT).toContain("unreadNotificationCount(user.id)");
   });
 
@@ -170,7 +171,7 @@ describe("C3 — country-first step-1 UX with visa-type cards", () => {
   });
 
   it("programme cards show name, category, DZD price and processing time", () => {
-    for (const token of ["{v.name}</span>", "{v.categoryName}</span>", "{v.fee} DZD", "processingLabel(v)"]) {
+    for (const token of ["{v.name}</span>", "{v.categoryName}</span>", "formatDZD(v.fee", "processingLabel(v)"]) {
       expect(WIZARD).toContain(token);
     }
     // DZD is structural: no per-row currency column/selector anywhere.

@@ -4,6 +4,8 @@
  */
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { pool } from "@/lib/db";
+import { qualifiedTable } from "@/lib/database-schema";
 import {
   agencies,
   currencies,
@@ -199,16 +201,23 @@ export async function seedFixtures(): Promise<void> {
     { email: "admin@test.example", passwordHash: pw, name: "Back Admin", role: "ADMIN" },
     { email: "agent@test.example", passwordHash: pw, name: "Visa Agent", role: "VISA_AGENT" },
     { email: "accounting@test.example", passwordHash: pw, name: "Accounting", role: "ACCOUNTING" },
-    { email: "a-admin@test.example", passwordHash: pw, name: "A Admin", role: "AGENCY_ADMIN", agencyId: agencyRows[0]!.id },
-    { email: "a-user@test.example", passwordHash: pw, name: "A User", role: "AGENCY_USER", agencyId: agencyRows[0]!.id },
-    { email: "b-admin@test.example", passwordHash: pw, name: "B Admin", role: "AGENCY_ADMIN", agencyId: agencyRows[1]!.id },
-    { email: "b-user@test.example", passwordHash: pw, name: "B User", role: "AGENCY_USER", agencyId: agencyRows[1]!.id },
+    { email: "a-admin@test.example", username: "a-admin", passwordHash: pw, name: "A Admin", role: "AGENCY_ADMIN", agencyId: agencyRows[0]!.id },
+    { email: "a-user@test.example", username: "a-user", passwordHash: pw, name: "A User", role: "AGENCY_USER", agencyId: agencyRows[0]!.id },
+    { email: "b-admin@test.example", username: "b-admin", passwordHash: pw, name: "B Admin", role: "AGENCY_ADMIN", agencyId: agencyRows[1]!.id },
+    { email: "b-user@test.example", username: "b-user", passwordHash: pw, name: "B User", role: "AGENCY_USER", agencyId: agencyRows[1]!.id },
   ]);
+  // Synthetic acceptance text only for disposable tests. Never shipped as legal content.
+  for (const locale of ["en", "fr", "ar"]) {
+    for (const kind of ["terms", "privacy"]) {
+      await pool.query(`insert into ${qualifiedTable("legal_versions")} (kind,locale,version,body,published_at,author_id) select $1,$2,1,'TEST ONLY - synthetic legal fixture',now(),id from ${qualifiedTable("users")} where email='superadmin@test.example' on conflict do nothing`, [kind,locale]);
+    }
+  }
 }
 
 export function authUser(overrides: {
   id: string;
   email: string;
+  username?: string | null;
   name?: string;
   role: string;
   agencyId?: string | null;
@@ -216,6 +225,7 @@ export function authUser(overrides: {
   return {
     id: overrides.id,
     email: overrides.email,
+    username: overrides.username ?? null,
     name: overrides.name ?? overrides.email,
     role: overrides.role as never,
     agencyId: overrides.agencyId ?? null,
@@ -236,7 +246,7 @@ export async function documentTypeIdByCode(code: string): Promise<string> {
 export async function userByEmail(email: string) {
   const rows = await db.select().from(users);
   const u = rows.find((r) => r.email === email)!;
-  return authUser({ id: u.id, email: u.email, name: u.name, role: u.role, agencyId: u.agencyId });
+  return authUser({ id: u.id, email: u.email, username: u.username, name: u.name, role: u.role, agencyId: u.agencyId });
 }
 
 export async function agencyByEmail(email: string) {

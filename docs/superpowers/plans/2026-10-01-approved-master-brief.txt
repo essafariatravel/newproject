@@ -1,0 +1,1709 @@
+ESSAFARIA VISA OS
+PRE-PRODUCTION MASTER HARDENING & PRODUCT REVIEW
+
+You are now responsible for taking the approved ESSAFARIA North Star Preview and turning it into a safe, coherent, production-candidate release.
+
+This is NOT another design exploration.
+
+This is a PRE-PRODUCTION PRODUCT HARDENING phase covering:
+- product UX
+- authentication
+- authorization
+- workflows
+- data integrity
+- security
+- multilingual UX
+- operational Staff tooling
+- configuration
+- regression prevention
+- final Preview validation
+
+==================================================
+BASELINE
+==================================================
+
+Repository:
+essafariatravel/newproject
+
+Approved current branch:
+design/essafaria-northstar
+
+Approved baseline SHA:
+2a4e629fcf4c306dc6a1d85dd27998bf70d92588
+
+Current hosted Preview was validated against:
+visa_os_preview
+
+Production schema:
+visa_os
+
+Production must remain untouched.
+
+Create a NEW isolated branch/worktree from the exact baseline:
+
+preprod/essafaria-final-hardening
+
+Do not modify or rewrite the approved design branch.
+
+==================================================
+ROLE
+==================================================
+
+Act simultaneously as:
+
+- Principal Product Engineer
+- Senior UX/Product Designer
+- Security-minded Application Architect
+- Database/Data Integrity Engineer
+- QA Lead
+- B2B Travel Operations Product Owner
+- Critical Reviewer
+
+Use the project-local skill:
+
+essafaria-product-design
+
+Use other available skills intelligently where useful, including planning, debugging, TDD, browser verification, screenshots, accessibility and independent review.
+
+Do not blindly use every available skill.
+
+==================================================
+AUTONOMY MANDATE
+==================================================
+
+The requirements below are the minimum product decisions already approved.
+
+You are NOT limited to fixing only explicitly listed issues.
+
+You are authorized to identify and implement adjacent improvements when they:
+
+- clearly improve usability, safety, consistency or operational efficiency
+- are directly related to the reviewed product areas
+- preserve ESSAFARIA’s business model
+- do not introduce speculative features
+- do not expose Production
+- can be validated with tests or browser evidence
+
+When you discover an adjacent issue:
+1. analyze it,
+2. decide whether it belongs in this pre-production release,
+3. implement it if the risk is reasonable,
+4. test it,
+5. document it under “Agent-discovered improvements”.
+
+Do not ask for approval for every small improvement.
+
+Only stop for:
+- a genuine architectural contradiction,
+- Production access,
+- destructive Production data action,
+- missing secrets/credentials that cannot be safely avoided,
+- legal/business information that must come from the owner,
+- or a change whose consequences cannot be determined safely.
+
+Do not invent company/legal information.
+
+==================================================
+CORE PRODUCT PRINCIPLES
+==================================================
+
+ESSAFARIA is a B2B visa operations platform.
+
+Agency experience:
+consumer-grade simplicity with professional B2B operations.
+
+Staff experience:
+dense operational cockpit.
+
+Core grammar:
+
+Destination
+→ Traveller
+→ Status
+→ Next Action
+
+Preserve:
+
+- one traveller per application
+- traveller = full name + nationality only
+- Algeria default nationality
+- exactly 3 application steps:
+  1. Visa & Traveller
+  2. Documents
+  3. Review & Submit
+- DZD operational currency
+- immutable wallet ledger
+- atomic/idempotent wallet debit
+- wallet can never become negative
+- tenant isolation server-side
+- document size <= 2 MB for visa dossier documents
+- submitted dossier locking
+- specific replacement/additional document slots may be reopened by Staff
+- history/versioning preserved
+- inactive catalogue items never break historical dossiers
+
+Do not silently change these rules.
+
+==================================================
+PHASE 0 — AUDIT FIRST
+==================================================
+
+Before editing:
+
+- inspect current repository
+- inspect git status
+- inspect current schema/migrations
+- inspect auth/session implementation
+- inspect current RBAC
+- inspect application workflow
+- inspect wallet implementation
+- inspect file storage/security
+- inspect notification model
+- inspect Agency registration workflow
+- inspect Staff registration/review workflow
+- inspect configuration data model
+- inspect current tests
+
+Create a concise implementation plan.
+
+The user PRE-AUTHORIZES execution of this brief after your plan.
+
+Do NOT pause merely to request written-plan approval.
+
+Then execute autonomously in logical phases.
+
+==================================================
+1. PUBLIC WEBSITE — PRIVATE CATALOGUE
+==================================================
+
+The public website must become LESS informational and MORE premium/cinematic.
+
+PUBLIC:
+brand + trust + aspiration + conversion
+
+AUTHENTICATED PORTAL:
+visa catalogue + countries + requirements + pricing + operational data
+
+Remove public exposure of:
+
+- Visa Services catalogue
+- destination/country catalogue
+- visa products
+- visa requirements
+- prices
+- processing details
+
+This must be enforced server-side.
+
+Do not merely hide menu items.
+
+Verify that unauthenticated users cannot retrieve catalogue data by:
+
+- direct route
+- API
+- server action
+- sitemap
+- page source
+- metadata
+- predictable URL
+
+Public navigation should be simplified around:
+
+- Home
+- For Agencies
+- About
+- Contact where useful
+- Sign in
+- Register agency
+
+The public website may become significantly more cinematic.
+
+Prioritize:
+- powerful travel imagery
+- stronger ESSAFARIA brand presence
+- fewer words
+- better typography
+- restrained motion
+- clear B2B positioning
+- premium international travel feeling
+
+Avoid:
+- country cards
+- visa cards
+- SaaS feature-card walls
+- long technical explanations
+- exposing wallet/workflow mechanics publicly
+
+Preserve usability and performance.
+
+For Agencies should explain value and partnership without exposing private operational information.
+
+About should be short and credible.
+
+Do not invent address, phone, legal registration, email or company facts.
+
+Hide unset information instead of displaying placeholders.
+
+==================================================
+2. AGENCY REGISTRATION — SIMPLIFY
+==================================================
+
+The current public Agency registration is too technical and too long.
+
+Replace it with a minimal application.
+
+Target information:
+
+- Agency name
+- primary contact name
+- shared professional agency email
+- phone / WhatsApp
+- city/address where useful
+
+Do NOT require at first contact:
+
+- registration/company numbers
+- fiscal IDs
+- licence numbers
+- business volume
+- market lists
+- administrative documents
+- unnecessary business profiling
+
+The Agency submits first.
+
+Staff reviews second.
+
+Staff may then request additional information and/or administrative documents.
+
+Create a coherent post-registration verification workflow:
+
+New
+→ In review
+→ More information/documents requested
+→ Approved
+or Rejected
+
+Staff must be able to request specific administrative documents after review.
+
+Agency must have a secure place to upload only the requested administrative documents.
+
+This workflow is distinct from traveller/visa dossier documents.
+
+Add duplicate-detection assistance for likely duplicate agencies using safe indicators such as name/contact email/phone.
+
+Do not auto-reject merely because of a possible duplicate.
+
+==================================================
+3. AGENCY AUTHENTICATION MODEL
+==================================================
+
+Change Agency authentication away from individual email-based identities.
+
+Business requirement:
+
+One Agency may have ONE shared agency mailbox
+while having MULTIPLE human users.
+
+Agency users authenticate with:
+
+USERNAME + PASSWORD
+
+Each user remains an independent auditable identity attached to one Agency tenant.
+
+The shared email belongs primarily to the Agency, not to each user.
+
+Agency user model should support:
+
+- full name
+- unique username
+- agency
+- role
+- status
+- last login
+- optional personal email only if architecture genuinely benefits from it, but it must NOT be required for login
+
+Choose a safe username normalization and uniqueness model.
+
+Prefer globally unique usernames if login is username-only.
+
+Prevent case/normalization collisions.
+
+Do not expose whether a username exists through public auth error messages.
+
+==================================================
+4. AGENCY USER ROLES
+==================================================
+
+Keep Agency V1 simple:
+
+AGENCY_ADMIN
+AGENCY_USER
+
+AGENCY_ADMIN may:
+- manage Agency team
+- create/suspend/reactivate Agency users
+- reset user access
+- update allowed Agency profile information
+- manage Agency logo
+- request wallet top-up
+- inspect financial ledger if currently allowed
+- perform normal dossier operations
+
+AGENCY_USER may:
+- see all dossiers belonging to their Agency tenant
+- create applications
+- upload permitted documents
+- respond to document requests
+- use dossier messages
+- see notifications
+- see operational wallet balance when needed for submission
+- perform normal visa operations
+
+AGENCY_USER must NOT:
+- manage other users
+- change Agency administration
+- change Agency logo
+- perform sensitive wallet administration
+- see unnecessary financial administration
+- access another Agency tenant
+
+Enforce permissions SERVER-SIDE.
+
+Do not rely only on hidden buttons.
+
+Add authorization regression tests.
+
+==================================================
+5. AGENCY TEAM MANAGEMENT
+==================================================
+
+Adapt Profile / Team to username-based accounts.
+
+Agency Admin should be able to create:
+
+- Full name
+- Username
+- Role
+
+No unique personal email requirement.
+
+For first-time access, choose the safest practical mechanism supported by the architecture:
+
+- one-time temporary credential requiring immediate password change
+OR
+- one-time activation token/link
+
+Permanent passwords must never be retrievable later.
+
+Support:
+
+- Invited / Pending activation where relevant
+- Active
+- Suspended
+- Reactivate
+- Reset access/password
+- Force sign-out where appropriate
+- Last login
+
+Do not destroy historical audit identity when suspending a user.
+
+==================================================
+6. STAFF IDENTITY MODEL
+==================================================
+
+Staff is different.
+
+Staff users use:
+
+UNIQUE PROFESSIONAL EMAIL + PASSWORD
+
+For V1 the team is only approximately 3 people.
+
+Do NOT build a complex permission matrix now.
+
+V1 effective model:
+
+- SUPER_ADMIN
+- STAFF operational access
+
+All current operational Staff may have the same operational permissions.
+
+If the current internal role enum already contains ADMIN / VISA_AGENT / ACCOUNTING, choose the safest migration or compatibility strategy rather than destructively rewriting the system unnecessarily.
+
+SUPER_ADMIN remains privileged.
+
+Protect the last active SUPER_ADMIN:
+the system must not permit accidental lockout by suspending/removing/demoting the final SUPER_ADMIN.
+
+Future:
+architecture should remain extensible for a later Super Admin per-user permission matrix.
+
+Do not implement the full future permission editor now.
+
+==================================================
+7. PASSWORD RESET / ACCOUNT RECOVERY
+==================================================
+
+Add a real Forgot Password flow.
+
+Agency:
+
+username
+→ generic recovery request response
+→ request reaches SUPER_ADMIN / authorized recovery queue
+→ authorized Staff generates a one-time reset link/token
+→ user sets a new password
+→ token becomes invalid
+→ existing sessions are revoked
+
+Later SMTP will send this link automatically to the Agency shared mailbox.
+
+Do NOT implement full SMTP in this release.
+
+Prepare the architecture cleanly so SMTP can be added later.
+
+Staff recovery should use Staff identity/email appropriately.
+
+Security requirements:
+
+- generic public responses
+- no account enumeration
+- rate limiting / abuse protection
+- expiring reset token
+- single use
+- secure token storage
+- audit events
+- session revocation after successful reset
+
+==================================================
+8. SESSION SECURITY
+==================================================
+
+Current sessions appear to remain active indefinitely.
+
+Implement a coherent session lifecycle.
+
+Requirements:
+
+- inactivity expiration
+- sensible absolute session lifetime
+- Staff stricter than Agency where appropriate
+- session-expired user redirected cleanly to login
+- logout invalidates session
+- password change revokes other sessions
+- password reset revokes previous sessions
+- user suspension revokes sessions
+- Agency suspension revokes affected Agency sessions
+
+Choose reasonable defaults based on the current stack and document them.
+
+Do not create frustrating timeouts that interrupt active work.
+
+==================================================
+9. AGENCY DESKTOP ACCOUNT MENU
+==================================================
+
+Mobile logout already exists.
+
+Desktop must expose account actions.
+
+Make the current user/Agency identity control open a proper account menu containing appropriate actions such as:
+
+- My account
+- Agency profile when authorized
+- Change password
+- Sign out
+
+Keep desktop/mobile behavior conceptually consistent.
+
+==================================================
+10. AGENCY DASHBOARD
+==================================================
+
+Preserve the current North Star character.
+
+Refine it for daily operations:
+
+- keep travel-led entrance
+- compact the hero enough that operational content appears earlier
+- keep Active / Action required / Completed / Wallet useful
+- KPI items should link to meaningful filtered views
+- Action Required area should collapse or disappear when empty
+- recent applications should emphasize:
+  Traveller
+  Destination / Visa
+  Status
+  Next Action
+  Last update
+- reference remains secondary
+- add useful dossier search if it can be implemented safely
+- wallet activity should stay compact
+- avoid generic SaaS cards
+
+Let the dashboard adapt intelligently to actual state.
+
+==================================================
+11. APPLICATION LIST / DOSSIER UX
+==================================================
+
+Applications:
+
+improve scanability around:
+
+Traveller
+Destination / Visa
+Status
+Next Action
+Last update
+
+Simplify filters where useful.
+
+Dossier should feel like a TRAVEL RECORD, not an admin label/value sheet.
+
+Top hierarchy:
+
+Traveller
+Destination
+Visa
+Status
+Next Action
+
+Keep billing secondary.
+
+Improve progress/timeline semantics.
+
+==================================================
+12. ACTION REQUIRED BUG
+==================================================
+
+Confirmed bug:
+
+a dossier remains counted in Action Required after the requested action has been resolved.
+
+Fix the ROOT CAUSE.
+
+Action Required must reflect CURRENT OPEN ACTIONS, not historical events.
+
+Example:
+
+Staff requests passport replacement
+→ Action Required = true
+
+Agency uploads requested replacement
+→ the Agency-side requested action is resolved
+→ Action Required must immediately clear if no other action is open
+
+Staff may still need to review the new file, but that belongs in the relevant Staff review queue, not Agency Action Required.
+
+Ensure consistency across:
+
+- Agency dashboard
+- Staff dashboard
+- notification filter
+- work queues
+- counters
+- application pages
+
+Add regression tests.
+
+==================================================
+13. NEW APPLICATION WIZARD
+==================================================
+
+Keep EXACTLY:
+
+1. Visa & Traveller
+2. Documents
+3. Review & Submit
+
+Polish, do not redesign.
+
+Fix or improve:
+
+- possible duplicated nationality control
+- lighter optional Notes UX
+- better selected-visa presentation
+- better document upload success/error states
+- clear 3/3 readiness state
+- completed-step checkmarks
+- consistent summary
+- insufficient wallet explanation
+
+Use consistent DZD formatting:
+
+11 000 DZD
+
+not:
+11000.00 DZD
+11,000 DZD
+mixed formats
+
+No persistent abandoned drafts.
+
+Verify that current implementation does not create long-lived Draft applications.
+
+==================================================
+14. DOCUMENT REQUESTS AFTER SUBMISSION
+==================================================
+
+Preserve submitted dossier lock.
+
+Staff must be able to request:
+
+- replacement of an existing document
+AND
+- an additional document not originally required
+
+Only the requested slot becomes writable.
+
+Agency uploads the requested file.
+
+Slot relocks after response.
+
+Version/history remains preserved.
+
+Test both replacement and additional-document cases.
+
+==================================================
+15. FINAL VISA DECISION — CRITICAL INVARIANT
+==================================================
+
+Confirmed critical bug:
+
+Staff can mark a dossier Approved without uploading the official visa/approval document.
+
+This must become impossible.
+
+APPROVED requires:
+official approval / visa decision file
+
+REJECTED requires:
+official refusal/rejection document
+
+Enforce SERVER-SIDE.
+
+Do not merely disable UI buttons.
+
+Final decision must be atomic:
+
+decision type
++ official document
++ timestamp
++ Staff actor
++ optional note/reason
++ status transition
+
+If document upload fails:
+the terminal status must NOT be recorded.
+
+Do not allow APPROVED / REJECTED through generic “Change status” controls.
+
+Terminal decisions must go through the dedicated Final Decision workflow.
+
+Final document becomes visible to the Agency according to permissions.
+
+Add strong regression tests.
+
+==================================================
+16. WORKFLOW / STATUSES
+==================================================
+
+Target workflow remains approximately:
+
+Submitted
+→ Documents Checking
+→ In Process
+→ Sent to Embassy when applicable
+→ Approved / Rejected
+
+Document loop:
+
+Documents Checking or In Process
+→ Documents Requested
+→ Documents Checking
+→ resume processing
+
+Embassy/external-authority mode from Visa Type must be respected:
+
+Required
+→ cannot skip
+
+Optional
+→ may skip
+
+Not applicable
+→ embassy status should not be offered
+
+Legacy statuses should not pollute the clean V1 workflow after cleanup.
+
+Protect core system status codes.
+
+Do not allow arbitrary configuration to create states the application engine cannot safely interpret.
+
+Draft should remain internal/transient if technically required, not a long-lived operational status.
+
+Terminal states:
+Approved
+Rejected
+Cancelled
+
+must leave active queues.
+
+==================================================
+17. STAFF NOTIFICATIONS
+==================================================
+
+Fix the currently broken notification filters.
+
+Required filters:
+
+All
+Action required
+Applications
+Messages
+Wallet
+
+They must actually filter.
+
+Action Required must use OPEN CURRENT actions only.
+
+Improve notifications so they provide operational context:
+
+Agency
+Traveller
+Destination / Visa where relevant
+Reference
+event
+timestamp
+next action
+
+Reduce noise.
+
+Notifications should represent items worth human attention.
+
+Audit Log remains the exhaustive history.
+
+Unread state should be individual per Staff user.
+
+Mark-all-read must not mark notifications as read for the entire team.
+
+==================================================
+18. AGENCY NOTIFICATIONS
+==================================================
+
+Improve Agency notifications similarly:
+
+- traveller/destination context
+- next action
+- message context
+- wallet context
+- chronological grouping where useful
+- fewer repetitive buttons
+- contextual line click where appropriate
+
+Unread should be per human Agency user where the data model supports it safely.
+
+==================================================
+19. COMMUNICATIONS
+==================================================
+
+Agency Communications should become a cross-dossier inbox.
+
+Each conversation remains attached to a dossier.
+
+Show:
+
+- Traveller
+- Destination
+- Reference
+- latest message
+- timestamp
+- unread / needs reply
+
+Do NOT expose technical internal roles such as:
+
+SUPER_ADMIN
+ADMIN
+VISA_AGENT
+
+to Agencies.
+
+Use human-facing identity such as:
+
+ESSAFARIA Team
+
+or appropriate Staff display name.
+
+Staff Communications should become a dense operational inbox.
+
+Search/filter by:
+
+- traveller
+- agency
+- reference
+- unread
+- needs reply
+
+Internal Staff messages must NEVER become Agency-visible because of a UI/filter bug.
+
+Enforce message visibility server-side.
+
+==================================================
+20. WALLET TOP-UP WITH RECEIPT
+==================================================
+
+Add Agency top-up proof workflow.
+
+Agency top-up request should support:
+
+- requested amount
+- optional reference/note
+- proof of payment / bank transfer receipt upload
+- clear explanation that balance changes only after ESSAFARIA confirmation
+
+Receipt should use appropriate safe file formats/size limits.
+
+Staff workflow:
+
+Pending request
+→ inspect receipt
+→ Approve
+or Reject
+or Request clearer/new proof where useful
+
+Approval must create the wallet credit EXACTLY ONCE.
+
+Must be atomic/idempotent.
+
+Double-click, retry or refresh must never duplicate a credit.
+
+Wallet ledger remains immutable.
+
+Rejection should preserve reason.
+
+Request should link to generated wallet transaction after approval.
+
+Receipt access:
+Agency tenant involved + authorized Staff only.
+
+==================================================
+21. WALLET / BILLING STAFF
+==================================================
+
+Preserve immutable ledger.
+
+Improve manual wallet adjustment safety:
+
+- agency
+- credit/debit
+- amount
+- mandatory reason
+- resulting balance preview
+- explicit confirmation
+- actor recorded
+- audit event
+
+Never allow a debit to produce negative balance.
+
+Correction must be a compensating ledger entry, never editing history.
+
+Improve ledger linking:
+
+Application reference → dossier
+Agency → agency page
+Top-up reference → top-up request/proof
+
+==================================================
+22. STAFF DASHBOARD
+==================================================
+
+Keep it dense.
+
+Work Queue remains the centre.
+
+Improve:
+
+- Next Action
+- KPI cards/metrics open filtered queues
+- remove redundant Recent Applications if another view provides the same information
+- prioritize actionable queues
+- consider Agency Registrations pending as an operational metric
+- keep wallet info secondary
+- keep pipeline/audit compact
+- global search must either work meaningfully or be removed
+
+Because the team is currently small:
+do not overbuild complex assignment logic.
+
+==================================================
+23. AGENCY REGISTRATIONS — STAFF
+==================================================
+
+Adapt Staff review UI to the simplified registration model.
+
+Primary flow:
+
+Review
+→ Request info/documents
+→ Approved
+or Rejected
+
+No “legacy” labels in clean V1 UI.
+
+Make Next Action obvious.
+
+Administrative document requests should be targeted and trackable.
+
+Preserve consent/audit metadata but do not make it dominate the operational view.
+
+==================================================
+24. AGENCIES
+==================================================
+
+Unify current Agency creation flows.
+
+Avoid multiple overlapping “Create agency” forms.
+
+Agency should have:
+
+- identity
+- shared email
+- contact
+- address
+- users
+- applications
+- wallet
+- activity
+
+Staff Agency detail may use tabs if this improves usability:
+
+Overview
+Users
+Applications
+Wallet
+Documents
+Activity
+
+Support:
+
+Suspend agency
+Reactivate agency
+
+Suspension should revoke/disable active Agency access.
+
+==================================================
+25. STAFF USERS ADMINISTRATION
+==================================================
+
+Simplify V1 Staff administration.
+
+Operational staff have the same effective permission set for now.
+
+SUPER_ADMIN manages Staff accounts.
+
+Use safe user actions:
+
+- create
+- suspend
+- reactivate
+- reset access
+- force sign-out where appropriate
+
+Avoid risky inline role changes without confirmation.
+
+Do not implement the future fine-grained permission matrix yet.
+
+Architect cleanly for later extension.
+
+==================================================
+26. COUNTRIES
+==================================================
+
+Improve configuration safety:
+
+- Edit
+- EN / FR / AR names
+- validated unique ISO-2
+- controlled region values
+- sensible sort/order
+- show visa usage where useful
+- deactivate/reactivate
+- hard delete only when safely unreferenced
+
+Known Preview data issue:
+Türkiye appears associated with `IR`.
+
+Audit catalogue data quality and correct obvious test/config errors in the pre-production dataset or cleanup plan.
+
+==================================================
+27. VISA CATEGORIES
+==================================================
+
+Keep categories.
+
+They are taxonomy only.
+
+Support:
+
+- EN/FR/AR
+- generated/stable code
+- ordering
+- activation/deactivation
+- usage visibility
+
+One primary category per Visa Type for V1.
+
+No unnecessary complexity.
+
+==================================================
+28. VISA TYPES
+==================================================
+
+Preserve snapshot behavior for historical dossiers.
+
+Simplify lifecycle around something clear such as:
+
+Draft
+Active
+Inactive
+
+Avoid confusing duplicate Active/Published concepts.
+
+Before activation validate:
+
+- active country
+- active category
+- required translations
+- valid fee
+- valid processing-time mode
+- valid document checklist
+
+Improve editing experience.
+
+Add Duplicate Visa Type if safe and useful.
+
+Code should be stable after real usage.
+
+Processing time should distinguish:
+
+Fixed range
+vs
+On request
+
+Do not allow catalogue updates to rewrite historical submitted dossiers.
+
+==================================================
+29. DOCUMENT TYPES
+==================================================
+
+Preserve source distinction:
+
+Agency-provided
+ESSAFARIA-issued
+
+System decision document types must be protected.
+
+At minimum:
+
+Approval / visa decision document
+Refusal / rejection document
+
+They must not be casually deleted or converted to Agency-provided types.
+
+Support translations and usage visibility.
+
+Hard delete only when safe.
+
+==================================================
+30. PRIORITIES
+==================================================
+
+Keep priorities simple.
+
+Standard = default.
+
+Urgent = meaningful operational escalation.
+
+Express should exist only if it has a real business meaning.
+
+Agency should not freely mark everything Urgent.
+
+When Staff escalates priority, capture reason/audit where appropriate.
+
+Terminal dossiers must not remain in Urgent/active queue metrics.
+
+Queue sorting should respect priority and aging.
+
+==================================================
+31. REPORTS
+==================================================
+
+Audit report semantics.
+
+Use the correct event date for each metric.
+
+Examples:
+
+submission metrics → submission date
+decision metrics → decision date
+wallet metrics → transaction date
+
+Do not call wallet credits “revenue”.
+
+Validate processing-time calculations.
+
+Operational priority reports should not be polluted by terminal dossiers.
+
+Verify workload counts.
+
+Avoid listing meaningless zero-activity agencies by default.
+
+Exports must honor active filters.
+
+Agent may add high-value aging indicators if useful and low-risk.
+
+==================================================
+32. AUDIT LOG
+==================================================
+
+Audit Log must remain immutable.
+
+Improve human readability.
+
+Each relevant event should answer:
+
+WHO
+did WHAT
+to WHICH object
+WHEN
+and WHAT CHANGED
+
+Store/use structured details where possible:
+
+old value
+new value
+actor
+agency
+target
+reference
+reason
+
+Add useful target/reference linking.
+
+Preserve security-relevant events:
+
+login
+failed login where appropriate
+password reset
+password change
+user suspension
+role/status changes
+wallet
+decision
+documents
+configuration
+agency changes
+
+Display local timezone appropriately while preserving UTC source timestamps.
+
+==================================================
+33. SETTINGS / BRAND / LEGAL
+==================================================
+
+Do not let Brand Studio become a way to destroy the carefully designed product.
+
+Lock core design-system behaviour where appropriate.
+
+Allow safe management of:
+- logo
+- brand identity
+- controlled brand values
+- actual public content
+
+Do not expose unnecessary design knobs if they create inconsistent UI.
+
+Remove/hide demo placeholders such as:
+- `.example` addresses
+- fake phone numbers
+- incorrect countries/addresses
+
+Do NOT invent ESSAFARIA company facts.
+
+Surface missing real production content as blockers.
+
+Legal content must support:
+
+- EN
+- FR
+- AR / RTL
+- version
+- published date
+- author/audit
+
+Do not silently overwrite prior legal versions if user consent depends on them.
+
+Do not invent legal terms.
+
+If actual legal copy has not been supplied, implement the mechanism and clearly report:
+PRODUCTION BLOCKER — legal content required.
+
+==================================================
+34. I18N / RTL
+==================================================
+
+Perform a complete FR / EN / AR audit.
+
+Fix mixed-language screens.
+
+Verify:
+
+- labels
+- headings
+- notifications
+- validation errors
+- auth flows
+- password reset
+- wallet
+- files
+- legal
+- Staff
+- Agency
+- public site
+
+Arabic must be genuinely RTL.
+
+Directional icons and navigation must behave correctly.
+
+==================================================
+35. FILE SECURITY
+==================================================
+
+Audit all sensitive file access.
+
+Agency A must never retrieve Agency B files by URL manipulation.
+
+Check:
+
+- dossier uploads
+- replacement documents
+- additional document requests
+- decision documents
+- administrative Agency verification documents
+- top-up receipts
+
+Authorization must be server-side.
+
+Download audit behaviour must remain correct where required.
+
+==================================================
+36. GLOBAL ERROR / EDGE STATES
+==================================================
+
+Review and improve:
+
+- invalid login
+- expired session
+- access denied
+- 404
+- invalid reset link
+- expired reset link
+- upload too large
+- invalid format
+- interrupted upload
+- search with no results
+- wallet insufficient
+- duplicate submit
+- stale data / concurrent submission
+- disabled catalogue item during an active user flow
+
+Make error states helpful and restrained.
+
+==================================================
+37. TEST-DATA CLEANUP / GO-LIVE RESET
+==================================================
+
+IMPORTANT:
+
+Do NOT delete Production data during this task.
+
+Prepare a SAFE, AUDITABLE, ONE-TIME go-live reset mechanism.
+
+Goal immediately before first Production launch:
+
+remove ALL historical test/demo operational data, including where applicable:
+
+- test Agency registrations
+- test Agencies
+- test Agency users
+- test Staff except the real SUPER_ADMIN / explicitly approved real Staff
+- test applications
+- applicants
+- dossier documents/files
+- messages
+- notifications
+- replacement/additional requests
+- final decisions
+- top-up requests
+- wallet test balances
+- wallet test ledger
+- test audit data if legally/operationally appropriate before launch
+- test countries
+- test visa categories
+- test visa types
+- test configuration records not intended for launch
+- synthetic sessions/presence
+- related storage objects
+
+BUT preserve/recreate required SYSTEM PRIMITIVES:
+
+- SUPER_ADMIN
+- core workflow statuses
+- valid workflow transitions
+- system decision document types
+- essential priority defaults
+- other runtime primitives required for the application to operate
+
+Create:
+
+- dry-run mode
+- dependency-aware delete order
+- storage cleanup plan
+- pre-reset backup/restore-point requirement
+- protected-count checks
+- post-reset verification report
+
+Expected go-live verification should clearly show counts such as:
+
+Agencies = 0
+Agency users = 0
+Applications = 0
+Applicants = 0
+Operational documents = 0
+Messages = 0
+Top-up requests = 0
+Wallet test transactions = 0
+
+with only explicitly preserved system/admin records remaining.
+
+DO NOT execute this reset against Production without a separate explicit authorization.
+
+==================================================
+38. PRODUCTION SAFETY
+==================================================
+
+Production is forbidden during this implementation task.
+
+Do not:
+
+- merge main
+- deploy Production
+- migrate visa_os
+- seed visa_os
+- clean visa_os
+- modify Production data
+- promote Preview deployment
+
+Database/schema changes are allowed in code.
+
+Apply migrations first to local/test environments.
+
+Hosted Preview schema is:
+
+visa_os_preview
+
+If hosted Preview schema migration is needed:
+
+- positively verify project identity
+- positively verify schema = visa_os_preview
+- create an appropriate restore point/back-up
+- use fail-closed safeguards
+- never touch visa_os
+
+If identity cannot be proven:
+STOP before hosted DB write.
+
+==================================================
+39. IMPLEMENTATION QUALITY
+==================================================
+
+Do not produce a giant rewrite.
+
+Prefer:
+- focused migrations
+- small composable services
+- existing patterns
+- existing design system
+- explicit authorization helpers
+- strong tests
+- reversible commits
+
+Do not introduce a new component framework.
+
+Do not use a broad redesign to solve functional problems.
+
+==================================================
+40. TESTING
+==================================================
+
+Use systematic tests.
+
+Add/extend tests for at least:
+
+- Agency username auth
+- username uniqueness/normalization
+- Agency Admin vs Agency User authorization
+- cross-tenant isolation
+- password-reset security
+- session expiry/revocation
+- suspended user
+- suspended Agency
+- last SUPER_ADMIN protection
+- Action Required resolution
+- notification filters
+- unread per-user semantics where implemented
+- top-up receipt authorization
+- top-up approval idempotency
+- wallet non-negative invariant
+- final Approved decision requires approval document
+- final Rejected decision requires refusal document
+- terminal status cannot bypass Final Decision
+- additional/replacement document slot locking
+- workflow transitions
+- public catalogue inaccessible unauthenticated
+- sensitive file authorization
+- DZD formatting helpers where appropriate
+- i18n dictionary completeness
+- RTL-critical behaviour where testable
+
+Maintain all existing tests.
+
+==================================================
+41. BROWSER QA
+==================================================
+
+After local implementation is stable, test at:
+
+320px
+390px
+768px
+1440px
+
+Languages:
+
+FR
+EN
+AR / RTL
+
+Critical paths:
+
+PUBLIC
+- Home
+- For Agencies
+- About
+- Contact if retained
+- Login
+- Forgot password
+- Register Agency
+
+AGENCY
+- Dashboard
+- Applications
+- Dossier
+- Documents
+- Communications
+- Notifications
+- New Visa wizard
+- Wallet
+- Profile
+- Team
+- Logout
+- Agency Admin
+- Agency User
+
+STAFF
+- Dashboard
+- Notifications
+- Applications
+- Final decision
+- Communications
+- Agency registrations
+- Agencies
+- Users
+- Wallets
+- Countries
+- Visa Categories
+- Visa Types
+- Document Types
+- Workflow
+- Priorities
+- Reports
+- Audit
+- Settings
+
+Verify:
+- no horizontal overflow
+- keyboard/focus
+- touch targets
+- reduced motion
+- RTL
+- loading/error states
+- permissions
+- no internal role leakage
+- no cross-tenant data exposure
+
+==================================================
+42. VISUAL POLISH
+==================================================
+
+Only after functionality and information architecture are correct:
+
+use ESSAFARIA design skill and Impeccable where useful for one restrained refinement pass.
+
+Do not redesign the whole product again.
+
+Preserve:
+
+Agency:
+premium travel character
+
+Staff:
+dense operational character
+
+Public:
+cinematic premium brand character
+
+==================================================
+43. AGENT-DISCOVERED IMPROVEMENTS
+==================================================
+
+Before finalizing, perform your own critical product audit.
+
+Ask:
+
+- What would confuse a real Agency employee?
+- What would slow down a Staff operator?
+- What could cause financial inconsistency?
+- What could expose private information?
+- What will break when there are 500 dossiers instead of 5?
+- What looks finished in screenshots but fails in real use?
+- What behaviour contradicts the actual data model?
+- Which UI elements exist but do nothing?
+- Which features duplicate one another?
+- Which old/legacy behaviour should disappear before launch?
+
+You are explicitly authorized to fix additional meaningful issues discovered during this audit, provided they remain within the safety and business boundaries above.
+
+Document every such improvement.
+
+==================================================
+44. EXECUTION ORDER
+==================================================
+
+Use this high-level order:
+
+AUDIT
+→ PLAN
+→ DATA/AUTH FOUNDATION
+→ CRITICAL BUSINESS INVARIANTS
+→ AGENCY FLOWS
+→ STAFF FLOWS
+→ CONFIGURATION
+→ PUBLIC SITE
+→ I18N/RTL
+→ SECURITY REVIEW
+→ TESTS
+→ BROWSER QA
+→ ONE POLISH PASS
+→ INDEPENDENT REVIEW
+→ PREVIEW CANDIDATE
+→ STOP
+
+You may reorder internally when dependencies require it.
+
+Do not sacrifice correctness merely to follow this ordering literally.
+
+==================================================
+45. COMMITS
+==================================================
+
+Use logical, auditable commits.
+
+Do not make one giant commit.
+
+Separate major concerns such as:
+
+- auth/session model
+- Agency RBAC
+- registration/onboarding
+- wallet/top-up proof
+- workflow/final-decision invariants
+- notification/communications fixes
+- configuration safety
+- public site privacy/cinematic refinement
+- i18n/legal/settings
+- cleanup tooling
+- final polish
+
+Use your judgment for the exact commit boundaries.
+
+==================================================
+46. FINAL ACCEPTANCE
+==================================================
+
+Before claiming completion:
+
+- full tests green
+- typecheck green
+- lint green
+- optimized build green
+- DB/migration tests green
+- tenant isolation green
+- wallet invariants green
+- browser QA green
+- FR/EN/AR verified
+- Agency Admin / Agency User verified
+- Staff / SUPER_ADMIN verified
+- critical workflows verified
+
+Do not hide failures.
+
+==================================================
+47. FINAL REPORT
+==================================================
+
+Return a concise but complete final report containing:
+
+1. Branch and final HEAD
+2. What changed
+3. Critical bugs fixed
+4. Auth/account model implemented
+5. RBAC behaviour
+6. Workflow changes
+7. Wallet/top-up behaviour
+8. Public-site privacy changes
+9. Agency registration changes
+10. Staff workflow improvements
+11. Agent-discovered improvements beyond this brief
+12. Migrations added
+13. Tests added
+14. Exact automated pass/fail counts
+15. Browser QA evidence
+16. Screenshots
+17. Preview URL if safely deployed
+18. Known remaining issues
+19. Production blockers that require owner-provided information
+20. Go-live reset plan/status
+21. Confirmation that Production and main were untouched
+
+Then classify remaining work into:
+
+- MUST FIX BEFORE PRODUCTION
+- SAFE TO DO AFTER PRODUCTION
+- OPTIONAL / FUTURE
+
+Be critical.
+
+Do not declare “world-class” or “production-ready” merely because tests pass.
+
+STOP before merge or Production deployment.
