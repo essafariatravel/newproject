@@ -24,7 +24,13 @@
     "perf:evaluate": "tsx scripts/perf-evaluate.ts",
     "perf:wallet-races": "tsx scripts/perf-wallet-races-live.ts",
     "perf:storage": "tsx scripts/perf-storage-live.ts",
-    "perf:k6": "k6 run perf/k6/essafaria-load.js"
+    "perf:k6": "k6 run perf/k6/essafaria-load.js",
+    "perf:benchmark": "tsx scripts/perf-query-benchmark.ts",
+    "perf:explain": "tsx scripts/perf-explain.ts",
+    "perf:growth": "tsx scripts/perf-growth-matrix.ts",
+    "perf:regression": "tsx scripts/perf-regression.ts",
+    "perf:report": "tsx scripts/perf-report.ts",
+    "perf:exports": "k6 run perf/k6/essafaria-exports.js"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
