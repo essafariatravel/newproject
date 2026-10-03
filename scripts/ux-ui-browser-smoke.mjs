@@ -69,7 +69,7 @@ async function inspectPage(context, route, label, locale, viewportName, options 
     timeout: 60_000,
   });
   try {
-    await page.waitForLoadState("networkidle", { timeout: 15_000 });
+    await page.waitForLoadState("networkidle", { timeout: 3_000 });
   } catch {
     // Long-lived development connections are acceptable; DOM is already loaded.
   }
@@ -146,7 +146,7 @@ async function login(context, identifier, password, expectedPrefix) {
 async function firstDossierPath(context, listRoute, prefix) {
   const page = await context.newPage();
   await page.goto(new URL(listRoute, baseURL).toString(), { waitUntil: "domcontentloaded", timeout: 60_000 });
-  try { await page.waitForLoadState("networkidle", { timeout: 10_000 }); } catch {}
+  try { await page.waitForLoadState("networkidle", { timeout: 3_000 }); } catch {}
   const hrefs = await page.locator('a[href^="' + prefix + '"]').evaluateAll((els) =>
     els.map((el) => el.getAttribute("href")).filter(Boolean)
   );
