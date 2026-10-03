@@ -10,6 +10,7 @@ on:
       - "scripts/dr-verify-manifest.ts"
       - "scripts/dr-verify-restore.ts"
       - "scripts/dr-create-backup.ts"
+      - "scripts/dr-restore.ts"
       - "scripts/lib/dr-backup.ts"
       - "scripts/reset.ts"
       - "scripts/lib/reset-plan.ts"
@@ -83,6 +84,38 @@ jobs:
           CODE=$?
           set -e
           test "$CODE" -eq 2
+
+      - name: Prove backup creator refuses a wrong Production project before pg_dump
+        shell: bash
+        run: |
+          set +e
+          DR_BACKUP_ENVIRONMENT=PRODUCTION \
+          DR_STORAGE_MODE=DATABASE_BLOBS \
+          DR_RELEASE_SHA=53dc61de334c6412c1e5337b4f745c360f69facd \
+          DATABASE_SCHEMA=visa_os \
+          DATABASE_URL='postgresql://postgres.ridoyedqgiavgcwnpubq:not-a-secret@aws-1-us-east-1.pooler.supabase.com:5432/postgres' \
+          npm run dr:backup -- --output-dir /tmp/essafaria-dr-refusal > /tmp/dr-backup-refusal.log 2>&1
+          CODE=$?
+          set -e
+          cat /tmp/dr-backup-refusal.log
+          test "$CODE" -eq 2
+          grep -q 'approved ESSAFARIA Supabase project' /tmp/dr-backup-refusal.log
+
+      - name: Prove restore command refuses Production before reading an archive
+        shell: bash
+        run: |
+          set +e
+          DR_ENVIRONMENT=RESTORE_TEST \
+          DATABASE_SCHEMA=visa_os \
+          DR_ALLOW_REMOTE_DISPOSABLE=true \
+          DR_DISPOSABLE_PROJECT_REF=xgetzgixalrsmuvfthpf \
+          DATABASE_URL='postgresql://postgres.xgetzgixalrsmuvfthpf:not-a-secret@aws-1-us-east-1.pooler.supabase.com:6543/postgres' \
+          npm run dr:restore -- --manifest /tmp/does-not-exist.json > /tmp/dr-restore-write-refusal.log 2>&1
+          CODE=$?
+          set -e
+          cat /tmp/dr-restore-write-refusal.log
+          test "$CODE" -eq 2
+          grep -q 'Production Supabase project can never be a restore-test target' /tmp/dr-restore-write-refusal.log
 
       - name: Prove restore verifier refuses ambiguous target before connection
         run: |
