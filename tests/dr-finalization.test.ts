@@ -136,6 +136,7 @@ function tenantEvidence(): TenantIsolationEvidence {
       foreignApplicantDenied: true,
       foreignWalletDataNotVisible: true,
       forgedForeignUploadDenied: true,
+      temporaryRecoveryArtifactsCleaned: true,
     },
   };
 }
