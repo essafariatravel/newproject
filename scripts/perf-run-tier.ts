@@ -86,7 +86,7 @@ async function main() {
   }, null, 2));
 
   run("npm", ["run", "perf:preflight"], env);
-  run("npm", ["run", "perf:snapshot"], { ...env, PERF_SNAPSHOT_OUTPUT: before });
+  run("npm", ["run", "perf:snapshot"], { ...env, PERF_SNAPSHOT_FILE: before });
 
   let monitorProcess: ChildProcess | null = null;
   try {
@@ -102,7 +102,7 @@ async function main() {
     await stop(monitorProcess);
   }
 
-  run("npm", ["run", "perf:snapshot"], { ...env, PERF_SNAPSHOT_OUTPUT: after });
+  run("npm", ["run", "perf:snapshot"], { ...env, PERF_SNAPSHOT_FILE: after });
 
   try {
     run("npm", ["run", "perf:evaluate", "--", summary, before, after], env);
