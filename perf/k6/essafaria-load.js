@@ -159,6 +159,8 @@ function checkSession(role) {
 const AGENCY_USER_PATHS = [
   ["/portal", "agency_dashboard"],
   ["/portal/applications", "agency_applications"],
+  ["/portal/applications?q=PERF", "agency_search"],
+  ["/portal/applications?queue=active&per=50", "agency_active_queue"],
   ["/portal/notifications", "agency_notifications"],
   ["/portal/communications", "agency_communications"],
   ["/portal/documents", "agency_documents"],
@@ -168,6 +170,7 @@ const AGENCY_USER_PATHS = [
 const AGENCY_ADMIN_PATHS = [
   ["/portal", "agency_admin_dashboard"],
   ["/portal/applications", "agency_admin_applications"],
+  ["/portal/applications?q=PERF&per=50", "agency_admin_search"],
   ["/portal/applications/new", "agency_new_application"],
   ["/portal/wallet", "agency_admin_wallet"],
   ["/portal/profile", "agency_profile"],
@@ -177,6 +180,9 @@ const AGENCY_ADMIN_PATHS = [
 const VISA_AGENT_PATHS = [
   ["/admin", "staff_dashboard"],
   ["/admin/applications", "staff_applications"],
+  ["/admin/applications?q=PERF&per=50", "staff_search"],
+  ["/admin/applications?assigned=unassigned&per=50", "staff_unassigned"],
+  ["/admin/applications?aging=7&per=50", "staff_aging"],
   ["/admin/documents", "staff_documents"],
   ["/admin/communications", "staff_communications"],
   ["/admin/notifications", "staff_notifications"],
@@ -185,7 +191,9 @@ const VISA_AGENT_PATHS = [
 const ACCOUNTING_PATHS = [
   ["/admin", "accounting_dashboard"],
   ["/admin/billing", "accounting_billing"],
+  ["/admin/billing?page=2", "accounting_billing_deep_page"],
   ["/admin/reports", "accounting_reports"],
+  ["/admin/reports?from=2026-01-01&to=2026-12-31", "accounting_reports_date_filter"],
   ["/admin/audit", "accounting_audit"],
   ["/admin/applications", "accounting_applications"],
 ];
@@ -195,6 +203,7 @@ const SUPER_ADMIN_PATHS = [
   ["/admin/agencies", "admin_agencies"],
   ["/admin/users", "admin_users"],
   ["/admin/reports", "admin_reports"],
+  ["/admin/reports?from=2026-01-01&to=2026-12-31", "admin_reports_date_filter"],
   ["/admin/audit", "admin_audit"],
   ["/admin/config/visa-types", "admin_visa_types"],
 ];
@@ -245,6 +254,26 @@ function pickPath(paths) {
 
 const runtime = {};
 
+function extractApplicationIds(body, prefix) {
+  const regex = new RegExp(prefix.replace(/\\//g, "\\\\/") + "/([0-9a-fA-F-]{36})", "g");
+  const ids = [];
+  let match;
+  while ((match = regex.exec(body)) !== null && ids.length < 50) {
+    if (!ids.includes(match[1])) ids.push(match[1]);
+  }
+  return ids;
+}
+
+function discoverApplications(role, path, prefix) {
+  const res = http.get(`${BASE_URL}${path}`, {
+    headers: requestHeaders(role),
+    redirects: 0,
+    tags: { operation: "setup_discovery", persona: role },
+  });
+  if (res.status !== 200) throw new Error(`Application discovery ${path} returned HTTP ${res.status}.`);
+  return extractApplicationIds(res.body || "", prefix);
+}
+
 export function setup() {
   const token = sessions("SUPER_ADMIN")[0];
   const res = http.get(`${BASE_URL}/api/health`, {
@@ -263,10 +292,20 @@ export function setup() {
   if (health?.database?.host && !String(health.database.host).includes("supabase")) {
     throw new Error("Unexpected database host in authenticated health report.");
   }
-  return { startedAt: Date.now(), expectedProject: EXPECTED_PROJECT };
-}
 
-export default function () {
+  const agencyApplicationIds = discoverApplications("AGENCY_USER", "/portal/applications?per=50", "/portal/applications");
+  const staffApplicationIds = discoverApplications("VISA_AGENT", "/admin/applications?q=PERF&per=50", "/admin/applications");
+  if (agencyApplicationIds.length === 0) throw new Error("No synthetic Agency application links discovered. Seed scale data first.");
+  if (staffApplicationIds.length === 0) throw new Error("No synthetic Staff application links discovered. Seed scale data first.");
+
+  return {
+    startedAt: Date.now(),
+    expectedProject: EXPECTED_PROJECT,
+    agencyApplicationIds,
+    staffApplicationIds,
+  };
+}
+export default function (setupData) {
   const role = pickPersona();
   let paths;
   let trend;
@@ -293,8 +332,19 @@ export default function () {
     state.lastSession = now;
   }
 
-  const [path, label] = pickPath(paths);
-  get(role, path, label, trend);
+  // Exercise dossier details regularly, while keeping this profile read-heavy.
+  if (__ITER % 4 === 0 && (role === "AGENCY_USER" || role === "AGENCY_ADMIN")) {
+    const ids = setupData.agencyApplicationIds || [];
+    const id = ids[(__ITER + __VU) % ids.length];
+    get(role, `/portal/applications/${id}`, "agency_dossier_detail", trend);
+  } else if (__ITER % 4 === 0 && (role === "VISA_AGENT" || role === "SUPER_ADMIN")) {
+    const ids = setupData.staffApplicationIds || [];
+    const id = ids[(__ITER + __VU) % ids.length];
+    get(role, `/admin/applications/${id}`, "staff_dossier_detail", trend);
+  } else {
+    const [path, label] = pickPath(paths);
+    get(role, path, label, trend);
+  }
   sleep(2 + Math.random() * 4);
 }
 
