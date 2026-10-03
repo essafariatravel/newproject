@@ -54,7 +54,7 @@ export async function GET(
     if (err instanceof AppError) {
       return NextResponse.json({ error: "Not found." }, { status: err.code === "NOT_FOUND" ? 404 : 400 });
     }
-    console.error("document-download-failed", err);
+    console.error("document-download-failed");
     return NextResponse.json({ error: "Download failed." }, { status: 500 });
   }
 }
