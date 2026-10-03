@@ -18,6 +18,7 @@ on:
       - "scripts/dr-verify-offsite-copy.ts"
       - "scripts/dr-verify-restored-app.ts"
       - "scripts/dr-repo-safety.ts"
+      - "scripts/dr-generate-key.ts"
       - "tests/dr-private-path.test.ts"
       - "scripts/lib/dr-private-path.ts"
       - "tests/dr-repo-safety.test.ts"
@@ -90,6 +91,18 @@ jobs:
 
       - name: Public repository DR artifact safety
         run: npm run dr:repo-safety
+
+      - name: Generate private recovery key without printing it
+        run: |
+          rm -f /tmp/essafaria-ci.dr-key
+          npm run dr:key -- --output /tmp/essafaria-ci.dr-key > /tmp/dr-key.log
+          test -s /tmp/essafaria-ci.dr-key
+          test "$(wc -l < /tmp/essafaria-ci.dr-key)" -eq 1
+          test "$(tr -d '\n' < /tmp/essafaria-ci.dr-key | wc -c)" -eq 44
+          ! grep -q "$(tr -d '\n' < /tmp/essafaria-ci.dr-key)" /tmp/dr-key.log
+          grep -q '"keyPrinted": false' /tmp/dr-key.log
+          rm -f /tmp/essafaria-ci.dr-key /tmp/dr-key.log
+
 
       - name: Full local synthetic backup-to-restore drill
         run: npm run dr:local-drill
