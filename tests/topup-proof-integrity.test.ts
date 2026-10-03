@@ -37,6 +37,15 @@ async function receiptDownloadAuditCount(id: string) {
   return row!.n;
 }
 
+async function forceTopupBlobData(key: string, data: Buffer) {
+  await db.execute(sql`alter table document_blobs disable trigger document_blobs_permanent_immutable`);
+  try {
+    await db.update(documentBlobs).set({ data }).where(eq(documentBlobs.key, key));
+  } finally {
+    await db.execute(sql`alter table document_blobs enable trigger document_blobs_permanent_immutable`);
+  }
+}
+
 describe("wallet top-up receipt integrity", () => {
   it("persists SHA-256 and refuses same-size tampering before download or credit", async () => {
     const { agency, admin, proof, created, row } = await prepareTopup();
@@ -56,9 +65,7 @@ describe("wallet top-up receipt integrity", () => {
 
     // Simulate storage corruption below the trigger so the application-level
     // integrity check is independently proven as well.
-    await db.execute(sql`alter table document_blobs disable trigger document_blobs_permanent_immutable`);
-    await db.update(documentBlobs).set({ data: tampered }).where(eq(documentBlobs.key, row.proofStorageKey!));
-    await db.execute(sql`alter table document_blobs enable trigger document_blobs_permanent_immutable`);
+    await forceTopupBlobData(row.proofStorageKey!, tampered);
 
     request.cookie = (await createSession(admin.id)).token;
     const auditsBefore = await receiptDownloadAuditCount(created.id);
@@ -77,9 +84,7 @@ describe("wallet top-up receipt integrity", () => {
     expect(Number((await getBalance(agency.id)).balance)).toBe(before);
     expect((await db.select().from(walletTopupRequests).where(eq(walletTopupRequests.id, created.id)))[0]!.status).toBe("PENDING");
 
-    await db.execute(sql`alter table document_blobs disable trigger document_blobs_permanent_immutable`);
-    await db.update(documentBlobs).set({ data: blob!.data }).where(eq(documentBlobs.key, row.proofStorageKey!));
-    await db.execute(sql`alter table document_blobs enable trigger document_blobs_permanent_immutable`);
+    await forceTopupBlobData(row.proofStorageKey!, blob!.data);
   });
 
   it("makes the financial request identity and receipt metadata immutable", async () => {
