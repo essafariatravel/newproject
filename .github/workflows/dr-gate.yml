@@ -22,6 +22,8 @@ on:
       - "scripts/dr-status.ts"
       - "scripts/dr-evidence-bundle.ts"
       - "scripts/dr-release-gate.ts"
+      - "scripts/dr-resolve-production-release.ts"
+      - "scripts/lib/dr-vercel-release.ts"
       - "scripts/dr-repo-safety.ts"
       - "scripts/dr-generate-key.ts"
       - "tests/dr-private-path.test.ts"
@@ -34,6 +36,7 @@ on:
       - "tests/dr-backup.test.ts"
       - "tests/dr-finalization.test.ts"
       - "tests/dr-runtime-identity.test.ts"
+      - "tests/dr-vercel-release.test.ts"
       - "tests/reset-plan.test.ts"
       - "tests/build-preview-guard.test.ts"
       - "docs/operations/disaster-recovery.md"
@@ -92,11 +95,25 @@ jobs:
           tests/dr-backup.test.ts
           tests/dr-finalization.test.ts
           tests/dr-runtime-identity.test.ts
+          tests/dr-vercel-release.test.ts
           tests/dr-repo-safety.test.ts
           tests/dr-private-path.test.ts
           tests/reset-plan.test.ts
           tests/build-preview-guard.test.ts
           tests/prod-release-preflight.test.ts
+
+      - name: Prove Vercel production resolver refuses missing token
+        shell: bash
+        run: |
+          set +e
+          env -u VERCEL_TOKEN npm run dr:release-resolve > /tmp/dr-vercel-resolver.log 2>&1
+          CODE=$?
+          set -e
+          cat /tmp/dr-vercel-resolver.log
+          test "$CODE" -eq 2
+          grep -q '"status": "REFUSED"' /tmp/dr-vercel-resolver.log
+          grep -q '"tokenPrinted": false' /tmp/dr-vercel-resolver.log
+          rm -f /tmp/dr-vercel-resolver.log
 
       - name: Public repository DR artifact safety
         run: npm run dr:repo-safety
