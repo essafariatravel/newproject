@@ -117,12 +117,38 @@ do
 done
 pass "registration carries exact legal version UUIDs"
 
-for forbidden in   'name="addressLine"'   'type="file"'   'commercialRegistrationNumber'   'taxId'   'licenceNumber'   'monthlyVolume'   'mainMarkets'
-do
-  if grep -q "$forbidden" "$WORK/register-live.html"; then
-    fail "forbidden first-contact field rendered: $forbidden"
-  fi
-done
+python3 - "$WORK/register-live.html" <<'PY'
+import re, sys
+src = open(sys.argv[1], encoding="utf-8").read()
+forms = re.findall(r"<form\\b[^>]*>.*?</form>", src, re.S)
+chosen = next((form for form in forms if 'name="termsVersionId"' in form), None)
+if not chosen:
+    raise SystemExit("registration form not found")
+
+controls = re.findall(r"<(?:input|select|textarea)\\b[^>]*>", chosen, re.I)
+names = set()
+has_file = False
+for tag in controls:
+    name = re.search(r'name="([^"]+)"', tag, re.I)
+    if name:
+        names.add(name.group(1))
+    if re.search(r'type="file"', tag, re.I):
+        has_file = True
+
+forbidden = {
+    "addressLine",
+    "commercialRegistrationNumber",
+    "taxId",
+    "licenceNumber",
+    "monthlyVolume",
+    "mainMarkets",
+}
+present = sorted(forbidden & names)
+if present:
+    raise SystemExit("forbidden first-contact controls rendered: " + ", ".join(present))
+if has_file:
+    raise SystemExit("file upload control rendered in first-contact form")
+PY
 pass "first-contact registration remains KYC/document/address minimized"
 
 # ---------------------------------------------------------------------------
