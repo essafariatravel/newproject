@@ -13,6 +13,7 @@ import { AppError, isAgencyRole, type AuthUser, type Role } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
 import type { ActionState } from "@/components/forms";
 import { runAction } from "@/lib/action-helpers";
+import { safeErrorCode } from "@/lib/safe-error";
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const email = String(formData.get("identifier") ?? formData.get("email") ?? "").trim().slice(0, 254);
@@ -32,7 +33,7 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
     if (err instanceof AppError) {
       return { error: err.message };
     }
-    console.error("[auth] loginAction authenticate failed", err);
+    console.error("[auth] loginAction authenticate failed", safeErrorCode(err) ?? "unknown");
     return { error: "Service temporarily unavailable. Please try again." };
   }
   let token: string;
@@ -43,14 +44,14 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
     expiresAt = session.expiresAt;
     await setSessionCookie(token, expiresAt);
   } catch (err) {
-    console.error("[auth] createSession failed", err);
+    console.error("[auth] createSession failed", safeErrorCode(err) ?? "unknown");
     return { error: "Service temporarily unavailable. Please try again." };
   }
   try {
     await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
   } catch (err) {
     // Non-critical: login should succeed even if last_login_at update fails.
-    console.error("[auth] lastLoginAt update failed", err);
+    console.error("[auth] lastLoginAt update failed", safeErrorCode(err) ?? "unknown");
   }
 
   const authUser: AuthUser = {
@@ -75,7 +76,7 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
       ipAddress: hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
     });
   } catch (err) {
-    console.error("[auth] recordAudit failed", err);
+    console.error("[auth] recordAudit failed", safeErrorCode(err) ?? "unknown");
     // Not fatal for login.
   }
   // Phase 2.2 §11 — forced first password change before any shell page
