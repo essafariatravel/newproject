@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { AppError } from "@/lib/types";
 import { buildWalletStatementPdf, getAgencyWalletStatement } from "@/lib/wallet-statement";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,13 @@ export async function GET(request: Request) {
     if (user?.mustChangePassword) {
       return NextResponse.json({ error: "You must set a new password before continuing.", code: "PASSWORD_CHANGE_REQUIRED" }, { status: 403 });
     }
+    if (!user) {
+      return NextResponse.json({ error: "Please sign in to continue.", code: "AUTH_REQUIRED" }, { status: 401 });
+    }
+    if (!await consumeAuthRateLimit("wallet-statement-user-minute", user.id, 6, 60_000)) {
+      return NextResponse.json({ error: "Too many statements. Please wait before retrying.", code: "RATE_LIMITED" }, { status: 429, headers: { "Retry-After": "60" } });
+    }
+
     const url = new URL(request.url);
     const statement = await getAgencyWalletStatement({
       actor: user ?? undefined,
