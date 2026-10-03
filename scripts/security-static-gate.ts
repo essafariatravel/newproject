@@ -50,7 +50,7 @@ const patterns: Array<{ name: string; pattern: RegExp }> = [
   },
   {
     name: "non-local PostgreSQL URL assignment",
-    pattern: /DATABASE_URL\s*=\s*["']?postgres(?:ql)?:\/\/(?!postgres:postgres@localhost)([^"'\s#]+)/i,
+    pattern: /\bDATABASE_URL\s*=\s*["']?postgres(?:ql)?:\/\/(?!(?:[^@"'\s]+@)?(?:localhost|127\.0\.0\.1)(?::|\/))([^"'\s#]+)/i,
   },
   {
     name: "publicly exposed secret variable",
