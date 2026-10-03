@@ -11,6 +11,7 @@ import {
   agencyRegistrations,
   agencies,
   auditLogs,
+  authRateLimits,
   documentBlobs,
   notifications,
   users,
@@ -165,7 +166,8 @@ describe("public agency registration — document safety", () => {
     const before = await countRegistrations();
     const data = registrationData({ locale: "fr" });
     const files = [registrationPdf("COMMERCIAL_REGISTRATION"), registrationPdf("AGENCY_LICENCE", "licence-agence.pdf")];
-    const result = await submitAgencyRegistration({ data, files, ipAddress: nextIp() });
+    const ip = nextIp();
+    const result = await submitAgencyRegistration({ data, files, ipAddress: ip });
     expect(result.reference).toMatch(/^AGR-\d{4}-[A-Z0-9]{6}$/);
     expect(await countRegistrations()).toBe(before + 1);
 
@@ -179,6 +181,7 @@ describe("public agency registration — document safety", () => {
     expect(reg.adminUserId).toBeNull();
     expect(reg.internalNotes).toBeNull();
     expect(reg.rejectionReason).toBeNull();
+    expect(reg.ipAddress).toBeNull();
 
     const docs = await db
       .select()
@@ -213,7 +216,9 @@ describe("public agency registration — document safety", () => {
       .select()
       .from(auditLogs)
       .where(eq(auditLogs.action, "AGENCY_REGISTRATION_SUBMITTED"));
-    expect(audit.some((a) => a.entityId === result.id && a.actorId === null)).toBe(true);
+    const submittedAudit = audit.find((a) => a.entityId === result.id && a.actorId === null);
+    expect(submittedAudit).toBeDefined();
+    expect(submittedAudit!.ipAddress).toBeNull();
 
     // no agency, no user, no wallet activity was created by a public submission
     const createdAgencies = await db
@@ -243,8 +248,9 @@ describe("public agency registration — duplicates & rate limiting", () => {
     const matches=await getRegistrationDuplicateCandidates(submitted.id,await userByEmail("admin@test.example"));
     expect(matches.some((match)=>match.kind==="agency" && match.signals.includes("name"))).toBe(true);
   });
-  it("rate limits abusive velocity from one source IP", async () => {
+  it("rate limits abusive velocity from one source IP without persisting the raw IP", async () => {
     const ip = nextIp();
+    const beforeCounters = (await db.select().from(authRateLimits)).length;
     for (let i = 0; i < 5; i += 1) {
       await submitAgencyRegistration({ data: registrationData(), files: [], ipAddress: ip });
     }
@@ -252,6 +258,11 @@ describe("public agency registration — duplicates & rate limiting", () => {
       submitAgencyRegistration({ data: registrationData(), files: [], ipAddress: ip }),
     ).rejects.toMatchObject({ code: "RATE_LIMITED" });
     await expect(assertRegistrationRateLimit(ip)).rejects.toMatchObject({ code: "RATE_LIMITED" });
+    const counters = await db.select().from(authRateLimits);
+    expect(counters.length).toBeGreaterThanOrEqual(beforeCounters + 2);
+    expect(counters.some((row) => row.key === ip)).toBe(false);
+    const persisted = await db.select().from(agencyRegistrations).where(eq(agencyRegistrations.ipAddress, ip));
+    expect(persisted).toHaveLength(0);
   });
 });
 
