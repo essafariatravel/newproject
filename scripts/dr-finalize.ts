@@ -16,6 +16,7 @@ import {
 import {
   finalizeBackupManifest,
   type RestoreEvidence,
+  type OffsiteEvidence,
 } from "./lib/dr-finalization";
 import { sha256File } from "./lib/dr-backup";
 
@@ -25,7 +26,7 @@ function parseArgs(args: string[]) {
   const valued = new Set([
     "--manifest",
     "--restore-evidence",
-    "--offsite-ref",
+    "--offsite-evidence",
     "--application-ref",
     "--tenant-ref",
     "--output",
@@ -51,7 +52,7 @@ function parseArgs(args: string[]) {
   return {
     manifestPath: path.resolve(values["--manifest"]!),
     restoreEvidencePath: path.resolve(values["--restore-evidence"]!),
-    offsiteRef: values["--offsite-ref"]!,
+    offsiteEvidencePath: path.resolve(values["--offsite-evidence"]!),
     applicationRef: values["--application-ref"]!,
     tenantRef: values["--tenant-ref"]!,
     output,
@@ -83,14 +84,19 @@ async function main() {
   if (!rawEvidence || typeof rawEvidence !== "object" || Array.isArray(rawEvidence)) {
     throw new Error("Restore evidence must be a JSON object.");
   }
+  const rawOffsiteEvidence = await readJson(options.offsiteEvidencePath, "Off-site evidence");
+  if (!rawOffsiteEvidence || typeof rawOffsiteEvidence !== "object" || Array.isArray(rawOffsiteEvidence)) {
+    throw new Error("Off-site evidence must be a JSON object.");
+  }
 
   const result = finalizeBackupManifest({
     manifest: assessment.manifest,
     sourceManifestSha256: await sha256File(options.manifestPath),
     restoreEvidence: rawEvidence as RestoreEvidence,
     restoreEvidenceSha256: await sha256File(options.restoreEvidencePath),
+    offsiteEvidence: rawOffsiteEvidence as OffsiteEvidence,
+    offsiteEvidenceSha256: await sha256File(options.offsiteEvidencePath),
     evidence: {
-      offsite: options.offsiteRef,
       application: options.applicationRef,
       tenantIsolation: options.tenantRef,
     },
