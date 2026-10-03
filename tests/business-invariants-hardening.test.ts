@@ -180,8 +180,7 @@ describe("proof and immutable money", () => {
         if new.action = 'WALLET_TOPUP_REJECTED' then
           raise exception 'synthetic top-up audit failure';
         end if;
-        return new;
-      end $`);
+undefined`);
     await pool.query(`drop trigger if exists test_fail_topup_reject_audit on ${audit}`);
     await pool.query(`create trigger test_fail_topup_reject_audit before insert on ${audit}
       for each row execute function ${fn}()`);
