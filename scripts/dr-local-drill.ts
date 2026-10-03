@@ -345,10 +345,13 @@ async function main() {
       throw new Error("Synthetic restore evidence did not record all technical reconciliations as passed.");
     }
     const restoreEvidenceSha256 = await sha256File(restoreEvidencePath);
+    const sourceManifestForEvidence = JSON.parse(await readFile(manifestPath, "utf8")) as BackupManifest;
+    const originalManifestReleasePlaceholder = sourceManifestForEvidence.source.releaseSha;
     const applicationEvidence: ApplicationRecoveryEvidence = {
       version: 1,
       kind: "ESSAFARIA_DR_APPLICATION",
       backupId: evidence.backupId,
+      releaseSha: sourceManifestForEvidence.source.releaseSha,
       restoreEvidenceSha256,
       testedAt: new Date().toISOString(),
       targetRef: "SYNTHETIC-RESTORE-APP-0001",
@@ -367,6 +370,7 @@ async function main() {
       version: 1,
       kind: "ESSAFARIA_DR_TENANT_ISOLATION",
       backupId: evidence.backupId,
+      releaseSha: sourceManifestForEvidence.source.releaseSha,
       restoreEvidenceSha256,
       testedAt: new Date().toISOString(),
       targetRef: "SYNTHETIC-RESTORE-TENANT-0001",
