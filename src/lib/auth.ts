@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { agencies, sessions, users } from "@/db/schema";
 import {
   AppError,
+  PRODUCTION_SESSION_COOKIE,
   SESSION_COOKIE,
   type AuthUser,
   type Role,
@@ -14,6 +15,18 @@ import type { User } from "@/db/schema";
 import { normalizeAgencyUsername, sessionPolicy } from "@/lib/identity-policy";
 import { lockIdentityState } from "@/lib/account-security";
 import { safeErrorCode, safeErrorText } from "@/lib/safe-error";
+
+function preferredSessionCookieName(): string {
+  return process.env.NODE_ENV === "production" ? PRODUCTION_SESSION_COOKIE : SESSION_COOKIE;
+}
+
+async function readSessionToken(): Promise<string | undefined> {
+  const jar = await cookies();
+  const preferred = preferredSessionCookieName();
+  return jar.get(preferred)?.value ??
+    (preferred !== SESSION_COOKIE ? jar.get(SESSION_COOKIE)?.value : undefined);
+}
+
 
 /** Create a session and return the opaque cookie token. */
 export async function createSession(
@@ -51,8 +64,7 @@ export async function createSession(
 export async function getSessionUser(): Promise<AuthUser | null> {
   let token: string | undefined;
   try {
-    const jar = await cookies();
-    token = jar.get(SESSION_COOKIE)?.value;
+    token = await readSessionToken();
   } catch {
     return null;
   }
@@ -136,24 +148,27 @@ export async function requireAgencyUser(): Promise<AuthUser & { agencyId: string
 /** Set the session cookie (must be called in a server action / route handler). */
 export async function setSessionCookie(token: string, expiresAt: Date): Promise<void> {
   const jar = await cookies();
-  jar.set(SESSION_COOKIE, token, {
+  const name = preferredSessionCookieName();
+  jar.set(name, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     expires: expiresAt,
     path: "/",
   });
+  if (name !== SESSION_COOKIE) jar.delete(SESSION_COOKIE);
 }
 
 export async function clearSessionCookie(): Promise<void> {
   const jar = await cookies();
-  jar.delete(SESSION_COOKIE);
+  const preferred = preferredSessionCookieName();
+  jar.delete(preferred);
+  if (preferred !== SESSION_COOKIE) jar.delete(SESSION_COOKIE);
 }
 
 /** Destroy the current session server-side. */
 export async function destroySession(): Promise<void> {
-  const jar = await cookies();
-  const token = jar.get(SESSION_COOKIE)?.value;
+  const token = await readSessionToken();
   if (token) {
     try {
       await db.delete(sessions).where(eq(sessions.tokenHash, hashToken(token)));
@@ -221,7 +236,7 @@ export async function authenticate(identifier: string, password: string): Promis
 export async function touchCurrentSession(): Promise<boolean> {
   const user = await getSessionUser();
   if (!user) return false;
-  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  const token = await readSessionToken();
   if (!token) return false;
   const updated = await db.update(sessions).set({ lastActivityAt: new Date() })
     .where(and(eq(sessions.tokenHash, hashToken(token)), gt(sessions.expiresAt, new Date()),
