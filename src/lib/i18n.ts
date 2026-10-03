@@ -258,12 +258,12 @@ const fr: RegistrationCopy = {
   noticeBody:
     "L'envoi de ce formulaire ne crée pas de compte et ne garantit pas l'accès. Chaque demande est examinée individuellement par ESSAFARIA TRAVEL et l'accès au portail n'est activé qu'après approbation.",
   reviewNote:
-    "Notre équipe partenariats examine généralement les dossiers complets sous 1 à 2 jours ouvrés. Les documents de l'entreprise accélèrent la vérification.",
+    "Notre équipe partenariats examine d’abord votre demande. Si un justificatif administratif précis est nécessaire, ESSAFARIA le demandera ensuite via un lien sécurisé.",
   languageLabel: "Langue",
   sections: {
     company: { title: "Entreprise", hint: "Informations légales de votre société, telles qu'enregistrées." },
     contact: { title: "Contact principal", hint: "La personne habilitée à représenter cette agence." },
-    business: { title: "Profil d'activité", hint: "Aidez-nous à comprendre votre activité et vos volumes." },
+    business: { title: "Votre demande", hint: "Partagez uniquement les informations utiles à l’examen de la demande de partenariat B2B." },
     documents: {
       title: "Documents de l'entreprise",
       hint: "Facultatif à cette étape, mais fortement recommandé. Les fichiers sont conservés en espace privé et consultés uniquement par le personnel ESSAFARIA autorisé.",
