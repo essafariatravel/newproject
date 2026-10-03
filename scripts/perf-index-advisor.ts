@@ -6,7 +6,12 @@ import { databasePoolConfig } from "../src/lib/database-config";
 import { assertSafePerfTarget, perfTable, safeTargetSummary } from "./perf-safety";
 
 type ExplainFile = {
-  plans?: Array<{ name: string; findings?: Array<{ code?: string }>; nodes?: Array<{ nodeType?: string; relation?: string }> }>;
+  plans?: Array<{
+    name: string;
+    executionMs?: number;
+    findings?: Array<{ code?: string }>;
+    nodes?: Array<{ nodeType?: string; relation?: string }>;
+  }>;
 };
 
 type Candidate = {
@@ -15,6 +20,7 @@ type Candidate = {
   columns: string[];
   predicate?: string;
   evidenceQueries: string[];
+  measuredExecutionMs?: number;
   rationale: string;
   candidateSql: string;
 };
@@ -24,7 +30,7 @@ const candidates: Candidate[] = [
     id: "applications_agency_created",
     table: "applications",
     columns: ["agency_id", "created_at"],
-    evidenceQueries: ["agency_applications_first_page", "applications_first_page", "applications_deep_page"],
+    evidenceQueries: ["agency_applications_first_page"],
     rationale: "Tenant application lists are scoped by agency and ordered by newest first.",
     candidateSql: "create index concurrently if not exists applications_agency_created_idx on <schema>.applications (agency_id, created_at desc);"
   },
@@ -32,32 +38,32 @@ const candidates: Candidate[] = [
     id: "applications_assigned_created",
     table: "applications",
     columns: ["assigned_to", "created_at"],
-    evidenceQueries: ["applications_first_page", "applications_deep_page"],
-    rationale: "Staff queues filter assigned/unassigned dossiers and sort by recency.",
+    evidenceQueries: [],
+    rationale: "Staff queues filter assigned/unassigned dossiers and sort by recency. No current synthetic EXPLAIN case matches this predicate, so this remains review-only until that query shape is measured.",
     candidateSql: "create index concurrently if not exists applications_assigned_created_idx on <schema>.applications (assigned_to, created_at desc);"
   },
   {
     id: "applications_country_created",
     table: "applications",
     columns: ["country_id", "created_at"],
-    evidenceQueries: ["applications_first_page", "report_by_country"],
-    rationale: "Country filters and reporting become material only at scale.",
+    evidenceQueries: [],
+    rationale: "Country filters can become material at scale. The current country report groups by country but does not filter by country_id, so it is not valid evidence for this index.",
     candidateSql: "create index concurrently if not exists applications_country_created_idx on <schema>.applications (country_id, created_at desc);"
   },
   {
     id: "applications_visa_type_created",
     table: "applications",
     columns: ["visa_type_id", "created_at"],
-    evidenceQueries: ["applications_first_page"],
-    rationale: "Visa-type filtering is a real staff/agency list dimension.",
+    evidenceQueries: [],
+    rationale: "Visa-type filtering is a real staff/agency list dimension, but the current synthetic EXPLAIN pack does not isolate that predicate.",
     candidateSql: "create index concurrently if not exists applications_visa_type_created_idx on <schema>.applications (visa_type_id, created_at desc);"
   },
   {
     id: "applications_priority_created",
     table: "applications",
     columns: ["priority_id", "created_at"],
-    evidenceQueries: ["applications_first_page"],
-    rationale: "Priority queues are filtered/sorted operationally.",
+    evidenceQueries: [],
+    rationale: "Priority queues are filtered/sorted operationally, but the current synthetic EXPLAIN pack does not isolate that predicate.",
     candidateSql: "create index concurrently if not exists applications_priority_created_idx on <schema>.applications (priority_id, created_at desc);"
   },
   {
@@ -66,6 +72,7 @@ const candidates: Candidate[] = [
     columns: ["user_id"],
     predicate: "read_at is null",
     evidenceQueries: ["notifications_unread_count"],
+    measuredExecutionMs: 50,
     rationale: "Unread counts are polled frequently and should avoid scanning already-read rows if volume becomes large.",
     candidateSql: "create index concurrently if not exists notifications_unread_user_idx on <schema>.notifications (user_id) where read_at is null;"
   },
@@ -73,32 +80,32 @@ const candidates: Candidate[] = [
     id: "audit_agency_created",
     table: "audit_logs",
     columns: ["agency_id", "created_at"],
-    evidenceQueries: ["audit_first_page", "audit_deep_page"],
-    rationale: "Audit filters commonly combine tenant scope with reverse chronological order.",
+    evidenceQueries: [],
+    rationale: "Audit filters commonly combine tenant scope with reverse chronological order. The current audit benchmark filters synthetic action, not agency_id, so it cannot justify this index.",
     candidateSql: "create index concurrently if not exists audit_logs_agency_created_idx on <schema>.audit_logs (agency_id, created_at desc);"
   },
   {
     id: "audit_actor_created",
     table: "audit_logs",
     columns: ["actor_id", "created_at"],
-    evidenceQueries: ["audit_first_page", "audit_deep_page"],
-    rationale: "Actor-filtered audit review should not require a full audit scan at high volume.",
+    evidenceQueries: [],
+    rationale: "Actor-filtered audit review should not require a full audit scan at high volume. The current audit benchmark does not filter actor_id, so it cannot justify this index.",
     candidateSql: "create index concurrently if not exists audit_logs_actor_created_idx on <schema>.audit_logs (actor_id, created_at desc);"
   },
   {
     id: "documents_checklist_item",
     table: "documents",
     columns: ["checklist_item_id"],
-    evidenceQueries: ["document_issue_count"],
-    rationale: "Document workflows repeatedly resolve the latest upload for checklist slots.",
+    evidenceQueries: [],
+    rationale: "Document workflows repeatedly resolve the latest upload for checklist slots. The current document benchmark filters status and does not query checklist_item_id.",
     candidateSql: "create index concurrently if not exists documents_checklist_item_idx on <schema>.documents (checklist_item_id);"
   },
   {
     id: "status_history_application_created",
     table: "application_status_history",
     columns: ["application_id", "created_at"],
-    evidenceQueries: ["applications_first_page"],
-    rationale: "Aging filters resolve the latest transition per application.",
+    evidenceQueries: [],
+    rationale: "Aging filters resolve the latest transition per application. The current EXPLAIN pack does not measure this lookup shape directly.",
     candidateSql: "create index concurrently if not exists application_status_history_application_created_idx on <schema>.application_status_history (application_id, created_at desc);"
   }
 ];
@@ -132,8 +139,10 @@ function evidenceFor(candidate: Candidate, explain: ExplainFile | null) {
   // synthetic dataset-marker predicates can legitimately cause scans that do not
   // correspond to a production filter. Escalate only when the measured plan is
   // actually slow or spills to temporary/disk I/O.
+  const executionThresholdMs = candidate.measuredExecutionMs ?? 100;
   const observed = plans.some((plan) =>
-    (plan.findings ?? []).some((finding) => ["EXECUTION_GT_100MS", "EXECUTION_GT_500MS", "DISK_TEMP_IO"].includes(String(finding.code)))
+    Number(plan.executionMs ?? 0) >= executionThresholdMs
+    || (plan.findings ?? []).some((finding) => ["EXECUTION_GT_100MS", "EXECUTION_GT_500MS", "DISK_TEMP_IO"].includes(String(finding.code)))
   );
   return { observed, signals };
 }
@@ -197,7 +206,7 @@ async function main() {
       generatedAt: new Date().toISOString(),
       target: safeTargetSummary(target),
       explainInput: process.env.PERF_EXPLAIN_INPUT ?? null,
-      policy: "No index is created by this script. LARGE_SEQ_SCAN alone never promotes a candidate because synthetic marker predicates can create false positives. Apply only MEASURED_CANDIDATE entries after reviewing the exact production-shaped plan and rerun the failing scenario.",
+      policy: "No index is created by this script. Evidence must match the proposed index predicate/order shape; unrelated slow synthetic queries never promote a candidate. LARGE_SEQ_SCAN alone is insufficient. Apply only MEASURED_CANDIDATE entries after reviewing the exact production-shaped plan and rerun the failing scenario.",
       candidates: output,
       counts: {
         alreadyCovered: output.filter((x) => x.recommendation === "ALREADY_COVERED").length,
