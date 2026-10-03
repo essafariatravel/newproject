@@ -221,8 +221,8 @@ const en: RegistrationCopy = {
     noReference: "Your application has been received.",
     nextTitle: "What happens next",
     nextSteps: [
-      "Our partnerships team reviews your company information and documents.",
-      "We may contact your primary contact if additional information is required.",
+      "Our partnerships team reviews your partnership request.",
+      "If specific administrative evidence is needed, ESSAFARIA sends a secure request for only those documents.",
       "If approved, your agency workspace is created and your administrator receives a secure activation link.",
     ],
     backHome: "Back to the homepage",
@@ -265,8 +265,8 @@ const fr: RegistrationCopy = {
     contact: { title: "Contact principal", hint: "La personne habilitée à représenter cette agence." },
     business: { title: "Votre demande", hint: "Partagez uniquement les informations utiles à l’examen de la demande de partenariat B2B." },
     documents: {
-      title: "Documents de l'entreprise",
-      hint: "Facultatif à cette étape, mais fortement recommandé. Les fichiers sont conservés en espace privé et consultés uniquement par le personnel ESSAFARIA autorisé.",
+      title: "Documents administratifs",
+      hint: "Non collectés lors du premier contact. ESSAFARIA demande ensuite, de manière sécurisée, uniquement les justificatifs précis nécessaires.",
     },
     consent: { title: "Consentement", hint: "Veuillez confirmer chaque déclaration pour envoyer votre demande." },
   },
@@ -353,8 +353,8 @@ const fr: RegistrationCopy = {
     noReference: "Votre demande a bien été reçue.",
     nextTitle: "Prochaines étapes",
     nextSteps: [
-      "Notre équipe partenariats examine les informations et documents de votre société.",
-      "Nous pouvons contacter votre contact principal si des informations complémentaires sont nécessaires.",
+      "Notre équipe partenariats examine votre demande de partenariat.",
+      "Si un justificatif administratif précis est nécessaire, ESSAFARIA envoie une demande sécurisée limitée aux documents requis.",
       "En cas d'approbation, l'espace de votre agence est créé et votre administrateur reçoit un lien d'activation sécurisé.",
     ],
     backHome: "Retour à l'accueil",
@@ -484,8 +484,8 @@ const ar: RegistrationCopy = {
     noReference: "تم استلام طلبكم.",
     nextTitle: "الخطوات التالية",
     nextSteps: [
-      "يراجع فريق الشراكات بيانات شركتكم والوثائق المرفقة.",
-      "قد نتواصل مع جهة الاتصال الرئيسية إذا لزمت معلومات إضافية.",
+      "يراجع فريق الشراكات طلب الشراكة الخاص بكم.",
+      "إذا لزم مستند إداري محدد، ترسل ESSAFARIA طلباً آمناً يقتصر على الوثائق المطلوبة.",
       "عند الموافقة، يتم إنشاء مساحة عمل وكالتكم ويتلقى المسؤول رابط تفعيل آمن.",
     ],
     backHome: "العودة إلى الصفحة الرئيسية",
