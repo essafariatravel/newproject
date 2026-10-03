@@ -43,6 +43,8 @@ Restore tests:
 
 `npm run dr:restore-verify` refuses an ambiguous or Production target before opening a database connection.
 
+Current provider constraint: the connected Supabase organization reported the **Free** plan on 2026-10-03. Current Supabase documentation does not give Free projects the managed daily-backup/PITR assumptions used by paid recovery tiers; ESSAFARIA therefore relies on the guarded encrypted export + independent off-site copy until that service level is changed and re-verified. See `dr-executable-procedure.md` and the dated read-only evidence report.
+
 ## 3. Existing controls reused
 
 The DR gate reuses existing safeguards instead of replacing them.
@@ -131,7 +133,9 @@ CREATED is **not** enough for a destructive go-live operation.
 
 ### VERIFIED
 
-All mandatory integrity, restore, wallet, storage, isolation and off-site checks are recorded and pass.
+All mandatory integrity, restore, wallet, storage, isolation and off-site checks are recorded and pass. A VERIFIED manifest must also bind those claims to traceable evidence: the SHA-256 of the automatically generated restore evidence plus opaque references for the reviewed off-site, application-recovery and tenant-isolation evidence.
+
+Use `npm run dr:finalize`; do not hand-edit verification booleans.
 
 Only VERIFIED satisfies the DR backup prerequisite.
 
