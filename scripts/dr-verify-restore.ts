@@ -19,7 +19,7 @@ import { Pool } from "pg";
 import { databasePoolConfig } from "../src/lib/database-config";
 import { qualifiedTable } from "../src/lib/database-schema";
 import {
-  DR_DR_CRITICAL_TABLES,
+  DR_CRITICAL_TABLES,
   PRODUCTION_PROJECT_REF,
   PRODUCTION_SCHEMA,
   assessBackupManifest,
