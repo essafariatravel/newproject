@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 
 type Query = { name: string; p95Ms: number };
 type Benchmark = { datasetId: string; datasetRows: number; queries: Query[] };
@@ -34,12 +35,19 @@ async function main() {
     return { name, alpha, classification: classify(alpha), samples };
   });
   const review = rows.filter((row) => row.classification === "superlinear-review");
-  console.log(JSON.stringify({
+  const output = {
     datasets: runs.map((run) => ({ id: run.datasetId, rows: run.datasetRows })),
     queries: rows,
     review: review.map((row) => row.name),
     note: "Growth classification is evidence triage, not an asymptotic proof. Re-run noisy/very-fast queries before optimizing.",
-  }, null, 2));
+  };
+  const serialized = JSON.stringify(output, null, 2);
+  if (process.env.PERF_GROWTH_OUTPUT) {
+    const file = resolve(process.env.PERF_GROWTH_OUTPUT);
+    await mkdir(dirname(file), { recursive: true });
+    await writeFile(file, serialized, { mode: 0o600 });
+  }
+  console.log(serialized);
   if (review.length) process.exitCode = 2;
 }
 
