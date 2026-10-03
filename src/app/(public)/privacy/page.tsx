@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import { readPublishedLegal } from "@/lib/legal";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { formatDate } from "@/lib/format";
 import { contentT } from "@/lib/i18n-content";
 import { publicBrandCopy } from "@/lib/public-brand-copy";
+import { buildNoIndexMetadata } from "@/lib/seo";
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = buildNoIndexMetadata("Privacy Policy");
 export default async function PrivacyPage() {
   const locale = await getUiLocale();
   const ct = contentT(locale);

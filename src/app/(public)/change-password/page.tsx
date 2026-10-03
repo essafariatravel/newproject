@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { pageUserForPasswordChange } from "@/lib/page-auth";
 import { flashFrom } from "@/lib/action-helpers";
 import { changePasswordAction, logoutAction } from "@/app/actions/auth";
@@ -7,9 +8,10 @@ import { chromeT, getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { identityT } from "@/lib/identity-copy";
 import Link from "next/link";
+import { buildNoIndexMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Set your password" };
+export const metadata: Metadata = buildNoIndexMetadata("Set your password");
 
 /**
  * Phase 2.2 §11 — mandatory first password change. Lives outside the
