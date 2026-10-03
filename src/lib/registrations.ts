@@ -372,9 +372,6 @@ export async function submitAgencyRegistration(params: {
       entityId: id,
       metadata: {
         reference,
-        legalName: data.legalName,
-        country: data.country,
-        businessType: data.businessType,
         documents: stored.length,
         locale: data.locale,
       },
@@ -846,9 +843,9 @@ export async function approveRegistration(params: {
     await client.query(`update ${q("agency_registration_followup_tokens")} set revoked_at=now() where registration_id=$1 and revoked_at is null and used_at is null`,[registrationId]);
     await client.query(`update ${q("agency_registration_requests")} set status='CANCELLED' where registration_id=$1 and status='OPEN'`,[registrationId]);
     for (const event of [
-      { action:"REGISTRATION_APPROVED",entity:"agency_registration",id:registrationId,metadata:{legalName:reg.legal_name,adminUserId} },
-      { action:"AGENCY_CREATED",entity:"agency",id:agencyId,metadata:{legalName:reg.legal_name,source:"agency_registration",registrationId} },
-      { action:"USER_CREATED",entity:"user",id:adminUserId,metadata:{role:"AGENCY_ADMIN",email:reg.email,username:legacyAgencyUsername(newAdminId),source:"agency_registration",registrationId} },
+      { action:"REGISTRATION_APPROVED",entity:"agency_registration",id:registrationId,metadata:{adminUserId} },
+      { action:"AGENCY_CREATED",entity:"agency",id:agencyId,metadata:{source:"agency_registration",registrationId} },
+      { action:"USER_CREATED",entity:"user",id:adminUserId,metadata:{role:"AGENCY_ADMIN",source:"agency_registration",registrationId} },
     ]) {
       await client.query(`insert into ${q("audit_logs")} (actor_id,actor_email,actor_role,agency_id,action,entity,entity_id,metadata,ip_address) values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)`,[actor.id,actor.email,actor.role,agencyId,event.action,event.entity,event.id,JSON.stringify(event.metadata),params.ipAddress??null]);
     }
@@ -927,7 +924,7 @@ export async function createActivationTokenForRegistration(
       createdBy: current.id,
     });
     await recordIdentityAudit(tx, { actor: current, action: "ACTIVATION_LINK_CREATED", entity: "user", entityId: reg.adminUserId,
-      agencyId: reg.agencyId, metadata: { registrationId, email: reg.email, expiresAt: expiresAt.toISOString() } });
+      agencyId: reg.agencyId, metadata: { registrationId, expiresAt: expiresAt.toISOString() } });
     return reg;
   });
   return { token, expiresAt, email: reg.email };
