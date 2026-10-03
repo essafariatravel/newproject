@@ -356,8 +356,8 @@ async function main() {
       targetRef: "SYNTHETIC-RESTORE-APP-0001",
       checks: {
         healthReachable: true,
-        staffLogin: true,
-        agencyLogin: true,
+        staffAuthenticatedSession: true,
+        agencyAuthenticatedSession: true,
         staffCriticalRead: true,
         agencyOwnApplicationRead: true,
         agencyOwnDocumentRead: true,
