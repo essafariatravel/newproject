@@ -109,6 +109,7 @@ async function main() {
   let storageReferences: StorageReferenceSnapshot[] = [];
   let storageObjects: StorageObjectSnapshot[] = [];
   let terminalDecisionRows = 0;
+  let ephemeralStaging = { objects: 0, bytes: 0, staleOverOneHour: 0 };
 
   try {
     await client.query("begin read only");
@@ -329,6 +330,18 @@ async function main() {
           `select key, size_bytes from ${qualifiedTable("document_blobs", schema)} order by key`,
         );
         storageObjects = rows.rows.map((row) => ({ key: row.key, sizeBytes: Number(row.size_bytes) }));
+        const staging = await client.query<{ objects: number; bytes: string; stale: number }>(
+          `select count(*)::int as objects,
+                  coalesce(sum(size_bytes),0)::text as bytes,
+                  count(*) filter (where created_at < now() - interval '1 hour')::int as stale
+             from ${qualifiedTable("document_blobs", schema)}
+            where key like 'pending-request/%'`,
+        );
+        ephemeralStaging = {
+          objects: Number(staging.rows[0]?.objects ?? 0),
+          bytes: Number(staging.rows[0]?.bytes ?? 0),
+          staleOverOneHour: Number(staging.rows[0]?.stale ?? 0),
+        };
       }
     } else {
       if (!args.storageManifest) {
@@ -368,6 +381,9 @@ async function main() {
         objectsChecked: storageResult.objectsChecked,
         missingObjects: storageResult.missingObjects,
         orphanObjects: storageResult.orphanObjects,
+        ephemeralObjectsIgnoredByDurableReconciliation: storageResult.ephemeralObjects,
+        ephemeralBytesIgnoredByDurableReconciliation: storageResult.ephemeralBytes,
+        ephemeralStaging,
         finalDecisionApplicationsChecked: terminalDecisionRows,
         passed: storageResult.ok,
       },
