@@ -1,5 +1,6 @@
 import "./lib/load-env";
-import { readFile } from "node:fs/promises";
+import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { Pool } from "pg";
 import { databasePoolConfig } from "../src/lib/database-config";
 import { assertSafePerfTarget, perfTable, safeTargetSummary } from "./perf-safety";
@@ -192,7 +193,7 @@ async function main() {
       };
     });
 
-    console.log(JSON.stringify({
+    const result = {
       generatedAt: new Date().toISOString(),
       target: safeTargetSummary(target),
       explainInput: process.env.PERF_EXPLAIN_INPUT ?? null,
@@ -204,7 +205,14 @@ async function main() {
         reviewIfMeasured: output.filter((x) => x.recommendation === "REVIEW_IF_MEASURED").length,
         deferredSmallTable: output.filter((x) => x.recommendation === "DEFER_SMALL_TABLE").length,
       }
-    }, null, 2));
+    };
+    const json = JSON.stringify(result, null, 2);
+    if (process.env.PERF_INDEX_ADVISOR_OUTPUT) {
+      const file = resolve(process.env.PERF_INDEX_ADVISOR_OUTPUT);
+      await mkdir(resolve(file, ".."), { recursive: true }).catch(() => undefined);
+      await writeFile(file, json, { mode: 0o600 });
+    }
+    console.log(json);
   } finally {
     await pool.end();
   }
