@@ -236,6 +236,10 @@ async function main() {
         walletReconciliationPassed: false,
         storageReconciliationPassed: false,
         tenantIsolationPassed: false,
+        restoreEvidenceSha256: null,
+        offsiteEvidenceRef: null,
+        applicationEvidenceRef: null,
+        tenantIsolationEvidenceRef: null,
       },
     };
 
