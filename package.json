@@ -29,7 +29,8 @@
     "dr:prod-preflight": "tsx scripts/dr-prod-preflight.ts",
     "dr:status": "tsx scripts/dr-status.ts",
     "dr:evidence-bundle": "tsx scripts/dr-evidence-bundle.ts",
-    "dr:release-gate": "tsx scripts/dr-release-gate.ts"
+    "dr:release-gate": "tsx scripts/dr-release-gate.ts",
+    "dr:release-resolve": "tsx scripts/dr-resolve-production-release.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
