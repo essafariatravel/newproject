@@ -14,6 +14,17 @@ fetch_locale() {
   curl -fsS --max-time 30 -H "Cookie: evos_ui_locale=$locale" "$BASE_URL$path" -o "$out"
 }
 
+html_text_contains() {
+  local file="$1" expected="$2"
+  python3 - "$file" "$expected" <<'PY'
+import html, re, sys
+src = open(sys.argv[1], encoding="utf-8").read()
+text = html.unescape(re.sub(r"<[^>]+>", " ", src))
+text = " ".join(text.split())
+raise SystemExit(0 if sys.argv[2] in text else 1)
+PY
+}
+
 echo "== Legal/privacy runtime smoke =="
 echo "Target: $BASE_URL"
 
@@ -74,7 +85,10 @@ pass "synthetic local-only legal versions inserted"
 # ---------------------------------------------------------------------------
 # 3. Public legal rendering after publication.
 fetch_locale "/privacy" en "$WORK/privacy-live.html"
-grep -q "SYNTHETIC PRIVACY EN" "$WORK/privacy-live.html"   && grep -q "Version 1" "$WORK/privacy-live.html"   && pass "privacy page renders approved version + version number"   || fail "privacy page did not render the active legal version"
+html_text_contains "$WORK/privacy-live.html" "SYNTHETIC PRIVACY EN" \
+  && html_text_contains "$WORK/privacy-live.html" "Version 1" \
+  && pass "privacy page renders approved version + version number" \
+  || fail "privacy page did not render the active legal version"
 if grep -qi 'name="robots"[^>]*noindex' "$WORK/privacy-live.html"; then
   fail "published privacy page remained noindex"
 else
@@ -82,7 +96,10 @@ else
 fi
 
 fetch_locale "/terms" en "$WORK/terms-live.html"
-grep -q "SYNTHETIC TERMS EN" "$WORK/terms-live.html"   && grep -q "Version 1" "$WORK/terms-live.html"   && pass "terms page renders approved version + version number"   || fail "terms page did not render the active legal version"
+html_text_contains "$WORK/terms-live.html" "SYNTHETIC TERMS EN" \
+  && html_text_contains "$WORK/terms-live.html" "Version 1" \
+  && pass "terms page renders approved version + version number" \
+  || fail "terms page did not render the active legal version"
 
 # EN/FR/AR stay independently published.
 fetch_locale "/privacy" fr "$WORK/privacy-fr.html"
