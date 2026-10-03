@@ -110,25 +110,60 @@ The final feature-head run was GitHub Actions `Legal Privacy deterministic verif
 Preprod post-merge verification is performed by the repository's existing `RC deterministic verification` workflow on merge commit:
 `8a27eb1934e14f2d29a2d8f862f0a6c1c4370698`.
 
-## Browser/runtime validation
+## Runtime validation
 
-A new Vercel Preview deployment could not be created at the end of this gate because Vercel returned:
+The preprod RC workflow now starts an isolated PostgreSQL instance, applies all migrations through 0026, seeds only local synthetic data, starts the built Next.js application and executes `scripts/privacy-runtime-smoke.sh` over real HTTP.
 
-`api-deployments-free-per-day` — more than 100 deployments / daily build limit.
+Verified in RC deterministic verification run #124 on commit `946470fda2720d21a1fcd7d211c67d7bf8597cee`:
+- unpublished Privacy page renders fail-closed state;
+- unpublished Privacy page is noindex;
+- unpublished Terms page renders fail-closed state;
+- unpublished Terms page is noindex;
+- agency registration is closed while approved legal versions are missing;
+- no registration form is rendered in that state;
+- synthetic local-only EN/FR/AR legal versions can be inserted for disposable runtime testing;
+- active Privacy/Terms versions render with their version number;
+- published Privacy page becomes indexable by page metadata;
+- FR version resolves independently;
+- AR version resolves independently with RTL;
+- registration contains exact legal-version UUIDs;
+- real first-contact controls contain no address/KYC/document upload fields;
+- a real HTTP Next server-action registration succeeds;
+- injected legacy KYC and mass-assignment fields remain unpersisted;
+- persisted legal consent evidence contains the exact version IDs;
+- `TERMS_ACCEPTED` and `PRIVACY_NOTICE_ACKNOWLEDGED` audit events contain the exact legal-version IDs.
 
-This is an external account quota, not a compilation/test failure.
+The runtime work also exposed and fixed a demo-seed defect: the seed attempted to UPDATE an immutable wallet transaction after submission. The stable demo application reference is now assigned before submission, so immutable ledger history is never rewritten.
 
-Do not bypass this by touching Production.
+Legacy invented Privacy/Terms strings were removed from the demo seed.
 
-When Vercel quota becomes available, the already-merged preprod commit should receive the normal Preview deployment and the remaining runtime check is limited to:
-- browser cookies/storage actual values/attributes;
-- /privacy and /terms rendering for approved content;
-- registration blocked when legal content is missing;
-- registration exact legal-version evidence when approved content exists;
-- no unexpected third-party tracking/network requests;
-- staff display of consent evidence.
+### Hosted Vercel Preview
 
-No Codex code implementation is required for those checks.
+A new Vercel Preview deployment remains externally unavailable because Vercel returned a daily deployment/build quota error (`api-deployments-free-per-day`).
+
+The hosted verification workflow is now:
+- enabled for `preprod/essafaria-final-hardening`;
+- aligned with minimized first-contact onboarding;
+- aware that registration must fail closed when approved legal content is absent;
+- aware of migrations 0020–0026;
+- quota-aware: a verified Vercel build/deployment quota is reported as SKIP rather than a false product FAIL;
+- ready to run automatically on future preprod source/migration changes once Vercel can create a Preview.
+
+Do not bypass the quota by touching Production.
+
+The only check that inherently still requires a real hosted browser/network environment is final deployed inspection of actual cookies/storage/network requests. This is an external-environment validation, not remaining Codex implementation.
+
+## Governance package
+
+Additional decision-ready operational documents:
+- `docs/privacy/data-flow-map.md`
+- `docs/privacy/access-need-to-know.md`
+- `docs/privacy/retention-decision-register.md`
+- `docs/privacy/privacy-request-incident-runbook.md`
+
+The current code intentionally gives ADMIN, VISA_AGENT and ACCOUNTING a shared operational Staff perimeter except account management/recovery. Whether to retain that V1 model or introduce separation of duties is explicitly an **OWNER BUSINESS DECISION**, not an engineering/Codex inference.
+
+Legal update enforcement (informational vs acknowledgement vs re-acceptance vs blocking) is also explicitly an **OWNER + LEGAL REVIEW DECISION**.
 
 ## Owner / legal blocker
 
@@ -158,8 +193,12 @@ Production isolation: **PASS**
 
 Deterministic tests/build: **PASS**
 
-Hosted browser Preview QA: **BLOCKED EXTERNALLY BY VERCEL DAILY BUILD QUOTA**
+Local built-runtime HTTP/DB QA: **PASS**
 
-Legal content approval: **BLOCKED ON OWNER / LEGAL INPUT**
+Hosted Vercel browser/network QA: **BLOCKED EXTERNALLY BY VERCEL DAILY BUILD QUOTA**
 
-No remaining engineering implementation in this gate should be delegated to Codex.
+Legal content approval / retention / legal-update enforcement: **BLOCKED ON OWNER / LEGAL INPUT**
+
+Staff separation-of-duties choice: **OWNER BUSINESS DECISION REQUIRED**
+
+No remaining Legal/Privacy engineering implementation should be delegated to Codex. The hosted check can run automatically when Vercel is able to create a Preview.
