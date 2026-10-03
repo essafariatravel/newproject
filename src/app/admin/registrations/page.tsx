@@ -71,7 +71,7 @@ export default async function AdminRegistrationsPage({
       <FilterBar
         action="/admin/registrations"
         fields={[
-          { name: "q", label: "Search", type: "text", value: q, placeholder: "Company, reference, email, CR number…" },
+          { name: "q", label: "Search", type: "text", value: q, placeholder: "Agency, reference, contact email…" },
           { name: "status", label: "Status", type: "select", value: status, options: STATUS_OPTIONS },
           {
             name: "country",
