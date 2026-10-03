@@ -40,7 +40,10 @@ Implemented and integrated:
 - verification-only future Codex handoff;
 - private Supabase document-bucket default aligned to verified \`documents\` bucket;
 - production-secure locale preference cookie;
-- stored-file integrity metadata and verification synchronized with Preview migrations 0027/0028.
+- stored-file integrity metadata and verification synchronized with Preview migrations 0027/0028;
+- private file downloads use validated immutable database MIME metadata rather than storage-provider response metadata;
+- durable audit metadata minimized to avoid redundant document/receipt filenames and repeated agency/user identity fields;
+- public agency anti-abuse uses hashed rate-limit subjects; raw request IP is not persisted in the partnership record or its public submission audit.
 
 ## Database migrations
 
@@ -88,7 +91,8 @@ Application behavior now:
 - validates the same receipt identity before wallet credit;
 - rejects permanent stored-byte rewrites through database triggers;
 - rejects business metadata identity rewrites for documents/top-up receipts;
-- retains size-only compatibility for historical rows whose SHA-256 is null.
+- retains size-only compatibility for historical rows whose SHA-256 is null;
+- serves private downloads with the validated persisted MIME type, while keeping `Content-Disposition: attachment` and `nosniff`.
 
 ### Production
 
@@ -146,6 +150,10 @@ Legacy KYC/address/volume fields remain database-compatible for historical recor
 Administrative evidence is requested later only when Staff identifies a specific need. Follow-up links are scoped, expiring and token-hashed.
 
 EN/FR/AR user-facing copy has been cleaned so it no longer encourages uploading company documents during first contact.
+
+Anti-abuse counters persist only a one-way hashed rate-limit subject. The raw request IP is not written to new `agency_registrations` rows and is not duplicated into the public `AGENCY_REGISTRATION_SUBMITTED` audit event.
+
+Targeted durable audit events also avoid redundant filenames, agency legal names, user emails and usernames where entity IDs already provide the required traceability.
 
 When approved Terms/Privacy versions are absent, public agency registration fails closed.
 
@@ -212,6 +220,39 @@ The preprod branch has:
 - hosted Preview HTTP verification when a current or proven same-branch Preview is available;
 - stale-Preview/quota classification to prevent false current-HEAD failures.
 
+### Final code-bearing verification
+
+Verified code-bearing SHA: `51d70c29afe27176fdaa84dc841ecdc10a32725c`
+
+GitHub Actions RC deterministic verification:
+- checkout exact SHA: PASS;
+- TypeScript: PASS;
+- ESLint: PASS;
+- shell harness syntax: PASS;
+- targeted Preview-build guard: PASS;
+- deterministic suite: **92 test files / 652 tests PASS**;
+- non-deploying Next.js production build: PASS;
+- local PostgreSQL migration replay through the current migration set: PASS;
+- local Legal/Privacy runtime smoke: PASS.
+
+Hosted Preview verification #68 is PASS on runtime code SHA `69237c1d1c5cb5215c068e222206c6bfa1df28d7`. The following commit `51d70c29…` adds only a static regression assertion and does not alter runtime behavior.
+
+Final read-only Supabase verification:
+- Preview migration count: 28;
+- Preview last migration: `0028_file_identity_hardening.sql`;
+- Preview approved legal-version rows: 0;
+- Preview `anon` schema USAGE: false;
+- Preview `authenticated` schema USAGE: false;
+- Preview PUBLIC function EXECUTE count: 0;
+- Preview unpinned application-function search-path count: 0;
+- Production migration count: 19;
+- Production last migration: `0019_config_translations.sql`;
+- Production `0028`: absent;
+- storage bucket `documents`: private;
+- storage bucket `website-media`: public.
+
+Production remained untouched by these verification actions.
+
 The local runtime smoke proves:
 - missing approved legal content => legal pages show unpublished state;
 - unpublished legal pages are noindex;
@@ -266,7 +307,7 @@ The exact input package is \`docs/privacy/owner-legal-handoff.md\`.
 
 ## Gate verdict
 
-Technical Legal/Privacy implementation: **PASS, subject to the authoritative branch CI staying green**
+Technical Legal/Privacy implementation: **PASS** — code-bearing SHA `51d70c29afe27176fdaa84dc841ecdc10a32725c` passed the complete deterministic gate
 
 Privacy/data-governance artifacts: **PASS**
 
