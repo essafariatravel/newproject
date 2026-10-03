@@ -1,6 +1,6 @@
 # Performance candidate — unread notifications index
 
-Status: **mixed local evidence; DEFER promotion; not applied to Preview or Production.**
+Status: **NO_STRONG_LOCAL_BENEFIT; do not promote from local evidence; not applied to Preview or Production.**
 
 Candidate under study:
 
@@ -46,6 +46,6 @@ The symmetric rerun removes the earlier cache bias and shows no repeatable benef
 
 **Do not create a migration from this candidate now.**
 
-Hosted polling-only evidence should determine whether unread-count pressure is material on Preview. Promote only if the hosted plan/latency shows a meaningful bottleneck and the same index produces a repeatable benefit.
+Hosted polling-only evidence may reopen the question only if unread-count pressure is a measured Preview bottleneck and a hosted A/B demonstrates a repeatable benefit.
 
 No Production change is authorized by this file.
