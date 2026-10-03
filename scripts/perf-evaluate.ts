@@ -2,6 +2,10 @@ import { readFile } from "node:fs/promises";
 
 type K6Metric = { values?: Record<string, number>; thresholds?: Record<string, { ok: boolean }> };
 type K6Summary = { metrics?: Record<string, K6Metric> };
+type BudgetFile = {
+  global: { p95Ms: number; errorRateMax: number; unexpectedFailureRateMax: number };
+  operations: Record<string, { p95Ms: number; p99Ms: number }>;
+};
 type DbSnapshot = {
   label?: string;
   target?: unknown;
@@ -72,10 +76,11 @@ async function main() {
     throw new Error("Usage: npx tsx scripts/perf-evaluate.ts <k6-summary.json> <before-db.json> <after-db.json>");
   }
 
-  const [summary, before, after] = await Promise.all([
+  const [summary, before, after, budgets] = await Promise.all([
     jsonFile<K6Summary>(summaryPath),
     jsonFile<DbSnapshot>(beforePath),
     jsonFile<DbSnapshot>(afterPath),
+    jsonFile<BudgetFile>("perf/budgets.json"),
   ]);
 
   const errorRate = metric(summary, "http_req_failed", "rate");
@@ -88,12 +93,30 @@ async function main() {
   const rollbackDelta = dbStat(after, "xact_rollback") - dbStat(before, "xact_rollback");
   const waitingLocks = number(after.waitingLocks ?? 0);
 
+  const operationBudgets = Object.entries(budgets.operations).flatMap(([operation, budget]) => {
+    const key = `http_req_duration{operation:${operation}}`;
+    const values = summary.metrics?.[key]?.values;
+    if (!values) return [];
+    const opP95 = number(values["p(95)"]);
+    const opP99 = number(values["p(99)"]);
+    return [{
+      operation,
+      p95Ms: opP95,
+      p99Ms: opP99,
+      p95BudgetMs: budget.p95Ms,
+      p99BudgetMs: budget.p99Ms,
+      pass: Number.isFinite(opP95) && Number.isFinite(opP99) && opP95 < budget.p95Ms && opP99 < budget.p99Ms,
+    }];
+  });
+  const operationFailures = operationBudgets.filter((item) => !item.pass);
+
   const checks = [
-    { name: "unexpected request failure rate < 1%", pass: Number.isFinite(errorRate) && errorRate < 0.01, value: errorRate },
-    { name: "business/harness unexpected failure rate < 1%", pass: Number.isFinite(unexpectedRate) && unexpectedRate < 0.01, value: unexpectedRate },
-    { name: "global HTTP p95 screening threshold < 2000 ms", pass: Number.isFinite(p95) && p95 < 2000, value: p95 },
+    { name: `unexpected request failure rate < ${budgets.global.errorRateMax}`, pass: Number.isFinite(errorRate) && errorRate < budgets.global.errorRateMax, value: errorRate },
+    { name: `business/harness unexpected failure rate < ${budgets.global.unexpectedFailureRateMax}`, pass: Number.isFinite(unexpectedRate) && unexpectedRate < budgets.global.unexpectedFailureRateMax, value: unexpectedRate },
+    { name: `global HTTP p95 screening threshold < ${budgets.global.p95Ms} ms`, pass: Number.isFinite(p95) && p95 < budgets.global.p95Ms, value: p95 },
     { name: "no new database deadlocks", pass: Number.isFinite(deadlocksDelta) && deadlocksDelta === 0, value: deadlocksDelta },
     { name: "no lock wait remains after the run", pass: Number.isFinite(waitingLocks) && waitingLocks === 0, value: waitingLocks },
+    { name: "all observed operation-specific p95/p99 budgets pass", pass: operationFailures.length === 0, value: operationFailures.length },
   ];
 
   const pass = checks.every((item) => item.pass);
@@ -111,6 +134,8 @@ async function main() {
       waitingLocksAfter: waitingLocks,
     },
     checks,
+    operationBudgets,
+    operationFailures,
     topStatementDeltas: statementDeltas(before, after),
     topTableScanDeltas: tableDeltas(before, after),
   };
