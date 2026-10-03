@@ -37,6 +37,7 @@ import { validateDocumentFormat } from "@/lib/upload-validation";
 import { applyWalletMutation, getBalance } from "@/lib/wallet";
 import { recordAudit } from "@/lib/audit";
 import { agencyUserIds, notifyUsers } from "@/lib/notifications";
+import { logErrorOnce, logEvent, pseudonymizeIdentifier } from "@/lib/observability";
 
 /** Roles allowed to move money (crediting a processed top-up). */
 export const TOPUP_PROCESSING_ROLES = STAFF_ROLES;
@@ -255,6 +256,16 @@ export async function processTopupRequest(params: {
     }).from(walletTopupRequests).where(eq(walletTopupRequests.id, params.requestId)).limit(1);
     if (!request) throw new AppError("NOT_FOUND", "Top-up request not found.");
     if (request.status !== "PENDING") {
+      logEvent({
+        eventName: "wallet.topup.duplicate_prevented",
+        severity: "info",
+        classification: "SAFE_PREVENTION",
+        result: "prevented",
+        errorCode: "TOPUP_ALREADY_PROCESSED",
+        actorRole: params.actor.role,
+        resourceType: "wallet_topup_request",
+        resourceRef: pseudonymizeIdentifier(params.requestId),
+      });
       throw new AppError("TOPUP_ALREADY_PROCESSED", `Top-up request ${request.reference} was already ${request.status.toLowerCase()}.`);
     }
     verifiedProofKey = request.proofStorageKey;
@@ -404,10 +415,52 @@ export async function processTopupRequest(params: {
     }
   } catch (err) {
     await client.query("rollback").catch(() => {});
+    if (err instanceof AppError && [
+      "TOPUP_ALREADY_PROCESSED",
+      "PROOF_REQUIRED",
+      "PROOF_CHANGED",
+      "INVALID_AMOUNT",
+      "REASON_REQUIRED",
+      "VALIDATION",
+      "FORBIDDEN",
+      "NOT_FOUND",
+    ].includes(err.code)) {
+      logEvent({
+        eventName: err.code === "TOPUP_ALREADY_PROCESSED"
+          ? "wallet.topup.duplicate_prevented"
+          : "wallet.topup.prevented",
+        severity: err.code === "TOPUP_ALREADY_PROCESSED" ? "info" : "warning",
+        classification: "SAFE_PREVENTION",
+        result: "prevented",
+        errorCode: err.code,
+        actorRole: params.actor.role,
+        resourceType: "wallet_topup_request",
+        resourceRef: pseudonymizeIdentifier(params.requestId),
+      });
+    } else {
+      logErrorOnce("wallet.topup.technical_failed", err, {
+        severity: "error",
+        classification: "BUSINESS_FAILURE",
+        result: "technical_failed",
+        actorRole: params.actor.role,
+        resourceType: "wallet_topup_request",
+        resourceRef: pseudonymizeIdentifier(params.requestId),
+      });
+    }
     throw err;
   } finally {
     client.release();
   }
+
+  logEvent({
+    eventName: "wallet.topup.succeeded",
+    result: "succeeded",
+    actorRole: params.actor.role,
+    tenantRef: pseudonymizeIdentifier(outcome.agencyId),
+    resourceType: "wallet_topup_request",
+    resourceRef: pseudonymizeIdentifier(params.requestId),
+    metadata: { decision: params.decision, status: outcome.status },
+  });
 
   // Notifications + audit are best-effort post-commit side effects.
   if (params.decision === "REJECT") {
@@ -430,20 +483,32 @@ export async function processTopupRequest(params: {
   };
   const credited = money(outcome.amount);
   const balanceNow = money(outcome.balanceAfter);
-  await notifyUsers(recipients, {
-    type: "WALLET_TOPUP_DECIDED",
-    title:
-      outcome.status === "PROCESSED"
-        ? `Wallet topped up — ${credited ?? outcome.amount} DZD`
-        : "Wallet top-up request rejected",
-    body:
-      outcome.status === "PROCESSED"
-        ? `Request ${outcome.reference} was credited to your wallet${credited ? ` (+${credited} DZD)` : ""}` +
-          `${balanceNow ? `. New balance: ${balanceNow} DZD.` : "."}`
-        : `Request ${outcome.reference} was rejected. ${note ?? ""}`.trim(),
-    link: "/portal/wallet",
-    agencyId: outcome.agencyId,
-  });
+  try {
+    await notifyUsers(recipients, {
+      type: "WALLET_TOPUP_DECIDED",
+      title:
+        outcome.status === "PROCESSED"
+          ? `Wallet topped up — ${credited ?? outcome.amount} DZD`
+          : "Wallet top-up request rejected",
+      body:
+        outcome.status === "PROCESSED"
+          ? `Request ${outcome.reference} was credited to your wallet${credited ? ` (+${credited} DZD)` : ""}` +
+            `${balanceNow ? `. New balance: ${balanceNow} DZD.` : "."}`
+          : `Request ${outcome.reference} was rejected. ${note ?? ""}`.trim(),
+      link: "/portal/wallet",
+      agencyId: outcome.agencyId,
+    });
+  } catch (error) {
+    logErrorOnce("notification.topup_decision.failed", error, {
+      severity: "warning",
+      classification: "BUSINESS_FAILURE",
+      result: "technical_failed",
+      actorRole: params.actor.role,
+      tenantRef: pseudonymizeIdentifier(outcome.agencyId),
+      resourceType: "wallet_topup_request",
+      resourceRef: pseudonymizeIdentifier(params.requestId),
+    });
+  }
 
   return {
     status: outcome.status,
