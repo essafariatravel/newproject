@@ -187,7 +187,7 @@ export function buildPublicMetadata(
       title: fullTitle,
       description: copy.description,
       locale: OG_LOCALE[locale],
-      images: [{ url: SEO_DEFAULT_OG_IMAGE, alt: SEO_SITE_NAME }],
+      images: [{ url: SEO_DEFAULT_OG_IMAGE, width: 1916, height: 821, alt: `${SEO_SITE_NAME} B2B travel services` }],
       ...(production ? { url: canonical } : {}),
     },
     twitter: {

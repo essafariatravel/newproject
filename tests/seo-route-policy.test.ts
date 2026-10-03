@@ -41,6 +41,24 @@ describe("SEO route classification contract", () => {
     }
   });
 
+  it("classifies every public page explicitly as indexable or noindex", () => {
+    for (const path of tsxFilesUnder("src/app/(public)").filter((p) => p.endsWith("/page.tsx"))) {
+      const body = source(path);
+      const indexable = body.includes("buildPublicMetadata");
+      const noindex =
+        body.includes("buildNoIndexMetadata") ||
+        /robots\s*:\s*\{[^}]*index\s*:\s*false/s.test(body);
+      expect(
+        indexable || noindex,
+        `${path} must be explicitly classified for search visibility`,
+      ).toBe(true);
+      expect(
+        indexable && noindex,
+        `${path} cannot be both indexable and noindex`,
+      ).toBe(false);
+    }
+  });
+
   it("keeps every account/auth utility route outside search", () => {
     for (const path of [
       "src/app/(public)/login/page.tsx",

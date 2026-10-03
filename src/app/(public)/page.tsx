@@ -25,7 +25,7 @@ export default async function HomePage() {
           <Link href="/login" className="public-cta btn border border-white/55 bg-transparent px-6 py-3 text-white hover:bg-white/10">{copy.signIn}</Link>
         </div>
       </div></div>
-      <figure className="travel-public-photo"><img src="/images/departure-atelier.webp" alt="" width="1536" height="1024" fetchPriority="high" /><figcaption>{copy.illustration}</figcaption></figure>
+      <figure className="travel-public-photo"><img src="/images/departure-atelier.webp" alt={copy.illustration} width="1672" height="941" fetchPriority="high" /><figcaption>{copy.illustration}</figcaption></figure>
     </section>
     <section className="ess-container grid gap-8 py-16 sm:py-20 md:grid-cols-[1fr_.7fr]" aria-labelledby="partner-title">
       <div><p className="travel-eyebrow text-gold-700">ESSAFARIA</p><h2 id="partner-title" className="mt-3 max-w-xl font-serif text-3xl text-navy-900 sm:text-4xl">{copy.agenciesTitle}</h2><p className="mt-5 max-w-xl text-base leading-relaxed text-slate-600">{copy.agenciesBody}</p></div>
