@@ -55,7 +55,9 @@ jobs:
         run: npm run lint
 
       - name: Parse k6 harness syntax
-        run: node --check perf/k6/essafaria-load.js
+        run: |
+          node --check perf/k6/essafaria-load.js
+          node --check perf/k6/essafaria-exports.js
 
       - name: Verify performance safety guard
         run: npm test -- tests/performance-safety.test.ts
@@ -118,6 +120,46 @@ jobs:
             console.log(JSON.stringify(checks));
           })().catch((err) => { console.error(err); process.exit(1); });
           NODE
+          PERF_BENCH_REPEATS=2 PERF_BENCH_OUTPUT=perf/results/ci-query-benchmark.json npm run perf:benchmark
+          PERF_ALLOW_EXPLAIN_ANALYZE=YES PERF_EXPLAIN_OUTPUT=perf/results/ci-explain.json npm run perf:explain
+          npm run perf:regression -- perf/results/ci-query-benchmark.json perf/results/ci-query-benchmark.json
+
+          mkdir -p perf/results
+          cat > perf/results/ci-k6-summary.json <<'JSON'
+          {
+            "metrics": {
+              "http_req_duration": {"values":{"med":100,"p(95)":200,"p(99)":300}},
+              "http_req_failed": {"values":{"rate":0}},
+              "unexpected_failure": {"values":{"rate":0}},
+              "http_reqs": {"values":{"rate":12.5}},
+              "http_req_duration{operation:agency_dashboard}": {"values":{"p(95)":200,"p(99)":300}}
+            }
+          }
+          JSON
+          cat > perf/results/ci-db-before.json <<'JSON'
+          {"waitingLocks":0,"databaseStats":[{"deadlocks":0}]}
+          JSON
+          cat > perf/results/ci-db-after.json <<'JSON'
+          {"waitingLocks":0,"databaseStats":[{"deadlocks":0}]}
+          JSON
+          cat > perf/results/ci-report-manifest.json <<'JSON'
+          {
+            "environment":"ci-disposable-postgres",
+            "commit":"CI",
+            "walletCorrectness":true,
+            "storageCorrectness":true,
+            "runs":[{
+              "label":"10-vu",
+              "vus":10,
+              "summary":"perf/results/ci-k6-summary.json",
+              "beforeDb":"perf/results/ci-db-before.json",
+              "afterDb":"perf/results/ci-db-after.json"
+            }]
+          }
+          JSON
+          npm run perf:report -- perf/results/ci-report-manifest.json perf/results/ci-performance-report.md
+          grep -q "PASS WITH CAPACITY LIMIT" perf/results/ci-performance-report.md
+
           PERF_ALLOW_LIVE_WALLET=YES npx tsx scripts/perf-wallet-races-live.ts
           PERF_ALLOW_LIVE_STORAGE=YES npx tsx scripts/perf-storage-live.ts
 
