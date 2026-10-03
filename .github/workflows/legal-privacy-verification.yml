@@ -22,7 +22,7 @@ jobs:
       VERCEL: "0"
       VERCEL_ENV: ""
       DATABASE_URL: ""
-      DATABASE_SCHEMA: ""
+      DATABASE_SCHEMA: "public"
       ALLOW_DEMO_SEED: "false"
       STORAGE_PROVIDER: "db"
       CI: "true"
