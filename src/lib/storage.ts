@@ -47,16 +47,37 @@ const dbProvider: StorageProvider = {
 const SUPABASE_UPLOAD_LIMIT = 10 * 1024 * 1024;
 
 function supabaseConfig() {
-  const url = process.env.SUPABASE_URL;
+  const rawUrl = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? "visa-documents";
-  if (!url || !key) {
+  if (!rawUrl || !key) {
     throw new AppError(
       "STORAGE_MISCONFIGURED",
       "Supabase storage is not configured (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).",
     );
   }
-  return { url: url.replace(/\/$/, ""), key, bucket };
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new AppError("STORAGE_MISCONFIGURED", "Supabase storage URL is invalid.");
+  }
+  if (
+    parsed.protocol !== "https:" ||
+    !parsed.hostname.endsWith(".supabase.co") ||
+    parsed.username ||
+    parsed.password ||
+    (parsed.port && parsed.port !== "443") ||
+    (parsed.pathname !== "/" && parsed.pathname !== "") ||
+    parsed.search ||
+    parsed.hash
+  ) {
+    throw new AppError("STORAGE_MISCONFIGURED", "Supabase storage URL is not an approved HTTPS project endpoint.");
+  }
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(bucket)) {
+    throw new AppError("STORAGE_MISCONFIGURED", "Supabase storage bucket name is invalid.");
+  }
+  return { url: `https://${parsed.hostname}`, key, bucket };
 }
 
 const supabaseProvider: StorageProvider = {
