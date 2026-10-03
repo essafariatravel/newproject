@@ -50,6 +50,7 @@ Observed implementation at the source HEAD:
 - Staff idle timeout is 30 minutes; agency idle timeout is 2 hours.
 - Document request upload is server-bounded to 2 MB.
 - `pg_stat_statements` is enabled on the current Supabase project.
+- The preparation CI exposed a pre-existing demo-seed incompatibility with the immutable wallet trigger. The seed now assigns `EVT-DEMO-0001` before submission so the immutable charge is born with the correct reference; it no longer attempts to UPDATE ledger history.
 
 ## 3. Current Preview baseline observed during preparation
 
@@ -199,6 +200,32 @@ Captures before/after DB evidence:
 - waiting locks;
 - top pg_stat_statements entries.
 
+`scripts/perf-evaluate.ts`
+
+Combines one k6 summary with before/after DB snapshots and returns a deterministic screening result: STOP or eligible to consider the next tier.
+
+`scripts/perf-wallet-races-live.ts`
+
+Guarded non-Production financial correctness suite. It exercises only synthetic PERF data and covers:
+
+- 2 / 10 / 50 simultaneous attempts on the same application;
+- 2 / 10 / 50 distinct simultaneous submissions with sufficient funds;
+- 50 distinct submissions with funds for only 10;
+- concurrent manual wallet adjustment plus submissions;
+- two staff processors racing on one top-up request;
+- repeated top-up processing;
+- negative-balance checks;
+- before/after arithmetic;
+- database rejection of wallet-ledger UPDATE.
+
+It requires the extra acknowledgement `PERF_ALLOW_LIVE_WALLET=YES`.
+
+`scripts/perf-storage-live.ts`
+
+Guarded non-Production storage suite. It exercises 1 / 5 / 10 / 20 concurrent 2 MB objects, byte-for-byte read-back, version-preserving replacement keys, synthetic receipt/decision-document round trips and cleanup.
+
+It requires `PERF_ALLOW_LIVE_STORAGE=YES`.
+
 ### Workload
 
 `perf/k6/essafaria-load.js`
@@ -266,7 +293,7 @@ DATABASE_URL must be injected from the approved Preview environment. Do not past
 
 ```bash
 export PERF_SYNTHETIC_PASSWORD="<generated-local-secret-at-least-16-chars>"
-npx tsx scripts/perf-seed-identities.ts
+npm run perf:seed-identities
 ```
 
 ### C. Create synthetic sessions
@@ -275,7 +302,7 @@ For smoke/normal runs:
 
 ```bash
 export PERF_SESSIONS_PER_ROLE=50
-npx tsx scripts/perf-create-sessions.ts
+npm run perf:create-sessions
 ```
 
 For a 1000-VU tier, generate enough distinct sessions before the run. A conservative simple setting is 500 per role.
@@ -283,14 +310,14 @@ For a 1000-VU tier, generate enough distinct sessions before the run. A conserva
 ### D. Preflight
 
 ```bash
-npx tsx scripts/perf-preflight.ts
+npm run perf:preflight
 ```
 
 ### E. Snapshot before a tier
 
 ```bash
 export PERF_LABEL=before-smoke
-npx tsx scripts/perf-db-snapshot.ts
+npm run perf:snapshot
 ```
 
 ### F. Run k6 smoke
@@ -298,17 +325,25 @@ npx tsx scripts/perf-db-snapshot.ts
 ```bash
 PERF_PROFILE=smoke \
 PERF_SESSION_FILE=./perf/.runtime/sessions.json \
-k6 run perf/k6/essafaria-load.js
+npm run perf:k6
 ```
 
 ### G. Snapshot after
 
 ```bash
 export PERF_LABEL=after-smoke
-npx tsx scripts/perf-db-snapshot.ts
+npm run perf:snapshot
 ```
 
-Only advance after evaluating the run and DB evidence.
+Evaluate the tier mechanically:
+
+```bash
+npm run perf:evaluate -- perf/results/k6-smoke-summary.json \
+  perf/results/<before-file>.json \
+  perf/results/<after-file>.json
+```
+
+Only advance after the evaluator and the operation-specific correctness checks pass.
 
 ## 9. Tier execution
 
@@ -355,7 +390,7 @@ export PERF_NOTIFICATIONS_PER_APP=4
 export PERF_MESSAGES_PER_APP=1
 export PERF_AUDITS_PER_APP=4
 export PERF_LEDGER_ROWS=10000
-npx tsx scripts/perf-seed-scale.ts
+npm run perf:seed-scale
 ```
 
 For a remote non-Production database the script additionally requires:
@@ -383,6 +418,18 @@ The unit/integration concurrency test validates the storage abstraction against 
 The hosted gate must separately identify the actual Preview `STORAGE_PROVIDER` and run the 2 MB upload/download scenario against that provider.
 
 Do not infer Supabase Storage performance from DB-bytea test results or vice versa.
+
+Run the prebuilt live correctness suites only after target identity is proven:
+
+```bash
+export PERF_ALLOW_LIVE_WALLET=YES
+npm run perf:wallet-races
+
+export PERF_ALLOW_LIVE_STORAGE=YES
+npm run perf:storage
+```
+
+Both scripts independently reuse the central anti-Production guard.
 
 ## 13. What remains for the final execution agent
 
