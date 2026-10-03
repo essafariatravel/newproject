@@ -44,13 +44,20 @@ The repository already contains and tests the backup, encryption, restore, walle
 
 ## External task 1 — resolve the exact current Production release SHA
 
-Resolve the currently serving Production deployment for `visa.essafariavoyages.com` in Vercel and record its exact Git commit SHA.
+Use the repository resolver rather than inspecting Vercel manually:
 
-This value becomes `DR_RELEASE_SHA`.
+```text
+VERCEL_TOKEN=<read token with ESSAFARIA team access>
+npm run dr:release-resolve
+```
 
-Do not guess it from `main`, the DR branch, a Preview deployment or a local checkout.
+The resolver is pinned to the ESSAFARIA Vercel team/project/domain, lists only READY production deployments, verifies that the matched deployment owns alias `visa.essafariavoyages.com`, requests Git repository metadata, and accepts only a full 40-character Git SHA.
 
-Record only the SHA in the recovery evidence. Do not copy Vercel tokens or environment secrets into reports.
+Expected result: `status: RESOLVED`.
+
+Copy only `gitSha` into `DR_RELEASE_SHA`.
+
+The Vercel token is never accepted on the command line and is never printed. If the token cannot access the ESSAFARIA Vercel team, the command returns `BLOCKED`; do not guess the SHA from `main`, GitHub status, a Preview deployment or a local checkout.
 
 ## External task 1A — run the read-only Production preflight
 
