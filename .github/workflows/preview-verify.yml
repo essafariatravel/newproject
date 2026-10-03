@@ -12,9 +12,12 @@ on:
       # changes — only which branches may execute it.
       - arena/01a0c3b8-newproject
       - arena/01a0ce58-newproject
+      - preprod/essafaria-final-hardening
     paths:
       - .github/workflows/preview-verify.yml
       - scripts/hosted-verify.sh
+      - src/**
+      - migrations/**
   workflow_dispatch:
 
 concurrency:
@@ -44,6 +47,19 @@ jobs:
           WF_SHA: ${{ github.sha }}
         run: |
           BASE_URL=""
+          echo "PREVIEW_AVAILABLE=true" >> "$GITHUB_ENV"
+
+          # A Vercel account quota is an external infrastructure condition, not
+          # an application regression. Record it as SKIP instead of a false-red
+          # product gate; the next eligible push will try again automatically.
+          VERCEL_DESC=$(gh api "repos/$WF_REPO/commits/$WF_SHA/status" --jq '.statuses[] | select(.context=="Vercel") | .description' 2>/dev/null | head -1 || true)
+          if printf '%s' "$VERCEL_DESC" | grep -Eqi 'rate limit|deployment rate limited|daily build|api-deployments-free-per-day'; then
+            echo "PREVIEW_AVAILABLE=false" >> "$GITHUB_ENV"
+            printf 'SKIP  Hosted Preview unavailable: Vercel deployment/build quota (%s)\n' "${VERCEL_DESC:-rate limited}" > /tmp/gate.out
+            echo "Vercel quota detected — hosted checks skipped without changing Production."
+            exit 0
+          fi
+
           for i in $(seq 1 30); do
             DEP_ID=$(gh api "repos/$WF_REPO/deployments" | python3 -c '
           import json, sys, os
@@ -74,6 +90,7 @@ jobs:
           echo "Resolved Preview deployment: $BASE_URL"
 
       - name: Wait for deployment to answer
+        if: env.PREVIEW_AVAILABLE != 'false'
         run: |
           for i in $(seq 1 30); do
             CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$BASE_URL/api/health" || true)
@@ -85,6 +102,7 @@ jobs:
           exit 1
 
       - name: Run hosted end-to-end verification
+        if: env.PREVIEW_AVAILABLE != 'false'
         run: |
           bash scripts/hosted-verify.sh 2>&1 | tee /tmp/gate.out
           exit ${PIPESTATUS[0]}
