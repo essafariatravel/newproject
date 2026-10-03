@@ -99,7 +99,7 @@ const supabaseProvider: StorageProvider = {
       headers: {
         Authorization: `Bearer ${serviceKey}`,
         "Content-Type": mimeType,
-        "x-upsert": "true",
+        "x-upsert": "false",
       },
       body: new Uint8Array(data),
       signal: AbortSignal.timeout(SUPABASE_REQUEST_TIMEOUT_MS),
