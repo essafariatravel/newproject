@@ -49,6 +49,7 @@ describe("current Production release manifest", () => {
       "0024_preview_api_lockdown.sql",
       "0026_function_privilege_hardening.sql",
       "0027_document_integrity.sql",
+      "0028_file_identity_hardening.sql",
     ]);
     expect(preflightFindings(approvedSnapshot(), pending).some((finding) => finding.includes("pending migration set is not this release"))).toBe(true);
   });
