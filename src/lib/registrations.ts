@@ -61,6 +61,7 @@ import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import type { RegistrationCopy, RegistrationLocale } from "@/lib/i18n";
 import { safeErrorCode, safeErrorText } from "@/lib/safe-error";
 import { sha256Hex } from "@/lib/file-integrity";
+import { sha256Hex } from "@/lib/file-integrity";
 
 /* ------------------------------------------------------------------ */
 /* Constants                                                           */
@@ -219,7 +220,8 @@ function matchesMagicBytes(data: Buffer, mimeType: string): boolean {
  * action maps to localized copy.
  */
 export function validateRegistrationFile(file: RegistrationFileInput): void {
-  if (file.size <= 0) throw new AppError("EMPTY_FILE", "The uploaded file is empty.");
+  if (file.size <= 0 || file.data.length === 0) throw new AppError("EMPTY_FILE", "The uploaded file is empty.");
+  if (file.size !== file.data.length) throw new AppError("FILE_CONTENT", "The uploaded file size is inconsistent.");
   if (file.size > REGISTRATION_MAX_UPLOAD_BYTES || file.data.length > REGISTRATION_MAX_UPLOAD_BYTES) {
     throw new AppError("FILE_TOO_LARGE", "Files must be 2 MB or smaller.");
   }
