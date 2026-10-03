@@ -26,6 +26,7 @@ import {
 import { privateArtifactPath } from "./lib/dr-private-path";
 import { sha256File } from "./lib/dr-backup";
 import { qualifiedTable } from "../src/lib/database-schema";
+import { recoverySessionInsertParts, runtimeIdentityPolicy } from "./lib/dr-runtime-identity";
 
 const REF = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,159}$/;
 const SHA = /^[0-9a-f]{7,40}$/i;
@@ -170,15 +171,11 @@ async function main() {
         where table_schema=$1 and table_name in ('users','sessions')`,
       [restoreSchema],
     );
+    const identityPolicy = runtimeIdentityPolicy(identityColumns.rows);
     const hasColumn = (table: "users" | "sessions", column: string) =>
       identityColumns.rows.some((row) => row.table_name === table && row.column_name === column);
-    const userCredentialSelect = hasColumn("users", "credential_version")
-      ? "u.credential_version"
-      : "0::int as credential_version";
-    const activeIdentityClauses = [
-      hasColumn("users", "activation_pending") ? "not u.activation_pending" : null,
-      hasColumn("users", "must_change_password") ? "not u.must_change_password" : null,
-    ].filter(Boolean).map((condition) => `and ${condition}`).join("\n          ");
+    const userCredentialSelect = identityPolicy.userCredentialSelect;
+    const activeIdentityClauses = identityPolicy.activeIdentityClauses;
 
     const staff = await pool.query<{
       id: string;
@@ -301,30 +298,12 @@ async function main() {
 
     async function createRecoverySession(userId: string, credentialVersion: number) {
       const token = randomBytes(32).toString("base64url");
-      const columns = ["user_id", "token_hash", "expires_at"];
-      const values = ["$1::uuid", "$2", "now()+interval '1 hour'"];
-      const params: unknown[] = [userId, tokenHash(token)];
-      if (hasColumn("sessions", "last_activity_at")) {
-        columns.push("last_activity_at");
-        values.push("now()");
-      }
-      if (hasColumn("sessions", "credential_version")) {
-        params.push(credentialVersion);
-        columns.push("credential_version");
-        values.push(`$${params.length}`);
-      }
-      if (hasColumn("sessions", "ip_address")) {
-        columns.push("ip_address");
-        values.push("null");
-      }
-      if (hasColumn("sessions", "user_agent")) {
-        columns.push("user_agent");
-        values.push("'ESSAFARIA DR recovery probe'");
-      }
+      const parts = recoverySessionInsertParts(identityPolicy, credentialVersion);
+      const params: unknown[] = [userId, tokenHash(token), ...parts.extraParams];
       const row = await pool.query<{ id: string }>(
         `insert into ${qualifiedTable("sessions", restoreSchema)}
-           (${columns.join(",")})
-         values (${values.join(",")})
+           (${parts.columns.join(",")})
+         values (${parts.values.join(",")})
          returning id::text`,
         params,
       );
