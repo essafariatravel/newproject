@@ -19,7 +19,18 @@ Provider documentation:
 - https://supabase.com/docs/guides/platform/backups
 - https://supabase.com/docs/guides/platform/manage-your-usage/point-in-time-recovery
 
+## Generate the recovery key
+
+Use the repository helper on the trusted operator machine:
+
+```text
+npm run dr:key -- --output <absolute-private-path>/essafaria-recovery.dr-key
+```
+
+The key file is created exclusively with private permissions, the key is never printed, `*.dr-key` is ignored by Git, and the repository safety gate fails if a DR key is ever tracked. Keep this file separately from the encrypted backup.
+
 ## Create the encrypted backup
+
 
 Use `npm run dr:backup`.
 
@@ -227,3 +238,12 @@ The finalizer refuses to proceed unless:
 Only then is a new private manifest written with status `VERIFIED`.
 
 This is traceability, not magic proof: an operator must not use the attestation flag unless the referenced evidence really exists and was reviewed. The repository intentionally cannot invent those external facts.
+
+
+## Restored application / tenant validation compatibility
+
+`npm run dr:app-verify` supports both the current Production identity schema through migration `0019` and the hardened `0020+` identity/session columns by inspecting the restored schema before creating recovery-only sessions.
+
+The runtime verifier does not require a dedicated `/api/session` endpoint. It proves the generated recovery sessions by opening protected Staff and Agency pages that exist in the release line.
+
+If the restore contains only one usable agency tenant, the verifier may create a temporary synthetic second agency/user **only inside the disposable recovery database**, exercise foreign dossier/document/wallet/mutation denial, record the fixture source in tenant evidence, and clean up the temporary session/user/agency on exit. Production is never modified by this fallback.
