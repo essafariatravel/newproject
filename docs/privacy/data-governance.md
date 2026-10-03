@@ -40,7 +40,7 @@ The first-contact form is intentionally minimized. New submissions collect:
 - explicit Privacy Notice acknowledgement;
 - accuracy confirmation;
 - exact legal version identifiers, numbers, locale and effective dates;
-- anti-abuse/security submission metadata already used by the platform.
+- anti-abuse rate-limit state keyed by a one-way hash of the request source; the raw IP is not persisted in the partnership record or its public submission audit.
 
 The first-contact form intentionally does **not** request:
 - commercial registration;
@@ -72,6 +72,8 @@ Security expectations:
 - authorization checked at the application/tenant layer before access;
 - opaque generated storage keys;
 - no document body in audit metadata or logs;
+- no redundant original filename in durable upload/download audit metadata when the document entity ID already identifies the record;
+- private download `Content-Type` comes from validated, immutable database metadata rather than storage-provider response metadata;
 - replacement/history follows an approved lifecycle decision rather than an automatic destructive rule.
 
 ## Final decision documents
@@ -97,7 +99,8 @@ Never put into audit metadata:
 - session/activation/follow-up tokens;
 - full document contents;
 - receipt/document binary contents;
-- unnecessary applicant sensitive values.
+- unnecessary applicant sensitive values;
+- redundant document/receipt filenames, agency legal names, user emails or usernames when the audited entity IDs already provide the required traceability.
 
 Privacy deletion/anonymization decisions for audit evidence must preserve security/accountability needs defined by the approved policy.
 
