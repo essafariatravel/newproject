@@ -9,6 +9,7 @@ import {
 import {
   finalizeBackupManifest,
   type RestoreEvidence,
+  type OffsiteEvidence,
 } from "../scripts/lib/dr-finalization";
 
 function createdManifest(): BackupManifest {
@@ -82,6 +83,20 @@ function restoreEvidence(): RestoreEvidence {
   };
 }
 
+function offsiteEvidence(): OffsiteEvidence {
+  return {
+    version: 1,
+    kind: "ESSAFARIA_DR_OFFSITE_COPY",
+    backupId: "ESSAFARIA-PROD-20261003T180000Z-abcdef123456",
+    sourceManifestSha256: "c".repeat(64),
+    verifiedAt: "2026-10-03T18:32:00.000Z",
+    locationRef: "OFFSITE-VAULT-0001",
+    databaseBytes: 1000,
+    databaseSha256: "a".repeat(64),
+    encryptedAuthenticationVerified: true,
+  };
+}
+
 describe("DR evidence-bound finalization", () => {
   it("promotes a CREATED backup only when restore and external evidence are explicitly bound", () => {
     const result = finalizeBackupManifest({
@@ -89,8 +104,9 @@ describe("DR evidence-bound finalization", () => {
       sourceManifestSha256: "c".repeat(64),
       restoreEvidence: restoreEvidence(),
       restoreEvidenceSha256: "d".repeat(64),
+      offsiteEvidence: offsiteEvidence(),
+      offsiteEvidenceSha256: "e".repeat(64),
       evidence: {
-        offsite: "OFFSITE-20261003-0001",
         application: "APPRECOVERY-20261003-0001",
         tenantIsolation: "TENANTISO-20261003-0001",
       },
@@ -109,8 +125,9 @@ describe("DR evidence-bound finalization", () => {
       sourceManifestSha256: "c".repeat(64),
       restoreEvidence: restoreEvidence(),
       restoreEvidenceSha256: "d".repeat(64),
+      offsiteEvidence: offsiteEvidence(),
+      offsiteEvidenceSha256: "e".repeat(64),
       evidence: {
-        offsite: "OFFSITE-20261003-0001",
         application: "APPRECOVERY-20261003-0001",
         tenantIsolation: "TENANTISO-20261003-0001",
       },
@@ -129,8 +146,9 @@ describe("DR evidence-bound finalization", () => {
       sourceManifestSha256: "c".repeat(64),
       restoreEvidence: evidence,
       restoreEvidenceSha256: "d".repeat(64),
+      offsiteEvidence: offsiteEvidence(),
+      offsiteEvidenceSha256: "e".repeat(64),
       evidence: {
-        offsite: "OFFSITE-20261003-0001",
         application: "APPRECOVERY-20261003-0001",
         tenantIsolation: "TENANTISO-20261003-0001",
       },
@@ -139,6 +157,27 @@ describe("DR evidence-bound finalization", () => {
     });
     expect(result.manifest).toBeNull();
     expect(result.findings.join(" ")).toContain("not bound to this source manifest");
+  });
+
+  it("refuses off-site evidence that is not byte-identical to the backup", () => {
+    const offsite = offsiteEvidence();
+    offsite.databaseSha256 = "f".repeat(64);
+    const result = finalizeBackupManifest({
+      manifest: createdManifest(),
+      sourceManifestSha256: "c".repeat(64),
+      restoreEvidence: restoreEvidence(),
+      restoreEvidenceSha256: "d".repeat(64),
+      offsiteEvidence: offsite,
+      offsiteEvidenceSha256: "e".repeat(64),
+      evidence: {
+        application: "APPRECOVERY-20261003-0001",
+        tenantIsolation: "TENANTISO-20261003-0001",
+      },
+      externalEvidenceAttested: true,
+      verifiedAt: new Date("2026-10-03T18:35:00.000Z"),
+    });
+    expect(result.manifest).toBeNull();
+    expect(result.findings.join(" ")).toContain("database SHA-256 does not match manifest");
   });
 
   it("refuses evidence references that look like free-form text or paths", () => {
