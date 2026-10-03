@@ -21,9 +21,9 @@ export default async function RegistrationSuccessPage({
   const reference = rawRef && REFERENCE_RE.test(rawRef) ? rawRef : null;
 
   return (
-    <div dir={copy.dir} lang={locale} className="ess-container flex flex-col items-center py-16 sm:py-20">
+    <div dir={copy.dir} lang={locale} className="ess-container flex flex-col items-center py-8 sm:py-8">
       <div className="card w-full max-w-2xl overflow-hidden">
-        <div className="relative bg-navy-900 px-8 py-11 text-center sm:px-12">
+        <div className="relative bg-navy-900 px-8 py-8 text-center sm:px-8">
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0"
@@ -33,30 +33,30 @@ export default async function RegistrationSuccessPage({
             }}
           />
           <div className="relative">
-            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gold-500/25 text-3xl text-gold-200 ring-2 ring-gold-300/70 shadow-[0_0_0_6px_rgb(255_255_255/0.06)]">
+            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gold-500/25 text-[32px] text-gold-200 ring-2 ring-gold-300/70 shadow-[0_0_0_6px_rgb(255_255_255/0.06)]">
               ✓
             </span>
             <p className="mt-6 rounded-md bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-gold-200 ring-1 ring-white/20">
               {copy.success.kicker}
             </p>
-            <h1 className="mx-auto mt-4 max-w-lg font-serif text-2xl font-semibold leading-snug text-white [text-shadow:0_2px_14px_rgb(0_0_0/0.45)] sm:text-3xl">
+            <h1 className="mx-auto mt-4 max-w-lg font-serif text-2xl font-semibold leading-snug text-white [text-shadow:0_2px_14px_rgb(0_0_0/0.45)] sm:text-[32px]">
               {copy.success.title}
             </h1>
           </div>
         </div>
 
-        <div className="px-8 py-8 sm:px-12">
+        <div className="px-8 py-8 sm:px-8">
           <p className="text-base leading-relaxed text-slate-600 sm:text-base">{copy.success.body}</p>
 
           {reference ? (
-            <div className="mt-6 flex items-center justify-between gap-4 rounded-lg border border-gold-100 bg-gold-50/70 px-5 py-4">
+            <div className="mt-6 flex items-center justify-between gap-4 rounded-lg border border-gold-100 bg-gold-50/70 px-6 py-4">
               <span className="text-xs font-semibold uppercase tracking-[0.1em] text-gold-700">
                 {copy.success.referenceLabel}
               </span>
               <span className="font-mono text-base font-semibold tracking-[0.08em] text-navy-900">{reference}</span>
             </div>
           ) : (
-            <p className="mt-6 rounded-lg border border-line bg-ivory-50 px-5 py-4 text-base text-slate-600">
+            <p className="mt-6 rounded-lg border border-line bg-ivory-50 px-6 py-4 text-base text-slate-600">
               {copy.success.noReference}
             </p>
           )}
@@ -76,7 +76,7 @@ export default async function RegistrationSuccessPage({
           </ol>
 
           <div className="mt-8 flex flex-wrap items-center gap-4 border-t border-line/70 pt-6">
-            <Link href="/" className="btn-primary px-5 py-2.5">
+            <Link href="/" className="btn-primary px-6 py-2">
               {copy.success.backHome}
             </Link>
             <Link href={`/agency/register?lang=${locale}`} className="inline-flex min-h-11 items-center text-base font-semibold text-slate-500 hover:text-navy-900">
