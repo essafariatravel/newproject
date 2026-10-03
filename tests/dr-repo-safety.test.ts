@@ -12,6 +12,7 @@ describe("public repository DR artifact policy", () => {
     [".env", "environment"],
     [".env.production", "environment"],
     ["private/.pgpass", "password"],
+    ["private/recovery.dr-key", "encryption key"],
     ["backup/prod.dump", "backup"],
     ["backup/prod.dump.enc", "backup"],
     ["backup/prod.backup", "backup"],
