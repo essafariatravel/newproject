@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import RegistrationForm from "./registration-form";
 import { registrationCopy, resolveLocale } from "@/lib/i18n";
 import { getUiLocale, pickUiLocale } from "@/lib/ui-i18n";
+import { getPublishedLegalVersion } from "@/lib/legal-content";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,17 @@ export default async function AgencyRegisterPage({
   // then the shared ui locale cookie (the registration copy locales match ui locales).
   const locale = resolveLocale(pickUiLocale(sp.lang) ?? (await getUiLocale()));
   const copy = registrationCopy(locale);
+  const [termsVersion, privacyVersion] = await Promise.all([
+    getPublishedLegalVersion("terms", locale).catch(() => null),
+    getPublishedLegalVersion("privacy", locale).catch(() => null),
+  ]);
+  const legalVersions =
+    termsVersion && privacyVersion
+      ? {
+          terms: { id: termsVersion.id, version: termsVersion.version },
+          privacy: { id: privacyVersion.id, version: privacyVersion.version },
+        }
+      : null;
 
   return (
     <div dir={copy.dir} lang={locale}>
@@ -90,7 +102,7 @@ export default async function AgencyRegisterPage({
 
         {/* Right column — the form */}
         <div>
-          <RegistrationForm locale={locale} copy={copy} renderedAt={Date.now()} />
+          <RegistrationForm locale={locale} copy={copy} renderedAt={Date.now()} legalVersions={legalVersions} />
         </div>
       </section>
     </div>
