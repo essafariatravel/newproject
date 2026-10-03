@@ -16,6 +16,19 @@ async function main() {
     throw new Error("Browser QA seed is local-only.");
   }
 
+  await pool.query(`
+    truncate table
+      audit_logs, notifications, communications, wallet_transactions,
+      documents, document_blobs, checklist_items, applicants,
+      application_status_history, applications,
+      visa_requirements, visa_types, document_types, visa_categories, countries,
+      status_transitions, statuses, priorities, currencies,
+      account_activation_tokens, agency_registration_history,
+      agency_registration_documents, agency_registrations,
+      auth_rate_limits, legal_versions, sessions, users, agencies, site_settings
+    restart identity cascade
+  `);
+
   await seedFixtures();
 
   const agency = await agencyByEmail("ops@agencya.example");
