@@ -46,4 +46,20 @@ describe("database configuration", () => {
     expect(targetsSupabaseProject("postgresql://postgres.other:example@aws-0-region.pooler.supabase.com:6543/postgres", ref)).toBe(false);
     expect(targetsSupabaseProject(`postgresql://postgres.${ref}:example@pooler.supabase.com.attacker.test/postgres`, ref)).toBe(false);
   });
+  it("hard-pins hosted Preview and Production to the ESSAFARIA Supabase project", () => {
+    const ref = "xgetzgixalrsmuvfthpf";
+    const good = `postgresql://postgres.${ref}:secret@aws-0-region.pooler.supabase.com:6543/postgres`;
+    expect(databaseUrl({ VERCEL_ENV: "preview", DATABASE_URL: good })).toBe(good);
+    expect(databaseUrl({ VERCEL_ENV: "production", DATABASE_URL: good })).toBe(good);
+
+    for (const bad of [
+      "postgresql://postgres.other:secret@aws-0-region.pooler.supabase.com:6543/postgres",
+      "postgresql://postgres:secret@db.other.supabase.co/postgres",
+      "postgresql://postgres:secret@attacker.example/postgres",
+    ]) {
+      expect(() => databaseUrl({ VERCEL_ENV: "preview", DATABASE_URL: bad })).toThrow(/project boundary mismatch/i);
+      expect(() => databaseUrl({ VERCEL_ENV: "production", DATABASE_URL: bad })).toThrow(/project boundary mismatch/i);
+    }
+  });
+
 });
