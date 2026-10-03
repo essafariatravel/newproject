@@ -14,6 +14,7 @@ import { requirePermission } from "@/lib/rbac";
 import { AppError, STAFF_ROLES, type AuthUser } from "@/lib/types";
 import { agencyUserIds, notifyUsers, staffUserIds } from "@/lib/notifications";
 import { runAction } from "@/lib/action-helpers";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 
 const idSchema = z.string().uuid("Invalid identifier.");
 
@@ -54,6 +55,14 @@ export async function postMessageAction(formData: FormData): Promise<void> {
     } else {
       requirePermission(user, "communications.post.staff");
       visibility = data.visibility === "INTERNAL" ? "INTERNAL" : "AGENCY";
+    }
+
+    const userAllowed = await consumeAuthRateLimit("message-user-minute", user.id, 20, 60_000);
+    const agencyAllowed = user.agencyId
+      ? await consumeAuthRateLimit("message-agency-hour", user.agencyId, 100, 60 * 60_000)
+      : true;
+    if (!userAllowed || !agencyAllowed) {
+      throw new AppError("RATE_LIMITED", "Too many messages. Please wait before posting again.");
     }
 
     await db.transaction(async (tx) => {
