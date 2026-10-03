@@ -81,7 +81,7 @@ export default async function AdminAgenciesPage({
                 <td className="td"><ActiveBadge active={agency.status === "ACTIVE"} /></td>
                 <td className="td tabular-nums">{userCount}</td>
                 <td className="td tabular-nums">{applicationCount}</td>
-                <td className="td whitespace-nowrap font-medium tabular-nums">{formatAmount(agency.balance, "DZD", uiLocale)}</td>
+                <td className="td whitespace-nowrap font-semibold tabular-nums">{formatAmount(agency.balance, "DZD", uiLocale)}</td>
               </NavigableTableRow>
             ))}
           </tbody>
@@ -91,8 +91,8 @@ export default async function AdminAgenciesPage({
       {user.role === "SUPER_ADMIN" ? (
         <div className="mt-8">
           <h2 className="mb-1 font-serif text-xl text-navy-900">{ct("Onboard agency + first administrator")}</h2>
-          <p className="mb-3 text-xs text-slate-500">{ct("One step: agency + AGENCY_ADMIN with temporary password (forced change at first login). DZD wallet.")}</p>
-          <form action={createAgencyWithAdminAction} className="card grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+          <p className="mb-4 text-xs text-slate-500">{ct("One step: agency + AGENCY_ADMIN with temporary password (forced change at first login). DZD wallet.")}</p>
+          <form action={createAgencyWithAdminAction} className="card grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
             <div><label className="label">{ct("Legal name")} *</label><input name="legalName" required className="input" /></div>
             <div><label className="label">{ct("Trading name")}</label><input name="tradingName" className="input" /></div>
             <div><label className="label">{ct("Agency email")} *</label><input name="email" type="email" required className="input" /></div>
@@ -101,7 +101,7 @@ export default async function AdminAgenciesPage({
             <div><label className="label">{ct("Country")}</label><input name="country" className="input" /></div>
             <input type="hidden" name="currency" value="DZD" />
             <div><label className="label">{ct("Billing tax ID")}</label><input name="billingTaxId" className="input" /></div>
-            <div className="sm:col-span-2 lg:col-span-3 mt-2 border-t border-ivory-200 pt-4"><p className="mb-3 text-sm font-medium text-navy-800">{ct("First administrator")}</p></div>
+            <div className="sm:col-span-2 lg:col-span-3 mt-2 border-t border-ivory-200 pt-4"><p className="mb-4 text-base font-semibold text-navy-800">{ct("First administrator")}</p></div>
             <div><label className="label">{ct("Administrator name")} *</label><input name="adminName" required className="input" /></div>
             <div><label className="label">{it("Username")} *</label><input name="adminUsername" type="text" required minLength={3} maxLength={48} className="input" dir="ltr" /></div>
                         <PasswordField

@@ -232,7 +232,7 @@ export default async function AdminApplicationDetailPage({
               <Card className="border-navy-200">
                 <CardHeader title={ct("Final decision")} subtitle={ct("Record the final decision with its official approval or refusal document.")} />
                 {decisionDocs.length > 0 ? (
-                  <ul className="space-y-2 px-4 py-3 text-base">
+                  <ul className="space-y-2 px-4 py-4 text-base">
                     {decisionDocs.map((d) => (
                       <li key={d.id} className="flex items-center justify-between gap-4 rounded-lg border border-slate-100 bg-ivory-50/60 px-4 py-2">
                         <div>
@@ -373,7 +373,7 @@ export default async function AdminApplicationDetailPage({
                       {latest ? <span className="badge bg-emerald-50 text-emerald-700">{ct("Uploaded")}</span> : <span className="badge bg-amber-50 text-amber-700">{ct("Missing")}</span>}
                     </div>
                     {itemDocs.length > 0 ? (
-                      <ul className="mt-3 space-y-2">
+                      <ul className="mt-4 space-y-2">
                         {itemDocs.map(({ doc, applicantName }) => (
                           <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ivory-50 px-4 py-2 text-xs">
                             <span className="flex min-w-0 flex-wrap items-center gap-2">
@@ -397,7 +397,7 @@ export default async function AdminApplicationDetailPage({
                       </ul>
                     ) : null}
                     {!isClosed ? (
-                      <form action={requestReplacementAction} className="mt-3 flex flex-wrap items-end gap-2">
+                      <form action={requestReplacementAction} className="mt-4 flex flex-wrap items-end gap-2">
                         <input type="hidden" name="applicationId" value={id} />
                         <input type="hidden" name="checklistItemId" value={item.id} />
                         <input type="hidden" name="back" value={`${back}?tab=documents`} />
@@ -455,7 +455,7 @@ export default async function AdminApplicationDetailPage({
               />
               <div className="divide-y divide-slate-100">
                 {documentGroups.unassigned.map(({ doc, documentTypeName }) => (
-                  <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+                  <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-4">
                     <span className="flex min-w-0 items-center gap-2 text-xs">
                       <a href={`/api/documents/${doc.id}`} target="_blank" className="truncate font-semibold text-navy-900 hover:underline">
                         {doc.originalFilename}

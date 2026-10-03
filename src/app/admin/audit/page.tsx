@@ -44,7 +44,7 @@ function readableMetadata(metadata: unknown): React.ReactNode {
   const entries = Object.entries(metadata as Record<string, unknown>).filter(([, v]) => v !== null && v !== undefined && v !== "");
   if (entries.length === 0) return <span className="text-xs text-slate-400">—</span>;
   return (
-    <span className="block text-[11px] leading-relaxed text-slate-500">
+    <span className="block text-xs leading-relaxed text-slate-500">
       {entries.map(([key, value]) => (
         <span key={key} className="me-2 inline-block whitespace-nowrap">
           <span className="text-slate-400">{key.replaceAll("_", " ")}</span> {fmtValue(value)}
@@ -133,7 +133,7 @@ export default async function AdminAuditPage({
                   </td>
                   <td className="td text-xs text-slate-500">{entityLabel(log.entity)}</td>
                   <td className="td max-w-[260px]">
-                    <details><summary className="cursor-pointer font-medium text-navy-800">{ct("Details")}</summary><p className="my-2 text-xs">{log.action} · {log.entityId}</p>{readableMetadata(log.metadata)}</details>
+                    <details><summary className="cursor-pointer font-semibold text-navy-800">{ct("Details")}</summary><p className="my-2 text-xs">{log.action} · {log.entityId}</p>{readableMetadata(log.metadata)}</details>
                   </td>
                 </tr>
               ))}
