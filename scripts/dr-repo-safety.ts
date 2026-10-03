@@ -8,6 +8,7 @@
  */
 import { spawnSync } from "node:child_process";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 export function trackedPrivateArtifactProblem(file: string): string | null {
   const normalized = file.replaceAll("\\", "/");
@@ -53,6 +54,6 @@ function main() {
   if (findings.length) process.exitCode = 2;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
   main();
 }
