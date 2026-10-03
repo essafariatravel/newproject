@@ -166,7 +166,7 @@ export default async function AdminRegistrationDetailPage({
           <Card>
             <CardHeader title="Uploaded documents" subtitle="Stored in private storage; downloads are staff-only and audited." />
             {documents.length === 0 ? (
-              <EmptyState title="No documents uploaded" body="The applicant did not attach company documents." />
+              <EmptyState title="No administrative documents" body="New first-contact registrations intentionally do not collect company/KYC documents. Request specific evidence later only when operationally needed." />
             ) : (
               <ul className="divide-y divide-slate-100 px-5">
                 {documents.map((doc) => (
@@ -194,7 +194,9 @@ export default async function AdminRegistrationDetailPage({
             <KeyValue
               items={[
                 { label: "Terms of Service", value: reg.termsAccepted ? "Accepted" : "—" },
+                { label: "Terms version ID", value: reg.termsVersionId ?? "Legacy record — version not captured" },
                 { label: "Privacy Notice", value: reg.privacyAcknowledged ? "Acknowledged" : "—" },
+                { label: "Privacy version ID", value: reg.privacyVersionId ?? "Legacy record — version not captured" },
                 { label: "Accuracy confirmed", value: reg.infoConfirmed ? "Confirmed" : "—" },
                 { label: "Consented at", value: formatDateTime(reg.consentedAt, uiLocale) },
                 { label: "Form language", value: LOCALE_NAMES[resolveLocale(reg.locale)] },
