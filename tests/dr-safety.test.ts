@@ -256,4 +256,19 @@ describe("database/storage disaster-recovery reconciliation", () => {
     expect(result.findings.some((finding) => finding.includes("VERSION_OR_SIZE_MISMATCH"))).toBe(true);
     expect(result.findings).toContain("ORPHAN_BLOB: orphan");
   });
+
+  it("excludes one-hour request staging blobs from durable orphan classification", () => {
+    const result = reconcileStorageSnapshot(
+      [{ id: "doc-1", kind: "DOSSIER_DOCUMENT", key: "visa-documents/app/doc", expectedSizeBytes: 10 }],
+      [
+        { key: "visa-documents/app/doc", sizeBytes: 10 },
+        { key: "pending-request/agency/user/attempt/type/0", sizeBytes: 1234 },
+      ],
+    );
+    expect(result.ok).toBe(true);
+    expect(result.orphanObjects).toBe(0);
+    expect(result.ephemeralObjects).toBe(1);
+    expect(result.ephemeralBytes).toBe(1234);
+    expect(result.objectsChecked).toBe(1);
+  });
 });
