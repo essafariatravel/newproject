@@ -3,7 +3,7 @@ import { suiteSetup } from "./helpers/global-state";
 
 suiteSetup();
 
-import { db } from "@/lib/db";
+import { db, pool } from "@/lib/db";
 import { agencies, auditLogs, walletTransactions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { adjustWallet, getBalance } from "@/lib/wallet";
@@ -39,6 +39,34 @@ describe("wallet ledger integrity", () => {
     const audits = await db.select().from(auditLogs);
     expect(audits.some((a) => a.action === "WALLET_CREDIT")).toBe(true);
     expect(audits.some((a) => a.action === "WALLET_DEBIT")).toBe(true);
+  });
+
+  it("rolls back the wallet mutation when its security audit cannot be persisted", async () => {
+    const agencyB = await agencyByEmail("ops@agencyb.example");
+    const staff = await userByEmail("accounting@test.example");
+    const before = await getBalance(agencyB.id);
+    const beforeTx = await db.select().from(walletTransactions).where(eq(walletTransactions.agencyId, agencyB.id));
+
+    await pool.query(`
+      create or replace function fail_wallet_audit_probe() returns trigger language plpgsql as $
+      begin
+        if new.action = 'WALLET_CREDIT' then raise exception 'audit probe failure'; end if;
+        return new;
+      end $;
+      create trigger fail_wallet_audit_probe before insert on audit_logs
+        for each row execute function fail_wallet_audit_probe();
+    `);
+    try {
+      await expect(
+        adjustWallet({ agencyId: agencyB.id, amount: 123, reason: "audit rollback probe", actor: staff }),
+      ).rejects.toThrow(/audit probe failure/i);
+    } finally {
+      await pool.query("drop trigger if exists fail_wallet_audit_probe on audit_logs; drop function if exists fail_wallet_audit_probe()");
+    }
+
+    expect((await getBalance(agencyB.id)).balance).toBe(before.balance);
+    const afterTx = await db.select().from(walletTransactions).where(eq(walletTransactions.agencyId, agencyB.id));
+    expect(afterTx).toHaveLength(beforeTx.length);
   });
 
   it("rejects debits exceeding the balance — no negative wallets, ever", async () => {
