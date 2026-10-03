@@ -159,6 +159,17 @@
       ]
     },
     {
+      "id": "FLOW-03",
+      "title": "Workflow status and transition mutations roll back when their audit cannot persist",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "src/app/actions/config.ts",
+        "tests/config-lifecycle-hardening.test.ts"
+      ]
+    },
+    {
       "id": "FILE-01",
       "title": "Upload size, extension, MIME, magic bytes and active-content validation",
       "phase": "code",
