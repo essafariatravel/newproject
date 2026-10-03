@@ -158,7 +158,7 @@ export default async function AdminUsersPage({
 
       {canManage ? (
         <div className="mt-8">
-          <h2 className="mb-4 font-serif text-xl text-navy-900">{view === "staff" ? ct("Create staff user") : ct("Create agency user")}</h2>
+          <h2 className="mb-4 font-serif text-lg text-navy-900">{view === "staff" ? ct("Create staff user") : ct("Create agency user")}</h2>
           <form action={createUserAction} className="card grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-5">
             <input type="hidden" name="back" value="/admin/users" />
             <div>

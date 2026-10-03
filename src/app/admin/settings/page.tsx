@@ -60,7 +60,7 @@ export default async function AdminSettingsPage({
             <input type="hidden" name="section" value="content" />
             <Card>
               <CardHeader title="Website content" subtitle="Public site copy and contact details." />
-              <div className="grid grid-cols-1 gap-4 px-5 py-5 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 px-6 py-6 sm:grid-cols-2">
                 <div>
                   <label className="label" htmlFor="brand.product">Product name</label>
                   <input id="brand.product" name="brand.product" defaultValue={settingString(settings, "brand.product")} className="input" />
@@ -111,18 +111,18 @@ export default async function AdminSettingsPage({
             <input type="hidden" name="section" value="legal" />
             <label className="label" htmlFor="legal-published-at">{ct("Actual publication date")}</label>
             <input id="legal-published-at" name="legal.publishedAt" type="date" required className="input max-w-xs" max={new Date().toISOString().slice(0,10)}/>
-            <p className="text-sm text-slate-600">{ct("Publish owner-approved text only. Each change creates an immutable legal version.")}</p>
+            <p className="text-base text-slate-600">{ct("Publish owner-approved text only. Each change creates an immutable legal version.")}</p>
             <Card>
               <CardHeader title="Legal content" subtitle="Rendered on the public /privacy and /terms pages, per interface language." />
-              <div className="space-y-5 px-5 py-5">
+              <div className="space-y-6 px-6 py-6">
                 {([
                   ["en", "English"],
                   ["fr", "Français"],
                   ["ar", "العربية"],
                 ] as const).map(([code, label]) => (
                   <div key={code} className="rounded-lg border border-ivory-200 p-4">
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-                    <div className="space-y-3">
+                    <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+                    <div className="space-y-4">
                       <div>
                         <label className="label" htmlFor={`legal.privacy.${code}`}>Privacy notice</label>
                         <textarea
@@ -156,7 +156,7 @@ export default async function AdminSettingsPage({
       ) : (
         <Card>
           <CardHeader title="Read-only view" subtitle="Your role cannot modify settings." />
-          <div className="space-y-2 px-5 py-5 text-sm text-slate-600">
+          <div className="space-y-2 px-6 py-6 text-base text-slate-600">
             <p>Brand: {branding.name}</p>
             <p>Contact: {settingString(settings, "site.contactEmail")} · {settingString(settings, "site.contactPhone")}</p>
           </div>

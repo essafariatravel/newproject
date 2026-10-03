@@ -58,7 +58,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
         title={ct("Reports")}
         subtitle={ct("Operational and financial reporting from live database data. DZD only.")}
         actions={
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <a href={`/api/admin/reports/export?${exportQuery}`} className="btn-secondary btn-sm" data-testid="reports-export-csv">{ct("Download CSV")}</a>
             <a href={`/api/admin/reports/export?${exportQuery}&format=xlsx`} className="btn-secondary btn-sm" data-testid="reports-export-xlsx">{ct("Download Excel")}</a>
           </div>
@@ -107,14 +107,14 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
               ? ct("Not available yet")
               : `${Number(processing.avgDays).toFixed(1)} ${ct("days")}`}
           </p>
-          <p className="mt-0.5 text-xs text-slate-400">
+          <p className="mt-1 text-xs text-slate-400">
             {ct("Only dossiers that reached a decision are counted — submitted → decision, from real timestamps.")}
           </p>
         </Card>
         <Card className="p-4">
           <h3 className="text-lg font-semibold text-navy-900">{ct("Decided dossiers")}</h3>
           <p className="mt-1 font-serif text-2xl text-navy-900">{Number(processing.decided ?? 0)}</p>
-          <p className="mt-0.5 text-xs text-slate-400">
+          <p className="mt-1 text-xs text-slate-400">
             {processing.fastestDays === null
               ? ct("No decision has been recorded in this period yet.")
               : `${ct("Fastest")} ${Number(processing.fastestDays).toFixed(1)} · ${ct("Slowest")} ${Number(processing.slowestDays).toFixed(1)} ${ct("days")}`}
@@ -125,7 +125,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
           <p className="mt-1 text-base text-slate-600">
             <bdi dir="ltr">{formatAmount(walletFlow.credits, "DZD", uiLocale)}</bdi> {ct("credited")} · <bdi dir="ltr">{formatAmount(walletFlow.charges, "DZD", uiLocale)}</bdi> {ct("charged")}
           </p>
-          <p className="mt-0.5 text-xs text-slate-400">{ct("All amounts are DZD. Correction entries appear as their own ledger rows.")}</p>
+          <p className="mt-1 text-xs text-slate-400">{ct("All amounts are DZD. Correction entries appear as their own ledger rows.")}</p>
         </Card>
       </div>
 
