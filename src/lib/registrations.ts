@@ -35,7 +35,6 @@ import {
   type AgencyRegistration,
 } from "@/db/schema";
 import {
-  MONTHLY_VOLUMES,
   REGISTRATION_BUSINESS_TYPES,
   type RegistrationDocumentCategory,
   type RegistrationStatus,
@@ -77,7 +76,6 @@ function scrubControlChars(v: unknown): unknown {
   return typeof v === "string" ? v.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "") : v;
 }
 
-const WEBSITE_RE = /^(https?:\/\/)?[\w-]+(\.[\w-]+)+(:\d{1,5})?([/?#]\S*)?$/i;
 
 /**
  * Localized registration form schema. This is the ONLY public input model —
@@ -113,38 +111,25 @@ export function registrationFormSchema(msg: ErrorCopy) {
     z.enum(values, { errorMap: () => ({ message: msg.invalidChoice }) });
 
   return z.object({
-    /* company */
+    /*
+     * Privacy-minimized PUBLIC request-access model.
+     * Administrative/KYC fields remain in the historical database schema but
+     * are deliberately not part of the public input contract.
+     */
     legalName: text(2, 160),
-    tradingName: optText(160),
     country: text(2, 80),
     region: optText(80),
     city: text(2, 80),
-    addressLine: text(5, 300),
-    phone: text(5, 40),
-    email,
-    website: z
-      .preprocess(scrubControlChars, z.string().trim().max(200, msg.tooLong).optional())
-      .transform((v) => (typeof v === "string" && v.trim() !== "" ? v.trim() : null))
-      .superRefine((v, ctx) => {
-        if (v && !WEBSITE_RE.test(v)) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, message: msg.invalidWebsite });
-        }
-      }),
-    commercialRegistrationNumber: text(3, 80),
-    taxId: optText(80),
-    licenceNumber: optText(80),
-    /* primary contact */
     contactFirstName: text(2, 80),
     contactLastName: text(2, 80),
-    contactPosition: text(2, 100),
     contactEmail: email,
     contactPhone: text(5, 40),
-    /* business profile */
     businessType: choice(REGISTRATION_BUSINESS_TYPES),
-    monthlyVolume: choice(MONTHLY_VOLUMES).optional().transform((v) => v ?? null),
-    mainMarkets: optText(300),
-    message: optText(2000),
-    /* consent */
+    message: optText(1200),
+    /* exact published legal versions shown with the form */
+    termsVersionId: z.string(req).uuid(msg.invalidChoice),
+    privacyVersionId: z.string(req).uuid(msg.invalidChoice),
+    /* distinct actions: Terms acceptance, Privacy acknowledgement, accuracy */
     terms: consent,
     privacy: consent,
     accuracy: consent,
@@ -302,12 +287,7 @@ async function assertNoDuplicates(data: RegistrationData): Promise<void> {
         inArray(agencyRegistrations.status, ACTIVE_REGISTRATION_STATUSES),
         or(
           eq(agencyRegistrations.contactEmail, data.contactEmail),
-          eq(agencyRegistrations.email, data.email),
           sql`lower(${agencyRegistrations.legalName}) = lower(${data.legalName})`,
-          and(
-            sql`lower(${agencyRegistrations.country}) = lower(${data.country})`,
-            sql`lower(${agencyRegistrations.commercialRegistrationNumber}) = lower(${data.commercialRegistrationNumber})`,
-          ),
         )!,
       ),
     )
@@ -322,7 +302,7 @@ async function assertNoDuplicates(data: RegistrationData): Promise<void> {
     .where(
       or(
         sql`lower(${agencies.legalName}) = lower(${data.legalName})`,
-        sql`lower(${agencies.email}) = lower(${data.email})`,
+        sql`lower(${agencies.email}) = lower(${data.contactEmail})`,
       )!,
     )
     .limit(1);
@@ -429,30 +409,32 @@ async function persistRegistration(
           reference,
           locale: data.locale,
           legalName: data.legalName,
-          tradingName: data.tradingName,
+          tradingName: null,
           country: data.country,
           region: data.region,
           city: data.city,
-          addressLine: data.addressLine,
-          phone: data.phone,
-          email: data.email,
-          website: data.website,
-          commercialRegistrationNumber: data.commercialRegistrationNumber,
-          taxId: data.taxId,
-          licenceNumber: data.licenceNumber,
+          addressLine: null,
+          phone: data.contactPhone,
+          email: data.contactEmail,
+          website: null,
+          commercialRegistrationNumber: null,
+          taxId: null,
+          licenceNumber: null,
           contactFirstName: data.contactFirstName,
           contactLastName: data.contactLastName,
-          contactPosition: data.contactPosition,
+          contactPosition: null,
           contactEmail: data.contactEmail,
           contactPhone: data.contactPhone,
           businessType: data.businessType,
-          monthlyVolume: data.monthlyVolume,
-          mainMarkets: data.mainMarkets,
+          monthlyVolume: null,
+          mainMarkets: null,
           message: data.message,
           termsAccepted: data.terms === "true",
           privacyAcknowledged: data.privacy === "true",
           infoConfirmed: data.accuracy === "true",
           consentedAt: new Date(),
+          termsVersionId: data.termsVersionId,
+          privacyVersionId: data.privacyVersionId,
           status: "PENDING",
           ipAddress,
         });
