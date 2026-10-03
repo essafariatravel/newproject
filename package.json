@@ -25,7 +25,8 @@
     "dr:offsite-verify": "tsx scripts/dr-verify-offsite-copy.ts",
     "dr:repo-safety": "tsx scripts/dr-repo-safety.ts",
     "dr:app-verify": "tsx scripts/dr-verify-restored-app.ts",
-    "dr:key": "tsx scripts/dr-generate-key.ts"
+    "dr:key": "tsx scripts/dr-generate-key.ts",
+    "dr:prod-preflight": "tsx scripts/dr-prod-preflight.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
