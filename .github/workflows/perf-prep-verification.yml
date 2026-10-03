@@ -54,6 +54,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Parse k6 harness syntax
+        run: node --check perf/k6/essafaria-load.js
+
       - name: Verify performance safety guard
         run: npm test -- tests/performance-safety.test.ts
 
