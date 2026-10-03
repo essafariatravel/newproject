@@ -67,7 +67,7 @@ export default async function AdminAgenciesPage({
             {rows.map(({ agency, userCount, applicationCount }) => (
               <NavigableTableRow key={agency.id} href={`/admin/agencies/${agency.id}`} className="tr-hover">
                 <td className="td">
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2">
                     <BrandMark className="h-8 w-8 shrink-0" src={agencyLogoUrl(agency)} alt={agencyPrimaryLabel(agency)} />
                     <AgencyListIdentity
                       id={agency.id}
@@ -90,7 +90,7 @@ export default async function AdminAgenciesPage({
 
       {user.role === "SUPER_ADMIN" ? (
         <div className="mt-8">
-          <h2 className="mb-1 font-serif text-xl text-navy-900">{ct("Onboard agency + first administrator")}</h2>
+          <h2 className="mb-1 font-serif text-lg text-navy-900">{ct("Onboard agency + first administrator")}</h2>
           <p className="mb-4 text-xs text-slate-500">{ct("One step: agency + AGENCY_ADMIN with temporary password (forced change at first login). DZD wallet.")}</p>
           <form action={createAgencyWithAdminAction} className="card grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
             <div><label className="label">{ct("Legal name")} *</label><input name="legalName" required className="input" /></div>

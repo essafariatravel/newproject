@@ -59,7 +59,7 @@ export default async function AdminBillingPage({
       </div>
 
       <div className="mt-8">
-        <h2 className="mb-1 font-serif text-xl text-navy-900">{ct("Pending top-up requests")}</h2>
+        <h2 className="mb-1 font-serif text-lg text-navy-900">{ct("Pending top-up requests")}</h2>
         <p className="mb-4 max-w-3xl text-base text-slate-500">
           {ct("The ledger entry is created by the normal wallet credit: no money is invented here.")}
         </p>
@@ -80,7 +80,7 @@ export default async function AdminBillingPage({
                       </Link>{" "}
                       · <bdi dir="ltr">{formatAmount(t.amount, "DZD", uiLocale)}</bdi>
                     </p>
-                    {t.note ? <p className="mt-0.5 text-xs text-slate-500">{t.note}</p> : null}
+                    {t.note ? <p className="mt-1 text-xs text-slate-500">{t.note}</p> : null}
                     {t.proofFilename ? <Link className="text-base underline" href={`/api/topups/${t.id}/proof`}>{ct("Open bank transfer receipt")}</Link> : <p className="text-base text-red-700">{ct("A receipt is required before approval. Reject this request with instructions to send a new request and receipt.")}</p>}
                   </div>
                   <p className="text-xs text-slate-400">{formatDateTime(t.createdAt, uiLocale)}</p>
@@ -200,7 +200,7 @@ export default async function AdminBillingPage({
 
       {canAdjust ? (
         <div className="mt-8">
-          <h2 className="mb-4 font-serif text-xl text-navy-900">{ct("Manual wallet adjustment")}</h2>
+          <h2 className="mb-4 font-serif text-lg text-navy-900">{ct("Manual wallet adjustment")}</h2>
           <WalletAdjustmentForm agencies={agencies.map(({agency})=>({id:agency.id,name:agency.tradingName??agency.legalName,balance:agency.balance}))} back="/admin/billing" locale={uiLocale}/>
         </div>
       ) : null}

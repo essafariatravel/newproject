@@ -368,7 +368,7 @@ export default async function AdminApplicationDetailPage({
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
                         <p className="font-semibold text-navy-900">{localizedDocTypeName(item.documentTypeCode, item.documentTypeName, uiLocale)} {item.required ? <span className="badge bg-rose-50 text-rose-600 text-xs">{ct("Required")}</span> : null}</p>
-                        {item.notes ? <p className="mt-0.5 text-xs text-slate-500">{item.notes}</p> : null}
+                        {item.notes ? <p className="mt-1 text-xs text-slate-500">{item.notes}</p> : null}
                       </div>
                       {latest ? <span className="badge bg-emerald-50 text-emerald-700">{ct("Uploaded")}</span> : <span className="badge bg-amber-50 text-amber-700">{ct("Missing")}</span>}
                     </div>

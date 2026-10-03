@@ -82,7 +82,7 @@ export default async function AdminAgencyDetailPage({
         <div className="space-y-4 xl:col-span-2">
           <Card>
             <CardHeader title={ct("Agency logo")} subtitle={ct("Shown across the agency portal and partner surfaces.")} />
-            <div className="flex flex-wrap items-center gap-4 px-5 py-5">
+            <div className="flex flex-wrap items-center gap-4 px-6 py-6">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-ivory-200 bg-ivory-50">
                 <BrandMark className="h-11 w-11" src={agencyLogoUrl(agency)} alt={agencyLabel} />
               </div>
@@ -101,7 +101,7 @@ export default async function AdminAgencyDetailPage({
                       name="logo"
                       accept="image/png,image/jpeg,image/webp"
                       required
-                      className="min-h-11 max-w-full text-base file:mr-2 file:min-h-11 file:cursor-pointer file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-base file:font-semibold file:text-white"
+                      className="min-h-11 max-w-full text-base file:me-2 file:min-h-11 file:cursor-pointer file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-base file:font-semibold file:text-white"
                     />
                     <SubmitButton className="btn-secondary btn-sm" pendingLabel="Uploading…">
                       {agency.logoKey ? ct("Replace logo") : ct("Upload logo")}
@@ -277,7 +277,7 @@ export default async function AdminAgencyDetailPage({
             <CardHeader title={ct("Agency users")} />
             <ul className="divide-y divide-slate-100 px-4">
               {agencyUsers.map((u) => (
-                <li key={u.id} className="flex items-center justify-between gap-2 py-2.5">
+                <li key={u.id} className="flex items-center justify-between gap-2 py-2">
                   <div className="min-w-0">
                     <p className="truncate text-base font-semibold text-navy-900">{u.name}</p>
                     <p className="truncate text-xs text-slate-400" dir="ltr">{u.username}</p>
