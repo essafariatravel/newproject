@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
-import { open, stat } from "node:fs/promises";
+import { open, rm, stat } from "node:fs/promises";
 import { Writable } from "node:stream";
 import { targetsSupabaseProject } from "../../src/lib/database-config";
 import { PRODUCTION_PROJECT_REF, PRODUCTION_SCHEMA } from "./dr-safety";
@@ -165,6 +165,45 @@ export async function verifyEncryptedFileAes256Gcm(path: string, key: Buffer): P
     sink.once("finish", resolve);
     input.pipe(decipher).pipe(sink);
   });
+}
+
+export async function decryptFileAes256Gcm(sourcePath: string, destinationPath: string, key: Buffer): Promise<void> {
+  if (key.length !== 32) throw new Error("AES-256-GCM requires a 32-byte key.");
+  const metadata = await stat(sourcePath);
+  const minimum = MAGIC.length + IV_BYTES + TAG_BYTES + 1;
+  if (metadata.size < minimum) throw new Error("Encrypted backup is too small.");
+
+  const handle = await open(sourcePath, "r");
+  const prefix = Buffer.alloc(MAGIC.length + IV_BYTES);
+  const tag = Buffer.alloc(TAG_BYTES);
+  try {
+    await handle.read(prefix, 0, prefix.length, 0);
+    await handle.read(tag, 0, TAG_BYTES, metadata.size - TAG_BYTES);
+  } finally {
+    await handle.close();
+  }
+  if (!prefix.subarray(0, MAGIC.length).equals(MAGIC)) throw new Error("Encrypted backup has an invalid header.");
+
+  const iv = prefix.subarray(MAGIC.length);
+  const decipher = createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(tag);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const input = createReadStream(sourcePath, {
+        start: MAGIC.length + IV_BYTES,
+        end: metadata.size - TAG_BYTES - 1,
+      });
+      const output = createWriteStream(destinationPath, { flags: "wx", mode: 0o600 });
+      input.once("error", reject);
+      decipher.once("error", reject);
+      output.once("error", reject);
+      output.once("close", resolve);
+      input.pipe(decipher).pipe(output);
+    });
+  } catch (error) {
+    await rm(destinationPath, { force: true }).catch(() => {});
+    throw error;
+  }
 }
 
 export function encryptedBackupOverheadBytes(): number {
