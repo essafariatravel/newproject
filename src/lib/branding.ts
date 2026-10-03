@@ -183,7 +183,21 @@ export function validateLogoUpload(name: string, mimeType: string, size: number)
   }
 }
 
+function validateLogoContent(upload: LogoUpload): void {
+  const bytes = upload.data;
+  const matches =
+    upload.mimeType === "image/png"
+      ? bytes.subarray(0, 8).toString("hex") === "89504e470d0a1a0a"
+      : upload.mimeType === "image/jpeg"
+        ? bytes.subarray(0, 3).toString("hex") === "ffd8ff"
+        : upload.mimeType === "image/webp"
+          ? bytes.subarray(0, 4).toString() === "RIFF" && bytes.subarray(8, 12).toString() === "WEBP"
+          : false;
+  if (!matches) throw new AppError("INVALID_FILE", "The logo content does not match its declared image format.");
+}
+
 async function putLogo(key: string, upload: LogoUpload): Promise<void> {
+  validateLogoContent(upload);
   const storage = storageProvider();
   await storage.delete(key).catch(() => {});
   await storage.put(key, upload.data, upload.mimeType);
