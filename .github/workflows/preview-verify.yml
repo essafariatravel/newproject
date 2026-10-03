@@ -40,6 +40,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Resolve the CURRENT Vercel Preview deployment URL for this commit
         env:
