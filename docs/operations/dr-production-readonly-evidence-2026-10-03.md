@@ -199,6 +199,8 @@ The table-listing API separately returned a critical advisory stating that many 
 
 Do **not** auto-enable RLS in Production from this DR gate. Enabling RLS without the intended access model/policies can block the application. The hardened branch already contains API-lockdown/RLS work; Production application migration state is still evidenced at `0019`.
 
+A direct read-only grant inspection subsequently found **no table privileges for either `anon` or `authenticated` on schema `visa_os`**. This materially reduces the likelihood that the generic table-listing warning represents direct Data API exposure of the operational schema. The remaining RLS work should therefore be treated as defense-in-depth / release-hardening unless a separate Data API exposure test proves otherwise.
+
 ### Performance-advisor observations
 
 The performance advisor reports, for `visa_os`:
