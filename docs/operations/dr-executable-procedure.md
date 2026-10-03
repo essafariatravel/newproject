@@ -123,3 +123,42 @@ Repository code cannot self-prove:
 - Owner authorization for any future Production restore/reset.
 
 Those are the remaining operator proofs, not missing recovery architecture.
+
+
+## Finalize a backup as VERIFIED
+
+After `dr:restore` succeeds, it writes a private restore-evidence JSON and prints its SHA-256.
+
+The backup still remains CREATED until the external recovery checks are actually reviewed:
+
+- independent/off-site copy;
+- application login/read behavior on the restored target;
+- cross-tenant/tenant-isolation behavior on the restored target.
+
+Give each reviewed evidence package an opaque internal reference (for example an incident/drill evidence ID, not a path, URL, secret or free-form note), then run:
+
+```text
+npm run dr:finalize -- \
+  --manifest <created manifest> \
+  --restore-evidence <restore evidence JSON> \
+  --offsite-ref <opaque off-site evidence ID> \
+  --application-ref <opaque application recovery evidence ID> \
+  --tenant-ref <opaque tenant-isolation evidence ID> \
+  --output <absolute private output path outside repository> \
+  --attest-external-evidence-reviewed
+```
+
+The finalizer refuses to proceed unless:
+
+- the source manifest is structurally valid and still CREATED;
+- the restore evidence is bound to the exact source manifest by SHA-256;
+- the restore evidence belongs to the same backup ID and schema;
+- the restore target is local or explicitly disposable, never Production;
+- database, wallet and storage restore verification all passed;
+- all three external evidence references are syntactically valid;
+- the operator explicitly attests that those external checks were reviewed;
+- final verification occurs after the restore.
+
+Only then is a new private manifest written with status `VERIFIED`.
+
+This is traceability, not magic proof: an operator must not use the attestation flag unless the referenced evidence really exists and was reviewed. The repository intentionally cannot invent those external facts.
