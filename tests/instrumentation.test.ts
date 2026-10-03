@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { onRequestError } from "../src/instrumentation";
+import { GET as syntheticGET } from "../src/app/api/internal/health/synthetic-error/route";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -46,5 +47,33 @@ describe("Next.js server error instrumentation", () => {
     expect(line).not.toContain("person@example.com");
     expect(line).not.toContain("raw-secret");
     expect(line).not.toContain("secret-id");
+  });
+
+  it("synthetic error probe is Preview-only and operator-protected", async () => {
+    const previousEnv = process.env.VERCEL_ENV;
+    const previousToken = process.env.HEALTHCHECK_TOKEN;
+    try {
+      process.env.VERCEL_ENV = "production";
+      process.env.HEALTHCHECK_TOKEN = "test-health-token";
+      expect((await syntheticGET(new Request("http://localhost/api/internal/health/synthetic-error", {
+        headers: { authorization: "Bearer test-health-token" },
+      }))).status).toBe(404);
+
+      process.env.VERCEL_ENV = "preview";
+      expect((await syntheticGET(new Request("http://localhost/api/internal/health/synthetic-error", {
+        headers: { authorization: "Bearer wrong-token" },
+      }))).status).toBe(401);
+
+      await expect(
+        syntheticGET(new Request("http://localhost/api/internal/health/synthetic-error", {
+          headers: { authorization: "Bearer test-health-token" },
+        })),
+      ).rejects.toMatchObject({ name: "ObservabilitySyntheticError" });
+    } finally {
+      if (previousEnv === undefined) delete process.env.VERCEL_ENV;
+      else process.env.VERCEL_ENV = previousEnv;
+      if (previousToken === undefined) delete process.env.HEALTHCHECK_TOKEN;
+      else process.env.HEALTHCHECK_TOKEN = previousToken;
+    }
   });
 });
