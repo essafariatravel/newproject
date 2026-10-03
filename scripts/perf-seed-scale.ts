@@ -135,9 +135,9 @@ async function main() {
         await client.query(
           `insert into ${perfTable("applicants")}
              (application_id, first_name, last_name, full_name, nationality, passport_number)
-           select id, 'PERF', 'Traveller', 'PERF Traveller ' || left(replace(id::text,'-',''),10),
-                  'Algerian', 'P' || upper(left(replace(id::text,'-',''),12))
-             from unnest($1::uuid[]) as id`,
+           select seed.id, 'PERF', 'Traveller', 'PERF Traveller ' || left(replace(seed.id::text,'-',''),10),
+                  'Algerian', 'P' || upper(left(replace(seed.id::text,'-',''),12))
+             from unnest($1::uuid[]) as seed(id)`,
           [ids],
         );
 
@@ -145,8 +145,8 @@ async function main() {
           await client.query(
             `insert into ${perfTable("checklist_items")}
                (application_id, document_type_id, document_type_name, document_type_code, required, sort_order, active)
-             select app_id, dt.id, dt.name, dt.code, true, dt.rn, true
-               from unnest($1::uuid[]) app_id
+             select seed.app_id, dt.id, dt.name, dt.code, true, dt.rn, true
+               from unnest($1::uuid[]) as seed(app_id)
                cross join lateral (
                  select id, name, code, row_number() over(order by sort_order,code)::int as rn
                    from ${perfTable("document_types")}
