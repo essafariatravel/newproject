@@ -12,7 +12,7 @@
  * It never contacts Production and never uses real customer data or secrets.
  */
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Pool } from "pg";
@@ -171,6 +171,8 @@ async function main() {
   const encryptedPath = path.join(root, "synthetic.dump.enc");
   const manifestPath = path.join(root, "synthetic.manifest.json");
   const restoreEvidencePath = path.join(root, "synthetic.restore-evidence.json");
+  const offsiteCopyPath = path.join(root, "independent-copy", "synthetic-copy.dump.enc");
+  const offsiteEvidencePath = path.join(root, "synthetic.offsite-evidence.json");
   const verifiedManifestPath = path.join(root, "synthetic.verified.manifest.json");
   const key = Buffer.alloc(32, 73);
   const keyBase64 = key.toString("base64");
@@ -329,6 +331,29 @@ async function main() {
       await restoredPool.end();
     }
 
+    await import("node:fs/promises").then(({ mkdir }) => mkdir(path.dirname(offsiteCopyPath), { recursive: true }));
+    await copyFile(encryptedPath, offsiteCopyPath);
+    const offsiteStdout = await run(process.execPath, [
+      tsx,
+      "scripts/dr-verify-offsite-copy.ts",
+      "--manifest",
+      manifestPath,
+      "--copy",
+      offsiteCopyPath,
+      "--location-ref",
+      "SYNTHETIC-INDEPENDENT-STORE-0001",
+      "--evidence-output",
+      offsiteEvidencePath,
+    ], {
+      ...process.env,
+      NODE_ENV: "test",
+      DR_BACKUP_KEY_BASE64: keyBase64,
+    });
+    const offsiteResult = JSON.parse(offsiteStdout) as { status?: string; evidenceRef?: string };
+    if (offsiteResult.status !== "PASS" || !offsiteResult.evidenceRef) {
+      throw new Error("Synthetic off-site verification did not produce a PASS evidence reference.");
+    }
+
     await run(process.execPath, [
       tsx,
       "scripts/dr-finalize.ts",
@@ -337,7 +362,7 @@ async function main() {
       "--restore-evidence",
       restoreEvidencePath,
       "--offsite-ref",
-      "SYNTHETIC-OFFSITE-DRILL-0001",
+      offsiteResult.evidenceRef,
       "--application-ref",
       "SYNTHETIC-APPRECOVERY-DRILL-0001",
       "--tenant-ref",
@@ -373,6 +398,8 @@ async function main() {
       storageReconciliationPassed: true,
       ephemeralStorageClassificationExercised: true,
       evidenceBindingExercised: true,
+      offsiteCopyByteIdentityVerified: true,
+      offsiteCopyAuthenticationVerified: true,
       finalManifestState: finalAssessment.status,
     }, null, 2));
   } finally {
