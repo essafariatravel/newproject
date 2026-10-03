@@ -19,6 +19,7 @@ import { db } from "@/lib/db";
 import {
   agencies,
   agencyRegistrations,
+  auditLogs,
   users,
 } from "@/db/schema";
 import { submitRegistrationAction } from "@/app/actions/registrations";
@@ -39,7 +40,6 @@ import { getBalance, getTransactions } from "@/lib/wallet";
 import { userByEmail } from "./helpers/fixtures";
 import { request } from "./helpers/request";
 import { updateSetting } from "@/lib/settings";
-import { auditLogs } from "@/db/schema";
 
 /** Run an action that ends in a Next redirect; returns the redirect digest. */
 async function captureRedirect(promise: Promise<unknown>): Promise<string> {
