@@ -20,6 +20,7 @@ on:
       - "scripts/dr-prod-preflight.ts"
       - "scripts/dr-status.ts"
       - "scripts/dr-evidence-bundle.ts"
+      - "scripts/dr-release-gate.ts"
       - "scripts/dr-repo-safety.ts"
       - "scripts/dr-generate-key.ts"
       - "tests/dr-private-path.test.ts"
