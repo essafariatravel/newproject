@@ -43,11 +43,15 @@ PR #12 merge commit:
 
 `8a27eb1934e14f2d29a2d8f862f0a6c1c4370698`
 
-Final application/harness SHA fully verified by both deterministic and hosted gates:
+Application SHA with full deterministic + current-SHA hosted validation:
 
 `91388f0a049b2f9138a1cdd3b93ef8ff10b92a34`
 
-A documentation-only report commit may follow this SHA; the verified application/harness content is the SHA above.
+Latest privacy-harness SHA with deterministic validation and live same-lineage hosted diagnostics:
+
+`20aca63ebcb64c7da437775a37d3385fa7b3f6b9`
+
+The latter changes verification only; when its own Vercel build was quota-limited, the workflow safely exercised the current harness against the already-successful ancestor Preview at `91388f0a...`, explicitly labelled as a stale diagnostic rather than current-SHA deployment validation.
 
 ## Implemented legal-content controls
 
@@ -231,7 +235,7 @@ Therefore this gate did **not** migrate Production.
 
 No Production deployment was performed by this gate.
 
-The hosted diagnostic also identified that the currently deployed legacy Production build still exposes the older detailed `/api/health` response. The hardened preprod implementation already redacts anonymous DB/schema diagnostics. The hosted harness no longer reprints those Production infrastructure details and classifies the legacy condition as pending the normal future release rather than as an acceptable privacy pattern.
+The hosted diagnostic also identified that the currently deployed legacy Production build still exposes the older detailed `/api/health` response. The hardened preprod implementation already redacts anonymous DB/schema diagnostics. The hosted harness no longer reprints those Production infrastructure details and classifies the legacy condition as a SKIP/pending normal future release rather than as an acceptable privacy pattern.
 
 Production must not be hot-patched solely from this gate.
 
@@ -304,17 +308,15 @@ Hosted verification workflow:
 
 `Hosted Phase-2 Preview verification`
 
-Run:
+Current-SHA application run:
 
-**#35**
+**#35 — SUCCESS — 39 PASS / 0 FAIL / 62 SKIP**
 
-Result:
+Additional live privacy/browser diagnostic with the final hardened harness:
 
-**SUCCESS**
+**#36 — SUCCESS — 41 PASS / 0 FAIL / 62 SKIP**
 
-Summary:
-
-**39 PASS / 0 FAIL / 62 SKIP**
+Run #36 used the successful same-lineage Preview at `91388f0a...` because the harness-only commit itself was temporarily Vercel-rate-limited. The workflow explicitly labels that mode as a stale diagnostic and never represents it as a deployment validation of the newer SHA.
 
 The SKIPs are primarily intentional consequences of the legal publication blocker:
 
@@ -352,6 +354,8 @@ Hosted PASS evidence includes:
 - FR Privacy heading is localized;
 - AR Privacy heading is localized and RTL;
 - final Preview health remains OK;
+- deployed `evos_session` cookie is actually emitted with `HttpOnly`, `Secure`, `SameSite=Lax` and `Path=/`;
+- public homepage HTML contains no common analytics/advertising marker;
 - Production bogus-login read-only smoke returns normal invalid-credentials behavior.
 
 ## Vercel quota resilience
