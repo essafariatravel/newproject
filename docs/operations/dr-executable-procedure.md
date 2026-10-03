@@ -76,7 +76,7 @@ The verifier checks:
 - source manifest identity;
 - output evidence is private and outside the repository.
 
-It prints an `OFFSITE-<sha256>` evidence reference that can be used by `dr:finalize`. This verifies the copy once it is available locally; it does **not** choose the storage provider or perform the independent transfer.
+It prints an `OFFSITE-<sha256>` evidence reference for audit display, while `dr:finalize` consumes the evidence JSON itself and verifies its binding. This verifies the copy once it is available locally; it does **not** choose the storage provider or perform the independent transfer.
 
 ## Run the full synthetic DR drill
 
@@ -175,7 +175,7 @@ Give each reviewed evidence package an opaque internal reference (for example an
 npm run dr:finalize -- \
   --manifest <created manifest> \
   --restore-evidence <restore evidence JSON> \
-  --offsite-ref <opaque off-site evidence ID> \
+  --offsite-evidence <off-site evidence JSON from dr:offsite-verify> \
   --application-ref <opaque application recovery evidence ID> \
   --tenant-ref <opaque tenant-isolation evidence ID> \
   --output <absolute private output path outside repository> \
@@ -189,7 +189,8 @@ The finalizer refuses to proceed unless:
 - the restore evidence belongs to the same backup ID and schema;
 - the restore target is local or explicitly disposable, never Production;
 - database, wallet and storage restore verification all passed;
-- all three external evidence references are syntactically valid;
+- the off-site evidence is cryptographically bound to the exact manifest and encrypted copy;
+- the application and tenant-isolation evidence references are syntactically valid;
 - the operator explicitly attests that those external checks were reviewed;
 - final verification occurs after the restore.
 
