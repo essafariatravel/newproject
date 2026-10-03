@@ -38,6 +38,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Verify checkout
         shell: bash
@@ -56,6 +57,9 @@ jobs:
 
       - name: Tracked secret and credential artifact gate
         run: npx tsx scripts/security-static-gate.ts
+
+      - name: Historical secret and credential gate
+        run: npx tsx scripts/security-history-gate.ts
 
       - name: Production dependency vulnerability gate
         run: npm audit --omit=dev --audit-level=high
