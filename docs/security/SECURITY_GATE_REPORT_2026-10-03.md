@@ -236,54 +236,6 @@ These are recommendations, not unresolved release-critical defects from this bra
 **FULL HOSTED SECURITY GATE: PENDING VERIFIED PREVIEW RUNTIME TESTING**
 
 
-## Final abuse-hardening extension
-
-After the initial gate passed, the branch received an additional adversarial hardening pass.
-
-### Request / DoS boundaries
-
-- `/api/agency/requests` now enforces an authoritative streamed body-size limit even when `Content-Length` is missing or forged.
-- communication posting is rate-limited per user and, for Agency accounts, per agency;
-- expensive applications/report/wallet exports and wallet-statement generation are rate-limited per authenticated user and return HTTP 429 with `Retry-After`;
-- public/authentication limits continue to use the shared PostgreSQL-backed limiter.
-
-### Browser/server input boundaries
-
-- every mutating API route is regression-checked for an explicit Origin policy; the only exemption is the permanently retired hard-404 Preview bootstrap route;
-- a syntax-aware CI gate rejects actual JSX `dangerouslySetInnerHTML`, direct `eval()`, and `new Function()`;
-- the only raw branding-style sink discovered by that gate was removed: branding CSS is now rendered as text inside `<style>`, not via `dangerouslySetInnerHTML`.
-
-### Enumeration resistance
-
-- top-up receipt access now has regression evidence that a foreign Agency cannot use identifiers to distinguish or retrieve another tenant's proof;
-- recovery continues to respond generically for known/unknown identities;
-- tenant-facing unauthorized object lookups continue to use non-enumerating behavior where tested.
-
-### Configuration integrity
-
-- workflow status/transition mutations are now coupled transactionally to their audit evidence;
-- visa programme fee/applicability configuration mutations are likewise fail-closed when audit persistence fails;
-- regression probes deliberately fail audit insertion and prove the business/config mutation rolls back.
-
-### CI/CD least privilege
-
-Production and Preview workflows were additionally hardened:
-
-- Production apply remains restricted to the authoritative release branch and release sentinel;
-- dependency installation is deterministic from `package-lock.json`;
-- repository write permissions/tokens were removed from Production jobs where not required;
-- hosted Preview verification cannot combine test credentials with repository write capability;
-- security workflow dependencies are SHA-pinned;
-- the security branch remains non-deploying by Vercel configuration.
-
-### Permanent regression manifest
-
-The repository now includes:
-
-`docs/security/security-regression-manifest.json`
-
-and a manifest integrity test. Release-critical controls cannot be called `PROVEN` without named evidence, while hosted Preview controls remain explicitly `HOSTED_PENDING`.
-
 ## Access-dependent residual
 
 The connected Vercel integration returned **no accessible teams/projects** during this gate. Therefore the following cannot be truthfully marked proven here:
