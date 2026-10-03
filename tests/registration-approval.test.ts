@@ -195,14 +195,16 @@ describe("registration submission — audit atomicity", () => {
       email: `audit-rollback-${randomUUID()}@example.test`,
       contactEmail: `audit-rollback-${randomUUID()}@example.test`,
     });
+    const [auditBefore] = await db.select({ n: sql<number>`count(*)::int` }).from(auditLogs)
+      .where(eq(auditLogs.action, "AGENCY_REGISTRATION_SUBMITTED"));
     try {
       await expect(submitAgencyRegistration({ data, files: [], ipAddress: nextIp() }))
         .rejects.toThrow();
       const rows = await db.select().from(agencyRegistrations).where(eq(agencyRegistrations.email, data.email));
       expect(rows).toHaveLength(0);
-      const audits = await db.select().from(auditLogs)
-        .where(and(eq(auditLogs.action, "AGENCY_REGISTRATION_SUBMITTED"), eq(auditLogs.entityId, rows[0]?.id ?? "00000000-0000-0000-0000-000000000000")));
-      expect(audits).toHaveLength(0);
+      const [auditAfter] = await db.select({ n: sql<number>`count(*)::int` }).from(auditLogs)
+        .where(eq(auditLogs.action, "AGENCY_REGISTRATION_SUBMITTED"));
+      expect(auditAfter?.n).toBe(auditBefore?.n);
     } finally {
       await pool.query(`drop trigger if exists test_fail_registration_submission_audit on ${audit}`);
       await pool.query(`drop function if exists ${fn}()`);
