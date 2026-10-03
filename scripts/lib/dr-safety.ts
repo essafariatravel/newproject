@@ -77,25 +77,32 @@ export interface ManifestAssessment {
   manifest: BackupManifest | null;
 }
 
+export function backupTimelineFindings(manifest: BackupManifest): string[] {
+  const findings: string[] = [];
+  const created = Date.parse(manifest.createdAt);
+  const verified = manifest.verification.verifiedAt ? Date.parse(manifest.verification.verifiedAt) : null;
+  const restored = manifest.verification.restoreTestedAt ? Date.parse(manifest.verification.restoreTestedAt) : null;
+  if (verified !== null && verified < created) findings.push("backup verification timestamp predates backup creation");
+  if (restored !== null && restored < created) findings.push("restore-test timestamp predates backup creation");
+  if (verified !== null && restored !== null && verified < restored) findings.push("backup verification timestamp predates the recorded restore test");
+  return findings;
+}
+
 export function backupFreshnessFindings(
   manifest: BackupManifest,
   maxAgeHours: number,
   now: Date = new Date(),
 ): string[] {
-  const findings: string[] = [];
+  const findings = backupTimelineFindings(manifest);
   if (!Number.isFinite(maxAgeHours) || maxAgeHours <= 0) {
-    return ["backup freshness window must be a positive number of hours"];
+    findings.push("backup freshness window must be a positive number of hours");
+    return findings;
   }
   const created = Date.parse(manifest.createdAt);
-  const verified = manifest.verification.verifiedAt ? Date.parse(manifest.verification.verifiedAt) : null;
-  const restored = manifest.verification.restoreTestedAt ? Date.parse(manifest.verification.restoreTestedAt) : null;
   const ageMs = now.getTime() - created;
   const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
   if (ageMs < -5 * 60 * 1000) findings.push("backup createdAt is unexpectedly in the future");
   if (ageMs > maxAgeMs) findings.push(`backup is older than the allowed ${maxAgeHours}-hour recovery window`);
-  if (verified !== null && verified < created) findings.push("backup verification timestamp predates backup creation");
-  if (restored !== null && restored < created) findings.push("restore-test timestamp predates backup creation");
-  if (verified !== null && restored !== null && verified < restored) findings.push("backup verification timestamp predates the recorded restore test");
   return findings;
 }
 
@@ -287,6 +294,7 @@ export function assessBackupManifest(
   if (expected?.environment && manifest.source.environment !== expected.environment) findings.push("source environment does not match the expected recovery source");
   if (!manifest.database.encrypted) findings.push("database backup is not marked encrypted");
   if (!manifest.storage.encrypted) findings.push("storage backup is not marked encrypted");
+  findings.push(...backupTimelineFindings(manifest));
 
   if (findings.length) return { status: "INVALID", findings, manifest };
 
