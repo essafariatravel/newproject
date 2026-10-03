@@ -34,7 +34,6 @@ import { recordAudit } from "@/lib/audit";
 import { agencyUserIds, staffUserIds, notifyUsers } from "@/lib/notifications";
 import { getStatusByCode } from "@/lib/applications";
 import { sha256Hex } from "@/lib/file-integrity";
-import { sha256Hex } from "@/lib/file-integrity";
 
 interface ApplicationAccess {
   applicationId: string;
@@ -201,7 +200,6 @@ export async function uploadDocument(input: UploadDocumentInput) {
   if (problem) throw new AppError("INVALID_FILENAME", fileNameErrorMessage(problem));
 
   validateDocumentFormat(input.file);
-  const sha256 = sha256Hex(input.file.data);
   const dtRows = await db
     .select({ id: documentTypes.id, name: documentTypes.name, active: documentTypes.active, agencyUploadable: documentTypes.agencyUploadable })
     .from(documentTypes)
