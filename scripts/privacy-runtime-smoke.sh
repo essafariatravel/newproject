@@ -121,7 +121,7 @@ python3 - "$WORK/register-live.html" <<'PY'
 import re, sys
 src = open(sys.argv[1], encoding="utf-8").read()
 forms = re.findall(r"<form\\b[^>]*>.*?</form>", src, re.S)
-chosen = next((form for form in forms if 'name="termsVersionId"' in form), None)
+chosen = next((form for form in forms if 'name="legalName"' in form), None)
 if not chosen:
     raise SystemExit("registration form not found")
 
@@ -160,7 +160,7 @@ python3 - "$WORK/register-live.html" <<'PY' > "$WORK/hidden.txt"
 import html, re, sys
 src = open(sys.argv[1], encoding="utf-8").read()
 forms = re.findall(r"<form\b[^>]*>.*?</form>", src, re.S)
-chosen = next((f for f in forms if 'name="termsVersionId"' in f), None)
+chosen = next((f for f in forms if 'name="legalName"' in f), None)
 if not chosen:
     raise SystemExit("registration form not found")
 for tag in re.findall(r"<input\b[^>]*>", chosen):
