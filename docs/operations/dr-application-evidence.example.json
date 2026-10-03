@@ -13,5 +13,6 @@
     "agencyOwnApplicationRead": false,
     "agencyOwnDocumentRead": false,
     "walletRead": false
-  }
+  },
+  "releaseSha": "0000000000000000000000000000000000000000"
 }
