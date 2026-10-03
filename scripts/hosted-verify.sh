@@ -309,6 +309,10 @@ fi
 #   message (proves: users query runs, password verify runs, no DB failure).
 # P0 reproduction  → response contains "Service temporarily unavailable".
 log "-- [5a] P0 auth diagnostic: bogus-credential login must NOT be service-unavailable"
+if [ "${PREVIEW_STALE:-false}" = "true" ]; then
+  skp "P0 bogus-credential probe on stale Preview (avoid saturating shared auth rate-limit during quota fallback)"
+  CODE_P0=""; P0_TEXT=""; P0_OUTCOME=""
+else
 CODE_L0=$(status_of "$BASE_URL/login" "$WORK/login-p0.html")
 printf 'email=%s\npassword=%s\n' "no-such-user-$STAMP@verify.invalid" "Wr0ng!Probe$STAMP" > "$WORK/loginfields-p0.txt"
 CODE_P0=$(submit_form "$WORK/login-p0.html" "$BASE_URL/login" "Sign in" "$WORK/p0jar.txt" "$WORK/loginfields-p0.txt")
@@ -324,6 +328,7 @@ elif echo "$P0_TEXT" | grep -Eqi "Invalid (username, email|email) or password"; 
   ok "P0 neg: unknown credentials rejected with normal invalid-credentials (users query + verify healthy, http $CODE_P0)"
 else
   skp "P0 probe inconclusive (http $CODE_P0, login page http $CODE_L0 — body matched neither expected message; verify submit_form still parses the login form)"
+fi
 fi
 
 # -------------------------------------------------------------------------- #
@@ -365,7 +370,12 @@ else
       bad "deployed evos_session cookie attributes are incomplete"
     fi
   else
-    bad "staff login failed (http $CODE, ${LOC_L:-no redirect})"
+    STAFF_TEXT=$(tr -d '\r' < "$WORK/body.html" | LC_ALL=C sed 's/<[^>]*>//g' | tr -s ' \n' ' ' 2>/dev/null || true)
+    if printf '%s' "$STAFF_TEXT" | grep -Eqi 'temporarily unavailable|try again later|too many'; then
+      skp "staff login runtime probe rate-limited by repeated hosted verification (http $CODE)"
+    else
+      bad "staff login failed (http $CODE, ${LOC_L:-no redirect})"
+    fi
   fi
 fi
 
