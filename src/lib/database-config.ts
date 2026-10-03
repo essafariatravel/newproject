@@ -4,6 +4,7 @@ import { SUPABASE_CA } from "./supabase-ca";
 
 type Environment = Record<string, string | undefined>;
 const LOCAL_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/essafaria";
+const EXPECTED_SUPABASE_PROJECT = "xgetzgixalrsmuvfthpf";
 // Used only when a deployed environment has no DATABASE_URL: nothing listens on
 // 127.0.0.1:1, so the first query fails immediately (ECONNREFUSED) instead of
 // hanging on a 10s connection timeout, and every handler already maps database
@@ -38,6 +39,12 @@ export function databaseUrl(env: Environment = process.env, migration = false): 
   } catch {
     // Do not include the input: URL parsing errors can contain the password.
     throw new Error("Database configuration must be a PostgreSQL connection URI.");
+  }
+  if (
+    (env.VERCEL_ENV === "preview" || env.VERCEL_ENV === "production") &&
+    !targetsSupabaseProject(value, EXPECTED_SUPABASE_PROJECT)
+  ) {
+    throw new Error("Deployment database project boundary mismatch.");
   }
   return value;
 }
