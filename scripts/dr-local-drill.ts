@@ -346,7 +346,6 @@ async function main() {
     }
     const restoreEvidenceSha256 = await sha256File(restoreEvidencePath);
     const sourceManifestForEvidence = JSON.parse(await readFile(manifestPath, "utf8")) as BackupManifest;
-    const originalManifestReleasePlaceholder = sourceManifestForEvidence.source.releaseSha;
     const applicationEvidence: ApplicationRecoveryEvidence = {
       version: 1,
       kind: "ESSAFARIA_DR_APPLICATION",
