@@ -17,6 +17,7 @@ import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { businessLabel, businessReason } from "@/lib/business-labels";
 import { toCsv, toXlsx, XLSX_CONTENT_TYPE, type Column } from "@/lib/tabular-export";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,10 @@ export async function GET(request: Request) {
     }
     if (!hasPermission(user, "transactions.view.own")) {
       return NextResponse.json({ error: "Not authorized.", code: "FORBIDDEN" }, { status: 403 });
+    }
+
+    if (!await consumeAuthRateLimit("export-wallet-user-minute", user.id, 10, 60_000)) {
+      return NextResponse.json({ error: "Too many exports. Please wait before retrying.", code: "RATE_LIMITED" }, { status: 429, headers: { "Retry-After": "60" } });
     }
 
     const url = new URL(request.url);
