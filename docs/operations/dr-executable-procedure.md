@@ -136,6 +136,35 @@ The environment must still explicitly identify `RESTORE_TEST` and a safe target.
 
 The verifier never repairs data. Any finding remains a failure requiring investigation.
 
+## Verify the deployed recovery application and tenant isolation
+
+After `dr:restore` succeeds, point a disposable application deployment at that exact restored database and use the backup's exact `source.releaseSha`.
+
+Then run:
+
+```text
+DR_ENVIRONMENT=RESTORE_TEST
+DATABASE_SCHEMA=visa_os
+DATABASE_URL=<same disposable restore>
+DR_RESTORE_RELEASE_SHA=<exact backup source.releaseSha>
+
+npm run dr:app-verify -- \
+  --manifest <private CREATED manifest> \
+  --restore-evidence <private restore evidence JSON> \
+  --base-url <HTTPS recovery deployment URL> \
+  --target-ref <opaque recovery deployment ID> \
+  --application-evidence-output <absolute private application evidence JSON> \
+  --tenant-evidence-output <absolute private tenant evidence JSON>
+```
+
+For remote disposable Supabase, also supply the same `DR_ALLOW_REMOTE_DISPOSABLE=true` and `DR_DISPOSABLE_PROJECT_REF` used during restore.
+
+This verifier creates random one-hour session tokens in the disposable restore only, confirms the real deployment resolves them, performs Staff/Agency read checks, performs cross-tenant denial checks, then removes the temporary session rows. It never needs or prints user passwords.
+
+A successful document download may append an audit event to the disposable restore. Business data is not modified.
+
+The real Production hostname and Production database project are refused.
+
 ## Manifest states
 
 `npm run dr:manifest -- --manifest <path> --source production` returns:
