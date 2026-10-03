@@ -4,6 +4,7 @@ import { getDocumentForUser } from "@/lib/documents";
 import { storageProvider } from "@/lib/storage";
 import { AppError } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
+import { logErrorOnce, logEvent, pseudonymizeIdentifier } from "@/lib/observability";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,15 @@ export async function GET(
       entityId: id,
       agencyId: row.appAgencyId,
     });
+    logEvent({
+      eventName: "document.private_access.succeeded",
+      result: "succeeded",
+      actorRole: user.role,
+      tenantRef: pseudonymizeIdentifier(row.appAgencyId),
+      resourceType: "document",
+      resourceRef: pseudonymizeIdentifier(id),
+      metadata: { size_bytes: data.length, mime_type: mimeType },
+    });
     // Content-Disposition attachment prevents inline script execution for HTML-like uploads
     const safeName = row.doc.originalFilename.replace(/["\\\r\n]/g, "_");
     return new NextResponse(new Uint8Array(data), {
@@ -52,7 +62,15 @@ export async function GET(
     if (err instanceof AppError) {
       return NextResponse.json({ error: "Not found." }, { status: err.code === "NOT_FOUND" ? 404 : 400 });
     }
-    console.error("document-download-failed", err);
+    logErrorOnce("document.private_access.technical_failed", err, {
+      severity: "error",
+      classification: "BUSINESS_FAILURE",
+      result: "technical_failed",
+      actorRole: user.role,
+      tenantRef: pseudonymizeIdentifier(user.agencyId),
+      resourceType: "document",
+      resourceRef: pseudonymizeIdentifier(id),
+    });
     return NextResponse.json({ error: "Download failed." }, { status: 500 });
   }
 }
