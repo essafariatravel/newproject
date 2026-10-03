@@ -1,0 +1,73 @@
+name: Legal Privacy deterministic verification
+
+on:
+  push:
+    branches:
+      - hardening/legal-privacy-readiness
+  pull_request:
+    branches:
+      - release/essafaria-rc-2026-09
+  workflow_dispatch:
+
+concurrency:
+  group: legal-privacy-verification-${{ github.ref }}
+  cancel-in-progress: true
+
+# Verification only: no environments, deployment permissions, external DB
+# credentials or write access. Embedded PostgreSQL is used by the test suite.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Typecheck, lint, tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      VERCEL: "0"
+      VERCEL_ENV: ""
+      DATABASE_URL: ""
+      DATABASE_SCHEMA: ""
+      ALLOW_DEMO_SEED: "false"
+      STORAGE_PROVIDER: "db"
+      CI: "true"
+
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify checkout
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "Verified commit: $GITHUB_SHA"
+
+      - name: Setup Node 22 with npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies from package lock
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Privacy readiness regression guards
+        run: npm test -- tests/privacy-readiness.test.ts tests/legal-content.test.ts
+
+      - name: Migration safety
+        run: npm test -- tests/migrations.test.ts
+
+      - name: Full deterministic suite
+        run: npm test
+
+      - name: Build without deployment or external database access
+        run: npm run build
