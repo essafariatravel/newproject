@@ -41,7 +41,7 @@ export async function GET(
       action: "REGISTRATION_DOCUMENT_DOWNLOADED",
       entity: "agency_registration_document",
       entityId: doc.id,
-      metadata: { registrationId: id, filename: doc.originalFilename },
+      metadata: { registrationId: id },
     });
     const safeName = doc.originalFilename.replace(/["\\\r\n]/g, "_");
     return new NextResponse(new Uint8Array(data), {
