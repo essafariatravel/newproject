@@ -1,11 +1,17 @@
 import {afterEach,expect,it,vi} from "vitest";
-import {POST} from "../src/app/api/internal/preview-admin-bootstrap/route";
+import {GET,POST} from "../src/app/api/internal/preview-admin-bootstrap/route";
 afterEach(()=>vi.unstubAllEnvs());
-it("refuses legacy credential bootstrap on the protected hardening Preview before parsing a body",async()=>{
-  vi.stubEnv("VERCEL_ENV","preview");
-  vi.stubEnv("VERCEL_GIT_COMMIT_REF","preprod/essafaria-final-hardening");
-  vi.stubEnv("DATABASE_SCHEMA","visa_os_preview");
-  vi.stubEnv("PREVIEW_ADMIN_BOOTSTRAP","synthetic-bootstrap-test-token");
-  const result=await POST(new Request("http://localhost/api/internal/preview-admin-bootstrap",{method:"POST",headers:{"x-admin-bootstrap-token":"synthetic-bootstrap-test-token"},body:"{}"}));
-  expect(result.status).toBe(404);
+
+it("keeps the historical remote bootstrap endpoint permanently dormant",async()=>{
+  for (const env of [
+    {VERCEL_ENV:"preview",VERCEL_GIT_COMMIT_REF:"arena/legacy",DATABASE_SCHEMA:"visa_os_preview",PREVIEW_ADMIN_BOOTSTRAP:"synthetic-bootstrap-test-token"},
+    {VERCEL_ENV:"production",VERCEL_GIT_COMMIT_REF:"main",DATABASE_SCHEMA:"visa_os",PREVIEW_ADMIN_BOOTSTRAP:"synthetic-bootstrap-test-token"},
+    {VERCEL_ENV:"preview",VERCEL_GIT_COMMIT_REF:"security/pre-codex-gate-2026-10-03",DATABASE_SCHEMA:"visa_os_preview",PREVIEW_ADMIN_BOOTSTRAP:"synthetic-bootstrap-test-token"},
+  ]) {
+    for (const [key,value] of Object.entries(env)) vi.stubEnv(key,value);
+    const result=await POST();
+    expect(result.status).toBe(404);
+    expect(GET().status).toBe(404);
+    vi.unstubAllEnvs();
+  }
 });
