@@ -184,7 +184,7 @@ export function DatePicker(props: DatePickerProps) {
         required={props.required}
         aria-hidden="true"
       />
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-2">
         <input
           id={props.id}
           type="text"
@@ -204,7 +204,7 @@ export function DatePicker(props: DatePickerProps) {
           aria-haspopup="dialog"
           aria-expanded={open}
           aria-label={display || props.placeholder || "Choose date"}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-ivory-200 bg-white text-slate-500 transition-colors hover:border-iris-200 hover:text-navy-900"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-line bg-white text-slate-500 transition-colors hover:border-navy-600 hover:text-navy-900"
         >
           <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
             <rect x="1.5" y="2.5" width="13" height="12" rx="2" />
@@ -218,20 +218,20 @@ export function DatePicker(props: DatePickerProps) {
           role="dialog"
           aria-label={fmtMonth.format(new Date(viewYear, viewMonth, 1))}
           onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); setOpen(false); } }}
-          className="surface-popover absolute z-40 mt-2 w-72 rounded-xl border border-ivory-200 bg-white p-3 shadow-[0_18px_40px_-24px_rgb(15_23_42/0.32)]"
+          className="surface-popover absolute z-40 mt-2 w-72 rounded-lg border border-line bg-white p-4 shadow-[var(--shadow-pop)]"
         >
           <div className="flex items-center justify-between pb-2">
             <button
               type="button"
               onClick={() => (view === "days" ? moveMonth(-1) : view === "months" ? setViewYear((y) => y - 1) : setPivotYear((y) => y - 12))}
-              className="rounded-lg px-2 py-1 text-slate-500 hover:bg-ivory-100"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-ivory-100"
               aria-label={view === "days" ? "Previous month" : view === "months" ? "Previous year" : "Earlier years"}
             >
               ‹
             </button>
             <button
               type="button"
-              className="rounded-lg px-2 py-1 text-sm font-semibold text-navy-900 hover:bg-ivory-100"
+              className="inline-flex min-h-11 items-center rounded-lg px-2 text-base font-semibold text-navy-900 hover:bg-ivory-100"
               onClick={() => setView((v) => (v === "days" ? "months" : "years"))}
               aria-label={view === "days" ? "Choose month / year" : view === "months" ? "Choose year" : "Back to days"}
             >
@@ -244,7 +244,7 @@ export function DatePicker(props: DatePickerProps) {
             <button
               type="button"
               onClick={() => (view === "days" ? moveMonth(1) : view === "months" ? setViewYear((y) => y + 1) : setPivotYear((y) => y + 12))}
-              className="rounded-lg px-2 py-1 text-slate-500 hover:bg-ivory-100"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-ivory-100"
               aria-label={view === "days" ? "Next month" : view === "months" ? "Next year" : "Later years"}
             >
               ›
@@ -252,7 +252,7 @@ export function DatePicker(props: DatePickerProps) {
           </div>
           {view === "days" ? (
           <div role="grid" ref={gridRef} onKeyDown={onGridKeyDown}>
-            <div role="row" className="grid grid-cols-7 text-center text-[11px] font-medium text-slate-400">
+            <div role="row" className="grid grid-cols-7 text-center text-xs font-semibold text-slate-400">
               {weekdayNames.map((w, i) => (
                 <span role="columnheader" key={i} className="py-1">{w}</span>
               ))}
@@ -315,7 +315,7 @@ export function DatePicker(props: DatePickerProps) {
                     }}
                     aria-pressed={isCurrent}
                     className={[
-                      "rounded-lg px-2 py-2.5 text-sm transition-colors",
+                      "min-h-11 rounded-lg px-2 py-2 text-base transition-colors",
                       isCurrent ? "bg-iris-600 font-semibold text-white" : disabledCandidate ? "cursor-not-allowed text-slate-300" : "text-navy-900 hover:bg-ivory-100",
                     ].join(" ")}
                   >
@@ -357,7 +357,7 @@ export function DatePicker(props: DatePickerProps) {
           <div className="flex items-center justify-between border-t border-ivory-100 pt-2">
             <button
               type="button"
-              className="text-xs font-medium text-iris-600 hover:underline"
+              className="inline-flex min-h-11 items-center text-base font-semibold text-iris-700 hover:underline"
               onClick={() => {
                 const v = iso(today.y, today.m, today.d);
                 if (allowed(v)) { setViewYear(today.y); setViewMonth(today.m); select(v); }
@@ -367,7 +367,7 @@ export function DatePicker(props: DatePickerProps) {
             </button>
             <button
               type="button"
-              className="text-xs font-medium text-slate-400 hover:underline"
+              className="inline-flex min-h-11 items-center text-base font-semibold text-slate-500 hover:underline"
               disabled={props.required}
               onClick={() => { if (!props.required) { setValue(""); setOpen(false); } }}
             >

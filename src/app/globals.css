@@ -590,32 +590,32 @@ body {
 }
 /* Dense operational read models and deliberate account/financial controls. */
 .account-menu { position:relative; min-width:0; }
-.account-menu summary { display:flex; align-items:center; gap:.6rem; cursor:pointer; list-style:none; min-height:44px; }
+.account-menu summary { display:flex; align-items:center; gap:.5rem; cursor:pointer; list-style:none; min-height:44px; }
 .account-avatar { display:grid; place-items:center; width:34px; height:34px; background:var(--color-navy-900); color:white; border-radius:50%; font-size:.75rem; }
-.account-menu-identity { display:flex; flex-direction:column; max-width:160px; font-size:.8rem; }
+.account-menu-identity { display:flex; flex-direction:column; max-width:160px; font-size:.75rem; }
 .account-menu-identity small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--color-slate-600); }
 .account-menu-panel { position:absolute; z-index:50; inset-inline-end:0; top:calc(100% + .5rem); min-width:220px; background:white; border:1px solid var(--color-line); border-radius:12px; padding:.5rem; }
-.account-menu-panel p { padding:.6rem .75rem; font-weight:600; }
-.account-menu-panel a,.account-menu-panel button { display:block; padding:.7rem .75rem; width:100%; text-align:start; font-size:.875rem; }
+.account-menu-panel p { padding:.5rem 1rem; font-weight:600; }
+.account-menu-panel a,.account-menu-panel button { display:flex; min-height:44px; align-items:center; padding:.5rem 1rem; width:100%; text-align:start; font-size:1rem; }
 .account-menu-panel a:hover,.account-menu-panel button:hover { background:var(--color-ivory-100); }
-.inbox-filters { display:flex; align-items:center; gap:.75rem; margin-block:1rem 1.5rem; }
+.inbox-filters { display:flex; align-items:center; gap:1rem; margin-block:1rem 1.5rem; }
 .inbox-filters input { flex:1; }
 .inbox-filters select { width:auto; }
 .conversation-inbox { border-block:1px solid var(--color-line); }
 .conversation-inbox li+li { border-top:1px solid var(--color-line); }
-.conversation-thread { display:grid; grid-template-columns:minmax(180px,1fr) minmax(180px,1.5fr) auto; align-items:center; gap:1.25rem; padding:1rem .5rem; width:100%; text-align:start; }
+.conversation-thread { display:grid; grid-template-columns:minmax(180px,1fr) minmax(180px,1.5fr) auto; align-items:center; gap:1rem; padding:1rem .5rem; width:100%; text-align:start; }
 .conversation-thread:hover { background:var(--color-ivory-50); }
-.conversation-heading,.conversation-preview,.conversation-state { display:flex; flex-direction:column; gap:.3rem; min-width:0; font-size:.875rem; }
+.conversation-heading,.conversation-preview,.conversation-state { display:flex; flex-direction:column; gap:.25rem; min-width:0; font-size:1rem; }
 .conversation-heading small,.conversation-preview small { font-size:.75rem; color:var(--color-slate-600); }
 .conversation-preview { overflow:hidden; }
 .conversation-preview { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; }
 .conversation-state { align-items:flex-end; font-size:.75rem; }
-.wallet-adjustment-form { display:grid; gap:1rem; padding:1.25rem; }
-.wallet-adjustment-preview { border-block:1px solid var(--color-line); padding-block:1rem; font-size:.875rem; }
+.wallet-adjustment-form { display:grid; gap:1rem; padding:1.5rem; }
+.wallet-adjustment-preview { border-block:1px solid var(--color-line); padding-block:1rem; font-size:1rem; }
 .wallet-adjustment-preview small { color:var(--color-slate-600); }
-.wallet-adjustment-confirm { display:flex; gap:.75rem; align-items:flex-start; font-size:.875rem; }
+.wallet-adjustment-confirm { display:flex; gap:1rem; align-items:flex-start; font-size:1rem; }
 .wallet-adjustment-confirm input { margin-top:.25rem; }
-@media(max-width:639px) { .account-menu-identity{display:none;} .inbox-filters{flex-wrap:wrap;} .inbox-filters input{flex-basis:100%;} .conversation-thread{grid-template-columns:1fr auto;gap:.6rem;} .conversation-preview{grid-column:1/-1;grid-row:2;} }
+@media(max-width:639px) { .account-menu-identity{display:none;} .inbox-filters{flex-wrap:wrap;} .inbox-filters input{flex-basis:100%;} .conversation-thread{grid-template-columns:1fr auto;gap:.5rem;} .conversation-preview{grid-column:1/-1;grid-row:2;} }
 .account-avatar { flex-shrink:0; }
 @media(max-width:359px) {
   .workspace-topbar .account-chevron { display:none; }
