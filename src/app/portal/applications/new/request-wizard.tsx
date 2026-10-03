@@ -393,7 +393,7 @@ export function RequestWizard(props: Props) {
               ) : (
                 <div id="destination-suggestions" role="listbox" aria-label={t.searchDestination}>
                   {!countrySearch ? (
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
                       {t.popularDestinations}
                     </p>
                   ) : null}
@@ -437,7 +437,7 @@ export function RequestWizard(props: Props) {
                   <label
                     key={v.id}
                     data-testid="wizard-visa-type"
-                    className={`wizard-choice cursor-pointer rounded-lg border p-3 ${visaTypeId === v.id ? "border-gold-500 bg-gold-50/60 shadow-[inset_0_0_0_1px_rgb(201_154_50/0.12)]" : "border-slate-200"}`}
+                    className={`wizard-choice cursor-pointer rounded-lg border p-4 ${visaTypeId === v.id ? "border-gold-500 bg-gold-50/60 shadow-[inset_0_0_0_1px_rgb(201_154_50/0.12)]" : "border-slate-200"}`}
                   >
                     <input
                       type="radio"
@@ -449,8 +449,8 @@ export function RequestWizard(props: Props) {
                       onChange={() => setVisaTypeId(v.id)}
                     />
                     <span className="block font-semibold text-navy-900">{v.name}</span>
-                    <span className="mt-0.5 block text-xs text-slate-500">{v.categoryName}</span>
-                    <span className="mt-1.5 block text-base font-semibold text-navy-800 tabular-nums">
+                    <span className="mt-1 block text-xs text-slate-500">{v.categoryName}</span>
+                    <span className="mt-2 block text-base font-semibold text-navy-800 tabular-nums">
                       {formatDZD(v.fee)} <span className="text-xs text-slate-400">· {t.processing} {processingLabel(v)}</span>
                     </span>
                     {v.description ? <span className="mt-1 block text-xs text-slate-500">{v.description}</span> : null}
@@ -479,7 +479,7 @@ export function RequestWizard(props: Props) {
             </div>
             <div>
               <label className="label" htmlFor="t0_nationality">{t.nationality} *</label>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <input
                   type="search"
                   placeholder={t.searchNationality}
@@ -515,19 +515,19 @@ export function RequestWizard(props: Props) {
       <section data-wizard-section="2" hidden={step !== 2} className="wizard-panel space-y-4" data-direction={wizardDirection}>
         <div className="card p-6">
           <dl className="grid grid-cols-1 gap-2 text-base sm:grid-cols-4">
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col gap-1">
               <dt className="text-xs text-slate-400">{t.destination}</dt>
               <dd className="font-semibold text-navy-900">{country?.name ?? "—"}</dd>
             </div>
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col gap-1">
               <dt className="text-xs text-slate-400">{t.stepChoose}</dt>
               <dd className="font-semibold text-navy-900">{visa?.name ?? "—"}</dd>
             </div>
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col gap-1">
               <dt className="text-xs text-slate-400">{t.fee}</dt>
               <dd className="font-semibold tabular-nums text-navy-900">{visa ? formatDZD(visa.fee) : "—"}</dd>
             </div>
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col gap-1">
               <dt className="text-xs text-slate-400">{t.processing}</dt>
               <dd className="font-semibold text-navy-900">{visa ? processingLabel(visa) : "—"}</dd>
             </div>
@@ -553,11 +553,11 @@ export function RequestWizard(props: Props) {
                       <div>
                         <p className="font-semibold text-navy-900">
                           {r.name}{" "}
-                          <span className={`ms-1 rounded-md px-2 py-0.5 text-xs font-semibold ${r.required ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-500"}`}>
+                          <span className={`ms-1 rounded-md px-2 py-1 text-xs font-semibold ${r.required ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-500"}`}>
                             {r.required ? t.required : t.optional}
                           </span>
                         </p>
-                        {r.notes ? <p className="mt-0.5 text-xs text-slate-500">{r.notes}</p> : null}
+                        {r.notes ? <p className="mt-1 text-xs text-slate-500">{r.notes}</p> : null}
                         <p className="mt-1 text-xs text-slate-400">{t.uploadHint}</p>
                       </div>
                       <label className="btn-secondary btn-sm cursor-pointer">

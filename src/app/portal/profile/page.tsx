@@ -60,7 +60,7 @@ export default async function PortalProfilePage({
                   : ct("Only the agency administrator can change the logo.")
               }
             />
-            <div className="flex flex-wrap items-center gap-4 px-5 py-5">
+            <div className="flex flex-wrap items-center gap-4 px-6 py-6">
               <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-ivory-200 bg-ivory-50">
                 <BrandMark className="h-11 w-11" src={agencyLogoUrl(agency)} alt={agency.tradingName ?? agency.legalName} />
               </div>

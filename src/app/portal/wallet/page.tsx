@@ -34,7 +34,7 @@ export default async function PortalWalletPage({
   const user = await portalPageUser();
   if (!hasPermission(user,"transactions.view.own")) {
     const balance = await getBalance(user.agencyId);
-    return <><PageHeader title={ct("Available balance")}/><div className="card p-6"><p className="font-serif text-3xl font-semibold tabular-nums">{formatAmount(balance.balance)}</p><p className="mt-4 text-base text-slate-500">{ct("Your Agency Admin manages wallet funding and transactions.")}</p></div></>;
+    return <><PageHeader title={ct("Available balance")}/><div className="card p-6"><p className="font-serif text-[32px] font-semibold tabular-nums">{formatAmount(balance.balance)}</p><p className="mt-4 text-base text-slate-500">{ct("Your Agency Admin manages wallet funding and transactions.")}</p></div></>;
   }
   const flash = flashFrom(sp);
   const page = Number(sp.page ?? "1") || 1;
@@ -79,7 +79,7 @@ export default async function PortalWalletPage({
       <div className="card flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{ct("Available balance")}</p>
-          <p className="mt-1 font-serif text-4xl text-navy-900 tabular-nums">
+          <p className="mt-1 font-serif text-[32px] text-navy-900 tabular-nums">
             {formatAmount(balance.balance, "DZD", uiLocale)}
           </p>
           <p className="mt-1 text-xs text-slate-400">{ct("Currency")}: DZD — {ct("Algerian Dinar")}</p>
@@ -100,7 +100,7 @@ export default async function PortalWalletPage({
       </div>
 
       {/* Immutable-ledger explainer: what the agency is looking at, in plain words */}
-      <div className="card mt-4 px-5 py-4">
+      <div className="card mt-4 px-6 py-4">
         <h3 className="text-lg font-semibold text-navy-800">{ct("About your wallet")}</h3>
         <p className="mt-1 text-base leading-relaxed text-slate-500">
           {ct(
@@ -129,7 +129,7 @@ export default async function PortalWalletPage({
         ) : null}
         <Card className="p-4">
           <h3 className="text-lg font-semibold text-navy-800">{ct("Statement period")}</h3>
-          <p className="mt-0.5 text-xs text-slate-400">{ct("Filter the ledger by period, then export exactly what you see.")}</p>
+          <p className="mt-1 text-xs text-slate-400">{ct("Filter the ledger by period, then export exactly what you see.")}</p>
           <div className="mt-4 flex flex-wrap gap-2" data-testid="wallet-periods">
             {([
               ["this_month", ct("Last 1 month")],
@@ -268,7 +268,7 @@ export default async function PortalWalletPage({
       {/* Top-up request */}
       <Card className="mt-8 scroll-mt-24 p-6" >
         <div id="topup" />
-        <h2 className="font-serif text-xl text-navy-900">{ct("Request wallet top-up")}</h2>
+        <h2 className="font-serif text-lg text-navy-900">{ct("Request wallet top-up")}</h2>
         <p className="mt-1 max-w-2xl text-base text-slate-500">
           {ct("Tell ESSAFARIA how much you need in your wallet. Your balance is credited once the funds are confirmed — no online payment is taken here.")}
         </p>

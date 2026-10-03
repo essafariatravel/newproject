@@ -21,12 +21,12 @@ export function AccessLinkForm({ userId, requestId, locale = "en", purpose = "PA
       <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">{t(purpose === "ACTIVATION" ? "Generate activation link" : requestId ? "Generate access link" : "Reset access")}</SubmitButton>
     </form>
     {state.error ? <p className="mt-2 text-xs text-red-700" role="alert">{t(state.error)}</p> : null}
-    {visible && state.link ? <div className="mt-2 space-y-2 border border-slate-200 bg-white p-3" role="status">
+    {visible && state.link ? <div className="mt-2 space-y-2 border border-slate-200 bg-white p-4" role="status">
       <p className="text-xs text-slate-600">{t(state.message ?? "")}</p>
       <code className="block break-all text-xs" dir="ltr">{state.link}</code>
       <p className="text-xs text-slate-500">{t("Expires")}: {new Date(state.expiresAt!).toLocaleString(locale)}</p>
-      <div className="flex gap-3">
-        <button type="button" className="text-xs font-medium text-iris-700 underline" onClick={async () => {
+      <div className="flex gap-4">
+        <button type="button" className="text-xs font-semibold text-iris-700 underline" onClick={async () => {
           try { await navigator.clipboard.writeText(new URL(state.link!, window.location.origin).href); setCopied(true); }
           catch { setCopied(false); }
         }}>{t(copied ? "Copied" : "Copy link")}</button>

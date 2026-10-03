@@ -194,7 +194,7 @@ export default async function PortalApplicationDetailPage({
                 <CardHeader title={ct("Official decision")} />
                 <ul className="space-y-2 px-4 py-4 text-base">
                   {decisionDocs.map((d) => (
-                    <li key={d.id} className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-emerald-100 bg-emerald-50/50 px-3 py-2">
+                    <li key={d.id} className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-emerald-100 bg-emerald-50/50 px-4 py-2">
                       <div>
                         <p className="font-semibold text-navy-900">{localizedDocTypeName(d.typeCode, d.typeName, uiLocale)}</p>
                         <p className="text-xs text-slate-500">{formatDateTime(d.createdAt, uiLocale)}</p>
@@ -238,7 +238,7 @@ export default async function PortalApplicationDetailPage({
               <CardHeader title={ct("Documents")} />
               <div className="px-4 py-4 text-base">
                 <p className="text-xs text-slate-500">{docs.length} {ct("document(s) uploaded")}</p>
-                <div className="mt-2 space-y-1.5">
+                <div className="mt-2 space-y-2">
                   {checklist.map((c) => {
                     const hasDoc = docs.some((d) => d.doc.checklistItemId === c.id);
                     return (
@@ -271,7 +271,7 @@ export default async function PortalApplicationDetailPage({
                       {r.req.checklistItemId ? <input type="hidden" name="checklistItemId" value={r.req.checklistItemId} /> : null}
                       <input type="hidden" name="documentTypeId" value={r.req.documentTypeId} />
                       <input type="hidden" name="back" value={`${back}?tab=documents`} />
-                      <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:me-2 file:rounded-md file:border-0 file:bg-iris-600 file:px-3 file:py-1.5 file:text-xs file:text-white" />
+                      <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:me-2 file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-xs file:text-white" />
                       <button type="submit" className="btn-primary btn-sm">{ct("Upload replacement")}</button>
                     </form>
                   </div>
@@ -291,8 +291,8 @@ export default async function PortalApplicationDetailPage({
                   <div key={item.id} className="px-4 py-4">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
-                        <p className="font-semibold text-navy-900">{localizedDocTypeName(item.documentTypeCode, item.documentTypeName, uiLocale)} {item.required ? <span className="badge bg-rose-50 text-rose-600 text-[10px]">{ct("Required")}</span> : <span className="badge bg-slate-100 text-slate-500 text-[10px]">{ct("Optional")}</span>}</p>
-                        {item.notes ? <p className="mt-0.5 text-xs text-slate-500">{item.notes}</p> : null}
+                        <p className="font-semibold text-navy-900">{localizedDocTypeName(item.documentTypeCode, item.documentTypeName, uiLocale)} {item.required ? <span className="badge bg-rose-50 text-rose-600 text-xs">{ct("Required")}</span> : <span className="badge bg-slate-100 text-slate-500 text-xs">{ct("Optional")}</span>}</p>
+                        {item.notes ? <p className="mt-1 text-xs text-slate-500">{item.notes}</p> : null}
                         <p className="mt-1 text-xs text-slate-400">{ct("PDF, JPEG, PNG, WEBP, DOC, DOCX · 2 MB max")}</p>
                       </div>
                       {latest ? (
@@ -307,7 +307,7 @@ export default async function PortalApplicationDetailPage({
                     {itemDocs.length > 0 ? (
                       <ul className="mt-4 space-y-2">
                         {itemDocs.map(({ doc }) => (
-                          <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ivory-50 px-3 py-2 text-xs">
+                          <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ivory-50 px-4 py-2 text-xs">
                             <span className="flex min-w-0 flex-wrap items-center gap-2">
                               <a href={`/api/documents/${doc.id}`} target="_blank" className="font-semibold text-navy-800 truncate hover:underline">{doc.originalFilename}</a>
                               <span className="text-slate-400">v{doc.version} · {bytes(doc.sizeBytes)} · {formatDateTime(doc.createdAt, uiLocale)}</span>
@@ -322,7 +322,7 @@ export default async function PortalApplicationDetailPage({
                         <input type="hidden" name="applicationId" value={id} />
                         <input type="hidden" name="checklistItemId" value={item.id} />
                         <input type="hidden" name="back" value={`${back}?tab=documents`} />
-                        <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:me-2 file:rounded-md file:border-0 file:bg-iris-600 file:px-3 file:py-1.5 file:text-xs file:text-white" />
+                        <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:me-2 file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-xs file:text-white" />
                         <button type="submit" className="btn-secondary btn-sm">{latest ? ct("Replace") : ct("Upload")}</button>
                       </form>
                     ) : hasOpenRequest ? (
@@ -342,7 +342,7 @@ export default async function PortalApplicationDetailPage({
               <CardHeader title={ct("Other documents")} />
               <div className="divide-y divide-slate-100">
                 {documentGroups.unassigned.map(({ doc }) => (
-                  <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-xs">
+                  <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-4 text-xs">
                     <span className="flex min-w-0 flex-wrap items-center gap-2">
                       <a href={`/api/documents/${doc.id}`} target="_blank" className="truncate font-semibold text-navy-800 hover:underline">{doc.originalFilename}</a>
                       <span className="text-slate-400">v{doc.version} · {bytes(doc.sizeBytes)} · {formatDateTime(doc.createdAt, uiLocale)}</span>
