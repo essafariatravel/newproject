@@ -36,6 +36,13 @@ export function assessProductionBackupSource(env: Record<string, string | undefi
     if (!targetsSupabaseProject(databaseUrl, PRODUCTION_PROJECT_REF)) {
       findings.push("database URL does not target the approved ESSAFARIA Supabase project");
     }
+    const parsed = new URL(databaseUrl);
+    const transactionPooler =
+      parsed.hostname.endsWith(".pooler.supabase.com") &&
+      (parsed.port || "5432") === "6543";
+    if (transactionPooler) {
+      findings.push("Production backup requires a direct or session-pooler connection; Supabase transaction pooler port 6543 cannot carry an exported snapshot safely");
+    }
   } catch {
     findings.push("database URL is not a valid PostgreSQL URI");
   }
