@@ -3,13 +3,10 @@
 /**
  * PUBLIC agency registration action.
  *
- * This endpoint is intentionally unauthenticated. Every defense lives
- * server-side: locale resolution, honeypot + render-time anti-automation
- * traps, strict whitelisted input (mass-assignment protection), localized
- * zod validation, server-side file type/content/size checks, rate limiting
- * and duplicate detection (in the service). The request can NEVER set role,
- * permissions, agency ID, approval status, wallet balance, credit or
- * internal notes — those fields do not exist in the input model.
+ * First contact is deliberately minimal: no KYC documents, tax records,
+ * licence uploads, full postal address or procurement-style questionnaire.
+ * Administrative evidence is requested later by authorized Staff when there
+ * is an actual need. Every accepted scalar is explicitly whitelisted.
  */
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -19,11 +16,9 @@ import {
   fieldErrorsFrom,
   registrationFormSchema,
   submitAgencyRegistration,
-  validateRegistrationFile,
-  type RegistrationFileInput,
 } from "@/lib/registrations";
+import { verifyLegalVersionForAcceptance } from "@/lib/legal-content";
 import { AppError } from "@/lib/types";
-import { REGISTRATION_DOCUMENT_CATEGORIES } from "@/db/schema";
 
 export interface RegistrationFormState {
   error?: string;
@@ -50,19 +45,17 @@ function localizedError(code: string, errors: RegistrationCopy["errors"]): strin
       return errors.duplicate;
     case "RATE_LIMITED":
       return errors.rateLimited;
-    case "FILE_TOO_LARGE":
-      return errors.fileTooLarge;
-    case "FILE_TYPE":
-    case "FILE_TOO_MANY":
-    case "FILE_DUPLICATE":
-      return errors.fileType;
-    case "FILE_CONTENT":
-      return errors.fileContent;
-    case "FILE_NAME":
-      return errors.fileName;
     default:
       return errors.generic;
   }
+}
+
+function legalVersionChanged(locale: "en" | "fr" | "ar"): string {
+  return {
+    en: "The legal documents changed while this form was open. Refresh the page, review the current versions and submit again.",
+    fr: "Les documents juridiques ont changé pendant que ce formulaire était ouvert. Actualisez la page, consultez les versions actuelles puis envoyez à nouveau votre demande.",
+    ar: "تم تحديث المستندات القانونية أثناء فتح هذا النموذج. يرجى تحديث الصفحة ومراجعة الإصدارات الحالية ثم إعادة إرسال الطلب.",
+  }[locale];
 }
 
 export async function submitRegistrationAction(
@@ -75,12 +68,11 @@ export async function submitRegistrationAction(
   try {
     hdrs = await headers();
   } catch {
-    // outside a request scope (tests) — IP-based heuristics degrade gracefully
+    // Outside a request scope (tests) — IP-based abuse controls degrade gracefully.
   }
   const ip = hdrs ? clientIp(hdrs) : null;
 
-  // Anti-automation 1 — honeypot: invisible to humans, filled by bots.
-  // Silently "accepted" so bots learn nothing; nothing is persisted.
+  // Honeypot submissions are discarded; nothing is persisted.
   const honeypot = formData.get("fax");
   if (typeof honeypot === "string" && honeypot.trim() !== "") {
     await recordAudit({
@@ -93,36 +85,26 @@ export async function submitRegistrationAction(
     redirect(`/agency/register/success?lang=${locale}`);
   }
 
-  // Anti-automation 2 — render-time trap: a real KYC form takes a moment.
+  // A human request form normally takes more than a fraction of a second.
   const renderedAt = Number(formData.get("renderedAt"));
   if (Number.isFinite(renderedAt) && renderedAt > 0 && Date.now() - renderedAt < 1500) {
     return { error: copy.errors.tooFast };
   }
 
-  // Strict whitelisted input — privileged keys simply do not exist here.
   const schema = registrationFormSchema(copy.errors);
   const parsed = schema.safeParse({
     legalName: field(formData, "legalName"),
-    tradingName: field(formData, "tradingName"),
     country: field(formData, "country"),
     region: field(formData, "region"),
     city: field(formData, "city"),
-    addressLine: field(formData, "addressLine"),
-    phone: field(formData, "phone"),
-    email: field(formData, "email"),
-    website: field(formData, "website"),
-    commercialRegistrationNumber: field(formData, "commercialRegistrationNumber"),
-    taxId: field(formData, "taxId"),
-    licenceNumber: field(formData, "licenceNumber"),
     contactFirstName: field(formData, "contactFirstName"),
     contactLastName: field(formData, "contactLastName"),
-    contactPosition: field(formData, "contactPosition"),
     contactEmail: field(formData, "contactEmail"),
     contactPhone: field(formData, "contactPhone"),
     businessType: field(formData, "businessType"),
-    monthlyVolume: field(formData, "monthlyVolume"),
-    mainMarkets: field(formData, "mainMarkets"),
     message: field(formData, "message"),
+    termsVersionId: field(formData, "termsVersionId"),
+    privacyVersionId: field(formData, "privacyVersionId"),
     terms: field(formData, "terms"),
     privacy: field(formData, "privacy"),
     accuracy: field(formData, "accuracy"),
@@ -132,37 +114,62 @@ export async function submitRegistrationAction(
     return { error: Object.values(fieldErrors)[0] ?? copy.errors.required, fieldErrors };
   }
 
-  // Optional company documents — validated (type, content, size) server-side.
-  const files: RegistrationFileInput[] = [];
-  for (const category of REGISTRATION_DOCUMENT_CATEGORIES) {
-    const f = formData.get(`doc_${category}`);
-    if (f instanceof File && f.size > 0) {
-      const input: RegistrationFileInput = {
-        category,
-        name: f.name,
-        type: f.type || "application/octet-stream",
-        size: f.size,
-        data: Buffer.from(await f.arrayBuffer()),
-      };
-      try {
-        validateRegistrationFile(input);
-      } catch (err) {
-        const message =
-          err instanceof AppError ? localizedError(err.code, copy.errors) : copy.errors.generic;
-        return { error: message, fieldErrors: { [`doc_${category}`]: message } };
-      }
-      files.push(input);
-    }
+  // Never accept evidence against a stale/draft/other-language legal document.
+  let termsVersion;
+  let privacyVersion;
+  try {
+    [termsVersion, privacyVersion] = await Promise.all([
+      verifyLegalVersionForAcceptance({
+        documentType: "terms",
+        language: locale,
+        versionId: parsed.data.termsVersionId,
+      }),
+      verifyLegalVersionForAcceptance({
+        documentType: "privacy",
+        language: locale,
+        versionId: parsed.data.privacyVersionId,
+      }),
+    ]);
+  } catch {
+    return { error: legalVersionChanged(locale) };
   }
 
   let reference: string;
+  let registrationId: string;
   try {
     const submitted = await submitAgencyRegistration({
       data: { ...parsed.data, locale },
-      files,
+      // Administrative documents are intentionally not accepted at first contact.
+      files: [],
       ipAddress: ip,
     });
     reference = submitted.reference;
+    registrationId = submitted.id;
+
+    // Terms acceptance and Privacy acknowledgement remain separate evidence.
+    // No device fingerprint or extra IP copy is collected for these events.
+    await recordAudit({
+      actor: null,
+      action: "TERMS_ACCEPTED",
+      entity: "agency_registration",
+      entityId: registrationId,
+      metadata: {
+        legalVersionId: termsVersion.id,
+        version: termsVersion.version,
+        language: locale,
+      },
+    });
+    await recordAudit({
+      actor: null,
+      action: "PRIVACY_NOTICE_ACKNOWLEDGED",
+      entity: "agency_registration",
+      entityId: registrationId,
+      metadata: {
+        legalVersionId: privacyVersion.id,
+        version: privacyVersion.version,
+        language: locale,
+      },
+    });
   } catch (err) {
     if (err instanceof AppError) {
       return { error: localizedError(err.code, copy.errors) };
