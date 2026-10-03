@@ -8,7 +8,7 @@
  * data is changed and no private document bytes are printed or persisted.
  */
 import { createHash, randomBytes } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { Pool } from "pg";
 import {
   PRODUCTION_PROJECT_REF,
@@ -199,6 +199,10 @@ async function main() {
          join ${qualifiedTable("wallet_transactions", restoreSchema)} w on w.agency_id=u.agency_id
         where u.role in ('AGENCY_ADMIN','AGENCY_USER') and u.status='ACTIVE'
           and not u.activation_pending and not u.must_change_password
+          and exists (
+            select 1 from ${qualifiedTable("applicants", restoreSchema)} ap2
+             where ap2.application_id=a.id
+          )
         order by case u.role when 'AGENCY_ADMIN' then 0 else 1 end, a.created_at desc, d.created_at desc
         limit 1`,
     );
@@ -403,16 +407,22 @@ async function main() {
       checks: tenantChecks,
     };
 
-    await writeFile(
-      options.applicationEvidenceOutput,
-      JSON.stringify(applicationEvidence, null, 2) + "\n",
-      { encoding: "utf8", mode: 0o600, flag: "wx" },
-    );
-    await writeFile(
-      options.tenantEvidenceOutput,
-      JSON.stringify(tenantEvidence, null, 2) + "\n",
-      { encoding: "utf8", mode: 0o600, flag: "wx" },
-    );
+    try {
+      await writeFile(
+        options.applicationEvidenceOutput,
+        JSON.stringify(applicationEvidence, null, 2) + "\n",
+        { encoding: "utf8", mode: 0o600, flag: "wx" },
+      );
+      await writeFile(
+        options.tenantEvidenceOutput,
+        JSON.stringify(tenantEvidence, null, 2) + "\n",
+        { encoding: "utf8", mode: 0o600, flag: "wx" },
+      );
+    } catch (error) {
+      await rm(options.applicationEvidenceOutput, { force: true }).catch(() => undefined);
+      await rm(options.tenantEvidenceOutput, { force: true }).catch(() => undefined);
+      throw error;
+    }
 
     console.log(JSON.stringify({
       status: "PASS",
