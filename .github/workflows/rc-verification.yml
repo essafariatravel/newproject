@@ -64,6 +64,9 @@ jobs:
       - name: Immutable third-party GitHub Actions gate
         run: npx tsx scripts/security-actions-gate.ts
 
+      - name: Dangerous source construct gate
+        run: npx tsx scripts/security-source-gate.ts
+
       - name: Production dependency vulnerability gate
         run: npm audit --omit=dev --audit-level=high
 
