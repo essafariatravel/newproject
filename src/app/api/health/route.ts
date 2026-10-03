@@ -31,9 +31,16 @@ const REQUIRED_TABLES = ["users", "site_settings", "visa_types", "countries", "s
 
 function publicReadiness(): boolean {
   // Anonymous health checks must not consume PostgreSQL connections. They
-  // report only whether this deployment received its server-side DB binding;
-  // authenticated Staff receive the live database/schema diagnostics below.
-  return Boolean(process.env.DATABASE_URL);
+  // only confirm that a DB binding exists AND passes the deployment project /
+  // schema boundary guards; authenticated Staff receive live diagnostics.
+  if (!process.env.DATABASE_URL) return false;
+  try {
+    databaseUrl();
+    databaseSchema();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function GET() {
