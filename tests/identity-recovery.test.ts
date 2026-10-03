@@ -41,6 +41,8 @@ describe("independent username identities and controlled recovery", () => {
     const known = await requestAccountRecovery("team.member", "test-recovery-ip");
     expect(known).toBe(RECOVERY_ACKNOWLEDGEMENT);
     expect(await requestAccountRecovery("missing-handle", "test-recovery-ip")).toBe(known);
+    const unknown = await db.select().from(accountRecoveryRequests).where(eq(accountRecoveryRequests.identifier, "missing-handle"));
+    expect(unknown).toHaveLength(0);
     for (let i = 0; i < 5; i++) expect(await requestAccountRecovery("team.member", "test-recovery-ip")).toBe(known);
     const queued = await db.select().from(accountRecoveryRequests).where(eq(accountRecoveryRequests.identifier, "team.member"));
     expect(queued).toHaveLength(1);
