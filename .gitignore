@@ -59,3 +59,6 @@ work/*.sha256
 *.offsite-evidence.json
 *.application-evidence.json
 *.tenant-evidence.json
+
+ESSAFARIA-PROD-*.manifest.json
+ESSAFARIA-SYNTHETIC-*.manifest.json
