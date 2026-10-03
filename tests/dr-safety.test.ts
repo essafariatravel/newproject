@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DR_CRITICAL_TABLES,
   PRODUCTION_PROJECT_REF,
   PRODUCTION_SCHEMA,
   assessBackupManifest,
@@ -26,6 +27,8 @@ function verifiedManifest(): BackupManifest {
       bytes: 123456,
       sha256: "a".repeat(64),
       encrypted: true,
+      rowCounts: Object.fromEntries(DR_CRITICAL_TABLES.map((name) => [name, name === "wallet_transactions" ? 2 : 1])),
+      sequences: ["wallet_reference_seq"],
     },
     storage: {
       mode: "DATABASE_BLOBS",
