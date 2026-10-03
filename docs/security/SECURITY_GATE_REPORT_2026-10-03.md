@@ -1,7 +1,7 @@
 # ESSAFARIA VISA OS — Security Abuse & Penetration Gate
 
 **Date:** 2026-10-03  
-**Branch:** `security/pre-codex-gate-2026-10-03`  
+**Authoritative branch:** `security/pre-codex-gate-2026-10-03-recovered`  
 **Baseline:** `preprod/essafaria-final-hardening@53dc61de334c6412c1e5337b4f745c360f69facd`  
 **Production destructive actions:** NONE  
 **Production schema mutations:** NONE  
@@ -42,12 +42,12 @@ The final non-deploying GitHub verification workflow passes with least-privilege
 - TypeScript typecheck: PASS;
 - lint: PASS;
 - protected Preview build-write guard: PASS;
-- full deterministic test suite: PASS — **100 test files / 689 tests** on verified code snapshot `190f52dfe9be05fe247b890fac52d12e8a3dd5e3`;
+- full deterministic test suite: PASS — **106 test files / 717 tests** on verified code snapshot `9cfbd4219f19dc288bb2e657835e8669375fd59b`;
 - Next.js production build with no deployment/database access: PASS;
 - immutable third-party GitHub Actions gate: PASS — 6 workflow files;
-- dangerous source construct AST gate: PASS — 193 source files;
-- tracked-tree secret scan: PASS — 404 tracked files;
-- Git-history secret scan: PASS — 835 revisions.
+- dangerous source construct AST gate: PASS — 194 source files;
+- tracked-tree secret scan: PASS — 413 tracked files;
+- Git-history secret scan: PASS — 1001 revisions.
 
 The security branch is explicitly excluded from automatic Vercel deployment and from automatic Preview database migration/seeding.
 
@@ -168,17 +168,20 @@ A migration-number collision with the parallel Legal/Privacy work was discovered
 - Legal/Privacy already owns `0025_legal_privacy_readiness.sql`.
 - Security migration was therefore renumbered to `0026_function_privilege_hardening.sql`.
 
-`0026` was applied only to `visa_os_preview`.
+`0026`, `0027_document_integrity.sql`, and `0028_file_identity_hardening.sql` were applied only to `visa_os_preview`.
 
 Postflight proof:
 
-- Preview ledger: through `0026_function_privilege_hardening.sql`;
+- Preview ledger: through `0028_file_identity_hardening.sql`;
 - Production ledger: remains through `0019_config_translations.sql`;
 - Preview tables with RLS disabled: zero;
 - Preview table grants to `anon` / `authenticated`: zero;
 - every Preview application-schema function now has `search_path=pg_catalog, visa_os_preview`;
 - every Preview application-schema function reports PUBLIC/anon/authenticated EXECUTE = false;
 - `auth_rate_limits_window_start_idx` exists in Preview;
+- Preview `documents.sha256`, `agency_registration_documents.sha256`, and `wallet_topup_requests.proof_sha256` exist;
+- Preview permanent document/top-up blob and identity immutability triggers are active;
+- Production has none of the 0027/0028 integrity columns or migrations;
 - Production function privileges/search_path remain unchanged.
 
 Supabase project-wide advisors can still report warnings originating outside `visa_os_preview` (including legacy/public or Production objects). Those were deliberately not modified by this gate.
@@ -190,7 +193,7 @@ Production was not deployed, migrated, seeded, reset or penetration-tested.
 Read-only before/after checks prove:
 
 - `visa_os.schema_migrations` remains at 19 entries, last `0019_config_translations.sql`;
-- `0026_function_privilege_hardening.sql` is absent from Production;
+- `0026_function_privilege_hardening.sql`, `0027_document_integrity.sql`, and `0028_file_identity_hardening.sql` are absent from Production;
 - Production application functions retain their pre-gate configuration.
 
 ## External governance/runtime observations
@@ -256,17 +259,17 @@ Malware/AV/CDR likewise requires an external scanning capability. The current ga
 
 Verified code snapshot before this report-only update:
 
-`190f52dfe9be05fe247b890fac52d12e8a3dd5e3`
+`9cfbd4219f19dc288bb2e657835e8669375fd59b`
 
 Deterministic CI result: **SUCCESS**
 
-- 100 test files PASS
-- 689 tests PASS
+- 106 test files PASS
+- 717 tests PASS
 - typecheck PASS
 - lint PASS
 - build PASS
 - current-tree secret scan PASS
-- 835-revision history secret scan PASS
+- 1001-revision history secret scan PASS
 - immutable GitHub Actions gate PASS
 - source-sink AST gate PASS
 - dependency vulnerability gate PASS
@@ -274,8 +277,31 @@ Deterministic CI result: **SUCCESS**
 
 Database postflight remains:
 
-- Preview: 26 migrations, last `0026_function_privilege_hardening.sql`;
+- Preview: 28 migrations, last `0028_file_identity_hardening.sql`;
 - Production: 19 migrations, last `0019_config_translations.sql`;
-- Security migration 0026 absent from Production.
+- Security migrations 0026/0027/0028 absent from Production.
 
 **Production remains untouched by this security gate.**
+
+
+## File and storage integrity hardening
+
+The final local/Preview pass added provider-independent tamper evidence:
+
+- dossier and agency-registration document rows persist SHA-256 fingerprints for new uploads;
+- private downloads verify recorded byte length and SHA-256 before returning bytes or recording a successful download audit;
+- same-length storage corruption is regression-tested and fails closed;
+- permanent dossier, registration and top-up blob rewrites are rejected by Preview database triggers;
+- file identity metadata (storage key, filename, MIME, size, SHA-256) is immutable for permanent document rows;
+- wallet top-up receipts are SHA-256-bound to immutable request identity and are re-verified before download and before financial credit;
+- Supabase Storage is pinned to the exact project HTTPS endpoint, enforces Preview/Production bucket separation, uses request timeouts, and now sends `x-upsert: false` so existing objects cannot be silently overwritten.
+
+## Recovery branch note
+
+Concurrent hardening work briefly overlapped on the original security branch and duplicated two SHA-256 imports/fingerprint declarations. Rather than weakening or force-rewriting that branch, the authoritative security line was recovered from the last clean snapshot containing the full integrity implementation:
+
+`security/pre-codex-gate-2026-10-03-recovered`
+
+The recovered branch then fixed only stale test assumptions introduced by the stricter hosted schema boundary, strengthened Production reset refusal ordering, disabled silent Supabase object overwrite, and passed the full deterministic gate.
+
+The original `security/pre-codex-gate-2026-10-03` should therefore **not** be used for integration; use the recovered branch above.
