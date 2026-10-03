@@ -127,13 +127,16 @@ jobs:
       - name: Prove DR status refuses to call example backup ready
         shell: bash
         run: |
+          cp docs/operations/dr-backup-manifest.example.json /tmp/dr-status-example.json
+          chmod 600 /tmp/dr-status-example.json
           set +e
-          npm run dr:status -- --manifest docs/operations/dr-backup-manifest.example.json > /tmp/dr-status.log 2>&1
+          npm run dr:status -- --manifest /tmp/dr-status-example.json > /tmp/dr-status.log 2>&1
           CODE=$?
           set -e
           cat /tmp/dr-status.log
           test "$CODE" -eq 2
           grep -q '"stage": "CREATED_NEEDS_EVIDENCE"' /tmp/dr-status.log
+          rm -f /tmp/dr-status-example.json /tmp/dr-status.log
 
       - name: Prove example manifest is intentionally NOT verified
         run: |
