@@ -7,13 +7,13 @@ This is a technical inventory, not a legal conclusion about consent requirements
 
 ## First-party cookie/storage inventory
 
-| Name / key | Mechanism | Technical purpose | Data | Technical lifetime |
-| --- | --- | --- | --- | --- |
-| `evos_session` | Cookie | Authenticated session | Opaque random session token; DB stores its hash | Absolute expiry follows the server session policy; cookie expires with that session |
-| `evos_ui_locale` | Cookie | Remember EN / FR / AR UI choice | Locale code only | 365 days |
-| `essafaria.notification-sound` | localStorage | Remember notification sound preference | `on` / `off` only | Until changed or browser storage is cleared |
+| Name / key | Mechanism | Party / provider | Technical purpose | Value / identifiers | Lifetime | Attributes / scope | Technical essentiality candidate | Legal-review status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `evos_session` | Cookie | First-party, ESSAFARIA application | Authenticate an active Staff/Agency session | Opaque cryptographically generated session token; only its hash is stored server-side | Staff: max 12 h absolute / 30 min idle. Agency: max 24 h absolute / 2 h idle. Cookie expiry matches the absolute server expiry | `HttpOnly`; `SameSite=Lax`; `Path=/`; `Secure` in production | Technically necessary for authenticated portal operation | Technical classification complete; jurisdiction-specific notice/consent conclusion remains Legal Review Required |
+| `evos_ui_locale` | Cookie | First-party, ESSAFARIA application | Remember EN / FR / AR UI preference | One locale code: `en`, `fr`, or `ar` | 365 days | `HttpOnly=false`; `SameSite=Lax`; `Path=/`; `Secure` in production | Functional preference, not required for authentication | Technical classification complete; consent/notice treatment remains Legal Review Required if applicable |
+| `essafaria.notification-sound` | localStorage | First-party, ESSAFARIA application | Remember notification-sound preference | `on` / `off` only; no user/dossier identifier | Until changed or browser storage is cleared | Origin-scoped localStorage; no explicit server expiry | Functional preference | Technical classification complete; consent/notice treatment remains Legal Review Required if applicable |
 
-`evos_session` is HttpOnly, SameSite=Lax, Path=/ and Secure in production.
+No third-party cookie/storage key is intentionally created by application source reviewed in this gate.
 
 No applicant, agency dossier, document, wallet value, authentication secret, or private case content is intentionally stored in localStorage/sessionStorage.
 
@@ -58,13 +58,13 @@ Never encode in a campaign URL:
 
 No third-party embed is approved by this document. A future chat widget, marketing pixel, analytics script, embedded map/video or similar integration must enter the vendor + browser-storage inventory before release.
 
-## Final runtime verification required
+## Runtime verification evidence
 
-Source review cannot prove what a deployed browser actually receives. Final Preview QA must inspect:
-- cookies and storage keys;
-- expiry/domain/path/SameSite/Secure attributes;
-- third-party network requests;
-- runtime-injected scripts;
-- sensitive values in request URLs, browser storage or console output.
+Hosted Preview QA completed during this gate verified:
+- `evos_session` is actually emitted with `HttpOnly`, `Secure`, `SameSite=Lax` and `Path=/`;
+- public HTML contained no common analytics/advertising marker;
+- anonymous health output is redacted rather than exposing database/schema internals.
 
-Production is not required for this verification.
+The locale-cookie implementation is source/test guarded to require `SameSite=Lax`, `Path=/`, a 365-day max age and `Secure` in production. Recheck the deployed cookie after the next eligible Preview deployment containing that exact change.
+
+A future release that adds browser storage, third-party scripts or analytics must update this inventory before Production enablement.
