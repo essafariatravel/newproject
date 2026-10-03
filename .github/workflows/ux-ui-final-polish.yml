@@ -5,6 +5,7 @@ on:
     branches:
       - design/ux-ui-final-polish
       - design/ux-ui-final-polish-v2
+      - design/ux-ui-final-polish-final
   workflow_dispatch:
 
 concurrency:
