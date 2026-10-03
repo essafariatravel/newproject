@@ -265,6 +265,17 @@
       ]
     },
     {
+      "id": "SEC-06",
+      "title": "Production release is RC-branch-only, lockfile deterministic, and GitHub read-only",
+      "phase": "ci",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/production-workflow-security.test.ts",
+        ".github/workflows/prod-release.yml"
+      ]
+    },
+    {
       "id": "DB-01",
       "title": "Preview application functions are private and search_path pinned",
       "phase": "preview-db",
