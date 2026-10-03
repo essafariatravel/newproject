@@ -36,13 +36,13 @@ function ColorField(props: {
   return (
     <div>
       <span className="label">{props.label}</span>
-      <div className="flex items-center gap-2.5 rounded-xl border border-ivory-200 bg-white p-2 shadow-[0_1px_2px_rgb(23_30_63/0.04)]">
+      <div className="flex items-center gap-2 rounded-xl border border-ivory-200 bg-white p-2 shadow-[0_1px_2px_rgb(23_30_63/0.04)]">
         <input
           type="color"
           aria-label={`${props.label} color picker`}
           value={norm(props.value)}
           onChange={(e) => props.onChange(e.target.value)}
-          className="h-9 w-9 cursor-pointer rounded-lg border-0 bg-transparent p-0"
+          className="h-11 w-11 cursor-pointer rounded-lg border-0 bg-transparent p-0"
         />
         <input
           type="text"
@@ -50,11 +50,11 @@ function ColorField(props: {
           value={props.value}
           onChange={(e) => props.onChange(e.target.value)}
           spellCheck={false}
-          className="w-full border-0 bg-transparent p-0 font-mono text-sm uppercase text-navy-900 focus:outline-none focus:ring-0"
+          className="w-full border-0 bg-transparent p-0 font-mono text-base uppercase text-navy-900 focus:outline-none focus:ring-0"
           maxLength={7}
         />
       </div>
-      <p className="mt-1 text-[11px] text-slate-400">{props.hint}</p>
+      <p className="mt-1 text-xs text-slate-400">{props.hint}</p>
     </div>
   );
 }
@@ -106,9 +106,9 @@ export function BrandStudio(props: {
          */}
         <form action={props.saveAction}>
           <div className="space-y-4">
-            <div className="card p-5">
-              <h2 className="text-sm font-bold text-navy-900">Colors</h2>
-              <p className="mt-0.5 text-xs text-slate-400">
+            <div className="card p-6">
+              <h2 className="text-lg font-semibold text-navy-900">Colors</h2>
+              <p className="mt-1 text-xs text-slate-400">
                 The whole interface — buttons, badges, gradients, charts — re-tints from these three colors.
               </p>
               <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -118,8 +118,8 @@ export function BrandStudio(props: {
               </div>
             </div>
 
-            <div className="card p-5">
-              <h2 className="text-sm font-bold text-navy-900">Shape & type</h2>
+            <div className="card p-6">
+              <h2 className="text-lg font-semibold text-navy-900">Shape & type</h2>
               <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="label" htmlFor="brand.radius">Corner style</label>
@@ -166,9 +166,9 @@ export function BrandStudio(props: {
 
         {/* Logo upload/remove are deliberately OUTSIDE the Save form — HTML
             forbids nested forms and each action has its own payload. */}
-        <div className="card p-5">
-          <h2 className="text-sm font-bold text-navy-900">Platform logo</h2>
-          <p className="mt-0.5 text-xs text-slate-400">
+        <div className="card p-6">
+          <h2 className="text-lg font-semibold text-navy-900">Platform logo</h2>
+          <p className="mt-1 text-xs text-slate-400">
             PNG, JPEG or WebP up to 2 MB. Shown in the website header, portals and sign-in. Leave empty to use the
             built-in monogram.
           </p>
@@ -187,7 +187,7 @@ export function BrandStudio(props: {
                 name="logo"
                 accept="image/png,image/jpeg,image/webp"
                 required
-                className="max-w-full text-xs file:mr-2 file:cursor-pointer file:rounded-full file:border-0 file:bg-iris-600 file:px-3.5 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+                className="min-h-11 max-w-full text-base file:me-2 file:min-h-11 file:cursor-pointer file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-base file:font-semibold file:text-white"
               />
               <SubmitButton className="btn-secondary btn-sm" pendingLabel="Uploading…">Upload logo</SubmitButton>
             </form>
@@ -198,37 +198,37 @@ export function BrandStudio(props: {
       {/* -------- live preview -------- */}
       <div className="h-fit xl:sticky xl:top-24">
         <div className="card overflow-hidden">
-          <div className="border-b border-line/70 bg-ivory-50/70 px-5 py-3">
-            <h2 className="text-sm font-bold text-navy-900">Live preview</h2>
-            <p className="text-[11px] text-slate-400">Applies instantly · saved on “Save branding”.</p>
+          <div className="border-b border-line/70 bg-ivory-50/70 px-6 py-4">
+            <h2 className="text-lg font-semibold text-navy-900">Live preview</h2>
+            <p className="text-xs text-slate-400">Applies instantly · saved on “Save branding”.</p>
           </div>
-          <div style={previewVars} className="space-y-4 bg-white p-5">
-            <div className="flex items-center gap-2.5">
+          <div style={previewVars} className="space-y-4 bg-white p-6">
+            <div className="flex items-center gap-2">
               <span
-                className="flex h-9 w-9 items-center justify-center rounded-[30%] text-sm font-bold text-white"
+                className="flex h-9 w-9 items-center justify-center rounded-[30%] text-base font-semibold text-white"
                 style={{ background: "linear-gradient(135deg, color-mix(in srgb, var(--p) 55%, white), var(--p))" }}
               >
                 E
               </span>
               <span>
-                <span className="block text-sm font-bold" style={{ color: "var(--ink)" }}>ESSAFARIA</span>
-                <span className="block text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--a)" }}>
+                <span className="block text-base font-semibold" style={{ color: "var(--ink)" }}>ESSAFARIA</span>
+                <span className="block text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--a)" }}>
                   Visa Operations
                 </span>
               </span>
             </div>
             <div className="rounded-[var(--radius-card)] border border-[color-mix(in_srgb,var(--ink)_8%,white)] p-4 shadow-[0_10px_30px_-18px_rgb(23_30_63/0.25)]">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Case EVT-26-9F3K21</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">Case EVT-26-9F3K21</p>
               <p className="mt-1 font-serif text-lg" style={{ color: "var(--ink)" }}>France · Schengen Tourist</p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
+              <div className="mt-4 flex flex-wrap items-center gap-2">
                 <span
-                  className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                  className="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold"
                   style={{ background: "var(--p-soft)", color: "color-mix(in srgb, var(--p) 80%, black)" }}
                 >
                   ● Under review
                 </span>
                 <span
-                  className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                  className="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold"
                   style={{ background: "var(--a-tint)", color: "color-mix(in srgb, var(--a) 60%, black)" }}
                 >
                   ◆ Priority
@@ -236,13 +236,13 @@ export function BrandStudio(props: {
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <span
-                  className="inline-flex items-center px-4 py-2 text-[13px] font-semibold text-white shadow-[0_8px_20px_-8px_rgb(0_0_0/0.35)]"
+                  className="inline-flex min-h-11 items-center px-4 py-2 text-base font-semibold text-white"
                   style={{ background: "var(--p)", borderRadius: "var(--radius-btn)" }}
                 >
                   Approve
                 </span>
                 <span
-                  className="inline-flex items-center border border-[color-mix(in_srgb,var(--ink)_10%,white)] bg-white px-4 py-2 text-[13px] font-semibold"
+                  className="inline-flex min-h-11 items-center border border-[color-mix(in_srgb,var(--ink)_10%,white)] bg-white px-4 py-2 text-base font-semibold"
                   style={{ color: "var(--ink)", borderRadius: "var(--radius-btn)" }}
                 >
                   Request docs
@@ -252,10 +252,10 @@ export function BrandStudio(props: {
                 <div className="h-1.5 overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--ink)_8%,white)]">
                   <div className="h-full w-2/3 rounded-full" style={{ background: "var(--p)" }} />
                 </div>
-                <p className="mt-1.5 text-[11px] text-slate-400">Checklist 2 of 3 complete</p>
+                <p className="mt-2 text-xs text-slate-400">Checklist 2 of 3 complete</p>
               </div>
             </div>
-            <p className="text-center text-[11px] text-slate-400">Public site, portals and emails follow the same palette.</p>
+            <p className="text-center text-xs text-slate-400">Public site, portals and emails follow the same palette.</p>
           </div>
         </div>
       </div>

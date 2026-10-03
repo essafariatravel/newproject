@@ -60,7 +60,7 @@ export default async function AdminUsersPage({
         subtitle={ct("Account access is managed per role and agency.")}
       />
       <Flash {...flash} />
-      {staff.role === "SUPER_ADMIN" ? <Link href="/admin/recovery" className="mb-5 inline-block text-sm font-medium text-iris-700 underline">{it("Recovery requests")}</Link> : null}
+      {staff.role === "SUPER_ADMIN" ? <Link href="/admin/recovery" className="mb-6 inline-flex min-h-11 items-center text-base font-semibold text-iris-700 underline">{it("Recovery requests")}</Link> : null}
 
       <nav className="notification-filters" data-testid="user-views" aria-label={ct("Users")}>
         <Link
@@ -113,7 +113,7 @@ export default async function AdminUsersPage({
             {rows.map(({ user: u, agencyName }) => (
               <tr key={u.id} className="tr-hover">
                 <td className="td">
-                  <span className="block font-medium text-navy-900">{u.name}</span>
+                  <span className="block font-semibold text-navy-900">{u.name}</span>
                   <span className="block text-xs text-slate-400" dir="ltr">{u.username ?? u.email}</span>
                 </td>
                 <td className="td">
@@ -158,8 +158,8 @@ export default async function AdminUsersPage({
 
       {canManage ? (
         <div className="mt-8">
-          <h2 className="mb-3 font-serif text-xl text-navy-900">{view === "staff" ? ct("Create staff user") : ct("Create agency user")}</h2>
-          <form action={createUserAction} className="card grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-5">
+          <h2 className="mb-4 font-serif text-lg text-navy-900">{view === "staff" ? ct("Create staff user") : ct("Create agency user")}</h2>
+          <form action={createUserAction} className="card grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-5">
             <input type="hidden" name="back" value="/admin/users" />
             <div>
               <label className="label" htmlFor="n-name">{ct("Full name")} *</label>

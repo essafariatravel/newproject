@@ -2,7 +2,7 @@ import { getUiLocale, localizedDocStatus, localizedPriority, localizedStatusName
 import { titleize } from "@/components/ui";
 
 const STATUS_STYLES: Record<string, string> = {
-  DRAFT: "bg-ivory-100 text-slate-500",
+  DRAFT: "bg-ivory-100 text-slate-600",
   SUBMITTED: "bg-teal-50 text-teal-700",
   DOCUMENTS_CHECKING: "bg-sky-50 text-sky-700",
   DOCUMENTS_REQUESTED: "bg-amber-50 text-amber-700",
@@ -17,7 +17,7 @@ const STATUS_STYLES: Record<string, string> = {
   APPROVED: "bg-emerald-50 text-emerald-700",
   REFUSED: "bg-red-50 text-red-700",
   COMPLETED: "bg-navy-50 text-navy-700",
-  CANCELLED: "bg-ivory-100 text-slate-500",
+  CANCELLED: "bg-ivory-100 text-slate-600",
   // agency registration workflow
   PENDING: "bg-amber-50 text-amber-700",
   MORE_INFORMATION_REQUIRED: "bg-orange-50 text-orange-700",
@@ -25,7 +25,7 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 const DOC_STATUS_STYLES: Record<string, string> = {
-  UPLOADED: "bg-ivory-100 text-slate-500",
+  UPLOADED: "bg-ivory-100 text-slate-600",
   UNDER_REVIEW: "bg-sky-50 text-sky-700",
   ACCEPTED: "bg-emerald-50 text-emerald-700",
   REJECTED: "bg-red-50 text-red-700",
@@ -45,13 +45,13 @@ export async function StatusBadge({
 }) {
   const locale = await getUiLocale();
   const label = localizedStatusName(code, name ?? titleize(code), locale, nameFr, nameAr);
-  return <span className={`badge ${STATUS_STYLES[code] ?? "bg-ivory-100 text-slate-500"}`}>{label}</span>;
+  return <span className={`badge ${STATUS_STYLES[code] ?? "bg-ivory-100 text-slate-600"}`}>{label}</span>;
 }
 
 export async function DocStatusBadge({ status }: { status: string }) {
   const locale = await getUiLocale();
   return (
-    <span className={`badge ${DOC_STATUS_STYLES[status] ?? "bg-ivory-100 text-slate-500"}`}>
+    <span className={`badge ${DOC_STATUS_STYLES[status] ?? "bg-ivory-100 text-slate-600"}`}>
       {localizedDocStatus(status, locale, titleize(status))}
     </span>
   );
@@ -63,7 +63,7 @@ export async function PriorityBadge({ name, weight }: { name: string; weight: nu
       ? "bg-red-50 text-red-700"
       : weight >= 5
         ? "bg-amber-50 text-amber-700"
-        : "bg-ivory-100 text-slate-500";
+        : "bg-ivory-100 text-slate-600";
   const locale = await getUiLocale();
   return <span className={`badge ${style}`}>{localizedPriority(name.toUpperCase().replaceAll(" ", "_"), name, locale)}</span>;
 }
