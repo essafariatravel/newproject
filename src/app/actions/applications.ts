@@ -24,6 +24,7 @@ import {
 import { runAction } from "@/lib/action-helpers";
 import { recordAudit } from "@/lib/audit";
 import { notifyUsers } from "@/lib/notifications";
+import { logErrorOnce, logEvent, pseudonymizeIdentifier, withObservabilityContext } from "@/lib/observability";
 
 const idSchema = z.string().uuid("Invalid identifier.");
 
@@ -112,6 +113,18 @@ async function assertOwnApplication(applicationId: string, user: AuthUser) {
   const app = rows[0];
   if (!app) throw new AppError("NOT_FOUND", "Application not found.");
   if (user.agencyId && app.agencyId !== user.agencyId) {
+    logEvent({
+      eventName: "security.cross_tenant_access.denied",
+      severity: "warning",
+      classification: "SAFE_PREVENTION",
+      result: "denied",
+      errorCode: "NOT_FOUND",
+      actorRole: user.role,
+      tenantRef: pseudonymizeIdentifier(user.agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(applicationId),
+      metadata: { target_tenant_ref: pseudonymizeIdentifier(app.agencyId) },
+    });
     throw new AppError("NOT_FOUND", "Application not found.");
   }
   return app;
@@ -520,23 +533,45 @@ export async function submitRequestAction(formData: FormData): Promise<void> {
   const { redirect } = await import("next/navigation");
   let applicationId = "";
   try {
-    const result = await submitVisaRequest({
-      actor: user,
-      idempotencyKey,
-      countryId,
-      visaTypeId,
-      priorityCode,
-      agencyNotes,
-      travellers,
-      documents,
-      ipAddress: ip,
-    });
+    const tenantRef = pseudonymizeIdentifier(user.agencyId);
+    const result = await withObservabilityContext(
+      { action: "application.submit", actorRole: user.role, tenantRef },
+      () => submitVisaRequest({
+        actor: user,
+        idempotencyKey,
+        countryId,
+        visaTypeId,
+        priorityCode,
+        agencyNotes,
+        travellers,
+        documents,
+        ipAddress: ip,
+      }),
+    );
     applicationId = result.applicationId;
   } catch (error) {
     if (error instanceof AppError) {
+      const technical = ["CONFIG_ERROR", "STORAGE_WRITE_FAILED", "SERVICE_UNAVAILABLE"].includes(error.code);
+      if (technical) {
+        logErrorOnce("application.submission.technical_failed", error, {
+          severity: "error",
+          classification: "BUSINESS_FAILURE",
+          result: "technical_failed",
+          actorRole: user.role,
+          tenantRef: pseudonymizeIdentifier(user.agencyId),
+          action: "application.submit",
+        });
+      }
       redirect(`/portal/applications/new?error=${encodeURIComponent(error.code)}`);
     }
-    console.error("submit-request-failed", error);
+    logErrorOnce("application.submission.technical_failed", error, {
+      severity: "error",
+      classification: "BUSINESS_FAILURE",
+      result: "technical_failed",
+      actorRole: user.role,
+      tenantRef: pseudonymizeIdentifier(user.agencyId),
+      action: "application.submit",
+    });
     redirect("/portal/applications/new?error=INTERNAL");
   }
 
