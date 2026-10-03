@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { sessions } from "@/db/schema";
 import { qualifiedTable } from "@/lib/database-schema";
 import { touchPresence } from "@/lib/presence";
+import { presenceWritesSuppressed } from "@/lib/presence-preview-policy";
 
 suiteSetup();
 afterEach(() => vi.unstubAllEnvs());
@@ -33,16 +34,23 @@ describe("North Star read-only Preview presence writes", () => {
     { name: "preserves an unconfigured local environment", vercel: undefined, scope: undefined, branch: undefined, suppressed: false },
   ];
 
-  it.each(environments)("$name", async ({ vercel, scope, branch, suppressed }) => {
+  it.each(environments)("$name", ({ vercel, scope, branch, suppressed }) => {
     vi.stubEnv("VERCEL", vercel);
     vi.stubEnv("VERCEL_ENV", scope);
     vi.stubEnv("VERCEL_GIT_COMMIT_REF", branch);
+    expect(presenceWritesSuppressed()).toBe(suppressed);
+  });
+
+  it("does not create a presence row in the dedicated read-only Preview", async () => {
+    const presenceTable = qualifiedTable("session_presence");
+    vi.stubEnv("VERCEL", "1");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_GIT_COMMIT_REF", "design/essafaria-northstar");
     const session = await createPresenceSession();
     try {
       await touchPresence(session.userId, session.tokenHash);
-      const result = await db.execute(sql`select session_id from ${sql.raw(qualifiedTable("session_presence"))} where session_id=${session.id}`);
-      expect(result.rows).toEqual(suppressed ? [] : [{ session_id: session.id }]);
-      // Heartbeats must not change authentication-session metadata in any environment.
+      const result = await db.execute(sql.raw(`select session_id from ${presenceTable} where session_id='${session.id}'::uuid`));
+      expect(result.rows).toEqual([]);
       const [after] = await db.select().from(sessions).where(eq(sessions.id, session.id));
       expect(after).toEqual(session);
     } finally {
@@ -51,18 +59,21 @@ describe("North Star read-only Preview presence writes", () => {
   });
 
   it("does not refresh an existing presence row during North Star read-only Preview QA", async () => {
+    const presenceTable = qualifiedTable("session_presence");
+    const session = await createPresenceSession();
+    const lastSeenAt = new Date("2020-01-01T00:00:00.000Z");
+    await db.execute(sql.raw(`insert into ${presenceTable} (session_id, last_seen_at) values ('${session.id}'::uuid, '${lastSeenAt.toISOString()}'::timestamptz)`));
     vi.stubEnv("VERCEL", "1");
     vi.stubEnv("VERCEL_ENV", "preview");
     vi.stubEnv("VERCEL_GIT_COMMIT_REF", "design/essafaria-northstar");
-    const session = await createPresenceSession();
-    const lastSeenAt = new Date("2020-01-01T00:00:00.000Z");
     try {
-      await db.execute(sql`insert into ${sql.raw(qualifiedTable("session_presence"))} (session_id, last_seen_at) values (${session.id}, ${lastSeenAt.toISOString()}::timestamptz)`);
       await touchPresence(session.userId, session.tokenHash);
-      const result = await db.execute(sql`select last_seen_at from ${sql.raw(qualifiedTable("session_presence"))} where session_id=${session.id}`);
+      vi.unstubAllEnvs();
+      const result = await db.execute(sql.raw(`select last_seen_at from ${presenceTable} where session_id='${session.id}'::uuid`));
       expect(result.rows).toHaveLength(1);
       expect(new Date(String(result.rows[0]?.last_seen_at)).toISOString()).toBe(lastSeenAt.toISOString());
     } finally {
+      vi.unstubAllEnvs();
       await db.delete(sessions).where(eq(sessions.id, session.id));
     }
   });
