@@ -79,7 +79,7 @@ export function ChecklistTable(props: {
                       )}
                       {!item.active ? <span className="badge bg-slate-200 text-slate-500">{t("Requirement removed")}</span> : null}
                     </p>
-                    {item.notes ? <p className="mt-0.5 text-xs text-slate-500">{item.notes}</p> : null}
+                    {item.notes ? <p className="mt-1 text-xs text-slate-500">{item.notes}</p> : null}
                   </div>
                   <span className={`badge ${satisfied ? "bg-emerald-100 text-emerald-800" : rejected ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"}`}>
                     {t(satisfied ? "Provided" : rejected ? "Action needed" : "Missing")}
@@ -174,7 +174,7 @@ export function DocumentList(props: {
   const t = contentT(props.locale ?? "en");
   if (props.documents.length === 0) {
     return (
-      <div className="document-list px-1 py-5 text-base text-slate-500">
+      <div className="document-list px-1 py-6 text-base text-slate-500">
         {t("No documents uploaded yet.")}
       </div>
     );
@@ -191,12 +191,12 @@ export function DocumentList(props: {
                 </a>
                 <DocStatusBadge status={doc.status} />
               </p>
-              <p className="mt-0.5 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-slate-500">
                 {localizedDocTypeName(documentTypeCode ?? "", documentTypeName, props.locale ?? "en")}
                 {applicantName ? ` · ${applicantName}` : ""} · v{doc.version} · {bytes(doc.sizeBytes)} · {t("uploaded")} {formatDateTime(doc.createdAt, props.locale ?? "en")}
               </p>
               {doc.rejectionReason ? (
-                <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
+                <p className="mt-2 rounded-md bg-amber-50 px-2 py-2 text-xs text-amber-800">
                   {t("Reason")}: {doc.rejectionReason}
                 </p>
               ) : null}
@@ -218,7 +218,7 @@ export function DocumentList(props: {
           </div>
 
           {isStaff && !documentTypeCode?.startsWith("DECISION_") ? (
-            <form action={reviewDocumentAction} className="mt-3 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
+            <form action={reviewDocumentAction} className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-4">
               <input type="hidden" name="documentId" value={doc.id} />
               <input type="hidden" name="applicationId" value={props.applicationId} />
               <div>
@@ -241,7 +241,7 @@ export function DocumentList(props: {
               <SubmitButton className="btn-primary btn-sm" pendingLabel={t("Saving…")}>{t("Save review")}</SubmitButton>
             </form>
           ) : ["REJECTED", "RESUBMISSION_REQUIRED"].includes(doc.status) && props.user.agencyId ? (
-            <form action={uploadResubmissionAction} className="document-upload-slot mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+            <form action={uploadResubmissionAction} className="document-upload-slot mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
               <input type="hidden" name="applicationId" value={props.applicationId} />
               <input type="hidden" name="originalDocumentId" value={doc.id} />
               <input
@@ -250,7 +250,7 @@ export function DocumentList(props: {
                 required
                 accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
                 aria-label={t("Resubmit corrected file")}
-                className="max-w-full text-xs file:me-2 file:rounded-md file:border-0 file:bg-iris-600 file:px-2.5 file:py-2 file:text-xs file:text-white"
+                className="max-w-full text-xs file:me-2 file:rounded-md file:border-0 file:bg-iris-600 file:px-2 file:py-2 file:text-xs file:text-white"
               />
               <SubmitButton className="btn-gold btn-sm" pendingLabel={t("Submitting…")}>{t("Resubmit corrected file")}</SubmitButton>
             </form>
@@ -387,7 +387,7 @@ export function ActivityTimeline(props: {
               → <StatusBadge code={h.toStatus.code} name={h.toStatus.name} />
             </p>
             {h.history.reason ? <p className="mt-1 text-xs text-slate-500">{t("Reason")}: {h.toStatus.code === "SUBMITTED" && h.history.reason === "Request submitted" ? t("Request submitted") : h.history.reason}</p> : null}
-            <p className="mt-0.5 text-xs text-slate-400">{formatDateTime(h.history.createdAt, props.locale ?? "en")}</p>
+            <p className="mt-1 text-xs text-slate-400">{formatDateTime(h.history.createdAt, props.locale ?? "en")}</p>
           </li>
         ))}
       </ol>

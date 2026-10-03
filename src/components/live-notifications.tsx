@@ -51,7 +51,7 @@ export function LiveNotifications({ initialCount, href, label, soundLabel, close
   return <>
     <Link href={href} aria-label={`${label}: ${count}`} className="relative grid h-11 w-11 shrink-0 place-items-center rounded-lg text-navy-900 hover:bg-ivory-100">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
-      {count > 0 ? <span className="absolute end-0 top-0 min-w-4 rounded-full bg-red-600 px-1 text-center text-[10px] text-white">{count > 99 ? "99+" : count}</span> : null}
+      {count > 0 ? <span className="absolute end-0 top-0 min-w-4 rounded-full bg-red-600 px-1 text-center text-xs text-white">{count > 99 ? "99+" : count}</span> : null}
     </Link>
     <button type="button" aria-label={soundLabel} title={soundLabel} aria-pressed={sound} className="notification-sound-toggle h-11 w-11 shrink-0 rounded-lg border border-line text-xs" onClick={() => {
       const next = !sound; soundEnabled.current = next; setSound(next);

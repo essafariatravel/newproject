@@ -46,7 +46,7 @@ export function AppShell(props: {
           <NavList sections={props.nav} />
         </nav>
         <div className="px-4 pb-4">
-          <div className="border-t border-white/10 pt-3">
+          <div className="border-t border-white/10 pt-4">
             <div className="flex items-center gap-2">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold-500 text-xs font-semibold text-navy-950">
                 {initials(user.name)}
@@ -79,11 +79,11 @@ export function AppShell(props: {
               {props.brandSuffix}
             </span>
           </div>
-          <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-2">
             {!presenceWritesSuppressed() ? <LivePresence staff={props.surface === "staff"} label={contentT(props.locale ?? "en")("Online now")} /> : null}
             {props.headerExtras}
             {user.agencyName ? (
-              <span className="workspace-header-context hidden max-w-[180px] items-center gap-1.5 truncate text-xs font-semibold text-navy-700 sm:inline-flex">
+              <span className="workspace-header-context hidden max-w-[180px] items-center gap-2 truncate text-xs font-semibold text-navy-700 sm:inline-flex">
                 {props.agencyLogoUrl ? (
                     <img
                     src={props.agencyLogoUrl}
@@ -125,7 +125,7 @@ function SidebarBrand({
 }) {
   if (platformLogoUrl) {
     return (
-      <Link href="/" className="flex flex-col gap-1.5 border-b border-white/10 px-4 py-4">
+      <Link href="/" className="flex flex-col gap-2 border-b border-white/10 px-4 py-4">
         <img
           src={platformLogoUrl}
           alt={brandName ?? "ESSAFARIA"}
@@ -136,7 +136,7 @@ function SidebarBrand({
     );
   }
   return (
-    <Link href="/" className="flex items-center gap-3 border-b border-white/10 px-4 py-4">
+    <Link href="/" className="flex items-center gap-4 border-b border-white/10 px-4 py-4">
       <img src="/images/essafaria-logo.png" alt="" width="64" height="46" className="h-12 w-16 shrink-0 rounded bg-white p-1 object-contain" />
       <span className="leading-tight">
         <span className="block text-base font-serif font-semibold tracking-[0.08em] text-white">{brandName ?? "ESSAFARIA"}</span>
