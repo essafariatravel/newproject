@@ -45,6 +45,7 @@ const dbProvider: StorageProvider = {
 /* -------------------------- supabase provider ---------------------------- */
 
 const SUPABASE_UPLOAD_LIMIT = 10 * 1024 * 1024;
+const SUPABASE_REQUEST_TIMEOUT_MS = 15_000;
 const EXPECTED_SUPABASE_STORAGE_HOST = "xgetzgixalrsmuvfthpf.supabase.co";
 
 function supabaseConfig() {
@@ -95,6 +96,7 @@ const supabaseProvider: StorageProvider = {
         "x-upsert": "true",
       },
       body: new Uint8Array(data),
+      signal: AbortSignal.timeout(SUPABASE_REQUEST_TIMEOUT_MS),
     });
     if (!res.ok) {
       console.error("supabase-storage-put-failed", res.status);
@@ -105,6 +107,7 @@ const supabaseProvider: StorageProvider = {
     const { url, key: serviceKey, bucket } = supabaseConfig();
     const res = await fetch(`${url}/storage/v1/object/${bucket}/${encodeURIComponent(key)}`, {
       headers: { Authorization: `Bearer ${serviceKey}` },
+      signal: AbortSignal.timeout(SUPABASE_REQUEST_TIMEOUT_MS),
     });
     if (!res.ok) {
       console.error("supabase-storage-get-failed", res.status);
@@ -118,6 +121,7 @@ const supabaseProvider: StorageProvider = {
     const res = await fetch(`${url}/storage/v1/object/${bucket}/${encodeURIComponent(key)}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${serviceKey}` },
+      signal: AbortSignal.timeout(SUPABASE_REQUEST_TIMEOUT_MS),
     });
     if (!res.ok && res.status !== 404) {
       console.error("supabase-storage-delete-failed", res.status);
