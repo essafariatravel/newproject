@@ -121,6 +121,46 @@ No secret values are printed by the gates.
 
 All third-party GitHub Actions are pinned to immutable commit SHAs. GitHub-owned checkout/setup-node actions were moved to their Node 24-capable v5 majors while remaining SHA-pinned. Production dependency installation is lockfile-authoritative (`npm ci`) with no flexible fallback install.
 
+## Extended hardening pass
+
+After the initial security gate passed, an additional abuse/supply-chain pass was completed instead of leaving it to Codex.
+
+### CI/CD and supply-chain
+
+- Every third-party GitHub Action used by repository workflows is pinned to an immutable commit SHA.
+- A permanent CI gate rejects future tag/branch-based third-party Action references.
+- Action majors were moved to the current pinned Node 24-based releases where applicable.
+- The Production release workflow can enter its write path only from `release/essafaria-rc-2026-09` and still requires the explicit `release/PROD_GO` sentinel.
+- Production release dependency installation is deterministic via `npm ci` and the committed `package-lock.json`; there is no fallback dependency resolution.
+- Production jobs no longer receive repository write permission. Their evidence is written to the GitHub Actions Job Summary.
+- Hosted Preview verification also uses read-only repository permissions even when Preview test credentials are present.
+- Dedicated tests lock these workflow security invariants against regression.
+
+### Abuse / resource-exhaustion controls
+
+- The agency request API now enforces an authoritative streamed request-body limit even when `Content-Length` is absent or forged.
+- Heavy application/report/wallet exports are rate-limited.
+- Communication flooding is rate-limited per user and agency.
+- The source/sink gate rejects dangerous dynamic-execution constructs and unsafe raw-HTML sinks.
+- Mutating API routes are statically checked for an explicit Origin policy, except the intentionally retired hard-404 bootstrap route.
+
+### Enumeration / tenant evidence
+
+- Top-up receipt lookup now has an explicit regression proof that an Agency Admin probing another tenant receives the same non-existence semantics as a random unknown receipt.
+- Existing tenant isolation remains enforced for dossiers, applicants, files, messages, notifications, wallets and top-ups.
+
+### Configuration integrity
+
+Workflow configuration is now treated as security-sensitive state:
+
+- status creation/update/toggle/delete and transition add/update/remove are transactionally coupled to their security audit record;
+- visa programme creation/update/toggle/delete, including fee and embassy-applicability changes, is transactionally coupled to its audit record;
+- forced database audit failures are regression-tested and prove the underlying configuration mutation rolls back.
+
+### Permanent regression manifest
+
+`docs/security/security-regression-manifest.json` now records machine-readable security controls and concrete evidence paths. A test verifies unique stable IDs, existing evidence files and explicit hosted-runtime pending state instead of overstating proof.
+
 ## Preview database hardening
 
 A migration-number collision with the parallel Legal/Privacy work was discovered before deployment:
@@ -153,6 +193,12 @@ Read-only before/after checks prove:
 - `0026_function_privilege_hardening.sql` is absent from Production;
 - Production application functions retain their pre-gate configuration.
 
+## External governance/runtime observations
+
+- The connected Vercel account currently exposes no accessible Vercel team to this session, so a real hosted Preview deployment/browser pentest cannot be truthfully performed here.
+- The GitHub rulesets API currently returns no repository rulesets. Detailed branch-protection settings cannot be read or changed with the current GitHub App permissions. Repository governance should therefore separately enforce protected RC/main branches, required checks, review policy and no-force-push as appropriate.
+- These limitations do not change the code/CI/isolated-Preview-DB verdict; they remain external hosted/governance checks.
+
 ## Remaining work for Codex — intentionally small
 
 Codex should **not** restart the security audit.
@@ -181,7 +227,7 @@ These are recommendations, not unresolved release-critical defects from this bra
 - roll out MFA, starting with SUPER_ADMIN / ADMIN / ACCOUNTING and then all Staff;
 - add malware/AV scanning or CDR if the document threat model requires it;
 - consider a nonce-based full script/style CSP after hosted compatibility testing;
-- optionally make audit persistence fail-closed for lower-risk general branding/configuration mutations as well as the already-hardened security-critical mutations.
+- optionally extend fail-closed audit coupling to remaining low-risk branding/presentation mutations; workflow and visa-programme configuration are now already transactionally audited.
 
 ## Gate verdict
 
