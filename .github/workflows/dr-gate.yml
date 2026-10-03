@@ -16,6 +16,7 @@ on:
       - "scripts/dr-finalize.ts"
       - "scripts/dr-local-drill.ts"
       - "scripts/dr-verify-offsite-copy.ts"
+      - "scripts/dr-verify-restored-app.ts"
       - "scripts/dr-repo-safety.ts"
       - "tests/dr-private-path.test.ts"
       - "scripts/lib/dr-private-path.ts"
@@ -140,6 +141,29 @@ jobs:
           cat /tmp/dr-restore-write-refusal.log
           test "$CODE" -eq 2
           grep -q 'Production Supabase project can never be a restore-test target' /tmp/dr-restore-write-refusal.log
+
+      - name: Prove deployed-restore verifier refuses Production database before HTTP checks
+        shell: bash
+        run: |
+          set +e
+          DR_ENVIRONMENT=RESTORE_TEST \
+          DATABASE_SCHEMA=visa_os \
+          DR_ALLOW_REMOTE_DISPOSABLE=true \
+          DR_DISPOSABLE_PROJECT_REF=xgetzgixalrsmuvfthpf \
+          DR_RESTORE_RELEASE_SHA=53dc61de334c6412c1e5337b4f745c360f69facd \
+          DATABASE_URL='postgresql://postgres.xgetzgixalrsmuvfthpf:not-a-secret@aws-1-us-east-1.pooler.supabase.com:6543/postgres' \
+          npm run dr:app-verify -- \
+            --manifest /tmp/no-manifest.json \
+            --restore-evidence /tmp/no-restore-evidence.json \
+            --base-url https://restore-test.invalid \
+            --target-ref RESTORE-TEST-REF-0001 \
+            --application-evidence-output /tmp/app-evidence.json \
+            --tenant-evidence-output /tmp/tenant-evidence.json > /tmp/dr-app-refusal.log 2>&1
+          CODE=$?
+          set -e
+          cat /tmp/dr-app-refusal.log
+          test "$CODE" -eq 2
+          grep -q 'Production Supabase project can never be a restore-test target' /tmp/dr-app-refusal.log
 
       - name: Prove restore verifier refuses ambiguous target before connection
         run: |
