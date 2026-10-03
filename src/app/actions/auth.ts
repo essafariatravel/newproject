@@ -24,8 +24,9 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   try {
     const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
     const ipAllowed = await consumeAuthRateLimit("login-ip", ip, 40, 15 * 60_000);
+    if (!ipAllowed) return { error: "Sign-in is temporarily unavailable. Please try again later." };
     const accountAllowed = await consumeAuthRateLimit("login-identity", email.toLowerCase(), 10, 15 * 60_000);
-    if (!ipAllowed || !accountAllowed) return { error: "Sign-in is temporarily unavailable. Please try again later." };
+    if (!accountAllowed) return { error: "Sign-in is temporarily unavailable. Please try again later." };
     user = await authenticate(email, password);
   } catch (err) {
     // Never expose raw database errors (e.g. Failed query: select ... from users) to the user.
