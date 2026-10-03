@@ -1,0 +1,117 @@
+name: Performance Scale Matrix (disposable)
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_scale:
+        description: Largest disposable dataset to generate
+        required: true
+        default: "10000"
+        type: choice
+        options:
+          - "1000"
+          - "10000"
+          - "100000"
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    name: Benchmark disposable PostgreSQL through ${{ inputs.max_scale }} applications
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      VERCEL: "0"
+      VERCEL_ENV: ""
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/essafaria
+      DATABASE_SCHEMA: public
+      PERF_ACK_NONPROD: "YES"
+      PERF_SYNTHETIC_PASSWORD: "ci-only-performance-secret-2026"
+      STORAGE_PROVIDER: db
+      ALLOW_DEMO_SEED: "false"
+      CI: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Start disposable PostgreSQL and seed reference data
+        shell: bash
+        run: |
+          npm run db:up >/tmp/perf-pg.log 2>&1 &
+          echo $! > /tmp/perf-pg.pid
+          READY=0
+          for i in $(seq 1 45); do
+            if (echo > /dev/tcp/127.0.0.1/5432) >/dev/null 2>&1; then READY=1; break; fi
+            sleep 1
+          done
+          if [ "$READY" != "1" ]; then cat /tmp/perf-pg.log; exit 1; fi
+          npm run db:setup
+          npm run perf:seed-identities
+
+      - name: Generate and benchmark selected scale matrix
+        shell: bash
+        run: |
+          mkdir -p perf/results
+
+          run_scale() {
+            ROWS="$1"
+            AGENCIES="$2"
+            ID="scale${ROWS}"
+            echo "=== Seeding ${ROWS} applications ==="
+            PERF_DATASET_ID="$ID" \
+            PERF_APPLICATIONS="$ROWS" \
+            PERF_AGENCIES="$AGENCIES" \
+            PERF_DOCS_PER_APP=2 \
+            PERF_NOTIFICATIONS_PER_APP=2 \
+            PERF_MESSAGES_PER_APP=1 \
+            PERF_AUDITS_PER_APP=2 \
+            PERF_LEDGER_ROWS="$ROWS" \
+            npm run perf:seed-scale
+
+            PERF_DATASET_ID="$ID" \
+            PERF_BENCH_REPEATS=5 \
+            PERF_BENCH_OUTPUT="perf/results/query-benchmark-${ID}.json" \
+            npm run perf:benchmark
+
+            PERF_DATASET_ID="$ID" \
+            PERF_ALLOW_EXPLAIN_ANALYZE=YES \
+            PERF_EXPLAIN_OUTPUT="perf/results/explain-${ID}.json" \
+            npm run perf:explain
+          }
+
+          run_scale 1000 20
+          if [ "${{ inputs.max_scale }}" -ge 10000 ]; then run_scale 10000 100; fi
+          if [ "${{ inputs.max_scale }}" -ge 100000 ]; then run_scale 100000 500; fi
+
+          if [ "${{ inputs.max_scale }}" -eq 1000 ]; then
+            echo '{"note":"Only one dataset selected; growth classification requires at least two."}' > perf/results/growth.json
+          elif [ "${{ inputs.max_scale }}" -eq 10000 ]; then
+            npm run perf:growth -- perf/results/query-benchmark-scale1000.json perf/results/query-benchmark-scale10000.json > perf/results/growth.json || true
+          else
+            npm run perf:growth -- perf/results/query-benchmark-scale1000.json perf/results/query-benchmark-scale10000.json perf/results/query-benchmark-scale100000.json > perf/results/growth.json || true
+          fi
+
+      - name: Upload benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: essafaria-performance-scale-${{ inputs.max_scale }}-${{ github.sha }}
+          path: perf/results/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Stop disposable PostgreSQL
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/perf-pg.pid ]; then kill "$(cat /tmp/perf-pg.pid)" >/dev/null 2>&1 || true; fi
