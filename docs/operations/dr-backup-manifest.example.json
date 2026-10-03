@@ -13,7 +13,22 @@
     "artifact": "essafaria-prod-db-YYYYMMDDTHHMMSSZ.dump.enc",
     "bytes": 1,
     "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-    "encrypted": true
+    "encrypted": true,
+    "rowCounts": {
+      "schema_migrations": 0,
+      "agencies": 0,
+      "users": 0,
+      "applications": 0,
+      "applicants": 0,
+      "documents": 0,
+      "document_types": 0,
+      "wallet_transactions": 0,
+      "audit_logs": 0,
+      "site_settings": 0
+    },
+    "sequences": [
+      "wallet_reference_seq"
+    ]
   },
   "storage": {
     "mode": "DATABASE_BLOBS",
