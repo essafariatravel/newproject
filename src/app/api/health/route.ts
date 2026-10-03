@@ -23,6 +23,7 @@ import { getTableColumns, getTableName, is, Table } from "drizzle-orm";
 import * as applicationSchema from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { isStaffRole } from "@/lib/types";
+import { checkReadiness, publicHealthBody } from "@/lib/health";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,17 @@ const EXPECTED_SUPABASE_PROJECT = "xgetzgixalrsmuvfthpf";
 const REQUIRED_TABLES = ["users", "site_settings", "visa_types", "countries", "schema_migrations"] as const;
 
 export async function GET() {
+  const user = await getSessionUser().catch(() => null);
+  const staff = Boolean(user && isStaffRole(user.role) && !user.mustChangePassword);
+
+  if (!staff) {
+    const status = await checkReadiness();
+    return NextResponse.json(publicHealthBody(status), {
+      status: status === "healthy" ? 200 : 503,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
+
   const report = {
     ok: false,
     service: "essafaria-visa-os",
@@ -167,9 +179,7 @@ export async function GET() {
     );
   }
 
-  const user = await getSessionUser().catch(()=>null);
-  const staff = user && isStaffRole(user.role) && !user.mustChangePassword;
-  // Public monitoring reports readiness only. Catalogue/account population and
-  // infrastructure diagnostics are restricted to authenticated operational staff.
-  return NextResponse.json(staff ? report : {ok:report.ok,service:report.service,deployment:report.deployment}, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json(report, {
+    headers: { "Cache-Control": "no-store" },
+  });
 }
