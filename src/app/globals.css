@@ -623,3 +623,22 @@ body {
 }
 [dir="rtl"] .tabular-nums { direction:ltr; unicode-bidi:isolate; }
 @media(max-width:359px) { .workspace-topbar .notification-sound-toggle { display:none; } .account-menu { flex-shrink:0; } }
+
+
+.ui-locale-menu { position: relative; }
+.ui-locale-menu > summary { cursor: pointer; list-style: none; }
+.ui-locale-menu > summary::-webkit-details-marker { display: none; }
+.ui-locale-menu-panel {
+  position: absolute;
+  z-index: 60;
+  inset-inline-end: 0;
+  top: calc(100% + .5rem);
+  display: grid;
+  min-width: 10rem;
+  gap: .5rem;
+  padding: .5rem;
+  border: 1px solid var(--color-line);
+  border-radius: .5rem;
+  background: white;
+  box-shadow: var(--shadow-pop);
+}
