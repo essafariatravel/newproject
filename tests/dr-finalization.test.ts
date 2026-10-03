@@ -186,10 +186,11 @@ describe("DR evidence-bound finalization", () => {
       sourceManifestSha256: "c".repeat(64),
       restoreEvidence: restoreEvidence(),
       restoreEvidenceSha256: "d".repeat(64),
+      offsiteEvidence: offsiteEvidence(),
+      offsiteEvidenceSha256: "e".repeat(64),
       evidence: {
-        offsite: "/tmp/evidence.txt",
         application: "too short",
-        tenantIsolation: "TENANTISO-20261003-0001",
+        tenantIsolation: "/tmp/tenant-evidence.txt",
       },
       externalEvidenceAttested: true,
       verifiedAt: new Date("2026-10-03T18:35:00.000Z"),
