@@ -21,7 +21,7 @@ export function parseResetOptions(args: string[]) {
 
 export function assertDryRunTarget(env: Record<string, string | undefined>) {
   const schema = databaseSchema(env);
-  if (schema === "visa_os" || env.VERCEL_ENV === "production" || env.NODE_ENV === "production" || env.VERCEL) throw new Error("Production reset planning is forbidden. Use a disposable local snapshot.");
+  if (schema === "visa_os" || env.VERCEL_ENV === "production" || env.NODE_ENV === "production" || env.VERCEL === "1") throw new Error("Production reset planning is forbidden. Use a disposable local snapshot.");
   if (!env.DATABASE_URL) throw new Error("DATABASE_URL must be supplied explicitly for a disposable local snapshot.");
   let url: URL;
   try { url = new URL(env.DATABASE_URL); } catch { throw new Error("Use a local disposable PostgreSQL snapshot."); }
