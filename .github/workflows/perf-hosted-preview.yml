@@ -1,0 +1,282 @@
+name: Hosted Preview Performance Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Hosted workload profile
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - tier
+          - polling-only
+          - recovery
+          - exports
+      vus:
+        description: VUs for tier/polling-only (ignored by smoke/recovery/exports)
+        required: true
+        default: "10"
+        type: choice
+        options:
+          - "10"
+          - "50"
+          - "100"
+          - "250"
+          - "500"
+          - "1000"
+      hold:
+        description: Hold duration such as 5m, 10m or 15m
+        required: true
+        default: "10m"
+        type: string
+      seed_applications:
+        description: Optional synthetic Preview dataset created before the run
+        required: true
+        default: "0"
+        type: choice
+        options:
+          - "0"
+          - "1000"
+          - "10000"
+      existing_dataset_id:
+        description: Existing PERF_DATASET_ID for post-load SQL diagnostics when not seeding
+        required: false
+        default: ""
+        type: string
+      run_wallet_correctness:
+        description: Run guarded hosted wallet race correctness suite
+        required: true
+        default: true
+        type: boolean
+      run_storage_correctness:
+        description: Run storage correctness only when PERF_STORAGE_PROVIDER is explicitly configured
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  hosted:
+    name: Hosted Preview gate — ${{ inputs.profile }} ${{ inputs.vus }} VUs
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PERF_ACK_NONPROD: "YES"
+      DATABASE_SCHEMA: visa_os_preview
+      DATABASE_URL: ${{ secrets.PERF_PREVIEW_DATABASE_URL }}
+      BASE_URL: ${{ vars.PERF_PREVIEW_BASE_URL }}
+      PERF_SYNTHETIC_PASSWORD: ${{ secrets.PERF_SYNTHETIC_PASSWORD }}
+      PERF_SESSION_FILE: perf/.runtime/sessions.json
+
+    steps:
+      - name: Checkout exact branch commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v1
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Validate required hosted configuration
+        shell: bash
+        run: |
+          test -n "$DATABASE_URL" || { echo "PERF_PREVIEW_DATABASE_URL secret is required"; exit 1; }
+          test -n "$BASE_URL" || { echo "PERF_PREVIEW_BASE_URL repository variable is required"; exit 1; }
+          test -n "$PERF_SYNTHETIC_PASSWORD" || { echo "PERF_SYNTHETIC_PASSWORD secret is required"; exit 1; }
+          case "$BASE_URL" in
+            https://visa.essafariavoyages.com|https://visa.essafariavoyages.com/*)
+              echo "Production hostname is forbidden"
+              exit 1
+              ;;
+          esac
+
+      - name: Preflight Preview identity and database
+        run: npm run perf:preflight
+
+      - name: Ensure dedicated synthetic identities
+        run: npm run perf:seed-identities
+
+      - name: Resolve optional synthetic dataset
+        shell: bash
+        run: |
+          if [ "${{ inputs.seed_applications }}" != "0" ]; then
+            DATASET_ID="hosted-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          else
+            DATASET_ID="${{ inputs.existing_dataset_id }}"
+          fi
+          echo "PERF_DATASET_ID=$DATASET_ID" >> "$GITHUB_ENV"
+
+      - name: Seed optional isolated Preview dataset
+        if: ${{ inputs.seed_applications != '0' }}
+        env:
+          PERF_ALLOW_REMOTE_BULK: "YES"
+          PERF_APPLICATIONS: ${{ inputs.seed_applications }}
+          PERF_AGENCIES: "100"
+          PERF_DOCS_PER_APP: "4"
+          PERF_NOTIFICATIONS_PER_APP: "3"
+          PERF_MESSAGES_PER_APP: "1"
+          PERF_AUDITS_PER_APP: "3"
+          PERF_LEDGER_ROWS: ${{ inputs.seed_applications }}
+        run: npm run perf:seed-scale
+
+      - name: Create enough distinct synthetic sessions
+        shell: bash
+        run: |
+          VUS="${{ inputs.vus }}"
+          case "$VUS" in
+            10|50) SESSIONS=50 ;;
+            100) SESSIONS=100 ;;
+            250) SESSIONS=250 ;;
+            500|1000) SESSIONS=500 ;;
+            *) echo "Unsupported VU tier"; exit 1 ;;
+          esac
+          PERF_SESSIONS_PER_ROLE="$SESSIONS" npm run perf:create-sessions
+
+      - name: Capture before snapshot
+        env:
+          PERF_LABEL: hosted-before
+          PERF_SNAPSHOT_FILE: perf/results/hosted-before.json
+        run: npm run perf:snapshot
+
+      - name: Run hosted workload with concurrent DB monitor
+        shell: bash
+        run: |
+          mkdir -p perf/results
+          PERF_MONITOR_SECONDS=14400 \
+          PERF_MONITOR_INTERVAL_MS=1000 \
+          PERF_MONITOR_OUTPUT=perf/results/hosted-db-monitor.json \
+          npm run perf:monitor > perf/results/hosted-db-monitor.log 2>&1 &
+          MONITOR_PID=$!
+
+          set +e
+          if [ "${{ inputs.profile }}" = "exports" ]; then
+            PERF_SUMMARY=perf/results/hosted-k6-summary.json \
+            npm run perf:exports
+            K6_STATUS=$?
+          else
+            PERF_PROFILE="${{ inputs.profile }}" \
+            PERF_VUS="${{ inputs.vus }}" \
+            PERF_HOLD="${{ inputs.hold }}" \
+            PERF_SUMMARY=perf/results/hosted-k6-summary.json \
+            npm run perf:k6
+            K6_STATUS=$?
+          fi
+          set -e
+
+          kill -TERM "$MONITOR_PID" >/dev/null 2>&1 || true
+          wait "$MONITOR_PID" || true
+          echo "K6_EXIT_CODE=$K6_STATUS" >> "$GITHUB_ENV"
+
+      - name: Capture after snapshot
+        env:
+          PERF_LABEL: hosted-after
+          PERF_SNAPSHOT_FILE: perf/results/hosted-after.json
+        run: npm run perf:snapshot
+
+      - name: Run post-load SQL diagnostics for selected dataset
+        if: ${{ env.PERF_DATASET_ID != '' }}
+        shell: bash
+        run: |
+          PERF_BENCH_REPEATS=7 \
+          PERF_BENCH_OUTPUT=perf/results/hosted-query-benchmark.json \
+          npm run perf:benchmark
+
+          PERF_ALLOW_EXPLAIN_ANALYZE=YES \
+          PERF_EXPLAIN_OUTPUT=perf/results/hosted-explain.json \
+          npm run perf:explain
+
+          PERF_EXPLAIN_INPUT=perf/results/hosted-explain.json \
+          PERF_INDEX_ADVISOR_OUTPUT=perf/results/hosted-index-advisor.json \
+          npm run perf:index-advisor
+
+      - name: Run guarded hosted wallet correctness
+        if: ${{ inputs.run_wallet_correctness }}
+        env:
+          PERF_ALLOW_LIVE_WALLET: "YES"
+        run: npm run perf:wallet-races
+
+      - name: Validate storage provider configuration
+        if: ${{ inputs.run_storage_correctness }}
+        shell: bash
+        env:
+          STORAGE_PROVIDER: ${{ vars.PERF_STORAGE_PROVIDER }}
+          SUPABASE_URL: ${{ secrets.PERF_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PERF_SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_STORAGE_BUCKET: ${{ vars.PERF_SUPABASE_STORAGE_BUCKET }}
+        run: |
+          test -n "$STORAGE_PROVIDER" || { echo "PERF_STORAGE_PROVIDER must be explicitly set before hosted storage proof"; exit 1; }
+          case "$STORAGE_PROVIDER" in
+            db) ;;
+            supabase)
+              test -n "$SUPABASE_URL" || { echo "PERF_SUPABASE_URL secret is required"; exit 1; }
+              test -n "$SUPABASE_SERVICE_ROLE_KEY" || { echo "PERF_SUPABASE_SERVICE_ROLE_KEY secret is required"; exit 1; }
+              ;;
+            *) echo "Unsupported PERF_STORAGE_PROVIDER"; exit 1 ;;
+          esac
+
+      - name: Run guarded hosted storage correctness
+        if: ${{ inputs.run_storage_correctness }}
+        env:
+          PERF_ALLOW_LIVE_STORAGE: "YES"
+          STORAGE_PROVIDER: ${{ vars.PERF_STORAGE_PROVIDER }}
+          SUPABASE_URL: ${{ secrets.PERF_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PERF_SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_STORAGE_BUCKET: ${{ vars.PERF_SUPABASE_STORAGE_BUCKET }}
+        run: npm run perf:storage
+
+      - name: Evaluate hosted non-export tier
+        if: ${{ inputs.profile != 'exports' }}
+        shell: bash
+        run: |
+          set +e
+          PERF_EVALUATE_OUTPUT=perf/results/hosted-evaluation.json \
+          npm run perf:evaluate -- \
+            perf/results/hosted-k6-summary.json \
+            perf/results/hosted-before.json \
+            perf/results/hosted-after.json
+          STATUS=$?
+          set -e
+          echo "EVALUATE_EXIT_CODE=$STATUS" >> "$GITHUB_ENV"
+
+      - name: Record export evaluation status
+        if: ${{ inputs.profile == 'exports' }}
+        run: echo "EVALUATE_EXIT_CODE=0" >> "$GITHUB_ENV"
+
+      - name: Upload hosted evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: essafaria-hosted-performance-${{ inputs.profile }}-${{ inputs.vus }}-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            perf/results/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce hosted verdict
+        if: always()
+        shell: bash
+        run: |
+          K6_STATUS="${K6_EXIT_CODE:-1}"
+          EVAL_STATUS="${EVALUATE_EXIT_CODE:-1}"
+          if [ "$K6_STATUS" != "0" ]; then
+            echo "k6 workload failed or breached thresholds: $K6_STATUS"
+            exit "$K6_STATUS"
+          fi
+          if [ "$EVAL_STATUS" != "0" ]; then
+            echo "Performance evaluator rejected this tier: $EVAL_STATUS"
+            exit "$EVAL_STATUS"
+          fi
+          echo "Hosted workload and evaluator passed. This proves only the tested profile/tier."
