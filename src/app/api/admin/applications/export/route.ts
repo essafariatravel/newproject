@@ -6,6 +6,7 @@ import { recordAudit } from "@/lib/audit";
 import { pickUiLocale } from "@/lib/ui-i18n";
 import { countryName } from "@/lib/country-names";
 import { toCsv, toXlsx, XLSX_CONTENT_TYPE, type Column } from "@/lib/tabular-export";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 
 /**
  * Staff export of the applications list — CSV or XLSX.
@@ -61,6 +62,10 @@ export async function GET(request: Request) {
   }
   if (!hasPermission(user, "applications.view.all")) {
     return NextResponse.json({ error: "FORBIDDEN", message: "Your role cannot export applications." }, { status: 403 });
+  }
+
+  if (!await consumeAuthRateLimit("export-applications-user-minute", user.id, 10, 60_000)) {
+    return NextResponse.json({ error: "RATE_LIMITED" }, { status: 429, headers: { "Retry-After": "60" } });
   }
 
   const url = new URL(request.url);
