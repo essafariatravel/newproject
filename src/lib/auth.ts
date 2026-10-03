@@ -12,6 +12,7 @@ import {
 } from "@/lib/types";
 import { generateSessionToken, hashToken } from "@/lib/crypto";
 import type { User } from "@/db/schema";
+import { logErrorOnce, logEvent, pseudonymizeIdentifier } from "@/lib/observability";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -65,9 +66,42 @@ export async function getSessionUser(): Promise<AuthUser | null> {
       .where(and(eq(sessions.tokenHash, tokenHash), gt(sessions.expiresAt, new Date())))
       .limit(1);
     const row = rows[0];
-    if (!row) return null;
-    if (row.user.status !== "ACTIVE") return null;
-    if (row.agencyStatus !== null && row.agencyStatus !== "ACTIVE") return null;
+    if (!row) {
+      logEvent({
+        eventName: "security.session.invalid_or_expired",
+        severity: "info",
+        classification: "SAFE_PREVENTION",
+        result: "denied",
+        errorCode: "SESSION_INVALID_OR_EXPIRED",
+      });
+      return null;
+    }
+    if (row.user.status !== "ACTIVE") {
+      logEvent({
+        eventName: "security.suspended_user_access.prevented",
+        severity: "warning",
+        classification: "SAFE_PREVENTION",
+        result: "denied",
+        errorCode: "USER_SUSPENDED",
+        actorRole: row.user.role,
+        tenantRef: pseudonymizeIdentifier(row.user.agencyId),
+        resourceType: "user",
+        resourceRef: pseudonymizeIdentifier(row.user.id),
+      });
+      return null;
+    }
+    if (row.agencyStatus !== null && row.agencyStatus !== "ACTIVE") {
+      logEvent({
+        eventName: "security.suspended_agency_access.prevented",
+        severity: "warning",
+        classification: "SAFE_PREVENTION",
+        result: "denied",
+        errorCode: "AGENCY_SUSPENDED",
+        actorRole: row.user.role,
+        tenantRef: pseudonymizeIdentifier(row.user.agencyId),
+      });
+      return null;
+    }
     return {
       id: row.user.id,
       email: row.user.email,
@@ -80,8 +114,13 @@ export async function getSessionUser(): Promise<AuthUser | null> {
       mustChangePassword: row.user.mustChangePassword,
     };
   } catch (err) {
-    // Database temporarily unavailable (e.g. missing migrations on Preview) must not become a 500.
-    console.error("[auth] getSessionUser failed", err);
+    // Database temporarily unavailable must not become a 500, but it must be observable.
+    logErrorOnce("auth.session.resolve_failed", err, {
+      severity: "error",
+      classification: "BUSINESS_FAILURE",
+      result: "technical_failed",
+      action: "session.resolve",
+    });
     return null;
   }
 }
@@ -150,7 +189,12 @@ export async function destroySession(): Promise<void> {
     try {
       await db.delete(sessions).where(eq(sessions.tokenHash, hashToken(token)));
     } catch (err) {
-      console.error("[auth] destroySession failed", err);
+      logErrorOnce("auth.session.destroy_failed", err, {
+        severity: "warning",
+        classification: "BUSINESS_FAILURE",
+        result: "technical_failed",
+        action: "session.destroy",
+      });
     }
   }
   await clearSessionCookie();
@@ -168,8 +212,13 @@ export async function authenticate(email: string, password: string): Promise<Use
       .limit(1);
     user = rows[0] as User | undefined;
   } catch (err) {
-    // Hide raw database errors (e.g. missing table / connection failure) from the user.
-    console.error("[auth] authenticate query failed", err);
+    // Hide raw database errors from the user while preserving a safe operational signal.
+    logErrorOnce("auth.authenticate.query_failed", err, {
+      severity: "error",
+      classification: "BUSINESS_FAILURE",
+      result: "technical_failed",
+      action: "auth.authenticate",
+    });
     throw new AppError("SERVICE_UNAVAILABLE", "Service temporarily unavailable. Please try again.");
   }
   if (!user) {
@@ -194,7 +243,14 @@ export async function authenticate(email: string, password: string): Promise<Use
       }
     } catch (err) {
       if (err instanceof AppError) throw err;
-      console.error("[auth] authenticate agency lookup failed", err);
+      logErrorOnce("auth.authenticate.agency_lookup_failed", err, {
+        severity: "error",
+        classification: "BUSINESS_FAILURE",
+        result: "technical_failed",
+        action: "auth.authenticate",
+        actorRole: user.role,
+        tenantRef: pseudonymizeIdentifier(user.agencyId),
+      });
       throw new AppError("SERVICE_UNAVAILABLE", "Service temporarily unavailable. Please try again.");
     }
   }

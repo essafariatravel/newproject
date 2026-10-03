@@ -3,6 +3,7 @@
  * `own` scopes are further narrowed by tenant checks at the service layer.
  */
 import { AppError, type AuthUser, type Role } from "@/lib/types";
+import { logEvent, pseudonymizeIdentifier } from "@/lib/observability";
 
 export type Permission =
   // admin back office
@@ -180,6 +181,16 @@ export function hasPermission(user: AuthUser, permission: Permission): boolean {
 /** Throw unless the user holds the permission. */
 export function requirePermission(user: AuthUser, permission: Permission): void {
   if (!hasPermission(user, permission)) {
+    logEvent({
+      eventName: "security.authorization.denied",
+      severity: "warning",
+      classification: "SAFE_PREVENTION",
+      result: "denied",
+      errorCode: "FORBIDDEN",
+      actorRole: user.role,
+      tenantRef: pseudonymizeIdentifier(user.agencyId),
+      metadata: { permission },
+    });
     throw new AppError("FORBIDDEN", "You are not authorized to perform this action.");
   }
 }

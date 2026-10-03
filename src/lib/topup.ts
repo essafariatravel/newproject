@@ -28,8 +28,9 @@ import {
 import { qualifiedTable } from "@/lib/database-schema";
 import { AppError, type AuthUser } from "@/lib/types";
 import { applyWalletMutation, getBalance } from "@/lib/wallet";
+import { logErrorOnce, logEvent, pseudonymizeIdentifier } from "@/lib/observability";
 import { recordAudit } from "@/lib/audit";
-import { agencyUserIds, notifyUsers, staffUserIds } from "@/lib/notifications";
+import { agencyUserIds, notifyUsersBestEffort, staffUserIds } from "@/lib/notifications";
 
 /** Roles allowed to move money (crediting a processed top-up). */
 export const TOPUP_PROCESSING_ROLES = ["SUPER_ADMIN", "ADMIN", "ACCOUNTING"] as const;
@@ -65,6 +66,7 @@ export async function createTopupRequest(params: {
   note?: string | null;
   actor: AuthUser;
 }): Promise<{ id: string; reference: string; amount: string }> {
+  const requestStartedAt = Date.now();
   const { amount } = params;
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new AppError("INVALID_AMOUNT", "Enter a top-up amount greater than zero.");
@@ -85,25 +87,59 @@ export async function createTopupRequest(params: {
     )
     .limit(1);
   if (open[0]) {
+    logEvent({
+      eventName: "wallet.topup.request.prevented",
+      severity: "info",
+      classification: "SAFE_PREVENTION",
+      result: "prevented",
+      errorCode: "TOPUP_PENDING",
+      actorRole: params.actor.role,
+      tenantRef: pseudonymizeIdentifier(params.agencyId),
+      resourceType: "wallet_topup_request",
+      resourceRef: pseudonymizeIdentifier(open[0].id),
+      durationMs: Date.now() - requestStartedAt,
+    });
     throw new AppError(
       "TOPUP_PENDING",
       `You already have a pending top-up request (${open[0].reference}). ESSAFARIA will process it shortly.`,
     );
   }
 
-  const inserted = await db
-    .insert(walletTopupRequests)
-    .values({
-      agencyId: params.agencyId,
-      amount: amountAbs,
-      currency: "DZD",
-      note: params.note?.trim() || null,
-      requestedBy: params.actor.id,
-      status: "PENDING",
-    })
-    .returning({ id: walletTopupRequests.id, reference: walletTopupRequests.reference });
+  let inserted: Array<{ id: string; reference: string }>;
+  try {
+    inserted = await db
+      .insert(walletTopupRequests)
+      .values({
+        agencyId: params.agencyId,
+        amount: amountAbs,
+        currency: "DZD",
+        note: params.note?.trim() || null,
+        requestedBy: params.actor.id,
+        status: "PENDING",
+      })
+      .returning({ id: walletTopupRequests.id, reference: walletTopupRequests.reference });
+  } catch (error) {
+    logErrorOnce("wallet.topup.request.technical_failed", error, {
+      severity: "error",
+      classification: "BUSINESS_FAILURE",
+      result: "technical_failed",
+      actorRole: params.actor.role,
+      tenantRef: pseudonymizeIdentifier(params.agencyId),
+      durationMs: Date.now() - requestStartedAt,
+    });
+    throw error;
+  }
 
   const row = inserted[0]!;
+  logEvent({
+    eventName: "wallet.topup.request.created",
+    result: "succeeded",
+    actorRole: params.actor.role,
+    tenantRef: pseudonymizeIdentifier(params.agencyId),
+    resourceType: "wallet_topup_request",
+    resourceRef: pseudonymizeIdentifier(row.id),
+    durationMs: Date.now() - requestStartedAt,
+  });
   await recordAudit({
     actor: params.actor,
     action: "WALLET_TOPUP_REQUESTED",
@@ -113,14 +149,22 @@ export async function createTopupRequest(params: {
     metadata: { reference: row.reference, amount: amountAbs, currency: "DZD" },
   });
 
-  const staff = await staffUserIds(["SUPER_ADMIN", "ADMIN", "ACCOUNTING"]);
-  await notifyUsers(staff, {
-    type: "TOPUP_REQUESTED",
-    title: `Wallet top-up request ${row.reference}`,
-    body: `${params.actor.agencyName ?? "Agency"} requested ${amountAbs} DZD.`,
-    link: "/admin/billing",
-    agencyId: params.agencyId,
-  });
+  await notifyUsersBestEffort(
+    staffUserIds(["SUPER_ADMIN", "ADMIN", "ACCOUNTING"]),
+    {
+      type: "TOPUP_REQUESTED",
+      title: `Wallet top-up request ${row.reference}`,
+      body: `${params.actor.agencyName ?? "Agency"} requested ${amountAbs} DZD.`,
+      link: "/admin/billing",
+      agencyId: params.agencyId,
+    },
+    {
+      actorRole: params.actor.role,
+      tenantRef: pseudonymizeIdentifier(params.agencyId),
+      resourceType: "wallet_topup_request",
+      resourceRef: pseudonymizeIdentifier(row.id),
+    },
+  );
 
   return { id: row.id, reference: row.reference, amount: amountAbs };
 }
@@ -214,6 +258,7 @@ export async function processTopupRequest(params: {
   amount: string;
   balanceAfter: string | null;
 }> {
+  const processingStartedAt = Date.now();
   // Authorization lives in the service, not only in the action/page that calls
   // it: agency roles (and VISA_AGENT, which may VIEW wallets but never move
   // money) can never process their own or anyone else's top-up request.
@@ -255,11 +300,9 @@ export async function processTopupRequest(params: {
     );
     const req = claim.rows[0];
     if (!req) {
-      await client.query("rollback");
       throw new AppError("NOT_FOUND", "Top-up request not found.");
     }
     if (req.status !== "PENDING") {
-      await client.query("rollback");
       throw new AppError(
         "TOPUP_ALREADY_PROCESSED",
         `Top-up request ${req.reference} was already ${req.status.toLowerCase()}.`,
@@ -287,11 +330,9 @@ export async function processTopupRequest(params: {
       const requested = Number(req.amount);
       const credit = params.amount === undefined ? requested : params.amount;
       if (!Number.isFinite(credit) || credit <= 0) {
-        await client.query("rollback");
         throw new AppError("INVALID_AMOUNT", "Credit amount must be greater than zero.");
       }
       if (credit > requested) {
-        await client.query("rollback");
         throw new AppError(
           "INVALID_AMOUNT",
           `Credit cannot exceed the requested amount (${requested} DZD). Raise a wallet adjustment instead.`,
@@ -318,7 +359,6 @@ export async function processTopupRequest(params: {
         [req.id, mutation.transactionId, note ?? `Credited ${amountAbs} DZD.`, params.actor.id],
       );
       if (!updated.rows[0]) {
-        await client.query("rollback");
         throw new AppError("TOPUP_ALREADY_PROCESSED", `Top-up request ${req.reference} was already processed.`);
       }
 
@@ -356,10 +396,50 @@ export async function processTopupRequest(params: {
     }
   } catch (err) {
     await client.query("rollback").catch(() => {});
+    if (
+      err instanceof AppError &&
+      ["TOPUP_ALREADY_PROCESSED", "INVALID_AMOUNT"].includes(err.code)
+    ) {
+      logEvent({
+        eventName:
+          err.code === "TOPUP_ALREADY_PROCESSED"
+            ? "wallet.topup.duplicate_prevented"
+            : "wallet.topup.prevented",
+        severity: err.code === "TOPUP_ALREADY_PROCESSED" ? "warning" : "info",
+        classification: "SAFE_PREVENTION",
+        result: "prevented",
+        errorCode: err.code,
+        actorRole: params.actor.role,
+        resourceType: "wallet_topup_request",
+        resourceRef: pseudonymizeIdentifier(params.requestId),
+        durationMs: Date.now() - processingStartedAt,
+      });
+    } else {
+      logErrorOnce("wallet.topup.technical_failed", err, {
+        severity: "error",
+        classification: "BUSINESS_FAILURE",
+        result: "technical_failed",
+        actorRole: params.actor.role,
+        resourceType: "wallet_topup_request",
+        resourceRef: pseudonymizeIdentifier(params.requestId),
+        durationMs: Date.now() - processingStartedAt,
+      });
+    }
     throw err;
   } finally {
     client.release();
   }
+
+  logEvent({
+    eventName: outcome.status === "PROCESSED" ? "wallet.topup.credited" : "wallet.topup.rejected",
+    severity: "info",
+    result: outcome.status === "PROCESSED" ? "succeeded" : "rejected",
+    actorRole: params.actor.role,
+    tenantRef: pseudonymizeIdentifier(outcome.agencyId),
+    resourceType: "wallet_topup_request",
+    resourceRef: pseudonymizeIdentifier(params.requestId),
+    durationMs: Date.now() - processingStartedAt,
+  });
 
   // Notifications + audit are best-effort post-commit side effects.
   if (params.decision === "REJECT") {
@@ -374,7 +454,6 @@ export async function processTopupRequest(params: {
     });
   }
 
-  const recipients = await agencyUserIds(outcome.agencyId);
   const money = (value: string | number | null | undefined) => {
     const n = typeof value === "string" ? Number(value) : value;
     if (n === null || n === undefined || !Number.isFinite(n)) return null;
@@ -382,20 +461,29 @@ export async function processTopupRequest(params: {
   };
   const credited = money(outcome.amount);
   const balanceNow = money(outcome.balanceAfter);
-  await notifyUsers(recipients, {
-    type: "WALLET_TOPUP_DECIDED",
-    title:
-      outcome.status === "PROCESSED"
-        ? `Wallet topped up — ${credited ?? outcome.amount} DZD`
-        : "Wallet top-up request rejected",
-    body:
-      outcome.status === "PROCESSED"
-        ? `Request ${outcome.reference} was credited to your wallet${credited ? ` (+${credited} DZD)` : ""}` +
-          `${balanceNow ? `. New balance: ${balanceNow} DZD.` : "."}`
-        : `Request ${outcome.reference} was rejected. ${note ?? ""}`.trim(),
-    link: "/portal/wallet",
-    agencyId: outcome.agencyId,
-  });
+  await notifyUsersBestEffort(
+    agencyUserIds(outcome.agencyId),
+    {
+      type: "WALLET_TOPUP_DECIDED",
+      title:
+        outcome.status === "PROCESSED"
+          ? `Wallet topped up — ${credited ?? outcome.amount} DZD`
+          : "Wallet top-up request rejected",
+      body:
+        outcome.status === "PROCESSED"
+          ? `Request ${outcome.reference} was credited to your wallet${credited ? ` (+${credited} DZD)` : ""}` +
+            `${balanceNow ? `. New balance: ${balanceNow} DZD.` : "."}`
+          : `Request ${outcome.reference} was rejected. ${note ?? ""}`.trim(),
+      link: "/portal/wallet",
+      agencyId: outcome.agencyId,
+    },
+    {
+      actorRole: params.actor.role,
+      tenantRef: pseudonymizeIdentifier(outcome.agencyId),
+      resourceType: "wallet_topup_request",
+      resourceRef: pseudonymizeIdentifier(params.requestId),
+    },
+  );
 
   return {
     status: outcome.status,

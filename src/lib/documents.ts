@@ -31,8 +31,9 @@ import {
 } from "@/lib/types";
 import { buildStorageKey, storageProvider } from "@/lib/storage";
 import { recordAudit } from "@/lib/audit";
-import { agencyUserIds, staffUserIds, notifyUsers } from "@/lib/notifications";
+import { agencyUserIds, staffUserIds, notifyUsersBestEffort } from "@/lib/notifications";
 import { getStatusByCode } from "@/lib/applications";
+import { logErrorOnce, logEvent, pseudonymizeIdentifier } from "@/lib/observability";
 
 interface ApplicationAccess {
   applicationId: string;
@@ -65,6 +66,18 @@ export async function assertApplicationAccess(
   const app = rows[0];
   if (!app) throw new AppError("NOT_FOUND", "Application not found.");
   if (user.agencyId && app.agencyId !== user.agencyId) {
+    logEvent({
+      eventName: "security.cross_tenant_access.denied",
+      severity: "warning",
+      classification: "SAFE_PREVENTION",
+      result: "denied",
+      errorCode: "NOT_FOUND",
+      actorRole: user.role,
+      tenantRef: pseudonymizeIdentifier(user.agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(applicationId),
+      metadata: { target_tenant_ref: pseudonymizeIdentifier(app.agencyId) },
+    });
     throw new AppError("NOT_FOUND", "Application not found.");
   }
   return {
@@ -108,6 +121,18 @@ export async function getDocumentForUser(documentId: string, user: AuthUser) {
   const row = rows[0];
   if (!row) throw new AppError("NOT_FOUND", "Document not found.");
   if (user.agencyId && row.appAgencyId !== user.agencyId) {
+    logEvent({
+      eventName: "security.cross_tenant_access.denied",
+      severity: "warning",
+      classification: "SAFE_PREVENTION",
+      result: "denied",
+      errorCode: "NOT_FOUND",
+      actorRole: user.role,
+      tenantRef: pseudonymizeIdentifier(user.agencyId),
+      resourceType: "document",
+      resourceRef: pseudonymizeIdentifier(documentId),
+      metadata: { target_tenant_ref: pseudonymizeIdentifier(row.appAgencyId) },
+    });
     throw new AppError("NOT_FOUND", "Document not found.");
   }
   return row;
@@ -124,6 +149,7 @@ export interface UploadDocumentInput {
 }
 
 export async function uploadDocument(input: UploadDocumentInput) {
+  const uploadStartedAt = Date.now();
   const access = await assertApplicationAccess(input.applicationId, input.actor);
 
   // Resolve checklist item first to know document type
@@ -278,24 +304,54 @@ export async function uploadDocument(input: UploadDocumentInput) {
     });
   } catch (error) {
     await storageProvider().delete(storageKey).catch(() => {});
+    logErrorOnce("document.persistence.failed", error, {
+      severity: "error",
+      classification: "BUSINESS_FAILURE",
+      result: "technical_failed",
+      actorRole: input.actor.role,
+      tenantRef: pseudonymizeIdentifier(access.agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(input.applicationId),
+      durationMs: Date.now() - uploadStartedAt,
+    });
     throw error;
   }
 
+  logEvent({
+    eventName: "document.upload.succeeded",
+    result: "succeeded",
+    actorRole: input.actor.role,
+    tenantRef: pseudonymizeIdentifier(access.agencyId),
+    resourceType: "document",
+    resourceRef: pseudonymizeIdentifier(doc.id),
+    metadata: { mime_type: input.file.type, size_bytes: input.file.data.length },
+    durationMs: Date.now() - uploadStartedAt,
+  });
+
   // Notify staff if agency uploaded outside fulfillment path (draft stage)
   if (input.actor.agencyId && access.isDraft) {
-    const sIds = await staffUserIds();
-    await notifyUsers(sIds, {
-      type: "DOCUMENTS_REQUIRED",
-      title: `Document uploaded${input.actor.agencyName ? ` by ${input.actor.agencyName}` : ""}`,
-      body: `${name} was uploaded to the document pool.`,
-      link: `/admin/documents`,
-    });
+    await notifyUsersBestEffort(
+      staffUserIds(),
+      {
+        type: "DOCUMENTS_REQUIRED",
+        title: `Document uploaded${input.actor.agencyName ? ` by ${input.actor.agencyName}` : ""}`,
+        body: `${name} was uploaded to the document pool.`,
+        link: `/admin/documents`,
+      },
+      {
+        actorRole: input.actor.role,
+        tenantRef: pseudonymizeIdentifier(access.agencyId),
+        resourceType: "document",
+        resourceRef: pseudonymizeIdentifier(doc.id),
+      },
+    );
   }
 
   return doc;
 }
 
 export async function uploadResubmission(input: UploadDocumentInput & { originalDocumentId: string }) {
+  const resubmissionStartedAt = Date.now();
   const original = await getDocumentForUser(input.originalDocumentId, input.actor);
   if (!["REJECTED", "RESUBMISSION_REQUIRED"].includes(original.doc.status)) {
     throw new AppError("INVALID_STATE", "This document was not rejected; upload to the checklist instead.");
@@ -313,6 +369,15 @@ export async function uploadResubmission(input: UploadDocumentInput & { original
     agencyId: original.appAgencyId,
     metadata: { replaces: original.doc.id, filename: doc.originalFilename },
     ipAddress: input.ipAddress ?? null,
+  });
+  logEvent({
+    eventName: "document.resubmission.succeeded",
+    result: "succeeded",
+    actorRole: input.actor.role,
+    tenantRef: pseudonymizeIdentifier(original.appAgencyId),
+    resourceType: "document",
+    resourceRef: pseudonymizeIdentifier(doc.id),
+    durationMs: Date.now() - resubmissionStartedAt,
   });
   return doc;
 }
@@ -378,28 +443,37 @@ export async function reviewDocument(input: ReviewInput) {
     ipAddress: input.ipAddress ?? null,
   });
 
-  const aIds = await agencyUserIds(row.appAgencyId);
+  const aIds = agencyUserIds(row.appAgencyId);
   const titles: Record<string, string> = {
     UNDER_REVIEW: `Document under review — ${row.appReference}`,
     ACCEPTED: `Document accepted — ${row.appReference}`,
     REJECTED: `Document rejected — ${row.appReference}`,
     RESUBMISSION_REQUIRED: `Resubmission required — ${row.appReference}`,
   };
-  await notifyUsers(aIds, {
-    type:
-      input.status === "REJECTED"
-        ? "DOCUMENT_REJECTED"
-        : input.status === "RESUBMISSION_REQUIRED"
-          ? "RESUBMISSION_REQUIRED"
-          : input.status === "ACCEPTED"
-            ? "DOCUMENT_ACCEPTED"
-            : "STATUS_CHANGED",
-    title: titles[input.status] ?? "Document update",
-    body: `${row.doc.originalFilename}: ${input.status === "REJECTED" || input.status === "RESUBMISSION_REQUIRED" ? reason : input.status.replaceAll("_", " ").toLowerCase()}.`,
-    link: `/portal/applications/${row.doc.applicationId}`,
-    agencyId: row.appAgencyId,
-    applicationId: row.doc.applicationId,
-  });
+  await notifyUsersBestEffort(
+    aIds,
+    {
+      type:
+        input.status === "REJECTED"
+          ? "DOCUMENT_REJECTED"
+          : input.status === "RESUBMISSION_REQUIRED"
+            ? "RESUBMISSION_REQUIRED"
+            : input.status === "ACCEPTED"
+              ? "DOCUMENT_ACCEPTED"
+              : "STATUS_CHANGED",
+      title: titles[input.status] ?? "Document update",
+      body: `${row.doc.originalFilename}: ${input.status === "REJECTED" || input.status === "RESUBMISSION_REQUIRED" ? reason : input.status.replaceAll("_", " ").toLowerCase()}.`,
+      link: `/portal/applications/${row.doc.applicationId}`,
+      agencyId: row.appAgencyId,
+      applicationId: row.doc.applicationId,
+    },
+    {
+      actorRole: input.actor.role,
+      tenantRef: pseudonymizeIdentifier(row.appAgencyId),
+      resourceType: "document",
+      resourceRef: pseudonymizeIdentifier(input.documentId),
+    },
+  );
 }
 
 export async function deleteDocument(documentId: string, actor: AuthUser, ipAddress?: string | null) {

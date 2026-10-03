@@ -27,9 +27,10 @@ import { AppError, OVERRIDE_ROLES, type AuthUser, MAX_UPLOAD_BYTES } from "@/lib
 import { chargeApplicationSubmission } from "@/lib/wallet";
 import { recordAudit } from "@/lib/audit";
 import { getEmbassyApplicability } from "@/lib/queries";
-import { agencyUserIds, staffUserIds, notifyUsers } from "@/lib/notifications";
+import { agencyUserIds, staffUserIds, notifyUsersBestEffort } from "@/lib/notifications";
 import { buildStorageKey, storageProvider } from "@/lib/storage";
 import { documents } from "@/db/schema";
+import { logErrorOnce, logEvent, pseudonymizeIdentifier } from "@/lib/observability";
 
 /* ------------------------------------------------------------------ */
 /* Status helpers                                                      */
@@ -283,6 +284,18 @@ export async function getApplicationForUser(applicationId: string, user: AuthUse
   const row = rows[0];
   if (!row) throw new AppError("NOT_FOUND", "Application not found.");
   if (user.agencyId && row.app.agencyId !== user.agencyId) {
+    logEvent({
+      eventName: "security.cross_tenant_access.denied",
+      severity: "warning",
+      classification: "SAFE_PREVENTION",
+      result: "denied",
+      errorCode: "NOT_FOUND",
+      actorRole: user.role,
+      tenantRef: pseudonymizeIdentifier(user.agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(applicationId),
+      metadata: { target_tenant_ref: pseudonymizeIdentifier(row.app.agencyId) },
+    });
     throw new AppError("NOT_FOUND", "Application not found."); // tenant isolation
   }
   return row;
@@ -335,6 +348,7 @@ export async function submitApplication(params: {
   overrideReason?: string | null;
   ipAddress?: string | null;
 }): Promise<SubmitResult> {
+  const submitStartedAt = Date.now();
   const { actor } = params;
   const row = await getApplicationForUser(params.applicationId, actor);
   const app = row.app;
@@ -394,6 +408,17 @@ export async function submitApplication(params: {
     ipAddress: params.ipAddress ?? null,
   });
 
+  logEvent({
+    eventName: "application.submission.succeeded",
+    result: "succeeded",
+    actorRole: actor.role,
+    tenantRef: pseudonymizeIdentifier(app.agencyId),
+    resourceType: "application",
+    resourceRef: pseudonymizeIdentifier(app.id),
+    metadata: { override_used: usedOverride },
+    durationMs: Date.now() - submitStartedAt,
+  });
+
   await recordAudit({
     actor,
     action: usedOverride ? "APPLICATION_SUBMITTED_OVERRIDE" : "APPLICATION_SUBMITTED",
@@ -409,24 +434,40 @@ export async function submitApplication(params: {
     ipAddress: params.ipAddress ?? null,
   });
 
-  const sIds = await staffUserIds();
-  await notifyUsers(sIds, {
-    type: "APPLICATION_SUBMITTED",
-    title: `Application ${app.reference} submitted`,
-    body: `${row.agencyName ?? "An agency"} submitted ${app.visaTypeName} (${app.countryName}) with fee ${app.fee} ${app.currency}.`,
-    link: `/admin/applications/${app.id}`,
-    agencyId: app.agencyId,
-    applicationId: app.id,
-  });
-  const aIds = await agencyUserIds(app.agencyId);
-  await notifyUsers(aIds, {
-    type: "APPLICATION_SUBMITTED",
-    title: `Application ${app.reference} submitted`,
-    body: `Your wallet was charged ${app.fee} ${app.currency}. You can track the application in your portal.`,
-    link: `/portal/applications/${app.id}`,
-    agencyId: app.agencyId,
-    applicationId: app.id,
-  });
+  await notifyUsersBestEffort(
+    staffUserIds(),
+    {
+      type: "APPLICATION_SUBMITTED",
+      title: `Application ${app.reference} submitted`,
+      body: `${row.agencyName ?? "An agency"} submitted ${app.visaTypeName} (${app.countryName}) with fee ${app.fee} ${app.currency}.`,
+      link: `/admin/applications/${app.id}`,
+      agencyId: app.agencyId,
+      applicationId: app.id,
+    },
+    {
+      actorRole: actor.role,
+      tenantRef: pseudonymizeIdentifier(app.agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(app.id),
+    },
+  );
+  await notifyUsersBestEffort(
+    agencyUserIds(app.agencyId),
+    {
+      type: "APPLICATION_SUBMITTED",
+      title: `Application ${app.reference} submitted`,
+      body: `Your wallet was charged ${app.fee} ${app.currency}. You can track the application in your portal.`,
+      link: `/portal/applications/${app.id}`,
+      agencyId: app.agencyId,
+      applicationId: app.id,
+    },
+    {
+      actorRole: actor.role,
+      tenantRef: pseudonymizeIdentifier(app.agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(app.id),
+    },
+  );
 
   return { reference: app.reference, charge };
 }
@@ -465,6 +506,7 @@ export async function changeApplicationStatus(params: {
   /** internal: set by the decision workflow only */
   viaDecision?: boolean;
 }) {
+  const transitionStartedAt = Date.now();
   const { actor } = params;
   const row = await getApplicationForUser(params.applicationId, actor);
   const app = row.app;
@@ -479,6 +521,19 @@ export async function changeApplicationStatus(params: {
   }
 
   if (!params.viaDecision && DECISION_LOCKED_STATUSES.has(to.code)) {
+    logEvent({
+      eventName: "application.status_transition.prevented",
+      severity: "warning",
+      classification: "SAFE_PREVENTION",
+      result: "prevented",
+      errorCode: "DECISION_REQUIRED",
+      actorRole: actor.role,
+      tenantRef: pseudonymizeIdentifier(app.agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(app.id),
+      metadata: { from: from.code, to: to.code },
+      durationMs: Date.now() - transitionStartedAt,
+    });
     throw new AppError(
       "DECISION_REQUIRED",
       `${to.name} outcomes must be recorded through the final-decision panel: upload the decision document first.`,
@@ -551,8 +606,8 @@ export async function changeApplicationStatus(params: {
     ipAddress: params.ipAddress ?? null,
   });
 
-  const aIds = await agencyUserIds(app.agencyId);
-  await notifyUsers(aIds, {
+  const aIds = agencyUserIds(app.agencyId);
+  await notifyUsersBestEffort(aIds, {
     type: to.code === "COMPLETED" ? "APPLICATION_COMPLETED" : "STATUS_CHANGED",
     title: `Application ${app.reference}: ${to.name}`,
     body: params.reason?.trim()
@@ -561,28 +616,55 @@ export async function changeApplicationStatus(params: {
     link: `/portal/applications/${app.id}`,
     agencyId: app.agencyId,
     applicationId: app.id,
+  }, {
+    actorRole: actor.role,
+    tenantRef: pseudonymizeIdentifier(app.agencyId),
+    resourceType: "application",
+    resourceRef: pseudonymizeIdentifier(app.id),
   });
   if (to.code === "DOCUMENTS_REQUESTED") {
-    await notifyUsers(aIds, {
+    await notifyUsersBestEffort(aIds, {
       type: "DOCUMENTS_REQUIRED",
       title: `Documents required for ${app.reference}`,
       body: "ESSAFARIA requested additional documents. Check the checklist and upload them.",
       link: `/portal/applications/${app.id}`,
       agencyId: app.agencyId,
       applicationId: app.id,
+    }, {
+      actorRole: actor.role,
+      tenantRef: pseudonymizeIdentifier(app.agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(app.id),
     });
   }
   if (isAgencyRole) {
-    const sIds = await staffUserIds();
-    await notifyUsers(sIds, {
+    const sIds = staffUserIds();
+    await notifyUsersBestEffort(sIds, {
       type: "STATUS_CHANGED",
       title: `Application ${app.reference}: ${to.name}`,
       body: `${row.agencyName ?? "The agency"} changed the status from ${from.name} to ${to.name}.`,
       link: `/admin/applications/${app.id}`,
       agencyId: app.agencyId,
       applicationId: app.id,
+    }, {
+      actorRole: actor.role,
+      tenantRef: pseudonymizeIdentifier(app.agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(app.id),
     });
   }
+
+  logEvent({
+    eventName: "application.status_transition.succeeded",
+    result: "succeeded",
+    actorRole: actor.role,
+    tenantRef: pseudonymizeIdentifier(app.agencyId),
+    resourceType: "application",
+    resourceRef: pseudonymizeIdentifier(app.id),
+    metadata: { from: from.code, to: to.code },
+    durationMs: Date.now() - transitionStartedAt,
+  });
+
   return { from: from.code, to: to.code };
 }
 
@@ -652,11 +734,28 @@ interface DecisionInput {
 export function recordApplicationDecision(params: DecisionInput & { file: NonNullable<DecisionInput["file"]> }): Promise<{ documentId: string; statusCode: string }>;
 export function recordApplicationDecision(params: DecisionInput): Promise<{ documentId: string | null; statusCode: string }>;
 export async function recordApplicationDecision(params: DecisionInput): Promise<{ documentId: string | null; statusCode: string }> {
+  const decisionStartedAt = Date.now();
   const { actor, file: f } = params;
   if (!["SUPER_ADMIN", "ADMIN", "VISA_AGENT"].includes(actor.role) || actor.agencyId) {
     throw new AppError("FORBIDDEN", "Only ESSAFARIA staff can record application decisions.");
   }
   if (!["APPROVED", "REJECTED"].includes(params.outcome)) throw new AppError("VALIDATION", "Choose a final decision.");
+  if (!f) {
+    logEvent({
+      eventName: "application.decision.blocked_missing_document",
+      severity: "warning",
+      classification: "SAFE_PREVENTION",
+      result: "prevented",
+      errorCode: "DECISION_DOCUMENT_REQUIRED",
+      actorRole: actor.role,
+      tenantRef: pseudonymizeIdentifier(actor.agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(params.applicationId),
+      metadata: { outcome: params.outcome },
+      durationMs: Date.now() - decisionStartedAt,
+    });
+    throw new AppError("DECISION_DOCUMENT_REQUIRED", "Upload the official decision document before recording the final decision.");
+  }
   const note = params.note?.trim() || null;
   if (note && note.length > 4000) throw new AppError("VALIDATION", "The note is too long.");
   if (f) {
@@ -672,7 +771,7 @@ export async function recordApplicationDecision(params: DecisionInput): Promise<
   const storageKey = documentId ? buildStorageKey(app.id, documentId) : null;
   if (f && storageKey) await storageProvider().put(storageKey, f.data, f.type);
   try {
-    return await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
       const [locked] = await tx.select().from(applications).where(eq(applications.id, app.id)).for("update");
       const [from] = await tx.select().from(statuses).where(eq(statuses.id, locked!.statusId));
       const [to] = await tx.select().from(statuses).where(and(eq(statuses.code, params.outcome), eq(statuses.active, true)));
@@ -713,8 +812,46 @@ export async function recordApplicationDecision(params: DecisionInput): Promise<
       if (events.length) await tx.insert(notifications).values(events);
       return { documentId, statusCode: to.code };
     });
+    logEvent({
+      eventName: "application.decision.succeeded",
+      result: "succeeded",
+      actorRole: actor.role,
+      tenantRef: pseudonymizeIdentifier(app.agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(app.id),
+      metadata: { outcome: params.outcome },
+      durationMs: Date.now() - decisionStartedAt,
+    });
+    return result;
   } catch (error) {
     if (storageKey) await storageProvider().delete(storageKey).catch(() => {});
+    if (error instanceof AppError && ["BAD_STATE", "FORBIDDEN", "VALIDATION"].includes(error.code)) {
+      logEvent({
+        eventName: "application.decision.prevented",
+        severity: "warning",
+        classification: "SAFE_PREVENTION",
+        result: "prevented",
+        errorCode: error.code,
+        actorRole: actor.role,
+        tenantRef: pseudonymizeIdentifier(app.agencyId),
+        resourceType: "application",
+        resourceRef: pseudonymizeIdentifier(app.id),
+        metadata: { outcome: params.outcome },
+        durationMs: Date.now() - decisionStartedAt,
+      });
+    } else {
+      logErrorOnce("application.decision.technical_failed", error, {
+        severity: "error",
+        classification: "BUSINESS_FAILURE",
+        result: "technical_failed",
+        actorRole: actor.role,
+        tenantRef: pseudonymizeIdentifier(app.agencyId),
+        resourceType: "application",
+        resourceRef: pseudonymizeIdentifier(app.id),
+        metadata: { outcome: params.outcome },
+        durationMs: Date.now() - decisionStartedAt,
+      });
+    }
     throw error;
   }
 }

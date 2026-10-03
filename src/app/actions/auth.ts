@@ -12,6 +12,7 @@ import { AppError, isAgencyRole, type AuthUser, type Role } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
 import type { ActionState } from "@/components/forms";
 import { runAction } from "@/lib/action-helpers";
+import { logErrorOnce, logEvent, pseudonymizeIdentifier, withObservabilityContext } from "@/lib/observability";
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const email = String(formData.get("email") ?? "").trim();
@@ -19,47 +20,84 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   if (!email || !password) {
     return { error: "Enter your email and password." };
   }
-  let user;
-  try {
-    user = await authenticate(email, password);
-  } catch (err) {
-    // Never expose raw database errors (e.g. Failed query: select ... from users) to the user.
-    if (err instanceof AppError) {
-      return { error: err.message };
-    }
-    console.error("[auth] loginAction authenticate failed", err);
-    return { error: "Service temporarily unavailable. Please try again." };
-  }
-  let token: string;
-  let expiresAt: Date;
-  try {
-    const session = await createSession(user.id);
-    token = session.token;
-    expiresAt = session.expiresAt;
-    await setSessionCookie(token, expiresAt);
-  } catch (err) {
-    console.error("[auth] createSession failed", err);
-    return { error: "Service temporarily unavailable. Please try again." };
-  }
-  try {
-    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
-  } catch (err) {
-    // Non-critical: login should succeed even if last_login_at update fails.
-    console.error("[auth] lastLoginAt update failed", err);
-  }
 
-  const authUser: AuthUser = {
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    role: user.role as Role,
-    agencyId: user.agencyId,
-    userStatus: user.status,
-    agencyStatus: null,
-    agencyName: null,
-  };
+  const loginStartedAt = Date.now();
   const hdrs = await headers();
-  try {
+  const accountRef = pseudonymizeIdentifier(email.toLowerCase());
+  const sourceRef = pseudonymizeIdentifier(
+    hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+  );
+
+  return withObservabilityContext({ action: "auth.login" }, async () => {
+    let user;
+    try {
+      user = await authenticate(email, password);
+    } catch (err) {
+      if (err instanceof AppError) {
+        const safePrevention = ["INVALID_CREDENTIALS", "USER_SUSPENDED", "AGENCY_SUSPENDED"].includes(err.code);
+        logEvent({
+          eventName: safePrevention ? "auth.login.rejected" : "auth.login.technical_failed",
+          severity: safePrevention ? "warning" : "error",
+          classification: safePrevention ? "SAFE_PREVENTION" : "BUSINESS_FAILURE",
+          result: safePrevention ? "rejected" : "technical_failed",
+          errorCode: err.code,
+          metadata: { account_ref: accountRef, source_ref: sourceRef },
+          durationMs: Date.now() - loginStartedAt,
+        });
+        return { error: err.message };
+      }
+      logErrorOnce("auth.login.technical_failed", err, {
+        severity: "error",
+        classification: "BUSINESS_FAILURE",
+        result: "technical_failed",
+        metadata: { account_ref: accountRef, source_ref: sourceRef },
+        durationMs: Date.now() - loginStartedAt,
+      });
+      return { error: "Service temporarily unavailable. Please try again." };
+    }
+
+    let token: string;
+    let expiresAt: Date;
+    try {
+      const session = await createSession(user.id);
+      token = session.token;
+      expiresAt = session.expiresAt;
+      await setSessionCookie(token, expiresAt);
+    } catch (err) {
+      logErrorOnce("auth.session.create_failed", err, {
+        severity: "error",
+        classification: "BUSINESS_FAILURE",
+        result: "technical_failed",
+        actorRole: user.role,
+        tenantRef: pseudonymizeIdentifier(user.agencyId),
+        metadata: { account_ref: accountRef, source_ref: sourceRef },
+      });
+      return { error: "Service temporarily unavailable. Please try again." };
+    }
+
+    try {
+      await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+    } catch (err) {
+      logErrorOnce("auth.last_login_update.failed", err, {
+        severity: "warning",
+        classification: "BUSINESS_FAILURE",
+        result: "technical_failed",
+        actorRole: user.role,
+        tenantRef: pseudonymizeIdentifier(user.agencyId),
+      });
+    }
+
+    const authUser: AuthUser = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role as Role,
+      agencyId: user.agencyId,
+      userStatus: user.status,
+      agencyStatus: null,
+      agencyName: null,
+    };
+
     await recordAudit({
       actor: authUser,
       action: "USER_LOGIN",
@@ -68,13 +106,21 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
       agencyId: user.agencyId,
       ipAddress: hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
     });
-  } catch (err) {
-    console.error("[auth] recordAudit failed", err);
-    // Not fatal for login.
-  }
-  // Phase 2.2 §11 — forced first password change before any shell page
-  if ((user as { mustChangePassword?: boolean }).mustChangePassword) redirect("/change-password");
-  redirect(isAgencyRole(user.role) ? "/portal" : "/admin");
+
+    logEvent({
+      eventName: "auth.login.succeeded",
+      result: "succeeded",
+      actorRole: user.role,
+      tenantRef: pseudonymizeIdentifier(user.agencyId),
+      metadata: { account_ref: accountRef, source_ref: sourceRef },
+      durationMs: Date.now() - loginStartedAt,
+    });
+
+    if ((user as { mustChangePassword?: boolean }).mustChangePassword) {
+      redirect("/change-password");
+    }
+    redirect(isAgencyRole(user.role) ? "/portal" : "/admin");
+  });
 }
 
 export async function logoutAction(): Promise<void> {
