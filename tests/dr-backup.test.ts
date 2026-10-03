@@ -55,6 +55,15 @@ describe("Production backup source guard", () => {
     expect(result.safe).toBe(false);
     expect(result.findings.join(" ")).toContain("DR_RELEASE_SHA");
   });
+
+  it("refuses the Supabase transaction pooler because exported snapshots require session affinity", () => {
+    const env = safeEnv();
+    env.MIGRATION_DATABASE_URL =
+      `postgresql://postgres.${PRODUCTION_PROJECT_REF}:secret@aws-1-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require`;
+    const result = assessProductionBackupSource(env);
+    expect(result.safe).toBe(false);
+    expect(result.findings.join(" ")).toContain("transaction pooler port 6543");
+  });
 });
 
 describe("backup key and PostgreSQL child-process environment", () => {
