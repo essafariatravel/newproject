@@ -73,6 +73,7 @@ describe("legal/privacy readiness regression guards", () => {
     const auth = read("src/lib/auth.ts");
     const locale = read("src/app/actions/ui-locale.ts");
     const policy = read("src/lib/identity-policy.ts");
+    const types = read("src/lib/types.ts");
 
     expect(auth).toContain("httpOnly: true");
     expect(auth).toContain('sameSite: "lax"');
@@ -89,6 +90,7 @@ describe("legal/privacy readiness regression guards", () => {
     expect(policy).toContain("absoluteMs: 12 * 60 * 60_000");
     expect(policy).toContain("idleMs: 2 * 60 * 60_000");
     expect(policy).toContain("absoluteMs: 24 * 60 * 60_000");
+    expect(types).not.toContain("SESSION_TTL_DAYS");
   });
 
   it("allows only the inventoried non-sensitive localStorage preference", () => {
