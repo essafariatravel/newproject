@@ -13,6 +13,7 @@ import {
   PRODUCTION_SCHEMA,
   assessBackupManifest,
 } from "./lib/dr-safety";
+import type { OffsiteEvidence } from "./lib/dr-finalization";
 import {
   backupKeyFromEnvironment,
   sha256File,
@@ -21,17 +22,6 @@ import {
 
 const REF = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,159}$/;
 
-interface OffsiteEvidence {
-  version: 1;
-  kind: "ESSAFARIA_DR_OFFSITE_COPY";
-  backupId: string;
-  sourceManifestSha256: string;
-  verifiedAt: string;
-  locationRef: string;
-  databaseBytes: number;
-  databaseSha256: string;
-  encryptedAuthenticationVerified: true;
-}
 
 function parseArgs(args: string[]) {
   const values: Record<string, string> = {};
