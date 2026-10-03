@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-DNS-Prefetch-Control", value: "off" },
-          { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+          { key: "Strict-Transport-Security", value: "max-age=31536000" },
           {
             key: "Content-Security-Policy",
             value: "base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'",
