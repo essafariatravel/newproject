@@ -5,6 +5,7 @@ import {
   PRODUCTION_SCHEMA,
   assessBackupManifest,
   assessRestoreTarget,
+  backupFreshnessFindings,
   reconcileStorageSnapshot,
   reconcileWalletSnapshot,
   type BackupManifest,
@@ -48,7 +49,7 @@ function verifiedManifest(): BackupManifest {
       storageInventoryCaptured: true,
       sourceIdentityVerified: true,
       offsiteCopyVerified: true,
-      verifiedAt: "2026-10-03T18:05:00.000Z",
+      verifiedAt: "2026-10-03T18:35:00.000Z",
       restoreTestedAt: "2026-10-03T18:30:00.000Z",
       restoreEnvironment: "RESTORE_TEST_LOCAL",
       restoredApplicationChecksPassed: true,
@@ -104,6 +105,20 @@ describe("DR backup manifest", () => {
     const manifest = verifiedManifest();
     manifest.verification.restoreEnvironment = "PRODUCTION";
     expect(assessBackupManifest(manifest).status).toBe("CREATED");
+  });
+
+  it("rejects impossible verification chronology and exposes reset freshness separately", () => {
+    const impossible = verifiedManifest();
+    impossible.verification.verifiedAt = "2026-10-03T18:10:00.000Z";
+    impossible.verification.restoreTestedAt = "2026-10-03T18:30:00.000Z";
+    const assessed = assessBackupManifest(impossible);
+    expect(assessed.status).toBe("INVALID");
+    expect(assessed.findings.join(" ")).toContain("predates the recorded restore test");
+
+    const fresh = verifiedManifest();
+    expect(backupFreshnessFindings(fresh, 24, new Date("2026-10-04T17:59:59.000Z"))).toEqual([]);
+    expect(backupFreshnessFindings(fresh, 24, new Date("2026-10-04T18:00:01.000Z")).join(" "))
+      .toContain("older than the allowed 24-hour");
   });
 });
 
