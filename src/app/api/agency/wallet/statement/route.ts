@@ -10,6 +10,7 @@ import { getSessionUser } from "@/lib/auth";
 import { AppError } from "@/lib/types";
 import { buildWalletStatementPdf, getAgencyWalletStatement } from "@/lib/wallet-statement";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
+import { recordAuditStrict } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,19 @@ export async function GET(request: Request) {
       to: url.searchParams.get("to") ?? undefined,
     });
     const pdf = await buildWalletStatementPdf(statement);
+    await recordAuditStrict({
+      actor: user,
+      action: "WALLET_STATEMENT_EXPORTED",
+      entity: "wallet_transaction",
+      agencyId: user.agencyId,
+      metadata: {
+        from: statement.from.toISOString(),
+        to: statement.to.toISOString(),
+        sections: statement.sections.length,
+        rows: statement.sections.reduce((sum, section) => sum + section.transactions.length, 0),
+        truncated: statement.truncated,
+      },
+    });
     const filename = `wallet-statement-${statement.from.toISOString().slice(0, 10)}_to_${statement.to.toISOString().slice(0, 10)}.pdf`;
     return new NextResponse(new Uint8Array(pdf), {
       headers: {
@@ -45,7 +59,7 @@ export async function GET(request: Request) {
     });
   } catch (err) {
     if (err instanceof AppError) {
-      const status = err.code === "AUTH_REQUIRED" ? 401 : err.code === "FORBIDDEN" ? 403 : err.code === "NOT_FOUND" ? 404 : 400;
+      const status = err.code === "AUTH_REQUIRED" ? 401 : err.code === "FORBIDDEN" ? 403 : err.code === "NOT_FOUND" ? 404 : err.code === "AUDIT_FAILED" ? 503 : 400;
       return NextResponse.json({ error: err.message, code: err.code }, { status });
     }
     console.error("[wallet-statement] PDF generation failed:", err);
