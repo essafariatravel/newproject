@@ -3,6 +3,18 @@ import { targetsSupabaseProject } from "../../src/lib/database-config";
 export const DR_MANIFEST_VERSION = 1 as const;
 export const PRODUCTION_PROJECT_REF = "xgetzgixalrsmuvfthpf";
 export const PRODUCTION_SCHEMA = "visa_os";
+export const DR_CRITICAL_TABLES = [
+  "schema_migrations",
+  "agencies",
+  "users",
+  "applications",
+  "applicants",
+  "documents",
+  "document_types",
+  "wallet_transactions",
+  "audit_logs",
+  "site_settings",
+] as const;
 
 const SHA256 = /^[0-9a-f]{64}$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
@@ -46,6 +58,8 @@ export interface BackupManifest {
     bytes: number;
     sha256: string;
     encrypted: boolean;
+    rowCounts: Record<string, number>;
+    sequences: string[];
   };
   storage: {
     mode: StorageBackupMode;
@@ -135,6 +149,31 @@ function parseManifest(input: unknown, findings: string[]): BackupManifest | nul
   if (!dbSha) findings.push("database.sha256 must be a SHA-256 digest");
   const dbEncrypted = booleanValue(database.encrypted);
   if (dbEncrypted === null) findings.push("database.encrypted must be boolean");
+  const rowCountsInput = record(database.rowCounts);
+  const rowCounts: Record<string, number> = {};
+  if (!rowCountsInput) {
+    findings.push("database.rowCounts must be an object");
+  } else {
+    for (const [name, value] of Object.entries(rowCountsInput)) {
+      if (!/^[a-z_][a-z0-9_]{0,62}$/.test(name) || nonNegativeInteger(value) === null) {
+        findings.push("database.rowCounts contains an invalid table/count entry");
+        continue;
+      }
+      rowCounts[name] = value as number;
+    }
+    for (const table of DR_CRITICAL_TABLES) {
+      if (!(table in rowCounts)) findings.push(`database.rowCounts is missing critical table ${table}`);
+    }
+  }
+  const sequences = Array.isArray(database.sequences)
+    ? database.sequences.filter((entry): entry is string => typeof entry === "string" && /^[a-z_][a-z0-9_]{0,62}$/.test(entry))
+    : [];
+  if (!Array.isArray(database.sequences) || sequences.length !== database.sequences.length) {
+    findings.push("database.sequences must contain only valid sequence names");
+  }
+  if ((rowCounts.wallet_transactions ?? 0) > 0 && !sequences.includes("wallet_reference_seq")) {
+    findings.push("database.sequences is missing wallet_reference_seq");
+  }
 
   const storageMode = stringValue(storage.mode);
   if (!storageMode || !["DATABASE_BLOBS", "EXTERNAL_OBJECTS"].includes(storageMode)) findings.push("storage.mode is invalid");
@@ -194,6 +233,8 @@ function parseManifest(input: unknown, findings: string[]): BackupManifest | nul
       bytes: dbBytes!,
       sha256: dbSha!,
       encrypted: dbEncrypted!,
+      rowCounts,
+      sequences,
     },
     storage: {
       mode: storageMode as StorageBackupMode,
