@@ -70,6 +70,7 @@ export interface TenantIsolationEvidence {
     foreignApplicantDenied: boolean;
     foreignWalletDataNotVisible: boolean;
     forgedForeignUploadDenied: boolean;
+    temporaryRecoveryArtifactsCleaned: boolean;
   };
 }
 
@@ -182,6 +183,7 @@ export function validateTenantIsolationEvidence(
     "foreignApplicantDenied",
     "foreignWalletDataNotVisible",
     "forgedForeignUploadDenied",
+    "temporaryRecoveryArtifactsCleaned",
   ] as const;
   for (const key of required) {
     if (evidence.checks?.[key] !== true) findings.push(`tenant-isolation recovery check failed: ${key}`);
