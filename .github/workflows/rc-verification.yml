@@ -15,7 +15,7 @@ concurrency:
 # Non-deploying by construction: no environments, no secrets, no deployment
 # permissions, no database credentials, and no write permission to the repo.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   verify:
@@ -74,43 +74,8 @@ jobs:
         run: npm test -- tests/build-preview-guard.test.ts
 
       - name: Broader deterministic test suite
-        shell: bash
-        run: |
-          set -o pipefail
-          npm test 2>&1 | tee /tmp/test-suite.out
-          code=${PIPESTATUS[0]}
-          if [ "$code" -ne 0 ]; then
-            {
-              echo "### Deterministic test failure excerpt"
-              echo '~~~text'
-              tail -120 /tmp/test-suite.out
-              echo '~~~'
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-          exit "$code"
+        run: npm test
 
       - name: Build without deployment or database access
         run: npm run build
 
-      - name: Publish failure excerpt to commit
-        if: failure()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          WF_REPO: ${{ github.repository }}
-          WF_SHA: ${{ github.sha }}
-        shell: bash
-        run: |
-          if [ -f /tmp/test-suite.out ]; then
-            tail -120 /tmp/test-suite.out > /tmp/failure-tail.txt
-          else
-            echo "Failure occurred before deterministic tests; inspect the failing workflow step." > /tmp/failure-tail.txt
-          fi
-          python3 - <<'PY'
-          import os, subprocess
-          tail = open("/tmp/failure-tail.txt", encoding="utf-8", errors="replace").read()
-          body = "### Security gate CI failure excerpt\n\n~~~text\n" + tail[-12000:] + "\n~~~"
-          subprocess.run([
-              "gh","api",f"repos/{os.environ['WF_REPO']}/commits/{os.environ['WF_SHA']}/comments",
-              "-f","body="+body
-          ], check=False)
-          PY
