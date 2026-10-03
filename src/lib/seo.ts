@@ -13,6 +13,7 @@ export type PublicSeoPage =
   | "b2b"
   | "about"
   | "contact"
+  | "faq"
   | "privacy"
   | "terms";
 
@@ -21,11 +22,12 @@ const PUBLIC_PATHS: Record<PublicSeoPage, string> = {
   b2b: "/b2b",
   about: "/about",
   contact: "/contact",
+  faq: "/faq",
   privacy: "/privacy",
   terms: "/terms",
 };
 
-const PUBLIC_SITEMAP_PAGES = ["home", "b2b", "about", "contact"] as const;
+const PUBLIC_SITEMAP_PAGES = ["home", "b2b", "about", "contact", "faq"] as const;
 
 const OG_LOCALE: Record<UiLocale, string> = {
   en: "en_DZ",
@@ -58,6 +60,11 @@ const PUBLIC_COPY: Record<
       description:
         "Contact ESSAFARIA for information about agency partnerships, account access and B2B visa services.",
     },
+    faq: {
+      title: "Agency FAQ",
+      description:
+        "Find answers about agency onboarding, account access, visa requests, document requirements and ESSAFARIA support.",
+    },
     privacy: {
       title: "Privacy Policy",
       description: "Read the approved ESSAFARIA privacy information.",
@@ -88,6 +95,11 @@ const PUBLIC_COPY: Record<
       description:
         "Contactez ESSAFARIA pour toute demande concernant les partenariats agences, l’accès au compte et les services visa B2B.",
     },
+    faq: {
+      title: "FAQ agences partenaires",
+      description:
+        "Retrouvez les réponses concernant l’intégration des agences, l’accès au compte, les demandes de visa, les documents et l’assistance ESSAFARIA.",
+    },
     privacy: {
       title: "Politique de confidentialité",
       description: "Consultez les informations de confidentialité approuvées d’ESSAFARIA.",
@@ -117,6 +129,11 @@ const PUBLIC_COPY: Record<
       title: "اتصل بـ ESSAFARIA",
       description:
         "تواصل مع ESSAFARIA للاستفسار عن شراكات الوكالات والوصول إلى الحساب وخدمات التأشيرات B2B.",
+    },
+    faq: {
+      title: "الأسئلة الشائعة للوكالات",
+      description:
+        "اطّلع على الإجابات المتعلقة بانضمام الوكالات والوصول إلى الحساب وطلبات التأشيرات والوثائق ودعم ESSAFARIA.",
     },
     privacy: {
       title: "سياسة الخصوصية",

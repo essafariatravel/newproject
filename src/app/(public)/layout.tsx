@@ -15,6 +15,7 @@ const NAV = [
   { href: "/", label: "Home" },
   { href: "/b2b", label: "For Agencies" },
   { href: "/about", label: "About" },
+  { href: "/faq", label: "FAQ" },
   { href: "/contact", label: "Contact" },
 ];
 
@@ -69,6 +70,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
             <ul className="mt-3 space-y-2 text-sm">
               <li><Link className="text-white/70 transition-colors hover:text-white" href="/about">{ct("About ESSAFARIA VISA")}</Link></li>
               <li><Link className="text-white/70 transition-colors hover:text-white" href="/contact">{ct("Contact")}</Link></li>
+              <li><Link className="text-white/70 transition-colors hover:text-white" href="/faq">{tr("FAQ")}</Link></li>
               <li><Link className="text-white/70 transition-colors hover:text-white" href="/privacy">{ct("Privacy Notice")}</Link></li>
               <li><Link className="text-white/70 transition-colors hover:text-white" href="/terms">{ct("Terms of Service")}</Link></li>
             </ul>

@@ -62,6 +62,7 @@ describe("sitemap and robots", () => {
       `${SEO_PRODUCTION_ORIGIN}/b2b`,
       `${SEO_PRODUCTION_ORIGIN}/about`,
       `${SEO_PRODUCTION_ORIGIN}/contact`,
+      `${SEO_PRODUCTION_ORIGIN}/faq`,
     ]);
     for (const entry of map) {
       const url = new URL(entry.url);

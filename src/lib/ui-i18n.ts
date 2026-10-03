@@ -51,7 +51,7 @@ export async function getUiLocale(search?: Record<string, unknown>): Promise<UiL
 
 type ChromeKey =
   /* public header + footer */
-  | "Home" | "Visa Services" | "Destinations" | "B2B Services" | "For Agencies" | "About" | "Contact"
+  | "Home" | "Visa Services" | "Destinations" | "B2B Services" | "For Agencies" | "About" | "Contact" | "FAQ"
   | "Sign in" | "Register your agency" | "B2B travel" | "Partner-only" | "Skip to content"
   | "Sign out" | "Language" | "All rights reserved." | "Platform" | "Company"
   | "Menu" | "Close menu"
@@ -77,6 +77,7 @@ const FR: ChromeDict = {
   "For Agencies": "Pour les agences",
   About: "À propos",
   Contact: "Contact",
+  FAQ: "FAQ",
   "Sign in": "Se connecter",
   "Register your agency": "Enregistrer votre agence",
   "B2B travel": "Voyage B2B",
@@ -135,6 +136,7 @@ const AR: ChromeDict = {
   "For Agencies": "للوكالات",
   About: "من نحن",
   Contact: "اتصل بنا",
+  FAQ: "الأسئلة الشائعة",
   "Sign in": "تسجيل الدخول",
   "Register your agency": "سجّل وكالتك",
   "B2B travel": "سفر للشركات",
@@ -201,7 +203,7 @@ export function chromeHas(locale: UiLocale, key: string): boolean {
 
 /** Every key a switcher-capable shell renders must exist in every dict. */
 export const ALL_CHROME_KEYS: ChromeKey[] = [
-  "Home", "Visa Services", "Destinations", "B2B Services", "For Agencies", "About", "Contact",
+  "Home", "Visa Services", "Destinations", "B2B Services", "For Agencies", "About", "Contact", "FAQ",
   "Sign in", "Register your agency", "B2B travel", "Partner-only", "Skip to content",
   "Sign out", "Language", "All rights reserved.", "Platform", "Company",
   "Menu", "Close menu",
