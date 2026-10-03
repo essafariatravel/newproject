@@ -115,8 +115,8 @@ export async function submitRegistrationAction(
   }
 
   // Never accept evidence against a stale/draft/other-language legal document.
-  let termsVersion;
-  let privacyVersion;
+  let termsVersion: Awaited<ReturnType<typeof verifyLegalVersionForAcceptance>>;
+  let privacyVersion: Awaited<ReturnType<typeof verifyLegalVersionForAcceptance>>;
   try {
     [termsVersion, privacyVersion] = await Promise.all([
       verifyLegalVersionForAcceptance({
