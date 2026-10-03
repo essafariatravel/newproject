@@ -145,22 +145,13 @@ jobs:
           fi
           exit $RC
 
-      - name: Publish report as commit comment
+      - name: Publish report to Actions summary
         if: always()
-        env:
-          WF_REPO: ${{ github.repository }}
-          WF_SHA: ${{ github.sha }}
-          WF_CONCLUSION: ${{ job.status }}
         run: |
           R=/tmp/prod-release-report.md
           [ -f "$R" ] || printf '### Production release — AUDIT report\n\n```\n(audit did not produce a report — see guard step output)\n```\n' > "$R"
-          python3 -c '
-          import subprocess, sys, os
-          repo = os.environ["WF_REPO"]; sha = os.environ["WF_SHA"]; conclusion = os.environ["WF_CONCLUSION"]
-          body = open("/tmp/prod-release-report.md", encoding="utf-8", errors="replace").read() + "\n\nconclusion: " + conclusion
-          r = subprocess.run(["gh", "api", "repos/%s/commits/%s/comments" % (repo, sha), "-f", "body=" + body], capture_output=True, text=True)
-          print(r.stdout[-300:]); print(r.stderr[-300:], file=sys.stderr)
-          '
+          cat "$R" >> "$GITHUB_STEP_SUMMARY"
+          printf '\n\nconclusion: %s\n' "${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
 
   apply:
     name: "Apply pending Phase-2 migrations to visa_os (guarded)"
@@ -239,19 +230,10 @@ jobs:
       - name: Preflight + restore point + migrations + integrity postflight
         run: npx --no-install tsx scripts/prod-release.ts apply
 
-      - name: Publish report as commit comment
+      - name: Publish report to Actions summary
         if: always()
-        env:
-          WF_REPO: ${{ github.repository }}
-          WF_SHA: ${{ github.sha }}
-          WF_CONCLUSION: ${{ job.status }}
         run: |
           R=/tmp/prod-release-report.md
           [ -f "$R" ] || printf '### Production release — APPLY report\n\n```\n(apply did not produce a report — step failed before execution)\n```\n' > "$R"
-          python3 -c '
-          import subprocess, sys, os
-          repo = os.environ["WF_REPO"]; sha = os.environ["WF_SHA"]; conclusion = os.environ["WF_CONCLUSION"]
-          body = open("/tmp/prod-release-report.md", encoding="utf-8", errors="replace").read() + "\n\nconclusion: " + conclusion
-          r = subprocess.run(["gh", "api", "repos/%s/commits/%s/comments" % (repo, sha), "-f", "body=" + body], capture_output=True, text=True)
-          print(r.stdout[-300:]); print(r.stderr[-300:], file=sys.stderr)
-          '
+          cat "$R" >> "$GITHUB_STEP_SUMMARY"
+          printf '\n\nconclusion: %s\n' "${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
