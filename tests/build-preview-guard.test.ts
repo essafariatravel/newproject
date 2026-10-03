@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES,
+  AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCH_PREFIXES,
   automaticDatabaseChangesForbidden,
 } from "../scripts/lib/build-policy";
 
@@ -23,6 +24,12 @@ describe("Preview build database-change guard", () => {
       expect(AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES).toContain(branch);
       expect(automaticDatabaseChangesForbidden(branch)).toBe(true);
     }
+  });
+
+  it("forbids automatic database changes on SEO safety branches", () => {
+    expect(AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCH_PREFIXES).toContain("seo/");
+    expect(automaticDatabaseChangesForbidden("seo/indexation-safety-gate-2026-10-03")).toBe(true);
+    expect(automaticDatabaseChangesForbidden("seo/future-safe-audit")).toBe(true);
   });
 
   it("leaves normal Arena Preview branch behavior unchanged", () => {

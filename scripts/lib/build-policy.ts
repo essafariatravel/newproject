@@ -13,6 +13,16 @@ export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
   "release/essafaria-rc-2026-09",
 ] as const;
 
+export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCH_PREFIXES = [
+  "seo/",
+] as const;
+
 export function automaticDatabaseChangesForbidden(branch: string | null | undefined): boolean {
-  return (AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES as readonly string[]).includes(branch ?? "");
+  const ref = branch ?? "";
+  return (
+    (AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES as readonly string[]).includes(ref) ||
+    (AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCH_PREFIXES as readonly string[]).some((prefix) =>
+      ref.startsWith(prefix),
+    )
+  );
 }

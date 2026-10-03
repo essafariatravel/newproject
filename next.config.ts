@@ -1,5 +1,13 @@
 import type { NextConfig } from "next";
 
+const searchIndexableEnvironment =
+  process.env.VERCEL === "1" && process.env.VERCEL_ENV === "production";
+
+const noIndexHeader = {
+  key: "X-Robots-Tag",
+  value: "noindex, nofollow, noarchive",
+} as const;
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
@@ -9,6 +17,9 @@ const nextConfig: NextConfig = {
   experimental: { serverActions: { bodySizeLimit: "3mb" } },
   async headers() {
     return [
+      ...(searchIndexableEnvironment
+        ? []
+        : [{ source: "/:path*", headers: [noIndexHeader] }]),
       {
         source: "/:path*",
         headers: [
@@ -24,11 +35,21 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/admin/:path*",
-        headers: [{ key: "Cache-Control", value: "no-store, max-age=0" }],
+        headers: [
+          { key: "Cache-Control", value: "no-store, max-age=0" },
+          noIndexHeader,
+        ],
       },
       {
         source: "/portal/:path*",
-        headers: [{ key: "Cache-Control", value: "no-store, max-age=0" }],
+        headers: [
+          { key: "Cache-Control", value: "no-store, max-age=0" },
+          noIndexHeader,
+        ],
+      },
+      {
+        source: "/api/:path*",
+        headers: [noIndexHeader],
       },
     ];
   },
