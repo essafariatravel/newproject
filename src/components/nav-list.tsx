@@ -32,7 +32,7 @@ export function NavList({ sections }: { sections: NavSection[] }) {
     <>
       {sections.map((section) => (
         <div key={section.title}>
-          <p className="px-4 pb-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/45">
+          <p className="px-4 pb-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/60">
             {section.title}
           </p>
           <div className="space-y-1">
