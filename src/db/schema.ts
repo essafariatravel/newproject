@@ -845,6 +845,8 @@ export const walletTopupRequests = pgTable(
     proofFilename: text("proof_filename"),
     proofMimeType: text("proof_mime_type"),
     proofSizeBytes: integer("proof_size_bytes"),
+    /** SHA-256 of the submitted receipt; null only for historical rows. */
+    proofSha256: text("proof_sha256"),
     idempotencyKey: uuid("idempotency_key"),
     /** PENDING | PROCESSED | REJECTED | CANCELLED */
     status: text("status").notNull().default("PENDING"),
