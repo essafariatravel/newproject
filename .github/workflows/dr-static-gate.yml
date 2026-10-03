@@ -18,9 +18,6 @@ jobs:
     name: DR repository verification (no Production, no secrets)
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      # Keep the job self-contained. No database/service credentials are supplied.
-      DATABASE_SCHEMA: visa_os_restore_test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -54,6 +51,7 @@ jobs:
         run: |
           set +e
           DR_ENVIRONMENT=RESTORE_TEST \
+          DATABASE_SCHEMA=visa_os_restore_test \
           DR_ALLOW_REMOTE_DISPOSABLE=true \
           DR_DISPOSABLE_PROJECT_REF=xgetzgixalrsmuvfthpf \
           DATABASE_URL='postgresql://postgres.xgetzgixalrsmuvfthpf:not-a-secret@aws-1-us-east-1.pooler.supabase.com:6543/postgres' \
