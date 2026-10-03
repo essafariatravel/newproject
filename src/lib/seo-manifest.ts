@@ -148,25 +148,29 @@ export type IndexablePublicSeoPage = {
       : never;
 }[SeoPublicRouteKey];
 
-export const SEO_PUBLIC_ROUTE_ENTRIES = Object.entries(
-  SEO_PUBLIC_ROUTE_MANIFEST,
-).map(([key, value]) => ({
-  key: key as SeoPublicRouteKey,
-  ...value,
-}));
+type SeoPublicRouteEntry = {
+  [K in SeoPublicRouteKey]: { key: K } & (typeof SEO_PUBLIC_ROUTE_MANIFEST)[K];
+}[SeoPublicRouteKey];
 
-export const SEO_INDEXABLE_PUBLIC_ENTRIES = SEO_PUBLIC_ROUTE_ENTRIES.filter(
-  (entry) => entry.classification === "indexable",
-) as Array<
-  (typeof SEO_PUBLIC_ROUTE_ENTRIES)[number] & {
-    key: IndexablePublicSeoPage;
-    classification: "indexable";
-    sitemap: true;
-  }
+type IndexableSeoPublicRouteEntry = Extract<
+  SeoPublicRouteEntry,
+  { classification: "indexable" }
 >;
 
+export const SEO_PUBLIC_ROUTE_ENTRIES = (
+  Object.keys(SEO_PUBLIC_ROUTE_MANIFEST) as SeoPublicRouteKey[]
+).map(
+  (key) => ({ key, ...SEO_PUBLIC_ROUTE_MANIFEST[key] }) as SeoPublicRouteEntry,
+);
+
+export const SEO_INDEXABLE_PUBLIC_ENTRIES = SEO_PUBLIC_ROUTE_ENTRIES.filter(
+  (entry): entry is IndexableSeoPublicRouteEntry =>
+    entry.classification === "indexable",
+);
+
 export const SEO_NOINDEX_PUBLIC_ENTRIES = SEO_PUBLIC_ROUTE_ENTRIES.filter(
-  (entry) => entry.classification === "noindex",
+  (entry): entry is Extract<SeoPublicRouteEntry, { classification: "noindex" }> =>
+    entry.classification === "noindex",
 );
 
 export const SEO_PRIVATE_ROUTE_PREFIXES = ["/admin", "/portal", "/api"] as const;

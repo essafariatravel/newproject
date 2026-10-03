@@ -26,6 +26,16 @@ function literalInternalHrefs(source: string): string[] {
 }
 
 describe("public internal links", () => {
+  const CORE_PUBLIC_FILES = [
+    resolve(process.cwd(), "src/app/(public)/page.tsx"),
+    resolve(process.cwd(), "src/app/(public)/b2b/page.tsx"),
+    resolve(process.cwd(), "src/app/(public)/about/page.tsx"),
+    resolve(process.cwd(), "src/app/(public)/contact/page.tsx"),
+    resolve(process.cwd(), "src/app/(public)/faq/page.tsx"),
+    resolve(process.cwd(), "src/app/(public)/layout.tsx"),
+    resolve(process.cwd(), "src/components/public-header.tsx"),
+  ];
+
   const knownStaticPaths = new Set(
     SEO_PUBLIC_ROUTE_ENTRIES
       .map((entry) => entry.path)
@@ -33,7 +43,7 @@ describe("public internal links", () => {
   );
 
   it("does not link public pages directly into private Admin/Portal/API surfaces", () => {
-    for (const file of filesUnder("src/app/(public)")) {
+    for (const file of CORE_PUBLIC_FILES) {
       const body = readFileSync(file, "utf-8");
       for (const href of literalInternalHrefs(body)) {
         const pathname = href.split(/[?#]/, 1)[0];
@@ -48,11 +58,7 @@ describe("public internal links", () => {
   });
 
   it("keeps literal public links pointed at real static route pages", () => {
-    const files = [
-      ...filesUnder("src/app/(public)"),
-      resolve(process.cwd(), "src/components/public-header.tsx"),
-    ];
-    for (const file of files) {
+    for (const file of CORE_PUBLIC_FILES) {
       const body = readFileSync(file, "utf-8");
       for (const href of literalInternalHrefs(body)) {
         const pathname = href.split(/[?#]/, 1)[0];

@@ -18,8 +18,9 @@
     "db:verify": "tsx scripts/verify-db.ts",
     "observability:finance:preview": "tsx scripts/check-financial-integrity.ts",
     "observability:db:preview": "tsx scripts/observability-db-snapshot.ts",
-    "verify:seo": "vitest run tests/seo-indexation.test.ts tests/seo-route-policy.test.ts tests/seo-private-resources.test.ts tests/seo-public-links.test.ts tests/seo-public-performance.test.ts tests/build-preview-guard.test.ts",
-    "verify:seo:runtime": "tsx scripts/verify-seo-runtime.ts"
+    "verify:seo": "tsx scripts/verify-seo-gate.ts",
+    "verify:seo:runtime": "tsx scripts/verify-seo-runtime.ts",
+    "verify:seo:contracts": "vitest run tests/seo-indexation.test.ts tests/seo-route-policy.test.ts tests/seo-private-resources.test.ts tests/seo-public-links.test.ts tests/seo-public-performance.test.ts tests/seo-metadata-safety.test.ts tests/build-preview-guard.test.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

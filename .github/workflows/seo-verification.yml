@@ -38,10 +38,7 @@ jobs:
           cache: npm
 
       - run: npm ci --no-audit --no-fund
-      - run: npm run typecheck
-      - run: npm run lint
-
-      - name: SEO safety contracts
+      - name: SEO static gate
         run: npm run verify:seo
 
       - name: Full deterministic regression

@@ -66,15 +66,19 @@ describe("private resource indexation and download safety", () => {
     expect(body).toContain("resolveRegistrationFollowup");
   });
 
-  it("limits intentionally public storage resources to branding/agency logos", () => {
-    for (const path of [
-      "src/app/api/branding/logo/route.ts",
-      "src/app/api/agencies/[id]/logo/route.ts",
-    ]) {
-      const body = source(path);
-      expect(body).toContain("Public by design");
-      expect(body).toContain('"Cache-Control": "public, max-age=60, stale-while-revalidate=300"');
-      expect(body).toContain('"Content-Security-Policy": "default-src \'none\'; sandbox"');
-    }
+  it("keeps agency logos authenticated and tenant/permission scoped", () => {
+    const body = source("src/app/api/agencies/[id]/logo/route.ts");
+    expect(body).toContain("getSessionUser");
+    expect(body).toContain('hasPermission(user, "agencies.view")');
+    expect(body).toContain("user.agencyId === id");
+    expect(body).toContain('"Cache-Control": "private, no-store"');
+    expect(body).toContain('"Content-Security-Policy": "default-src \'none\'; sandbox"');
+  });
+
+  it("keeps only the platform branding logo intentionally public", () => {
+    const body = source("src/app/api/branding/logo/route.ts");
+    expect(body).toContain("Public by design");
+    expect(body).toContain('"Cache-Control": "public, max-age=60, stale-while-revalidate=300"');
+    expect(body).toContain('"Content-Security-Policy": "default-src \'none\'; sandbox"');
   });
 });
