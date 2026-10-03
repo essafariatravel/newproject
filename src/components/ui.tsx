@@ -12,7 +12,7 @@ export function PageHeader(props: {
     <div className="page-header flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
         <h1 className="page-header-title font-semibold tracking-tight text-navy-900">{props.title}</h1>
-        {props.subtitle ? <p className="page-header-subtitle mt-1 text-base leading-relaxed text-slate-500">{props.subtitle}</p> : null}
+        {props.subtitle ? <p className="page-header-subtitle mt-1 text-base leading-relaxed text-slate-600">{props.subtitle}</p> : null}
       </div>
       {props.actions ? <div className="flex flex-wrap items-center gap-2">{props.actions}</div> : null}
     </div>
@@ -28,7 +28,7 @@ export function CardHeader(props: { title: string; actions?: ReactNode; subtitle
     <div className="card-header flex flex-wrap items-center justify-between gap-2 border-b border-line/70 px-4 py-4" data-testid={props.testId}>
       <div>
         <h2 className="text-lg font-semibold text-navy-900">{props.title}</h2>
-        {props.subtitle ? <p className="mt-1 text-xs text-slate-400">{props.subtitle}</p> : null}
+        {props.subtitle ? <p className="mt-1 text-xs text-slate-600">{props.subtitle}</p> : null}
       </div>
       {props.actions ? <div className="flex items-center gap-2">{props.actions}</div> : null}
     </div>
@@ -44,17 +44,17 @@ export function StatCard(props: {
 }) {
   const toneClass =
     props.tone === "gold"
-      ? "text-gold-700"
+      ? "text-navy-700"
       : props.tone === "teal"
         ? "text-teal-700"
         : props.tone === "navy"
           ? "text-navy-700"
-          : "text-slate-500";
+          : "text-slate-600";
   const body = (
     <div className="stat-card card h-full px-4 py-4">
       <p className={`text-xs font-semibold ${toneClass}`}>{props.label}</p>
       <p className="stat-value mt-1 text-[1.5rem] font-semibold leading-snug tracking-tight text-navy-900 tabular-nums">{props.value}</p>
-      {props.hint ? <p className="mt-1 text-xs leading-snug text-slate-500">{props.hint}</p> : null}
+      {props.hint ? <p className="mt-1 text-xs leading-snug text-slate-600">{props.hint}</p> : null}
     </div>
   );
   return props.href ? (
@@ -82,7 +82,7 @@ export function titleize(code: string): string {
 export function ActiveBadge({ active, locale = "en" }: { active: boolean; locale?: "en" | "fr" | "ar" }) {
   const labels = { en: ["Active", "Inactive"], fr: ["Actif", "Inactif"], ar: ["نشط", "غير نشط"] };
   return (
-    <span className={`badge ${active ? "bg-emerald-50 text-emerald-700" : "bg-ivory-100 text-slate-400"}`}>
+    <span className={`badge ${active ? "bg-emerald-50 text-emerald-700" : "bg-ivory-100 text-slate-600"}`}>
       {labels[locale][active ? 0 : 1]}
     </span>
   );
@@ -94,7 +94,7 @@ export function EmptyState(props: { title: string; body?: string; action?: React
   return (
     <div className="flex flex-col items-center justify-center gap-2 px-6 py-8 text-center">
       <p className="text-lg font-semibold text-navy-900">{props.title}</p>
-      {props.body ? <p className="max-w-sm text-base leading-relaxed text-slate-400">{props.body}</p> : null}
+      {props.body ? <p className="max-w-sm text-base leading-relaxed text-slate-600">{props.body}</p> : null}
       {props.action ? <div className="mt-2">{props.action}</div> : null}
     </div>
   );
@@ -118,7 +118,7 @@ export function Flash(props: { error?: string; success?: string }) {
 
 export function TableWrap(props: { children: ReactNode }) {
   return (
-    <div className="card table-scroll overflow-x-auto" tabIndex={0}>
+    <div className="card table-scroll min-w-0 w-full max-w-full overflow-x-auto" tabIndex={0}>
       <table className="w-full min-w-[640px] border-collapse">{props.children}</table>
     </div>
   );
@@ -134,7 +134,7 @@ export function Progress(props: { done: number; total: number }) {
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="text-xs tabular-nums text-slate-400">
+      <span className="text-xs tabular-nums text-slate-600">
         {props.done}/{props.total}
       </span>
     </div>
@@ -152,7 +152,7 @@ export function Tabs(props: { tabs: Array<{ id: string; label: string; href: str
           className={`inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-2 py-2 text-base transition-colors ${
             t.id === props.current
               ? "border-gold-500 font-semibold text-navy-900"
-              : "border-transparent text-slate-500 hover:text-navy-900"
+              : "border-transparent text-slate-600 hover:text-navy-900"
           }`}
         >
           {t.label}
@@ -167,7 +167,7 @@ export function KeyValue(props: { items: Array<{ label: string; value: ReactNode
     <dl className="grid grid-cols-1 gap-x-6 gap-y-4 px-4 py-4 sm:grid-cols-2 lg:grid-cols-3">
       {props.items.map((item) => (
         <div key={item.label}>
-          <dt className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">{item.label}</dt>
+          <dt className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-600">{item.label}</dt>
           <dd className="mt-1 text-base font-semibold text-navy-900">{item.value ?? "—"}</dd>
         </div>
       ))}
