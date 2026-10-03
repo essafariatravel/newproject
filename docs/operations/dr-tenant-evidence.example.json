@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "kind": "ESSAFARIA_DR_TENANT_ISOLATION",
+  "backupId": "ESSAFARIA-PROD-YYYYMMDDTHHMMSSZ-RELEASE",
+  "restoreEvidenceSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "testedAt": "2026-10-03T00:00:00.000Z",
+  "targetRef": "RESTORE-TENANT-DRILL-0001",
+  "foreignTenantFixture": "RESTORED_TENANT",
+  "checks": {
+    "foreignApplicationDenied": false,
+    "foreignDocumentDenied": false,
+    "foreignApplicantDenied": false,
+    "foreignWalletDataNotVisible": false,
+    "forgedForeignUploadDenied": false,
+    "temporaryRecoveryArtifactsCleaned": false
+  },
+  "releaseSha": "0000000000000000000000000000000000000000"
+}

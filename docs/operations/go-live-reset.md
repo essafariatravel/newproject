@@ -40,16 +40,23 @@ pg_restore --exit-on-error --no-owner --no-acl --dbname essafaria_restore_check 
 
 Encrypt the export with the owner's approved encryption tool before moving or archiving it; restrict its filesystem ACL while it is plaintext and record its SHA-256. Test the restore, compare per-table counts and key financial/configuration checksums, check constraints/triggers/functions and sequence continuity, and confirm the preserved Super Admin can sign in. Do not restore into `visa_os`, an existing Preview, or an unrelated schema. Capture actual results; an archive filename is not proof of restoration.
 
-An optional local backup manifest has the following shape. It is an owner attestation, not cryptographic proof that the CLI verified or restored the backup. The tool reports `MANIFEST_PRESENT_RESTORE_ATTESTED` only when its required fields are present; a future executor must independently verify the artifact hash and restore evidence.
+The reset planner now accepts only the versioned DR manifest contract documented in
+`docs/operations/disaster-recovery.md`. A manifest is not an owner assertion: the
+repository classifies it as `INVALID`, `CREATED`, or `VERIFIED`, and the
+go-live reset backup prerequisite remains blocked unless it is `VERIFIED`.
 
-```json
-{
-  "schema": "local_restore_schema",
-  "sha256": "64-lowercase-hexadecimal-characters",
-  "createdAt": "ISO-8601 timestamp",
-  "verifiedRestoreAt": "ISO-8601 timestamp"
-}
+Use the checked-in example only as a schema/template; it is intentionally not
+verified:
+
+```powershell
+npm run dr:manifest -- --manifest ./work/backup-manifest.json --source production
 ```
+
+A VERIFIED manifest requires encrypted database/storage evidence, checksum and
+schema checks, an isolated restore, wallet reconciliation, storage
+reconciliation, tenant-isolation/application checks, and an independently
+verified off-site copy. The reset planner never trusts a filename or a successful
+backup command as restoration proof.
 
 For the database storage provider, the dump must include `document_blobs` bytes. For external Supabase Storage, a database backup retains metadata, not the actual objects; keep a separately encrypted object export and checksum/version manifest. [Supabase's restore guide](https://supabase.com/docs/guides/platform/migrating-within-supabase/dashboard-restore) describes this distinction. Retain approved branding/logos and uncertain objects. A later storage cleanup should use an idempotent queue after the database commit, retry failures, and reconcile against live references; database and object storage do not share a transaction.
 

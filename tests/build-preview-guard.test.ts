@@ -14,6 +14,10 @@ describe("Preview build database-change guard", () => {
   it("forbids automatic database changes on the authoritative RC branch", () => {
     expect(automaticDatabaseChangesForbidden("release/essafaria-rc-2026-09")).toBe(true);
   });
+  it("forbids automatic database changes on the DR gate branch", () => {
+    expect(AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES).toContain("dr/pre-codex-gate-2026-10-03");
+    expect(automaticDatabaseChangesForbidden("dr/pre-codex-gate-2026-10-03")).toBe(true);
+  });
 
   it("keeps the existing protected redesign Preview branches protected", () => {
     for (const branch of [

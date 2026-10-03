@@ -7,6 +7,7 @@ import { Pool } from "pg";
 import { databasePoolConfig } from "../src/lib/database-config";
 import { assertDryRunTarget, cleanupPolicy, dependencyDeleteOrder, parseResetOptions } from "./lib/reset-plan";
 import { qualifiedTable } from "../src/lib/database-schema";
+import { PRODUCTION_PROJECT_REF, PRODUCTION_SCHEMA, assessBackupManifest, backupFreshnessFindings } from "./lib/dr-safety";
 
 async function main() {
   const options = parseResetOptions(process.argv.slice(2));
@@ -38,14 +39,28 @@ async function main() {
     if (!activeSuper) blockers.push("Explicitly preserve at least one real active SUPER_ADMIN UUID.");
     if (approved.length !== options.preserveUsers.length || approved.some((user) => user.agency_id !== null)) blockers.push("Every preserved user must resolve to a real Staff identity.");
     if (edges.rows.some((edge) => edge.parentSchema !== target.schema)) blockers.push("Cross-schema dependencies require manual review before cleanup.");
-    let backupStatus = "MISSING";
+    let backupStatus: "MISSING" | "INVALID" | "CREATED" | "VERIFIED" = "MISSING";
+    let backupFindings: string[] = [];
     if (options.backupManifest) {
       try {
         const manifest = JSON.parse(await readFile(options.backupManifest, "utf8"));
-        if (manifest.schema === target.schema && /^[0-9a-f]{64}$/.test(manifest.sha256 ?? "") && manifest.createdAt && manifest.verifiedRestoreAt) backupStatus = "MANIFEST_PRESENT_RESTORE_ATTESTED";
-      } catch { /* Missing/invalid manifest remains a blocker; never print its contents. */ }
+        const assessment = assessBackupManifest(manifest, {
+          environment: "PRODUCTION",
+          projectRef: PRODUCTION_PROJECT_REF,
+          schema: PRODUCTION_SCHEMA,
+        });
+        backupStatus = assessment.status;
+        backupFindings = [...assessment.findings];
+        if (assessment.manifest) {
+          backupFindings.push(...backupFreshnessFindings(assessment.manifest, 24));
+          if (backupFindings.length && backupStatus === "VERIFIED") backupStatus = "INVALID";
+        }
+      } catch {
+        backupStatus = "INVALID";
+        backupFindings = ["backup manifest could not be read or parsed"];
+      }
     }
-    if (backupStatus === "MISSING") blockers.push("A current encrypted backup and successfully tested isolated restore are required; record schema, SHA-256 and timestamps in a manifest.");
+    if (backupStatus !== "VERIFIED") blockers.push("A fresh (<=24h) VERIFIED encrypted Production backup with an isolated restore, wallet reconciliation, storage reconciliation and tenant-isolation check is required.");
     const candidates = cleanupPolicy.removeOperationalTables.filter((name) => name in counts);
     let deleteOrder: string[] = [];
     try { deleteOrder = dependencyDeleteOrder(candidates, edges.rows.filter((edge) => edge.parentSchema === target.schema)); }
@@ -73,7 +88,7 @@ async function main() {
         documentTypes: counts.document_types ?? 0, priorities: counts.priorities ?? 0, legalVersions: counts.legal_versions ?? 0, auditRows: counts.audit_logs ?? 0 },
       preserveTables: cleanupPolicy.preserveTables, unclassifiedPreservedTables: unclassified,
       preservedRowRules: cleanupPolicy.preservedRowRules, protectedDependencies,
-      backupStatus, storageInventory, storageCleanupPlan: cleanupPolicy.storageCleanupPlan,
+      backupStatus, backupFindings, storageInventory, storageCleanupPlan: cleanupPolicy.storageCleanupPlan,
       postResetVerification: cleanupPolicy.postResetVerification, ownerDecisions: cleanupPolicy.ownerDecisions, blockers }, null, 2));
     await client.query("rollback");
   } finally {

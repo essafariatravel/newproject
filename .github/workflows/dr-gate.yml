@@ -1,0 +1,261 @@
+name: DR Gate — non-deploying verification
+
+on:
+  push:
+    branches:
+      - dr/pre-codex-gate-2026-10-03
+    paths:
+      - ".github/workflows/dr-gate.yml"
+      - "scripts/lib/dr-safety.ts"
+      - "scripts/dr-verify-manifest.ts"
+      - "scripts/dr-verify-restore.ts"
+      - "scripts/dr-create-backup.ts"
+      - "scripts/dr-restore.ts"
+      - "scripts/lib/dr-backup.ts"
+      - "scripts/lib/dr-finalization.ts"
+      - "scripts/lib/dr-runtime-identity.ts"
+      - "scripts/dr-finalize.ts"
+      - "scripts/dr-local-drill.ts"
+      - "scripts/dr-verify-offsite-copy.ts"
+      - "scripts/dr-verify-restored-app.ts"
+      - "scripts/dr-prod-preflight.ts"
+      - "scripts/dr-status.ts"
+      - "scripts/dr-evidence-bundle.ts"
+      - "scripts/dr-release-gate.ts"
+      - "scripts/dr-resolve-production-release.ts"
+      - "scripts/lib/dr-vercel-release.ts"
+      - "scripts/dr-repo-safety.ts"
+      - "scripts/dr-generate-key.ts"
+      - "tests/dr-private-path.test.ts"
+      - "scripts/lib/dr-private-path.ts"
+      - "tests/dr-repo-safety.test.ts"
+      - "scripts/reset.ts"
+      - "scripts/lib/reset-plan.ts"
+      - "scripts/lib/build-policy.ts"
+      - "tests/dr-safety.test.ts"
+      - "tests/dr-backup.test.ts"
+      - "tests/dr-finalization.test.ts"
+      - "tests/dr-runtime-identity.test.ts"
+      - "tests/dr-vercel-release.test.ts"
+      - "tests/reset-plan.test.ts"
+      - "tests/build-preview-guard.test.ts"
+      - "docs/operations/disaster-recovery.md"
+      - "docs/operations/dr-production-readonly-evidence-2026-10-03.md"
+      - "docs/operations/dr-executable-procedure.md"
+      - "docs/operations/dr-codex-handoff.md"
+      - "docs/operations/dr-application-evidence.example.json"
+      - "docs/operations/dr-tenant-evidence.example.json"
+      - ".gitignore"
+      - "docs/operations/dr-backup-manifest.example.json"
+      - "docs/operations/go-live-reset.md"
+      - "package.json"
+      - "package-lock.json"
+      - "vercel.json"
+  workflow_dispatch:
+
+concurrency:
+  # Bind DR evidence to the exact commit. A stale/cancelled run from an older
+  # commit must never block verification of the current recovery implementation.
+  group: dr-gate-${{ github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: DR safety, regression and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_SCHEMA: public
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: DR unit and fail-closed tests
+        run: >
+          npx vitest run
+          tests/dr-safety.test.ts
+          tests/dr-backup.test.ts
+          tests/dr-finalization.test.ts
+          tests/dr-runtime-identity.test.ts
+          tests/dr-vercel-release.test.ts
+          tests/dr-repo-safety.test.ts
+          tests/dr-private-path.test.ts
+          tests/reset-plan.test.ts
+          tests/build-preview-guard.test.ts
+          tests/prod-release-preflight.test.ts
+
+      - name: Prove Vercel production resolver refuses missing token
+        shell: bash
+        run: |
+          set +e
+          env -u VERCEL_TOKEN npm run dr:release-resolve > /tmp/dr-vercel-resolver.log 2>&1
+          CODE=$?
+          set -e
+          cat /tmp/dr-vercel-resolver.log
+          test "$CODE" -eq 2
+          grep -q '"status": "REFUSED"' /tmp/dr-vercel-resolver.log
+          grep -q '"tokenPrinted": false' /tmp/dr-vercel-resolver.log
+          rm -f /tmp/dr-vercel-resolver.log
+
+      - name: Public repository DR artifact safety
+        run: npm run dr:repo-safety
+
+      - name: Generate private recovery key without printing it
+        run: |
+          rm -f /tmp/essafaria-ci.dr-key
+          npm run dr:key -- --output /tmp/essafaria-ci.dr-key > /tmp/dr-key.log
+          test -s /tmp/essafaria-ci.dr-key
+          test "$(wc -l < /tmp/essafaria-ci.dr-key)" -eq 1
+          test "$(tr -d '\n' < /tmp/essafaria-ci.dr-key | wc -c)" -eq 44
+          ! grep -q "$(tr -d '\n' < /tmp/essafaria-ci.dr-key)" /tmp/dr-key.log
+          grep -q '"keyPrinted": false' /tmp/dr-key.log
+          rm -f /tmp/essafaria-ci.dr-key /tmp/dr-key.log
+
+
+      - name: Production build without deployment
+        env:
+          VERCEL_GIT_COMMIT_REF: dr/pre-codex-gate-2026-10-03
+        run: npm run build
+
+      - name: Full local synthetic backup-to-restore + real Next.js recovery E2E
+        run: npm run dr:local-drill
+
+      - name: Full regression suite
+        run: npm test
+
+      - name: Prove DR status refuses to call example backup ready
+        shell: bash
+        run: |
+          cp docs/operations/dr-backup-manifest.example.json /tmp/dr-status-example.json
+          chmod 600 /tmp/dr-status-example.json
+          set +e
+          npm run dr:status -- --manifest /tmp/dr-status-example.json > /tmp/dr-status.log 2>&1
+          CODE=$?
+          set -e
+          cat /tmp/dr-status.log
+          test "$CODE" -eq 2
+          grep -q '"stage": "CREATED_NEEDS_EVIDENCE"' /tmp/dr-status.log
+          rm -f /tmp/dr-status-example.json /tmp/dr-status.log
+
+      - name: Prove example manifest is intentionally NOT verified
+        run: |
+          set +e
+          npm run dr:manifest -- --manifest docs/operations/dr-backup-manifest.example.json --source production
+          CODE=$?
+          set -e
+          test "$CODE" -eq 2
+
+      - name: Prove Production preflight refuses wrong project before connection
+        shell: bash
+        run: |
+          set +e
+          DR_BACKUP_ENVIRONMENT=PRODUCTION \
+          DR_STORAGE_MODE=DATABASE_BLOBS \
+          DR_RELEASE_SHA=53dc61de334c6412c1e5337b4f745c360f69facd \
+          DATABASE_SCHEMA=visa_os \
+          MIGRATION_DATABASE_URL='postgresql://postgres.ridoyedqgiavgcwnpubq:not-a-secret@aws-1-us-east-1.pooler.supabase.com:5432/postgres' \
+          npm run dr:prod-preflight > /tmp/dr-prod-preflight-refusal.log 2>&1
+          CODE=$?
+          set -e
+          cat /tmp/dr-prod-preflight-refusal.log
+          test "$CODE" -eq 2
+          grep -q 'approved ESSAFARIA Supabase project' /tmp/dr-prod-preflight-refusal.log
+
+      - name: Prove backup creator refuses a wrong Production project before pg_dump
+        shell: bash
+        run: |
+          set +e
+          DR_BACKUP_ENVIRONMENT=PRODUCTION \
+          DR_STORAGE_MODE=DATABASE_BLOBS \
+          DR_RELEASE_SHA=53dc61de334c6412c1e5337b4f745c360f69facd \
+          DATABASE_SCHEMA=visa_os \
+          DATABASE_URL='postgresql://postgres.ridoyedqgiavgcwnpubq:not-a-secret@aws-1-us-east-1.pooler.supabase.com:5432/postgres' \
+          npm run dr:backup -- --output-dir /tmp/essafaria-dr-refusal > /tmp/dr-backup-refusal.log 2>&1
+          CODE=$?
+          set -e
+          cat /tmp/dr-backup-refusal.log
+          test "$CODE" -eq 2
+          grep -q 'approved ESSAFARIA Supabase project' /tmp/dr-backup-refusal.log
+
+      - name: Prove restore command refuses Production before reading an archive
+        shell: bash
+        run: |
+          set +e
+          DR_ENVIRONMENT=RESTORE_TEST \
+          DATABASE_SCHEMA=visa_os \
+          DR_ALLOW_REMOTE_DISPOSABLE=true \
+          DR_DISPOSABLE_PROJECT_REF=xgetzgixalrsmuvfthpf \
+          DATABASE_URL='postgresql://postgres.xgetzgixalrsmuvfthpf:not-a-secret@aws-1-us-east-1.pooler.supabase.com:6543/postgres' \
+          npm run dr:restore -- --manifest /tmp/does-not-exist.json > /tmp/dr-restore-write-refusal.log 2>&1
+          CODE=$?
+          set -e
+          cat /tmp/dr-restore-write-refusal.log
+          test "$CODE" -eq 2
+          grep -q 'Production Supabase project can never be a restore-test target' /tmp/dr-restore-write-refusal.log
+
+      - name: Prove deployed-restore verifier refuses Production database before HTTP checks
+        shell: bash
+        run: |
+          set +e
+          DR_ENVIRONMENT=RESTORE_TEST \
+          DATABASE_SCHEMA=visa_os \
+          DR_ALLOW_REMOTE_DISPOSABLE=true \
+          DR_DISPOSABLE_PROJECT_REF=xgetzgixalrsmuvfthpf \
+          DR_RESTORE_RELEASE_SHA=53dc61de334c6412c1e5337b4f745c360f69facd \
+          DATABASE_URL='postgresql://postgres.xgetzgixalrsmuvfthpf:not-a-secret@aws-1-us-east-1.pooler.supabase.com:6543/postgres' \
+          npm run dr:app-verify -- \
+            --manifest /tmp/no-manifest.json \
+            --restore-evidence /tmp/no-restore-evidence.json \
+            --base-url https://restore-test.invalid \
+            --target-ref RESTORE-TEST-REF-0001 \
+            --application-evidence-output /tmp/app-evidence.json \
+            --tenant-evidence-output /tmp/tenant-evidence.json > /tmp/dr-app-refusal.log 2>&1
+          CODE=$?
+          set -e
+          cat /tmp/dr-app-refusal.log
+          test "$CODE" -eq 2
+          grep -q 'Production Supabase project can never be a restore-test target' /tmp/dr-app-refusal.log
+
+      - name: Prove restore verifier refuses ambiguous target before connection
+        run: |
+          set +e
+          env -u DATABASE_URL -u DR_ENVIRONMENT npm run dr:restore-verify > /tmp/dr-refusal.log 2>&1
+          CODE=$?
+          set -e
+          cat /tmp/dr-refusal.log
+          test "$CODE" -eq 2
+          grep -q '"status": "REFUSED"' /tmp/dr-refusal.log
+
+      - name: Prove restore verifier refuses the Production project before connection
+        shell: bash
+        run: |
+          set +e
+          DR_ENVIRONMENT=RESTORE_TEST \
+          DATABASE_SCHEMA=visa_os_restore_test \
+          DR_ALLOW_REMOTE_DISPOSABLE=true \
+          DR_DISPOSABLE_PROJECT_REF=xgetzgixalrsmuvfthpf \
+          DATABASE_URL='postgresql://postgres.xgetzgixalrsmuvfthpf:not-a-secret@aws-1-us-east-1.pooler.supabase.com:6543/postgres' \
+          npm run dr:restore-verify > /tmp/dr-prod-refusal.log 2>&1
+          CODE=$?
+          set -e
+          cat /tmp/dr-prod-refusal.log
+          test "$CODE" -eq 2
+          grep -q 'Production Supabase project can never be a restore-test target' /tmp/dr-prod-refusal.log

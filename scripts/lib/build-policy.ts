@@ -11,6 +11,7 @@ export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
   "codex/essafaria-premium-redesign",
   "codex/essafaria-product-excellence",
   "release/essafaria-rc-2026-09",
+  "dr/pre-codex-gate-2026-10-03",
 ] as const;
 
 export function automaticDatabaseChangesForbidden(branch: string | null | undefined): boolean {
