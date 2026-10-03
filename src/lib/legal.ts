@@ -39,6 +39,25 @@ export async function readPublishedLegal(
   return result.rows[0] ?? null;
 }
 
+/** Latest immutable published record, including a scheduled future-effective version. */
+export async function readLatestLegal(
+  kind: LegalKind,
+  locale: UiLocale,
+): Promise<PublishedLegal | null> {
+  const result = await pool.query(
+    `select id, body, version,
+            effective_at as "effectiveAt",
+            published_at as "publishedAt",
+            author_id as "authorId"
+       from ${qualifiedTable("legal_versions")}
+      where kind=$1 and locale=$2
+      order by version desc
+      limit 1`,
+    [kind, locale],
+  );
+  return result.rows[0] ?? null;
+}
+
 /**
  * Publishes content that has already completed the owner/legal approval process.
  *
