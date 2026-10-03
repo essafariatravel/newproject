@@ -66,6 +66,7 @@ async function main() {
   const after = resolve(dir, "db-after.json");
   const summary = resolve(dir, "k6-summary.json");
   const monitor = resolve(dir, "db-monitor.json");
+  const evaluation = resolve(dir, "evaluation.json");
   const monitorSeconds = holdMinutes * 60 + 120;
 
   const env: NodeJS.ProcessEnv = {
@@ -89,6 +90,7 @@ async function main() {
   run("npm", ["run", "perf:snapshot"], { ...env, PERF_SNAPSHOT_FILE: before });
 
   let monitorProcess: ChildProcess | null = null;
+  let k6Error: unknown = null;
   try {
     monitorProcess = start("npm", ["run", "perf:monitor"], {
       ...env,
@@ -97,7 +99,12 @@ async function main() {
       PERF_MONITOR_OUTPUT: monitor,
     });
 
-    run("npm", ["run", "perf:k6"], env);
+    try {
+      run("npm", ["run", "perf:k6"], env);
+    } catch (error) {
+      // Preserve post-run DB evidence even when k6 itself exits non-zero.
+      k6Error = error;
+    }
   } finally {
     await stop(monitorProcess);
   }
@@ -105,21 +112,35 @@ async function main() {
   run("npm", ["run", "perf:snapshot"], { ...env, PERF_SNAPSHOT_FILE: after });
 
   try {
-    run("npm", ["run", "perf:evaluate", "--", summary, before, after], env);
+    run("npm", ["run", "perf:evaluate", "--", summary, before, after], {
+      ...env,
+      PERF_EVALUATE_OUTPUT: evaluation,
+    });
   } catch (error) {
     console.error(JSON.stringify({
       action: "PERFORMANCE_TIER_STOP",
       vus,
       reason: "Evaluator rejected this tier. Investigate before any higher tier.",
-      evidence: { before, after, summary, monitor },
+      k6ExitedNonZero: Boolean(k6Error),
+      evidence: { before, after, summary, monitor, evaluation },
     }, null, 2));
     throw error;
+  }
+
+  if (k6Error) {
+    console.error(JSON.stringify({
+      action: "PERFORMANCE_TIER_STOP",
+      vus,
+      reason: "k6 exited non-zero even though post-run evidence was preserved. Do not escalate.",
+      evidence: { before, after, summary, monitor, evaluation },
+    }, null, 2));
+    throw k6Error;
   }
 
   console.log(JSON.stringify({
     action: "PERFORMANCE_TIER_ELIGIBLE_FOR_REVIEW",
     vus,
-    evidence: { before, after, summary, monitor },
+    evidence: { before, after, summary, monitor, evaluation },
     nextStep: "Review evidence. A human/agent may consider the next tier; this runner will not start it.",
   }, null, 2));
 }
