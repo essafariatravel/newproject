@@ -4,11 +4,13 @@ import { suiteSetup } from "./helpers/global-state";
 import { request } from "./helpers/request";
 import { agencyByEmail, userByEmail } from "./helpers/fixtures";
 import { db, pool } from "@/lib/db";
-import { applications, communications, visaTypes } from "@/db/schema";
+import { applications, authRateLimits, communications, visaTypes } from "@/db/schema";
 import { qualifiedTable } from "@/lib/database-schema";
 import { createSession } from "@/lib/auth";
 import { createDraftApplication } from "@/lib/applications";
 import { postMessageAction } from "@/app/actions/communications";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
+import { hashToken } from "@/lib/crypto";
 
 suiteSetup();
 afterEach(() => { request.cookie = ""; });
@@ -48,4 +50,29 @@ describe("communication audit integrity", () => {
       await db.delete(applications).where(eq(applications.id, app.id)).catch(() => undefined);
     }
   });
+  it("blocks message flooding before another communication is persisted", async () => {
+    const agency = await agencyByEmail("ops@agencya.example");
+    const actor = await userByEmail("a-admin@test.example");
+    const visa = (await db.select().from(visaTypes).limit(1))[0]!;
+    const app = await createDraftApplication({ agencyId: agency.id, visaTypeId: visa.id, createdBy: actor });
+    request.cookie = (await createSession(actor.id)).token;
+
+    const key = hashToken(`message-user-minute:${actor.id}`);
+    await db.delete(authRateLimits).where(eq(authRateLimits.key, key));
+    for (let i = 0; i < 20; i += 1) {
+      expect(await consumeAuthRateLimit("message-user-minute", actor.id, 20, 60_000)).toBe(true);
+    }
+
+    const form = new FormData();
+    form.set("applicationId", app.id);
+    form.set("body", "Flood attempt must be rejected");
+    await expect(postMessageAction(form)).rejects.toThrow(/NEXT_REDIRECT/);
+
+    const rows = await db.select().from(communications).where(eq(communications.applicationId, app.id));
+    expect(rows).toHaveLength(0);
+
+    await db.delete(authRateLimits).where(eq(authRateLimits.key, key));
+    await db.delete(applications).where(eq(applications.id, app.id)).catch(() => undefined);
+  });
+
 });
