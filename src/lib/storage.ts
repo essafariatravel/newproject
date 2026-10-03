@@ -14,6 +14,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { documentBlobs } from "@/db/schema";
 import { AppError } from "@/lib/types";
+import { logErrorOnce } from "@/lib/observability";
 
 export interface StorageProvider {
   put(key: string, data: Buffer, mimeType: string): Promise<void>;
@@ -75,7 +76,6 @@ const supabaseProvider: StorageProvider = {
       body: new Uint8Array(data),
     });
     if (!res.ok) {
-      console.error("supabase-storage-put-failed", res.status);
       throw new AppError("STORAGE_WRITE_FAILED", "Could not store the file.");
     }
   },
@@ -85,7 +85,6 @@ const supabaseProvider: StorageProvider = {
       headers: { Authorization: `Bearer ${serviceKey}` },
     });
     if (!res.ok) {
-      console.error("supabase-storage-get-failed", res.status);
       throw new AppError("NOT_FOUND", "Stored file not found.");
     }
     const buf = Buffer.from(await res.arrayBuffer());
@@ -98,19 +97,68 @@ const supabaseProvider: StorageProvider = {
       headers: { Authorization: `Bearer ${serviceKey}` },
     });
     if (!res.ok && res.status !== 404) {
-      console.error("supabase-storage-delete-failed", res.status);
     }
   },
 };
+
+function instrumentProvider(name: "db" | "supabase", provider: StorageProvider): StorageProvider {
+  return {
+    async put(key, data, mimeType) {
+      try {
+        await provider.put(key, data, mimeType);
+      } catch (error) {
+        logErrorOnce("storage.put.failed", error, {
+          severity: "error",
+          classification: "BUSINESS_FAILURE",
+          result: "technical_failed",
+          action: "storage.put",
+          metadata: { provider: name },
+        });
+        throw error;
+      }
+    },
+    async get(key) {
+      try {
+        return await provider.get(key);
+      } catch (error) {
+        logErrorOnce("storage.get.failed", error, {
+          severity: "error",
+          classification: "BUSINESS_FAILURE",
+          result: "technical_failed",
+          action: "storage.get",
+          metadata: { provider: name },
+        });
+        throw error;
+      }
+    },
+    async delete(key) {
+      try {
+        await provider.delete(key);
+      } catch (error) {
+        logErrorOnce("storage.delete.failed", error, {
+          severity: "warning",
+          classification: "BUSINESS_FAILURE",
+          result: "technical_failed",
+          action: "storage.delete",
+          metadata: { provider: name },
+        });
+        throw error;
+      }
+    },
+  };
+}
+
+const instrumentedDbProvider = instrumentProvider("db", dbProvider);
+const instrumentedSupabaseProvider = instrumentProvider("supabase", supabaseProvider);
 
 /* ------------------------------ selection -------------------------------- */
 
 export function storageProvider(): StorageProvider {
   switch (process.env.STORAGE_PROVIDER) {
     case "supabase":
-      return supabaseProvider;
+      return instrumentedSupabaseProvider;
     default:
-      return dbProvider;
+      return instrumentedDbProvider;
   }
 }
 
