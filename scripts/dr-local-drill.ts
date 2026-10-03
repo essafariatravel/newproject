@@ -615,7 +615,7 @@ async function main() {
     const restoredPool = new Pool({ connectionString: connection(TARGET_DB) });
     try {
       const wallet = await restoredPool.query<{ balance: string }>(
-        `select balance::text from "${PRODUCTION_SCHEMA}".agencies where email='drill@example.invalid'`,
+        `select balance::text from "${PRODUCTION_SCHEMA}".agencies where email='dr-agency-a@example.invalid'`,
       );
       if (wallet.rows[0]?.balance !== "100.00") throw new Error("Restored wallet balance does not match synthetic source.");
       const blobs = await restoredPool.query<{ durable: number; staged: number }>(
