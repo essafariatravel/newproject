@@ -17,6 +17,7 @@ export function trackedPrivateArtifactProblem(file: string): string | null {
   if (base === ".env.example") return null;
   if (base === ".env" || base.startsWith(".env.")) return "tracked environment file";
   if (base === ".pgpass") return "tracked PostgreSQL password file";
+  if (lower.endsWith(".dr-key")) return "tracked disaster-recovery encryption key";
 
   const lower = base.toLowerCase();
   if (lower.endsWith(".dump") || lower.endsWith(".dump.enc") || lower.endsWith(".backup")) {
