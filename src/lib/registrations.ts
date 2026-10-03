@@ -371,22 +371,8 @@ export async function submitAgencyRegistration(params: {
   // 2. Database, one transaction (registration + documents + history).
   try {
     const reference = await persistRegistration(id, data, stored, params.ipAddress);
-    // 3. Side effects (non-critical, individually guarded).
-    await recordAudit({
-      actor: null,
-      action: "AGENCY_REGISTRATION_SUBMITTED",
-      entity: "agency_registration",
-      entityId: id,
-      metadata: {
-        reference,
-        legalName: data.legalName,
-        country: data.country,
-        businessType: data.businessType,
-        documents: stored.length,
-        locale: data.locale,
-      },
-      ipAddress: params.ipAddress,
-    });
+    // 3. Notifications are non-critical post-commit side effects. The
+    // registration audit itself is persisted inside persistRegistration().
     const staff = await staffUserIds([...REGISTRATION_DECIDE_ROLES]).catch(() => [] as string[]);
     await notifyUsers(staff, {
       type: "REGISTRATION_SUBMITTED",
@@ -465,6 +451,26 @@ async function persistRegistration(
           toStatus: "PENDING",
           actorId: null,
           note: "Application submitted from the public website.",
+        });
+        // Audit and registration commit atomically: a persisted KYC/partnership
+        // request must never exist without its submission evidence.
+        await tx.insert(auditLogs).values({
+          actorId: null,
+          actorEmail: null,
+          actorRole: null,
+          agencyId: null,
+          action: "AGENCY_REGISTRATION_SUBMITTED",
+          entity: "agency_registration",
+          entityId: id,
+          metadata: {
+            reference,
+            legalName: data.legalName,
+            country: data.country,
+            businessType: data.businessType,
+            documents: stored.length,
+            locale: data.locale,
+          },
+          ipAddress,
         });
         return reference;
       });
