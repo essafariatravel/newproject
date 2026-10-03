@@ -47,7 +47,11 @@ Application SHA with full deterministic + current-SHA hosted validation:
 
 `91388f0a049b2f9138a1cdd3b93ef8ff10b92a34`
 
-Latest privacy-harness SHA with deterministic validation and live same-lineage hosted diagnostics:
+Final technical SHA with deterministic validation, local built-runtime validation and privacy-log regression guards:
+
+`391b05c0e317ac2dbf25aae1b536cb10f38dbba6`
+
+The immediately preceding hosted-harness SHA was:
 
 `20aca63ebcb64c7da437775a37d3385fa7b3f6b9`
 
@@ -133,7 +137,7 @@ Public registration uses a strict field whitelist.
 
 Injected legacy KYC fields and mass-assignment fields are ignored.
 
-Public authentication/registration error logging was reduced to safe technical codes where appropriate rather than dumping raw error objects.
+Public authentication/registration error logging is reduced to safe technical codes rather than dumping raw error objects. A regression guard now covers both the public login page and authentication server action.
 
 Sensitive application/document/wallet payloads are not intentionally copied into general telemetry by this gate.
 
@@ -245,13 +249,13 @@ GitHub Actions workflow:
 
 `RC deterministic verification`
 
-Run:
+Final run:
 
-**#196**
+**#207**
 
 Verified SHA:
 
-`91388f0a049b2f9138a1cdd3b93ef8ff10b92a34`
+`391b05c0e317ac2dbf25aae1b536cb10f38dbba6`
 
 Result:
 
@@ -263,11 +267,13 @@ Evidence:
 - TypeScript: PASS;
 - ESLint: PASS;
 - shell harness syntax: PASS;
-- targeted build/Preview guard: PASS;
+- targeted build/Preview guard: **5 / 5 tests PASS**;
 - broader deterministic suite: **90 test files PASS**;
-- total tests: **639 / 639 PASS**;
+- total tests: **640 / 640 PASS**;
 - Next.js build: PASS;
 - local legal/privacy runtime smoke: PASS.
+
+The additional test introduced after RC #196 prevents public auth/login paths from returning to raw `console.error(..., err)` logging.
 
 ## Local built-runtime privacy smoke
 
@@ -315,6 +321,8 @@ Current-SHA application run:
 Additional live privacy/browser diagnostic with the final hardened harness:
 
 **#36 — SUCCESS — 41 PASS / 0 FAIL / 62 SKIP**
+
+A later hosted run (**#38**) re-exercised the same live privacy/browser harness after the public login logging hardening and also completed successfully.
 
 Run #36 used the successful same-lineage Preview at `91388f0a...` because the harness-only commit itself was temporarily Vercel-rate-limited. The workflow explicitly labels that mode as a stale diagnostic and never represents it as a deployment validation of the newer SHA.
 
