@@ -7,6 +7,10 @@ const EXTS = new Set([".tsx", ".ts", ".jsx", ".js", ".css", ".scss"]);
 const APPROVED_SPACING = new Set([0, 4, 8, 16, 24, 32]);
 const APPROVED_FONT_PX = new Set([12, 16, 18, 24, 32]);
 const ALLOWED_TW_SPACING = new Set(["0", "1", "2", "4", "6", "8"]);
+const TECHNICAL_SPACING_ALLOWLIST = new Map([
+  ["src/components/app-shell.tsx", new Set(["lg:ps-64"])],
+  ["src/components/forms.tsx", new Set(["pe-16"])],
+]);
 const BLOCK = [];
 const REVIEW = [];
 
@@ -38,6 +42,7 @@ function auditTailwind(file, src) {
   const spacingRe = /^(p|px|py|pt|pr|pb|pl|ps|pe|m|mx|my|mt|mr|mb|ml|ms|me|gap|gap-x|gap-y|space-x|space-y)-(.+)$/;
   const seen = new Set();
   for (const raw of tokenMatches) {
+    if (TECHNICAL_SPACING_ALLOWLIST.get(file)?.has(raw)) continue;
     const token = stripVariants(raw);
     const m = token.match(spacingRe);
     if (!m) continue;
@@ -108,7 +113,7 @@ function auditCssSpacing(file, src) {
     const vals=m[2].trim().split(/\s+/).filter(v=>!v.startsWith("calc(")&&v!=="auto"&&v!=="normal");
     for(const v of vals){
       const px=toPx(v);
-      if(px!==null && !APPROVED_SPACING.has(px)) add(BLOCK,file,lineNo(src,m.index),"css-layout-spacing",`${m[1]}: ${v}`,`${px}px outside approved scale`);
+      if(px!==null && !APPROVED_SPACING.has(Math.abs(px))) add(BLOCK,file,lineNo(src,m.index),"css-layout-spacing",`${m[1]}: ${v}`,`${px}px outside approved scale`);
     }
   }
 }

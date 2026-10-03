@@ -81,7 +81,7 @@ a, button, summary, input, select, textarea { -webkit-tap-highlight-color: trans
 .agency-departure-copy .travel-eyebrow { margin-bottom: 16px; color: #d4dfe8; }
 .agency-departure h1 { color: white; font-size: 32px; line-height: 1.12; font-weight: 600; letter-spacing: -.035em; max-width: 14ch; }
 .agency-departure-copy > p:last-child { margin-top: 16px; font-size: 16px; color: #d4dfe8; }
-.agency-start { position: relative; display: flex; flex-direction: column; justify-content: flex-end; min-height: 260px; background: #cbd8e0; padding-top: 115px; }
+.agency-start { position: relative; display: flex; flex-direction: column; justify-content: flex-end; min-height: 260px; background: #cbd8e0; padding-top: 32px; }
 .agency-start > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 58% center; }
 .agency-start-form { position: relative; margin: 16px; padding: 16px; background: white; border-radius: 6px; }
 .agency-start-fields { display: flex; align-items: end; gap: 8px; }
@@ -139,7 +139,7 @@ a, button, summary, input, select, textarea { -webkit-tap-highlight-color: trans
 
 @media (min-width: 1024px) {
   .agency-bottom-navigation { display: none; }
-  .workspace-agency #workspace-main { padding-bottom: 36px; }
+  .workspace-agency #workspace-main { padding-bottom: 32px; }
   .agency-desktop-navigation { display: flex; align-items: center; gap: 16px; background: var(--color-navy-900); padding: 8px max(32px,calc((100vw - 1376px)/2)); }
   .agency-desktop-navigation > div, .agency-desktop-navigation > div > div { display: contents; }
   .agency-desktop-navigation p { display: none; }

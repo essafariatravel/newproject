@@ -28,7 +28,7 @@ export function CardHeader(props: { title: string; actions?: ReactNode; subtitle
     <div className="card-header flex flex-wrap items-center justify-between gap-2 border-b border-line/70 px-4 py-4" data-testid={props.testId}>
       <div>
         <h2 className="text-lg font-semibold text-navy-900">{props.title}</h2>
-        {props.subtitle ? <p className="mt-0.5 text-xs text-slate-400">{props.subtitle}</p> : null}
+        {props.subtitle ? <p className="mt-1 text-xs text-slate-400">{props.subtitle}</p> : null}
       </div>
       {props.actions ? <div className="flex items-center gap-2">{props.actions}</div> : null}
     </div>
