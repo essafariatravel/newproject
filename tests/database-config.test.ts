@@ -62,4 +62,16 @@ describe("database configuration", () => {
     }
   });
 
+  it("forces every PostgreSQL connection into the validated application schema", () => {
+    const cfg = databasePoolConfig({
+      DATABASE_URL: "postgresql://postgres:secret@localhost:5432/postgres",
+      DATABASE_SCHEMA: "visa_os_preview",
+    });
+    expect(cfg.options).toBe("-c search_path=visa_os_preview,pg_catalog");
+    expect(() => databasePoolConfig({
+      DATABASE_URL: "postgresql://postgres:secret@localhost:5432/postgres",
+      DATABASE_SCHEMA: "public;drop schema public",
+    })).toThrow();
+  });
+
 });
