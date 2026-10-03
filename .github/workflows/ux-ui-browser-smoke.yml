@@ -1,0 +1,106 @@
+name: UX UI Browser Smoke
+
+on:
+  push:
+    branches:
+      - design/ux-ui-final-polish
+  workflow_dispatch:
+
+concurrency:
+  group: ux-ui-browser-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    name: Ephemeral browser QA
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/essafaria
+      STORAGE_PROVIDER: db
+      VERCEL: "0"
+      VERCEL_ENV: ""
+      ALLOW_DEMO_SEED: "false"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify checkout
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install project dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Install disposable browser QA dependencies
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0 @axe-core/playwright@4.10.2
+          npx playwright install --with-deps chromium
+
+      - name: Start local embedded PostgreSQL
+        run: |
+          npm run db:up > /tmp/ux-pg.log 2>&1 &
+          echo $! > /tmp/ux-pg.pid
+          node - <<'NODE'
+          const net=require("node:net");
+          const deadline=Date.now()+60000;
+          (function wait(){
+            const s=net.createConnection({host:"127.0.0.1",port:5432});
+            s.on("connect",()=>{s.end();process.exit(0)});
+            s.on("error",()=>{s.destroy();if(Date.now()>deadline)process.exit(1);setTimeout(wait,500)});
+          })();
+          NODE
+
+      - name: Migrate disposable database
+        run: npm run db:migrate
+
+      - name: Seed disposable browser fixtures
+        run: npx tsx scripts/ux-ui-browser-seed.ts
+
+      - name: Start local Next.js
+        run: |
+          npm run dev -- --hostname 127.0.0.1 > /tmp/ux-app.log 2>&1 &
+          echo $! > /tmp/ux-app.pid
+          for i in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/ux-app.log
+          exit 1
+
+      - name: Browser smoke + axe + screenshots
+        env:
+          BASE_URL: http://127.0.0.1:3000
+        run: node scripts/ux-ui-browser-smoke.mjs
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ux-ui-browser-evidence
+          path: artifacts/ux-ui-browser
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload local service logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ux-ui-browser-service-logs
+          path: |
+            /tmp/ux-app.log
+            /tmp/ux-pg.log
+          if-no-files-found: ignore
+          retention-days: 7
