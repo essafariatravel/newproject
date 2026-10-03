@@ -35,15 +35,15 @@ export default async function LoginPage() {
 
   return (
     <div className="auth-entrance grid min-h-[calc(100vh-4rem)] grid-cols-1 lg:grid-cols-2">
-      <div className="auth-story relative hidden flex-col justify-between overflow-hidden border-e border-white/10 bg-navy-950 bg-[url('/images/departure-atelier.webp')] bg-cover bg-center p-12 text-white lg:flex">
+      <div className="auth-story relative hidden flex-col justify-between overflow-hidden border-e border-white/10 bg-navy-950 bg-[url('/images/departure-atelier.webp')] bg-cover bg-center p-8 text-white lg:flex">
         <div aria-hidden className="pointer-events-none absolute inset-0 bg-navy-950/65" />
         <img className="relative h-20 w-28 rounded bg-white p-2 object-contain" src={logoUrl ?? "/images/essafaria-logo.png"} alt={branding.name} width="112" height="80" />
         <div className="relative">
-          <h2 className="font-serif text-4xl leading-snug text-white">
+          <h2 className="font-serif text-[32px] leading-snug text-white">
             {ct("One platform for your entire")}
             <span className="italic text-gold-600"> {ct("visa operation")}</span>
           </h2>
-          <p className="mt-4 max-w-md text-sm leading-relaxed text-white/80">
+          <p className="mt-4 max-w-md text-base leading-relaxed text-white/80">
             {ct("Agency partners manage applications, documents and wallets. Staff process files from the central Back Office.")}
           </p>
         </div>
@@ -57,7 +57,7 @@ export default async function LoginPage() {
             <img className="h-20 w-28 object-contain" src={logoUrl ?? "/images/essafaria-logo.png"} alt={branding.name} width="112" height="80" />
           </div>
           <h1 className="font-serif text-2xl text-navy-900">{ct("Sign in")}</h1>
-          <p className="mt-1 text-sm text-slate-500">{ct("Agency portal and Back Office access.")}</p>
+          <p className="mt-1 text-base text-slate-500">{ct("Agency portal and Back Office access.")}</p>
           <LoginForm
         copy={{
           email: it("Username or staff email"),

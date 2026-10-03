@@ -13,6 +13,6 @@ export function RecoveryForm({ locale }: { locale: UiLocale }) {
     <label className="label" htmlFor="recovery-identifier">{t("Username or staff email")}</label>
     <input id="recovery-identifier" name="identifier" className="input" type="text" required maxLength={254} autoComplete="username" dir="ltr" />
     <SubmitButton className="btn-primary w-full" pendingLabel="…">{t("Request access help")}</SubmitButton>
-    {state.message ? <p className="text-sm text-slate-600" role="status">{t(state.message)}</p> : null}
+    {state.message ? <p className="text-base text-slate-600" role="status">{t(state.message)}</p> : null}
   </form>;
 }

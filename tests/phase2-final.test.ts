@@ -321,26 +321,28 @@ describe("C6 — nationality selector with localized labels and Algeria default"
 });
 
 /* =================================================================== */
-/*  Correction 7 — applications list: APPLICANT column after REFERENCE */
+/*  Correction 7 — applications list: travel-first operational grammar */
 /* =================================================================== */
-describe("C7 — Applications list APPLICANT column (order, search, fallback, localization)", () => {
-  it("column order: REFERENCE → APPLICANT → VISA/COUNTRY → DOCUMENTS → FEE → STATUS → CREATED", () => {
-    // evaluate header order INSIDE the <thead> markup (labels like "Status"
-    // also appear earlier in the filter bar).
+describe("C7 — Applications list travel-first order, search, fallback, localization", () => {
+  it("column order: DESTINATION → APPLICANT → STATUS → DOCUMENTS → FEE → CREATED → NEXT ACTION", () => {
+    // The final-polish gate deliberately replaces the older reference-first
+    // SaaS table with the Agency travel grammar while keeping reference visible.
     const thead = LIST_PAGE.slice(LIST_PAGE.indexOf("<thead"), LIST_PAGE.indexOf("</thead>"));
+    const destinationIdx = thead.indexOf('ct("Destination")');
     const applicantIdx = thead.indexOf('ct("Applicant")');
-    const visaIdx = thead.indexOf('ct("Visa / Country")');
+    const statusIdx = thead.indexOf('ct("Status")');
     const docsIdx = thead.indexOf('ct("Documents")');
     const feeIdx = thead.indexOf('ct("Fee")');
-    const statusIdx = thead.indexOf('ct("Status")');
     const createdIdx = thead.indexOf('ct("Created")');
-    expect(applicantIdx).toBeGreaterThan(-1);
-    expect(LIST_PAGE).toContain("{r.app.reference}</span>");
-    expect(applicantIdx).toBeLessThan(visaIdx);
-    expect(visaIdx).toBeLessThan(docsIdx);
+    const actionIdx = thead.indexOf('ct("Next action")');
+    expect(destinationIdx).toBeGreaterThan(-1);
+    expect(LIST_PAGE).toContain("<bdi>{r.app.reference}</bdi>");
+    expect(destinationIdx).toBeLessThan(applicantIdx);
+    expect(applicantIdx).toBeLessThan(statusIdx);
+    expect(statusIdx).toBeLessThan(docsIdx);
     expect(docsIdx).toBeLessThan(feeIdx);
-    expect(feeIdx).toBeLessThan(statusIdx);
-    expect(statusIdx).toBeLessThan(createdIdx);
+    expect(feeIdx).toBeLessThan(createdIdx);
+    expect(createdIdx).toBeLessThan(actionIdx);
     expect(LIST_PAGE).toContain("r.applicantSummary ?? \"—\""); // safe legacy fallback
   });
 

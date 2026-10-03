@@ -38,7 +38,7 @@ describe("§50 — public header at mobile", () => {
     expect(HEADER).toContain('aria-label={open ? labels.close : labels.menu}');
     // The panel is mobile/tablet only, the inline nav is desktop only.
     expect(HEADER).toContain("lg:hidden");
-    expect(HEADER).toContain("hidden items-center gap-1 lg:flex");
+    expect(HEADER).toContain("hidden items-center gap-2 lg:flex");
   });
 
   it("cannot overflow horizontally at 320px", () => {
@@ -59,5 +59,14 @@ describe("§50 — public header at mobile", () => {
     // server layout instead of being imported here.
     expect(HEADER).toContain("localeSwitcher");
     expect(LAYOUT).toContain("<UiLanguageSwitcher");
+  });
+});
+
+
+describe("§50 — final-polish control sizing", () => {
+  it("keeps public navigation and menu controls at least 44px tall", () => {
+    expect(HEADER).toContain("min-h-11");
+    expect(HEADER).toContain("h-11 w-11");
+    expect(HEADER).not.toContain("text-sm font-medium");
   });
 });

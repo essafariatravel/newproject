@@ -69,7 +69,7 @@ export default async function PortalDocumentsPage({
               {result.rows.map(({ doc, applicationReference, documentTypeName }) => (
                 <tr key={doc.id} className="tr-hover">
                   <td className="td max-w-[220px]">
-                    <a href={`/api/documents/${doc.id}`} target="_blank" rel="noopener noreferrer" className="block truncate font-medium text-navy-900 hover:underline">
+                    <a href={`/api/documents/${doc.id}`} target="_blank" rel="noopener noreferrer" className="block truncate font-semibold text-navy-900 hover:underline">
                       {doc.originalFilename}
                     </a>
                   </td>
