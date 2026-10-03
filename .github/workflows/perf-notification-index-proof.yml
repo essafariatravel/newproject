@@ -1,0 +1,133 @@
+name: Performance notification index disposable proof
+
+on:
+  push:
+    branches:
+      - perf/performance-gate-prep
+    paths:
+      - .github/workflows/perf-notification-index-proof.yml
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      VERCEL: "0"
+      VERCEL_ENV: ""
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/essafaria
+      DATABASE_SCHEMA: public
+      PERF_ACK_NONPROD: "YES"
+      PERF_SYNTHETIC_PASSWORD: "ci-only-performance-secret-2026"
+      STORAGE_PROVIDER: db
+      ALLOW_DEMO_SEED: "false"
+      CI: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+
+      - name: Start disposable PostgreSQL
+        shell: bash
+        run: |
+          npm run db:up >/tmp/perf-pg.log 2>&1 &
+          echo $! > /tmp/perf-pg.pid
+          READY=0
+          for i in $(seq 1 45); do
+            if (echo > /dev/tcp/127.0.0.1/5432) >/dev/null 2>&1; then READY=1; break; fi
+            sleep 1
+          done
+          if [ "$READY" != "1" ]; then cat /tmp/perf-pg.log; exit 1; fi
+          npm run db:setup
+          npm run perf:seed-identities
+
+      - name: Seed 100k applications and notification volume
+        shell: bash
+        run: |
+          PERF_DATASET_ID=indexproof100k \
+          PERF_APPLICATIONS=100000 \
+          PERF_AGENCIES=1000 \
+          PERF_DOCS_PER_APP=0 \
+          PERF_NOTIFICATIONS_PER_APP=3 \
+          PERF_MESSAGES_PER_APP=0 \
+          PERF_AUDITS_PER_APP=0 \
+          PERF_LEDGER_ROWS=0 \
+          PERF_BATCH_SIZE=2000 \
+          npm run perf:seed-scale
+
+      - name: Benchmark before candidate index
+        shell: bash
+        run: |
+          mkdir -p perf/results
+          PERF_DATASET_ID=indexproof100k \
+          PERF_BENCH_REPEATS=9 \
+          PERF_BENCH_OUTPUT=perf/results/index-proof-before.json \
+          npm run perf:benchmark
+
+          PERF_DATASET_ID=indexproof100k \
+          PERF_ALLOW_EXPLAIN_ANALYZE=YES \
+          PERF_EXPLAIN_OUTPUT=perf/results/index-proof-explain-before.json \
+          npm run perf:explain
+
+      - name: Apply localhost-only proof index
+        shell: bash
+        run: |
+          PERF_ALLOW_LOCAL_INDEX_PROOF=YES \
+          PERF_INDEX_CANDIDATE=notifications_unread_user \
+          npm run perf:index-proof | tee perf/results/index-proof-build.json
+
+      - name: Benchmark after candidate index
+        shell: bash
+        run: |
+          PERF_DATASET_ID=indexproof100k \
+          PERF_BENCH_REPEATS=9 \
+          PERF_BENCH_OUTPUT=perf/results/index-proof-after.json \
+          npm run perf:benchmark
+
+          PERF_DATASET_ID=indexproof100k \
+          PERF_ALLOW_EXPLAIN_ANALYZE=YES \
+          PERF_EXPLAIN_OUTPUT=perf/results/index-proof-explain-after.json \
+          npm run perf:explain
+
+      - name: Print exact notification improvement
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const before = JSON.parse(fs.readFileSync('perf/results/index-proof-before.json','utf8'));
+          const after = JSON.parse(fs.readFileSync('perf/results/index-proof-after.json','utf8'));
+          const pick = (x) => x.queries.find((q) => q.name === 'notifications_unread_count');
+          const b = pick(before), a = pick(after);
+          if (!b || !a) throw new Error('notification benchmark missing');
+          const improvement = ((b.p95Ms - a.p95Ms) / b.p95Ms) * 100;
+          console.log(JSON.stringify({
+            query: 'notifications_unread_count',
+            beforeP95Ms: b.p95Ms,
+            afterP95Ms: a.p95Ms,
+            improvementPct: improvement,
+            evidenceOnly: true
+          }, null, 2));
+          NODE
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-index-proof-${{ github.sha }}
+          path: perf/results/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Stop disposable PostgreSQL
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/perf-pg.pid ]; then kill "$(cat /tmp/perf-pg.pid)" >/dev/null 2>&1 || true; fi
