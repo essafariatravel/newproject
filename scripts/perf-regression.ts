@@ -21,9 +21,11 @@ function isBenchmark(value: Benchmark | K6Summary): value is Benchmark {
 function operationMetrics(summary: K6Summary) {
   const result = new Map<string, { p95: number; p99: number }>();
   for (const [name, metric] of Object.entries(summary.metrics ?? {})) {
-    const match = name.match(/^http_req_duration\{operation:([^}]+)\}$/);
-    if (!match) continue;
-    result.set(match[1]!, {
+    const trend = name.match(/^op_(.+)$/);
+    const tagged = name.match(/^http_req_duration\{operation:([^}]+)\}$/);
+    const operation = trend?.[1] ?? tagged?.[1];
+    if (!operation) continue;
+    result.set(operation, {
       p95: Number(metric.values?.["p(95)"] ?? Number.NaN),
       p99: Number(metric.values?.["p(99)"] ?? Number.NaN),
     });
