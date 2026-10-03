@@ -355,6 +355,7 @@ async function main() {
   const dataDir = path.join(root, "postgres");
   const dumpPath = path.join(root, "source.dump");
   const encryptedPath = path.join(root, "synthetic.dump.enc");
+  const corruptedEncryptedPath = path.join(root, "synthetic.corrupted.dump.enc");
   const manifestPath = path.join(root, "synthetic.manifest.json");
   const restoreEvidencePath = path.join(root, "synthetic.restore-evidence.json");
   const offsiteCopyPath = path.join(root, "independent-copy", "synthetic-copy.dump.enc");
@@ -413,6 +414,20 @@ async function main() {
       await run(pgBinary("pg_restore"), ["--list", dumpPath], pgEnv(SOURCE_DB));
       await encryptFileAes256Gcm(dumpPath, encryptedPath, key);
       await verifyEncryptedFileAes256Gcm(encryptedPath, key);
+
+      const encryptedBytes = await readFile(encryptedPath);
+      const corruptedBytes = Buffer.from(encryptedBytes);
+      corruptedBytes[corruptedBytes.length - 1] = corruptedBytes[corruptedBytes.length - 1]! ^ 0x01;
+      await writeFile(corruptedEncryptedPath, corruptedBytes, { mode: 0o600 });
+      let corruptedArchiveRejected = false;
+      try {
+        await verifyEncryptedFileAes256Gcm(corruptedEncryptedPath, key);
+      } catch {
+        corruptedArchiveRejected = true;
+      }
+      if (!corruptedArchiveRejected) {
+        throw new Error("Authenticated encryption failed to reject a one-byte corrupted DR archive.");
+      }
 
       const encryptedStats = await stat(encryptedPath);
       const objects = objectResult.rows.map((row) => ({
@@ -508,6 +523,47 @@ async function main() {
     const evidence = JSON.parse(await readFile(restoreEvidencePath, "utf8")) as RestoreEvidence;
     if (!evidence.databaseVerificationPassed || !evidence.walletReconciliationPassed || !evidence.storageReconciliationPassed) {
       throw new Error("Synthetic restore evidence did not record all technical reconciliations as passed.");
+    }
+
+    const contentFaultPool = new Pool({ connectionString: connection(TARGET_DB) });
+    try {
+      const original = await contentFaultPool.query<{ data: Buffer }>(
+        `select data from "${PRODUCTION_SCHEMA}".document_blobs where key='branding/synthetic-dr-logo'`,
+      );
+      const originalData = original.rows[0]?.data;
+      if (!originalData) throw new Error("Synthetic durable blob was not restored for content-integrity fault injection.");
+      const corruptedData = Buffer.from(originalData);
+      corruptedData[0] = corruptedData[0]! ^ 0x01;
+      await contentFaultPool.query(
+        `update "${PRODUCTION_SCHEMA}".document_blobs set data=$1 where key='branding/synthetic-dr-logo'`,
+        [corruptedData],
+      );
+      try {
+        const mismatch = await runExpectExit(process.execPath, [
+          tsx,
+          "scripts/dr-verify-restore.ts",
+          "--expected-manifest",
+          manifestPath,
+        ], {
+          ...process.env,
+          PATH: childPath,
+          NODE_ENV: "test",
+          DR_ENVIRONMENT: "RESTORE_TEST",
+          DATABASE_SCHEMA: PRODUCTION_SCHEMA,
+          DATABASE_URL: connection(TARGET_DB),
+          STORAGE_PROVIDER: "db",
+        }, 2);
+        if (!mismatch.stdout.includes("MANIFEST_STORAGE_INVENTORY_MISMATCH")) {
+          throw new Error("Same-size blob corruption was not identified as a storage inventory mismatch.");
+        }
+      } finally {
+        await contentFaultPool.query(
+          `update "${PRODUCTION_SCHEMA}".document_blobs set data=$1 where key='branding/synthetic-dr-logo'`,
+          [originalData],
+        );
+      }
+    } finally {
+      await contentFaultPool.end();
     }
 
     const nextBin = path.join(process.cwd(), "node_modules", "next", "dist", "bin", "next");
@@ -725,6 +781,8 @@ async function main() {
       structuredTenantEvidenceExercised: true,
       offsiteCopyByteIdentityVerified: true,
       offsiteCopyAuthenticationVerified: true,
+      encryptedArchiveCorruptionRejected: true,
+      sameSizeBlobCorruptionRejected: true,
       manifestMismatchRefusalExercised: true,
       evidenceBundleVerified: true,
       finalManifestState: finalAssessment.status,
