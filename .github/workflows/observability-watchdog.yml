@@ -1,0 +1,301 @@
+name: Observability Watchdog
+
+on:
+  pull_request:
+    branches:
+      - release/essafaria-rc-2026-09
+  schedule:
+    # GitHub schedules are best-effort. Offset from :00 to reduce queue contention.
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: observability-watchdog-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  preview-db-watch:
+    name: Preview integrity and DB watchdog
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: Preview
+    outputs:
+      severity: ${{ steps.report.outputs.severity }}
+      watchdog_status: ${{ steps.report.outputs.watchdog_status }}
+      reasons: ${{ steps.report.outputs.reasons }}
+    env:
+      DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+      DATABASE_SCHEMA: visa_os_preview
+      VERCEL_ENV: preview
+      VERCEL_GIT_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      OBSERVABILITY_CUTOVER_AT: "2026-10-03T00:00:00.000Z"
+      STORAGE_PROVIDER: db
+      ALLOW_DEMO_SEED: "false"
+      CI: "true"
+      WATCHDOG_OUTPUT_PATH: observability-watchdog-preview.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Guard Preview-only target
+        shell: bash
+        run: |
+          test "$DATABASE_SCHEMA" = "visa_os_preview"
+          test -n "$DATABASE_URL"
+          test "$VERCEL_ENV" = "preview"
+          echo "Preview watchdog target guard passed."
+
+      - name: Run Preview watchdog
+        id: probe
+        continue-on-error: true
+        run: npm run observability:watchdog:preview
+
+      - name: Classify watchdog result
+        id: report
+        if: always()
+        shell: bash
+        run: |
+          if [ -s "$WATCHDOG_OUTPUT_PATH" ]; then
+            severity="$(jq -r '.severity // "SEV2"' "$WATCHDOG_OUTPUT_PATH")"
+            watchdog_status="$(jq -r '.status // "incident"' "$WATCHDOG_OUTPUT_PATH")"
+            reasons="$(jq -c '.reasons // ["watchdog_output_invalid"]' "$WATCHDOG_OUTPUT_PATH")"
+          else
+            severity="SEV2"
+            watchdog_status="incident"
+            reasons='["watchdog_output_missing"]'
+          fi
+
+          echo "severity=$severity" >> "$GITHUB_OUTPUT"
+          echo "watchdog_status=$watchdog_status" >> "$GITHUB_OUTPUT"
+          echo "reasons=$reasons" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## ESSAFARIA Preview Watchdog"
+            echo ""
+            echo "- Severity: **$severity**"
+            echo "- Status: **$watchdog_status**"
+            echo "- Reasons: $reasons"
+            echo "- Environment: Preview"
+            echo "- Release: ${{ github.event.pull_request.head.sha || github.sha }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload watchdog evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: observability-watchdog-preview-${{ github.run_id }}
+          path: observability-watchdog-preview.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Fail on actionable incident
+        if: always() && steps.probe.outcome != 'success'
+        run: exit 1
+
+  preview-runtime-watch:
+    name: Preview runtime watchdog
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: Preview
+    outputs:
+      severity: ${{ steps.runtime-report.outputs.severity }}
+      watchdog_status: ${{ steps.runtime-report.outputs.watchdog_status }}
+    env:
+      PREVIEW_BASE_URL: ${{ vars.OBSERVABILITY_PREVIEW_URL || 'https://newproject-git-observability-028195-essafaria-travel-s-projects.vercel.app' }}
+      TARGET_ENVIRONMENT: preview
+      EXPECTED_RELEASE_SHA: ${{ vars.OBSERVABILITY_EXPECTED_RELEASE_SHA }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      HEALTHCHECK_TOKEN: ${{ secrets.HEALTHCHECK_TOKEN }}
+      CI: "true"
+
+    steps:
+      - name: Detect runtime-watch capability
+        id: capability
+        shell: bash
+        run: |
+          if [ -n "$VERCEL_AUTOMATION_BYPASS_SECRET" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Runtime watchdog skipped: Preview deployment-protection bypass is not configured." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.capability.outputs.enabled == 'true'
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        if: steps.capability.outputs.enabled == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - if: steps.capability.outputs.enabled == 'true'
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify protected Preview runtime
+        id: runtime-probe
+        if: steps.capability.outputs.enabled == 'true'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run observability:verify:preview | tee preview-runtime-watchdog.json
+
+      - name: Classify runtime result
+        id: runtime-report
+        if: always()
+        shell: bash
+        run: |
+          if [ "${{ steps.capability.outputs.enabled }}" != "true" ]; then
+            severity="OK"
+            watchdog_status="skipped_missing_bypass"
+          elif [ "${{ steps.runtime-probe.outcome }}" = "success" ]; then
+            severity="OK"
+            watchdog_status="$(jq -r '.status // "pass"' preview-runtime-watchdog.json 2>/dev/null || echo pass)"
+          else
+            severity="SEV2"
+            watchdog_status="incident"
+          fi
+
+          echo "severity=$severity" >> "$GITHUB_OUTPUT"
+          echo "watchdog_status=$watchdog_status" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## ESSAFARIA Preview Runtime Watchdog"
+            echo ""
+            echo "- Severity: **$severity**"
+            echo "- Status: **$watchdog_status**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload runtime watchdog evidence
+        if: always() && steps.capability.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: observability-watchdog-runtime-${{ github.run_id }}
+          path: preview-runtime-watchdog.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Fail on runtime incident
+        if: always() && steps.capability.outputs.enabled == 'true' && steps.runtime-probe.outcome != 'success'
+        run: exit 1
+
+  incident:
+    name: GitHub incident lifecycle
+    if: always() && github.event_name != 'pull_request'
+    needs:
+      - preview-db-watch
+      - preview-runtime-watch
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    env:
+      DB_RESULT: ${{ needs.preview-db-watch.result }}
+      DB_SEVERITY: ${{ needs.preview-db-watch.outputs.severity }}
+      DB_STATUS: ${{ needs.preview-db-watch.outputs.watchdog_status }}
+      DB_REASONS: ${{ needs.preview-db-watch.outputs.reasons }}
+      RUNTIME_RESULT: ${{ needs.preview-runtime-watch.result }}
+      RUNTIME_SEVERITY: ${{ needs.preview-runtime-watch.outputs.severity }}
+      RUNTIME_STATUS: ${{ needs.preview-runtime-watch.outputs.watchdog_status }}
+
+    steps:
+      - name: Open, update or resolve watchdog incident
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = "<!-- essafaria-observability-watchdog -->";
+            const title = "[Observability Watchdog] Active Preview incident";
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const dbFailed = process.env.DB_RESULT === "failure";
+            const runtimeFailed = process.env.RUNTIME_RESULT === "failure";
+            const incident = dbFailed || runtimeFailed;
+            const severity = process.env.DB_SEVERITY === "SEV1" ? "SEV1" : "SEV2";
+            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
+            const release = context.sha;
+
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: "open",
+              per_page: 100,
+            });
+            const openIncident = issues.find(
+              (issue) => !issue.pull_request && typeof issue.body === "string" && issue.body.includes(marker),
+            );
+
+            if (incident) {
+              const body = [
+                marker,
+                "## ESSAFARIA VISA OS — automated watchdog incident",
+                "",
+                `- Severity: **${severity}**`,
+                "- Environment: **Preview**",
+                `- Release: \`${release}\``,
+                `- DB/integrity job: \`${process.env.DB_RESULT}\` / \`${process.env.DB_STATUS || "unknown"}\``,
+                `- DB reasons: \`${process.env.DB_REASONS || "[]"}\``,
+                `- Runtime job: \`${process.env.RUNTIME_RESULT}\` / \`${process.env.RUNTIME_STATUS || "unknown"}\``,
+                `- Evidence: ${runUrl}`,
+                "",
+                "No PII, credentials, document content or raw business identifiers are included in this incident.",
+              ].join("\n");
+
+              if (openIncident) {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: openIncident.number,
+                  body,
+                });
+              } else {
+                await github.rest.issues.create({
+                  owner,
+                  repo,
+                  title,
+                  body,
+                });
+              }
+              return;
+            }
+
+            if (openIncident) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: openIncident.number,
+                body: [
+                  "## Recovery detected",
+                  "",
+                  "- Preview watchdog is healthy again.",
+                  `- Recovery evidence: ${runUrl}`,
+                  `- Release: \`${release}\``,
+                ].join("\n"),
+              });
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: openIncident.number,
+                state: "closed",
+                state_reason: "completed",
+              });
+            }

@@ -17,7 +17,8 @@ import { db, pool } from "@/lib/db";
 import { agencies, applications, walletTransactions } from "@/db/schema";
 import { AppError, type AuthUser } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
-import { agencyUserIds, notifyUsers } from "@/lib/notifications";
+import { agencyUserIds, notifyUsersBestEffort } from "@/lib/notifications";
+import { logErrorOnce, logEvent, pseudonymizeIdentifier } from "@/lib/observability";
 
 export interface WalletMutationResult {
   transactionId: string;
@@ -144,6 +145,7 @@ export async function adjustWallet(params: {
   ipAddress?: string | null;
   operation?: "CREDIT" | "DEBIT";
 }): Promise<string> {
+  const adjustmentStartedAt = Date.now();
   let operation: "CREDIT" | "DEBIT";
   let amountAbs: string;
   if (params.operation) {
@@ -173,8 +175,40 @@ export async function adjustWallet(params: {
       actorId: params.actor.id,
     });
     await client.query("commit");
+    logEvent({
+      eventName: "wallet.adjustment.succeeded",
+      result: "succeeded",
+      actorRole: params.actor.role,
+      tenantRef: pseudonymizeIdentifier(params.agencyId),
+      resourceType: "wallet_transaction",
+      resourceRef: pseudonymizeIdentifier(result.transactionId),
+      metadata: { operation },
+      durationMs: Date.now() - adjustmentStartedAt,
+    });
   } catch (err) {
     await client.query("rollback").catch(() => {});
+    if (err instanceof AppError && err.code === "INSUFFICIENT_FUNDS") {
+      logEvent({
+        eventName: "wallet.negative_balance_prevented",
+        severity: "warning",
+        classification: "SAFE_PREVENTION",
+        result: "prevented",
+        errorCode: err.code,
+        actorRole: params.actor.role,
+        tenantRef: pseudonymizeIdentifier(params.agencyId),
+        metadata: { operation },
+        durationMs: Date.now() - adjustmentStartedAt,
+      });
+    } else {
+      logErrorOnce("wallet.adjustment.technical_failed", err, {
+        severity: "error",
+        classification: "BUSINESS_FAILURE",
+        result: "technical_failed",
+        actorRole: params.actor.role,
+        tenantRef: pseudonymizeIdentifier(params.agencyId),
+        metadata: { operation },
+      });
+    }
     throw err;
   } finally {
     client.release();
@@ -200,14 +234,22 @@ export async function adjustWallet(params: {
   // changed, by how much and what the balance is now, with a deep link to the
   // ledger it happened in. (The submission charge is announced by the submission
   // flow itself, so only manual adjustments notify from here.)
-  const recipients = await agencyUserIds(params.agencyId);
-  await notifyUsers(recipients, {
-    type: "WALLET_ADJUSTED",
-    title: `${operation === "CREDIT" ? "Wallet credited" : "Wallet debited"} — ${money(amountAbs)} DZD`,
-    body: `${params.reason}. New balance: ${money(result.balanceAfter)} DZD. Reference ${result.reference ?? result.transactionId}.`,
-    link: "/portal/wallet",
-    agencyId: params.agencyId,
-  });
+  await notifyUsersBestEffort(
+    agencyUserIds(params.agencyId),
+    {
+      type: "WALLET_ADJUSTED",
+      title: `${operation === "CREDIT" ? "Wallet credited" : "Wallet debited"} — ${money(amountAbs)} DZD`,
+      body: `${params.reason}. New balance: ${money(result.balanceAfter)} DZD. Reference ${result.reference ?? result.transactionId}.`,
+      link: "/portal/wallet",
+      agencyId: params.agencyId,
+    },
+    {
+      actorRole: params.actor.role,
+      tenantRef: pseudonymizeIdentifier(params.agencyId),
+      resourceType: "wallet_transaction",
+      resourceRef: pseudonymizeIdentifier(result.transactionId),
+    },
+  );
 
   return result.transactionId;
 }
@@ -232,6 +274,7 @@ export async function chargeApplicationSubmission(params: {
   draftStatusId: string;
   ipAddress?: string | null;
 }): Promise<ChargeResult> {
+  const chargeStartedAt = Date.now();
   const client = await pool.connect();
   try {
     await client.query("begin");
@@ -312,9 +355,40 @@ export async function chargeApplicationSubmission(params: {
       [app.id, params.draftStatusId, params.submittedStatusId, params.actorId],
     );
     await client.query("commit");
+    logEvent({
+      eventName: "wallet.debit.succeeded",
+      result: "succeeded",
+      tenantRef: pseudonymizeIdentifier(app.agency_id),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(app.id),
+      durationMs: Date.now() - chargeStartedAt,
+    });
     return { transactionId: txId, balanceBefore: balance_before, balanceAfter: balance_after };
   } catch (err) {
     await client.query("rollback").catch(() => {});
+    if (err instanceof AppError && ["INSUFFICIENT_FUNDS", "ALREADY_SUBMITTED"].includes(err.code)) {
+      logEvent({
+        eventName: err.code === "INSUFFICIENT_FUNDS"
+          ? "wallet.debit.prevented"
+          : "wallet.debit.idempotency_prevented",
+        severity: "warning",
+        classification: "SAFE_PREVENTION",
+        result: "prevented",
+        errorCode: err.code,
+        resourceType: "application",
+        resourceRef: pseudonymizeIdentifier(params.applicationId),
+        durationMs: Date.now() - chargeStartedAt,
+      });
+    } else {
+      logErrorOnce("wallet.debit.technical_failed", err, {
+        severity: "error",
+        classification: "BUSINESS_FAILURE",
+        result: "technical_failed",
+        resourceType: "application",
+        resourceRef: pseudonymizeIdentifier(params.applicationId),
+        durationMs: Date.now() - chargeStartedAt,
+      });
+    }
     throw err;
   } finally {
     client.release();

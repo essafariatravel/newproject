@@ -19,6 +19,7 @@ import { qualifiedTable } from "@/lib/database-schema";
 import { recordAudit } from "@/lib/audit";
 import { requirePermission } from "@/lib/rbac";
 import { AppError, type AuthUser } from "@/lib/types";
+import { logErrorOnce, logEvent, pseudonymizeIdentifier } from "@/lib/observability";
 
 export type AdjustmentType = "DISCOUNT" | "SURCHARGE" | "REFUND";
 export const ADJUSTMENT_TYPES: readonly AdjustmentType[] = ["DISCOUNT", "SURCHARGE", "REFUND"];
@@ -133,6 +134,7 @@ export async function applyPriceAdjustment(params: {
   reason: string;
   idempotencyKey?: string | null;
 }): Promise<ApplyPriceAdjustmentResult> {
+  const adjustmentStartedAt = Date.now();
   // ---- stage 0: RBAC (agency-side and unprivileged staff stop here) ----
   requirePermission(params.actor, "applications.pricing.adjust");
 
@@ -169,6 +171,17 @@ export async function applyPriceAdjustment(params: {
       const found = existing.rows[0];
       if (found) {
         await client.query("commit");
+        logEvent({
+          eventName: "wallet.price_adjustment.idempotency_prevented",
+          severity: "info",
+          classification: "SAFE_PREVENTION",
+          result: "replayed",
+          actorRole: params.actor.role,
+          resourceType: "application",
+          resourceRef: pseudonymizeIdentifier(params.applicationId),
+          metadata: { adjustment_type: params.type },
+          durationMs: Date.now() - adjustmentStartedAt,
+        });
         return {
           adjustmentId: found.id,
           replayed: true,
@@ -296,6 +309,17 @@ export async function applyPriceAdjustment(params: {
       },
     });
 
+    logEvent({
+      eventName: "wallet.price_adjustment.succeeded",
+      result: "succeeded",
+      actorRole: params.actor.role,
+      tenantRef: pseudonymizeIdentifier(app.agency_id),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(app.id),
+      metadata: { adjustment_type: params.type },
+      durationMs: Date.now() - adjustmentStartedAt,
+    });
+
     return {
       adjustmentId,
       replayed: false,
@@ -305,10 +329,69 @@ export async function applyPriceAdjustment(params: {
     };
   } catch (err) {
     await client.query("rollback").catch(() => {});
-    if (err instanceof AppError) throw err;
+    if (err instanceof AppError) {
+      const expected = [
+        "VALIDATION",
+        "BAD_STATE",
+        "IMPOSSIBLE_PRICE",
+        "INSUFFICIENT_FUNDS",
+        "NOT_FOUND",
+        "FORBIDDEN",
+      ].includes(err.code);
+      if (expected) {
+        logEvent({
+          eventName: err.code === "INSUFFICIENT_FUNDS"
+            ? "wallet.surcharge.prevented"
+            : "wallet.price_adjustment.prevented",
+          severity: "warning",
+          classification: "SAFE_PREVENTION",
+          result: "prevented",
+          errorCode: err.code,
+          actorRole: params.actor.role,
+          resourceType: "application",
+          resourceRef: pseudonymizeIdentifier(params.applicationId),
+          metadata: { adjustment_type: params.type },
+          durationMs: Date.now() - adjustmentStartedAt,
+        });
+      } else {
+        logErrorOnce("wallet.price_adjustment.technical_failed", err, {
+          severity: "error",
+          classification: "BUSINESS_FAILURE",
+          result: "technical_failed",
+          actorRole: params.actor.role,
+          resourceType: "application",
+          resourceRef: pseudonymizeIdentifier(params.applicationId),
+          metadata: { adjustment_type: params.type },
+          durationMs: Date.now() - adjustmentStartedAt,
+        });
+      }
+      throw err;
+    }
     if (String((err as Error).message).includes("price_adjustments_idempotency_uq")) {
+      logEvent({
+        eventName: "wallet.price_adjustment.idempotency_prevented",
+        severity: "info",
+        classification: "SAFE_PREVENTION",
+        result: "prevented",
+        errorCode: "DUPLICATE_REF_BUCKET",
+        actorRole: params.actor.role,
+        resourceType: "application",
+        resourceRef: pseudonymizeIdentifier(params.applicationId),
+        metadata: { adjustment_type: params.type },
+        durationMs: Date.now() - adjustmentStartedAt,
+      });
       throw new AppError("DUPLICATE_REF_BUCKET", "This adjustment was already applied (idempotency key in use).");
     }
+    logErrorOnce("wallet.price_adjustment.technical_failed", err, {
+      severity: "error",
+      classification: "BUSINESS_FAILURE",
+      result: "technical_failed",
+      actorRole: params.actor.role,
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(params.applicationId),
+      metadata: { adjustment_type: params.type },
+      durationMs: Date.now() - adjustmentStartedAt,
+    });
     throw err;
   } finally {
     client.release();

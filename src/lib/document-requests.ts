@@ -5,6 +5,7 @@ import { AppError, type AuthUser, DOCUMENT_REVIEW_ROLES } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
 import { agencyUserIds, notifyUsers } from "@/lib/notifications";
 import { assertApplicationAccess } from "@/lib/documents";
+import { logEvent, pseudonymizeIdentifier } from "@/lib/observability";
 
 export async function listDocumentRequests(applicationId: string) {
   return db
@@ -133,6 +134,16 @@ export async function requestDocumentReplacement(input: RequestReplacementInput)
     applicationId: input.applicationId,
   });
 
+  logEvent({
+    eventName: "document.request.created",
+    result: "succeeded",
+    actorRole: input.actor.role,
+    tenantRef: pseudonymizeIdentifier(access.agencyId),
+    resourceType: "document_request",
+    resourceRef: pseudonymizeIdentifier(inserted[0]!.id),
+    metadata: { request_type: "REPLACEMENT" },
+  });
+
   return inserted[0]!;
 }
 
@@ -242,6 +253,16 @@ export async function requestAdditionalDocument(input: RequestAdditionalInput) {
     applicationId: input.applicationId,
   });
 
+  logEvent({
+    eventName: "document.request.created",
+    result: "succeeded",
+    actorRole: input.actor.role,
+    tenantRef: pseudonymizeIdentifier(access.agencyId),
+    resourceType: "document_request",
+    resourceRef: pseudonymizeIdentifier(inserted[0]!.id),
+    metadata: { request_type: "ADDITIONAL" },
+  });
+
   return inserted[0]!;
 }
 
@@ -265,4 +286,13 @@ export async function fulfillDocumentRequest(params: {
       updatedAt: new Date(),
     })
     .where(eq(documentRequests.id, params.requestId));
+
+  logEvent({
+    eventName: "document.request.fulfilled",
+    result: "succeeded",
+    actorRole: params.actor.role,
+    resourceType: "document_request",
+    resourceRef: pseudonymizeIdentifier(params.requestId),
+    metadata: { document_ref: pseudonymizeIdentifier(params.documentId) },
+  });
 }

@@ -1,8 +1,9 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { notifications, users } from "@/db/schema";
+import { logErrorOnce } from "@/lib/observability";
 
-type NotificationType =
+export type NotificationType =
   | "APPLICATION_SUBMITTED"
   | "STATUS_CHANGED"
   | "DOCUMENTS_REQUIRED"
@@ -28,16 +29,18 @@ type NotificationType =
  * Insert a notification row per recipient user.
  * Notifications always originate from real server-side events.
  */
+export interface NotificationPayload {
+  type: NotificationType;
+  title: string;
+  body: string;
+  link?: string | null;
+  agencyId?: string | null;
+  applicationId?: string | null;
+}
+
 export async function notifyUsers(
   userIds: string[],
-  payload: {
-    type: NotificationType;
-    title: string;
-    body: string;
-    link?: string | null;
-    agencyId?: string | null;
-    applicationId?: string | null;
-  },
+  payload: NotificationPayload,
 ): Promise<void> {
   const unique = [...new Set(userIds)];
   if (unique.length === 0) return;
@@ -52,6 +55,37 @@ export async function notifyUsers(
       link: payload.link ?? null,
     })),
   );
+}
+
+/**
+ * Post-commit notification delivery that must never turn a completed business
+ * operation into a user-visible failure. Recipient lookup and insert failures
+ * are logged without title/body/recipient identifiers.
+ */
+export async function notifyUsersBestEffort(
+  userIds: string[] | Promise<string[]>,
+  payload: NotificationPayload,
+  context: {
+    actorRole?: string | null;
+    tenantRef?: string | null;
+    resourceType?: string | null;
+    resourceRef?: string | null;
+  } = {},
+): Promise<void> {
+  try {
+    await notifyUsers(await Promise.resolve(userIds), payload);
+  } catch (error) {
+    logErrorOnce("notification.delivery.failed", error, {
+      severity: "warning",
+      classification: "BUSINESS_FAILURE",
+      result: "technical_failed",
+      actorRole: context.actorRole ?? null,
+      tenantRef: context.tenantRef ?? null,
+      resourceType: context.resourceType ?? null,
+      resourceRef: context.resourceRef ?? null,
+      metadata: { notification_type: payload.type },
+    });
+  }
 }
 
 /** All active staff (ESSAFARIA internal) user ids, optionally limited to roles. */

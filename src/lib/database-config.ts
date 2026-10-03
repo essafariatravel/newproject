@@ -1,6 +1,7 @@
 import type { PoolConfig } from "pg";
 import { rootCertificates } from "node:tls";
 import { SUPABASE_CA } from "./supabase-ca";
+import { logEvent } from "./observability";
 
 type Environment = Record<string, string | undefined>;
 const LOCAL_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/essafaria";
@@ -9,6 +10,20 @@ const LOCAL_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/essafa
 // hanging on a 10s connection timeout, and every handler already maps database
 // failures to a safe "Service temporarily unavailable" message.
 const UNCONFIGURED_DATABASE_URL = "postgresql://127.0.0.1:1/essafaria";
+let missingDatabaseConfigLogged = false;
+
+function logMissingDatabaseConfigOnce(): void {
+  if (missingDatabaseConfigLogged) return;
+  missingDatabaseConfigLogged = true;
+  logEvent({
+    eventName: "database.configuration.missing",
+    severity: "error",
+    classification: "BUSINESS_FAILURE",
+    result: "technical_failed",
+    errorCode: "DATABASE_URL_MISSING",
+    action: "database.configuration",
+  });
+}
 
 /** Shared by the server and CLI tools. Never import into a client component. */
 export function databaseUrl(env: Environment = process.env, migration = false): string {
@@ -21,11 +36,7 @@ export function databaseUrl(env: Environment = process.env, migration = false): 
       // available to that branch's Preview (e.g. branch-scoped variables).
       // Log the misconfiguration once per process and defer the failure to
       // query time, where it is already handled safely.
-      console.error(
-        "[database] DATABASE_URL is not configured for this deployment; database queries will fail. " +
-          "Vercel: Settings → Environment Variables → DATABASE_URL → make sure the Preview environment " +
-          "covers this branch (no branch filter), then redeploy.",
-      );
+      logMissingDatabaseConfigOnce();
       return UNCONFIGURED_DATABASE_URL;
     }
     return LOCAL_DATABASE_URL;

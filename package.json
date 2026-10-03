@@ -15,7 +15,12 @@
     "db:setup": "tsx scripts/migrate.ts && tsx scripts/seed.ts",
     "db:up": "tsx scripts/dev-db.ts",
     "db:reset": "tsx scripts/reset.ts",
-    "db:verify": "tsx scripts/verify-db.ts"
+    "db:verify": "tsx scripts/verify-db.ts",
+    "observability:finance:preview": "tsx scripts/check-financial-integrity.ts",
+    "observability:db:preview": "tsx scripts/observability-db-snapshot.ts",
+    "observability:gate:preview": "tsx scripts/observability-gate-preview.ts",
+    "observability:verify:preview": "tsx scripts/verify-preview-deployment.ts",
+    "observability:watchdog:preview": "tsx scripts/observability-watchdog-preview.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

@@ -24,6 +24,7 @@ import {
 import { runAction } from "@/lib/action-helpers";
 import { recordAudit } from "@/lib/audit";
 import { notifyUsers } from "@/lib/notifications";
+import { logErrorOnce, pseudonymizeIdentifier, withObservabilityContext } from "@/lib/observability";
 
 const idSchema = z.string().uuid("Invalid identifier.");
 
@@ -519,23 +520,47 @@ export async function submitRequestAction(formData: FormData): Promise<void> {
   const { redirect } = await import("next/navigation");
   let applicationId = "";
   try {
-    const result = await submitVisaRequest({
-      actor: user,
-      idempotencyKey,
-      countryId,
-      visaTypeId,
-      priorityCode,
-      agencyNotes,
-      travellers,
-      documents,
-      ipAddress: ip,
-    });
+    const tenantRef = pseudonymizeIdentifier(user.agencyId);
+    const result = await withObservabilityContext(
+      { action: "application.submit", actorRole: user.role, tenantRef },
+      () => submitVisaRequest({
+        actor: user,
+        idempotencyKey,
+        countryId,
+        visaTypeId,
+        priorityCode,
+        agencyNotes,
+        travellers,
+        documents,
+        ipAddress: ip,
+      }),
+    );
     applicationId = result.applicationId;
   } catch (error) {
     if (error instanceof AppError) {
+      const technical = ["CONFIG_ERROR", "STORAGE_WRITE_FAILED", "SERVICE_UNAVAILABLE"].includes(error.code);
+      logErrorOnce(
+        technical ? "application.submission.technical_failed" : "application.submission.rejected",
+        error,
+        {
+          severity: technical ? "error" : "info",
+          classification: technical ? "BUSINESS_FAILURE" : "SAFE_PREVENTION",
+          result: technical ? "technical_failed" : "rejected",
+          actorRole: user.role,
+          tenantRef: pseudonymizeIdentifier(user.agencyId),
+          action: "application.submit",
+        },
+      );
       redirect(`/portal/applications/new?error=${encodeURIComponent(error.code)}`);
     }
-    console.error("submit-request-failed", error);
+    logErrorOnce("application.submission.technical_failed", error, {
+      severity: "error",
+      classification: "BUSINESS_FAILURE",
+      result: "technical_failed",
+      actorRole: user.role,
+      tenantRef: pseudonymizeIdentifier(user.agencyId),
+      action: "application.submit",
+    });
     redirect("/portal/applications/new?error=INTERNAL");
   }
 

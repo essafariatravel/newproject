@@ -38,6 +38,7 @@ import type { AuthUser } from "@/lib/types";
 import { AppError, ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES, isAgencyRole } from "@/lib/types";
 import { buildStorageKey, storageProvider } from "@/lib/storage";
 import { isValidNationality } from "@/lib/nationalities";
+import { logErrorOnce, logEvent, pseudonymizeIdentifier } from "@/lib/observability";
 
 /**
  * Phase 2-Final: exactly ONE applicant per request — the portal collects
@@ -268,6 +269,7 @@ function validateRequest(
  * created (or idempotently reused) application.
  */
 export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<SubmitVisaRequestResult> {
+  const observabilityStartedAt = Date.now();
   const agencyId = input.actor.agencyId;
   if (!agencyId || !isAgencyRole(input.actor.role) || input.actor.mustChangePassword) throw new AppError("FORBIDDEN", "Only agency users can submit requests.");
 
@@ -278,6 +280,17 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
     .where(and(eq(applications.idempotencyKey, input.idempotencyKey), eq(applications.agencyId, agencyId)))
     .limit(1);
   if (pre[0]) {
+    logEvent({
+      eventName: "application.submission.idempotency_prevented",
+      severity: "info",
+      classification: "SAFE_PREVENTION",
+      result: "reused",
+      actorRole: input.actor.role,
+      tenantRef: pseudonymizeIdentifier(agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(pre[0].id),
+      durationMs: Date.now() - observabilityStartedAt,
+    });
     return {
       applicationId: pre[0].id,
       reference: pre[0].reference,
@@ -370,6 +383,17 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
     if (existing.rows[0]) {
       await client.query("commit");
       await Promise.allSettled(writtenKeys.map((k) => storageProvider().delete(k)));
+      logEvent({
+        eventName: "application.submission.idempotency_prevented",
+        severity: "info",
+        classification: "SAFE_PREVENTION",
+        result: "reused",
+        actorRole: input.actor.role,
+        tenantRef: pseudonymizeIdentifier(agencyId),
+        resourceType: "application",
+        resourceRef: pseudonymizeIdentifier(existing.rows[0].id),
+        durationMs: Date.now() - observabilityStartedAt,
+      });
       return {
         applicationId: existing.rows[0].id,
         reference: existing.rows[0].reference,
@@ -414,6 +438,17 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
             .limit(1);
           await Promise.allSettled(writtenKeys.map((k) => storageProvider().delete(k)));
           if (winner[0]) {
+            logEvent({
+              eventName: "application.submission.idempotency_prevented",
+              severity: "info",
+              classification: "SAFE_PREVENTION",
+              result: "reused",
+              actorRole: input.actor.role,
+              tenantRef: pseudonymizeIdentifier(agencyId),
+              resourceType: "application",
+              resourceRef: pseudonymizeIdentifier(winner[0].id),
+              durationMs: Date.now() - observabilityStartedAt,
+            });
             return {
               applicationId: winner[0].id,
               reference: winner[0].reference,
@@ -509,6 +544,25 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
 
     await client.query("commit");
 
+    logEvent({
+      eventName: "application.submission.succeeded",
+      result: "succeeded",
+      actorRole: input.actor.role,
+      tenantRef: pseudonymizeIdentifier(agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(applicationId),
+      durationMs: Date.now() - observabilityStartedAt,
+    });
+    logEvent({
+      eventName: "wallet.debit.succeeded",
+      result: "succeeded",
+      actorRole: input.actor.role,
+      tenantRef: pseudonymizeIdentifier(agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(applicationId),
+      durationMs: Date.now() - observabilityStartedAt,
+    });
+
     // Best-effort notifications (outside the transaction — never fail the submit).
     try {
       const { staffUserIds, agencyUserIds, notifyUsers } = await import("@/lib/notifications");
@@ -529,7 +583,15 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
         applicationId,
       });
     } catch (e) {
-      console.error("request-submit-notification-failed", e);
+      logErrorOnce("notification.application_submission.failed", e, {
+        severity: "warning",
+        classification: "BUSINESS_FAILURE",
+        result: "technical_failed",
+        actorRole: input.actor.role,
+        tenantRef: pseudonymizeIdentifier(agencyId),
+        resourceType: "application",
+        resourceRef: pseudonymizeIdentifier(applicationId),
+      });
     }
 
     return {
@@ -541,6 +603,31 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
   } catch (err) {
     await client.query("rollback").catch(() => {});
     await Promise.allSettled(writtenKeys.map((k) => storageProvider().delete(k)));
+    if (err instanceof AppError && err.code === "INSUFFICIENT_FUNDS") {
+      logEvent({
+        eventName: "wallet.debit.prevented",
+        severity: "warning",
+        classification: "SAFE_PREVENTION",
+        result: "prevented",
+        errorCode: err.code,
+        actorRole: input.actor.role,
+        tenantRef: pseudonymizeIdentifier(agencyId),
+        resourceType: "application",
+        resourceRef: pseudonymizeIdentifier(applicationId),
+        durationMs: Date.now() - observabilityStartedAt,
+      });
+    } else {
+      logErrorOnce("application.submission.technical_failed", err, {
+        severity: "error",
+        classification: "BUSINESS_FAILURE",
+        result: "technical_failed",
+        actorRole: input.actor.role,
+        tenantRef: pseudonymizeIdentifier(agencyId),
+        resourceType: "application",
+        resourceRef: pseudonymizeIdentifier(applicationId),
+        durationMs: Date.now() - observabilityStartedAt,
+      });
+    }
     throw err;
   } finally {
     client.release();

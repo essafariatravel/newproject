@@ -159,15 +159,39 @@ describe("decision workflow — direct final outcomes are locked", () => {
 });
 
 describe("decision workflow — audit-proof success paths", () => {
-  it("records an optional note without a document and permits exactly one concurrent final decision", async () => {
+  it("requires an official document and permits exactly one concurrent final decision", async () => {
     const { app, staff } = await appAt("IN_PROCESS");
+
+    await expect(
+      recordApplicationDecision({
+        applicationId: app.id,
+        outcome: "APPROVED",
+        actor: staff,
+        note: "The visa is ready.",
+      }),
+    ).rejects.toMatchObject({ code: "DECISION_DOCUMENT_REQUIRED" });
+    expect(await currentStatus(app.id)).toBe("IN_PROCESS");
+    expect(await getDecisionDocuments(app.id)).toHaveLength(0);
+
     const results = await Promise.allSettled([
-      recordApplicationDecision({ applicationId: app.id, outcome: "APPROVED", actor: staff, note: "The visa is ready." }),
-      recordApplicationDecision({ applicationId: app.id, outcome: "REJECTED", actor: staff, note: "The embassy declined." }),
+      recordApplicationDecision({
+        applicationId: app.id,
+        outcome: "APPROVED",
+        actor: staff,
+        note: "The visa is ready.",
+        file: { name: "approval.pdf", type: "application/pdf", size: PDF.length, data: PDF },
+      }),
+      recordApplicationDecision({
+        applicationId: app.id,
+        outcome: "REJECTED",
+        actor: staff,
+        note: "The embassy declined.",
+        file: { name: "rejection.pdf", type: "application/pdf", size: PDF.length, data: PDF },
+      }),
     ]);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
-    expect(await getDecisionDocuments(app.id)).toHaveLength(0);
+    expect(await getDecisionDocuments(app.id)).toHaveLength(1);
     const messages = await db.execute(sql`select body from communications where application_id=${app.id} and visibility='AGENCY'`);
     expect(messages.rows).toHaveLength(1);
     const audits = await db.select().from(auditLogs).where(and(eq(auditLogs.entityId, app.id), eq(auditLogs.action, "APPLICATION_DECISION_RECORDED")));

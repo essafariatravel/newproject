@@ -205,7 +205,7 @@ export default async function AdminApplicationDetailPage({
 
             {canReview ? (
               <Card className="border-navy-200">
-                <CardHeader title={ct("Final decision")} subtitle={ct("Record the final decision and optionally attach the official document.")} />
+                <CardHeader title={ct("Final decision")} subtitle={ct("Record the final decision with the required official decision document.")} />
                 {decisionDocs.length > 0 ? (
                   <ul className="space-y-2 px-4 py-3 text-sm">
                     {decisionDocs.map((d) => (
@@ -234,8 +234,8 @@ export default async function AdminApplicationDetailPage({
                       </select>
                     </div>
                     <div className="min-w-[260px] flex-1">
-                      <label className="label">{ct("Decision document (PDF/JPG/PNG, optional, 2 MB)")}</label>
-                      <input aria-label={ct("Decision document (PDF/JPG/PNG, optional, 2 MB)")} name="file" type="file" accept="application/pdf,image/jpeg,image/png" className="input" />
+                      <label className="label">{ct("Official decision document (PDF/JPG/PNG, required, 2 MB)")}</label>
+                      <input aria-label={ct("Official decision document (PDF/JPG/PNG, required, 2 MB)")} name="file" type="file" accept="application/pdf,image/jpeg,image/png" className="input" required />
                     </div>
                     <div className="w-full"><label className="label" htmlFor="decision-note">{ct("Message to agency (optional)")}</label><textarea id="decision-note" name="note" maxLength={4000} className="input" rows={2} /></div>
                     <ConfirmButton className="btn-primary" message={ct("Confirm this final decision? The application will be closed.")}>{ct("Record decision")}</ConfirmButton>
