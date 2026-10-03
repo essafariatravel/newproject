@@ -368,9 +368,9 @@ describe("registration approval — provisioning", () => {
     await pool.query(`create trigger test_fail_registration_submission_audit before insert on ${audit}
       for each row execute function ${fn}()`);
     const data = registrationData({
-      legalName: `Audit Rollback Travel ${crypto.randomUUID()}`,
-      email: `audit-rollback-${crypto.randomUUID()}@example.test`,
-      contactEmail: `audit-rollback-${crypto.randomUUID()}@example.test`,
+      legalName: `Audit Rollback Travel ${randomUUID()}`,
+      email: `audit-rollback-${randomUUID()}@example.test`,
+      contactEmail: `audit-rollback-${randomUUID()}@example.test`,
     } as Parameters<typeof registrationData>[0]);
     try {
       await expect(submitAgencyRegistration({ data, files: [], ipAddress: nextIp() }))
