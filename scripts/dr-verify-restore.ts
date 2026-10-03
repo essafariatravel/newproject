@@ -19,6 +19,10 @@ import { Pool } from "pg";
 import { databasePoolConfig } from "../src/lib/database-config";
 import { qualifiedTable } from "../src/lib/database-schema";
 import {
+  DR_DR_CRITICAL_TABLES,
+  PRODUCTION_PROJECT_REF,
+  PRODUCTION_SCHEMA,
+  assessBackupManifest,
   assessRestoreTarget,
   reconcileStorageSnapshot,
   reconcileWalletSnapshot,
@@ -27,32 +31,27 @@ import {
   type TopupSnapshot,
   type WalletAgencySnapshot,
   type WalletLedgerSnapshot,
+  type BackupManifest,
 } from "./lib/dr-safety";
-
-const CRITICAL_TABLES = [
-  "schema_migrations",
-  "agencies",
-  "users",
-  "applications",
-  "applicants",
-  "documents",
-  "document_types",
-  "wallet_transactions",
-  "audit_logs",
-  "site_settings",
-] as const;
+import { storageInventorySha256 } from "./lib/dr-backup";
 
 function parseArgs(args: string[]) {
   let storageManifest: string | undefined;
+  let expectedManifest: string | undefined;
   for (let index = 0; index < args.length; index++) {
     if (args[index] === "--storage-manifest") {
       storageManifest = args[++index];
       if (!storageManifest) throw new Error("--storage-manifest requires a file path");
       continue;
     }
-    throw new Error("Unknown option. Use [--storage-manifest PATH].");
+    if (args[index] === "--expected-manifest") {
+      expectedManifest = args[++index];
+      if (!expectedManifest) throw new Error("--expected-manifest requires a file path");
+      continue;
+    }
+    throw new Error("Unknown option. Use [--storage-manifest PATH] [--expected-manifest PATH].");
   }
-  return { storageManifest };
+  return { storageManifest, expectedManifest };
 }
 
 function asExternalObjects(value: unknown): StorageObjectSnapshot[] {
@@ -97,12 +96,34 @@ async function main() {
   }
 
   const schema = target.schema;
+  let expected: BackupManifest | null = null;
+  if (args.expectedManifest) {
+    let raw: unknown;
+    try {
+      raw = JSON.parse(await readFile(args.expectedManifest, "utf8"));
+    } catch {
+      throw new Error("Expected backup manifest could not be read as JSON.");
+    }
+    const assessment = assessBackupManifest(raw, {
+      environment: "PRODUCTION",
+      projectRef: PRODUCTION_PROJECT_REF,
+      schema: PRODUCTION_SCHEMA,
+    });
+    if (!assessment.manifest || assessment.status === "INVALID") {
+      throw new Error(`Expected backup manifest is INVALID: ${assessment.findings.join("; ")}`);
+    }
+    expected = assessment.manifest;
+    if (expected.source.schema !== schema) {
+      throw new Error("Restore target schema does not match the expected backup manifest schema.");
+    }
+  }
   const pool = new Pool(databasePoolConfig(process.env));
   const client = await pool.connect();
   const findings: string[] = [];
   let tables = new Set<string>();
   let ledger: string[] = [];
   let sequences: string[] = [];
+  const rowCounts: Record<string, number> = {};
   let agencies: WalletAgencySnapshot[] = [];
   let transactions: WalletLedgerSnapshot[] = [];
   let topups: TopupSnapshot[] = [];
@@ -122,8 +143,15 @@ async function main() {
       [schema],
     );
     tables = new Set(tableRows.rows.map((row) => row.table_name));
-    for (const name of CRITICAL_TABLES) {
-      if (!tables.has(name)) findings.push(`CRITICAL_TABLE_MISSING: ${name}`);
+    for (const name of DR_CRITICAL_TABLES) {
+      if (!tables.has(name)) {
+        findings.push(`CRITICAL_TABLE_MISSING: ${name}`);
+        continue;
+      }
+      const count = await client.query<{ total: number }>(
+        `select count(*)::int as total from ${qualifiedTable(name, schema)}`,
+      );
+      rowCounts[name] = Number(count.rows[0]?.total ?? 0);
     }
 
     if (tables.has("schema_migrations")) {
@@ -354,6 +382,63 @@ async function main() {
     const storageResult = reconcileStorageSnapshot(storageReferences, storageObjects);
     findings.push(...storageResult.findings.map((finding) => `STORAGE: ${finding}`));
 
+    let manifestComparison = {
+      enabled: Boolean(expected),
+      rowCountsMatch: null as boolean | null,
+      migrationLedgerMatch: null as boolean | null,
+      sequenceInventoryMatch: null as boolean | null,
+      storageInventoryMatch: null as boolean | null,
+      passed: null as boolean | null,
+    };
+    if (expected) {
+      const rowMismatches = DR_CRITICAL_TABLES.filter(
+        (table) => rowCounts[table] !== expected!.database.rowCounts[table],
+      );
+      if (rowMismatches.length) {
+        findings.push(`MANIFEST_ROW_COUNT_MISMATCH: ${rowMismatches.join(",")}`);
+      }
+
+      const migrationLedgerMatch =
+        ledger.length === expected.source.migrationLedger.length &&
+        ledger.every((name, index) => name === expected!.source.migrationLedger[index]);
+      if (!migrationLedgerMatch) findings.push("MANIFEST_MIGRATION_LEDGER_MISMATCH");
+
+      const observedSequences = [...sequences].sort();
+      const expectedSequences = [...expected.database.sequences].sort();
+      const sequenceInventoryMatch =
+        observedSequences.length === expectedSequences.length &&
+        observedSequences.every((name, index) => name === expectedSequences[index]);
+      if (!sequenceInventoryMatch) findings.push("MANIFEST_SEQUENCE_INVENTORY_MISMATCH");
+
+      const provider = process.env.STORAGE_PROVIDER ?? "db";
+      const expectedProvider = expected.storage.mode === "DATABASE_BLOBS" ? "db" : "supabase";
+      if (provider !== expectedProvider) {
+        findings.push(`MANIFEST_STORAGE_MODE_MISMATCH: expected ${expected.storage.mode}`);
+      }
+      const observedStorageCount = storageObjects.length;
+      const observedStorageBytes = storageObjects.reduce((total, row) => total + row.sizeBytes, 0);
+      const observedStorageSha = storageInventorySha256(storageObjects);
+      const storageInventoryMatch =
+        observedStorageCount === expected.storage.objectCount &&
+        observedStorageBytes === expected.storage.totalBytes &&
+        observedStorageSha === expected.storage.manifestSha256;
+      if (!storageInventoryMatch) findings.push("MANIFEST_STORAGE_INVENTORY_MISMATCH");
+
+      manifestComparison = {
+        enabled: true,
+        rowCountsMatch: rowMismatches.length === 0,
+        migrationLedgerMatch,
+        sequenceInventoryMatch,
+        storageInventoryMatch,
+        passed:
+          rowMismatches.length === 0 &&
+          migrationLedgerMatch &&
+          sequenceInventoryMatch &&
+          storageInventoryMatch &&
+          provider === expectedProvider,
+      };
+    }
+
     await client.query("rollback");
 
     const result = {
@@ -365,10 +450,12 @@ async function main() {
         last: ledger.at(-1) ?? null,
       },
       schema: {
-        criticalTablesExpected: CRITICAL_TABLES.length,
-        criticalTablesPresent: CRITICAL_TABLES.filter((name) => tables.has(name)).length,
+        criticalTablesExpected: DR_CRITICAL_TABLES.length,
+        criticalTablesPresent: DR_CRITICAL_TABLES.filter((name) => tables.has(name)).length,
+        rowCounts,
         sequenceCount: sequences.length,
       },
+      manifestComparison,
       wallet: {
         agenciesChecked: walletResult.agenciesChecked,
         transactionsChecked: walletResult.transactionsChecked,
@@ -401,7 +488,7 @@ async function main() {
 main().catch((error) => {
   // Do not serialize pg errors: connection configuration may contain credentials.
   console.error(error instanceof Error &&
-      /Unknown option|storage manifest|Storage manifest|restore target|DATABASE|DR_/.test(error.message)
+      /Unknown option|storage manifest|Storage manifest|backup manifest|Backup manifest|restore target|DATABASE|DR_/.test(error.message)
     ? error.message
     : "Restore verification could not complete. No data was changed.");
   process.exitCode = 1;
