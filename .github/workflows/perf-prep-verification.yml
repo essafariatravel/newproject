@@ -66,5 +66,58 @@ jobs:
       - name: Verify concurrent 2 MB storage reliability
         run: npm test -- tests/performance-storage-concurrency.test.ts
 
+      - name: Validate synthetic scale seeder on disposable local PostgreSQL
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/essafaria
+          DATABASE_SCHEMA: public
+          PERF_ACK_NONPROD: "YES"
+          PERF_SYNTHETIC_PASSWORD: "ci-only-performance-secret-2026"
+          PERF_DATASET_ID: ci-scale
+          PERF_APPLICATIONS: "100"
+          PERF_AGENCIES: "10"
+          PERF_DOCS_PER_APP: "2"
+          PERF_NOTIFICATIONS_PER_APP: "2"
+          PERF_MESSAGES_PER_APP: "1"
+          PERF_AUDITS_PER_APP: "2"
+          PERF_LEDGER_ROWS: "100"
+        shell: bash
+        run: |
+          npm run db:up >/tmp/perf-pg.log 2>&1 &
+          PG_PID=$!
+          trap 'kill "$PG_PID" >/dev/null 2>&1 || true' EXIT
+          READY=0
+          for i in $(seq 1 45); do
+            if (echo > /dev/tcp/127.0.0.1/5432) >/dev/null 2>&1; then READY=1; break; fi
+            sleep 1
+          done
+          if [ "$READY" != "1" ]; then
+            cat /tmp/perf-pg.log
+            exit 1
+          fi
+          npm run db:setup
+          npx tsx scripts/perf-seed-identities.ts
+          npx tsx scripts/perf-seed-scale.ts
+          node <<'NODE'
+          const { Pool } = require("pg");
+          (async () => {
+            const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+            const q = async (sql) => Number((await pool.query(sql)).rows[0].n);
+            const checks = {
+              applications: await q("select count(*)::int n from applications where agency_notes='PERF_DATASET:ci-scale'"),
+              documents: await q("select count(*)::int n from documents d join applications a on a.id=d.application_id where a.agency_notes='PERF_DATASET:ci-scale'"),
+              notifications: await q("select count(*)::int n from notifications n join applications a on a.id=n.application_id where a.agency_notes='PERF_DATASET:ci-scale'"),
+              communications: await q("select count(*)::int n from communications c join applications a on a.id=c.application_id where a.agency_notes='PERF_DATASET:ci-scale'"),
+              audits: await q("select count(*)::int n from audit_logs l join applications a on a.id::text=l.entity_id where a.agency_notes='PERF_DATASET:ci-scale' and l.action='PERF_SYNTHETIC_EVENT'"),
+              ledger: await q("select count(*)::int n from wallet_transactions where reason='PERF_DATASET:ci-scale:LEDGER'"),
+            };
+            await pool.end();
+            const expected = { applications:100, documents:200, notifications:200, communications:100, audits:200, ledger:100 };
+            for (const [key, value] of Object.entries(expected)) {
+              if (checks[key] !== value) throw new Error(`${key}: expected ${value}, got ${checks[key]}`);
+            }
+            console.log(JSON.stringify(checks));
+          })().catch((err) => { console.error(err); process.exit(1); });
+          NODE
+
       - name: Build without deployment or remote database access
         run: npm run build
