@@ -61,6 +61,7 @@ import { notifyUsers, staffUserIds } from "@/lib/notifications";
 import { generateSessionToken, hashPassword, hashToken } from "@/lib/crypto";
 import type { RegistrationCopy, RegistrationLocale } from "@/lib/i18n";
 import { safeErrorCode } from "@/lib/safe-error";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 
 /* ------------------------------------------------------------------ */
 /* Constants                                                           */
@@ -275,15 +276,21 @@ export async function assertRegistrationRateLimit(ipAddress: string | null): Pro
     throw new AppError("RATE_LIMITED", "Too many attempts. Please wait before submitting again.");
   }
   try {
-    const rows = await db
-      .select({
-        lastHour: sql<number>`count(*) filter (where ${agencyRegistrations.createdAt} > now() - interval '1 hour')::int`,
-        lastDay: sql<number>`count(*) filter (where ${agencyRegistrations.createdAt} > now() - interval '1 day')::int`,
-      })
-      .from(agencyRegistrations)
-      .where(eq(agencyRegistrations.ipAddress, key));
-    const r = rows[0];
-    if (r && (r.lastHour >= RATE_LIMIT_PER_IP_HOUR || r.lastDay >= RATE_LIMIT_PER_IP_DAY)) {
+    // Persist only a one-way hash of the rate-limit subject in auth_rate_limits.
+    // The public partnership record itself does not need a durable raw IP copy.
+    const hourAllowed = await consumeAuthRateLimit(
+      "agency-registration-hour",
+      key,
+      RATE_LIMIT_PER_IP_HOUR,
+      60 * 60_000,
+    );
+    const dayAllowed = await consumeAuthRateLimit(
+      "agency-registration-day",
+      key,
+      RATE_LIMIT_PER_IP_DAY,
+      24 * 60 * 60_000,
+    );
+    if (!hourAllowed || !dayAllowed) {
       throw new AppError("RATE_LIMITED", "Too many attempts. Please wait before submitting again.");
     }
   } catch (err) {
@@ -363,7 +370,7 @@ export async function submitAgencyRegistration(params: {
 
   // 2. Database, one transaction (registration + documents + history).
   try {
-    const reference = await persistRegistration(id, data, stored, params.ipAddress);
+    const reference = await persistRegistration(id, data, stored);
     // 3. Side effects (non-critical, individually guarded).
     await recordAudit({
       actor: null,
@@ -375,7 +382,6 @@ export async function submitAgencyRegistration(params: {
         documents: stored.length,
         locale: data.locale,
       },
-      ipAddress: params.ipAddress,
     });
     const staff = await staffUserIds([...REGISTRATION_DECIDE_ROLES]).catch(() => [] as string[]);
     await notifyUsers(staff, {
@@ -395,7 +401,6 @@ async function persistRegistration(
   id: string,
   data: RegistrationData,
   stored: Array<{ key: string; file: RegistrationFileInput; sha256: string }>,
-  ipAddress: string | null,
 ): Promise<string> {
   let lastError: unknown = null;
   // Retry only on (practically impossible) reference collisions.
@@ -434,7 +439,6 @@ async function persistRegistration(
           consentedAt: new Date(),
           legalConsentVersions: data.legalConsentVersions ?? {},
           status: "PENDING",
-          ipAddress,
         });
         if (stored.length > 0) {
           await tx.insert(agencyRegistrationDocuments).values(
