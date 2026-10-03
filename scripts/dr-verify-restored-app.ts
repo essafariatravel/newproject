@@ -162,16 +162,33 @@ async function main() {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const sessionIds: string[] = [];
   try {
+    const identityColumns = await pool.query<{ table_name: string; column_name: string }>(
+      `select table_name,column_name
+         from information_schema.columns
+        where table_schema=$1 and table_name in ('users','sessions')`,
+      [restoreSchema],
+    );
+    const hasColumn = (table: "users" | "sessions", column: string) =>
+      identityColumns.rows.some((row) => row.table_name === table && row.column_name === column);
+    const userCredentialSelect = hasColumn("users", "credential_version")
+      ? "u.credential_version"
+      : "0::int as credential_version";
+    const activeIdentityClauses = [
+      hasColumn("users", "activation_pending") ? "not u.activation_pending" : null,
+      hasColumn("users", "must_change_password") ? "not u.must_change_password" : null,
+    ].filter(Boolean).map((condition) => `and ${condition}`).join("\n          ");
+
     const staff = await pool.query<{
       id: string;
       credential_version: number;
     }>(
-      `select id::text, credential_version
-         from ${qualifiedTable("users", restoreSchema)}
-        where agency_id is null
-          and role in ('SUPER_ADMIN','ADMIN','VISA_AGENT','ACCOUNTING')
-          and status='ACTIVE' and not activation_pending and not must_change_password
-        order by case role when 'SUPER_ADMIN' then 0 when 'ADMIN' then 1 else 2 end, created_at
+      `select u.id::text, ${userCredentialSelect}
+         from ${qualifiedTable("users", restoreSchema)} u
+        where u.agency_id is null
+          and u.role in ('SUPER_ADMIN','ADMIN','VISA_AGENT','ACCOUNTING')
+          and u.status='ACTIVE'
+          ${activeIdentityClauses}
+        order by case u.role when 'SUPER_ADMIN' then 0 when 'ADMIN' then 1 else 2 end, u.created_at
         limit 1`,
     );
     if (!staff.rows[0]) throw new Error("Disposable restore has no active unlocked Staff identity for application validation.");
@@ -187,7 +204,7 @@ async function main() {
       applicant_count: number;
       wallet_reference: string;
     }>(
-      `select u.id::text, u.agency_id::text, u.credential_version,
+      `select u.id::text, u.agency_id::text, ${userCredentialSelect},
               a.id::text as application_id, a.reference as application_reference,
               d.id::text as document_id, d.size_bytes::int as document_size,
               (select count(*)::int from ${qualifiedTable("applicants", restoreSchema)} ap where ap.application_id=a.id) as applicant_count,
@@ -198,7 +215,7 @@ async function main() {
          join ${qualifiedTable("documents", restoreSchema)} d on d.application_id=a.id
          join ${qualifiedTable("wallet_transactions", restoreSchema)} w on w.agency_id=u.agency_id
         where u.role in ('AGENCY_ADMIN','AGENCY_USER') and u.status='ACTIVE'
-          and not u.activation_pending and not u.must_change_password
+          ${activeIdentityClauses}
           and exists (
             select 1 from ${qualifiedTable("applicants", restoreSchema)} ap2
              where ap2.application_id=a.id
@@ -216,11 +233,11 @@ async function main() {
       agency_id: string;
       credential_version: number;
     }>(
-      `select u.id::text, u.agency_id::text, u.credential_version
+      `select u.id::text, u.agency_id::text, ${userCredentialSelect}
          from ${qualifiedTable("users", restoreSchema)} u
          join ${qualifiedTable("agencies", restoreSchema)} ag on ag.id=u.agency_id and ag.status='ACTIVE'
         where u.role in ('AGENCY_ADMIN','AGENCY_USER') and u.status='ACTIVE'
-          and not u.activation_pending and not u.must_change_password
+          ${activeIdentityClauses}
           and u.agency_id <> $1::uuid
         order by case u.role when 'AGENCY_ADMIN' then 0 else 1 end, u.created_at
         limit 1`,
@@ -233,12 +250,32 @@ async function main() {
 
     async function createRecoverySession(userId: string, credentialVersion: number) {
       const token = randomBytes(32).toString("base64url");
+      const columns = ["user_id", "token_hash", "expires_at"];
+      const values = ["$1::uuid", "$2", "now()+interval '1 hour'"];
+      const params: unknown[] = [userId, tokenHash(token)];
+      if (hasColumn("sessions", "last_activity_at")) {
+        columns.push("last_activity_at");
+        values.push("now()");
+      }
+      if (hasColumn("sessions", "credential_version")) {
+        params.push(credentialVersion);
+        columns.push("credential_version");
+        values.push(`${params.length}`);
+      }
+      if (hasColumn("sessions", "ip_address")) {
+        columns.push("ip_address");
+        values.push("null");
+      }
+      if (hasColumn("sessions", "user_agent")) {
+        columns.push("user_agent");
+        values.push("'ESSAFARIA DR recovery probe'");
+      }
       const row = await pool.query<{ id: string }>(
         `insert into ${qualifiedTable("sessions", restoreSchema)}
-           (user_id,token_hash,expires_at,last_activity_at,credential_version,ip_address,user_agent)
-         values ($1::uuid,$2,now()+interval '1 hour',now(),$3,null,'ESSAFARIA DR recovery probe')
+           (${columns.join(",")})
+         values (${values.join(",")})
          returning id::text`,
-        [userId, tokenHash(token), credentialVersion],
+        params,
       );
       sessionIds.push(row.rows[0]!.id);
       return token;
