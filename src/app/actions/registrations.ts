@@ -23,6 +23,7 @@ import {
 import { AppError } from "@/lib/types";
 import { readPublishedLegal } from "@/lib/legal";
 import { publicBrandCopy } from "@/lib/public-brand-copy";
+import { safeErrorCode } from "@/lib/safe-error";
 
 
 export interface RegistrationFormState {
@@ -185,7 +186,7 @@ export async function submitRegistrationAction(
     if (err instanceof AppError) {
       return { error: localizedError(err.code, copy.errors) };
     }
-    console.error("[registrations] submission failed", err);
+    console.error("[registrations] submission failed", safeErrorCode(err) ?? "unknown");
     return { error: copy.errors.generic };
   }
   redirect(`/agency/register/success?ref=${encodeURIComponent(reference)}&lang=${locale}`);
