@@ -1,13 +1,31 @@
 /**
- * Safe error reporting for logs and diagnostics.
+ * Privacy-first error sanitization for diagnostics and telemetry.
  *
- * PostgreSQL/driver errors never contain the password, but everything printed
- * into build logs or diagnostic endpoints is defensively stripped of anything
- * resembling a connection URI. Node can also reject with an AggregateError
- * (e.g. both IPv6 and IPv4 connection attempts refused), which carries an
- * empty `message` and the useful text in `errors[]`.
+ * Never emit raw credentials, authorization material, signed URLs, request
+ * bodies, or obvious personal identifiers. User-facing AppError messages are
+ * deliberately NOT used by observability; callers should log stable codes.
  */
-const CONNECTION_URI_PATTERN = /postgres(?:ql)?:\/\/\S+/gi;
+const CONNECTION_URI_PATTERN = /(?:postgres(?:ql)?|https?):\/\/[^\s"']+/gi;
+const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi;
+const JWT_PATTERN = /\b[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}\b/g;
+const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const SENSITIVE_QUERY_PATTERN = /([?&](?:token|access_token|refresh_token|signature|sig|secret|key|apikey|api_key|code)=)[^&\s"']+/gi;
+const SENSITIVE_ASSIGNMENT_PATTERN =
+  /\b(password|passwd|authorization|cookie|session|token|secret|service[_-]?role[_-]?key|database[_-]?url)\s*[:=]\s*("[^"]*"|'[^']*'|[^,;\s]+)/gi;
+const PARAMS_PATTERN = /\bparams?\s*:\s*(\[[^\n]*\]|\{[^\n]*\})/gi;
+
+/** Scrub a free-form string before it reaches logs or diagnostic responses. */
+export function redactSensitiveText(value: string): string {
+  return value
+    .replace(CONNECTION_URI_PATTERN, "<redacted-uri>")
+    .replace(BEARER_PATTERN, "Bearer <redacted>")
+    .replace(JWT_PATTERN, "<redacted-token>")
+    .replace(SENSITIVE_QUERY_PATTERN, "$1<redacted>")
+    .replace(SENSITIVE_ASSIGNMENT_PATTERN, (_match, key: string) => `${key}=<redacted>`)
+    .replace(PARAMS_PATTERN, "params: <redacted>")
+    .replace(EMAIL_PATTERN, "<redacted-email>")
+    .slice(0, 500);
+}
 
 export function safeErrorCode(error: unknown): string | null {
   const code = (error as NodeJS.ErrnoException | null)?.code;
@@ -29,5 +47,5 @@ export function safeErrorText(error: unknown): string {
     text = [err?.syscall, safeErrorCode(error), err?.address, err?.port].filter(Boolean).join(" ");
   }
   if (!text) text = String(error ?? "");
-  return text.replace(CONNECTION_URI_PATTERN, "<redacted>").slice(0, 300);
+  return redactSensitiveText(text);
 }
