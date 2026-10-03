@@ -1,6 +1,6 @@
 {
   "version": "2026-10-03",
-  "branch": "security/pre-codex-gate-2026-10-03",
+  "branch": "security/pre-codex-gate-2026-10-03-recovered",
   "controls": [
     {
       "id": "AUTH-01",
@@ -399,6 +399,53 @@
       "evidence": [
         "scripts/security-source-gate.ts",
         "src/app/layout.tsx"
+      ]
+    },
+    {
+      "id": "FILE-03",
+      "title": "Permanent dossier and registration documents are SHA-256 fingerprinted and tamper-checked before download",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "src/lib/file-integrity.ts",
+        "migrations/0027_document_integrity.sql",
+        "tests/file-integrity.test.ts",
+        "tests/file-access-hardening.test.ts"
+      ]
+    },
+    {
+      "id": "FIN-05",
+      "title": "Wallet top-up receipts are SHA-256 bound to immutable request identity before download or credit",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "migrations/0028_file_identity_hardening.sql",
+        "tests/topup-proof-integrity.test.ts"
+      ]
+    },
+    {
+      "id": "DB-03",
+      "title": "Hosted Preview/Production database schemas are fail-closed and runtime search_path is pg_catalog-first",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "src/lib/database-schema.ts",
+        "tests/database-config.test.ts",
+        "tests/database-schema.test.ts"
+      ]
+    },
+    {
+      "id": "SEC-10",
+      "title": "Supabase Storage is project-pinned, environment-bucket isolated, timed out, and cannot silently overwrite objects",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "src/lib/storage.ts",
+        "tests/storage-security.test.ts"
       ]
     }
   ]
