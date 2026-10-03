@@ -7,8 +7,8 @@
   "targetRef": "RESTORE-APPLICATION-DRILL-0001",
   "checks": {
     "healthReachable": false,
-    "staffLogin": false,
-    "agencyLogin": false,
+    "staffAuthenticatedSession": false,
+    "agencyAuthenticatedSession": false,
     "staffCriticalRead": false,
     "agencyOwnApplicationRead": false,
     "agencyOwnDocumentRead": false,
