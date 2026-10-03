@@ -17,6 +17,7 @@ on:
       - "scripts/dr-local-drill.ts"
       - "scripts/dr-verify-offsite-copy.ts"
       - "scripts/dr-verify-restored-app.ts"
+      - "scripts/dr-prod-preflight.ts"
       - "scripts/dr-repo-safety.ts"
       - "scripts/dr-generate-key.ts"
       - "tests/dr-private-path.test.ts"
@@ -122,6 +123,22 @@ jobs:
           CODE=$?
           set -e
           test "$CODE" -eq 2
+
+      - name: Prove Production preflight refuses wrong project before connection
+        shell: bash
+        run: |
+          set +e
+          DR_BACKUP_ENVIRONMENT=PRODUCTION \
+          DR_STORAGE_MODE=DATABASE_BLOBS \
+          DR_RELEASE_SHA=53dc61de334c6412c1e5337b4f745c360f69facd \
+          DATABASE_SCHEMA=visa_os \
+          MIGRATION_DATABASE_URL='postgresql://postgres.ridoyedqgiavgcwnpubq:not-a-secret@aws-1-us-east-1.pooler.supabase.com:5432/postgres' \
+          npm run dr:prod-preflight > /tmp/dr-prod-preflight-refusal.log 2>&1
+          CODE=$?
+          set -e
+          cat /tmp/dr-prod-preflight-refusal.log
+          test "$CODE" -eq 2
+          grep -q 'approved ESSAFARIA Supabase project' /tmp/dr-prod-preflight-refusal.log
 
       - name: Prove backup creator refuses a wrong Production project before pg_dump
         shell: bash
