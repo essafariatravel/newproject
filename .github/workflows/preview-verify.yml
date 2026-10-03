@@ -66,13 +66,17 @@ jobs:
           except Exception:
               raise SystemExit(0)
           for d in deps:
-              if d.get("ref") == "preprod/essafaria-final-hardening":
-                  print(str(d.get("id","")) + " " + str(d.get("sha","")))
+              print(str(d.get("id","")) + " " + str(d.get("sha","")))
           ' 2>/dev/null || true)
 
             while read -r CAND_ID CAND_SHA; do
               [ -n "${CAND_ID:-}" ] || continue
+              [ -n "${CAND_SHA:-}" ] || continue
               [ "$CAND_SHA" = "$WF_SHA" ] && continue
+              # Vercel/GitHub deployment refs are not consistently populated.
+              # Prove same-lineage safety from Git itself: only a Preview whose
+              # deployed SHA is an ancestor of the current preprod HEAD is eligible.
+              git merge-base --is-ancestor "$CAND_SHA" "$WF_SHA" 2>/dev/null || continue
               ENV_URL=$(gh api "repos/$WF_REPO/deployments/$CAND_ID/statuses" | python3 -c '
           import json, sys
           try:
