@@ -32,6 +32,28 @@ status_of()  { curl -s -o "$2" -w "%{http_code}" --max-time 30 "$1"; }
 statusb_of() { curl -s -b "$3" -c "$3" -o "$2" -w "%{http_code}" --max-time 30 "$1"; }
 statusbl_of() { curl -s -b "$3" -c "$3" -b "evos_ui_locale=$4" -o "$2" -w "%{http_code}" --max-time 30 "$1"; }
 
+# Hard safety boundary: this harness may mutate ONLY local dev or a Vercel
+# Preview hostname. Never allow the Production custom domain (or any arbitrary
+# host supplied through BASE_URL) to reach a mutating probe.
+TARGET_HOST=$(python3 - "$BASE_URL" <<'PY'
+from urllib.parse import urlparse
+import sys
+print((urlparse(sys.argv[1]).hostname or "").lower())
+PY
+)
+case "$TARGET_HOST" in
+  localhost|127.0.0.1) ;;
+  *.vercel.app) ;;
+  visa.essafariavoyages.com|essafariavoyages.com|www.essafariavoyages.com)
+    log "FAIL  SAFETY: hosted verification refuses the Production domain"
+    exit 2
+    ;;
+  *)
+    log "FAIL  SAFETY: hosted verification target must be localhost or *.vercel.app (got: ${TARGET_HOST:-unknown})"
+    exit 2
+    ;;
+esac
+
 # Submit the <form> identified by `marker` (a string inside it, e.g. the submit
 # button label) from the given fetched HTML file to `pageurl`, exactly like a
 # no-JS browser would: every hidden input is carried; extra fields come from an
@@ -78,86 +100,17 @@ log "Target: $BASE_URL"
 log ""
 
 # -------------------------------------------------------------------------- #
-# P0 PROD DIAG (read-only): the custom production domain is being promoted
-# from branch deployments; verify what its own diagnostics endpoint reports.
-# GET /api/health is the app's purpose-built, credential-free, redacted
-# diagnostics route (SELECT to_regclass / limit-0 column probes / ledger read).
-log "-- [0a] P0 PROD diag (read-only): https://visa.essafariavoyages.com/api/health"
-CODE_PROD=$(status_of "https://visa.essafariavoyages.com/api/health" "$WORK/prod-health.json")
-if [ "$CODE_PROD" = "200" ]; then
-  python3 -c "
-import json
-d=json.load(open('$WORK/prod-health.json'))
-db=d.get('database') or {}; s=d.get('schema') or {}
-led=s.get('migrationLedger') or []
-err=db.get('error') or {}
-print('PASS  PROD health 200: ok=%s configured=%s connected=%s columnsValid=%s schema=%s ledger=%d last=%s accounts=%s' % (
-  d.get('ok'), db.get('configured'), db.get('connected'), s.get('columnsValid'),
-  s.get('name'), len(led), (led[-1] if led else 'none'), s.get('hasUserAccounts')))
-print('PASS  PROD db.identity: host=%s port=%s mode=%s ssl=%s intendedSupabaseProject=%s' % (
-  db.get('host'), db.get('port'), db.get('mode'), db.get('ssl'), db.get('intendedSupabaseProject')))
-print('PASS  PROD db.error: code=%s message=%s' % (err.get('code'), str(err.get('message'))[:140]))
-rt=' '.join('%s=%s' % (k, v) for k, v in (s.get('requiredTables') or {}).items())
-print('PASS  PROD requiredTables: %s' % (rt or 'none'))"
-else
-  log "INFO  PROD health returned http $CODE_PROD"
-fi
-CODE_PROD_LOGIN=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://visa.essafariavoyages.com/login")
-{ [ "$CODE_PROD_LOGIN" = "200" ] && ok "PROD /login page renders (http 200)" || skp "PROD /login render returned http $CODE_PROD_LOGIN"; }
-
-# -------------------------------------------------------------------------- #
-log "-- [0] Health check"
+log "-- [0] Public readiness + deployment-boundary check"
 CODE=$(status_of "$BASE_URL/api/health" "$WORK/health.json")
 if [ "$CODE" = "200" ] && python3 -c "
 import json,sys
 d=json.load(open('$WORK/health.json'))
-sys.exit(0 if (d.get('ok') is True
-  and (d.get('schema') or {}).get('columnsValid') is True
-  and (d.get('database') or {}).get('error') is None) else 1)
-"; then
-  ok "health: ok=true, columnsValid=true, database.error=null ($CODE)"
-  grep -q 'agency_registrations' "$WORK/health.json" && ok "health: agency_registrations table present" \
-  || ok "health: table list not exposed (columnsValid already asserted)"
-  # Diag context: which schema/ledger/accounts state the deployed Preview sees.
-  # No credentials and no connection string are ever printed — only the schema
-  # name, the pooler mode/ssl flags and the migration ledger.
-  python3 -c "
-import json
-d=json.load(open('$WORK/health.json'))
-s=d.get('schema') or {}; db=d.get('database') or {}
-led=s.get('migrationLedger') or []
-print('PASS  health ctx: schema=%s mode=%s ssl=%s intendedProject=%s accounts=%s ledger=%d entries last=%s' % (
-  s.get('name'), db.get('mode'), db.get('ssl'), db.get('intendedSupabaseProject'),
-  s.get('hasUserAccounts'), len(led), (led[-1] if led else 'none')))
-" 2>/dev/null || bad "health ctx: could not read the Preview schema/ledger from the health payload"
-
-  # HARD REQUIREMENT: the Preview deployment must run schema visa_os_preview and
-  # must never be pointed at the production schema visa_os.
-  PREVIEW_SCHEMA=$(python3 -c "
-import json
-print((json.load(open('$WORK/health.json')).get('schema') or {}).get('name') or '')" 2>/dev/null || true)
-  if [ "$PREVIEW_SCHEMA" = "visa_os_preview" ]; then
-    ok "health: Preview schema is visa_os_preview"
-  elif [ "$PREVIEW_SCHEMA" = "visa_os" ]; then
-    bad "health: Preview deployment is pointing at the PRODUCTION schema visa_os — STOP"
-  else
-    bad "health: Preview schema is '${PREVIEW_SCHEMA:-unknown}' — must be visa_os_preview"
-  fi
-
-  # The preview work-set must be applied where it runs: 0013-0017 on the Preview
-  # ledger (this is what the pre-production gate applies, forward-only).
-  if python3 -c "
-import json
-led=(json.load(open('$WORK/health.json')).get('schema') or {}).get('migrationLedger') or []
-required=['0013_embassy_applicability.sql','0014_wallet_topup_requests.sql','0016_document_type_audience.sql','0017_decision_types_audience.sql']
-missing=[m for m in required if m not in led]
-raise SystemExit(1 if missing else 0)" 2>/dev/null; then
-    ok "health: Preview ledger carries the preview work-set (0013, 0014, 0016, 0017)"
-  else
-    bad "health: Preview ledger is missing part of the preview work-set (0013/0014/0016/0017)"
-  fi
+sys.exit(0 if d.get('ok') is True and d.get('service') == 'essafaria-visa-os' else 1)
+" 2>/dev/null; then
+  ok "public health: configured deployment boundary accepted ($CODE)"
 else
-  bad "health endpoint ($CODE)"
+  bad "SAFETY: Preview public health/boundary check failed ($CODE)"
+  exit 2
 fi
 
 # -------------------------------------------------------------------------- #
@@ -328,8 +281,28 @@ else
   printf 'email=%s\npassword=%s\n' "$STAFF_EMAIL" "$STAFF_PASS" > "$WORK/loginfields.txt"
   CODE=$(submit_form "$WORK/login.html" "$BASE_URL/login" "Sign in" "$WORK/staff.txt" "$WORK/loginfields.txt")
   LOC_L=$(loc_header)
-  if grep -qi 'set-cookie:.*evos_session=' "$WORK/headers.txt" && echo "$LOC_L" | grep -qE "/admin|/portal"; then
-    ok "staff login → evos_session + redirect ${LOC_L}"
+  if grep -Eqi 'set-cookie:.*(__Host-)?evos_session=' "$WORK/headers.txt" && echo "$LOC_L" | grep -qE "/admin|/portal"; then
+    ok "staff login → hardened session cookie + redirect ${LOC_L}"
+
+    # Before any privileged hosted mutation, obtain the authenticated health
+    # report and hard-stop unless this deployment is the isolated Preview
+    # schema on the intended Supabase project with the security migrations.
+    CODE_SH=$(statusb_of "$BASE_URL/api/health" "$WORK/staff-health.json" "$WORK/staff.txt")
+    if [ "$CODE_SH" = "200" ] && python3 -c "
+import json,sys
+d=json.load(open('$WORK/staff-health.json'))
+db=d.get('database') or {}; s=d.get('schema') or {}
+led=s.get('migrationLedger') or []
+required=['0026_function_privilege_hardening.sql','0027_document_integrity.sql','0028_file_identity_hardening.sql']
+ok=(d.get('ok') is True and db.get('connected') is True and db.get('intendedSupabaseProject') is True
+    and s.get('name') == 'visa_os_preview' and all(x in led for x in required))
+sys.exit(0 if ok else 1)
+" 2>/dev/null; then
+      ok "SAFETY: authenticated health confirms visa_os_preview + intended project + security ledger"
+    else
+      bad "SAFETY: authenticated Preview DB boundary verification failed — STOP"
+      exit 2
+    fi
   else
     bad "staff login failed (http $CODE, ${LOC_L:-no redirect})"
   fi
