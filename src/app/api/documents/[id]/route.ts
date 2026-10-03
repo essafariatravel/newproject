@@ -29,7 +29,7 @@ export async function GET(
   }
   try {
     const row = await getDocumentForUser(id, user);
-    const { data, mimeType } = await storageProvider().get(row.doc.storageKey);
+    const { data } = await storageProvider().get(row.doc.storageKey);
     assertStoredFileIntegrity({ data, expectedSizeBytes: row.doc.sizeBytes, expectedSha256: row.doc.sha256 });
     await recordAudit({
       actor: user,
@@ -43,7 +43,7 @@ export async function GET(
     return new NextResponse(new Uint8Array(data), {
       status: 200,
       headers: {
-        "Content-Type": mimeType,
+        "Content-Type": row.doc.mimeType,
         "Content-Length": String(data.length),
         "Content-Disposition": `attachment; filename="${safeName}"`,
         "Cache-Control": "private, no-store",
