@@ -27,6 +27,7 @@
 
   --color-line: #e5e8eb;
   --color-control-border: #8a8f98;
+  --color-slate-400: #667085;
 
   --color-gold-700: #8a6419;
   --color-gold-600: #a77c23;
@@ -641,4 +642,12 @@ body {
   border-radius: .5rem;
   background: white;
   box-shadow: var(--shadow-pop);
+}
+
+
+/* Final-polish responsive guard: keep the 1024px Staff header inside the viewport. */
+@media (min-width:1024px) and (max-width:1279px) {
+  .workspace-staff .account-menu-identity,
+  .workspace-staff .account-chevron { display:none; }
+  .workspace-staff .account-menu { flex-shrink:0; }
 }

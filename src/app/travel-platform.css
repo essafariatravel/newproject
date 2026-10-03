@@ -137,7 +137,7 @@ a, button, summary, input, select, textarea { -webkit-tap-highlight-color: trans
 .auth-story .italic { font-style: normal; color: #dab66b; }
 @keyframes travel-disclose { from { opacity: .6; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 
-@media (min-width: 1024px) {
+@media (min-width: 1280px) {
   .agency-bottom-navigation { display: none; }
   .workspace-agency #workspace-main { padding-bottom: 32px; }
   .agency-desktop-navigation { display: flex; align-items: center; gap: 16px; background: var(--color-navy-900); padding: 8px max(32px,calc((100vw - 1376px)/2)); }
@@ -146,6 +146,18 @@ a, button, summary, input, select, textarea { -webkit-tap-highlight-color: trans
   .agency-desktop-navigation a { min-height: 44px; padding: 8px 16px; border-inline-start: 0; border-bottom: 2px solid transparent; border-radius: 0; white-space: nowrap; }
   .agency-desktop-navigation a[aria-current] { background: #102a45; border-bottom-color: var(--color-gold-500); }
 }
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .workspace-agency .workspace-menu {
+    display: inline-flex;
+    width: 44px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+  }
+  .workspace-agency #workspace-main { padding-bottom: 92px; }
+}
+
 @media (max-width: 1023px) {
   .workspace-agency .workspace-topbar { height: 66px; gap: 8px; }
   .workspace-agency .workspace-menu { order: 2; width: 44px; height: 44px; border: 0; }
