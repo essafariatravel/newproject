@@ -4,8 +4,9 @@ import { assertSafePerfTarget, PERF_EXPECTED_PROJECT } from "../scripts/perf-saf
 const previewUrl =
   `postgresql://postgres.${PERF_EXPECTED_PROJECT}:not-a-real-password@aws-1-us-east-1.pooler.supabase.com:6543/postgres`;
 
-function env(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+function env(overrides: Partial<NodeJS.ProcessEnv> = {}): NodeJS.ProcessEnv {
   return {
+    NODE_ENV: "test",
     PERF_ACK_NONPROD: "YES",
     DATABASE_SCHEMA: "visa_os_preview",
     DATABASE_URL: previewUrl,
