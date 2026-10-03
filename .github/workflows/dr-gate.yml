@@ -20,6 +20,8 @@ on:
       - "tests/reset-plan.test.ts"
       - "tests/build-preview-guard.test.ts"
       - "docs/operations/disaster-recovery.md"
+      - "docs/operations/dr-production-readonly-evidence-2026-10-03.md"
+      - "docs/operations/dr-executable-procedure.md"
       - "docs/operations/dr-backup-manifest.example.json"
       - "docs/operations/go-live-reset.md"
       - "package.json"
