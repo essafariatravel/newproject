@@ -15,6 +15,7 @@ on:
       - "scripts/lib/dr-finalization.ts"
       - "scripts/dr-finalize.ts"
       - "scripts/dr-local-drill.ts"
+      - "scripts/dr-verify-offsite-copy.ts"
       - "scripts/reset.ts"
       - "scripts/lib/reset-plan.ts"
       - "scripts/lib/build-policy.ts"
