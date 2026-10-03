@@ -31,7 +31,11 @@ import {
   storageInventorySha256,
   verifyEncryptedFileAes256Gcm,
 } from "./lib/dr-backup";
-import type { RestoreEvidence } from "./lib/dr-finalization";
+import type {
+  RestoreEvidence,
+  ApplicationRecoveryEvidence,
+  TenantIsolationEvidence,
+} from "./lib/dr-finalization";
 
 const PORT = 5441;
 const USER = "postgres";
@@ -193,6 +197,8 @@ async function main() {
   const restoreEvidencePath = path.join(root, "synthetic.restore-evidence.json");
   const offsiteCopyPath = path.join(root, "independent-copy", "synthetic-copy.dump.enc");
   const offsiteEvidencePath = path.join(root, "synthetic.offsite-evidence.json");
+  const applicationEvidencePath = path.join(root, "synthetic.application-evidence.json");
+  const tenantEvidencePath = path.join(root, "synthetic.tenant-evidence.json");
   const verifiedManifestPath = path.join(root, "synthetic.verified.manifest.json");
   const tamperedManifestPath = path.join(root, "synthetic.tampered.manifest.json");
   const key = Buffer.alloc(32, 73);
@@ -338,6 +344,41 @@ async function main() {
     if (!evidence.databaseVerificationPassed || !evidence.walletReconciliationPassed || !evidence.storageReconciliationPassed) {
       throw new Error("Synthetic restore evidence did not record all technical reconciliations as passed.");
     }
+    const restoreEvidenceSha256 = await sha256File(restoreEvidencePath);
+    const applicationEvidence: ApplicationRecoveryEvidence = {
+      version: 1,
+      kind: "ESSAFARIA_DR_APPLICATION",
+      backupId: evidence.backupId,
+      restoreEvidenceSha256,
+      testedAt: new Date().toISOString(),
+      targetRef: "SYNTHETIC-RESTORE-APP-0001",
+      checks: {
+        healthReachable: true,
+        staffLogin: true,
+        agencyLogin: true,
+        staffCriticalRead: true,
+        agencyOwnApplicationRead: true,
+        agencyOwnDocumentRead: true,
+        walletRead: true,
+      },
+    };
+    await writeFile(applicationEvidencePath, JSON.stringify(applicationEvidence, null, 2) + "\n", { mode: 0o600 });
+    const tenantEvidence: TenantIsolationEvidence = {
+      version: 1,
+      kind: "ESSAFARIA_DR_TENANT_ISOLATION",
+      backupId: evidence.backupId,
+      restoreEvidenceSha256,
+      testedAt: new Date().toISOString(),
+      targetRef: "SYNTHETIC-RESTORE-TENANT-0001",
+      checks: {
+        foreignApplicationDenied: true,
+        foreignDocumentDenied: true,
+        foreignApplicantDenied: true,
+        foreignWalletDataNotVisible: true,
+        forgedForeignUploadDenied: true,
+      },
+    };
+    await writeFile(tenantEvidencePath, JSON.stringify(tenantEvidence, null, 2) + "\n", { mode: 0o600 });
 
     const originalManifest = JSON.parse(await readFile(manifestPath, "utf8")) as BackupManifest;
     const tamperedManifest: BackupManifest = {
@@ -424,10 +465,10 @@ async function main() {
       restoreEvidencePath,
       "--offsite-evidence",
       offsiteEvidencePath,
-      "--application-ref",
-      "SYNTHETIC-APPRECOVERY-DRILL-0001",
-      "--tenant-ref",
-      "SYNTHETIC-TENANTISO-DRILL-0001",
+      "--application-evidence",
+      applicationEvidencePath,
+      "--tenant-evidence",
+      tenantEvidencePath,
       "--output",
       verifiedManifestPath,
       "--attest-external-evidence-reviewed",
@@ -459,6 +500,8 @@ async function main() {
       storageReconciliationPassed: true,
       ephemeralStorageClassificationExercised: true,
       evidenceBindingExercised: true,
+      structuredApplicationEvidenceExercised: true,
+      structuredTenantEvidenceExercised: true,
       offsiteCopyByteIdentityVerified: true,
       offsiteCopyAuthenticationVerified: true,
       manifestMismatchRefusalExercised: true,
