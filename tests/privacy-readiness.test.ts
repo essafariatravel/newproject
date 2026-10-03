@@ -132,6 +132,21 @@ describe("legal/privacy readiness regression guards", () => {
     expect(loginPage).not.toMatch(/console\.error\([^\n]*, err\s*\)/);
   });
 
+  it("does not emit raw error objects from registration or private-file paths", () => {
+    const files = [
+      "src/lib/registrations.ts",
+      "src/app/api/documents/[id]/route.ts",
+      "src/app/api/registrations/[id]/documents/[docId]/route.ts",
+      "src/app/api/topups/[id]/proof/route.ts",
+    ];
+
+    for (const file of files) {
+      const source = read(file);
+      expect(source, file).not.toMatch(/console\.error\([^\n]*,\s*(?:err|error)\s*\)/);
+    }
+    expect(read("src/lib/registrations.ts")).toContain("safeErrorCode(err)");
+  });
+
   it("keeps sensitive database schemas server-only in documented architecture", () => {
     const env = read(".env.example");
     expect(env).toContain("server-side node-postgres + Drizzle");
