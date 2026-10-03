@@ -251,10 +251,10 @@ describe("DR evidence-bound finalization", () => {
       restoreEvidenceSha256: "d".repeat(64),
       offsiteEvidence: offsite,
       offsiteEvidenceSha256: "e".repeat(64),
-      evidence: {
-        application: "APPRECOVERY-20261003-0001",
-        tenantIsolation: "TENANTISO-20261003-0001",
-      },
+      applicationEvidence: applicationEvidence(),
+      applicationEvidenceSha256: "f".repeat(64),
+      tenantIsolationEvidence: tenantEvidence(),
+      tenantIsolationEvidenceSha256: "1".repeat(64),
       externalEvidenceAttested: true,
       verifiedAt: new Date("2026-10-03T18:35:00.000Z"),
     });
