@@ -74,7 +74,20 @@ jobs:
         run: npm test -- tests/build-preview-guard.test.ts
 
       - name: Broader deterministic test suite
-        run: npm test
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/test-suite.out
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            {
+              echo "### Deterministic test failure excerpt"
+              echo '~~~text'
+              tail -120 /tmp/test-suite.out
+              echo '~~~'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$code"
 
       - name: Build without deployment or database access
         run: npm run build
