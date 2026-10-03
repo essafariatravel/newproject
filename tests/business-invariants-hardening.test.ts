@@ -175,7 +175,7 @@ describe("proof and immutable money", () => {
     const created = await createTopupRequest({ agencyId: agency.id, amount: 100, actor, proof: receipt() });
     const fn = qualifiedTable("test_fail_topup_reject_audit");
     const audit = qualifiedTable("audit_logs");
-    await pool.query(`create or replace function ${fn}() returns trigger language plpgsql as $
+    await pool.query(`create or replace function ${fn}() returns trigger language plpgsql as $probe$
       begin
         if new.action = 'WALLET_TOPUP_REJECTED' then
           raise exception 'synthetic top-up audit failure';
