@@ -46,10 +46,9 @@ describe("public agency registration — validation", () => {
     expect(parsed.success).toBe(false);
     const fieldErrors = fieldErrorsFrom(parsed.error!);
     for (const key of [
-      "legalName", "country", "city", "addressLine", "phone", "email",
-      "commercialRegistrationNumber", "contactFirstName", "contactLastName",
-      "contactPosition", "contactEmail", "contactPhone", "businessType",
-      "terms", "privacy", "accuracy",
+      "legalName", "country", "city", "contactFirstName", "contactLastName",
+      "contactEmail", "contactPhone", "businessType", "termsVersionId",
+      "privacyVersionId", "terms", "privacy", "accuracy",
     ]) {
       expect(fieldErrors[key], `missing error for ${key}`).toBeTruthy();
     }
@@ -70,17 +69,35 @@ describe("public agency registration — validation", () => {
 
     const good = parseOrThrow({
       ...registrationData(),
-      email: "  MixedCase@TestVoyages.example ",
       contactEmail: "Amine.Benali@TestVoyages.example",
     });
-    expect(good.email).toBe("mixedcase@testvoyages.example");
     expect(good.contactEmail).toBe("amine.benali@testvoyages.example");
   });
 
-  it("rejects invalid websites", () => {
-    const bad = schemaEn.safeParse({ ...registrationData(), website: "https://!!! invalid url" });
-    expect(bad.success).toBe(false);
-    expect(fieldErrorsFrom(bad.error!).website).toBeTruthy();
+  it("does not collect legacy KYC/procurement fields from public input", () => {
+    const parsed = parseOrThrow({
+      ...registrationData(),
+      addressLine: "12 Rue Legacy",
+      website: "https://legacy.example",
+      commercialRegistrationNumber: "RC-LEGACY",
+      taxId: "NIF-LEGACY",
+      licenceNumber: "LIC-LEGACY",
+      contactPosition: "Director",
+      monthlyVolume: "200+",
+      mainMarkets: "Everywhere",
+    });
+    for (const key of [
+      "addressLine",
+      "website",
+      "commercialRegistrationNumber",
+      "taxId",
+      "licenceNumber",
+      "contactPosition",
+      "monthlyVolume",
+      "mainMarkets",
+    ]) {
+      expect(key in parsed, `${key} must not survive the public schema`).toBe(false);
+    }
   });
 
   it("strips control characters and caps oversized values (malicious input)", () => {
