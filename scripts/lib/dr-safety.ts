@@ -428,7 +428,7 @@ export function reconcileWalletSnapshot(
   };
 }
 
-export type StorageReferenceKind = "DOSSIER_DOCUMENT" | "REGISTRATION_DOCUMENT" | "TOPUP_RECEIPT" | "OFFICIAL_DECISION";
+export type StorageReferenceKind = "DOSSIER_DOCUMENT" | "REGISTRATION_DOCUMENT" | "TOPUP_RECEIPT" | "OFFICIAL_DECISION" | "AGENCY_LOGO" | "BRAND_LOGO";
 
 export interface StorageReferenceSnapshot {
   id: string;
