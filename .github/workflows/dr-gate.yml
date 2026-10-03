@@ -51,7 +51,9 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: dr-gate-${{ github.ref }}
+  # Bind DR evidence to the exact commit. A stale/cancelled run from an older
+  # commit must never block verification of the current recovery implementation.
+  group: dr-gate-${{ github.sha }}
   cancel-in-progress: true
 
 permissions:
