@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "backupId": "EXAMPLE-NOT-VERIFIED-20261003T180000Z",
+  "createdAt": "2026-10-03T18:00:00.000Z",
+  "source": {
+    "environment": "PRODUCTION",
+    "projectRef": "xgetzgixalrsmuvfthpf",
+    "schema": "visa_os",
+    "releaseSha": "0000000",
+    "migrationLedger": []
+  },
+  "database": {
+    "artifact": "essafaria-prod-db-YYYYMMDDTHHMMSSZ.dump.enc",
+    "bytes": 1,
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "encrypted": true
+  },
+  "storage": {
+    "mode": "DATABASE_BLOBS",
+    "objectCount": 0,
+    "totalBytes": 0,
+    "manifestSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "encrypted": true
+  },
+  "verification": {
+    "checksumVerified": false,
+    "encryptionVerified": false,
+    "backupParsed": false,
+    "expectedSchemaPresent": false,
+    "criticalTablesPresent": false,
+    "rowCountsCaptured": false,
+    "sequencesCaptured": false,
+    "storageInventoryCaptured": false,
+    "sourceIdentityVerified": false,
+    "offsiteCopyVerified": false,
+    "verifiedAt": null,
+    "restoreTestedAt": null,
+    "restoreEnvironment": null,
+    "restoredApplicationChecksPassed": false,
+    "walletReconciliationPassed": false,
+    "storageReconciliationPassed": false,
+    "tenantIsolationPassed": false
+  }
+}
