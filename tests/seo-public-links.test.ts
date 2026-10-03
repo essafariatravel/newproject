@@ -1,21 +1,7 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { SEO_PUBLIC_ROUTE_ENTRIES, SEO_PRIVATE_ROUTE_PREFIXES } from "@/lib/seo-manifest";
-
-function filesUnder(relativeRoot: string): string[] {
-  const root = resolve(process.cwd(), relativeRoot);
-  const out: string[] = [];
-  const visit = (dir: string) => {
-    for (const entry of readdirSync(dir)) {
-      const absolute = join(dir, entry);
-      if (statSync(absolute).isDirectory()) visit(absolute);
-      else if (/\.(tsx|ts)$/.test(entry)) out.push(absolute);
-    }
-  };
-  visit(root);
-  return out;
-}
 
 function literalInternalHrefs(source: string): string[] {
   const results: string[] = [];

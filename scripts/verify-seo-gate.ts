@@ -30,6 +30,8 @@ for (const step of steps) {
     stdio: "inherit",
     env: {
       ...process.env,
+      VERCEL: "0",
+      VERCEL_ENV: "",
       DATABASE_URL: "",
       ALLOW_DEMO_SEED: "false",
     },
