@@ -63,12 +63,13 @@ jobs:
           PERF_BATCH_SIZE=2000 \
           npm run perf:seed-scale
 
-      - name: Run exact-shape A-B index experiments
+      - name: Run exact-shape A-B index experiments with symmetric warm-up
         shell: bash
         run: |
           mkdir -p perf/results
-          PERF_INDEX_EXPERIMENT_REPEATS=20 \
-          npm run perf:index-experiment | tee perf/results/index-ab-experiments.json
+          PERF_INDEX_EXPERIMENT_REPEATS=30 \
+          PERF_INDEX_EXPERIMENT_OUTPUT=perf/results/index-ab-experiments.json \
+          npm run perf:index-experiment
 
       - name: Upload evidence
         if: always()
