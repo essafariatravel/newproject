@@ -46,8 +46,8 @@ export interface ApplicationRecoveryEvidence {
   targetRef: string;
   checks: {
     healthReachable: boolean;
-    staffLogin: boolean;
-    agencyLogin: boolean;
+    staffAuthenticatedSession: boolean;
+    agencyAuthenticatedSession: boolean;
     staffCriticalRead: boolean;
     agencyOwnApplicationRead: boolean;
     agencyOwnDocumentRead: boolean;
@@ -139,8 +139,8 @@ export function validateApplicationEvidence(
   if (!EVIDENCE_REF.test(evidence.targetRef)) findings.push("application evidence targetRef is invalid");
   const required = [
     "healthReachable",
-    "staffLogin",
-    "agencyLogin",
+    "staffAuthenticatedSession",
+    "agencyAuthenticatedSession",
     "staffCriticalRead",
     "agencyOwnApplicationRead",
     "agencyOwnDocumentRead",
