@@ -9,7 +9,7 @@ import { identityT } from "@/lib/identity-copy";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Set your password" };
+export const metadata = { title: "Set your password", robots: { index: false, follow: false }, referrer: "no-referrer" as const };
 
 /**
  * Phase 2.2 §11 — mandatory first password change. Lives outside the
