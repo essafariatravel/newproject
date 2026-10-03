@@ -226,14 +226,9 @@ export async function transitionLegalVersion(input: {
   }
   const now = new Date().toISOString();
   const next: LegalDocumentVersion = { ...current, status: input.nextStatus };
-  if (input.nextStatus === "OWNER_REVIEW") {
-    next.ownerReviewedAt = now;
-    next.ownerReviewedBy = input.actor.id;
-  }
-  if (input.nextStatus === "LEGAL_REVIEW") {
-    next.legalReviewedAt = now;
-    next.legalReviewedBy = input.actor.id;
-  }
+  // OWNER_REVIEW / LEGAL_REVIEW are workflow queues, not proof that a
+  // particular owner or lawyer has completed review. Do not fabricate that
+  // evidence from an internal status transition.
   if (input.nextStatus === "APPROVED") {
     next.approvedAt = now;
     next.approvedBy = input.actor.id;
