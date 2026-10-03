@@ -32,7 +32,7 @@ export async function readPublishedLegal(
             author_id as "authorId"
        from ${qualifiedTable("legal_versions")}
       where kind=$1 and locale=$2 and effective_at<=now()
-      order by effective_at desc, version desc
+      order by version desc
       limit 1`,
     [kind, locale],
   );
