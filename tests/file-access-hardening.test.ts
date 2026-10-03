@@ -4,11 +4,12 @@ import { suiteSetup } from "./helpers/global-state";
 import { request } from "./helpers/request";
 import { nextIp, registrationData, registrationPdf, userByEmail } from "./helpers/fixtures";
 import { db } from "@/lib/db";
-import { agencyRegistrationDocuments, auditLogs, checklistItems, users, visaTypes } from "@/db/schema";
+import { agencyRegistrationDocuments, auditLogs, checklistItems, documentBlobs, users, visaTypes } from "@/db/schema";
 import { createSession } from "@/lib/auth";
 import { createDraftApplication } from "@/lib/applications";
 import { getDocumentForUser, uploadDocument } from "@/lib/documents";
 import { submitAgencyRegistration } from "@/lib/registrations";
+import { sha256Hex } from "@/lib/file-integrity";
 import { GET as downloadDossierFile } from "@/app/api/documents/[id]/route";
 import { GET as downloadRegistrationFile } from "@/app/api/registrations/[id]/documents/[docId]/route";
 
@@ -19,6 +20,15 @@ async function downloadAuditCount() {
   const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(auditLogs)
     .where(sql`${auditLogs.action} in ('DOCUMENT_DOWNLOADED','REGISTRATION_DOCUMENT_DOWNLOADED')`);
   return row!.count;
+}
+
+async function forcePermanentBlobData(key: string, data: Buffer) {
+  await db.execute(sql`alter table document_blobs disable trigger document_blobs_permanent_immutable`);
+  try {
+    await db.update(documentBlobs).set({ data }).where(eq(documentBlobs.key, key));
+  } finally {
+    await db.execute(sql`alter table document_blobs enable trigger document_blobs_permanent_immutable`);
+  }
 }
 
 describe("forced password change protects private file reads", () => {
@@ -65,4 +75,56 @@ describe("forced password change protects private file reads", () => {
       expect(await downloadAuditCount()).toBe(audits);
     } finally { await db.update(users).set({ mustChangePassword: false }).where(eq(users.id, actor.id)); }
   });
+  it("refuses a same-size tampered dossier blob before download/audit", async () => {
+    const owner = await userByEmail("a-admin@test.example");
+    const [visa] = await db.select().from(visaTypes).where(eq(visaTypes.code, "FR-SCH-TOUR"));
+    const app = await createDraftApplication({ agencyId: owner.agencyId!, visaTypeId: visa!.id, createdBy: owner });
+    const [item] = await db.select().from(checklistItems).where(eq(checklistItems.applicationId, app.id));
+    const pdf = registrationPdf();
+    const doc = await uploadDocument({ applicationId: app.id, actor: owner, checklistItemId: item!.id, file: pdf });
+    expect(doc.sha256).toBe(sha256Hex(pdf.data));
+
+    request.cookie = (await createSession(owner.id)).token;
+    const beforeAudit = await downloadAuditCount();
+    const [blob] = await db.select().from(documentBlobs).where(eq(documentBlobs.key, doc.storageKey));
+    expect(blob).toBeDefined();
+    const tampered = Buffer.from(blob!.data);
+    tampered[tampered.length - 1] = tampered[tampered.length - 1]! ^ 0xff;
+    await expect(
+      db.update(documentBlobs).set({ data: tampered }).where(eq(documentBlobs.key, doc.storageKey)),
+    ).rejects.toThrow();
+    await forcePermanentBlobData(doc.storageKey, tampered);
+    try {
+      const response = await downloadDossierFile(new Request(`http://localhost/api/documents/${doc.id}`), { params: Promise.resolve({ id: doc.id }) });
+      expect(response.status).toBe(500);
+      expect(await downloadAuditCount()).toBe(beforeAudit);
+    } finally {
+      await forcePermanentBlobData(doc.storageKey, blob!.data);
+    }
+  });
+
+  it("refuses a same-size tampered registration blob before download/audit", async () => {
+    const pdf = registrationPdf();
+    const reg = await submitAgencyRegistration({ data: registrationData(), files: [pdf], ipAddress: nextIp() });
+    const [doc] = await db.select().from(agencyRegistrationDocuments).where(eq(agencyRegistrationDocuments.registrationId, reg.id));
+    expect(doc).toBeDefined();
+    expect(doc!.sha256).toBe(sha256Hex(pdf.data));
+
+    const actor = await userByEmail("admin@test.example");
+    request.cookie = (await createSession(actor.id)).token;
+    const beforeAudit = await downloadAuditCount();
+    const [blob] = await db.select().from(documentBlobs).where(eq(documentBlobs.key, doc!.storageKey));
+    expect(blob).toBeDefined();
+    const tampered = Buffer.from(blob!.data);
+    tampered[tampered.length - 1] = tampered[tampered.length - 1]! ^ 0xff;
+    await forcePermanentBlobData(doc!.storageKey, tampered);
+    try {
+      const response = await downloadRegistrationFile(new Request(`http://localhost/api/registrations/${reg.id}/documents/${doc!.id}`), { params: Promise.resolve({ id: reg.id, docId: doc!.id }) });
+      expect(response.status).toBe(500);
+      expect(await downloadAuditCount()).toBe(beforeAudit);
+    } finally {
+      await forcePermanentBlobData(doc!.storageKey, blob!.data);
+    }
+  });
+
 });
