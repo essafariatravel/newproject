@@ -136,3 +136,32 @@ The final agent should not redesign the performance methodology. It should:
 15. generate the final report.
 
 No Production load testing is authorized by this pack.
+
+
+## Single-tier orchestrator
+
+For a hosted Preview tier, use the fail-closed single-tier runner instead of manually coordinating snapshots and the DB monitor:
+
+```bash
+PERF_VUS=50 \
+PERF_TIER_HOLD_MINUTES=10 \
+PERF_RUN_LABEL=50vu-baseline \
+npm run perf:run-tier
+```
+
+The runner performs, in order:
+
+1. non-Production preflight;
+2. DB snapshot before load;
+3. concurrent DB connection/wait monitoring;
+4. exactly one k6 `tier` workload;
+5. graceful monitor shutdown;
+6. DB snapshot after load even when k6 fails;
+7. deterministic evaluator;
+8. persisted `evaluation.json`.
+
+Evidence is written under `perf/results/run-<label>/`.
+
+The runner **never starts the next VU tier**. A passing result only makes the next tier eligible for explicit review.
+
+If k6 exits non-zero, post-run DB evidence is still captured before the command fails. This prevents a failed load test from destroying the evidence needed to diagnose it.
