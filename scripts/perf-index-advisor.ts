@@ -127,8 +127,12 @@ function evidenceFor(candidate: Candidate, explain: ExplainFile | null) {
   if (!explain?.plans) return { observed: false, signals: [] as string[] };
   const plans = explain.plans.filter((plan) => candidate.evidenceQueries.includes(plan.name));
   const signals = plans.flatMap((plan) => (plan.findings ?? []).map((finding) => `${plan.name}:${finding.code ?? "UNKNOWN"}`));
+  // A sequential scan alone is not sufficient evidence for a new index:
+  // synthetic dataset-marker predicates can legitimately cause scans that do not
+  // correspond to a production filter. Escalate only when the measured plan is
+  // actually slow or spills to temporary/disk I/O.
   const observed = plans.some((plan) =>
-    (plan.findings ?? []).some((finding) => ["LARGE_SEQ_SCAN", "EXECUTION_GT_100MS", "EXECUTION_GT_500MS", "DISK_TEMP_IO"].includes(String(finding.code)))
+    (plan.findings ?? []).some((finding) => ["EXECUTION_GT_100MS", "EXECUTION_GT_500MS", "DISK_TEMP_IO"].includes(String(finding.code)))
   );
   return { observed, signals };
 }
@@ -192,7 +196,7 @@ async function main() {
       generatedAt: new Date().toISOString(),
       target: safeTargetSummary(target),
       explainInput: process.env.PERF_EXPLAIN_INPUT ?? null,
-      policy: "No index is created by this script. Apply only MEASURED_CANDIDATE entries after reviewing the exact plan and rerun the failing scenario.",
+      policy: "No index is created by this script. LARGE_SEQ_SCAN alone never promotes a candidate because synthetic marker predicates can create false positives. Apply only MEASURED_CANDIDATE entries after reviewing the exact production-shaped plan and rerun the failing scenario.",
       candidates: output,
       counts: {
         alreadyCovered: output.filter((x) => x.recommendation === "ALREADY_COVERED").length,
