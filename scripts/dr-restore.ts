@@ -20,7 +20,7 @@
  *   npm run dr:restore -- --manifest /private/ESSAFARIA-...manifest.json
  */
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Pool } from "pg";
@@ -30,6 +30,7 @@ import {
   assessBackupManifest,
   assessRestoreTarget,
 } from "./lib/dr-safety";
+import type { RestoreEvidence } from "./lib/dr-finalization";
 import {
   backupKeyFromEnvironment,
   decryptFileAes256Gcm,
@@ -40,6 +41,7 @@ import {
 function parseArgs(args: string[]) {
   let manifestPath: string | undefined;
   let artifactPath: string | undefined;
+  let evidenceOutput: string | undefined;
   for (let index = 0; index < args.length; index++) {
     if (args[index] === "--manifest") {
       manifestPath = args[++index];
@@ -51,10 +53,19 @@ function parseArgs(args: string[]) {
       if (!artifactPath) throw new Error("--artifact requires a path");
       continue;
     }
-    throw new Error("Unknown option. Use --manifest PATH [--artifact PATH].");
+    if (args[index] === "--evidence-output") {
+      evidenceOutput = args[++index];
+      if (!evidenceOutput) throw new Error("--evidence-output requires a path");
+      continue;
+    }
+    throw new Error("Unknown option. Use --manifest PATH [--artifact PATH] [--evidence-output PATH].");
   }
   if (!manifestPath) throw new Error("--manifest is required");
-  return { manifestPath: path.resolve(manifestPath), artifactPath: artifactPath ? path.resolve(artifactPath) : null };
+  return {
+    manifestPath: path.resolve(manifestPath),
+    artifactPath: artifactPath ? path.resolve(artifactPath) : null,
+    evidenceOutput: evidenceOutput ? path.resolve(evidenceOutput) : null,
+  };
 }
 
 function run(binary: string, args: string[], env: NodeJS.ProcessEnv, inherit = false): Promise<string> {
@@ -78,7 +89,7 @@ function run(binary: string, args: string[], env: NodeJS.ProcessEnv, inherit = f
 }
 
 async function main() {
-  const { manifestPath, artifactPath: explicitArtifact } = parseArgs(process.argv.slice(2));
+  const { manifestPath, artifactPath: explicitArtifact, evidenceOutput } = parseArgs(process.argv.slice(2));
   const target = assessRestoreTarget(process.env);
   if (!target.safe || !target.schema) {
     console.error(JSON.stringify({ status: "REFUSED", findings: target.findings }, null, 2));
@@ -101,6 +112,7 @@ async function main() {
     throw new Error(`Backup manifest is INVALID: ${assessment.findings.join("; ")}`);
   }
   const manifest = assessment.manifest;
+  const sourceManifestSha256 = await sha256File(manifestPath);
   if (target.schema !== manifest.source.schema) {
     throw new Error(`DATABASE_SCHEMA must equal the source schema ${manifest.source.schema}; pg_restore does not rename the selected schema.`);
   }
@@ -153,15 +165,45 @@ async function main() {
       STORAGE_PROVIDER: "db",
     }, true);
 
+    const evidencePath = evidenceOutput ?? path.join(path.dirname(manifestPath), `${manifest.backupId}.restore-evidence.json`);
+    const cwd = path.resolve(process.cwd()) + path.sep;
+    if ((path.resolve(evidencePath) + path.sep).startsWith(cwd)) {
+      throw new Error("Restore evidence must be written outside the repository working tree.");
+    }
+    const restoredAt = new Date().toISOString();
+    const evidence: RestoreEvidence = {
+      version: 1,
+      kind: "ESSAFARIA_DR_RESTORE",
+      backupId: manifest.backupId,
+      sourceManifestSha256,
+      restoredAt,
+      target: {
+        mode: target.mode!,
+        schema: target.schema,
+        projectRef: target.mode === "REMOTE_DISPOSABLE" ? process.env.DR_DISPOSABLE_PROJECT_REF ?? null : null,
+      },
+      databaseVerificationPassed: true,
+      walletReconciliationPassed: true,
+      storageReconciliationPassed: true,
+    };
+    await writeFile(evidencePath, JSON.stringify(evidence, null, 2) + "\n", {
+      encoding: "utf8",
+      mode: 0o600,
+      flag: "wx",
+    });
+    const restoreEvidenceSha256 = await sha256File(evidencePath);
+
     console.log(JSON.stringify({
       status: "RESTORED_AND_DATABASE_VERIFIED",
       backupId: manifest.backupId,
       target: { mode: target.mode, schema: target.schema },
+      restoreEvidence: evidencePath,
+      restoreEvidenceSha256,
       remainingBeforeBackupCanBecomeVERIFIED: [
         "independent/off-site copy proof",
         "application login/read validation on the restored target",
         "tenant-isolation validation on the restored target",
-        "record restore evidence in the backup manifest",
+        "finalize with explicit external evidence references",
       ],
     }, null, 2));
   } catch (error) {
