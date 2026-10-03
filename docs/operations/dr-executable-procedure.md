@@ -54,6 +54,40 @@ The creator:
 
 Keep the encryption key in a different controlled location from the archive.
 
+## Verify the independent off-site copy
+
+After an authorized operator has copied the encrypted archive to a genuinely independent controlled destination, retrieve or mount that copy and run:
+
+```text
+npm run dr:offsite-verify -- \
+  --manifest <created manifest> \
+  --copy <independent encrypted copy> \
+  --location-ref <opaque internal storage-location ID> \
+  --evidence-output <absolute private evidence JSON path>
+```
+
+Provide the same recovery key through `DR_BACKUP_KEY_BASE64`; do not place it on the command line.
+
+The verifier checks:
+
+- copied file byte size against the source manifest;
+- SHA-256 identity against the source manifest;
+- AES-256-GCM authentication/decryption viability with the separately held key;
+- source manifest identity;
+- output evidence is private and outside the repository.
+
+It prints an `OFFSITE-<sha256>` evidence reference that can be used by `dr:finalize`. This verifies the copy once it is available locally; it does **not** choose the storage provider or perform the independent transfer.
+
+## Run the full synthetic DR drill
+
+```text
+npm run dr:local-drill
+```
+
+This local-only drill never contacts Production. It starts PostgreSQL 17, applies the real migration set, creates synthetic wallet/storage signals, produces a real custom-format dump, encrypts it, restores it into a second fresh database, runs the real restore verifier, verifies an independent synthetic copy, and exercises evidence-bound finalization to `VERIFIED`.
+
+The DR GitHub Actions gate runs this drill automatically. Passing it proves the recovery machinery works end-to-end on synthetic data; it does not replace a restore of the actual Production backup.
+
 ## Restore the encrypted backup
 
 Use `npm run dr:restore` only against a fresh local database or explicitly approved disposable Supabase project.
