@@ -8,6 +8,7 @@
  */
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { privateArtifactPath } from "./lib/dr-private-path";
 import {
   PRODUCTION_PROJECT_REF,
   PRODUCTION_SCHEMA,
@@ -47,17 +48,13 @@ function parseArgs(args: string[]) {
   for (const key of valued) {
     if (!values[key]) throw new Error(`${key} is required.`);
   }
-  const output = path.resolve(values["--output"]!);
-  if (!path.isAbsolute(values["--output"]!)) throw new Error("--output must be an absolute private path.");
-  const cwd = path.resolve(process.cwd()) + path.sep;
-  if ((output + path.sep).startsWith(cwd)) throw new Error("Verified manifests must be written outside the repository working tree.");
   return {
-    manifestPath: path.resolve(values["--manifest"]!),
-    restoreEvidencePath: path.resolve(values["--restore-evidence"]!),
-    offsiteEvidencePath: path.resolve(values["--offsite-evidence"]!),
-    applicationEvidencePath: path.resolve(values["--application-evidence"]!),
-    tenantEvidencePath: path.resolve(values["--tenant-evidence"]!),
-    output,
+    manifestPath: privateArtifactPath(values["--manifest"]!, "--manifest"),
+    restoreEvidencePath: privateArtifactPath(values["--restore-evidence"]!, "--restore-evidence"),
+    offsiteEvidencePath: privateArtifactPath(values["--offsite-evidence"]!, "--offsite-evidence"),
+    applicationEvidencePath: privateArtifactPath(values["--application-evidence"]!, "--application-evidence"),
+    tenantEvidencePath: privateArtifactPath(values["--tenant-evidence"]!, "--tenant-evidence"),
+    output: privateArtifactPath(values["--output"]!, "--output", { requireAbsolute: true }),
     attested,
   };
 }
