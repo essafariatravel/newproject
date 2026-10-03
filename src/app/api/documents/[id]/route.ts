@@ -41,6 +41,11 @@ export async function GET(
       entity: "document",
       entityId: id,
       agencyId: row.appAgencyId,
+      metadata: {
+        filename: row.doc.originalFilename,
+        sizeBytes: row.doc.sizeBytes,
+        sha256: row.doc.sha256,
+      },
     });
     // Content-Disposition attachment prevents inline script execution for HTML-like uploads
     const safeName = row.doc.originalFilename.replace(/["\\\r\n]/g, "_");
