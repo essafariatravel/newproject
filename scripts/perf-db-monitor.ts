@@ -19,9 +19,14 @@ async function main() {
   const output = resolve(process.env.PERF_MONITOR_OUTPUT ?? `perf/results/db-monitor-${Date.now()}.json`);
   const pool = new Pool({ ...databasePoolConfig(process.env), max: 1 });
   const samples: Array<Record<string, unknown>> = [];
+  let stopRequested = false;
+  const requestStop = () => { stopRequested = true; };
+  process.once("SIGTERM", requestStop);
+  process.once("SIGINT", requestStop);
 
   try {
-    for (let i = 0; i < Math.ceil((durationSeconds * 1000) / intervalMs); i++) {
+    const plannedSamples = Math.ceil((durationSeconds * 1000) / intervalMs);
+    for (let i = 0; i < plannedSamples && !stopRequested; i++) {
       const client = await pool.connect();
       try {
         const activity = await client.query<{
@@ -63,9 +68,11 @@ async function main() {
       } finally {
         client.release();
       }
-      if (i + 1 < Math.ceil((durationSeconds * 1000) / intervalMs)) await sleep(intervalMs);
+      if (i + 1 < plannedSamples && !stopRequested) await sleep(intervalMs);
     }
   } finally {
+    process.removeListener("SIGTERM", requestStop);
+    process.removeListener("SIGINT", requestStop);
     await pool.end();
   }
 
@@ -84,6 +91,7 @@ async function main() {
     target: safeTargetSummary(target),
     intervalMs,
     durationSeconds,
+    stoppedEarly: stopRequested,
     summary,
     samples,
   }, null, 2), { mode: 0o600 });
