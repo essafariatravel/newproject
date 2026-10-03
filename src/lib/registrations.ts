@@ -220,7 +220,8 @@ function matchesMagicBytes(data: Buffer, mimeType: string): boolean {
  */
 export function validateRegistrationFile(file: RegistrationFileInput): void {
   if (file.size <= 0 || file.data.length === 0) throw new AppError("EMPTY_FILE", "The uploaded file is empty.");
-  if (file.size !== file.data.length) throw new AppError("FILE_CONTENT", "The uploaded file size is inconsistent.");
+  // Validate both metadata and authoritative bytes against the limit. Exact
+  // equality is not a security invariant once the server already owns bytes.
   if (file.size > REGISTRATION_MAX_UPLOAD_BYTES || file.data.length > REGISTRATION_MAX_UPLOAD_BYTES) {
     throw new AppError("FILE_TOO_LARGE", "Files must be 2 MB or smaller.");
   }
