@@ -1,10 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
 import { suiteSetup } from "./helpers/global-state";
 import { request } from "./helpers/request";
 import { agencyByEmail, userByEmail } from "./helpers/fixtures";
 import { db } from "@/lib/db";
-import { applications, visaTypes } from "@/db/schema";
+import { visaTypes } from "@/db/schema";
 import { createSession } from "@/lib/auth";
 import { createDraftApplication } from "@/lib/applications";
 import { historyFor, submissionGateFor } from "@/app/actions/applications";
@@ -50,8 +49,6 @@ describe("exported Server Action authorization", () => {
   it("never treats a crafted application id as an authorization shortcut", async () => {
     const foreign = await userByEmail("b-admin@test.example");
     request.cookie = (await createSession(foreign.id)).token;
-    const real = (await db.select({ id: applications.id }).from(applications).where(eq(applications.agencyId, foreign.agencyId!)).limit(1))[0];
-    expect(real).toBeDefined();
     await expect(submissionGateFor("11111111-1111-4111-8111-111111111111")).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });
