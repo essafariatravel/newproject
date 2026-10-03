@@ -1,0 +1,131 @@
+name: Performance 10k disposable proof
+
+on:
+  push:
+    branches:
+      - perf/performance-gate-prep
+    paths:
+      - .github/workflows/perf-scale-proof-10k.yml
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    name: Prove 1k to 10k diagnostics on disposable PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      VERCEL: "0"
+      VERCEL_ENV: ""
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/essafaria
+      DATABASE_SCHEMA: public
+      PERF_ACK_NONPROD: "YES"
+      PERF_SYNTHETIC_PASSWORD: "ci-only-performance-secret-2026"
+      STORAGE_PROVIDER: db
+      ALLOW_DEMO_SEED: "false"
+      CI: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Start disposable PostgreSQL
+        shell: bash
+        run: |
+          npm run db:up >/tmp/perf-pg.log 2>&1 &
+          echo $! > /tmp/perf-pg.pid
+          READY=0
+          for i in $(seq 1 45); do
+            if (echo > /dev/tcp/127.0.0.1/5432) >/dev/null 2>&1; then READY=1; break; fi
+            sleep 1
+          done
+          if [ "$READY" != "1" ]; then cat /tmp/perf-pg.log; exit 1; fi
+          npm run db:setup
+          npm run perf:seed-identities
+
+      - name: Seed and benchmark 1k
+        shell: bash
+        run: |
+          PERF_DATASET_ID=proof1k \
+          PERF_APPLICATIONS=1000 \
+          PERF_AGENCIES=20 \
+          PERF_DOCS_PER_APP=4 \
+          PERF_NOTIFICATIONS_PER_APP=3 \
+          PERF_MESSAGES_PER_APP=1 \
+          PERF_AUDITS_PER_APP=3 \
+          PERF_LEDGER_ROWS=1000 \
+          npm run perf:seed-scale
+
+          PERF_DATASET_ID=proof1k \
+          PERF_BENCH_REPEATS=5 \
+          PERF_BENCH_OUTPUT=perf/results/query-benchmark-proof1k.json \
+          npm run perf:benchmark
+
+          PERF_DATASET_ID=proof1k \
+          PERF_ALLOW_EXPLAIN_ANALYZE=YES \
+          PERF_EXPLAIN_OUTPUT=perf/results/explain-proof1k.json \
+          npm run perf:explain
+
+          PERF_EXPLAIN_INPUT=perf/results/explain-proof1k.json \
+          npm run perf:index-advisor | tee perf/results/index-advisor-proof1k.json
+
+      - name: Seed and benchmark 10k
+        shell: bash
+        run: |
+          PERF_DATASET_ID=proof10k \
+          PERF_APPLICATIONS=10000 \
+          PERF_AGENCIES=100 \
+          PERF_DOCS_PER_APP=4 \
+          PERF_NOTIFICATIONS_PER_APP=3 \
+          PERF_MESSAGES_PER_APP=1 \
+          PERF_AUDITS_PER_APP=3 \
+          PERF_LEDGER_ROWS=10000 \
+          npm run perf:seed-scale
+
+          PERF_DATASET_ID=proof10k \
+          PERF_BENCH_REPEATS=7 \
+          PERF_BENCH_OUTPUT=perf/results/query-benchmark-proof10k.json \
+          npm run perf:benchmark
+
+          PERF_DATASET_ID=proof10k \
+          PERF_ALLOW_EXPLAIN_ANALYZE=YES \
+          PERF_EXPLAIN_OUTPUT=perf/results/explain-proof10k.json \
+          npm run perf:explain
+
+          PERF_EXPLAIN_INPUT=perf/results/explain-proof10k.json \
+          npm run perf:index-advisor | tee perf/results/index-advisor-proof10k.json
+
+      - name: Classify observed growth
+        shell: bash
+        run: |
+          set +e
+          npm run perf:growth -- \
+            perf/results/query-benchmark-proof1k.json \
+            perf/results/query-benchmark-proof10k.json | tee perf/results/growth-proof1k-10k.json
+          EXIT_CODE=${PIPESTATUS[0]}
+          set -e
+          if [ "$EXIT_CODE" -ne 0 ] && [ "$EXIT_CODE" -ne 2 ]; then exit "$EXIT_CODE"; fi
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: essafaria-performance-proof-1k-10k-${{ github.sha }}
+          path: perf/results/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Stop disposable PostgreSQL
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/perf-pg.pid ]; then kill "$(cat /tmp/perf-pg.pid)" >/dev/null 2>&1 || true; fi
