@@ -62,7 +62,7 @@ jobs:
       DATABASE_SCHEMA: visa_os
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
       - name: Guard — Production database secret present
         id: guard
@@ -103,7 +103,7 @@ jobs:
           if [ -f release/PROD_GO ]; then echo "go=true" >> "$GITHUB_OUTPUT"; echo "sentinel present: release/PROD_GO (authorization recorded in this commit tree)"; else echo "go=false" >> "$GITHUB_OUTPUT"; fi
 
       - name: Toolchain
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
           node-version: 22
 
@@ -198,7 +198,7 @@ jobs:
           echo "Using Production environment secret: $PICKED (value masked — never printed)"
 
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
       - name: Detect release/PROD_GO sentinel in this commit's tree
         id: sentinel
@@ -206,7 +206,7 @@ jobs:
           if [ -f release/PROD_GO ]; then echo "go=true" >> "$GITHUB_OUTPUT"; echo "sentinel present: release/PROD_GO (authorization recorded in this commit tree)"; else echo "go=false" >> "$GITHUB_OUTPUT"; fi
 
       - name: Toolchain
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
           node-version: 22
 
