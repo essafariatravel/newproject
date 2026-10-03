@@ -129,6 +129,7 @@ function tenantEvidence(): TenantIsolationEvidence {
     restoreEvidenceSha256: "d".repeat(64),
     testedAt: "2026-10-03T18:34:00.000Z",
     targetRef: "RESTORE-TENANT-0001",
+    foreignTenantFixture: "RESTORED_TENANT",
     checks: {
       foreignApplicationDenied: true,
       foreignDocumentDenied: true,
