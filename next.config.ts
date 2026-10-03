@@ -8,6 +8,24 @@ const noIndexHeader = {
   value: "noindex, nofollow, noarchive",
 } as const;
 
+const authNoIndexSources = [
+  "/login",
+  "/forgot-password",
+  "/change-password",
+  "/agency/register",
+  "/agency/register/success",
+  "/countries",
+  "/visas",
+  "/privacy",
+  "/terms",
+];
+
+const tokenNoIndexSources = [
+  "/reset-access/:path*",
+  "/activate/:path*",
+  "/agency/verification/:path*",
+];
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
@@ -33,6 +51,18 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      ...authNoIndexSources.map((source) => ({
+        source,
+        headers: [noIndexHeader],
+      })),
+      ...tokenNoIndexSources.map((source) => ({
+        source,
+        headers: [
+          noIndexHeader,
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Cache-Control", value: "no-store, max-age=0" },
+        ],
+      })),
       {
         source: "/admin/:path*",
         headers: [

@@ -42,7 +42,7 @@ jobs:
       - run: npm run lint
 
       - name: SEO safety contracts
-        run: npm test -- tests/seo-indexation.test.ts tests/build-preview-guard.test.ts
+        run: npm test -- tests/seo-indexation.test.ts tests/seo-route-policy.test.ts tests/build-preview-guard.test.ts
 
       - name: Full deterministic regression
         run: npm test
