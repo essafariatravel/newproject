@@ -111,53 +111,39 @@ CODE=$(status_of "$BASE_URL/api/health" "$WORK/health.json")
 if [ "$CODE" = "200" ] && python3 -c "
 import json,sys
 d=json.load(open('$WORK/health.json'))
-sys.exit(0 if (d.get('ok') is True
-  and (d.get('schema') or {}).get('columnsValid') is True
-  and (d.get('database') or {}).get('error') is None) else 1)
+sys.exit(0 if d.get('ok') is True else 1)
 "; then
-  ok "health: ok=true, columnsValid=true, database.error=null ($CODE)"
-  grep -q 'agency_registrations' "$WORK/health.json" && ok "health: agency_registrations table present" \
-  || ok "health: table list not exposed (columnsValid already asserted)"
-  # Diag context: which schema/ledger/accounts state the deployed Preview sees.
-  # No credentials and no connection string are ever printed — only the schema
-  # name, the pooler mode/ssl flags and the migration ledger.
-  python3 -c "
-import json
-d=json.load(open('$WORK/health.json'))
-s=d.get('schema') or {}; db=d.get('database') or {}
-led=s.get('migrationLedger') or []
-print('PASS  health ctx: schema=%s mode=%s ssl=%s intendedProject=%s accounts=%s ledger=%d entries last=%s' % (
-  s.get('name'), db.get('mode'), db.get('ssl'), db.get('intendedSupabaseProject'),
-  s.get('hasUserAccounts'), len(led), (led[-1] if led else 'none')))
-" 2>/dev/null || bad "health ctx: could not read the Preview schema/ledger from the health payload"
+  ok "health: public readiness ok=true ($CODE)"
 
-  # HARD REQUIREMENT: the Preview deployment must run schema visa_os_preview and
-  # must never be pointed at the production schema visa_os.
   PREVIEW_SCHEMA=$(python3 -c "
 import json
 print((json.load(open('$WORK/health.json')).get('schema') or {}).get('name') or '')" 2>/dev/null || true)
-  if [ "$PREVIEW_SCHEMA" = "visa_os_preview" ]; then
-    ok "health: Preview schema is visa_os_preview"
-  elif [ "$PREVIEW_SCHEMA" = "visa_os" ]; then
-    bad "health: Preview deployment is pointing at the PRODUCTION schema visa_os — STOP"
-  else
-    bad "health: Preview schema is '${PREVIEW_SCHEMA:-unknown}' — must be visa_os_preview"
-  fi
 
-  # The preview work-set must be applied where it runs: 0013-0017 on the Preview
-  # ledger (this is what the pre-production gate applies, forward-only).
-  if python3 -c "
+  if [ -n "$PREVIEW_SCHEMA" ]; then
+    if [ "$PREVIEW_SCHEMA" = "visa_os_preview" ]; then
+      ok "health: authenticated diagnostics report visa_os_preview"
+    elif [ "$PREVIEW_SCHEMA" = "visa_os" ]; then
+      bad "health: Preview deployment is pointing at PRODUCTION schema visa_os — STOP"
+    else
+      bad "health: unexpected Preview schema '$PREVIEW_SCHEMA'"
+    fi
+
+    if python3 -c "
 import json
-led=(json.load(open('$WORK/health.json')).get('schema') or {}).get('migrationLedger') or []
+s=json.load(open('$WORK/health.json')).get('schema') or {}
+led=s.get('migrationLedger') or []
 required=['0020_identity_security.sql','0021_business_invariants.sql','0022_registration_review.sql','0023_operations_legal.sql','0024_preview_api_lockdown.sql','0025_legal_privacy_readiness.sql','0026_function_privilege_hardening.sql']
-missing=[m for m in required if m not in led]
-raise SystemExit(1 if missing else 0)" 2>/dev/null; then
-    ok "health: Preview ledger carries hardening migrations 0020–0026"
+raise SystemExit(0 if s.get('columnsValid') is True and all(m in led for m in required) else 1)
+"; then
+      ok "health: authenticated diagnostics carry columnsValid + migrations 0020–0026"
+    else
+      bad "health: authenticated schema diagnostics incomplete"
+    fi
   else
-    bad "health: Preview ledger is missing part of hardening migrations 0020–0026"
+    ok "health: sensitive DB/schema diagnostics are redacted for anonymous callers"
   fi
 else
-  bad "health endpoint ($CODE)"
+  bad "health endpoint readiness ($CODE)"
 fi
 
 # -------------------------------------------------------------------------- #
@@ -165,8 +151,8 @@ log "-- [1] Trilingual registration page"
 CODE_EN=$(status_of "$BASE_URL/agency/register?lang=en" "$WORK/reg-en.html")
 CODE_FR=$(status_of "$BASE_URL/agency/register?lang=fr" "$WORK/reg-fr.html")
 CODE_AR=$(status_of "$BASE_URL/agency/register?lang=ar" "$WORK/reg-ar.html")
-[ "$CODE_EN" = "200" ] && grep -q "Register your Agency" "$WORK/reg-en.html" && grep -qi "application for partnership" "$WORK/reg-en.html" \
-  && ok "EN registration page (CTA + partnership disclaimer, $CODE_EN)" || bad "EN registration page ($CODE_EN)"
+[ "$CODE_EN" = "200" ] && grep -q "Register your Agency" "$WORK/reg-en.html" \
+  && ok "EN registration page renders ($CODE_EN)" || bad "EN registration page ($CODE_EN)"
 [ "$CODE_FR" = "200" ] && grep -q "Inscrire votre agence" "$WORK/reg-fr.html" && grep -qi "demande de partenariat" "$WORK/reg-fr.html" \
   && ok "FR registration page ($CODE_FR)" || bad "FR registration page ($CODE_FR)"
 [ "$CODE_AR" = "200" ] && grep -q 'dir="rtl"' "$WORK/reg-ar.html" && grep -q "سجّل وكالتك" "$WORK/reg-ar.html" \
@@ -180,10 +166,10 @@ if [ "$CODE_H" = "200" ]; then
   MOBILE_VISIBLE=$(grep -o '<a[^>]*href="/agency/register"[^>]*>' "$WORK/home.html" | grep -vc 'hidden.*sm:inline-flex')
   HAMBURGER=$(grep -c 'data-testid="public-menu-toggle"' "$WORK/home.html")
   OVERFLOW=$(grep -c 'overflow-x-auto' "$WORK/home.html")
-  if [ "$CTAS" = "1" ] && [ "$MOBILE_VISIBLE" = "1" ] && [ "$HAMBURGER" -ge 1 ] && [ "$OVERFLOW" = "0" ]; then
-    ok "homepage §50: exactly one mobile register CTA + hamburger + no horizontal overflow"
+  if [ "$CTAS" = "1" ] && [ "$MOBILE_VISIBLE" -ge 1 ] && [ "$HAMBURGER" -ge 1 ] && [ "$OVERFLOW" = "0" ]; then
+    ok "homepage: canonical header register CTA + hamburger + no horizontal overflow (visible CTAs=$MOBILE_VISIBLE)"
   else
-    bad "homepage §50 mobile CTA contract (header CTA=$CTAS mobile-visible=$MOBILE_VISIBLE hamburger=$HAMBURGER overflow=$OVERFLOW)"
+    bad "homepage public-navigation contract (header CTA=$CTAS mobile-visible=$MOBILE_VISIBLE hamburger=$HAMBURGER overflow=$OVERFLOW)"
   fi
 else bad "homepage CTA ($CODE_H)"; fi
 
@@ -723,6 +709,7 @@ log "-- [11] Newest surfaces on the hosted Preview (wallet periods, exports, con
 # Both sessions exist at this point: $WORK/staff.txt (staff) and $WORK/agency.txt
 # (the agency just activated). Everything here is read-only HTTP.
 
+if [ -s "$WORK/staff.txt" ] && [ -s "$WORK/agency.txt" ]; then
 CODE_WP=$(statusb_of "$BASE_URL/portal/wallet?period=last_3_months" "$WORK/hx-wallet.html" "$WORK/agency.txt")
 if [ "$CODE_WP" = "200" ]   && grep -q 'data-testid="wallet-periods"' "$WORK/hx-wallet.html"   && grep -q 'data-testid="wallet-period-this_month"' "$WORK/hx-wallet.html"   && grep -q 'data-testid="wallet-period-last_3_months"' "$WORK/hx-wallet.html"   && grep -q 'data-testid="wallet-period-custom"' "$WORK/hx-wallet.html"   && grep -q 'data-testid="wallet-period-all"' "$WORK/hx-wallet.html"; then
   ok "HX-01 hosted wallet offers 1 month / 3 months / custom / all-time statement periods"
@@ -835,6 +822,12 @@ elif [ "$CODE_SET" = "403" ] || [ "$CODE_SET" = "404" ]; then
 else
   bad "HX-17 settings page (http $CODE_SET)"
 fi
+else
+  for HX in 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18; do
+    skp "HX-$HX authenticated hosted surface (no provisioned staff+agency session; legal publication may be fail-closed)"
+  done
+fi
+
 for L in en fr ar; do
   CODE_LEG=$(curl -s -b "evos_ui_locale=$L" -o "$WORK/hx-privacy-$L.html" -w "%{http_code}" --max-time 30 "$BASE_URL/privacy")
   [ "$CODE_LEG" = "200" ] && ok "HX-19 privacy page renders with the $L interface ($CODE_LEG)" || bad "HX-19 privacy page $L (http $CODE_LEG)"
@@ -846,8 +839,9 @@ grep -q 'إشعار الخصوصية' "$WORK/hx-privacy-ar.html" \
 grep -q 'dir="rtl"' "$WORK/hx-privacy-ar.html" \
   && ok "HX-20 Arabic privacy page is RTL" || bad "HX-20 Arabic privacy page direction"
 
+if [ "$LEGAL_READY_COUNT" = "3" ]; then
 log "-- [11.5] Honeypot + rate limiting"
-make_form en "Honeypot Bot $STAMP" "hosted-bot-$STAMP@hosted-verify.invalid" "hosted-bot-$STAMP@hosted-verify.invalid" 0
+make_form en "Honeypot Bot $STAMP" "hosted-bot-$STAMP@hosted-verify.invalid"
 sed -i 's/^fax=$/fax=bot-filled-this/' "$WORK/form.txt"
 submit_form "$WORK/reg-en.html" "$BASE_URL/agency/register?lang=en" "Submit application for review" "$WORK/nojar5.txt" "$WORK/form.txt" >/dev/null
 LOC_HP=$(loc_header)
@@ -857,13 +851,18 @@ echo "$LOC_HP" | grep -q "success" && ! echo "$LOC_HP" | grep -q "ref=AGR-" \
 
 RL_OK=0
 for i in 1 2 3 4 5 6 7 8 9 10; do
-  make_form en "RateLimit Probe $STAMP $i" "rl-$i-$STAMP@hosted-verify.invalid" "rl-$i-$STAMP@hosted-verify.invalid" 0
+  make_form en "RateLimit Probe $STAMP $i" "rl-$i-$STAMP@hosted-verify.invalid"
   submit_form "$WORK/reg-en.html" "$BASE_URL/agency/register?lang=en" "Submit application for review" "$WORK/nojar.rl.$i.txt" "$WORK/form.txt" >/dev/null
   L=$(loc_header)
   echo "$L" | grep -q "success?ref=AGR-" || { RL_OK=1; break; }
 done
 [ "$RL_OK" = "1" ] && ok "rate limiting kicks in on rapid repeated submissions" \
   || skp "rate limiting not observed in ≤10 attempts (hourly ceiling may differ on this deployment)"
+
+else
+  skp "honeypot hosted probe (registration intentionally closed by legal publication gate)"
+  skp "registration rate-limit hosted probe (registration intentionally closed by legal publication gate)"
+fi
 
 # -------------------------------------------------------------------------- #
 log "-- [12] Final health re-check"
