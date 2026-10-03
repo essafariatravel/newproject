@@ -123,6 +123,7 @@ async function main() {
     process.exitCode = 2;
     return;
   }
+  const restoreSchema = target.schema;
 
   const releaseSha = process.env.DR_RESTORE_RELEASE_SHA?.trim() ?? "";
   if (!SHA.test(releaseSha)) throw new Error("DR_RESTORE_RELEASE_SHA must identify the deployed recovery application release.");
@@ -148,7 +149,7 @@ async function main() {
     throw new Error(`Restore evidence is invalid: ${restoreFindings.join("; ")}`);
   }
   const restoreEvidenceSha256 = await sha256File(options.restoreEvidencePath);
-  if (restoreEvidence.target.schema !== target.schema || restoreEvidence.target.mode !== target.mode) {
+  if (restoreEvidence.target.schema !== restoreSchema || restoreEvidence.target.mode !== target.mode) {
     throw new Error("Restore evidence target does not match the database target supplied to this application check.");
   }
   if (
@@ -166,7 +167,7 @@ async function main() {
       credential_version: number;
     }>(
       `select id::text, credential_version
-         from ${qualifiedTable("users", target.schema)}
+         from ${qualifiedTable("users", restoreSchema)}
         where agency_id is null
           and role in ('SUPER_ADMIN','ADMIN','VISA_AGENT','ACCOUNTING')
           and status='ACTIVE' and not activation_pending and not must_change_password
@@ -188,11 +189,11 @@ async function main() {
       `select u.id::text, u.agency_id::text, u.credential_version,
               a.id::text as application_id, a.reference as application_reference,
               d.id::text as document_id, d.size_bytes::int as document_size,
-              (select count(*)::int from ${qualifiedTable("applicants", target.schema)} ap where ap.application_id=a.id) as applicant_count
-         from ${qualifiedTable("users", target.schema)} u
-         join ${qualifiedTable("agencies", target.schema)} ag on ag.id=u.agency_id and ag.status='ACTIVE'
-         join ${qualifiedTable("applications", target.schema)} a on a.agency_id=u.agency_id
-         join ${qualifiedTable("documents", target.schema)} d on d.application_id=a.id
+              (select count(*)::int from ${qualifiedTable("applicants", restoreSchema)} ap where ap.application_id=a.id) as applicant_count
+         from ${qualifiedTable("users", restoreSchema)} u
+         join ${qualifiedTable("agencies", restoreSchema)} ag on ag.id=u.agency_id and ag.status='ACTIVE'
+         join ${qualifiedTable("applications", restoreSchema)} a on a.agency_id=u.agency_id
+         join ${qualifiedTable("documents", restoreSchema)} d on d.application_id=a.id
         where u.role in ('AGENCY_ADMIN','AGENCY_USER') and u.status='ACTIVE'
           and not u.activation_pending and not u.must_change_password
         order by case u.role when 'AGENCY_ADMIN' then 0 else 1 end, a.created_at desc, d.created_at desc
@@ -209,8 +210,8 @@ async function main() {
       credential_version: number;
     }>(
       `select u.id::text, u.agency_id::text, u.credential_version
-         from ${qualifiedTable("users", target.schema)} u
-         join ${qualifiedTable("agencies", target.schema)} ag on ag.id=u.agency_id and ag.status='ACTIVE'
+         from ${qualifiedTable("users", restoreSchema)} u
+         join ${qualifiedTable("agencies", restoreSchema)} ag on ag.id=u.agency_id and ag.status='ACTIVE'
         where u.role in ('AGENCY_ADMIN','AGENCY_USER') and u.status='ACTIVE'
           and not u.activation_pending and not u.must_change_password
           and u.agency_id <> $1::uuid
@@ -226,7 +227,7 @@ async function main() {
     async function createRecoverySession(userId: string, credentialVersion: number) {
       const token = randomBytes(32).toString("base64url");
       const row = await pool.query<{ id: string }>(
-        `insert into ${qualifiedTable("sessions", target.schema)}
+        `insert into ${qualifiedTable("sessions", restoreSchema)}
            (user_id,token_hash,expires_at,last_activity_at,credential_version,ip_address,user_agent)
          values ($1::uuid,$2,now()+interval '1 hour',now(),$3,null,'ESSAFARIA DR recovery probe')
          returning id::text`,
@@ -265,7 +266,7 @@ async function main() {
     const healthReachable =
       health.status === 200 &&
       healthJson.ok === true &&
-      healthJson.schema?.name === target.schema;
+      healthJson.schema?.name === restoreSchema;
 
     const staffRead = await fetchWithSession(
       options.baseUrl,
@@ -424,7 +425,7 @@ async function main() {
   } finally {
     if (sessionIds.length) {
       await pool.query(
-        `delete from ${qualifiedTable("sessions", target.schema)} where id = any($1::uuid[])`,
+        `delete from ${qualifiedTable("sessions", restoreSchema)} where id = any($1::uuid[])`,
         [sessionIds],
       ).catch(() => undefined);
     }
