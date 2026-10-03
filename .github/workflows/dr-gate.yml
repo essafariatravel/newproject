@@ -18,6 +18,7 @@ on:
       - "scripts/dr-verify-offsite-copy.ts"
       - "scripts/dr-verify-restored-app.ts"
       - "scripts/dr-prod-preflight.ts"
+      - "scripts/dr-status.ts"
       - "scripts/dr-repo-safety.ts"
       - "scripts/dr-generate-key.ts"
       - "tests/dr-private-path.test.ts"
@@ -115,6 +116,17 @@ jobs:
 
       - name: Full regression suite
         run: npm test
+
+      - name: Prove DR status refuses to call example backup ready
+        shell: bash
+        run: |
+          set +e
+          npm run dr:status -- --manifest docs/operations/dr-backup-manifest.example.json > /tmp/dr-status.log 2>&1
+          CODE=$?
+          set -e
+          cat /tmp/dr-status.log
+          test "$CODE" -eq 2
+          grep -q '"stage": "CREATED_NEEDS_EVIDENCE"' /tmp/dr-status.log
 
       - name: Prove example manifest is intentionally NOT verified
         run: |
