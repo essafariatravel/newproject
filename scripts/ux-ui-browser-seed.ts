@@ -4,7 +4,7 @@
  * It reuses deterministic test fixtures and creates one draft application so
  * both Agency and Staff dossier screens are available to the browser smoke.
  */
-import { eq } from "drizzle-orm";
+import fs from "node:fs";\nimport { eq } from "drizzle-orm";
 import { seedFixtures, agencyByEmail, userByEmail } from "../tests/helpers/fixtures";
 import { db, pool } from "../src/lib/db";
 import { applicants, visaTypes } from "../src/db/schema";
@@ -59,7 +59,7 @@ async function main() {
     country: "Algeria",
   });
 
-  console.log("Browser QA seed ready:", app.id);
+  fs.writeFileSync("/tmp/ux-browser-app-id", app.id, "utf8");\n  console.log("Browser QA seed ready:", app.id);
 }
 
 main()

@@ -59,10 +59,17 @@ async function inspectPage(context, route, label, locale, viewportName, options 
   await page.setViewportSize(viewports[viewportName]);
   const consoleErrors = [];
   const pageErrors = [];
+  const failedResponses = [];
+
   page.on("console", (msg) => {
     if (msg.type() === "error") consoleErrors.push(msg.text());
   });
   page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("response", (response) => {
+    if (response.status() >= 400) {
+      failedResponses.push({ status: response.status(), url: response.url(), method: response.request().method() });
+    }
+  });
 
   const response = await page.goto(new URL(route, baseURL).toString(), {
     waitUntil: "domcontentloaded",
@@ -80,23 +87,69 @@ async function inspectPage(context, route, label, locale, viewportName, options 
   const layout = await page.evaluate(() => {
     const root = document.documentElement;
     const body = document.body;
+    const viewportWidth = root.clientWidth;
+    const offenders = [];
+
+    for (const el of Array.from(document.querySelectorAll("body *"))) {
+      if (!(el instanceof HTMLElement)) continue;
+      const rect = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      if (cs.position === "fixed" && (rect.right > viewportWidth + 1 || rect.left < -1)) continue;
+      const overRight = rect.right - viewportWidth;
+      const overLeft = -rect.left;
+      if (overRight > 1 || overLeft > 1) {
+        offenders.push({
+          tag: el.tagName.toLowerCase(),
+          id: el.id || null,
+          className: typeof el.className === "string" ? el.className.slice(0, 240) : "",
+          text: (el.getAttribute("aria-label") || el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 120),
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          width: Math.round(rect.width),
+          overflowX: cs.overflowX,
+        });
+      }
+    }
+
+    offenders.sort((a, b) =>
+      Math.max(b.right - viewportWidth, -b.left) - Math.max(a.right - viewportWidth, -a.left)
+    );
+
     return {
       dir: root.dir || getComputedStyle(root).direction,
       pageOverflow: root.scrollWidth > root.clientWidth + 1 || body.scrollWidth > body.clientWidth + 1,
       width: root.clientWidth,
       scrollWidth: Math.max(root.scrollWidth, body.scrollWidth),
       h1: document.querySelectorAll("h1").length,
+      overflowOffenders: offenders.slice(0, 12),
     };
   });
 
   const expectedDir = locale === "ar" ? "rtl" : "ltr";
   if (layout.dir !== expectedDir) failures.push(label + ": expected dir=" + expectedDir + ", got " + layout.dir);
-  if (layout.pageOverflow) failures.push(label + ": page-level horizontal overflow " + layout.scrollWidth + " > " + layout.width);
+  if (layout.pageOverflow) failures.push(
+    label + ": page-level horizontal overflow " + layout.scrollWidth + " > " + layout.width +
+    " offenders=" + JSON.stringify(layout.overflowOffenders.slice(0, 5))
+  );
 
   const axe = await new AxeBuilder({ page }).analyze();
   const severe = axe.violations.filter((v) => v.impact === "critical" || v.impact === "serious");
+  const axeDetailed = severe.map((v) => ({
+    id: v.id,
+    impact: v.impact,
+    help: v.help,
+    helpUrl: v.helpUrl,
+    nodes: v.nodes.map((n) => ({
+      target: n.target,
+      html: n.html,
+      failureSummary: n.failureSummary,
+    })),
+  }));
   if (severe.length) {
-    failures.push(label + ": axe serious/critical violations: " + severe.map((v) => v.id + "(" + v.nodes.length + ")").join(", "));
+    failures.push(
+      label + ": axe serious/critical violations: " +
+      axeDetailed.map((v) => v.id + "(" + v.nodes.length + ")").join(", ")
+    );
   }
 
   const focus = options.keyboard ? await keyboardSmoke(page, label) : null;
@@ -108,19 +161,31 @@ async function inspectPage(context, route, label, locale, viewportName, options 
   const ignoredConsole = consoleErrors.filter((m) =>
     !/favicon|Download the React DevTools|hydration/i.test(m)
   );
-  if (ignoredConsole.length) failures.push(label + ": console error(s): " + ignoredConsole.slice(0, 3).join(" | "));
+
+  const relevantResponses = failedResponses.filter((r) =>
+    !/favicon\.ico(?:\?|$)/i.test(r.url)
+  );
+
+  if (relevantResponses.length) {
+    failures.push(
+      label + ": failed response(s): " +
+      relevantResponses.slice(0, 6).map((r) => r.method + " " + r.status + " " + r.url).join(" | ")
+    );
+  } else if (ignoredConsole.length) {
+    failures.push(label + ": console error(s): " + ignoredConsole.slice(0, 3).join(" | "));
+  }
   if (pageErrors.length) failures.push(label + ": page error(s): " + pageErrors.slice(0, 3).join(" | "));
 
   results.push({
     label, route, locale, viewport: viewportName, status, layout, focus,
-    axeSeriousCritical: severe.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length })),
+    axeSeriousCritical: axeDetailed,
     consoleErrors: ignoredConsole,
+    failedResponses: relevantResponses,
     pageErrors,
   });
 
-  return page;
+  await page.close();
 }
-
 async function login(context, identifier, password, expectedPrefix) {
   const page = await context.newPage();
   await page.goto(new URL("/login", baseURL).toString(), { waitUntil: "domcontentloaded", timeout: 60_000 });
@@ -179,8 +244,13 @@ try {
     ["/portal/profile", "agency-profile", "desktop1024"],
   ]) await inspectPage(agency, route, label, "en", viewport, { keyboard: true });
 
-  const agencyDossier = await firstDossierPath(agency, "/portal/applications", "/portal/applications/");
-  if (!agencyDossier) failures.push("agency: seeded dossier link not found");
+  const seededAppId = fs.existsSync("/tmp/ux-browser-app-id")
+    ? fs.readFileSync("/tmp/ux-browser-app-id", "utf8").trim()
+    : "";
+  const agencyDossier = seededAppId
+    ? "/portal/applications/" + seededAppId
+    : await firstDossierPath(agency, "/portal/applications", "/portal/applications/");
+  if (!agencyDossier) failures.push("agency: seeded dossier path unavailable");
   else await inspectPage(agency, agencyDossier, "agency-dossier", "en", "desktop1440", { keyboard: true });
 
   await setLocale(agency, "fr");
@@ -205,8 +275,10 @@ try {
     ["/admin/audit", "staff-audit", "desktop1440"],
   ]) await inspectPage(staff, route, label, "en", viewport, { keyboard: true });
 
-  const staffDossier = await firstDossierPath(staff, "/admin/applications", "/admin/applications/");
-  if (!staffDossier) failures.push("staff: seeded dossier link not found");
+  const staffDossier = seededAppId
+    ? "/admin/applications/" + seededAppId
+    : await firstDossierPath(staff, "/admin/applications", "/admin/applications/");
+  if (!staffDossier) failures.push("staff: seeded dossier path unavailable");
   else await inspectPage(staff, staffDossier, "staff-dossier", "en", "desktop1440", { keyboard: true });
 
   await setLocale(staff, "fr");
