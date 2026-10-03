@@ -185,22 +185,25 @@ async function main() {
       document_id: string;
       document_size: number;
       applicant_count: number;
+      wallet_reference: string;
     }>(
       `select u.id::text, u.agency_id::text, u.credential_version,
               a.id::text as application_id, a.reference as application_reference,
               d.id::text as document_id, d.size_bytes::int as document_size,
-              (select count(*)::int from ${qualifiedTable("applicants", restoreSchema)} ap where ap.application_id=a.id) as applicant_count
+              (select count(*)::int from ${qualifiedTable("applicants", restoreSchema)} ap where ap.application_id=a.id) as applicant_count,
+              w.reference as wallet_reference
          from ${qualifiedTable("users", restoreSchema)} u
          join ${qualifiedTable("agencies", restoreSchema)} ag on ag.id=u.agency_id and ag.status='ACTIVE'
          join ${qualifiedTable("applications", restoreSchema)} a on a.agency_id=u.agency_id
          join ${qualifiedTable("documents", restoreSchema)} d on d.application_id=a.id
+         join ${qualifiedTable("wallet_transactions", restoreSchema)} w on w.agency_id=u.agency_id
         where u.role in ('AGENCY_ADMIN','AGENCY_USER') and u.status='ACTIVE'
           and not u.activation_pending and not u.must_change_password
         order by case u.role when 'AGENCY_ADMIN' then 0 else 1 end, a.created_at desc, d.created_at desc
         limit 1`,
     );
     if (!owner.rows[0]) {
-      throw new Error("Disposable restore needs an active unlocked agency user owning an application/document for runtime recovery validation.");
+      throw new Error("Disposable restore needs an active unlocked agency user with an application, document and wallet history for runtime recovery validation.");
     }
     const agencyA = owner.rows[0];
 
@@ -327,7 +330,7 @@ async function main() {
     let foreignWalletDataNotVisible = false;
     if (foreignWallet.status === 200) {
       const csv = await foreignWallet.text();
-      foreignWalletDataNotVisible = !csv.includes(agencyA.application_reference);
+      foreignWalletDataNotVisible = !csv.includes(agencyA.wallet_reference);
     } else {
       foreignWalletDataNotVisible = foreignWallet.status === 403;
       await foreignWallet.body?.cancel().catch(() => undefined);
