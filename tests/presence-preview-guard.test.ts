@@ -45,7 +45,7 @@ describe("North Star read-only Preview presence writes", () => {
       } else {
         await touchPresence(session.userId, session.tokenHash);
       }
-      const result = await db.execute(sql`select session_id from ${sql.raw(qualifiedTable("session_presence", process.env.DATABASE_SCHEMA))} where session_id=${session.id}`);
+      const result = await db.execute(sql`select session_id from ${sql.raw(qualifiedTable("session_presence", "public"))} where session_id=${session.id}`);
       expect(result.rows).toEqual(suppressed || hostedBoundary ? [] : [{ session_id: session.id }]);
       // Heartbeats must not change authentication-session metadata in any environment.
       const [after] = await db.select().from(sessions).where(eq(sessions.id, session.id));
@@ -62,9 +62,9 @@ describe("North Star read-only Preview presence writes", () => {
     const session = await createPresenceSession();
     const lastSeenAt = new Date("2020-01-01T00:00:00.000Z");
     try {
-      await db.execute(sql`insert into ${sql.raw(qualifiedTable("session_presence", process.env.DATABASE_SCHEMA))} (session_id, last_seen_at) values (${session.id}, ${lastSeenAt.toISOString()}::timestamptz)`);
+      await db.execute(sql`insert into ${sql.raw(qualifiedTable("session_presence", "public"))} (session_id, last_seen_at) values (${session.id}, ${lastSeenAt.toISOString()}::timestamptz)`);
       await touchPresence(session.userId, session.tokenHash);
-      const result = await db.execute(sql`select last_seen_at from ${sql.raw(qualifiedTable("session_presence", process.env.DATABASE_SCHEMA))} where session_id=${session.id}`);
+      const result = await db.execute(sql`select last_seen_at from ${sql.raw(qualifiedTable("session_presence", "public"))} where session_id=${session.id}`);
       expect(result.rows).toHaveLength(1);
       expect(new Date(String(result.rows[0]?.last_seen_at)).toISOString()).toBe(lastSeenAt.toISOString());
     } finally {
