@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - design/ux-ui-final-polish
+      - design/ux-ui-final-polish-v2
   workflow_dispatch:
 
 concurrency:
