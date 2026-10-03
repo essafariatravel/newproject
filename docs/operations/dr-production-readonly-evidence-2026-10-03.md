@@ -236,3 +236,22 @@ The repository now provides:
 `npm run dr:release-resolve`
 
 which uses a read-only `VERCEL_TOKEN` authorized for the ESSAFARIA team, filters READY production deployments, verifies the exact custom-domain alias, and returns the full Git SHA. A 403/missing token is a hard blocker; the candidate above must never be substituted automatically.
+
+
+## Recovery target provisioned — 2026-10-03
+
+A dedicated non-Production Supabase recovery project was created in the ESSAFARIA organization after cost confirmation.
+
+- project name: `essafaria-visa-os-dr-recovery-2026-10-03`
+- project ref: `vwixmkzgpmzgwbshzxji`
+- organization: `essafaria travel's projects`
+- region: `us-east-1`
+- status observed after creation: `ACTIVE_HEALTHY`
+- reported project cost at creation: `0 USD/month`
+- intended use: disposable isolated DR restore target only
+- Production project: `xgetzgixalrsmuvfthpf`
+- Production modified by this provisioning: **no**
+
+A direct read-only check confirmed that schema `visa_os` does **not** exist in the new recovery project. This satisfies the repository restore guard's requirement for a fresh target schema.
+
+The Supabase connector intentionally does not expose the new project's PostgreSQL administrator password or a reusable database connection URI. Therefore the project is provisioned and validated as a safe empty target, but the real `pg_restore` still requires an operator-side PostgreSQL connection credential that must remain outside repository/chat evidence.
