@@ -34,6 +34,7 @@ import { recordAudit } from "@/lib/audit";
 import { agencyUserIds, staffUserIds, notifyUsers } from "@/lib/notifications";
 import { getStatusByCode } from "@/lib/applications";
 import { sha256Hex } from "@/lib/file-integrity";
+import { sha256Hex } from "@/lib/file-integrity";
 
 interface ApplicationAccess {
   applicationId: string;
@@ -188,6 +189,7 @@ export async function uploadDocument(input: UploadDocumentInput) {
   }
 
   if (input.file.size <= 0 || input.file.data.length === 0) throw new AppError("EMPTY_FILE", "The uploaded file is empty.");
+  if (input.file.size !== input.file.data.length) throw new AppError("VALIDATION", "The uploaded file size is inconsistent.");
   if (input.file.size > MAX_UPLOAD_BYTES || input.file.data.length > MAX_UPLOAD_BYTES) {
     throw new AppError("FILE_TOO_LARGE", "Files must be 2 MB or smaller.");
   }
@@ -229,6 +231,7 @@ export async function uploadDocument(input: UploadDocumentInput) {
 
   const documentId = randomUUID();
   const storageKey = buildStorageKey(input.applicationId, documentId);
+  const sha256 = sha256Hex(input.file.data);
   await storageProvider().put(storageKey, input.file.data, input.file.type);
   let doc: typeof documents.$inferSelect;
   let fulfilledRequest = false;
