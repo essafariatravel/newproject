@@ -10,6 +10,8 @@ import {
   finalizeBackupManifest,
   type RestoreEvidence,
   type OffsiteEvidence,
+  type ApplicationRecoveryEvidence,
+  type TenantIsolationEvidence,
 } from "../scripts/lib/dr-finalization";
 
 function createdManifest(): BackupManifest {
@@ -97,6 +99,44 @@ function offsiteEvidence(): OffsiteEvidence {
   };
 }
 
+function applicationEvidence(): ApplicationRecoveryEvidence {
+  return {
+    version: 1,
+    kind: "ESSAFARIA_DR_APPLICATION",
+    backupId: "ESSAFARIA-PROD-20261003T180000Z-abcdef123456",
+    restoreEvidenceSha256: "d".repeat(64),
+    testedAt: "2026-10-03T18:33:00.000Z",
+    targetRef: "RESTORE-APP-0001",
+    checks: {
+      healthReachable: true,
+      staffLogin: true,
+      agencyLogin: true,
+      staffCriticalRead: true,
+      agencyOwnApplicationRead: true,
+      agencyOwnDocumentRead: true,
+      walletRead: true,
+    },
+  };
+}
+
+function tenantEvidence(): TenantIsolationEvidence {
+  return {
+    version: 1,
+    kind: "ESSAFARIA_DR_TENANT_ISOLATION",
+    backupId: "ESSAFARIA-PROD-20261003T180000Z-abcdef123456",
+    restoreEvidenceSha256: "d".repeat(64),
+    testedAt: "2026-10-03T18:34:00.000Z",
+    targetRef: "RESTORE-TENANT-0001",
+    checks: {
+      foreignApplicationDenied: true,
+      foreignDocumentDenied: true,
+      foreignApplicantDenied: true,
+      foreignWalletDataNotVisible: true,
+      forgedForeignUploadDenied: true,
+    },
+  };
+}
+
 describe("DR evidence-bound finalization", () => {
   it("promotes a CREATED backup only when restore and external evidence are explicitly bound", () => {
     const result = finalizeBackupManifest({
@@ -106,10 +146,10 @@ describe("DR evidence-bound finalization", () => {
       restoreEvidenceSha256: "d".repeat(64),
       offsiteEvidence: offsiteEvidence(),
       offsiteEvidenceSha256: "e".repeat(64),
-      evidence: {
-        application: "APPRECOVERY-20261003-0001",
-        tenantIsolation: "TENANTISO-20261003-0001",
-      },
+      applicationEvidence: applicationEvidence(),
+      applicationEvidenceSha256: "f".repeat(64),
+      tenantIsolationEvidence: tenantEvidence(),
+      tenantIsolationEvidenceSha256: "1".repeat(64),
       externalEvidenceAttested: true,
       verifiedAt: new Date("2026-10-03T18:35:00.000Z"),
     });
@@ -127,10 +167,10 @@ describe("DR evidence-bound finalization", () => {
       restoreEvidenceSha256: "d".repeat(64),
       offsiteEvidence: offsiteEvidence(),
       offsiteEvidenceSha256: "e".repeat(64),
-      evidence: {
-        application: "APPRECOVERY-20261003-0001",
-        tenantIsolation: "TENANTISO-20261003-0001",
-      },
+      applicationEvidence: applicationEvidence(),
+      applicationEvidenceSha256: "f".repeat(64),
+      tenantIsolationEvidence: tenantEvidence(),
+      tenantIsolationEvidenceSha256: "1".repeat(64),
       externalEvidenceAttested: false,
       verifiedAt: new Date("2026-10-03T18:35:00.000Z"),
     });
@@ -148,15 +188,57 @@ describe("DR evidence-bound finalization", () => {
       restoreEvidenceSha256: "d".repeat(64),
       offsiteEvidence: offsiteEvidence(),
       offsiteEvidenceSha256: "e".repeat(64),
-      evidence: {
-        application: "APPRECOVERY-20261003-0001",
-        tenantIsolation: "TENANTISO-20261003-0001",
-      },
+      applicationEvidence: applicationEvidence(),
+      applicationEvidenceSha256: "f".repeat(64),
+      tenantIsolationEvidence: tenantEvidence(),
+      tenantIsolationEvidenceSha256: "1".repeat(64),
       externalEvidenceAttested: true,
       verifiedAt: new Date("2026-10-03T18:35:00.000Z"),
     });
     expect(result.manifest).toBeNull();
     expect(result.findings.join(" ")).toContain("not bound to this source manifest");
+  });
+
+  it("refuses application evidence when a required recovery check failed", () => {
+    const application = applicationEvidence();
+    application.checks.agencyOwnDocumentRead = false;
+    const result = finalizeBackupManifest({
+      manifest: createdManifest(),
+      sourceManifestSha256: "c".repeat(64),
+      restoreEvidence: restoreEvidence(),
+      restoreEvidenceSha256: "d".repeat(64),
+      offsiteEvidence: offsiteEvidence(),
+      offsiteEvidenceSha256: "e".repeat(64),
+      applicationEvidence: application,
+      applicationEvidenceSha256: "f".repeat(64),
+      tenantIsolationEvidence: tenantEvidence(),
+      tenantIsolationEvidenceSha256: "1".repeat(64),
+      externalEvidenceAttested: true,
+      verifiedAt: new Date("2026-10-03T18:35:00.000Z"),
+    });
+    expect(result.manifest).toBeNull();
+    expect(result.findings.join(" ")).toContain("agencyOwnDocumentRead");
+  });
+
+  it("refuses tenant evidence when foreign access was not demonstrably denied", () => {
+    const tenant = tenantEvidence();
+    tenant.checks.foreignDocumentDenied = false;
+    const result = finalizeBackupManifest({
+      manifest: createdManifest(),
+      sourceManifestSha256: "c".repeat(64),
+      restoreEvidence: restoreEvidence(),
+      restoreEvidenceSha256: "d".repeat(64),
+      offsiteEvidence: offsiteEvidence(),
+      offsiteEvidenceSha256: "e".repeat(64),
+      applicationEvidence: applicationEvidence(),
+      applicationEvidenceSha256: "f".repeat(64),
+      tenantIsolationEvidence: tenant,
+      tenantIsolationEvidenceSha256: "1".repeat(64),
+      externalEvidenceAttested: true,
+      verifiedAt: new Date("2026-10-03T18:35:00.000Z"),
+    });
+    expect(result.manifest).toBeNull();
+    expect(result.findings.join(" ")).toContain("foreignDocumentDenied");
   });
 
   it("refuses off-site evidence that is not byte-identical to the backup", () => {
@@ -188,10 +270,10 @@ describe("DR evidence-bound finalization", () => {
       restoreEvidenceSha256: "d".repeat(64),
       offsiteEvidence: offsiteEvidence(),
       offsiteEvidenceSha256: "e".repeat(64),
-      evidence: {
-        application: "too short",
-        tenantIsolation: "/tmp/tenant-evidence.txt",
-      },
+      applicationEvidence: { ...applicationEvidence(), targetRef: "bad path" },
+      applicationEvidenceSha256: "f".repeat(64),
+      tenantIsolationEvidence: { ...tenantEvidence(), targetRef: "/tmp/tenant-evidence.txt" },
+      tenantIsolationEvidenceSha256: "1".repeat(64),
       externalEvidenceAttested: true,
       verifiedAt: new Date("2026-10-03T18:35:00.000Z"),
     });
