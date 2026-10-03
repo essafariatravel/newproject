@@ -147,6 +147,22 @@ describe("legal/privacy readiness regression guards", () => {
     expect(read("src/lib/registrations.ts")).toContain("safeErrorCode(err)");
   });
 
+  it("keeps durable audit metadata free of redundant filenames and identity fields", () => {
+    const documents = read("src/lib/documents.ts");
+    const registrations = read("src/lib/registrations.ts");
+    const topups = read("src/lib/topup.ts");
+    const registrationDownload = read("src/app/api/registrations/[id]/documents/[docId]/route.ts");
+
+    expect(documents).not.toContain("metadata: { filename:");
+    expect(documents).not.toContain("filename: doc.originalFilename");
+    expect(documents).not.toContain("filename: row.doc.originalFilename");
+    expect(topups).not.toContain("proofFilename: proof.name, proofSha256");
+    expect(registrationDownload).not.toContain("filename: doc.originalFilename");
+    expect(registrations).not.toContain("metadata:{legalName:reg.legal_name");
+    expect(registrations).not.toContain("metadata:{role:\"AGENCY_ADMIN\",email:reg.email");
+    expect(registrations).not.toContain("metadata: { registrationId, email: reg.email");
+  });
+
   it("keeps sensitive database schemas server-only in documented architecture", () => {
     const env = read(".env.example");
     expect(env).toContain("server-side node-postgres + Drizzle");
