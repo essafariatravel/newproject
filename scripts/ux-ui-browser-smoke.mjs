@@ -127,7 +127,19 @@ async function login(context, identifier, password, expectedPrefix) {
   await page.locator("#email").fill(identifier);
   await page.locator("#password").fill(password);
   await page.locator("form button").filter({ hasText: /sign in|se connecter|تسجيل الدخول/i }).click();
-  await page.waitForURL((url) => url.pathname.startsWith(expectedPrefix), { timeout: 30_000 });
+
+  try {
+    await page.waitForURL((url) => url.pathname.startsWith(expectedPrefix), { timeout: 30_000 });
+  } catch (error) {
+    const alert = await page.locator('[role="alert"]').first().textContent().catch(() => null);
+    const currentURL = page.url();
+    throw new Error(
+      "Login failed for " + identifier +
+      " (expected " + expectedPrefix + ", current " + currentURL + ")" +
+      (alert ? ": " + alert.trim() : ""),
+      { cause: error },
+    );
+  }
   await page.close();
 }
 
@@ -157,7 +169,7 @@ try {
   // Agency.
   const agency = await browser.newContext();
   await setLocale(agency, "en");
-  await login(agency, "a-admin@test.example", "Test-Password-123", "/portal");
+  await login(agency, "a-admin", "Test-Password-123", "/portal");
   for (const [route, label, viewport] of [
     ["/portal", "agency-dashboard", "mobile390"],
     ["/portal", "agency-dashboard", "desktop1440"],
