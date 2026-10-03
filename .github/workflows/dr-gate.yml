@@ -12,11 +12,14 @@ on:
       - "scripts/dr-create-backup.ts"
       - "scripts/dr-restore.ts"
       - "scripts/lib/dr-backup.ts"
+      - "scripts/lib/dr-finalization.ts"
+      - "scripts/dr-finalize.ts"
       - "scripts/reset.ts"
       - "scripts/lib/reset-plan.ts"
       - "scripts/lib/build-policy.ts"
       - "tests/dr-safety.test.ts"
       - "tests/dr-backup.test.ts"
+      - "tests/dr-finalization.test.ts"
       - "tests/reset-plan.test.ts"
       - "tests/build-preview-guard.test.ts"
       - "docs/operations/disaster-recovery.md"
@@ -67,6 +70,7 @@ jobs:
           npx vitest run
           tests/dr-safety.test.ts
           tests/dr-backup.test.ts
+          tests/dr-finalization.test.ts
           tests/reset-plan.test.ts
           tests/build-preview-guard.test.ts
           tests/prod-release-preflight.test.ts
