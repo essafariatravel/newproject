@@ -75,7 +75,7 @@ describe("§Settings — independent sections, multilingual legal copy", () => {
 
     const form = new FormData();
     form.set("section", "legal");
-    form.set("legal.publishedAt", "2026-09-30");
+    form.set("legal.terms.en.effectiveAt", "2026-09-30");
     form.set("legal.privacy.ar", "إشعار الخصوصية بالعربية");
     form.set("legal.terms.ar", "شروط الخدمة بالعربية");
     const flash = await runAction(updateSiteSettingsAction, form);
@@ -164,7 +164,7 @@ describe("§Settings — independent sections, multilingual legal copy", () => {
 
   it("8. legal text is stored as text, never as markup, and long copy round-trips", async () => {
     const long = "Article 1 — Scope.\n".repeat(120);
-    await publishLegalContent({kind:"terms",locale:"fr",body:long,publishedAt:new Date("2026-09-30"),actor:await import("./helpers/fixtures").then(m=>m.userByEmail("superadmin@test.example"))});
+    await publishLegalContent({kind:"terms",locale:"fr",body:long,effectiveAt:new Date("2026-09-30"),actor:await import("./helpers/fixtures").then(m=>m.userByEmail("superadmin@test.example"))});
     const row = await readPublishedLegal("terms","fr");
     expect(typeof row?.body).toBe("string");
     expect(row?.body).toBe(long.trim());
