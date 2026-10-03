@@ -58,6 +58,7 @@ import { storageProvider } from "@/lib/storage";
 import { recordAudit } from "@/lib/audit";
 import { notifyUsers, staffUserIds } from "@/lib/notifications";
 import { generateSessionToken, hashPassword, hashToken } from "@/lib/crypto";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import type { RegistrationCopy, RegistrationLocale } from "@/lib/i18n";
 
 /* ------------------------------------------------------------------ */
@@ -273,6 +274,15 @@ export async function assertRegistrationRateLimit(ipAddress: string | null): Pro
     throw new AppError("RATE_LIMITED", "Too many attempts. Please wait before submitting again.");
   }
   try {
+    // Atomic DB counters close the multi-instance race that a read-then-insert
+    // registration count cannot prevent on serverless/concurrent requests.
+    const [hourAllowed, dayAllowed] = await Promise.all([
+      consumeAuthRateLimit("registration-ip-hour", key, RATE_LIMIT_PER_IP_HOUR, 60 * 60_000),
+      consumeAuthRateLimit("registration-ip-day", key, RATE_LIMIT_PER_IP_DAY, 24 * 60 * 60_000),
+    ]);
+    if (!hourAllowed || !dayAllowed) {
+      throw new AppError("RATE_LIMITED", "Too many attempts. Please wait before submitting again.");
+    }
     const rows = await db
       .select({
         lastHour: sql<number>`count(*) filter (where ${agencyRegistrations.createdAt} > now() - interval '1 hour')::int`,
