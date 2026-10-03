@@ -45,6 +45,7 @@ const dbProvider: StorageProvider = {
 /* -------------------------- supabase provider ---------------------------- */
 
 const SUPABASE_UPLOAD_LIMIT = 10 * 1024 * 1024;
+const EXPECTED_SUPABASE_STORAGE_HOST = "xgetzgixalrsmuvfthpf.supabase.co";
 
 function supabaseConfig() {
   const rawUrl = process.env.SUPABASE_URL;
@@ -64,7 +65,7 @@ function supabaseConfig() {
   }
   if (
     parsed.protocol !== "https:" ||
-    !parsed.hostname.endsWith(".supabase.co") ||
+    parsed.hostname !== EXPECTED_SUPABASE_STORAGE_HOST ||
     parsed.username ||
     parsed.password ||
     (parsed.port && parsed.port !== "443") ||
