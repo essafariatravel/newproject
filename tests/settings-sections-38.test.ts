@@ -75,7 +75,8 @@ describe("§Settings — independent sections, multilingual legal copy", () => {
 
     const form = new FormData();
     form.set("section", "legal");
-    form.set("legal.terms.en.effectiveAt", "2026-09-30");
+    form.set("legal.privacy.ar.effectiveAt", "2026-09-30");
+    form.set("legal.terms.ar.effectiveAt", "2026-09-30");
     form.set("legal.privacy.ar", "إشعار الخصوصية بالعربية");
     form.set("legal.terms.ar", "شروط الخدمة بالعربية");
     const flash = await runAction(updateSiteSettingsAction, form);
@@ -91,7 +92,10 @@ describe("§Settings — independent sections, multilingual legal copy", () => {
     await actAsSuperAdmin();
     const form = new FormData();
     form.set("section", "legal");
-    form.set("legal.publishedAt", "2026-09-30");
+    for (const locale of ["en", "fr", "ar"]) {
+      form.set(`legal.privacy.${locale}.effectiveAt`, "2026-09-30");
+      form.set(`legal.terms.${locale}.effectiveAt`, "2026-09-30");
+    }
     form.set("legal.privacy.en", "English privacy");
     form.set("legal.privacy.fr", "Confidentialité française");
     form.set("legal.privacy.ar", "الخصوصية العربية");
@@ -131,7 +135,7 @@ describe("§Settings — independent sections, multilingual legal copy", () => {
     const admin = await actAsSuperAdmin();
     const form = new FormData();
     form.set("section", "legal");
-    form.set("legal.publishedAt", "2026-09-30");
+    form.set("legal.privacy.fr.effectiveAt", "2026-09-30");
     form.set("legal.privacy.fr", "Confidentialité auditée");
     await runAction(updateSiteSettingsAction, form);
 
@@ -153,7 +157,7 @@ describe("§Settings — independent sections, multilingual legal copy", () => {
     await actAsSuperAdmin();
     const form = new FormData();
     form.set("section", "legal");
-    form.set("legal.publishedAt", "2026-09-30");
+    form.set("legal.terms.en.effectiveAt", "2026-09-30");
     form.set("legal.terms.en", "Terms v2");
     await runAction(updateSiteSettingsAction, form);
 
