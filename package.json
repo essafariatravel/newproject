@@ -33,7 +33,8 @@
     "perf:exports": "k6 run perf/k6/essafaria-exports.js",
     "perf:monitor": "tsx scripts/perf-db-monitor.ts",
     "perf:index-advisor": "tsx scripts/perf-index-advisor.ts",
-    "perf:run-tier": "tsx scripts/perf-run-tier.ts"
+    "perf:run-tier": "tsx scripts/perf-run-tier.ts",
+    "perf:index-proof": "tsx scripts/perf-index-proof.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
