@@ -14,6 +14,7 @@ import {
   assessBackupManifest,
 } from "./lib/dr-safety";
 import type { OffsiteEvidence } from "./lib/dr-finalization";
+import { privateArtifactPath } from "./lib/dr-private-path";
 import {
   backupKeyFromEnvironment,
   sha256File,
@@ -37,17 +38,15 @@ function parseArgs(args: string[]) {
   if (!REF.test(values["--location-ref"]!)) {
     throw new Error("--location-ref must be an opaque 8-160 character identifier, not a secret/path/free-form note.");
   }
-  const evidenceOutput = path.resolve(values["--evidence-output"]!);
-  if (!path.isAbsolute(values["--evidence-output"]!)) throw new Error("--evidence-output must be an absolute private path.");
-  const cwd = path.resolve(process.cwd()) + path.sep;
-  if ((evidenceOutput + path.sep).startsWith(cwd)) {
-    throw new Error("Off-site evidence must be written outside the repository working tree.");
-  }
   return {
-    manifestPath: path.resolve(values["--manifest"]!),
-    copyPath: path.resolve(values["--copy"]!),
+    manifestPath: privateArtifactPath(values["--manifest"]!, "--manifest"),
+    copyPath: privateArtifactPath(values["--copy"]!, "--copy"),
     locationRef: values["--location-ref"]!,
-    evidenceOutput,
+    evidenceOutput: privateArtifactPath(
+      values["--evidence-output"]!,
+      "--evidence-output",
+      { requireAbsolute: true },
+    ),
   };
 }
 
