@@ -93,7 +93,7 @@ async function main() {
              'PERF_DATA_${datasetId}_' || lpad(($2 + g)::text,4,'0'),
              'PERF_DATA_${datasetId}_' || lpad(($2 + g)::text,4,'0'),
              'perf.data.${datasetId}.' || lpad(($2 + g)::text,4,'0') || '@load.example',
-             'ACTIVE', 0, 'DZD', $3
+             'ACTIVE', 0, 'DZD', $3::text
            from generate_series(1,$1::int) g
            returning id`,
           [n, offset + 1, marker],
@@ -114,15 +114,15 @@ async function main() {
               submitted_at, created_at, updated_at)
            select
              gen_random_uuid(),
-             $1 || lpad(($2 + g)::text,8,'0'),
-             ($4::uuid[])[1 + (($2 + g - 1) % array_length($4::uuid[],1))],
+             $1::text || lpad(($2::int + g)::text,8,'0'),
+             ($4::uuid[])[1 + (($2::int + g - 1) % array_length($4::uuid[],1))],
              cfg.country_id, cfg.visa_type_id, cfg.status_id, cfg.priority_id,
              cfg.visa_name, cfg.visa_code, cfg.category_name, cfg.country_name,
              cfg.fee, cfg.fee, 'DZD', cfg.fee, 'DZD',
-             cfg.processing_min_days, cfg.processing_max_days, $5, $6,
-             now() - (($2 + g) % 365) * interval '1 day',
-             now() - (($2 + g) % 365) * interval '1 day' - interval '1 hour',
-             now() - (($2 + g) % 365) * interval '1 day'
+             cfg.processing_min_days, cfg.processing_max_days, $5::text, $6::uuid,
+             now() - (($2::int + g) % 365) * interval '1 day',
+             now() - (($2::int + g) % 365) * interval '1 day' - interval '1 hour',
+             now() - (($2::int + g) % 365) * interval '1 day'
            from generate_series(1,$3::int) g
            cross join lateral (
              select vt.id as visa_type_id, vt.name as visa_name, vt.code as visa_code,
@@ -184,8 +184,8 @@ async function main() {
                 size_bytes, storage_key, status, reviewed_by, reviewed_at, uploaded_by, version)
              select ci.application_id, ci.id, ci.document_type_id,
                     'perf-' || ci.document_type_code || '.pdf', 'application/pdf', 250000,
-                    'perf-metadata/' || $2 || '/' || ci.application_id::text || '/' || ci.id::text,
-                    'ACCEPTED', $3, now(), $3, 1
+                    'perf-metadata/' || $2::text || '/' || ci.application_id::text || '/' || ci.id::text,
+                    'ACCEPTED', $3::uuid, now(), $3::uuid, 1
                from ${perfTable("checklist_items")} ci
               where ci.application_id = any($1::uuid[])`,
             [ids, datasetId, actorId],
@@ -196,7 +196,7 @@ async function main() {
           await client.query(
             `insert into ${perfTable("notifications")}
                (user_id, agency_id, application_id, type, title, body, link, read_at, created_at)
-             select $2, a.agency_id, a.id, 'APPLICATION_SUBMITTED',
+             select $2::uuid, a.agency_id, a.id, 'APPLICATION_SUBMITTED',
                     'PERF synthetic application', 'Synthetic performance dataset row.',
                     '/admin/applications/' || a.id::text,
                     case when n % 3 = 0 then now() else null end,
@@ -212,7 +212,7 @@ async function main() {
           await client.query(
             `insert into ${perfTable("communications")}
                (application_id, author_id, visibility, body, created_at)
-             select a.id, $2, case when n % 2 = 0 then 'INTERNAL' else 'AGENCY' end,
+             select a.id, $2::uuid, case when n % 2 = 0 then 'INTERNAL' else 'AGENCY' end,
                     'PERF synthetic communication ' || n::text,
                     a.created_at + n * interval '2 minutes'
                from ${perfTable("applications")} a
@@ -226,9 +226,9 @@ async function main() {
           await client.query(
             `insert into ${perfTable("audit_logs")}
                (actor_id, actor_email, actor_role, agency_id, action, entity, entity_id, metadata, created_at)
-             select $2, 'perf.superadmin@load.example', 'SUPER_ADMIN', a.agency_id,
+             select $2::uuid, 'perf.superadmin@load.example', 'SUPER_ADMIN', a.agency_id,
                     'PERF_SYNTHETIC_EVENT', 'application', a.id::text,
-                    jsonb_build_object('dataset',$3,'event',n),
+                    jsonb_build_object('dataset',$3::text,'event',n),
                     a.created_at + n * interval '3 minutes'
                from ${perfTable("applications")} a
                cross join generate_series(1,$4::int) n
@@ -240,7 +240,7 @@ async function main() {
         await client.query(
           `insert into ${perfTable("application_status_history")}
              (application_id, from_status_id, to_status_id, changed_by, reason, created_at)
-           select a.id, null, a.status_id, $2, 'PERF synthetic history', a.created_at
+           select a.id, null, a.status_id, $2::uuid, 'PERF synthetic history', a.created_at
              from ${perfTable("applications")} a
             where a.id = any($1::uuid[])`,
           [ids, actorId],
@@ -255,13 +255,13 @@ async function main() {
         await client.query(
           `insert into ${perfTable("wallet_transactions")}
              (agency_id, application_id, type, amount, currency, balance_before, balance_after, reason, actor_id, created_at)
-           select $1, null, 'CREDIT', 1, 'DZD', (g-1)::numeric, g::numeric,
-                  $2, $3, now() - ($4 - g) * interval '1 minute'
+           select $1::uuid, null, 'CREDIT', 1, 'DZD', (g-1)::numeric, g::numeric,
+                  $2::text, $3::uuid, now() - ($4::int - g) * interval '1 minute'
              from generate_series(1,$4::int) g`,
           [ledgerAgency, `${marker}:LEDGER`, actorId, ledgerRows],
         );
         await client.query(
-          `update ${perfTable("agencies")} set balance=$2::numeric, updated_at=now() where id=$1`,
+          `update ${perfTable("agencies")} set balance=$2::numeric, updated_at=now() where id=$1::uuid`,
           [ledgerAgency, ledgerRows],
         );
       }
