@@ -80,7 +80,7 @@ describe("§Settings — independent sections, multilingual legal copy", () => {
     form.set("legal.privacy.ar", "إشعار الخصوصية بالعربية");
     form.set("legal.terms.ar", "شروط الخدمة بالعربية");
     const flash = await runAction(updateSiteSettingsAction, form);
-    expect(flash).toMatch(/Legal versions published/);
+    expect(flash).toMatch(/Approved legal versions published/);
 
     const settings = await getSiteSettings();
     expect((await readPublishedLegal("privacy", "ar"))?.body).toBe("إشعار الخصوصية بالعربية");
