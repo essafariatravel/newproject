@@ -62,3 +62,5 @@ work/*.sha256
 
 ESSAFARIA-PROD-*.manifest.json
 ESSAFARIA-SYNTHETIC-*.manifest.json
+
+*.dr-key
