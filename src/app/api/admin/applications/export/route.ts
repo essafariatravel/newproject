@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/rbac";
 import { exportApplications, EXPORT_ROW_LIMIT, type ApplicationFilters } from "@/lib/queries";
-import { recordAudit } from "@/lib/audit";
+import { recordAuditStrict } from "@/lib/audit";
 import { pickUiLocale } from "@/lib/ui-i18n";
 import { countryName } from "@/lib/country-names";
 import { toCsv, toXlsx, XLSX_CONTENT_TYPE, type Column } from "@/lib/tabular-export";
@@ -106,7 +106,7 @@ export async function GET(request: Request) {
     updated: new Date(r.app.updatedAt).toISOString().slice(0, 10),
   }));
 
-  await recordAudit({
+  await recordAuditStrict({
     actor: user,
     action: "APPLICATIONS_EXPORTED",
     entity: "application",
