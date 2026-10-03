@@ -137,7 +137,7 @@ export async function addApplicantAction(formData: FormData): Promise<void> {
       entity: "applicant",
       entityId: inserted[0]!.id,
       agencyId: app.agencyId,
-      metadata: { applicationId: app.id, passport: data.passportNumber },
+      metadata: { applicationId: app.id },
     });
     revalidatePath(back);
     return `Applicant ${data.firstName} ${data.lastName} added.`;
