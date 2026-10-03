@@ -7,7 +7,7 @@ import { Pool } from "pg";
 import { databasePoolConfig } from "../src/lib/database-config";
 import { assertDryRunTarget, cleanupPolicy, dependencyDeleteOrder, parseResetOptions } from "./lib/reset-plan";
 import { qualifiedTable } from "../src/lib/database-schema";
-import { PRODUCTION_PROJECT_REF, PRODUCTION_SCHEMA, assessBackupManifest } from "./lib/dr-safety";
+import { PRODUCTION_PROJECT_REF, PRODUCTION_SCHEMA, assessBackupManifest, backupFreshnessFindings } from "./lib/dr-safety";
 
 async function main() {
   const options = parseResetOptions(process.argv.slice(2));
@@ -50,13 +50,17 @@ async function main() {
           schema: PRODUCTION_SCHEMA,
         });
         backupStatus = assessment.status;
-        backupFindings = assessment.findings;
+        backupFindings = [...assessment.findings];
+        if (assessment.manifest) {
+          backupFindings.push(...backupFreshnessFindings(assessment.manifest, 24));
+          if (backupFindings.length && backupStatus === "VERIFIED") backupStatus = "INVALID";
+        }
       } catch {
         backupStatus = "INVALID";
         backupFindings = ["backup manifest could not be read or parsed"];
       }
     }
-    if (backupStatus !== "VERIFIED") blockers.push("A VERIFIED encrypted Production backup with an isolated restore, wallet reconciliation, storage reconciliation and tenant-isolation check is required.");
+    if (backupStatus !== "VERIFIED") blockers.push("A fresh (<=24h) VERIFIED encrypted Production backup with an isolated restore, wallet reconciliation, storage reconciliation and tenant-isolation check is required.");
     const candidates = cleanupPolicy.removeOperationalTables.filter((name) => name in counts);
     let deleteOrder: string[] = [];
     try { deleteOrder = dependencyDeleteOrder(candidates, edges.rows.filter((edge) => edge.parentSchema === target.schema)); }
