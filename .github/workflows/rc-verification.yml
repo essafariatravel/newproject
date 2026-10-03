@@ -62,6 +62,9 @@ jobs:
       - name: Targeted build-preview guard
         run: npm test -- tests/build-preview-guard.test.ts
 
+      - name: Shell harness syntax
+        run: bash -n scripts/hosted-verify.sh scripts/privacy-runtime-smoke.sh
+
       - name: Broader deterministic test suite
         run: npm test
 
