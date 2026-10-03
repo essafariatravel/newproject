@@ -753,6 +753,22 @@ async function main() {
       NODE_ENV: "test",
     });
 
+    await run(process.execPath, [
+      tsx,
+      "scripts/dr-release-gate.ts",
+      "--verified-manifest",
+      verifiedManifestPath,
+      "--evidence-bundle",
+      evidenceBundlePath,
+      "--expected-release-sha",
+      releaseSha,
+      "--max-age-hours",
+      "24",
+    ], {
+      ...process.env,
+      NODE_ENV: "test",
+    });
+
     const verified = JSON.parse(await readFile(verifiedManifestPath, "utf8"));
     const finalAssessment = assessBackupManifest(verified, {
       environment: "PRODUCTION",
@@ -785,6 +801,7 @@ async function main() {
       sameSizeBlobCorruptionRejected: true,
       manifestMismatchRefusalExercised: true,
       evidenceBundleVerified: true,
+      finalReleaseGatePassed: true,
       finalManifestState: finalAssessment.status,
     }, null, 2));
   } finally {
