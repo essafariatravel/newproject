@@ -22,7 +22,7 @@ export function WizardSteps(props: {
   current: number;
 }) {
   return (
-    <nav aria-label="Application request wizard" className="mb-5">
+    <nav aria-label="Application request wizard" className="mb-6">
       <ol className="flex flex-wrap items-stretch gap-2">
         {props.steps.map((s) => {
           const done = s.id < props.current;
@@ -31,7 +31,7 @@ export function WizardSteps(props: {
             <span
               aria-hidden="true"
               className={[
-                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-semibold",
                 current
                   ? "bg-iris-600 text-white shadow-[0_8px_16px_-8px_rgb(74_91_208/0.8)]"
                   : done
@@ -46,18 +46,18 @@ export function WizardSteps(props: {
             <span className="min-w-0">
               <span
                 className={[
-                  "block truncate text-sm font-semibold",
+                  "block truncate text-base font-semibold",
                   current ? "text-navy-900" : done ? "text-emerald-700" : "text-slate-400",
                 ].join(" ")}
                 aria-current={current ? "step" : undefined}
               >
                 {s.label}
               </span>
-              {s.hint ? <span className="block truncate text-[11px] text-slate-400">{s.hint}</span> : null}
+              {s.hint ? <span className="block truncate text-xs text-slate-400">{s.hint}</span> : null}
             </span>
           );
           const cls =
-            "flex flex-1 min-w-[180px] items-center gap-2.5 rounded-2xl border px-3 py-2.5 transition-colors " +
+            "flex min-h-11 flex-1 min-w-[180px] items-center gap-2 rounded-lg border px-4 py-2 transition-colors " +
             (current
               ? "border-iris-300 bg-iris-50/60"
               : done

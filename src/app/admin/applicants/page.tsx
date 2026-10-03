@@ -60,10 +60,10 @@ export default async function AdminApplicantsPage({
             <tbody className="divide-y divide-slate-100">
               {result.rows.map(({ applicant, applicationReference, applicationId, agencyName }) => (
                 <NavigableTableRow key={applicant.id} href={`/admin/applications/${applicationId}`} className="tr-hover">
-                  <td className="td"><Link href={`/admin/applications/${applicationId}`} className="font-medium text-navy-900 hover:underline">{personName(applicant)}</Link></td>
+                  <td className="td"><Link href={`/admin/applications/${applicationId}`} className="font-semibold text-navy-900 hover:underline">{personName(applicant)}</Link></td>
                   <td className="td tabular-nums">
                     {applicant.passportNumber}
-                    <span className="block text-[11px] text-slate-400">exp. {formatDate(applicant.passportExpiryDate, uiLocale)}</span>
+                    <span className="block text-xs text-slate-400">exp. {formatDate(applicant.passportExpiryDate, uiLocale)}</span>
                   </td>
                   <td className="td">{applicant.nationality}</td>
                   <td className="td whitespace-nowrap">{formatDate(applicant.dateOfBirth, uiLocale)}</td>

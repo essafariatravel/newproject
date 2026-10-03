@@ -58,14 +58,14 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
         title={ct("Reports")}
         subtitle={ct("Operational and financial reporting from live database data. DZD only.")}
         actions={
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <a href={`/api/admin/reports/export?${exportQuery}`} className="btn-secondary btn-sm" data-testid="reports-export-csv">{ct("Download CSV")}</a>
             <a href={`/api/admin/reports/export?${exportQuery}&format=xlsx`} className="btn-secondary btn-sm" data-testid="reports-export-xlsx">{ct("Download Excel")}</a>
           </div>
         }
       />
 
-      <nav aria-label={ct("Period")} className="mb-3 flex flex-wrap gap-2">{["Today", "This week", "This month", "This year"].map((period) => {
+      <nav aria-label={ct("Period")} className="mb-4 flex flex-wrap gap-2">{["Today", "This week", "This month", "This year"].map((period) => {
         const now = new Date(), from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
         if (period === "This week") from.setUTCDate(from.getUTCDate() - (from.getUTCDay() + 6) % 7);
         if (period === "This month") from.setUTCDate(1);
@@ -86,7 +86,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
       <p className="mb-4 text-xs text-slate-500">{ct("Application metrics use the creation date; wallet totals use the transaction date. Exports use these same filters.")}</p>
 
       <p className="mb-4 text-xs text-slate-500">{ct("Application filters include only linked wallet entries. Document review counts include rejected or replacement-required versions.")}</p>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label={ct("Wallet credits")} value={formatAmount(walletFlow.credits, "DZD", uiLocale)} tone="gold" />
         <StatCard label={ct("Manual debits")} value={formatAmount(walletFlow.debits, "DZD", uiLocale)} />
         <StatCard label={ct("Application charges")} value={formatAmount(walletFlow.charges, "DZD", uiLocale)} tone="navy" />
@@ -99,33 +99,33 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
 
       {/* §"avg processing only real timestamps" — with no decided dossier the
           metric is reported as unavailable rather than as a fabricated 0. */}
-      <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="p-4">
-          <h3 className="text-sm font-semibold text-navy-900">{ct("Average processing time")}</h3>
+          <h3 className="text-lg font-semibold text-navy-900">{ct("Average processing time")}</h3>
           <p className="mt-1 font-serif text-2xl text-navy-900" data-testid="avg-processing">
             {processing.avgDays === null
               ? ct("Not available yet")
               : `${Number(processing.avgDays).toFixed(1)} ${ct("days")}`}
           </p>
-          <p className="mt-0.5 text-xs text-slate-400">
+          <p className="mt-1 text-xs text-slate-400">
             {ct("Only dossiers that reached a decision are counted — submitted → decision, from real timestamps.")}
           </p>
         </Card>
         <Card className="p-4">
-          <h3 className="text-sm font-semibold text-navy-900">{ct("Decided dossiers")}</h3>
+          <h3 className="text-lg font-semibold text-navy-900">{ct("Decided dossiers")}</h3>
           <p className="mt-1 font-serif text-2xl text-navy-900">{Number(processing.decided ?? 0)}</p>
-          <p className="mt-0.5 text-xs text-slate-400">
+          <p className="mt-1 text-xs text-slate-400">
             {processing.fastestDays === null
               ? ct("No decision has been recorded in this period yet.")
               : `${ct("Fastest")} ${Number(processing.fastestDays).toFixed(1)} · ${ct("Slowest")} ${Number(processing.slowestDays).toFixed(1)} ${ct("days")}`}
           </p>
         </Card>
         <Card className="p-4">
-          <h3 className="text-sm font-semibold text-navy-900">{ct("Wallet credits vs charges")}</h3>
-          <p className="mt-1 text-sm text-slate-600">
+          <h3 className="text-lg font-semibold text-navy-900">{ct("Wallet credits vs charges")}</h3>
+          <p className="mt-1 text-base text-slate-600">
             <bdi dir="ltr">{formatAmount(walletFlow.credits, "DZD", uiLocale)}</bdi> {ct("credited")} · <bdi dir="ltr">{formatAmount(walletFlow.charges, "DZD", uiLocale)}</bdi> {ct("charged")}
           </p>
-          <p className="mt-0.5 text-xs text-slate-400">{ct("All amounts are DZD. Correction entries appear as their own ledger rows.")}</p>
+          <p className="mt-1 text-xs text-slate-400">{ct("All amounts are DZD. Correction entries appear as their own ledger rows.")}</p>
         </Card>
       </div>
 
@@ -139,7 +139,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
             <tbody className="divide-y divide-slate-100">
               {data.byAgency.map((r) => (
                 <tr key={r.agencyId} className="tr-hover">
-                  <td className="td font-medium text-navy-900">{r.agencyName}</td>
+                  <td className="td font-semibold text-navy-900">{r.agencyName}</td>
                   <td className="td tabular-nums">{Number(r.total)}</td>
                   <td className="td tabular-nums">{formatAmount(r.charged, "DZD", uiLocale)}</td>
                 </tr>
@@ -151,45 +151,45 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
 
         <Card>
           <CardHeader title={ct("Applications by country")} />
-          <div className="space-y-3 px-4 py-4">
+          <div className="space-y-4 px-4 py-4">
             {data.byCountry.map((r) => (
-              <div key={r.countryName} className="flex items-center justify-between gap-3">
-                <span className="w-40 truncate text-sm text-slate-700">{r.countryName}</span>
+              <div key={r.countryName} className="flex items-center justify-between gap-4">
+                <span className="w-40 truncate text-base text-slate-700">{r.countryName}</span>
                 <Bar max={maxCountry} value={Number(r.total)} />
                 <span className="w-24 text-right text-xs tabular-nums text-slate-500">
                   {r.total} · {formatAmount(r.revenue, "DZD", uiLocale)}
                 </span>
               </div>
             ))}
-            {data.byCountry.length === 0 ? <p className="text-sm text-slate-500">{ct("No data.")}</p> : null}
+            {data.byCountry.length === 0 ? <p className="text-base text-slate-500">{ct("No data.")}</p> : null}
           </div>
         </Card>
 
         <Card>
           <CardHeader title={ct("Applications by status")} />
-          <div className="space-y-3 px-4 py-4">
+          <div className="space-y-4 px-4 py-4">
             {data.byStatus.map((r) => (
-              <div key={r.statusCode} className="flex items-center justify-between gap-3">
+              <div key={r.statusCode} className="flex items-center justify-between gap-4">
                 <StatusBadge code={r.statusCode} name={r.statusName} />
                 <Bar max={maxStatus} value={Number(r.total)} />
                 <span className="w-10 text-right text-xs tabular-nums text-slate-500">{r.total}</span>
               </div>
             ))}
-            {data.byStatus.length === 0 ? <p className="text-sm text-slate-500">{ct("No data.")}</p> : null}
+            {data.byStatus.length === 0 ? <p className="text-base text-slate-500">{ct("No data.")}</p> : null}
           </div>
         </Card>
 
         <Card>
           <CardHeader title={ct("Applications by visa type")} />
-          <div className="space-y-3 px-4 py-4">
+          <div className="space-y-4 px-4 py-4">
             {data.byVisaType.map((r) => (
-              <div key={r.visaTypeName} className="flex items-center justify-between gap-3">
-                <span className="w-56 truncate text-sm text-slate-700">{r.visaTypeName}</span>
+              <div key={r.visaTypeName} className="flex items-center justify-between gap-4">
+                <span className="w-56 truncate text-base text-slate-700">{r.visaTypeName}</span>
                 <Bar max={maxVisa} value={Number(r.total)} />
                 <span className="w-10 text-right text-xs tabular-nums text-slate-500">{r.total}</span>
               </div>
             ))}
-            {data.byVisaType.length === 0 ? <p className="text-sm text-slate-500">{ct("No data.")}</p> : null}
+            {data.byVisaType.length === 0 ? <p className="text-base text-slate-500">{ct("No data.")}</p> : null}
           </div>
         </Card>
 

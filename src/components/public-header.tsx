@@ -54,9 +54,9 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
 
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-navy-950 text-white">
-      <div className="ess-container flex h-16 items-center justify-between gap-3">
+      <div className="ess-container flex h-16 items-center justify-between gap-2">
         {/* Brand — logo artwork when uploaded, otherwise monogram + wordmark */}
-        <Link href="/" className="flex min-w-0 shrink items-center gap-2.5" aria-label={brandName}>
+        <Link href="/" className="flex min-w-0 shrink items-center gap-2" aria-label={brandName}>
           {logoUrl ? (
             <img
               src={logoUrl}
@@ -67,8 +67,8 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
             <>
               <img src="/images/essafaria-logo.png" alt="" width="64" height="46" className="h-11 w-16 shrink-0 object-contain" />
               <span className="hidden min-w-0 leading-tight sm:block">
-                <span className="block truncate text-[15px] font-bold tracking-[0.04em] text-white">{brandName}</span>
-                <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-600">
+                <span className="block truncate text-base font-semibold tracking-[0.04em] text-white">{brandName}</span>
+                <span className="block truncate text-xs font-semibold uppercase tracking-[0.14em] text-gold-600">
                   {labels.b2b}
                 </span>
               </span>
@@ -77,12 +77,12 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
         </Link>
 
         {/* Desktop navigation */}
-        <nav className="hidden items-center gap-1 lg:flex" aria-label={labels.menu}>
+        <nav className="hidden items-center gap-2 lg:flex" aria-label={labels.menu}>
           {nav.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="rounded-lg px-3.5 py-1.5 text-sm font-medium text-white/75 transition-colors hover:bg-white/10 hover:text-white"
+              className="inline-flex min-h-11 items-center rounded-lg px-4 text-base font-semibold text-white/75 transition-colors hover:bg-white/10 hover:text-white"
             >
               {item.label}
             </Link>
@@ -101,7 +101,7 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
           <Link
             href="/agency/register"
             data-testid="public-register-cta"
-            className="btn-gold btn-sm whitespace-nowrap px-3 text-xs sm:px-4 sm:text-sm"
+            className="btn-gold btn-sm whitespace-nowrap px-4 text-base"
           >
             {labels.register}
           </Link>
@@ -112,7 +112,7 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
             aria-controls={panelId}
             aria-label={open ? labels.close : labels.menu}
             data-testid="public-menu-toggle"
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/25 bg-transparent text-white transition-colors hover:bg-white/10 lg:hidden"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-white/25 bg-transparent text-white transition-colors hover:bg-white/10 lg:hidden"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
               {open ? (
@@ -134,12 +134,12 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
                 key={item.href}
                 href={item.href}
                 onClick={() => setOpen(false)}
-                className="rounded-xl px-2 py-3 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+                className="inline-flex min-h-11 items-center rounded-lg px-2 text-base font-semibold text-white/80 transition-colors hover:bg-white/10 hover:text-white"
               >
                 {item.label}
               </Link>
             ))}
-            <div className="mt-1 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-2 pb-3 pt-3">
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 px-2 pb-4 pt-4">
               {localeSwitcher}
               <Link href="/login" className="btn btn-sm border border-white/35 bg-transparent text-white" onClick={() => setOpen(false)}>
                 {labels.signIn}

@@ -9,10 +9,10 @@ export function PageHeader(props: {
   actions?: ReactNode;
 }) {
   return (
-    <div className="page-header flex flex-wrap items-end justify-between gap-3">
+    <div className="page-header flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
         <h1 className="page-header-title font-semibold tracking-tight text-navy-900">{props.title}</h1>
-        {props.subtitle ? <p className="page-header-subtitle mt-1 text-sm leading-relaxed text-slate-500">{props.subtitle}</p> : null}
+        {props.subtitle ? <p className="page-header-subtitle mt-1 text-base leading-relaxed text-slate-500">{props.subtitle}</p> : null}
       </div>
       {props.actions ? <div className="flex flex-wrap items-center gap-2">{props.actions}</div> : null}
     </div>
@@ -25,10 +25,10 @@ export function Card(props: { children: ReactNode; className?: string }) {
 
 export function CardHeader(props: { title: string; actions?: ReactNode; subtitle?: ReactNode; testId?: string }) {
   return (
-    <div className="card-header flex flex-wrap items-center justify-between gap-2 border-b border-line/70 px-5 py-3.5" data-testid={props.testId}>
+    <div className="card-header flex flex-wrap items-center justify-between gap-2 border-b border-line/70 px-4 py-4" data-testid={props.testId}>
       <div>
-        <h2 className="text-sm font-semibold text-navy-900">{props.title}</h2>
-        {props.subtitle ? <p className="mt-0.5 text-xs text-slate-400">{props.subtitle}</p> : null}
+        <h2 className="text-lg font-semibold text-navy-900">{props.title}</h2>
+        {props.subtitle ? <p className="mt-1 text-xs text-slate-400">{props.subtitle}</p> : null}
       </div>
       {props.actions ? <div className="flex items-center gap-2">{props.actions}</div> : null}
     </div>
@@ -51,8 +51,8 @@ export function StatCard(props: {
           ? "text-navy-700"
           : "text-slate-500";
   const body = (
-    <div className="stat-card card h-full px-4 py-3.5">
-      <p className={`text-xs font-medium ${toneClass}`}>{props.label}</p>
+    <div className="stat-card card h-full px-4 py-4">
+      <p className={`text-xs font-semibold ${toneClass}`}>{props.label}</p>
       <p className="stat-value mt-1 text-[1.5rem] font-semibold leading-snug tracking-tight text-navy-900 tabular-nums">{props.value}</p>
       {props.hint ? <p className="mt-1 text-xs leading-snug text-slate-500">{props.hint}</p> : null}
     </div>
@@ -92,9 +92,9 @@ export function ActiveBadge({ active, locale = "en" }: { active: boolean; locale
 
 export function EmptyState(props: { title: string; body?: string; action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-center">
-      <p className="text-sm font-semibold text-navy-900">{props.title}</p>
-      {props.body ? <p className="max-w-sm text-xs leading-relaxed text-slate-400">{props.body}</p> : null}
+    <div className="flex flex-col items-center justify-center gap-2 px-6 py-8 text-center">
+      <p className="text-lg font-semibold text-navy-900">{props.title}</p>
+      {props.body ? <p className="max-w-sm text-base leading-relaxed text-slate-400">{props.body}</p> : null}
       {props.action ? <div className="mt-2">{props.action}</div> : null}
     </div>
   );
@@ -105,7 +105,7 @@ export function Flash(props: { error?: string; success?: string }) {
   return (
     <div
       role="status"
-      className={`mb-5 rounded-lg border px-4 py-3 text-sm ${
+      className={`mb-6 rounded-lg border px-4 py-4 text-base ${
         props.error
           ? "border-red-100 bg-red-50 text-red-700"
           : "border-emerald-100 bg-emerald-50 text-emerald-700"
@@ -143,13 +143,13 @@ export function Progress(props: { done: number; total: number }) {
 
 export function Tabs(props: { tabs: Array<{ id: string; label: string; href: string }>; current: string }) {
   return (
-    <div className="workspace-tabs mb-6 flex max-w-full gap-5 overflow-x-auto border-b border-line">
+    <div className="workspace-tabs mb-6 flex max-w-full gap-4 overflow-x-auto border-b border-line">
       {props.tabs.map((t) => (
         <Link
           key={t.id}
           href={t.href}
           aria-current={t.id === props.current ? "page" : undefined}
-          className={`whitespace-nowrap border-b-2 px-1 py-3 text-sm transition-colors ${
+          className={`inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-2 py-2 text-base transition-colors ${
             t.id === props.current
               ? "border-gold-500 font-semibold text-navy-900"
               : "border-transparent text-slate-500 hover:text-navy-900"
@@ -164,11 +164,11 @@ export function Tabs(props: { tabs: Array<{ id: string; label: string; href: str
 
 export function KeyValue(props: { items: Array<{ label: string; value: ReactNode }> }) {
   return (
-    <dl className="grid grid-cols-1 gap-x-6 gap-y-4 px-5 py-5 sm:grid-cols-2 lg:grid-cols-3">
+    <dl className="grid grid-cols-1 gap-x-6 gap-y-4 px-4 py-4 sm:grid-cols-2 lg:grid-cols-3">
       {props.items.map((item) => (
         <div key={item.label}>
-          <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">{item.label}</dt>
-          <dd className="mt-0.5 text-sm font-medium text-navy-900">{item.value ?? "—"}</dd>
+          <dt className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">{item.label}</dt>
+          <dd className="mt-1 text-base font-semibold text-navy-900">{item.value ?? "—"}</dd>
         </div>
       ))}
     </dl>

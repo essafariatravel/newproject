@@ -31,14 +31,14 @@ export function WalletStatementForm({
 }) {
   return (
     <Card className="p-4">
-      <h3 className="text-sm font-semibold text-navy-800">{copy.title}</h3>
-      <p className="text-xs text-navy-400">
+      <h3 className="text-lg font-semibold text-navy-800">{copy.title}</h3>
+      <p className="mt-2 text-base text-navy-500">
 {copy.body}
       </p>
       <form
         method="get"
         action="/api/agency/wallet/statement"
-        className="mt-3 flex flex-wrap items-end gap-3"
+        className="mt-4 flex flex-wrap items-end gap-4"
         onSubmit={(e) => {
           const fd = new FormData(e.currentTarget);
           const from = String(fd.get("from") ?? "");
@@ -55,11 +55,11 @@ export function WalletStatementForm({
         }}
       >
         <div>
-          <label htmlFor="wallet-stmt-from" className="mb-1 block text-xs font-medium text-navy-600">{copy.from}</label>
+          <label htmlFor="wallet-stmt-from" className="label">{copy.from}</label>
           <DatePicker id="wallet-stmt-from" name="from" required defaultValue={defaultFrom} max={today} locale={locale} placeholder="YYYY-MM-DD" />
         </div>
         <div>
-          <label htmlFor="wallet-stmt-to" className="mb-1 block text-xs font-medium text-navy-600">{copy.to}</label>
+          <label htmlFor="wallet-stmt-to" className="label">{copy.to}</label>
           <DatePicker id="wallet-stmt-to" name="to" required defaultValue={today} max={today} locale={locale} placeholder="YYYY-MM-DD" />
         </div>
         <button type="submit" className="btn-primary px-4">{copy.generate}</button>
