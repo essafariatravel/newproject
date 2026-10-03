@@ -34,6 +34,12 @@ describe("legal/privacy readiness regression guards", () => {
     expect(action).toContain('action: "PRIVACY_NOTICE_ACKNOWLEDGED"');
     expect(action).toContain('"termsVersionId"');
     expect(action).toContain('"privacyVersionId"');
+
+    const termsAt = action.indexOf('action: "TERMS_ACCEPTED"');
+    const privacyAt = action.indexOf('action: "PRIVACY_NOTICE_ACKNOWLEDGED"');
+    const errorHandlerAt = action.indexOf("} catch (err)", privacyAt);
+    expect(action.slice(termsAt, privacyAt)).not.toContain("ipAddress:");
+    expect(action.slice(privacyAt, errorHandlerAt)).not.toContain("ipAddress:");
   });
 
   it("uses approved legal effective dates and never fabricates deployment dates", () => {
