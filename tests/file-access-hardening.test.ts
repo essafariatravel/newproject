@@ -43,6 +43,7 @@ describe("forced password change protects private file reads", () => {
     request.cookie = (await createSession(actor.id)).token;
     const unlocked = await downloadDossierFile(new Request(`http://localhost/api/documents/${doc.id}`), { params: Promise.resolve({ id: doc.id }) });
     expect(unlocked.status).toBe(200);
+    expect(unlocked.headers.get("content-type")).toBe(pdf.type);
     expect(Buffer.from(await unlocked.arrayBuffer())).toEqual(pdf.data);
     const audits = await downloadAuditCount();
     await db.update(users).set({ mustChangePassword: true }).where(eq(users.id, actor.id));
@@ -63,6 +64,7 @@ describe("forced password change protects private file reads", () => {
     request.cookie = (await createSession(actor.id)).token;
     const unlocked = await downloadRegistrationFile(new Request(`http://localhost/api/registrations/${reg.id}/documents/${doc!.id}`), { params: Promise.resolve({ id: reg.id, docId: doc!.id }) });
     expect(unlocked.status).toBe(200);
+    expect(unlocked.headers.get("content-type")).toBe(pdf.type);
     expect(Buffer.from(await unlocked.arrayBuffer())).toEqual(pdf.data);
     const audits = await downloadAuditCount();
     await db.update(users).set({ mustChangePassword: true }).where(eq(users.id, actor.id));
