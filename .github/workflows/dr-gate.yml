@@ -17,6 +17,8 @@ on:
       - "scripts/dr-local-drill.ts"
       - "scripts/dr-verify-offsite-copy.ts"
       - "scripts/dr-repo-safety.ts"
+      - "tests/dr-private-path.test.ts"
+      - "scripts/lib/dr-private-path.ts"
       - "tests/dr-repo-safety.test.ts"
       - "scripts/reset.ts"
       - "scripts/lib/reset-plan.ts"
@@ -79,6 +81,7 @@ jobs:
           tests/dr-backup.test.ts
           tests/dr-finalization.test.ts
           tests/dr-repo-safety.test.ts
+          tests/dr-private-path.test.ts
           tests/reset-plan.test.ts
           tests/build-preview-guard.test.ts
           tests/prod-release-preflight.test.ts
