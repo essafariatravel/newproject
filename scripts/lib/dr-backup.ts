@@ -86,12 +86,18 @@ export async function sha256File(path: string): Promise<string> {
   return hash.digest("hex");
 }
 
-export function storageInventorySha256(rows: readonly { key: string; sizeBytes: number }[]): string {
+export function storageInventorySha256(
+  rows: readonly { key: string; sizeBytes: number; sha256?: string | null }[],
+): string {
   const hash = createHash("sha256");
   for (const row of [...rows].sort((a, b) => a.key.localeCompare(b.key))) {
     hash.update(row.key);
     hash.update("\0");
     hash.update(String(row.sizeBytes));
+    if (row.sha256) {
+      hash.update("\0");
+      hash.update(row.sha256.toLowerCase());
+    }
     hash.update("\n");
   }
   return hash.digest("hex");
