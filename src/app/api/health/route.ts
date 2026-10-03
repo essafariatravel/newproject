@@ -29,7 +29,35 @@ export const dynamic = "force-dynamic";
 const EXPECTED_SUPABASE_PROJECT = "xgetzgixalrsmuvfthpf";
 const REQUIRED_TABLES = ["users", "site_settings", "visa_types", "countries", "schema_migrations"] as const;
 
+async function publicReadiness(): Promise<boolean> {
+  if (!process.env.DATABASE_URL) return false;
+  const pool = new Pool({ ...databasePoolConfig(), max: 1 });
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query("select 1");
+      return true;
+    } finally {
+      client.release();
+    }
+  } catch {
+    return false;
+  } finally {
+    await pool.end().catch(() => undefined);
+  }
+}
+
 export async function GET() {
+  // Anonymous and Agency monitoring must remain cheap and non-enumerating.
+  // Only operational Staff need schema/ledger diagnostics.
+  const user = await getSessionUser().catch(() => null);
+  const staff = Boolean(user && isStaffRole(user.role) && !user.mustChangePassword);
+  if (!staff) {
+    return NextResponse.json(
+      { ok: await publicReadiness(), service: "essafaria-visa-os" },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const report = {
     ok: false,
     service: "essafaria-visa-os",
@@ -167,9 +195,5 @@ export async function GET() {
     );
   }
 
-  const user = await getSessionUser().catch(()=>null);
-  const staff = user && isStaffRole(user.role) && !user.mustChangePassword;
-  // Public monitoring reports readiness only. Catalogue/account population and
-  // infrastructure diagnostics are restricted to authenticated operational staff.
-  return NextResponse.json(staff ? report : { ok: report.ok, service: report.service }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json(report, { headers: { "Cache-Control": "no-store" } });
 }
