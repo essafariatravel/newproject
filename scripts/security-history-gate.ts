@@ -25,6 +25,7 @@ for (const revision of revisions) {
       "-I",
       "-n",
       "-E",
+      "-e",
       pattern,
       revision,
       "--",
