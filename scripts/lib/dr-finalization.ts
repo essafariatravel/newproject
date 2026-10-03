@@ -36,9 +36,38 @@ export interface OffsiteEvidence {
   encryptedAuthenticationVerified: boolean;
 }
 
-export interface ExternalEvidenceRefs {
-  application: string;
-  tenantIsolation: string;
+export interface ApplicationRecoveryEvidence {
+  version: 1;
+  kind: "ESSAFARIA_DR_APPLICATION";
+  backupId: string;
+  restoreEvidenceSha256: string;
+  testedAt: string;
+  targetRef: string;
+  checks: {
+    healthReachable: boolean;
+    staffLogin: boolean;
+    agencyLogin: boolean;
+    staffCriticalRead: boolean;
+    agencyOwnApplicationRead: boolean;
+    agencyOwnDocumentRead: boolean;
+    walletRead: boolean;
+  };
+}
+
+export interface TenantIsolationEvidence {
+  version: 1;
+  kind: "ESSAFARIA_DR_TENANT_ISOLATION";
+  backupId: string;
+  restoreEvidenceSha256: string;
+  testedAt: string;
+  targetRef: string;
+  checks: {
+    foreignApplicationDenied: boolean;
+    foreignDocumentDenied: boolean;
+    foreignApplicantDenied: boolean;
+    foreignWalletDataNotVisible: boolean;
+    forgedForeignUploadDenied: boolean;
+  };
 }
 
 export interface FinalizationInput {
@@ -48,7 +77,10 @@ export interface FinalizationInput {
   restoreEvidenceSha256: string;
   offsiteEvidence: OffsiteEvidence;
   offsiteEvidenceSha256: string;
-  evidence: ExternalEvidenceRefs;
+  applicationEvidence: ApplicationRecoveryEvidence;
+  applicationEvidenceSha256: string;
+  tenantIsolationEvidence: TenantIsolationEvidence;
+  tenantIsolationEvidenceSha256: string;
   externalEvidenceAttested: boolean;
   verifiedAt?: Date;
 }
@@ -88,6 +120,72 @@ export function validateOffsiteEvidence(
   return findings;
 }
 
+export function validateApplicationEvidence(
+  evidence: ApplicationRecoveryEvidence,
+  manifest: BackupManifest,
+  restoreEvidenceSha256: string,
+  restoredAt: string,
+): string[] {
+  const findings: string[] = [];
+  if (evidence.version !== 1 || evidence.kind !== "ESSAFARIA_DR_APPLICATION") findings.push("application evidence format is invalid");
+  if (evidence.backupId !== manifest.backupId) findings.push("application evidence backupId does not match manifest");
+  if (!SHA256.test(evidence.restoreEvidenceSha256) || evidence.restoreEvidenceSha256 !== restoreEvidenceSha256) {
+    findings.push("application evidence is not bound to the exact restore evidence");
+  }
+  if (!validIso(evidence.testedAt)) findings.push("application evidence timestamp is invalid");
+  if (!EVIDENCE_REF.test(evidence.targetRef)) findings.push("application evidence targetRef is invalid");
+  const required = [
+    "healthReachable",
+    "staffLogin",
+    "agencyLogin",
+    "staffCriticalRead",
+    "agencyOwnApplicationRead",
+    "agencyOwnDocumentRead",
+    "walletRead",
+  ] as const;
+  for (const key of required) {
+    if (evidence.checks?.[key] !== true) findings.push(`application recovery check failed: ${key}`);
+  }
+  const testedAt = Date.parse(evidence.testedAt);
+  const restoreAt = Date.parse(restoredAt);
+  if (!Number.isNaN(testedAt) && !Number.isNaN(restoreAt) && testedAt < restoreAt) {
+    findings.push("application evidence timestamp predates isolated restore");
+  }
+  return findings;
+}
+
+export function validateTenantIsolationEvidence(
+  evidence: TenantIsolationEvidence,
+  manifest: BackupManifest,
+  restoreEvidenceSha256: string,
+  restoredAt: string,
+): string[] {
+  const findings: string[] = [];
+  if (evidence.version !== 1 || evidence.kind !== "ESSAFARIA_DR_TENANT_ISOLATION") findings.push("tenant-isolation evidence format is invalid");
+  if (evidence.backupId !== manifest.backupId) findings.push("tenant-isolation evidence backupId does not match manifest");
+  if (!SHA256.test(evidence.restoreEvidenceSha256) || evidence.restoreEvidenceSha256 !== restoreEvidenceSha256) {
+    findings.push("tenant-isolation evidence is not bound to the exact restore evidence");
+  }
+  if (!validIso(evidence.testedAt)) findings.push("tenant-isolation evidence timestamp is invalid");
+  if (!EVIDENCE_REF.test(evidence.targetRef)) findings.push("tenant-isolation evidence targetRef is invalid");
+  const required = [
+    "foreignApplicationDenied",
+    "foreignDocumentDenied",
+    "foreignApplicantDenied",
+    "foreignWalletDataNotVisible",
+    "forgedForeignUploadDenied",
+  ] as const;
+  for (const key of required) {
+    if (evidence.checks?.[key] !== true) findings.push(`tenant-isolation recovery check failed: ${key}`);
+  }
+  const testedAt = Date.parse(evidence.testedAt);
+  const restoreAt = Date.parse(restoredAt);
+  if (!Number.isNaN(testedAt) && !Number.isNaN(restoreAt) && testedAt < restoreAt) {
+    findings.push("tenant-isolation evidence timestamp predates isolated restore");
+  }
+  return findings;
+}
+
 export function validateRestoreEvidence(
   evidence: RestoreEvidence,
   manifest: BackupManifest,
@@ -115,10 +213,6 @@ export function validateRestoreEvidence(
   return findings;
 }
 
-function validateExternalRef(label: string, value: string): string | null {
-  return EVIDENCE_REF.test(value) ? null : `${label} evidence reference must be an opaque 8-160 character identifier`;
-}
-
 export function finalizeBackupManifest(input: FinalizationInput): {
   manifest: BackupManifest | null;
   findings: string[];
@@ -140,17 +234,22 @@ export function finalizeBackupManifest(input: FinalizationInput): {
   if (!SHA256.test(input.sourceManifestSha256)) findings.push("source manifest SHA-256 is invalid");
   if (!SHA256.test(input.restoreEvidenceSha256)) findings.push("restore evidence SHA-256 is invalid");
   if (!SHA256.test(input.offsiteEvidenceSha256)) findings.push("off-site evidence SHA-256 is invalid");
+  if (!SHA256.test(input.applicationEvidenceSha256)) findings.push("application evidence SHA-256 is invalid");
+  if (!SHA256.test(input.tenantIsolationEvidenceSha256)) findings.push("tenant-isolation evidence SHA-256 is invalid");
   findings.push(...validateRestoreEvidence(input.restoreEvidence, sourceAssessment.manifest, input.sourceManifestSha256));
   findings.push(...validateOffsiteEvidence(input.offsiteEvidence, sourceAssessment.manifest, input.sourceManifestSha256));
-
-  const refs = [
-    ["application", input.evidence.application],
-    ["tenant-isolation", input.evidence.tenantIsolation],
-  ] as const;
-  for (const [label, value] of refs) {
-    const finding = validateExternalRef(label, value);
-    if (finding) findings.push(finding);
-  }
+  findings.push(...validateApplicationEvidence(
+    input.applicationEvidence,
+    sourceAssessment.manifest,
+    input.restoreEvidenceSha256,
+    input.restoreEvidence.restoredAt,
+  ));
+  findings.push(...validateTenantIsolationEvidence(
+    input.tenantIsolationEvidence,
+    sourceAssessment.manifest,
+    input.restoreEvidenceSha256,
+    input.restoreEvidence.restoredAt,
+  ));
   if (!input.externalEvidenceAttested) {
     findings.push("external evidence review must be explicitly attested; repository tooling cannot invent off-site/application/tenant proof");
   }
@@ -183,8 +282,8 @@ export function finalizeBackupManifest(input: FinalizationInput): {
       tenantIsolationPassed: true,
       restoreEvidenceSha256: input.restoreEvidenceSha256,
       offsiteEvidenceRef: `OFFSITE-${input.offsiteEvidenceSha256}`,
-      applicationEvidenceRef: input.evidence.application,
-      tenantIsolationEvidenceRef: input.evidence.tenantIsolation,
+      applicationEvidenceRef: `APPLICATION-${input.applicationEvidenceSha256}`,
+      tenantIsolationEvidenceRef: `TENANT-${input.tenantIsolationEvidenceSha256}`,
     },
   };
 
