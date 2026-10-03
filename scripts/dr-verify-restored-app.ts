@@ -445,12 +445,59 @@ async function main() {
       agencyOwnDocumentRead,
       walletRead,
     };
+
+    if (sessionIds.length) {
+      await pool.query(
+        `delete from ${qualifiedTable("sessions", restoreSchema)} where id = any($1::uuid[])`,
+        [sessionIds],
+      );
+    }
+    if (syntheticUserId) {
+      await pool.query(
+        `delete from ${qualifiedTable("users", restoreSchema)} where id=$1::uuid`,
+        [syntheticUserId],
+      );
+    }
+    if (syntheticAgencyId) {
+      await pool.query(
+        `delete from ${qualifiedTable("agencies", restoreSchema)} where id=$1::uuid`,
+        [syntheticAgencyId],
+      );
+    }
+    const remainingSessions = sessionIds.length
+      ? Number((await pool.query<{ n: number }>(
+          `select count(*)::int as n from ${qualifiedTable("sessions", restoreSchema)} where id = any($1::uuid[])`,
+          [sessionIds],
+        )).rows[0]?.n ?? 0)
+      : 0;
+    const remainingSyntheticUser = syntheticUserId
+      ? Number((await pool.query<{ n: number }>(
+          `select count(*)::int as n from ${qualifiedTable("users", restoreSchema)} where id=$1::uuid`,
+          [syntheticUserId],
+        )).rows[0]?.n ?? 0)
+      : 0;
+    const remainingSyntheticAgency = syntheticAgencyId
+      ? Number((await pool.query<{ n: number }>(
+          `select count(*)::int as n from ${qualifiedTable("agencies", restoreSchema)} where id=$1::uuid`,
+          [syntheticAgencyId],
+        )).rows[0]?.n ?? 0)
+      : 0;
+    const temporaryRecoveryArtifactsCleaned =
+      remainingSessions === 0 && remainingSyntheticUser === 0 && remainingSyntheticAgency === 0;
+    if (!temporaryRecoveryArtifactsCleaned) {
+      throw new Error("Temporary recovery sessions/fixtures were not fully cleaned from the disposable restore.");
+    }
+    sessionIds.splice(0, sessionIds.length);
+    syntheticUserId = null;
+    syntheticAgencyId = null;
+
     const tenantChecks: TenantIsolationEvidence["checks"] = {
       foreignApplicationDenied,
       foreignDocumentDenied,
       foreignApplicantDenied,
       foreignWalletDataNotVisible,
       forgedForeignUploadDenied,
+      temporaryRecoveryArtifactsCleaned,
     };
     const failedApplication = Object.entries(applicationChecks).filter(([, passed]) => !passed).map(([name]) => name);
     const failedTenant = Object.entries(tenantChecks).filter(([, passed]) => !passed).map(([name]) => name);
