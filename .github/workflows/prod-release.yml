@@ -61,7 +61,7 @@ jobs:
       DATABASE_SCHEMA: visa_os
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Guard — Production database secret present
         id: guard
@@ -97,7 +97,7 @@ jobs:
           echo "Using Production env secret: $PICKED (value masked)"
 
       - name: pnpm 12.5.1
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
         with:
           version: 12.5.1
 
@@ -107,7 +107,7 @@ jobs:
           if [ -f release/PROD_GO ]; then echo "go=true" >> "$GITHUB_OUTPUT"; echo "sentinel present: release/PROD_GO (authorization recorded in this commit tree)"; else echo "go=false" >> "$GITHUB_OUTPUT"; fi
 
       - name: Toolchain
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
 
@@ -208,10 +208,10 @@ jobs:
           echo "Using Production environment secret: $PICKED (value masked — never printed)"
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: pnpm 12.5.1
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
         with:
           version: 12.5.1
 
@@ -221,7 +221,7 @@ jobs:
           if [ -f release/PROD_GO ]; then echo "go=true" >> "$GITHUB_OUTPUT"; echo "sentinel present: release/PROD_GO (authorization recorded in this commit tree)"; else echo "go=false" >> "$GITHUB_OUTPUT"; fi
 
       - name: Toolchain
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
 
