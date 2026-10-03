@@ -136,6 +136,20 @@ Expected result: `status: PASS`.
 
 The verifier must confirm byte identity, SHA-256 identity and AES-256-GCM authentication.
 
+## Recovery target already provisioned
+
+Use this existing non-Production target rather than creating another project:
+
+- project ref: `vwixmkzgpmzgwbshzxji`
+- name: `essafaria-visa-os-dr-recovery-2026-10-03`
+- region: `us-east-1`
+- state at provisioning: `ACTIVE_HEALTHY`
+- schema `visa_os`: absent / fresh
+
+For the restore environment set `DR_DISPOSABLE_PROJECT_REF=vwixmkzgpmzgwbshzxji` and keep `DR_ALLOW_REMOTE_DISPOSABLE=true`.
+
+The remaining missing input is only an operator-side PostgreSQL URI for this recovery project. Do not create another recovery project unless this one is no longer available/fresh.
+
 ## External task 4 — restore the real archive into a fresh disposable target
 
 Create a **fresh** local PostgreSQL database or a disposable non-Production Supabase project.
