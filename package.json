@@ -22,7 +22,8 @@
     "dr:restore": "tsx scripts/dr-restore.ts",
     "dr:finalize": "tsx scripts/dr-finalize.ts",
     "dr:local-drill": "tsx scripts/dr-local-drill.ts",
-    "dr:offsite-verify": "tsx scripts/dr-verify-offsite-copy.ts"
+    "dr:offsite-verify": "tsx scripts/dr-verify-offsite-copy.ts",
+    "dr:repo-safety": "tsx scripts/dr-repo-safety.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
