@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { SEO_PUBLIC_ROUTE_ENTRIES } from "@/lib/seo-manifest";
 
 function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), "utf-8");
@@ -41,21 +42,37 @@ describe("SEO route classification contract", () => {
     }
   });
 
-  it("classifies every public page explicitly as indexable or noindex", () => {
-    for (const path of tsxFilesUnder("src/app/(public)").filter((p) => p.endsWith("/page.tsx"))) {
-      const body = source(path);
+  it("keeps the filesystem public route set identical to the SEO manifest", () => {
+    const filesystemRoutes = tsxFilesUnder("src/app/(public)")
+      .filter((p) => p.endsWith("/page.tsx"))
+      .map((path) => {
+        const relative = path
+          .replace(/^src\/app\/\(public\)/, "")
+          .replace(/\/page\.tsx$/, "");
+        return relative || "/";
+      })
+      .sort();
+    const manifestRoutes = SEO_PUBLIC_ROUTE_ENTRIES.map((entry) => entry.path).sort();
+    expect(filesystemRoutes).toEqual(manifestRoutes);
+  });
+
+  it("enforces each manifest classification in the corresponding page source", () => {
+    for (const entry of SEO_PUBLIC_ROUTE_ENTRIES) {
+      const file =
+        entry.path === "/"
+          ? "src/app/(public)/page.tsx"
+          : `src/app/(public)${entry.path}/page.tsx`;
+      const body = source(file);
       const indexable = body.includes("buildPublicMetadata");
       const noindex =
         body.includes("buildNoIndexMetadata") ||
         /robots\s*:\s*\{[^}]*index\s*:\s*false/s.test(body);
-      expect(
-        indexable || noindex,
-        `${path} must be explicitly classified for search visibility`,
-      ).toBe(true);
-      expect(
-        indexable && noindex,
-        `${path} cannot be both indexable and noindex`,
-      ).toBe(false);
+      expect(indexable, `${file} indexable classification mismatch`).toBe(
+        entry.classification === "indexable",
+      );
+      expect(noindex, `${file} noindex classification mismatch`).toBe(
+        entry.classification === "noindex",
+      );
     }
   });
 
@@ -129,7 +146,7 @@ describe("SEO route classification contract", () => {
     ]) {
       const body = source(path);
       expect(body).toContain('redirect("/login")');
-      expect(body).toMatch(/index\s*:\s*false/);
+      expect(body).toContain("buildNoIndexMetadata");
     }
   });
 });

@@ -9,6 +9,10 @@ import {
   isSearchIndexableEnvironment,
   publicCanonicalUrl,
 } from "@/lib/seo";
+import {
+  SEO_INDEXABLE_PUBLIC_ENTRIES,
+  SEO_PUBLIC_ROUTE_ENTRIES,
+} from "@/lib/seo-manifest";
 
 const production = { VERCEL: "1", VERCEL_ENV: "production" } as const;
 const preview = { VERCEL: "1", VERCEL_ENV: "preview" } as const;
@@ -57,13 +61,11 @@ describe("public metadata", () => {
 describe("sitemap and robots", () => {
   it("advertises only the small intentional public allowlist in Production", () => {
     const map = buildPublicSitemap(production);
-    expect(map.map((entry) => entry.url)).toEqual([
-      `${SEO_PRODUCTION_ORIGIN}/`,
-      `${SEO_PRODUCTION_ORIGIN}/b2b`,
-      `${SEO_PRODUCTION_ORIGIN}/about`,
-      `${SEO_PRODUCTION_ORIGIN}/contact`,
-      `${SEO_PRODUCTION_ORIGIN}/faq`,
-    ]);
+    expect(map.map((entry) => entry.url)).toEqual(
+      SEO_INDEXABLE_PUBLIC_ENTRIES.map((entry) =>
+        new URL(entry.path, SEO_PRODUCTION_ORIGIN).toString(),
+      ),
+    );
     for (const entry of map) {
       const url = new URL(entry.url);
       expect(url.protocol).toBe("https:");
@@ -83,6 +85,35 @@ describe("sitemap and robots", () => {
       `${SEO_PRODUCTION_ORIGIN}/sitemap.xml`,
     );
     expect(buildRobots(preview).sitemap).toBeUndefined();
+  });
+});
+
+describe("manifest safety", () => {
+  it("keeps indexable sitemap paths static, clean and unique", () => {
+    const paths = SEO_INDEXABLE_PUBLIC_ENTRIES.map((entry) => entry.path);
+    expect(new Set(paths).size).toBe(paths.length);
+    for (const path of paths) {
+      expect(path).not.toMatch(/[?#]/);
+      expect(path).not.toContain("[");
+    }
+  });
+
+  it("keeps every noindex page out of the sitemap", () => {
+    for (const entry of SEO_PUBLIC_ROUTE_ENTRIES) {
+      expect(entry.sitemap).toBe(entry.classification === "indexable");
+    }
+  });
+
+  it("never emits Preview or local hosts through public metadata", () => {
+    for (const entry of SEO_INDEXABLE_PUBLIC_ENTRIES) {
+      const meta = buildPublicMetadata(entry.key, "en", preview);
+      const serialized = JSON.stringify(meta);
+      expect(serialized).not.toMatch(/\.vercel\.app/i);
+      expect(serialized).not.toMatch(/localhost/i);
+      expect(serialized).not.toMatch(/127\.0\.0\.1/i);
+      expect(meta.alternates?.canonical).toBeUndefined();
+      expect(meta.openGraph?.url).toBeUndefined();
+    }
   });
 });
 

@@ -1,33 +1,19 @@
 import type { NextConfig } from "next";
+import { SEO_NOINDEX_PUBLIC_ENTRIES, isSearchIndexableEnvironment } from "./src/lib/seo-manifest";
 
-const searchIndexableEnvironment =
-  process.env.VERCEL === "1" && process.env.VERCEL_ENV === "production";
+const searchIndexableEnvironment = isSearchIndexableEnvironment();
 
 const noIndexHeader = {
   key: "X-Robots-Tag",
   value: "noindex, nofollow, noarchive",
 } as const;
 
-const authNoIndexSources = [
-  "/login",
-  "/forgot-password",
-  "/change-password",
-  "/agency/register",
-  "/agency/register/success",
-];
+const publicNoIndexOnlySources = SEO_NOINDEX_PUBLIC_ENTRIES
+  .filter((entry) => !entry.cacheNoStore && !entry.noReferrer)
+  .map((entry) => entry.headerSource);
 
-const utilityNoIndexSources = [
-  "/countries",
-  "/visas",
-  "/privacy",
-  "/terms",
-];
-
-const tokenNoIndexSources = [
-  "/reset-access/:path*",
-  "/activate/:path*",
-  "/agency/verification/:path*",
-];
+const publicSensitiveNoIndexSources = SEO_NOINDEX_PUBLIC_ENTRIES
+  .filter((entry) => entry.cacheNoStore || entry.noReferrer);
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -54,23 +40,20 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      ...authNoIndexSources.map((source) => ({
-        source,
-        headers: [
-          noIndexHeader,
-          { key: "Cache-Control", value: "no-store, max-age=0" },
-        ],
-      })),
-      ...utilityNoIndexSources.map((source) => ({
+      ...publicNoIndexOnlySources.map((source) => ({
         source,
         headers: [noIndexHeader],
       })),
-      ...tokenNoIndexSources.map((source) => ({
-        source,
+      ...publicSensitiveNoIndexSources.map((entry) => ({
+        source: entry.headerSource,
         headers: [
           noIndexHeader,
-          { key: "Referrer-Policy", value: "no-referrer" },
-          { key: "Cache-Control", value: "no-store, max-age=0" },
+          ...(entry.cacheNoStore
+            ? [{ key: "Cache-Control", value: "no-store, max-age=0" }]
+            : []),
+          ...(entry.noReferrer
+            ? [{ key: "Referrer-Policy", value: "no-referrer" }]
+            : []),
         ],
       })),
       {

@@ -1,33 +1,25 @@
 import type { Metadata, MetadataRoute } from "next";
 import type { UiLocale } from "@/lib/ui-i18n";
+import {
+  SEO_INDEXABLE_PUBLIC_ENTRIES,
+  SEO_PRODUCTION_ORIGIN,
+  isSearchIndexableEnvironment,
+  seoPublicRoutePath,
+  type IndexablePublicSeoPage,
+  type SeoRuntimeEnv,
+} from "@/lib/seo-manifest";
 
-export const SEO_PRODUCTION_ORIGIN = "https://visa.essafariavoyages.com";
+export {
+  SEO_PRODUCTION_ORIGIN,
+  isSearchIndexableEnvironment,
+  type SeoRuntimeEnv,
+} from "@/lib/seo-manifest";
+
 export const SEO_SITE_NAME = "ESSAFARIA";
 export const SEO_DEFAULT_OG_IMAGE =
   `${SEO_PRODUCTION_ORIGIN}/images/essafaria-airport-hero.webp`;
-
-export type SeoRuntimeEnv = Pick<NodeJS.ProcessEnv, "VERCEL" | "VERCEL_ENV">;
-
-export type PublicSeoPage =
-  | "home"
-  | "b2b"
-  | "about"
-  | "contact"
-  | "faq"
-  | "privacy"
-  | "terms";
-
-const PUBLIC_PATHS: Record<PublicSeoPage, string> = {
-  home: "/",
-  b2b: "/b2b",
-  about: "/about",
-  contact: "/contact",
-  faq: "/faq",
-  privacy: "/privacy",
-  terms: "/terms",
-};
-
-const PUBLIC_SITEMAP_PAGES = ["home", "b2b", "about", "contact", "faq"] as const;
+export const SEO_DEFAULT_OG_IMAGE_WIDTH = 1916;
+export const SEO_DEFAULT_OG_IMAGE_HEIGHT = 821;
 
 const OG_LOCALE: Record<UiLocale, string> = {
   en: "en_DZ",
@@ -37,7 +29,7 @@ const OG_LOCALE: Record<UiLocale, string> = {
 
 const PUBLIC_COPY: Record<
   UiLocale,
-  Record<PublicSeoPage, { title: string; description: string }>
+  Record<IndexablePublicSeoPage, { title: string; description: string }>
 > = {
   en: {
     home: {
@@ -64,14 +56,6 @@ const PUBLIC_COPY: Record<
       title: "Agency FAQ",
       description:
         "Find answers about agency onboarding, account access, visa requests, document requirements and ESSAFARIA support.",
-    },
-    privacy: {
-      title: "Privacy Policy",
-      description: "Read the approved ESSAFARIA privacy information.",
-    },
-    terms: {
-      title: "Terms of Service",
-      description: "Read the approved ESSAFARIA terms of service.",
     },
   },
   fr: {
@@ -100,14 +84,6 @@ const PUBLIC_COPY: Record<
       description:
         "Retrouvez les réponses concernant l’intégration des agences, l’accès au compte, les demandes de visa, les documents et l’assistance ESSAFARIA.",
     },
-    privacy: {
-      title: "Politique de confidentialité",
-      description: "Consultez les informations de confidentialité approuvées d’ESSAFARIA.",
-    },
-    terms: {
-      title: "Conditions d’utilisation",
-      description: "Consultez les conditions d’utilisation approuvées d’ESSAFARIA.",
-    },
   },
   ar: {
     home: {
@@ -135,25 +111,11 @@ const PUBLIC_COPY: Record<
       description:
         "اطّلع على الإجابات المتعلقة بانضمام الوكالات والوصول إلى الحساب وطلبات التأشيرات والوثائق ودعم ESSAFARIA.",
     },
-    privacy: {
-      title: "سياسة الخصوصية",
-      description: "اطّلع على معلومات الخصوصية المعتمدة لدى ESSAFARIA.",
-    },
-    terms: {
-      title: "شروط الاستخدام",
-      description: "اطّلع على شروط الاستخدام المعتمدة لدى ESSAFARIA.",
-    },
   },
 };
 
-export function isSearchIndexableEnvironment(
-  env: SeoRuntimeEnv = process.env,
-): boolean {
-  return env.VERCEL === "1" && env.VERCEL_ENV === "production";
-}
-
-export function publicCanonicalUrl(page: PublicSeoPage): string {
-  return new URL(PUBLIC_PATHS[page], SEO_PRODUCTION_ORIGIN).toString();
+export function publicCanonicalUrl(page: IndexablePublicSeoPage): string {
+  return new URL(seoPublicRoutePath(page), SEO_PRODUCTION_ORIGIN).toString();
 }
 
 export function buildNoIndexMetadata(
@@ -168,7 +130,7 @@ export function buildNoIndexMetadata(
 }
 
 export function buildPublicMetadata(
-  page: PublicSeoPage,
+  page: IndexablePublicSeoPage,
   locale: UiLocale,
   env: SeoRuntimeEnv = process.env,
 ): Metadata {
@@ -187,7 +149,12 @@ export function buildPublicMetadata(
       title: fullTitle,
       description: copy.description,
       locale: OG_LOCALE[locale],
-      images: [{ url: SEO_DEFAULT_OG_IMAGE, width: 1916, height: 821, alt: `${SEO_SITE_NAME} B2B travel services` }],
+      images: [{
+        url: SEO_DEFAULT_OG_IMAGE,
+        width: SEO_DEFAULT_OG_IMAGE_WIDTH,
+        height: SEO_DEFAULT_OG_IMAGE_HEIGHT,
+        alt: `${SEO_SITE_NAME} B2B travel services`,
+      }],
       ...(production ? { url: canonical } : {}),
     },
     twitter: {
@@ -204,17 +171,19 @@ export function buildPublicSitemap(
 ): MetadataRoute.Sitemap {
   if (!isSearchIndexableEnvironment(env)) return [];
 
-  return PUBLIC_SITEMAP_PAGES.map((page) => ({
-    url: publicCanonicalUrl(page),
-  }));
+  return SEO_INDEXABLE_PUBLIC_ENTRIES
+    .filter((entry) => entry.sitemap)
+    .map((entry) => ({
+      url: publicCanonicalUrl(entry.key),
+    }));
 }
 
 export function buildRobots(
   env: SeoRuntimeEnv = process.env,
 ): MetadataRoute.Robots {
   if (!isSearchIndexableEnvironment(env)) {
-    // Allow crawlers to fetch a non-production page so response/header noindex
-    // remains observable. Access protection, not robots.txt, is the security boundary.
+    // Allow crawling so response-level/page-level noindex remains observable.
+    // Authentication and deployment protection are the security boundary.
     return { rules: { userAgent: "*", allow: "/" } };
   }
 
