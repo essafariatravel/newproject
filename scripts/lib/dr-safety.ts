@@ -538,7 +538,7 @@ export function reconcileStorageSnapshot(
     }
   }
   let orphanObjects = 0;
-  for (const object of objects) {
+  for (const object of objectMap.values()) {
     if (!referenced.has(object.key)) {
       orphanObjects++;
       findings.push(`ORPHAN_BLOB: ${object.key}`);
