@@ -15,7 +15,7 @@ Legend:
 | --- | --- | --- | --- |
 | A | Data inventory | PASS | \`data-governance.md\` + \`data-governance-register.md\` |
 | B | Data-flow map | PASS | \`data-flow-map.md\` |
-| C | Data minimization | PASS | First-contact agency form whitelisted/minimized; local + hosted regression coverage |
+| C | Data minimization | PASS | First-contact agency form whitelisted/minimized; raw request IP is not persisted in the business row/public submission audit; anti-abuse state is hashed; local + hosted regression coverage |
 | D | Data classification | PASS | PUBLIC / INTERNAL / CONFIDENTIAL / RESTRICTED baseline documented |
 | E | Access / need-to-know | PASS technically + OWNER DECISION | Current effective role perimeter documented in \`access-need-to-know.md\`; separation-of-duties choice remains Owner decision |
 | F | Privacy Notice input package | PASS as decision template | \`owner-legal-handoff.md\`; actual approved EN/FR/AR content remains blocked on Owner/Legal |
@@ -28,13 +28,13 @@ Legend:
 | M | Privacy request workflow | PASS operational runbook + LEGAL REVIEW REQUIRED | \`privacy-request-incident-runbook.md\`; no invented statutory deadline |
 | N | Privacy export | NOT ENABLED by default | Runbook defines safe scoped export controls if an approved request requires export; no broad “download everything” endpoint is introduced |
 | O | Backups / deletion reconciliation | PASS runbook + EXTERNAL CONFIG | Post-restore reconciliation documented; vendor backup-retention configuration remains external |
-| P | Logs / monitoring privacy | PASS | Raw public auth errors redacted; sensitive payloads excluded; code-only diagnostics regression guards |
+| P | Logs / monitoring privacy | PASS | Raw public auth/storage errors redacted; sensitive payloads plus redundant filenames/identity fields are excluded from targeted durable audits; code-only diagnostics regression guards |
 | Q | Cookie / browser-storage inventory | PASS | Full inventory + deployed session-cookie check + locale-cookie runtime gate |
 | R | Cookie consent decision tree | PASS technical framework + LEGAL REVIEW REQUIRED | No non-essential analytics SDK detected; future tracking requires review before enablement |
 | S | Cookie banner | NOT ENABLED | Correctly absent while no reviewed non-essential tracking requires it; never add cosmetic banner |
 | T | Cookie Policy | LEGAL REVIEW REQUIRED if public legal text is required | Technical inventory is complete; engineering must not fabricate legal notice text |
 | U | Analytics / UTM | PASS | No common analytics/advertising SDK; sensitive data prohibited in campaign parameters |
-| V | Public forms | PASS | Agency first-contact is minimized; no initial KYC/document upload; legal gate fails closed |
+| V | Public forms | PASS | Agency first-contact is minimized; no initial KYC/document upload; raw request IP is used only transiently for hashed anti-abuse; legal gate fails closed |
 | W | Email / SMTP privacy | NOT ENABLED + EXTERNAL CONFIG if added | No transactional SMTP provider found; future provider must enter vendor/data-flow inventory |
 | X | Public legal pages | PASS technically / content blocked | \`/privacy\` + \`/terms\` serve only approved effective content, no silent locale fallback, noindex when unavailable |
 | Y | Legal approval workflow | PASS product boundary | External Owner/Legal approval remains external; SUPER_ADMIN publication records immutable publication evidence only |
