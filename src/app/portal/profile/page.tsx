@@ -72,7 +72,9 @@ export default async function PortalProfilePage({
                     </form>
                   ) : null}
                   <form action={uploadOwnAgencyLogoAction} encType="multipart/form-data" className="flex flex-wrap items-center gap-2">
+                    <label htmlFor="agency-logo-upload" className="sr-only">{ct("Agency logo")}</label>
                     <input
+                      id="agency-logo-upload"
                       type="file"
                       name="logo"
                       accept="image/png,image/jpeg,image/webp"
@@ -213,7 +215,7 @@ export default async function PortalProfilePage({
               <p className="text-xs text-slate-400" dir="ltr">{user.username}</p>
               <Link href="/change-password" className="mt-4 inline-flex min-h-11 items-center text-base font-semibold text-iris-700 underline">{it("Change password")}</Link>
               <p className="mt-2 text-xs">
-                {ct("Role")}: <span className="badge bg-gold-100 text-gold-600">{businessLabel(user.role, uiLocale)}</span>
+                {ct("Role")}: <span className="badge bg-gold-100 text-navy-900">{businessLabel(user.role, uiLocale)}</span>
               </p>
             </div>
           </Card>

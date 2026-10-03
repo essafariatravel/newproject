@@ -32,7 +32,7 @@ export function WalletStatementForm({
   return (
     <Card className="p-4">
       <h3 className="text-lg font-semibold text-navy-800">{copy.title}</h3>
-      <p className="mt-2 text-base text-navy-500">
+      <p className="mt-2 text-base text-slate-600">
 {copy.body}
       </p>
       <form
