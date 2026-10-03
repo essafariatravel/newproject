@@ -124,8 +124,7 @@ async function main(): Promise<void> {
   const { row, mode } = result;
 
   console.log(
-    `[reset-preview-admin] OK (${mode}) schema=${schema} email=${email} role=SUPER_ADMIN status=ACTIVE ` +
-      `hashPrefix=${row.passwordHash.slice(0, 8)}… (never the plaintext)`,
+    `[reset-preview-admin] OK (${mode}) schema=${schema} email=${email} role=SUPER_ADMIN status=ACTIVE credentialRevoked=${mode === "rotated" ? "YES" : "N/A"}`,
   );
 }
 
