@@ -180,6 +180,20 @@ else
   ok "public homepage contains no common analytics/advertising marker"
 fi
 
+# Runtime cookie contract for the non-sensitive language preference.
+rm -f "$WORK/locale-cookie.txt" "$WORK/headers.txt"
+CODE_LOCALE=$(submit_form "$WORK/home.html" "$BASE_URL/" 'name="locale" value="fr"' "$WORK/locale-cookie.txt" /dev/null || true)
+LOCALE_COOKIE_LINE=$(grep -i '^set-cookie:.*evos_ui_locale=' "$WORK/headers.txt" 2>/dev/null | head -1 | tr -d '\r')
+if [ -n "$LOCALE_COOKIE_LINE" ] \
+  && printf '%s' "$LOCALE_COOKIE_LINE" | grep -qi 'Secure' \
+  && printf '%s' "$LOCALE_COOKIE_LINE" | grep -qi 'SameSite=Lax' \
+  && printf '%s' "$LOCALE_COOKIE_LINE" | grep -qi 'Path=/' \
+  && printf '%s' "$LOCALE_COOKIE_LINE" | grep -qi 'Max-Age=31536000'; then
+  ok "deployed evos_ui_locale cookie is Secure + SameSite=Lax + Path=/ + Max-Age=365d (http $CODE_LOCALE)"
+else
+  bad "deployed evos_ui_locale cookie attributes are incomplete (http ${CODE_LOCALE:-?})"
+fi
+
 STAMP=$(date +%s)
 LEGAL_EN="Hosted Verify EN $STAMP SARL"
 LEGAL_XX="Hosted Verify Reject $STAMP SPA"
