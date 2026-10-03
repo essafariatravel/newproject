@@ -55,6 +55,7 @@ import {
   type AuthUser,
 } from "@/lib/types";
 import { storageProvider } from "@/lib/storage";
+import { sha256Hex } from "@/lib/file-integrity";
 import { recordAudit } from "@/lib/audit";
 import { notifyUsers, staffUserIds } from "@/lib/notifications";
 import { generateSessionToken, hashPassword, hashToken } from "@/lib/crypto";
@@ -345,12 +346,13 @@ export async function submitAgencyRegistration(params: {
 
   const id = randomUUID();
   // 1. Private storage first (keys are server-generated, never from input).
-  const stored: Array<{ key: string; file: RegistrationFileInput }> = [];
+  const stored: Array<{ key: string; file: RegistrationFileInput; sha256: string }> = [];
   try {
     for (const file of files) {
       const key = `agency-registrations/${id}/${randomUUID()}`;
+      const sha256 = sha256Hex(file.data);
       await storageProvider().put(key, file.data, file.type);
-      stored.push({ key, file });
+      stored.push({ key, file, sha256 });
     }
   } catch (err) {
     for (const s of stored) await storageProvider().delete(s.key).catch(() => {});
@@ -394,7 +396,7 @@ export async function submitAgencyRegistration(params: {
 async function persistRegistration(
   id: string,
   data: RegistrationData,
-  stored: Array<{ key: string; file: RegistrationFileInput }>,
+  stored: Array<{ key: string; file: RegistrationFileInput; sha256: string }>,
   ipAddress: string | null,
 ): Promise<string> {
   let lastError: unknown = null;
@@ -438,12 +440,13 @@ async function persistRegistration(
         });
         if (stored.length > 0) {
           await tx.insert(agencyRegistrationDocuments).values(
-            stored.map(({ key, file }) => ({
+            stored.map(({ key, file, sha256 }) => ({
               registrationId: id,
               category: file.category,
               originalFilename: file.name,
               mimeType: file.type,
               sizeBytes: file.size,
+              sha256,
               storageKey: key,
             })),
           );
