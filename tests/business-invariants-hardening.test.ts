@@ -4,7 +4,7 @@ import { suiteSetup } from "./helpers/global-state";
 import { agencyByEmail, userByEmail } from "./helpers/fixtures";
 import { db, pool } from "@/lib/db";
 import { qualifiedTable } from "@/lib/database-schema";
-import { applications, applicants, documents, documentRequests, visaTypes, walletTopupRequests, walletTransactions } from "@/db/schema";
+import { applications, applicants, auditLogs, documents, documentRequests, visaTypes, walletTopupRequests, walletTransactions } from "@/db/schema";
 import { changeApplicationStatus, createDraftApplication, getChecklist, getDecisionDocuments, recordApplicationDecision, submitApplication } from "@/lib/applications";
 import { requestAdditionalDocument, requestDocumentReplacement } from "@/lib/document-requests";
 import { uploadDocument } from "@/lib/documents";
@@ -166,6 +166,39 @@ describe("proof and immutable money", () => {
       await expect(createTopupRequest({ agencyId: agency.id, amount: 100, actor, proof } as Parameters<typeof createTopupRequest>[0])).rejects.toThrow();
     }
     expect(await db.select().from(walletTopupRequests).where(and(eq(walletTopupRequests.agencyId, agency.id), eq(walletTopupRequests.status, "PENDING")))).toHaveLength(0);
+  });
+
+  it("rolls back a top-up rejection when its audit row cannot be persisted", async () => {
+    const agency = await agencyByEmail("ops@agencya.example");
+    const actor = await userByEmail("a-admin@test.example");
+    const staff = await userByEmail("admin@test.example");
+    const created = await createTopupRequest({ agencyId: agency.id, amount: 100, actor, proof: receipt() });
+    const fn = qualifiedTable("test_fail_topup_reject_audit");
+    const audit = qualifiedTable("audit_logs");
+    await pool.query(`create or replace function ${fn}() returns trigger language plpgsql as $
+      begin
+        if new.action = 'WALLET_TOPUP_REJECTED' then
+          raise exception 'synthetic top-up audit failure';
+        end if;
+        return new;
+      end $`);
+    await pool.query(`drop trigger if exists test_fail_topup_reject_audit on ${audit}`);
+    await pool.query(`create trigger test_fail_topup_reject_audit before insert on ${audit}
+      for each row execute function ${fn}()`);
+    try {
+      await expect(processTopupRequest({ requestId: created.id, decision: "REJECT", decisionNote: "Bank transfer not received.", actor: staff }))
+        .rejects.toThrow(/synthetic top-up audit failure/i);
+      const current = (await topupRequestById(created.id))!;
+      expect(current.status).toBe("PENDING");
+      expect(current.processedAt).toBeNull();
+      expect(current.processedBy).toBeNull();
+      const audits = await db.select().from(auditLogs)
+        .where(and(eq(auditLogs.entityId, created.id), eq(auditLogs.action, "WALLET_TOPUP_REJECTED")));
+      expect(audits).toHaveLength(0);
+    } finally {
+      await pool.query(`drop trigger if exists test_fail_topup_reject_audit on ${audit}`);
+      await pool.query(`drop function if exists ${fn}()`);
+    }
   });
 
   it("does not credit a legacy pending request with no proof", async () => {
