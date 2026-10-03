@@ -1,5 +1,7 @@
 import "./lib/load-env";
 import { performance } from "node:perf_hooks";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import { Pool, type PoolClient } from "pg";
 import { databasePoolConfig } from "../src/lib/database-config";
 import { assertSafePerfTarget, perfTable, safeTargetSummary } from "./perf-safety";
@@ -66,12 +68,13 @@ async function main() {
         const indexName = "perf_exp_notifications_unread_user_idx";
         await client.query(`drop index if exists ${target.schema}.${indexName}`);
         await client.query(`analyze ${perfTable("notifications")}`);
+        await timed(client, sql, [userId], 5);
         const before = await timed(client, sql, [userId], repeats);
         const beforePlan = await explain(client, sql, [userId]);
         try {
           await client.query(`create index ${indexName} on ${perfTable("notifications")} (user_id) where read_at is null`);
           await client.query(`analyze ${perfTable("notifications")}`);
-          await timed(client, sql, [userId], 3);
+          await timed(client, sql, [userId], 5);
           const after = await timed(client, sql, [userId], repeats);
           const afterPlan = await explain(client, sql, [userId]);
           const ratio = speedup(before.p95Ms, after.p95Ms);
@@ -104,12 +107,13 @@ async function main() {
         const indexName = "perf_exp_communications_created_idx";
         await client.query(`drop index if exists ${target.schema}.${indexName}`);
         await client.query(`analyze ${perfTable("communications")}`);
+        await timed(client, sql, [], 5);
         const before = await timed(client, sql, [], repeats);
         const beforePlan = await explain(client, sql, []);
         try {
           await client.query(`create index ${indexName} on ${perfTable("communications")} (created_at desc)`);
           await client.query(`analyze ${perfTable("communications")}`);
-          await timed(client, sql, [], 3);
+          await timed(client, sql, [], 5);
           const after = await timed(client, sql, [], repeats);
           const afterPlan = await explain(client, sql, []);
           const ratio = speedup(before.p95Ms, after.p95Ms);
@@ -129,13 +133,21 @@ async function main() {
         }
       }
 
-      console.log(JSON.stringify({
+      const result = {
         generatedAt: new Date().toISOString(),
         target: safeTargetSummary(target),
-        policy: "Disposable-local A/B experiment only. All temporary indexes are dropped before exit. Results justify candidates for hosted validation; they do not authorize a remote migration.",
+        policy: "Disposable-local A/B experiment only. Baseline and indexed phases receive equal warm-up. All temporary indexes are dropped before exit. Results justify candidates for hosted validation; they do not authorize a remote migration.",
+        warmupRunsPerPhase: 5,
         repeats,
         experiments,
-      }, null, 2));
+      };
+      const serialized = JSON.stringify(result, null, 2);
+      if (process.env.PERF_INDEX_EXPERIMENT_OUTPUT) {
+        const output = resolve(process.env.PERF_INDEX_EXPERIMENT_OUTPUT);
+        await mkdir(dirname(output), { recursive: true });
+        await writeFile(output, serialized, { mode: 0o600 });
+      }
+      console.log(serialized);
     } finally {
       client.release();
     }
