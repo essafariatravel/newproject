@@ -12,6 +12,13 @@ const host = BASE_URL.replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].t
 if (host === PROD_HOST) throw new Error("Export harness refuses Production.");
 
 const sessionData = JSON.parse(open(__ENV.PERF_SESSION_FILE || "./perf/.runtime/sessions.json"));
+const BUDGETS = JSON.parse(open("../budgets.json"));
+const operationTrends = {
+  applications_export_csv: new Trend("op_applications_export_csv", true),
+  applications_export_xlsx: new Trend("op_applications_export_xlsx", true),
+  reports_export_csv: new Trend("op_reports_export_csv", true),
+  reports_export_xlsx: new Trend("op_reports_export_xlsx", true),
+};
 const tokens = sessionData.roles?.SUPER_ADMIN;
 if (!Array.isArray(tokens) || !tokens.length) throw new Error("SUPER_ADMIN synthetic session is required.");
 
@@ -31,7 +38,7 @@ export const options = {
     }
   },
   thresholds: {
-    export_failure: ["rate<0.01"],
+    export_failure: [`rate<${BUDGETS.global.errorRateMax}`],
     export_latency: ["p(95)<5000", "p(99)<10000"]
   },
   summaryTrendStats: ["avg","med","p(90)","p(95)","p(99)","max"]
@@ -47,6 +54,7 @@ function headers() {
 function hit(path, operation) {
   const res = http.get(`${BASE_URL}${path}`, { headers: headers(), redirects: 0, tags: { operation } });
   exportLatency.add(res.timings.duration, { operation });
+  operationTrends[operation]?.add(res.timings.duration);
   const length = typeof res.body === "string" ? res.body.length : 0;
   exportBytes.add(length, { operation });
   const ok = check(res, { [`${operation}: HTTP 200`]: (r) => r.status === 200 });
