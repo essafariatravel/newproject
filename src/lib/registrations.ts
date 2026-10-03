@@ -61,7 +61,6 @@ import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import type { RegistrationCopy, RegistrationLocale } from "@/lib/i18n";
 import { safeErrorCode, safeErrorText } from "@/lib/safe-error";
 import { sha256Hex } from "@/lib/file-integrity";
-import { sha256Hex } from "@/lib/file-integrity";
 
 /* ------------------------------------------------------------------ */
 /* Constants                                                           */
