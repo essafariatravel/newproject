@@ -7,6 +7,7 @@ import {
 describe("Preview build database-change guard", () => {
   it("forbids automatic writes on the preproduction hardening branch before identity and backup verification", () => {
     expect(automaticDatabaseChangesForbidden("preprod/essafaria-final-hardening")).toBe(true);
+    expect(automaticDatabaseChangesForbidden("security/pre-codex-gate-2026-10-03")).toBe(true);
   });
   it("forbids automatic database changes on the isolated pre-Codex security branch", () => {
     expect(automaticDatabaseChangesForbidden("security/pre-codex-gate-2026-10-03")).toBe(true);
