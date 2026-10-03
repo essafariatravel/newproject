@@ -210,23 +210,31 @@ const visaTypeSchema = z.object({
   path: ["processingMinDays"],
 });
 
+
 export async function createVisaTypeAction(formData: FormData): Promise<void> {
   await runAction("/admin/config/visa-types", async () => {
     const staff = await requireStaff();
     requirePermission(staff, "config.manage");
     const data = visaTypeSchema.parse(Object.fromEntries(formData));
-    const inserted = await db
-      .insert(visaTypes)
-      .values({ ...data, fee: data.fee.toFixed(2), currency: "DZD", active: false })
-      .onConflictDoNothing()
-      .returning();
-    if (!inserted[0]) throw new AppError("DUPLICATE", `Visa type code ${data.code} already exists.`);
-    await recordAudit({ actor: staff, action: "CONFIG_VISA_TYPE_CREATED", entity: "visa_type", entityId: inserted[0].id, metadata: { code: data.code, fee: data.fee } });
+    await db.transaction(async (tx) => {
+      const inserted = await tx
+        .insert(visaTypes)
+        .values({ ...data, fee: data.fee.toFixed(2), currency: "DZD", active: false })
+        .onConflictDoNothing()
+        .returning();
+      if (!inserted[0]) throw new AppError("DUPLICATE", `Visa type code ${data.code} already exists.`);
+      await tx.insert(auditLogs).values({
+        actorId: staff.id, actorEmail: staff.email, actorRole: staff.role, agencyId: staff.agencyId,
+        action: "CONFIG_VISA_TYPE_CREATED", entity: "visa_type", entityId: inserted[0].id,
+        metadata: { code: data.code, fee: data.fee },
+      });
+    });
     revalidatePath("/admin/config/visa-types");
     revalidatePath("/visas");
     return `Visa type "${data.name}" created.`;
   });
 }
+
 
 export async function updateVisaTypeAction(formData: FormData): Promise<void> {
   const id = idSchema.parse(formData.get("id"));
@@ -235,35 +243,82 @@ export async function updateVisaTypeAction(formData: FormData): Promise<void> {
     const staff = await requireStaff();
     requirePermission(staff, "config.manage");
     if (formData.get("toggle")) {
-      await db.transaction(async tx => {
-        const existing = (await tx.select().from(visaTypes).where(eq(visaTypes.id,id)).for("update"))[0];
+      await db.transaction(async (tx) => {
+        const existing = (await tx.select().from(visaTypes).where(eq(visaTypes.id, id)).for("update"))[0];
         if (!existing) throw new AppError("NOT_FOUND", "Visa type not found.");
         if (!existing.active) {
           const country = (await tx.select().from(countries).where(eq(countries.id, existing.countryId)))[0];
           const category = (await tx.select().from(visaCategories).where(eq(visaCategories.id, existing.categoryId)))[0];
-          const requirements = await tx.select({id:visaRequirements.id}).from(visaRequirements).innerJoin(documentTypes,eq(visaRequirements.documentTypeId,documentTypes.id)).where(and(eq(visaRequirements.visaTypeId,id),eq(visaRequirements.active,true),eq(documentTypes.active,true),eq(documentTypes.agencyUploadable,true)));
-          validateVisaActivation({countryActive:country?.active??false,categoryActive:category?.active??false,name:existing.name,nameFr:existing.nameFr,nameAr:existing.nameAr,fee:existing.fee,minDays:existing.processingMinDays,maxDays:existing.processingMaxDays,agencyRequirements:requirements.length});
+          const requirements = await tx
+            .select({ id: visaRequirements.id })
+            .from(visaRequirements)
+            .innerJoin(documentTypes, eq(visaRequirements.documentTypeId, documentTypes.id))
+            .where(and(
+              eq(visaRequirements.visaTypeId, id),
+              eq(visaRequirements.active, true),
+              eq(documentTypes.active, true),
+              eq(documentTypes.agencyUploadable, true),
+            ));
+          validateVisaActivation({
+            countryActive: country?.active ?? false,
+            categoryActive: category?.active ?? false,
+            name: existing.name,
+            nameFr: existing.nameFr,
+            nameAr: existing.nameAr,
+            fee: existing.fee,
+            minDays: existing.processingMinDays,
+            maxDays: existing.processingMaxDays,
+            agencyRequirements: requirements.length,
+          });
         }
-        await tx.update(visaTypes).set({active:!existing.active,updatedAt:new Date()}).where(eq(visaTypes.id,id));
+        await tx.update(visaTypes).set({ active: !existing.active, updatedAt: new Date() }).where(eq(visaTypes.id, id));
+        await tx.insert(auditLogs).values({
+          actorId: staff.id, actorEmail: staff.email, actorRole: staff.role, agencyId: staff.agencyId,
+          action: "CONFIG_VISA_TYPE_TOGGLED", entity: "visa_type", entityId: id,
+          metadata: { active: !existing.active },
+        });
       });
-      await recordAudit({ actor: staff, action: "CONFIG_VISA_TYPE_TOGGLED", entity: "visa_type", entityId: id });
     } else {
-      const existing = (await db.select().from(visaTypes).where(eq(visaTypes.id, id)).limit(1))[0];
-      if (!existing) throw new AppError("NOT_FOUND", "Visa type not found.");
-      const data = visaTypeSchema.parse({ ...Object.fromEntries(formData), code: existing.code });
-      if (existing.active) {
-        const country = (await db.select().from(countries).where(eq(countries.id,data.countryId)))[0];
-        const category = (await db.select().from(visaCategories).where(eq(visaCategories.id,data.categoryId)))[0];
-        const requirements = await db.select({id:visaRequirements.id}).from(visaRequirements).innerJoin(documentTypes,eq(visaRequirements.documentTypeId,documentTypes.id)).where(and(eq(visaRequirements.visaTypeId,id),eq(visaRequirements.active,true),eq(documentTypes.active,true),eq(documentTypes.agencyUploadable,true)));
-        validateVisaActivation({countryActive:country?.active??false,categoryActive:category?.active??false,name:data.name,nameFr:data.nameFr??null,nameAr:data.nameAr??null,fee:String(data.fee),minDays:data.processingMinDays,maxDays:data.processingMaxDays,agencyRequirements:requirements.length});
-      }
-      await db.update(visaTypes).set({ ...data, fee: data.fee.toFixed(2), currency: "DZD", updatedAt: new Date() }).where(eq(visaTypes.id, id));
-      await recordAudit({
-        actor: staff,
-        action: "CONFIG_VISA_TYPE_UPDATED",
-        entity: "visa_type",
-        entityId: id,
-        metadata: { fee: data.fee, embassyApplicability: data.embassyApplicability },
+      await db.transaction(async (tx) => {
+        const existing = (await tx.select().from(visaTypes).where(eq(visaTypes.id, id)).for("update"))[0];
+        if (!existing) throw new AppError("NOT_FOUND", "Visa type not found.");
+        const data = visaTypeSchema.parse({ ...Object.fromEntries(formData), code: existing.code });
+        if (existing.active) {
+          const country = (await tx.select().from(countries).where(eq(countries.id, data.countryId)))[0];
+          const category = (await tx.select().from(visaCategories).where(eq(visaCategories.id, data.categoryId)))[0];
+          const requirements = await tx
+            .select({ id: visaRequirements.id })
+            .from(visaRequirements)
+            .innerJoin(documentTypes, eq(visaRequirements.documentTypeId, documentTypes.id))
+            .where(and(
+              eq(visaRequirements.visaTypeId, id),
+              eq(visaRequirements.active, true),
+              eq(documentTypes.active, true),
+              eq(documentTypes.agencyUploadable, true),
+            ));
+          validateVisaActivation({
+            countryActive: country?.active ?? false,
+            categoryActive: category?.active ?? false,
+            name: data.name,
+            nameFr: data.nameFr ?? null,
+            nameAr: data.nameAr ?? null,
+            fee: String(data.fee),
+            minDays: data.processingMinDays,
+            maxDays: data.processingMaxDays,
+            agencyRequirements: requirements.length,
+          });
+        }
+        await tx.update(visaTypes).set({
+          ...data,
+          fee: data.fee.toFixed(2),
+          currency: "DZD",
+          updatedAt: new Date(),
+        }).where(eq(visaTypes.id, id));
+        await tx.insert(auditLogs).values({
+          actorId: staff.id, actorEmail: staff.email, actorRole: staff.role, agencyId: staff.agencyId,
+          action: "CONFIG_VISA_TYPE_UPDATED", entity: "visa_type", entityId: id,
+          metadata: { fee: data.fee, embassyApplicability: data.embassyApplicability },
+        });
       });
     }
     revalidatePath("/admin/config/visa-types");
@@ -275,6 +330,7 @@ export async function updateVisaTypeAction(formData: FormData): Promise<void> {
 
 /* ----------------------------- requirements ---------------------------- */
 
+
 export async function deleteVisaTypeAction(formData: FormData): Promise<void> {
   await runAction("/admin/config/visa-types", async () => {
     const staff = await requireStaff();
@@ -285,12 +341,17 @@ export async function deleteVisaTypeAction(formData: FormData): Promise<void> {
       if (!row) throw new AppError("NOT_FOUND", "Visa type not found.");
       const applicationRefs = await tx.select({ id: applications.id }).from(applications).where(eq(applications.visaTypeId, id)).limit(1);
       const requirementRefs = await tx.select({ id: visaRequirements.id }).from(visaRequirements).where(eq(visaRequirements.visaTypeId, id)).limit(1);
-      // Explicitly block the schema's requirement cascade: deletion never removes related configuration.
-      if (applicationRefs.length || requirementRefs.length) throw new AppError("REFERENCED", "This visa type has applications or document requirements. Deactivate it instead.");
+      if (applicationRefs.length || requirementRefs.length) {
+        throw new AppError("REFERENCED", "This visa type has applications or document requirements. Deactivate it instead.");
+      }
       await tx.delete(visaTypes).where(eq(visaTypes.id, id));
+      await tx.insert(auditLogs).values({
+        actorId: staff.id, actorEmail: staff.email, actorRole: staff.role, agencyId: staff.agencyId,
+        action: "CONFIG_VISA_TYPE_DELETED", entity: "visa_type", entityId: id,
+        metadata: { code: row.code, mode: "hard" },
+      });
       return row;
     });
-    await recordAudit({ actor: staff, action: "CONFIG_VISA_TYPE_DELETED", entity: "visa_type", entityId: id, metadata: { code: visaType.code, mode: "hard" } });
     revalidatePath("/admin/config/visa-types");
     revalidatePath("/visas");
     return `Visa type "${visaType.name}" deleted.`;
