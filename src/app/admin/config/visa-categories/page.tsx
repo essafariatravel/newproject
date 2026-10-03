@@ -25,17 +25,17 @@ function CategoryFields({ value, locale }: { value?: Category; locale: UiLocale 
   const ct = contentT(locale);
   return <>
     {value ? <input type="hidden" name="id" value={value.id} /> : null}
-    <label className="block text-sm">{ct("Name *")} · EN
+    <label className="block text-base">{ct("Name *")} · EN
       <input name="name" required minLength={2} maxLength={60} defaultValue={value?.name} dir="ltr" className="input mt-1" />
     </label>
-    <label className="block text-sm">{ct("Code *")}
+    <label className="block text-base">{ct("Code *")}
       <input name="code" required minLength={2} maxLength={40} defaultValue={value?.code} readOnly={!!value} dir="ltr" className="input mt-1 uppercase" />
     </label>
-    <label className="block text-sm sm:col-span-2">{ct("Description")} · EN
+    <label className="block text-base sm:col-span-2">{ct("Description")} · EN
       <textarea name="description" maxLength={500} rows={2} defaultValue={value?.description ?? ""} dir="ltr" className="input mt-1" />
     </label>
     <ConfigTranslations value={value} locale={locale} />
-    <label className="block text-sm">{ct("Sort order")}
+    <label className="block text-base">{ct("Sort order")}
       <input name="sortOrder" type="number" min={0} max={9999} defaultValue={value?.sortOrder ?? 0} className="input mt-1" />
     </label>
     <div className="sm:col-span-2"><SubmitButton className="btn-primary" pendingLabel={ct("Saving…")}>{ct(value ? "Save" : "Add category")}</SubmitButton></div>
@@ -68,10 +68,10 @@ export default async function VisaCategoriesConfigPage({ searchParams }: {
   return <>
     <PageHeader title={ct("Visa categories")} subtitle={ct("Top-level visa families: tourist, business, student…")} />
     <Flash {...flashFrom(sp)} />
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
       <form className="flex flex-wrap items-center gap-2">
-        <input name="q" defaultValue={q} placeholder={ct("Search categories…")} aria-label={ct("Search categories…")} className="input w-64 text-sm" />
-        <select name="status" defaultValue={status} aria-label={ct("Status")} className="input w-auto text-sm">
+        <input name="q" defaultValue={q} placeholder={ct("Search categories…")} aria-label={ct("Search categories…")} className="input w-64 text-base" />
+        <select name="status" defaultValue={status} aria-label={ct("Status")} className="input w-auto text-base">
           <option value="">{ct("All statuses")}</option><option value="active">{ct("Active")}</option><option value="inactive">{ct("Inactive")}</option>
         </select>
         <input type="hidden" name="per" value={per} />
@@ -89,7 +89,7 @@ export default async function VisaCategoriesConfigPage({ searchParams }: {
       </tr></thead>
       <tbody className="divide-y divide-slate-100">
         {paged.map((row) => <tr key={row.id} className="tr-hover">
-          <td className="td font-medium text-navy-900">{configName(row, locale)}</td>
+          <td className="td font-semibold text-navy-900">{configName(row, locale)}</td>
           <td className="td"><span className="badge bg-navy-900/5 text-navy-800">{row.code}</span></td>
           <td className="td max-w-[320px] truncate text-xs text-slate-500" title={configDescription(row, locale)}>{configDescription(row, locale) || "—"}</td>
           <td className="td tabular-nums">{usage.get(row.id) ?? 0}</td>
@@ -109,7 +109,7 @@ export default async function VisaCategoriesConfigPage({ searchParams }: {
         {!paged.length ? <tr><td colSpan={canManage ? 6 : 5} className="td py-8 text-center text-slate-500">{ct("No categories configured.")}</td></tr> : null}
       </tbody>
     </TableWrap>
-    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-4 text-xs">
       <span className="text-slate-500">{ct("Page")} {page} / {pageCount} — {rows.length} {ct("total")}</span>
       <div className="flex gap-2">{page > 1 ? <Link href={pageHref(page - 1)} className="btn-secondary btn-sm">{ct("← Prev")}</Link> : null}{page < pageCount ? <Link href={pageHref(page + 1)} className="btn-secondary btn-sm">{ct("Next →")}</Link> : null}</div>
       <PageSizeSelector pageSize={per} basePath="/admin/config/visa-categories" query={{ q, status }} />

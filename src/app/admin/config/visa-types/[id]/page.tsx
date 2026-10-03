@@ -99,7 +99,7 @@ export default async function VisaTypeDetailPage({
                 {requirements.map(({ req, docType }) => (
                   <tr key={req.id} className="tr-hover">
                     <td className="td">
-                      <span className="font-medium text-navy-900">{configName(docType, locale)}</span>
+                      <span className="font-semibold text-navy-900">{configName(docType, locale)}</span>
                       <span className="block text-xs text-slate-400">{docType.code}</span>
                     </td>
                     <td className="td">
@@ -193,11 +193,11 @@ export default async function VisaTypeDetailPage({
               subtitle={ct("Inactive programmes disappear from the agency wizard and cannot be chosen for new applications. Existing dossiers are untouched.")}
               testId="vt-section-publication"
             />
-            <div className="space-y-3 px-4 py-4">
+            <div className="space-y-4 px-4 py-4">
               <span className={`badge ${vt.active ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
                 {ct(vt.active ? "Published to agencies" : "Not published")}
               </span>
-              <p className="text-sm leading-relaxed text-slate-600">
+              <p className="text-base leading-relaxed text-slate-600">
                 {ct(vt.active
                   ? "Agencies can select this programme, they see its DZD price and processing time, and its document checklist is enforced on submit."
                   : "Only staff can see this programme. Agencies cannot start an application against it.")}
@@ -229,11 +229,11 @@ export default async function VisaTypeDetailPage({
           {canManage ? (
             <Card>
               <CardHeader title={ct("Edit programme")} subtitle={ct("Existing applications keep their snapshot; new applications use these values.")} />
-              <form action={updateVisaTypeAction} className="space-y-3 px-4 py-4">
+              <form action={updateVisaTypeAction} className="space-y-4 px-4 py-4">
                 <input type="hidden" name="id" value={id} />
                 <input type="hidden" name="back" value={`/admin/config/visa-types/${id}`} />
-                <fieldset className="space-y-3 rounded-xl border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-information-edit">
-                  <legend className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Information")}</legend>
+                <fieldset className="space-y-4 rounded-lg border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-information-edit">
+                  <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Information")}</legend>
                   <div>
                     <label className="label" htmlFor="e-name">{ct("Name *")} · EN</label>
                     <input id="e-name" name="name" required minLength={2} maxLength={120} dir="ltr" defaultValue={vt.name} className="input" />
@@ -260,8 +260,8 @@ export default async function VisaTypeDetailPage({
                     <ConfigTranslations value={vt} locale={locale} />
                   </div>
                 </fieldset>
-                <fieldset className="space-y-3 rounded-xl border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-pricing">
-                  <legend className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Pricing (DZD)")}</legend>
+                <fieldset className="space-y-4 rounded-lg border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-pricing">
+                  <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Pricing (DZD)")}</legend>
                   <div>
                     <label className="label" htmlFor="e-fee">{ct("Fee (DZD) *")}</label>
                     <input id="e-fee" name="fee" type="number" step="0.01" min="0" required defaultValue={vt.fee} className="input" />
@@ -271,9 +271,9 @@ export default async function VisaTypeDetailPage({
                     </p>
                   </div>
                 </fieldset>
-                <fieldset className="space-y-3 rounded-xl border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-processing">
-                  <legend className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Processing")}</legend>
-                  <div className="grid grid-cols-2 gap-3">
+                <fieldset className="space-y-4 rounded-lg border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-processing">
+                  <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Processing")}</legend>
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="label" htmlFor="e-min">{ct("Min days (0 = on request) *")}</label>
                       <input id="e-min" name="processingMinDays" type="number" min="0" required defaultValue={vt.processingMinDays} className="input" />
@@ -287,8 +287,8 @@ export default async function VisaTypeDetailPage({
                     {ct("Shown to agencies as")} {formatProcessingDays(vt.processingMinDays, vt.processingMaxDays, locale)}. {ct("Zero means on request, never zero days.")}
                   </p>
                 </fieldset>
-                <fieldset className="rounded-xl border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-workflow">
-                  <legend className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Workflow")}</legend>
+                <fieldset className="rounded-lg border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-workflow">
+                  <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Workflow")}</legend>
                   <label className="label" htmlFor="e-embassy">{ct("Embassy / external authority step")}</label>
                   <select
                     id="e-embassy"
@@ -308,7 +308,7 @@ export default async function VisaTypeDetailPage({
               </form>
               <form action={deleteVisaTypeAction} className="border-t border-line px-4 py-4">
                 <input type="hidden" name="id" value={id} />
-                <p className="mb-3 text-xs text-slate-500">{ct("Only unused configuration can be deleted. Referenced records must be deactivated.")}</p>
+                <p className="mb-4 text-xs text-slate-500">{ct("Only unused configuration can be deleted. Referenced records must be deactivated.")}</p>
                 <ConfirmButton className="btn-danger btn-sm" message={ct("Delete this unused visa type?")}>{ct("Delete visa type")}</ConfirmButton>
               </form>
             </Card>

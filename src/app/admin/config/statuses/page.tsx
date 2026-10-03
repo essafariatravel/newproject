@@ -83,7 +83,7 @@ export default async function StatusesConfigPage({
                         </form>
                         <details className="relative">
                           <summary className="btn-danger btn-xs cursor-pointer list-none">{ct("Delete")}</summary>
-                          <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-red-100 bg-white p-3 shadow-lg">
+                          <div className="absolute right-0 z-20 mt-2 w-64 rounded-lg border border-red-100 bg-white p-3 shadow-lg">
                             <p className="text-xs text-navy-800">
                               {ct("Delete status")} <strong>{localizedStatusName(s.code, s.name, locale, s.nameFr, s.nameAr)}</strong> (<code>{s.code}</code>)? {ct("Referenced statuses are deactivated instead of deleted.")}
                             </p>
@@ -106,7 +106,7 @@ export default async function StatusesConfigPage({
 
         <Card>
           <CardHeader title={ct("Transition matrix")} subtitle={ct("Which status changes are permitted, and by whom.")} />
-          <div className="space-y-3 px-4 py-4">
+          <div className="space-y-4 px-4 py-4">
             {[...byFrom.entries()].map(([from, list]) => (
               <div key={from}>
                 <p className="mb-1.5 text-xs font-semibold text-navy-900">
@@ -122,7 +122,7 @@ export default async function StatusesConfigPage({
                 </div>
               </div>
             ))}
-            {transitions.length === 0 ? <p className="text-sm text-slate-500">{ct("No transitions configured.")}</p> : null}
+            {transitions.length === 0 ? <p className="text-base text-slate-500">{ct("No transitions configured.")}</p> : null}
           </div>
         </Card>
       </div>
@@ -163,7 +163,7 @@ export default async function StatusesConfigPage({
         <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Card>
             <CardHeader title={ct("Add status")} />
-            <form action={createStatusAction} className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2">
+            <form action={createStatusAction} className="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-2">
               <div>
                 <label className="label" htmlFor="s-name">{ct("Name *")}</label>
                 <input id="s-name" name="name" required className="input" placeholder="Embassy sent" />
@@ -204,7 +204,7 @@ export default async function StatusesConfigPage({
 
           <Card>
             <CardHeader title={ct("Add transition")} subtitle={ct("Connect two statuses and define who may perform the change.")} />
-            <form action={addTransitionAction} className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-3">
+            <form action={addTransitionAction} className="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-3">
               <div>
                 <label className="label" htmlFor="t-from">{ct("From *")}</label>
                 <select id="t-from" name="fromStatusId" required className="input">

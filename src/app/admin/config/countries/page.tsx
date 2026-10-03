@@ -38,7 +38,7 @@ export default async function CountriesConfigPage({
         subtitle={ct("Destination countries — safe hard-delete blocked when referenced by visa types or applications.")}
         actions={
           <form className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-            <input name="q" defaultValue={typeof sp.q === "string" ? sp.q : ""} placeholder={ct("Search country, ISO, region…")} className="input min-w-0 flex-1 text-sm sm:w-64" />
+            <input name="q" defaultValue={typeof sp.q === "string" ? sp.q : ""} placeholder={ct("Search country, ISO, region…")} className="input min-w-0 flex-1 text-base sm:w-64" />
             <button type="submit" className="btn-secondary btn-sm">{ct("Search")}</button>
             {q ? <Link href="/admin/config/countries" className="btn-secondary btn-sm">{ct("Clear")}</Link> : null}
           </form>
@@ -61,7 +61,7 @@ export default async function CountriesConfigPage({
         <tbody className="divide-y divide-slate-100">
           {rows.map((c) => (
             <tr key={c.id} className="tr-hover">
-              <td className="td font-medium text-navy-900">{countryName(c, locale)}</td>
+              <td className="td font-semibold text-navy-900">{countryName(c, locale)}</td>
               <td className="td"><span className="badge bg-navy-900/5 text-navy-800">{c.iso2}</span></td>
               <td className="td">{c.region ? ct(c.region) : "—"}</td>
               <td className="td tabular-nums text-xs">{c.sortOrder}</td>
@@ -71,7 +71,7 @@ export default async function CountriesConfigPage({
                 <td className="td text-right">
                   <span className="inline-flex items-center gap-1.5">
                     <details className="text-start"><summary className="btn-secondary btn-sm cursor-pointer">{ct("Edit")}</summary>
-                      <form action={updateCountryAction} className="space-y-3 p-3 min-w-60">
+                      <form action={updateCountryAction} className="space-y-4 p-3 min-w-60">
                         <input type="hidden" name="id" value={c.id}/>
                         <label className="label">{ct("Name")} · EN<input name="name" required className="input" defaultValue={c.name}/></label>
                         <label className="label">{ct("Name")} · FR<input name="nameFr" className="input" defaultValue={c.nameFr??""}/></label>
@@ -110,8 +110,8 @@ export default async function CountriesConfigPage({
 
       {canManage ? (
         <div className="mt-8">
-          <h2 className="mb-3 font-serif text-xl text-navy-900">{ct("Add country")}</h2>
-          <form action={createCountryAction} className="card grid grid-cols-1 gap-4 p-5 sm:grid-cols-4">
+          <h2 className="mb-4 font-serif text-xl text-navy-900">{ct("Add country")}</h2>
+          <form action={createCountryAction} className="card grid grid-cols-1 gap-4 p-6 sm:grid-cols-4">
             <div className="sm:col-span-2">
               <label className="label">{ct("Name")} *</label>
               <input name="name" required className="input" placeholder="Portugal" />
