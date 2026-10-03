@@ -651,3 +651,21 @@ body {
   .workspace-staff .account-chevron { display:none; }
   .workspace-staff .account-menu { flex-shrink:0; }
 }
+
+
+/* 320px reflow: preserve one primary CTA + menu without page overflow. */
+@media (max-width:359px) {
+  .public-site > header .ess-container > a[aria-label] { display:none; }
+  .public-site > header .ess-container > div:last-child {
+    width:100%;
+    min-width:0;
+    flex:1 1 auto;
+    justify-content:space-between;
+  }
+  .public-site [data-testid="public-register-cta"] {
+    min-width:0;
+    flex:1 1 auto;
+    padding-inline:8px;
+  }
+  .public-site [data-testid="public-menu-toggle"] { flex:0 0 44px; }
+}
