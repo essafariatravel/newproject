@@ -176,8 +176,8 @@ npm run dr:finalize -- \
   --manifest <created manifest> \
   --restore-evidence <restore evidence JSON> \
   --offsite-evidence <off-site evidence JSON from dr:offsite-verify> \
-  --application-ref <opaque application recovery evidence ID> \
-  --tenant-ref <opaque tenant-isolation evidence ID> \
+  --application-evidence <application recovery evidence JSON> \
+  --tenant-evidence <tenant-isolation evidence JSON> \
   --output <absolute private output path outside repository> \
   --attest-external-evidence-reviewed
 ```
@@ -190,7 +190,8 @@ The finalizer refuses to proceed unless:
 - the restore target is local or explicitly disposable, never Production;
 - database, wallet and storage restore verification all passed;
 - the off-site evidence is cryptographically bound to the exact manifest and encrypted copy;
-- the application and tenant-isolation evidence references are syntactically valid;
+- the application evidence is bound to the exact restore-evidence SHA and every required application recovery check passed;
+- the tenant-isolation evidence is bound to the same restore and every required cross-tenant denial check passed;
 - the operator explicitly attests that those external checks were reviewed;
 - final verification occurs after the restore.
 
