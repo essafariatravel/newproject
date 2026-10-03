@@ -41,8 +41,8 @@ function dbStat(snapshot: DbSnapshot, key: string): number {
 function operationRows(summary: K6Summary, budgets: BudgetFile) {
   const rows = [];
   for (const [operation, budget] of Object.entries(budgets.operations)) {
-    const key = `http_req_duration{operation:${operation}}`;
-    const m = summary.metrics?.[key];
+    const m = summary.metrics?.[`op_${operation}`]
+      ?? summary.metrics?.[`http_req_duration{operation:${operation}}`];
     if (!m) continue;
     const p95 = num(m.values?.["p(95)"]);
     const p99 = num(m.values?.["p(99)"]);
