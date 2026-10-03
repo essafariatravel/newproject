@@ -24,8 +24,19 @@ export interface RestoreEvidence {
   storageReconciliationPassed: boolean;
 }
 
+export interface OffsiteEvidence {
+  version: 1;
+  kind: "ESSAFARIA_DR_OFFSITE_COPY";
+  backupId: string;
+  sourceManifestSha256: string;
+  verifiedAt: string;
+  locationRef: string;
+  databaseBytes: number;
+  databaseSha256: string;
+  encryptedAuthenticationVerified: boolean;
+}
+
 export interface ExternalEvidenceRefs {
-  offsite: string;
   application: string;
   tenantIsolation: string;
 }
@@ -35,6 +46,8 @@ export interface FinalizationInput {
   sourceManifestSha256: string;
   restoreEvidence: RestoreEvidence;
   restoreEvidenceSha256: string;
+  offsiteEvidence: OffsiteEvidence;
+  offsiteEvidenceSha256: string;
   evidence: ExternalEvidenceRefs;
   externalEvidenceAttested: boolean;
   verifiedAt?: Date;
@@ -42,6 +55,37 @@ export interface FinalizationInput {
 
 function validIso(value: string): boolean {
   return !Number.isNaN(Date.parse(value)) && /^\d{4}-\d{2}-\d{2}T/.test(value);
+}
+
+export function validateOffsiteEvidence(
+  evidence: OffsiteEvidence,
+  manifest: BackupManifest,
+  sourceManifestSha256: string,
+): string[] {
+  const findings: string[] = [];
+  if (evidence.version !== 1 || evidence.kind !== "ESSAFARIA_DR_OFFSITE_COPY") findings.push("off-site evidence format is invalid");
+  if (evidence.backupId !== manifest.backupId) findings.push("off-site evidence backupId does not match manifest");
+  if (!SHA256.test(evidence.sourceManifestSha256) || evidence.sourceManifestSha256 !== sourceManifestSha256) {
+    findings.push("off-site evidence is not bound to this source manifest");
+  }
+  if (!validIso(evidence.verifiedAt)) findings.push("off-site evidence timestamp is invalid");
+  if (!EVIDENCE_REF.test(evidence.locationRef)) findings.push("off-site evidence locationRef is invalid");
+  if (!Number.isSafeInteger(evidence.databaseBytes) || evidence.databaseBytes <= 0 ||
+      evidence.databaseBytes !== manifest.database.bytes) {
+    findings.push("off-site evidence byte size does not match manifest");
+  }
+  if (!SHA256.test(evidence.databaseSha256) || evidence.databaseSha256 !== manifest.database.sha256) {
+    findings.push("off-site evidence database SHA-256 does not match manifest");
+  }
+  if (evidence.encryptedAuthenticationVerified !== true) {
+    findings.push("off-site evidence does not prove encrypted archive authentication");
+  }
+  const createdAt = Date.parse(manifest.createdAt);
+  const verifiedAt = Date.parse(evidence.verifiedAt);
+  if (!Number.isNaN(verifiedAt) && verifiedAt < createdAt) {
+    findings.push("off-site verification timestamp predates backup creation");
+  }
+  return findings;
 }
 
 export function validateRestoreEvidence(
@@ -95,10 +139,11 @@ export function finalizeBackupManifest(input: FinalizationInput): {
   }
   if (!SHA256.test(input.sourceManifestSha256)) findings.push("source manifest SHA-256 is invalid");
   if (!SHA256.test(input.restoreEvidenceSha256)) findings.push("restore evidence SHA-256 is invalid");
+  if (!SHA256.test(input.offsiteEvidenceSha256)) findings.push("off-site evidence SHA-256 is invalid");
   findings.push(...validateRestoreEvidence(input.restoreEvidence, sourceAssessment.manifest, input.sourceManifestSha256));
+  findings.push(...validateOffsiteEvidence(input.offsiteEvidence, sourceAssessment.manifest, input.sourceManifestSha256));
 
   const refs = [
-    ["off-site", input.evidence.offsite],
     ["application", input.evidence.application],
     ["tenant-isolation", input.evidence.tenantIsolation],
   ] as const;
@@ -137,7 +182,7 @@ export function finalizeBackupManifest(input: FinalizationInput): {
       storageReconciliationPassed: true,
       tenantIsolationPassed: true,
       restoreEvidenceSha256: input.restoreEvidenceSha256,
-      offsiteEvidenceRef: input.evidence.offsite,
+      offsiteEvidenceRef: `OFFSITE-${input.offsiteEvidenceSha256}`,
       applicationEvidenceRef: input.evidence.application,
       tenantIsolationEvidenceRef: input.evidence.tenantIsolation,
     },
