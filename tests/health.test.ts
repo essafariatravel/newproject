@@ -19,16 +19,42 @@ const MIGRATION_FILES = readdirSync(path.join(__dirname, "..", "migrations"))
   .sort();
 
 import { GET as healthGET } from "../src/app/api/health/route";
+import { GET as liveGET } from "../src/app/api/health/live/route";
+import { GET as deepGET } from "../src/app/api/internal/health/deep/route";
 
 describe("GET /api/health (deployment diagnostics, never a 500, never secrets)", () => {
-  it("public and Agency monitoring expose readiness without catalogue, account or infrastructure details",async()=>{
-    request.cookie="";
-    const publicResponse=await (await healthGET()).json();
-    expect(publicResponse.ok).toBe(true);
-    expect(Object.keys(publicResponse).sort()).toEqual(["deployment","ok","service"]);
-    request.cookie=(await createSession((await userByEmail("a-admin@test.example")).id)).token;
-    expect(Object.keys(await (await healthGET()).json()).sort()).toEqual(["deployment","ok","service"]);
+  it("public and Agency monitoring expose only minimal readiness", async () => {
+    request.cookie = "";
+    const publicRes = await healthGET();
+    expect(publicRes.status).toBe(200);
+    expect(await publicRes.json()).toEqual({ status: "healthy", service: "essafaria-visa-os" });
+
+    request.cookie = (await createSession((await userByEmail("a-admin@test.example")).id)).token;
+    const agencyRes = await healthGET();
+    expect(agencyRes.status).toBe(200);
+    expect(await agencyRes.json()).toEqual({ status: "healthy", service: "essafaria-visa-os" });
   });
+  it("liveness stays dependency-free and minimal", async () => {
+    const res = await liveGET();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: "healthy", service: "essafaria-visa-os" });
+  });
+
+  it("deep diagnostics are disabled without an operator token and reject a wrong token", async () => {
+    const previous = process.env.HEALTHCHECK_TOKEN;
+    delete process.env.HEALTHCHECK_TOKEN;
+    try {
+      expect((await deepGET(new Request("http://localhost/api/internal/health/deep"))).status).toBe(404);
+      process.env.HEALTHCHECK_TOKEN = "test-health-token";
+      expect((await deepGET(new Request("http://localhost/api/internal/health/deep", {
+        headers: { authorization: "Bearer wrong-token" },
+      }))).status).toBe(401);
+    } finally {
+      if (previous === undefined) delete process.env.HEALTHCHECK_TOKEN;
+      else process.env.HEALTHCHECK_TOKEN = previous;
+    }
+  });
+
   it("does not report healthy when table names exist but columns are incompatible", async () => {
     const pool = new Pool({ connectionString: testConnectionString() });
     const previous = process.env.DATABASE_SCHEMA;
