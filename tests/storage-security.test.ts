@@ -66,4 +66,19 @@ describe("Supabase storage credential boundary", () => {
     await expect(storageProvider().get("opaque-key")).rejects.toMatchObject({ code: "STORAGE_MISCONFIGURED" });
   });
 
+
+  it("never requests silent object overwrite from Supabase Storage", async () => {
+    process.env.STORAGE_PROVIDER = "supabase";
+    process.env.SUPABASE_URL = "https://xgetzgixalrsmuvfthpf.supabase.co";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role";
+    process.env.SUPABASE_STORAGE_BUCKET = "visa-documents";
+    const fetchMock = vi.fn().mockResolvedValue(new Response("", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await storageProvider().put("visa-documents/test/object", Buffer.from("abc"), "application/pdf");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const init = fetchMock.mock.calls[0]![1] as RequestInit;
+    expect((init.headers as Record<string, string>)["x-upsert"]).toBe("false");
+  });
+
 });
