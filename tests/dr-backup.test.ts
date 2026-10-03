@@ -74,6 +74,7 @@ describe("backup key and PostgreSQL child-process environment", () => {
         MIGRATION_DATABASE_URL: "should-not-propagate",
         DR_BACKUP_KEY_BASE64: "should-not-propagate",
         PATH: "/usr/bin",
+        NODE_ENV: "test",
       },
     );
     expect(env).toMatchObject({
