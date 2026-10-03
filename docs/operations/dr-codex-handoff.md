@@ -154,8 +154,8 @@ Create `dr-application-evidence.example.json` as a private working copy outside 
 Every required check must pass:
 
 - health endpoint reachable and healthy;
-- authenticated Staff session/login works;
-- authenticated Agency session/login works;
+- authenticated Staff session works;
+- authenticated Agency session works;
 - Staff can read a critical operational dossier;
 - Agency can read its own dossier;
 - Agency can download its own private document;
