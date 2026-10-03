@@ -42,6 +42,19 @@ describe("legal/privacy readiness regression guards", () => {
     expect(action.slice(privacyAt, errorHandlerAt)).not.toContain("ipAddress:");
   });
 
+  it("keeps public registration copy aligned with privacy-minimized onboarding", () => {
+    const copy = read("src/lib/i18n.ts");
+
+    expect(copy).not.toContain("Company documents accelerate verification");
+    expect(copy).not.toContain("fortement recommandé");
+    expect(copy).not.toContain("الوثائق المرفقة");
+    expect(copy).not.toContain("examine les informations et documents de votre société");
+
+    expect(copy).toContain("ESSAFARIA will request it later through a secure link");
+    expect(copy).toContain("ESSAFARIA demande ensuite, de manière sécurisée");
+    expect(copy).toContain("ترسل ESSAFARIA طلباً آمناً");
+  });
+
   it("uses approved legal effective dates and never fabricates deployment dates", () => {
     const legal = read("src/lib/legal.ts");
     const privacy = read("src/app/(public)/privacy/page.tsx");
