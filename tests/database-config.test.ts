@@ -67,7 +67,7 @@ describe("database configuration", () => {
       DATABASE_URL: "postgresql://postgres:secret@localhost:5432/postgres",
       DATABASE_SCHEMA: "visa_os_preview",
     });
-    expect(cfg.options).toBe("-c search_path=visa_os_preview,pg_catalog");
+    expect(cfg.options).toBe("-c search_path=pg_catalog,visa_os_preview");
     expect(() => databasePoolConfig({
       DATABASE_URL: "postgresql://postgres:secret@localhost:5432/postgres",
       DATABASE_SCHEMA: "public;drop schema public",
