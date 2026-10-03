@@ -17,6 +17,8 @@ import {
   finalizeBackupManifest,
   type RestoreEvidence,
   type OffsiteEvidence,
+  type ApplicationRecoveryEvidence,
+  type TenantIsolationEvidence,
 } from "./lib/dr-finalization";
 import { sha256File } from "./lib/dr-backup";
 
@@ -27,8 +29,8 @@ function parseArgs(args: string[]) {
     "--manifest",
     "--restore-evidence",
     "--offsite-evidence",
-    "--application-ref",
-    "--tenant-ref",
+    "--application-evidence",
+    "--tenant-evidence",
     "--output",
   ]);
   for (let index = 0; index < args.length; index++) {
@@ -53,8 +55,8 @@ function parseArgs(args: string[]) {
     manifestPath: path.resolve(values["--manifest"]!),
     restoreEvidencePath: path.resolve(values["--restore-evidence"]!),
     offsiteEvidencePath: path.resolve(values["--offsite-evidence"]!),
-    applicationRef: values["--application-ref"]!,
-    tenantRef: values["--tenant-ref"]!,
+    applicationEvidencePath: path.resolve(values["--application-evidence"]!),
+    tenantEvidencePath: path.resolve(values["--tenant-evidence"]!),
     output,
     attested,
   };
@@ -88,6 +90,14 @@ async function main() {
   if (!rawOffsiteEvidence || typeof rawOffsiteEvidence !== "object" || Array.isArray(rawOffsiteEvidence)) {
     throw new Error("Off-site evidence must be a JSON object.");
   }
+  const rawApplicationEvidence = await readJson(options.applicationEvidencePath, "Application evidence");
+  if (!rawApplicationEvidence || typeof rawApplicationEvidence !== "object" || Array.isArray(rawApplicationEvidence)) {
+    throw new Error("Application evidence must be a JSON object.");
+  }
+  const rawTenantEvidence = await readJson(options.tenantEvidencePath, "Tenant-isolation evidence");
+  if (!rawTenantEvidence || typeof rawTenantEvidence !== "object" || Array.isArray(rawTenantEvidence)) {
+    throw new Error("Tenant-isolation evidence must be a JSON object.");
+  }
 
   const result = finalizeBackupManifest({
     manifest: assessment.manifest,
@@ -96,10 +106,10 @@ async function main() {
     restoreEvidenceSha256: await sha256File(options.restoreEvidencePath),
     offsiteEvidence: rawOffsiteEvidence as OffsiteEvidence,
     offsiteEvidenceSha256: await sha256File(options.offsiteEvidencePath),
-    evidence: {
-      application: options.applicationRef,
-      tenantIsolation: options.tenantRef,
-    },
+    applicationEvidence: rawApplicationEvidence as ApplicationRecoveryEvidence,
+    applicationEvidenceSha256: await sha256File(options.applicationEvidencePath),
+    tenantIsolationEvidence: rawTenantEvidence as TenantIsolationEvidence,
+    tenantIsolationEvidenceSha256: await sha256File(options.tenantEvidencePath),
     externalEvidenceAttested: options.attested,
   });
   if (!result.manifest) {
