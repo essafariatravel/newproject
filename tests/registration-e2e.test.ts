@@ -19,6 +19,7 @@ import { db } from "@/lib/db";
 import {
   agencies,
   agencyRegistrations,
+  auditLogs,
   users,
 } from "@/db/schema";
 import { submitRegistrationAction } from "@/app/actions/registrations";
@@ -36,7 +37,7 @@ import { getSessionUser } from "@/lib/auth";
 import { getApplicationForUser, createDraftApplication } from "@/lib/applications";
 import { searchApplications, agencyDashboard } from "@/lib/queries";
 import { getBalance, getTransactions } from "@/lib/wallet";
-import { registrationPdf, userByEmail } from "./helpers/fixtures";
+import { userByEmail } from "./helpers/fixtures";
 import { request } from "./helpers/request";
 
 /** Run an action that ends in a Next redirect; returns the redirect digest. */
@@ -51,7 +52,7 @@ async function captureRedirect(promise: Promise<unknown>): Promise<string> {
   throw new Error("expected the action to redirect");
 }
 
-function publicForm(): FormData {
+async function publicForm(): Promise<FormData> {
   const form = new FormData();
   form.set("locale", "fr");
   form.set("renderedAt", String(Date.now() - 30_000));
@@ -78,17 +79,25 @@ function publicForm(): FormData {
   form.set("message", "Agence établie depuis 2012, 4 agences physiques.");
   form.set("terms", "true");
   form.set("privacy", "true");
-  form.set("termsVersion", "1");
-  form.set("privacyVersion", "1");
+  const legal = await db.execute(sql`
+    select id, kind, version
+      from legal_versions
+     where locale = 'fr' and kind in ('terms','privacy')
+  `);
+  const rows = legal.rows as Array<{ id: string; kind: "terms" | "privacy"; version: number }>;
+  const terms = rows.find((row) => row.kind === "terms")!;
+  const privacy = rows.find((row) => row.kind === "privacy")!;
+  form.set("termsVersionId", terms.id);
+  form.set("termsVersion", String(terms.version));
+  form.set("privacyVersionId", privacy.id);
+  form.set("privacyVersion", String(privacy.version));
   form.set("accuracy", "true");
   // Mass-assignment attempt — must be ignored by the action input model.
   form.set("role", "SUPER_ADMIN");
   form.set("status", "APPROVED");
   form.set("balance", "1000000");
   form.set("agencyId", "00000000-0000-0000-0000-000000000000");
-  // A real (magic-bytes-valid) PDF document via the multipart path.
-  const pdf = registrationPdf("COMMERCIAL_REGISTRATION");
-  form.set("doc_COMMERCIAL_REGISTRATION", new File([new Uint8Array(pdf.data)], pdf.name, { type: pdf.type }));
+  // Legacy/KYC fields above are deliberately ignored by the minimal public action.
   return form;
 }
 
@@ -96,7 +105,7 @@ describe("Phase 2 E2E — registration to portal", () => {
   it("walks the complete onboarding flow with the real actions and session stack", async () => {
     /* 1 — PUBLIC REGISTRATION (fr) through the real server action */
     const beforePending = await pendingRegistrationCount();
-    const redirect = await captureRedirect(submitRegistrationAction({}, publicForm()));
+    const redirect = await captureRedirect(submitRegistrationAction({}, await publicForm()));
     expect(redirect).toContain("/agency/register/success");
     expect(redirect).toContain("ref=AGR-");
     expect(redirect).toContain("lang=fr");
@@ -112,6 +121,21 @@ describe("Phase 2 E2E — registration to portal", () => {
     // mass-assignment attempt did nothing
     expect(reg.agencyId).toBeNull();
     expect(reg.internalNotes).toBeNull();
+    expect(reg.addressLine).toBeNull();
+    expect(reg.commercialRegistrationNumber).toBeNull();
+    expect(reg.taxId).toBeNull();
+    expect(reg.licenceNumber).toBeNull();
+    expect(reg.contactPosition).toBeNull();
+    expect(reg.monthlyVolume).toBeNull();
+    expect(reg.mainMarkets).toBeNull();
+    expect(reg.legalConsentVersions).toMatchObject({
+      locale: "fr",
+      terms: { id: expect.any(String), version: 1 },
+      privacy: { id: expect.any(String), version: 1 },
+    });
+    const consentAudit = await db.select().from(auditLogs).where(eq(auditLogs.entityId, reg.id));
+    expect(consentAudit.some((row) => row.action === "TERMS_ACCEPTED")).toBe(true);
+    expect(consentAudit.some((row) => row.action === "PRIVACY_NOTICE_ACKNOWLEDGED")).toBe(true);
     expect(await pendingRegistrationCount()).toBe(beforePending + 1);
 
     const listed = await listRegistrations({ status: "PENDING", q: "Atlas Cristal" });
