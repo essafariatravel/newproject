@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { suiteSetup } from "./helpers/global-state";
 import { request } from "./helpers/request";
 import { agencyByEmail, userByEmail } from "./helpers/fixtures";
@@ -11,7 +11,18 @@ import { updateDocumentTypeAction, updateStatusAction } from "@/app/actions/conf
 
 suiteSetup();
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
-afterEach(() => { request.cookie = ""; });
+afterEach(async () => {
+  request.cookie = "";
+  await db.execute(sql`drop trigger if exists config_audit_test_failure on audit_logs`);
+  await db.execute(sql`drop function if exists config_audit_test_failure()`);
+});
+
+async function rejectConfigAudit(action: string) {
+  if (!/^[A-Z_]+$/.test(action)) throw new Error("Invalid test action");
+  await db.execute(sql.raw(`create function config_audit_test_failure() returns trigger language plpgsql as $
+    begin if new.action='${action}' then raise exception 'Config audit unavailable'; end if; return new; end $`));
+  await db.execute(sql`create trigger config_audit_test_failure before insert on audit_logs for each row execute function config_audit_test_failure()`);
+}
 
 async function newProgramme(typeCount = 1) {
   request.cookie = (await createSession((await userByEmail("admin@test.example")).id)).token;
@@ -67,6 +78,24 @@ describe("configuration cannot invalidate the live workflow", () => {
       await expect(changeApplicationStatus({ applicationId: app.id, toStatusCode: to.code, actor })).rejects.toMatchObject({ code: "FORBIDDEN" });
       expect((await db.select().from(applications).where(eq(applications.id, app.id)))[0]!.statusId).toBe(from.id);
     } finally { await db.update(statusTransitions).set({ scope: "STAFF" }).where(and(eq(statusTransitions.fromStatusId, from.id), eq(statusTransitions.toStatusId, to.id))); }
+  });
+
+  it("rolls back a status edit when its audit cannot be persisted", async () => {
+    request.cookie = (await createSession((await userByEmail("admin@test.example")).id)).token;
+    const [status] = await db.select().from((await import("@/db/schema")).statuses).limit(1);
+    expect(status).toBeDefined();
+    const before = { name: status!.name, nameFr: status!.nameFr, nameAr: status!.nameAr, description: status!.description, sortOrder: status!.sortOrder };
+    await rejectConfigAudit("CONFIG_STATUS_UPDATED");
+    const form = new FormData();
+    form.set("id", status!.id);
+    form.set("name", `${status!.name} changed`);
+    form.set("nameFr", status!.nameFr ?? "");
+    form.set("nameAr", status!.nameAr ?? "");
+    form.set("description", status!.description ?? "");
+    form.set("sortOrder", String(status!.sortOrder));
+    await expect(updateStatusAction(form)).rejects.toThrow(/NEXT_REDIRECT/);
+    const [after] = await db.select().from((await import("@/db/schema")).statuses).where(eq((await import("@/db/schema")).statuses.id, status!.id));
+    expect({ name: after!.name, nameFr: after!.nameFr, nameAr: after!.nameAr, description: after!.description, sortOrder: after!.sortOrder }).toEqual(before);
   });
 
   it("configuration refuses giving an Agency scope to an operational Staff transition", async () => {
