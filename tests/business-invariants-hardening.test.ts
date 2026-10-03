@@ -235,7 +235,11 @@ describe("proof and immutable money", () => {
         await receiptUpdater.query("begin");
         // Bound failures if proof verification regresses into holding the request lock.
         await receiptUpdater.query("set local lock_timeout = '500ms'");
+        // Deliberately bypass the new DB identity trigger so this test still
+        // proves the independent application-level TOCTOU guard.
+        await receiptUpdater.query(`alter table ${qualifiedTable("wallet_topup_requests")} disable trigger wallet_topup_request_identity_immutable`);
         await receiptUpdater.query(`update ${qualifiedTable("wallet_topup_requests")} set proof_storage_key = $2 where id = $1`, [created.id, replacementKey]);
+        await receiptUpdater.query(`alter table ${qualifiedTable("wallet_topup_requests")} enable trigger wallet_topup_request_identity_immutable`);
         await receiptUpdater.query("commit");
       } catch (error) {
         await receiptUpdater.query("rollback");
