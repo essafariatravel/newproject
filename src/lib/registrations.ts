@@ -985,8 +985,8 @@ export async function activateAccount(
   if (!/^[A-Za-z0-9_-]{20,90}$/.test(token)) {
     throw new AppError("INVALID_TOKEN", "This activation link is invalid or has expired.");
   }
-  if (password.length < 10 || password.length > 200) {
-    throw new AppError("PASSWORD_POLICY", "Password must be at least 10 characters.");
+  if (password.length < 10 || password.length > 200 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+    throw new AppError("PASSWORD_POLICY", "Password must be 10–200 characters and include letters and numbers.");
   }
   const passwordHash = await hashPassword(password);
   const { row, credentialVersion } = await db.transaction(async (tx) => {
