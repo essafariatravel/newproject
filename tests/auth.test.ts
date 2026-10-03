@@ -24,6 +24,12 @@ describe("authentication", () => {
     });
   });
 
+  it("rejects oversized login secrets before expensive password verification", async () => {
+    await expect(authenticate("admin@test.example", "x".repeat(201))).rejects.toMatchObject({
+      code: "INVALID_CREDENTIALS",
+    });
+  });
+
   it("rejects wrong passwords", async () => {
     await expect(authenticate("admin@test.example", "wrong-password")).rejects.toMatchObject({
       code: "INVALID_CREDENTIALS",
