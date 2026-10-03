@@ -4,7 +4,7 @@ import { suiteSetup } from "./helpers/global-state";
 import { request } from "./helpers/request";
 import { agencyByEmail, userByEmail } from "./helpers/fixtures";
 import { db } from "@/lib/db";
-import { applications, documentTypes, statusTransitions, visaRequirements, visaTypes } from "@/db/schema";
+import { applications, documentTypes, statuses, statusTransitions, visaRequirements, visaTypes } from "@/db/schema";
 import { changeApplicationStatus, createDraftApplication, getStatusByCode } from "@/lib/applications";
 import { createSession } from "@/lib/auth";
 import { updateDocumentTypeAction, updateStatusAction } from "@/app/actions/config";
@@ -82,7 +82,7 @@ describe("configuration cannot invalidate the live workflow", () => {
 
   it("rolls back a status edit when its audit cannot be persisted", async () => {
     request.cookie = (await createSession((await userByEmail("admin@test.example")).id)).token;
-    const [status] = await db.select().from((await import("@/db/schema")).statuses).limit(1);
+    const [status] = await db.select().from(statuses).limit(1);
     expect(status).toBeDefined();
     const before = { name: status!.name, nameFr: status!.nameFr, nameAr: status!.nameAr, description: status!.description, sortOrder: status!.sortOrder };
     await rejectConfigAudit("CONFIG_STATUS_UPDATED");
@@ -94,7 +94,7 @@ describe("configuration cannot invalidate the live workflow", () => {
     form.set("description", status!.description ?? "");
     form.set("sortOrder", String(status!.sortOrder));
     await expect(updateStatusAction(form)).rejects.toThrow(/NEXT_REDIRECT/);
-    const [after] = await db.select().from((await import("@/db/schema")).statuses).where(eq((await import("@/db/schema")).statuses.id, status!.id));
+    const [after] = await db.select().from(statuses).where(eq(statuses.id, status!.id));
     expect({ name: after!.name, nameFr: after!.nameFr, nameAr: after!.nameAr, description: after!.description, sortOrder: after!.sortOrder }).toEqual(before);
   });
 
