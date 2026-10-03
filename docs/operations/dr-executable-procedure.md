@@ -29,6 +29,17 @@ npm run dr:key -- --output <absolute-private-path>/essafaria-recovery.dr-key
 
 The key file is created exclusively with private permissions, the key is never printed, `*.dr-key` is ignored by Git, and the repository safety gate fails if a DR key is ever tracked. Keep this file separately from the encrypted backup.
 
+## Resolve the exact Production Vercel release
+
+```text
+VERCEL_TOKEN=<read token authorized for the ESSAFARIA Vercel team>
+npm run dr:release-resolve
+```
+
+The resolver performs read-only Vercel API calls only. It resolves project `newproject` under the ESSAFARIA team, filters READY production deployments, confirms the custom alias `visa.essafariavoyages.com`, and returns the deployment's exact full Git SHA.
+
+Do not continue with a guessed release SHA. A missing/unauthorized token is a hard blocker for this resolution step.
+
 ## Read-only Production preflight
 
 Before backup creation:
