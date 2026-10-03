@@ -15,7 +15,16 @@
     "db:setup": "tsx scripts/migrate.ts && tsx scripts/seed.ts",
     "db:up": "tsx scripts/dev-db.ts",
     "db:reset": "tsx scripts/reset.ts",
-    "db:verify": "tsx scripts/verify-db.ts"
+    "db:verify": "tsx scripts/verify-db.ts",
+    "perf:preflight": "tsx scripts/perf-preflight.ts",
+    "perf:seed-identities": "tsx scripts/perf-seed-identities.ts",
+    "perf:create-sessions": "tsx scripts/perf-create-sessions.ts",
+    "perf:seed-scale": "tsx scripts/perf-seed-scale.ts",
+    "perf:snapshot": "tsx scripts/perf-db-snapshot.ts",
+    "perf:evaluate": "tsx scripts/perf-evaluate.ts",
+    "perf:wallet-races": "tsx scripts/perf-wallet-races-live.ts",
+    "perf:storage": "tsx scripts/perf-storage-live.ts",
+    "perf:k6": "k6 run perf/k6/essafaria-load.js"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
