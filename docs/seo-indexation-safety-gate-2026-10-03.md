@@ -10,7 +10,8 @@ Implementation report — 2026-10-03
 - Hardening base SHA: `580ccc97d86bcdebfac505c9cf822616b7fc0cb3`
 - Production changes: **none**
 - Database migrations/seeding: **none**
-- Business logic changes: **none**
+- Business workflow/database logic changes: **none**
+- Privacy hardening: **agency-logo endpoint changed from public-by-UUID to authenticated tenant/permission-scoped access**
 - Deployment performed by this gate: **none**
 
 The SEO branch is currently ahead of the hardening branch and not behind it.
@@ -63,9 +64,22 @@ The public `/countries` and `/visas` routes currently redirect to login. They re
 
 ## Metadata architecture
 
-Central module: `src/lib/seo.ts`
+Machine-readable route policy: `src/lib/seo-manifest.ts`
 
-It now owns:
+This manifest is now the single source of truth for every `(public)` route, including:
+
+- route path/pattern;
+- `indexable` vs `noindex` classification;
+- sitemap eligibility;
+- HTTP header source pattern;
+- `no-store` requirement;
+- `no-referrer` requirement.
+
+The sitemap, `next.config.ts` route headers, static tests and runtime verifier all consume this policy instead of maintaining separate hand-written route lists.
+
+Central metadata module: `src/lib/seo.ts`
+
+It owns:
 
 - canonical Production origin: `https://visa.essafariavoyages.com`
 - public page metadata copy in EN / FR / AR
@@ -209,6 +223,101 @@ For Vercel Preview builds on these branches:
 
 This was added before the SEO implementation so an automatic Preview cannot turn this gate into a database change.
 
+## Private API / stored-resource audit
+
+The gate now statically audits the private download/export surfaces:
+
+- Admin application export;
+- Admin reports export;
+- Agency wallet export;
+- Agency wallet statement;
+- private visa documents;
+- agency-registration documents;
+- wallet top-up proof/receipt;
+- token-based registration follow-up uploads.
+
+The test contract requires authentication/authorization and `no-store` for private payloads, and attachment disposition where a document/export is returned.
+
+### Agency logo privacy correction
+
+`/api/agencies/[id]/logo` was previously marked “Public by design”.
+
+Actual usage was checked:
+
+- Agency Portal uses it while authenticated;
+- Staff/Admin uses it while authenticated;
+- the public website uses `/api/branding/logo`, not the agency-specific endpoint.
+
+The agency-specific endpoint is therefore now private:
+
+- authentication required;
+- agency users can request only their own agency logo;
+- Staff requires `agencies.view`;
+- cross-tenant/unauthorized requests return a non-disclosing 404;
+- response cache policy is now `private, no-store`.
+
+The platform branding logo remains intentionally public because it is used by the public site.
+
+## Automated SEO gate
+
+Two operational commands are now available.
+
+### Static gate
+
+```bash
+npm run verify:seo
+```
+
+This single command runs:
+
+- TypeScript typecheck;
+- ESLint;
+- SEO/indexation contracts;
+- route-manifest consistency;
+- private-resource security contracts;
+- public-link audit;
+- public-media/performance guardrails;
+- repository-wide metadata safety checks;
+- Preview database-write guard tests.
+
+It prints either:
+
+`SEO_STATIC_GATE_PASS`
+
+or:
+
+`SEO_STATIC_GATE_FAIL`
+
+### Runtime HTTP gate
+
+```bash
+SEO_VERIFY_BASE_URL=<safe-preview-or-local-url> \
+SEO_VERIFY_MODE=preview \
+npm run verify:seo:runtime
+```
+
+For a local Production-behavior simulation:
+
+```bash
+SEO_VERIFY_BASE_URL=http://127.0.0.1:3000 \
+SEO_VERIFY_MODE=production-sim \
+npm run verify:seo:runtime
+```
+
+The runtime verifier is read-only and checks:
+
+- all five indexable public pages;
+- Preview global noindex;
+- absence of Preview canonicals and `og:url`;
+- canonical/OG correctness in Production-sim;
+- sitemap exactness;
+- robots behavior;
+- representative Auth/Admin/Portal/API noindex behavior;
+- true 404 + noindex;
+- absence of localhost/Preview absolute metadata hosts.
+
+It refuses to probe the real Production host unless `SEO_VERIFY_ALLOW_PRODUCTION=1` is explicitly supplied.
+
 ## Regression tests added
 
 `tests/seo-indexation.test.ts`
@@ -238,6 +347,13 @@ Covers:
 - root metadata stays brand-safe rather than marketing-heavy;
 - operational catalogue redirects remain noindex.
 
+Additional suites now include:
+
+- `tests/seo-private-resources.test.ts` — authenticated/private file and export policy;
+- `tests/seo-public-links.test.ts` — public navigation/link integrity and no direct private-surface linking;
+- `tests/seo-public-performance.test.ts` — intrinsic image sizing, payload budgets, high-priority media limits and no autoplay/base64 media;
+- `tests/seo-metadata-safety.test.ts` — centralization of canonical/Open Graph, root-only `metadataBase`, homepage-only JSON-LD and no Preview/local absolute metadata hosts.
+
 `tests/build-preview-guard.test.ts`
 
 Extended to prove `seo/**` branches cannot perform automatic database changes during Preview builds.
@@ -253,7 +369,9 @@ Results:
 - explicitly noindex public pages: 12;
 - unclassified public pages: **0**;
 - Admin/Portal private metadata regression violations: **0**;
-- current hardening branch divergence: **0 commits behind**.
+- current hardening branch divergence: **0 commits behind**;
+- core public literal-link audit: all discovered links resolve to known public/auth utility routes;
+- agency-logo public exposure removed; platform-logo public exposure retained intentionally.
 
 The SEO branch incorporates the latest current observability hardening SHA listed above.
 
@@ -275,9 +393,7 @@ Codex should check out the exact SEO branch and run:
 ```bash
 git checkout seo/indexation-safety-gate-2026-10-03
 npm ci --no-audit --no-fund
-npm run typecheck
-npm run lint
-npm test -- tests/seo-indexation.test.ts tests/seo-route-policy.test.ts tests/build-preview-guard.test.ts
+npm run verify:seo
 npm test
 npm run build
 ```
@@ -286,9 +402,26 @@ Then run a local Production-behavior simulation without deploying:
 
 ```bash
 VERCEL=1 VERCEL_ENV=production DATABASE_URL="" ALLOW_DEMO_SEED=false npm run build
+VERCEL=1 VERCEL_ENV=production DATABASE_URL="" npm start
 ```
 
-After build success, verify on a safe local or Preview runtime:
+In a second terminal:
+
+```bash
+SEO_VERIFY_BASE_URL=http://127.0.0.1:3000 \
+SEO_VERIFY_MODE=production-sim \
+npm run verify:seo:runtime
+```
+
+For a real safe Preview, run:
+
+```bash
+SEO_VERIFY_BASE_URL=<PREVIEW_URL> \
+SEO_VERIFY_MODE=preview \
+npm run verify:seo:runtime
+```
+
+After build success, the automated runtime verifier proves:
 
 - Preview/home response includes global `X-Robots-Tag: noindex, nofollow, noarchive`;
 - Preview `/sitemap.xml` exposes no URLs;
