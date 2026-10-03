@@ -20,6 +20,7 @@ describe("Supabase storage credential boundary", () => {
   it.each([
     "http://project.supabase.co",
     "https://evil.example",
+    "https://attacker.supabase.co",
     "https://project.supabase.co.evil.example",
     "https://user:pass@project.supabase.co",
     "https://project.supabase.co/path",
