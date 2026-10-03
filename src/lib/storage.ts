@@ -49,7 +49,7 @@ const SUPABASE_UPLOAD_LIMIT = 10 * 1024 * 1024;
 function supabaseConfig() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? "visa-documents";
+  const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? "documents";
   if (!url || !key) {
     throw new AppError(
       "STORAGE_MISCONFIGURED",
