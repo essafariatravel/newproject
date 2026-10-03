@@ -164,6 +164,9 @@ export async function destroySession(): Promise<void> {
 
 /** Agency username or unique Staff professional email; mailbox is never an agency login key. */
 export async function authenticate(identifier: string, password: string): Promise<User> {
+  if (password.length === 0 || password.length > 200) {
+    throw new AppError("INVALID_CREDENTIALS", "Invalid username, email or password.");
+  }
   const { verifyPassword } = await import("@/lib/crypto");
   let user: User | undefined;
   try {
