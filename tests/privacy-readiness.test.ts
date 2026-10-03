@@ -69,6 +69,28 @@ describe("legal/privacy readiness regression guards", () => {
     expect(terms).not.toMatch(/formatDate\(new Date\(/);
   });
 
+  it("keeps first-party cookie attributes aligned with the privacy inventory", () => {
+    const auth = read("src/lib/auth.ts");
+    const locale = read("src/app/actions/ui-locale.ts");
+    const policy = read("src/lib/identity-policy.ts");
+
+    expect(auth).toContain("httpOnly: true");
+    expect(auth).toContain('sameSite: "lax"');
+    expect(auth).toContain('secure: process.env.NODE_ENV === "production"');
+    expect(auth).toContain('path: "/"');
+
+    expect(locale).toContain("httpOnly: false");
+    expect(locale).toContain('sameSite: "lax"');
+    expect(locale).toContain('secure: process.env.NODE_ENV === "production"');
+    expect(locale).toContain("maxAge: 60 * 60 * 24 * 365");
+    expect(locale).toContain('path: "/"');
+
+    expect(policy).toContain("idleMs: 30 * 60_000");
+    expect(policy).toContain("absoluteMs: 12 * 60 * 60_000");
+    expect(policy).toContain("idleMs: 2 * 60 * 60_000");
+    expect(policy).toContain("absoluteMs: 24 * 60 * 60_000");
+  });
+
   it("allows only the inventoried non-sensitive localStorage preference", () => {
     const files = sourceFiles(path.join(process.cwd(), "src"));
     const sessionStorageFiles: string[] = [];
