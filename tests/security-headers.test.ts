@@ -26,7 +26,7 @@ describe("HTTP security hardening", () => {
     const rules = await nextConfig.headers?.();
     const bySource = new Map(rules!.map((rule) => [rule.source, Object.fromEntries(rule.headers.map((header) => [header.key, header.value]))]));
 
-    for (const source of ["/admin/:path*", "/portal/:path*", "/change-password", "/forgot-password", "/activate/:path*", "/reset-access/:path*"]) {
+    for (const source of ["/admin/:path*", "/portal/:path*", "/change-password", "/forgot-password", "/activate/:path*", "/reset-access/:path*", "/agency/verification/:path*"]) {
       expect(bySource.get(source)?.["Cache-Control"]).toContain("no-store");
       expect(bySource.get(source)?.["X-Robots-Tag"]).toContain("noindex");
     }
