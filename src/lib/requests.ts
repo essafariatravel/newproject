@@ -38,6 +38,7 @@ import type { AuthUser } from "@/lib/types";
 import { AppError, ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES, isAgencyRole } from "@/lib/types";
 import { buildStorageKey, storageProvider } from "@/lib/storage";
 import { isValidNationality } from "@/lib/nationalities";
+import { logErrorOnce, logEvent, pseudonymizeIdentifier } from "@/lib/observability";
 
 /**
  * Phase 2-Final: exactly ONE applicant per request — the portal collects
@@ -278,6 +279,16 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
     .where(and(eq(applications.idempotencyKey, input.idempotencyKey), eq(applications.agencyId, agencyId)))
     .limit(1);
   if (pre[0]) {
+    logEvent({
+      eventName: "application.submission.idempotency_prevented",
+      severity: "info",
+      classification: "SAFE_PREVENTION",
+      result: "reused",
+      actorRole: input.actor.role,
+      tenantRef: pseudonymizeIdentifier(agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(pre[0].id),
+    });
     return {
       applicationId: pre[0].id,
       reference: pre[0].reference,
@@ -345,6 +356,14 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
     }
   } catch (e) {
     await Promise.allSettled(writtenKeys.map((k) => storageProvider().delete(k)));
+    logErrorOnce("application.submission.storage_failed", e, {
+      severity: "error",
+      classification: "BUSINESS_FAILURE",
+      result: "technical_failed",
+      actorRole: input.actor.role,
+      tenantRef: pseudonymizeIdentifier(agencyId),
+      action: "application.submit",
+    });
     throw e;
   }
 
@@ -557,12 +576,61 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
     result = await commitRequest();
   } catch (error) {
     await Promise.allSettled(writtenKeys.map((key) => storageProvider().delete(key)));
+    if (error instanceof AppError && ["INSUFFICIENT_FUNDS","FORBIDDEN","VISA_TYPE_INVALID"].includes(error.code)) {
+      logEvent({
+        eventName: error.code === "INSUFFICIENT_FUNDS" ? "wallet.debit.prevented" : "application.submission.prevented",
+        severity: "warning",
+        classification: "SAFE_PREVENTION",
+        result: "prevented",
+        errorCode: error.code,
+        actorRole: input.actor.role,
+        tenantRef: pseudonymizeIdentifier(agencyId),
+        action: "application.submit",
+      });
+    } else {
+      logErrorOnce("application.submission.technical_failed", error, {
+        severity: "error",
+        classification: "BUSINESS_FAILURE",
+        result: "technical_failed",
+        actorRole: input.actor.role,
+        tenantRef: pseudonymizeIdentifier(agencyId),
+        action: "application.submit",
+      });
+    }
     throw error;
   }
   if (result.reused) {
     await Promise.allSettled(writtenKeys.map((key) => storageProvider().delete(key)));
+    logEvent({
+      eventName: "application.submission.idempotency_prevented",
+      severity: "info",
+      classification: "SAFE_PREVENTION",
+      result: "reused",
+      actorRole: input.actor.role,
+      tenantRef: pseudonymizeIdentifier(agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(result.applicationId),
+    });
     return result;
   }
+
+  logEvent({
+    eventName: "application.submission.succeeded",
+    result: "succeeded",
+    actorRole: input.actor.role,
+    tenantRef: pseudonymizeIdentifier(agencyId),
+    resourceType: "application",
+    resourceRef: pseudonymizeIdentifier(result.applicationId),
+  });
+  logEvent({
+    eventName: "wallet.debit.succeeded",
+    result: "succeeded",
+    actorRole: input.actor.role,
+    tenantRef: pseudonymizeIdentifier(agencyId),
+    resourceType: "wallet_transaction",
+    resourceRef: pseudonymizeIdentifier(result.charge.transactionId),
+    metadata: { operation: "APPLICATION_CHARGE" },
+  });
 
   // Best-effort notifications use the shared pool after the client is released.
   try {
@@ -584,7 +652,15 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
       applicationId: result.applicationId,
     });
   } catch (error) {
-    console.error("request-submit-notification-failed", error);
+    logErrorOnce("notification.application_submission.failed", error, {
+      severity: "warning",
+      classification: "BUSINESS_FAILURE",
+      result: "technical_failed",
+      actorRole: input.actor.role,
+      tenantRef: pseudonymizeIdentifier(agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(result.applicationId),
+    });
   }
   return result;
 }
