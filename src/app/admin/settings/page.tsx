@@ -14,7 +14,7 @@ import { BrandStudio } from "@/components/brand-studio";
 import { Card, CardHeader, EmptyState, Flash, PageHeader } from "@/components/ui";
 import { contentT } from "@/lib/i18n-content";
 import { getUiLocale } from "@/lib/ui-i18n";
-import { readPublishedLegal } from "@/lib/legal";
+import { readLatestLegal } from "@/lib/legal";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +46,7 @@ export default async function AdminSettingsPage({
       (["en", "fr", "ar"] as const).flatMap((locale) =>
         (["terms", "privacy"] as const).map(
           async (kind) =>
-            [`legal.${kind}.${locale}`, await readPublishedLegal(kind, locale)] as const,
+            [`legal.${kind}.${locale}`, await readLatestLegal(kind, locale)] as const,
         ),
       ),
     ),
