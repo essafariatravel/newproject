@@ -2,47 +2,191 @@
 
 Date: 2026-10-03
 
-## Final integration state
+## Final verdict
 
-Integrated branch: `preprod/essafaria-final-hardening`
+**TECHNICAL LEGAL / PRIVACY GATE: PASS**
 
-Legal/privacy feature branch: `hardening/legal-privacy-readiness-v2`
+**PREVIEW DATABASE READINESS: PASS**
 
-Merged PR: #12 — Legal, privacy and data governance readiness
+**LOCAL BUILT-RUNTIME HTTP/DB QA: PASS**
 
-Merge commit: `8a27eb1934e14f2d29a2d8f862f0a6c1c4370698`
+**HOSTED VERCEL PREVIEW QA: PASS**
 
-Production was not deployed or migrated by this gate.
+**PRODUCTION ISOLATION: PASS — Production was not migrated or deployed by this gate**
 
-## Technical result
+Remaining blockers are human/governance inputs, not unfinished engineering:
+
+- approved Privacy Notice EN / FR / AR;
+- approved Terms of Service EN / FR / AR;
+- approved effective dates for those documents;
+- approved retention decisions;
+- legal/privacy contact and applicable rights/request wording;
+- vendor/DPA/international-transfer conclusions where required;
+- Owner decision on whether to keep the current broad V1 Staff operational perimeter or introduce additional separation of duties;
+- Owner/legal decision for future legal-update enforcement mode (informational / acknowledgement / re-acceptance / blocking).
+
+No remaining Legal/Privacy implementation should be delegated to Codex.
+
+## Integrated repository state
+
+Authoritative branch for this gate:
+
+`preprod/essafaria-final-hardening`
+
+Legal/privacy work was developed on:
+
+`hardening/legal-privacy-readiness-v2`
+
+and integrated by PR #12.
+
+PR #12 merge commit:
+
+`8a27eb1934e14f2d29a2d8f862f0a6c1c4370698`
+
+Final application/harness SHA fully verified by both deterministic and hosted gates:
+
+`91388f0a049b2f9138a1cdd3b93ef8ff10b92a34`
+
+A documentation-only report commit may follow this SHA; the verified application/harness content is the SHA above.
+
+## Implemented legal-content controls
+
+The product now uses immutable versioned legal content instead of mutable site copy.
 
 Implemented:
-- immutable legal-version history;
-- approved legal effective date separated from publication timestamp;
+
+- immutable `legal_versions` history;
+- approved `effective_at` separated from actual `published_at`;
 - active-vs-latest legal-version reads;
-- SUPER_ADMIN-only legal publication control;
-- no fabricated owner/legal review evidence;
-- EN / FR / AR legal publication support without silent legal-text fallback;
-- noindex behavior when approved legal content is unavailable;
-- exact Terms + Privacy version UUID/number/effective-date evidence at agency registration;
-- separate `TERMS_ACCEPTED` and `PRIVACY_NOTICE_ACKNOWLEDGED` audit events;
-- minimized public agency first-contact fields;
-- no KYC/admin-document upload during first contact;
-- existing scoped Staff-issued administrative follow-up document workflow retained;
-- staff visibility of consent/version evidence;
-- public auth/registration error logging reduced to safe technical codes;
-- browser storage/cookie/tracking inventory;
-- vendor/data-location inventory;
-- Owner/legal decision register;
-- privacy/data-governance baseline;
-- regression guards for storage/tracking/legal-publication/minimal intake;
-- private Supabase document-bucket default aligned to verified `documents` bucket.
+- future-effective published versions do not become active early;
+- publication restricted to `SUPER_ADMIN`;
+- engineering never records a fabricated lawyer/Owner approval event;
+- published content cannot be UPDATEd or DELETEd in place;
+- EN / FR / AR are independent legal artifacts;
+- no silent legal-text fallback between languages;
+- public Privacy/Terms pages render only approved effective versions;
+- unavailable legal pages fail closed and are `noindex`;
+- no build/deployment timestamp is used as a legal effective date.
 
-## Database migrations
+## Registration privacy-by-default
 
-### Preview
+The public first-contact agency request is intentionally minimal.
 
-Verified on project `xgetzgixalrsmuvfthpf`, schema `visa_os_preview`:
+New first contact collects only the operational contact information currently required by the product, including:
+
+- agency/legal name;
+- primary contact name;
+- professional/shared agency email;
+- phone / WhatsApp;
+- optional city;
+- Terms acceptance;
+- Privacy Notice acknowledgement;
+- accuracy confirmation;
+- exact legal-version evidence;
+- existing anti-abuse/security metadata.
+
+It does **not** request initial:
+
+- full postal address;
+- commercial registration number;
+- tax identifier;
+- agency licence;
+- monthly visa volume;
+- main-market profiling;
+- company/KYC files.
+
+Administrative evidence is requested later only when needed through the existing authorized Staff follow-up workflow with scoped, expiring, hashed links.
+
+Historical nullable fields remain for backward compatibility; minimizing the new form does not destroy old records.
+
+## Exact Terms / Privacy evidence
+
+Registration verifies the exact legal content that was rendered.
+
+Evidence now includes:
+
+- Terms UUID;
+- Terms version number;
+- Terms effective date;
+- Privacy UUID;
+- Privacy version number;
+- Privacy effective date;
+- locale;
+- registration record linkage.
+
+Separate durable audit events are generated:
+
+- `TERMS_ACCEPTED`
+- `PRIVACY_NOTICE_ACKNOWLEDGED`
+
+Cookie consent, analytics consent and marketing consent are not inferred from either event.
+
+Staff registration review shows the captured legal evidence.
+
+## Data minimization / logging
+
+Public registration uses a strict field whitelist.
+
+Injected legacy KYC fields and mass-assignment fields are ignored.
+
+Public authentication/registration error logging was reduced to safe technical codes where appropriate rather than dumping raw error objects.
+
+Sensitive application/document/wallet payloads are not intentionally copied into general telemetry by this gate.
+
+## Browser storage / tracking
+
+Current documented browser inventory:
+
+- `evos_session` — first-party authenticated session cookie;
+- `evos_ui_locale` — first-party locale preference;
+- `essafaria.notification-sound` — localStorage `on/off` preference only.
+
+No sessionStorage use is inventoried.
+
+No common analytics/advertising SDK is present in the dependency set reviewed by the gate.
+
+No cosmetic cookie banner was added.
+
+A regression guard prevents silent introduction of unreviewed browser-storage keys or common tracking SDKs.
+
+UTM guidance explicitly prohibits applicant, passport, dossier-private, account, email/phone, financial and private-status information.
+
+## Supabase / database facts
+
+Connected project:
+
+`xgetzgixalrsmuvfthpf`
+
+Verified project region at review time:
+
+`us-east-1`
+
+Verified organization plan at review time:
+
+Free.
+
+Application schemas:
+
+- Production: `visa_os`
+- Preview: `visa_os_preview`
+
+Verified database-access architecture:
+
+- application source uses server-side PostgreSQL / Drizzle;
+- Supabase roles `anon` and `authenticated` have no `USAGE` on `visa_os_preview`;
+- the same direct Data API exposure is not relied upon by the application.
+
+Storage facts verified during the gate:
+
+- `documents` bucket is private;
+- `website-media` bucket is public;
+- optional Supabase document-storage default was aligned to `documents`.
+
+These are technical facts only. They are not legal controller/processor, transfer-mechanism or adequacy conclusions.
+
+## Preview migrations
+
+Verified on `visa_os_preview`:
 
 - `0020_identity_security.sql`
 - `0021_business_invariants.sql`
@@ -52,153 +196,256 @@ Verified on project `xgetzgixalrsmuvfthpf`, schema `visa_os_preview`:
 - `0025_legal_privacy_readiness.sql`
 - `0026_function_privilege_hardening.sql`
 
-`0025` adds `legal_versions.effective_at` and preserves immutable legal history.
+Final read-only verification on 2026-10-03 confirmed:
 
-`0026` pins application-function search paths and removes PUBLIC / anon / authenticated function execution in the application schema.
+- Preview last migration: `0026_function_privilege_hardening.sql`;
+- `0025`: present;
+- `0026`: present;
+- `legal_versions.effective_at`: present and NOT NULL;
+- approved legal-version row count in Preview: **0**;
+- `anon` schema USAGE: false;
+- `authenticated` schema USAGE: false;
+- application-schema function count: 11;
+- functions executable by PUBLIC: 0;
+- application functions with unpinned search path: 0.
 
-Preview verification evidence:
-- legal_versions effective_at exists and is NOT NULL;
-- legal_versions immutable trigger exists for UPDATE and DELETE;
-- transactional update/delete attempts were blocked;
-- transaction rolled back with zero residual test rows;
-- 11 application-schema functions inspected;
-- PUBLIC EXECUTE count = 0;
-- unpinned search_path count = 0.
+A transactional Preview test also proved:
 
-### Production
+- UPDATE of a legal-version row is blocked;
+- DELETE of a legal-version row is blocked;
+- the test transaction rolled back;
+- zero synthetic test rows remained.
 
-Verified read-only on schema `visa_os`:
-- migration count = 19;
-- last migration = `0019_config_translations.sql`;
-- `0025` absent;
-- `0026` absent;
-- legal_versions.effective_at absent.
+## Production isolation
 
-Therefore Production remained untouched by this gate.
+Final read-only Production verification confirmed:
 
-## Supabase architecture facts
+- Production schema: `visa_os`;
+- migration count: 19;
+- last migration: `0019_config_translations.sql`;
+- `0025`: absent;
+- `0026`: absent;
+- `legal_versions.effective_at`: absent.
 
-Verified project region: `us-east-1`.
+Therefore this gate did **not** migrate Production.
 
-Verified organization plan at review time: Free.
+No Production deployment was performed by this gate.
 
-Application schemas:
-- `visa_os`
-- `visa_os_preview`
+The hosted diagnostic also identified that the currently deployed legacy Production build still exposes the older detailed `/api/health` response. The hardened preprod implementation already redacts anonymous DB/schema diagnostics. The hosted harness no longer reprints those Production infrastructure details and classifies the legacy condition as pending the normal future release rather than as an acceptable privacy pattern.
 
-Verified on 2026-10-03:
-- Supabase roles `anon` and `authenticated` have no USAGE on either application schema;
-- bucket `documents` is private;
-- bucket `website-media` is public;
-- application source uses server-side node-postgres + Drizzle rather than browser Supabase Auth/JS.
+Production must not be hot-patched solely from this gate.
 
-These are technical facts only, not legal transfer/controller/processor conclusions.
+## Deterministic verification
 
-## Verification evidence
+GitHub Actions workflow:
 
-Feature-head deterministic gate passed before integration:
-- TypeScript: PASS
-- ESLint: PASS
-- targeted legal/privacy tests: PASS
-- migration safety: PASS
-- full deterministic test suite: PASS
-- Next.js build: PASS
+`RC deterministic verification`
 
-The final feature-head run was GitHub Actions `Legal Privacy deterministic verification` run #23 on:
-`df5effc8d54c59db8f4c99e5c1b55a8fa73b9bec`.
+Run:
 
-Preprod post-merge verification is performed by the repository's existing `RC deterministic verification` workflow on merge commit:
-`8a27eb1934e14f2d29a2d8f862f0a6c1c4370698`.
+**#196**
 
-## Runtime validation
+Verified SHA:
 
-The preprod RC workflow now starts an isolated PostgreSQL instance, applies all migrations through 0026, seeds only local synthetic data, starts the built Next.js application and executes `scripts/privacy-runtime-smoke.sh` over real HTTP.
+`91388f0a049b2f9138a1cdd3b93ef8ff10b92a34`
 
-Verified in RC deterministic verification run #124 on commit `946470fda2720d21a1fcd7d211c67d7bf8597cee`:
-- unpublished Privacy page renders fail-closed state;
-- unpublished Privacy page is noindex;
-- unpublished Terms page renders fail-closed state;
-- unpublished Terms page is noindex;
-- agency registration is closed while approved legal versions are missing;
+Result:
+
+**SUCCESS**
+
+Evidence:
+
+- exact checkout: PASS;
+- TypeScript: PASS;
+- ESLint: PASS;
+- shell harness syntax: PASS;
+- targeted build/Preview guard: PASS;
+- broader deterministic suite: **90 test files PASS**;
+- total tests: **639 / 639 PASS**;
+- Next.js build: PASS;
+- local legal/privacy runtime smoke: PASS.
+
+## Local built-runtime privacy smoke
+
+The RC workflow starts an isolated PostgreSQL instance, applies migrations, seeds synthetic local data, starts the built Next.js application and executes real HTTP requests.
+
+Verified:
+
+- Privacy unavailable state renders;
+- unavailable Privacy is noindex;
+- Terms unavailable state renders;
+- unavailable Terms is noindex;
+- registration remains closed when approved legal versions are absent;
 - no registration form is rendered in that state;
-- synthetic local-only EN/FR/AR legal versions can be inserted for disposable runtime testing;
-- active Privacy/Terms versions render with their version number;
-- published Privacy page becomes indexable by page metadata;
-- FR version resolves independently;
-- AR version resolves independently with RTL;
-- registration contains exact legal-version UUIDs;
-- real first-contact controls contain no address/KYC/document upload fields;
-- a real HTTP Next server-action registration succeeds;
-- injected legacy KYC and mass-assignment fields remain unpersisted;
-- persisted legal consent evidence contains the exact version IDs;
-- `TERMS_ACCEPTED` and `PRIVACY_NOTICE_ACKNOWLEDGED` audit events contain the exact legal-version IDs.
+- synthetic LOCAL-ONLY EN/FR/AR legal fixtures can exercise the published path;
+- published Privacy renders version evidence;
+- published Terms renders version evidence;
+- FR legal version resolves independently;
+- AR legal version resolves independently;
+- AR is RTL;
+- exact Terms/Privacy UUIDs are rendered into registration;
+- first-contact controls contain no KYC/document/full-address fields;
+- a real HTTP Next Server Action registration succeeds when synthetic legal versions exist;
+- intentionally injected legacy KYC/mass-assignment values remain unpersisted;
+- persisted consent evidence contains the exact legal UUIDs;
+- separate Terms/Privacy audit evidence contains the exact version IDs.
 
-The runtime work also exposed and fixed a demo-seed defect: the seed attempted to UPDATE an immutable wallet transaction after submission. The stable demo application reference is now assigned before submission, so immutable ledger history is never rewritten.
+Synthetic legal fixtures exist only in the disposable embedded test database.
 
-Legacy invented Privacy/Terms strings were removed from the demo seed.
+They are not Preview/Production legal content.
 
-### Hosted Vercel Preview
+## Hosted Vercel Preview verification
 
-A new Vercel Preview deployment remains externally unavailable because Vercel returned a daily deployment/build quota error (`api-deployments-free-per-day`).
+Vercel ultimately produced a deployment for the exact verified SHA:
 
-The hosted verification workflow is now:
-- enabled for `preprod/essafaria-final-hardening`;
-- aligned with minimized first-contact onboarding;
-- aware that registration must fail closed when approved legal content is absent;
-- aware of migrations 0020–0026;
-- quota-aware: a verified Vercel build/deployment quota is reported as SKIP rather than a false product FAIL;
-- ready to run automatically on future preprod source/migration changes once Vercel can create a Preview.
+`91388f0a049b2f9138a1cdd3b93ef8ff10b92a34`
 
-Do not bypass the quota by touching Production.
+Hosted verification workflow:
 
-The only check that inherently still requires a real hosted browser/network environment is final deployed inspection of actual cookies/storage/network requests. This is an external-environment validation, not remaining Codex implementation.
+`Hosted Phase-2 Preview verification`
+
+Run:
+
+**#35**
+
+Result:
+
+**SUCCESS**
+
+Summary:
+
+**39 PASS / 0 FAIL / 62 SKIP**
+
+The SKIPs are primarily intentional consequences of the legal publication blocker:
+
+- Preview currently has zero approved legal versions;
+- public agency onboarding is therefore deliberately closed;
+- no new agency account is provisioned through that public flow;
+- agency-session-only downstream tests are skipped rather than falsified.
+
+Hosted PASS evidence includes:
+
+- current Preview resolves and answers;
+- anonymous health is redacted;
+- EN registration surface renders;
+- FR registration surface renders;
+- AR registration surface renders with RTL;
+- registration fails closed while approved legal versions are absent;
+- unknown Preview credentials produce the normal invalid-credentials path rather than a DB/service failure;
+- anonymous registration-document access is denied;
+- dedicated Staff Preview login succeeds;
+- unauthenticated `/portal` does not leak content;
+- unauthenticated `/admin` does not leak content;
+- Staff billing aggregates render;
+- Staff session cannot export an agency wallet;
+- Staff application CSV export is valid Excel-compatible CSV;
+- Staff application XLSX export is a real XLSX;
+- anonymous Staff export is refused;
+- Staff work queue exposes only the safe bulk controls;
+- no bulk approve/reject/debit/delete control is present;
+- staff page-size controls and saved views render;
+- visa-type editor sections render;
+- visa-type editor remains DZD-only;
+- Admin Settings exposes independent website/branding saves and controlled legal publication;
+- Arabic legal field is RTL;
+- Privacy pages render in EN / FR / AR;
+- FR Privacy heading is localized;
+- AR Privacy heading is localized and RTL;
+- final Preview health remains OK;
+- Production bogus-login read-only smoke returns normal invalid-credentials behavior.
+
+## Vercel quota resilience
+
+During this work Vercel intermittently returned the Free-plan daily deployment/build quota.
+
+The hosted workflow now handles this safely:
+
+- a quota is never reported as a product regression;
+- it first looks for a successful same-lineage Preview;
+- Git ancestry must prove the fallback SHA is an ancestor of the current preprod HEAD;
+- stale diagnostics are explicitly labelled and never presented as current-SHA deployment validation;
+- when the current SHA is deployable, the workflow verifies that current deployment normally.
+
+This eliminated the remaining need for a human/Codex agent to reinterpret quota failures.
 
 ## Governance package
 
-Additional decision-ready operational documents:
+The repository now contains:
+
+- `docs/privacy/LEGAL_PRIVACY_GATE_REPORT_2026-10-03.md`
+- `docs/privacy/browser-storage-inventory.md`
+- `docs/privacy/data-governance.md`
+- `docs/privacy/vendor-inventory.md`
+- `docs/privacy/owner-legal-handoff.md`
 - `docs/privacy/data-flow-map.md`
 - `docs/privacy/access-need-to-know.md`
 - `docs/privacy/retention-decision-register.md`
 - `docs/privacy/privacy-request-incident-runbook.md`
 
-The current code intentionally gives ADMIN, VISA_AGENT and ACCOUNTING a shared operational Staff perimeter except account management/recovery. Whether to retain that V1 model or introduce separation of duties is explicitly an **OWNER BUSINESS DECISION**, not an engineering/Codex inference.
+No statutory retention duration or legal conclusion is fabricated in those files.
 
-Legal update enforcement (informational vs acknowledgement vs re-acceptance vs blocking) is also explicitly an **OWNER + LEGAL REVIEW DECISION**.
+## Decisions intentionally not automated by engineering
 
-## Owner / legal blocker
+### OWNER BUSINESS DECISION
 
-There are currently zero approved legal versions in Preview.
+Current V1 Staff authorization deliberately uses a broad operational Staff perimeter for ADMIN / VISA_AGENT / ACCOUNTING except specific account-management/recovery powers.
 
-Engineering must not fabricate Privacy Notice or Terms content.
+Changing that into additional separation of duties can affect daily operations and must be explicitly approved by the Owner.
 
-Before launch, Owner/legal counsel must provide the approved:
-- Terms text EN / FR / AR;
-- Privacy Notice text EN / FR / AR;
-- effective dates;
-- retention decisions;
-- legal entity/privacy contact details;
-- applicable rights/request wording;
-- vendor/transfer/DPA conclusions as required.
+### OWNER + LEGAL REVIEW DECISION
 
-The exact decision template is:
-`docs/privacy/owner-legal-handoff.md`.
+For a future material legal-document change, decide whether the product should use:
 
-## Gate verdict
+- informational notice;
+- explicit acknowledgement;
+- re-acceptance;
+- block-until-accepted.
 
-Technical implementation: **PASS**
+Engineering must not infer that mode from text differences.
 
-Database Preview readiness: **PASS**
+### LEGAL REVIEW REQUIRED
 
-Production isolation: **PASS**
+Legal counsel / approved professional review must determine, as applicable:
 
-Deterministic tests/build: **PASS**
+- final legal text;
+- lawful/contractual basis wording;
+- privacy-rights wording;
+- complaint/escalation wording;
+- retention criteria/durations;
+- incident notification obligations;
+- vendor roles;
+- DPA requirements;
+- international-transfer mechanisms.
 
-Local built-runtime HTTP/DB QA: **PASS**
+### EXTERNAL CONFIGURATION / CONTRACT REVIEW
 
-Hosted Vercel browser/network QA: **BLOCKED EXTERNALLY BY VERCEL DAILY BUILD QUOTA**
+Vercel/Supabase contract/DPA/subprocessor/log-retention settings and any future SMTP/monitoring provider require the appropriate account/contract review.
 
-Legal content approval / retention / legal-update enforcement: **BLOCKED ON OWNER / LEGAL INPUT**
+## Launch blocker
 
-Staff separation-of-duties choice: **OWNER BUSINESS DECISION REQUIRED**
+**OWNER-APPROVED EN / FR / AR PRIVACY NOTICE AND TERMS OF SERVICE CONTENT IS STILL MISSING.**
 
-No remaining Legal/Privacy engineering implementation should be delegated to Codex. The hosted check can run automatically when Vercel is able to create a Preview.
+Preview currently has zero legal versions by design.
+
+Engineering correctly fails closed instead of publishing invented text.
+
+The Owner/legal input template is:
+
+`docs/privacy/owner-legal-handoff.md`
+
+## Codex handoff
+
+**No Legal/Privacy engineering implementation remains for Codex.**
+
+Codex should not:
+
+- recreate this architecture;
+- invent Privacy/Terms text;
+- invent retention periods;
+- add a cosmetic cookie banner;
+- weaken health redaction;
+- reopen public KYC collection;
+- change immutable financial/legal history;
+- apply `0025`/`0026` to Production without the normal release authorization.
+
+Any future work in this gate begins only when Owner/legal decisions or approved legal content change the requirements.
