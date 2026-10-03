@@ -354,10 +354,16 @@ async function main() {
       if (!tables.has("document_blobs")) {
         findings.push("DOCUMENT_BLOBS_TABLE_MISSING");
       } else {
-        const rows = await client.query<{ key: string; size_bytes: number }>(
-          `select key, size_bytes from ${qualifiedTable("document_blobs", schema)} order by key`,
+        const rows = await client.query<{ key: string; size_bytes: number; sha256: string }>(
+          `select key, size_bytes, encode(digest(data,'sha256'),'hex') as sha256
+             from ${qualifiedTable("document_blobs", schema)}
+            order by key`,
         );
-        storageObjects = rows.rows.map((row) => ({ key: row.key, sizeBytes: Number(row.size_bytes) }));
+        storageObjects = rows.rows.map((row) => ({
+          key: row.key,
+          sizeBytes: Number(row.size_bytes),
+          sha256: row.sha256.toLowerCase(),
+        }));
         const staging = await client.query<{ objects: number; bytes: string; stale: number }>(
           `select count(*)::int as objects,
                   coalesce(sum(size_bytes),0)::text as bytes,
