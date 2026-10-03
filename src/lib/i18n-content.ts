@@ -470,6 +470,12 @@ const CONTENT: Record<string, Entry> = {
   "Your agency's visa files.": { fr: "Les dossiers visa de votre agence.", ar: "ملفات التأشيرات الخاصة بوكالتكم." },
   "+ New application": { fr: "+ Nouveau dossier", ar: "+ طلب جديد" },
   "No applications found": { fr: "Aucun dossier trouvé", ar: "لم يتم العثور على طلبات" },
+  "No applications match these filters.": { fr: "Aucun dossier ne correspond à ces filtres.", ar: "لا توجد طلبات تطابق عوامل التصفية هذه." },
+  "Clear filters": { fr: "Effacer les filtres", ar: "مسح عوامل التصفية" },
+  "Adjust or clear the filters to see other applications.": { fr: "Modifiez ou effacez les filtres pour afficher d’autres dossiers.", ar: "عدّل عوامل التصفية أو امسحها لعرض طلبات أخرى." },
+  "Next action": { fr: "Prochaine action", ar: "الإجراء التالي" },
+  "No action is required from your agency right now.": { fr: "Aucune action n’est requise de votre agence pour le moment.", ar: "لا يلزم أي إجراء من وكالتك في الوقت الحالي." },
+  "Review the dossier details and required documents.": { fr: "Vérifiez les informations du dossier et les documents requis.", ar: "راجع تفاصيل الملف والمستندات المطلوبة." },
 
   "Visa / Country": { fr: "Visa / Pays", ar: "التأشيرة / البلد" },
   "Fee": { fr: "Frais", ar: "الرسوم" },
