@@ -193,13 +193,13 @@ async function main() {
          join ${qualifiedTable("agencies", target.schema)} ag on ag.id=u.agency_id and ag.status='ACTIVE'
          join ${qualifiedTable("applications", target.schema)} a on a.agency_id=u.agency_id
          join ${qualifiedTable("documents", target.schema)} d on d.application_id=a.id
-        where u.role='AGENCY_ADMIN' and u.status='ACTIVE'
+        where u.role in ('AGENCY_ADMIN','AGENCY_USER') and u.status='ACTIVE'
           and not u.activation_pending and not u.must_change_password
-        order by a.created_at desc, d.created_at desc
+        order by case u.role when 'AGENCY_ADMIN' then 0 else 1 end, a.created_at desc, d.created_at desc
         limit 1`,
     );
     if (!owner.rows[0]) {
-      throw new Error("Disposable restore needs an active unlocked AGENCY_ADMIN owning an application/document for runtime recovery validation.");
+      throw new Error("Disposable restore needs an active unlocked agency user owning an application/document for runtime recovery validation.");
     }
     const agencyA = owner.rows[0];
 
@@ -211,15 +211,15 @@ async function main() {
       `select u.id::text, u.agency_id::text, u.credential_version
          from ${qualifiedTable("users", target.schema)} u
          join ${qualifiedTable("agencies", target.schema)} ag on ag.id=u.agency_id and ag.status='ACTIVE'
-        where u.role='AGENCY_ADMIN' and u.status='ACTIVE'
+        where u.role in ('AGENCY_ADMIN','AGENCY_USER') and u.status='ACTIVE'
           and not u.activation_pending and not u.must_change_password
           and u.agency_id <> $1::uuid
-        order by u.created_at
+        order by case u.role when 'AGENCY_ADMIN' then 0 else 1 end, u.created_at
         limit 1`,
       [agencyA.agency_id],
     );
     if (!foreign.rows[0]) {
-      throw new Error("Disposable restore needs a second active unlocked AGENCY_ADMIN from another tenant.");
+      throw new Error("Disposable restore needs a second active unlocked agency user from another tenant.");
     }
     const agencyB = foreign.rows[0];
 
@@ -328,6 +328,7 @@ async function main() {
       const csv = await foreignWallet.text();
       foreignWalletDataNotVisible = !csv.includes(agencyA.application_reference);
     } else {
+      foreignWalletDataNotVisible = foreignWallet.status === 403;
       await foreignWallet.body?.cancel().catch(() => undefined);
     }
 
