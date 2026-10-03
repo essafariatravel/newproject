@@ -109,6 +109,26 @@ function run(
   });
 }
 
+function runExpectExit(
+  binary: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  expectedCode: number,
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(binary, args, { env, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (chunk) => { stdout += String(chunk); });
+    child.stderr?.on("data", (chunk) => { stderr += String(chunk); });
+    child.once("error", () => reject(new Error(`${path.basename(binary)} could not be started.`)));
+    child.once("close", (code) => {
+      if (code === expectedCode) resolve({ stdout, stderr });
+      else reject(new Error(`${path.basename(binary)} exited ${code ?? "unknown"}, expected ${expectedCode}.`));
+    });
+  });
+}
+
 async function criticalRowCounts(pool: Pool): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
   for (const table of DR_CRITICAL_TABLES) {
@@ -174,6 +194,7 @@ async function main() {
   const offsiteCopyPath = path.join(root, "independent-copy", "synthetic-copy.dump.enc");
   const offsiteEvidencePath = path.join(root, "synthetic.offsite-evidence.json");
   const verifiedManifestPath = path.join(root, "synthetic.verified.manifest.json");
+  const tamperedManifestPath = path.join(root, "synthetic.tampered.manifest.json");
   const key = Buffer.alloc(32, 73);
   const keyBase64 = key.toString("base64");
   let pg: InstanceType<typeof EmbeddedPostgres> | null = null;
@@ -312,6 +333,40 @@ async function main() {
       throw new Error("Synthetic restore evidence did not record all technical reconciliations as passed.");
     }
 
+    const originalManifest = JSON.parse(await readFile(manifestPath, "utf8")) as BackupManifest;
+    const tamperedManifest: BackupManifest = {
+      ...originalManifest,
+      source: { ...originalManifest.source, migrationLedger: [...originalManifest.source.migrationLedger] },
+      database: {
+        ...originalManifest.database,
+        rowCounts: {
+          ...originalManifest.database.rowCounts,
+          agencies: (originalManifest.database.rowCounts.agencies ?? 0) + 1,
+        },
+        sequences: [...originalManifest.database.sequences],
+      },
+      storage: { ...originalManifest.storage },
+      verification: { ...originalManifest.verification },
+    };
+    await writeFile(tamperedManifestPath, JSON.stringify(tamperedManifest, null, 2) + "\n", { mode: 0o600 });
+    const mismatch = await runExpectExit(process.execPath, [
+      tsx,
+      "scripts/dr-verify-restore.ts",
+      "--expected-manifest",
+      tamperedManifestPath,
+    ], {
+      ...process.env,
+      PATH: childPath,
+      NODE_ENV: "test",
+      DR_ENVIRONMENT: "RESTORE_TEST",
+      DATABASE_SCHEMA: PRODUCTION_SCHEMA,
+      DATABASE_URL: connection(TARGET_DB),
+      STORAGE_PROVIDER: "db",
+    }, 2);
+    if (!mismatch.stdout.includes("MANIFEST_ROW_COUNT_MISMATCH")) {
+      throw new Error("Synthetic manifest mismatch test did not report row-count divergence.");
+    }
+
     const restoredPool = new Pool({ connectionString: connection(TARGET_DB) });
     try {
       const wallet = await restoredPool.query<{ balance: string }>(
@@ -400,6 +455,7 @@ async function main() {
       evidenceBindingExercised: true,
       offsiteCopyByteIdentityVerified: true,
       offsiteCopyAuthenticationVerified: true,
+      manifestMismatchRefusalExercised: true,
       finalManifestState: finalAssessment.status,
     }, null, 2));
   } finally {
