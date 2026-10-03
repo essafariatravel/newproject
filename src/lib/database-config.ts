@@ -57,7 +57,7 @@ export function databasePoolConfig(env: Environment = process.env, migration = f
   const schema = databaseSchema(env);
   return {
     connectionString,
-    options: `-c search_path=${schema},pg_catalog`,
+    options: `-c search_path=pg_catalog,${schema}`,
     // Supabase enforces TLS even when a manually copied URI omits sslmode.
     // Keep certificate verification enabled; never fall back to plaintext.
     ...(supabase && !url.searchParams.has("sslmode") && !url.searchParams.has("ssl")
