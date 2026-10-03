@@ -5,7 +5,7 @@ import { getSessionUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/rbac";
 import { reportData } from "@/lib/queries";
 import { parseReportFilters } from "@/lib/report-filters";
-import { recordAudit } from "@/lib/audit";
+import { recordAuditStrict } from "@/lib/audit";
 import { toCsv, toXlsx, XLSX_CONTENT_TYPE, type Column, type Row } from "@/lib/tabular-export";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 
@@ -97,7 +97,7 @@ export async function GET(request: Request) {
     value: processing.slowestDays === null ? null : Number(Number(processing.slowestDays).toFixed(2)),
   });
 
-  await recordAudit({ actor: user, action: "REPORTS_EXPORTED", entity: "report", metadata: { format, rows: rows.length, filters } });
+  await recordAuditStrict({ actor: user, action: "REPORTS_EXPORTED", entity: "report", metadata: { format, rows: rows.length, filters } });
 
   const stamp = new Date().toISOString().slice(0, 10);
   const headers = { "Cache-Control": "no-store" };
