@@ -94,7 +94,7 @@ async function main() {
              'PERF_DATA_${datasetId}_' || lpad(($2 + g)::text,4,'0'),
              'perf.data.${datasetId}.' || lpad(($2 + g)::text,4,'0') || '@load.example',
              'ACTIVE', 0, 'DZD', $3
-           from generate_series(1,$1) g
+           from generate_series(1,$1::int) g
            returning id`,
           [n, offset + 1, marker],
         );
@@ -123,7 +123,7 @@ async function main() {
              now() - (($2 + g) % 365) * interval '1 day',
              now() - (($2 + g) % 365) * interval '1 day' - interval '1 hour',
              now() - (($2 + g) % 365) * interval '1 day'
-           from generate_series(1,$3) g
+           from generate_series(1,$3::int) g
            cross join lateral (
              select vt.id as visa_type_id, vt.name as visa_name, vt.code as visa_code,
                     vt.fee, vt.processing_min_days, vt.processing_max_days,
@@ -172,7 +172,7 @@ async function main() {
                    from ${perfTable("document_types")}
                   where active and agency_uploadable
                   order by sort_order, code
-                  limit $2
+                  limit $2::int
                ) dt
              on conflict do nothing`,
             [ids, docsPerApp],
@@ -202,7 +202,7 @@ async function main() {
                     case when n % 3 = 0 then now() else null end,
                     a.created_at + n * interval '1 minute'
                from ${perfTable("applications")} a
-               cross join generate_series(1,$3) n
+               cross join generate_series(1,$3::int) n
               where a.id = any($1::uuid[])`,
             [ids, staffNotificationUserId, notificationsPerApp],
           );
@@ -216,7 +216,7 @@ async function main() {
                     'PERF synthetic communication ' || n::text,
                     a.created_at + n * interval '2 minutes'
                from ${perfTable("applications")} a
-               cross join generate_series(1,$3) n
+               cross join generate_series(1,$3::int) n
               where a.id = any($1::uuid[])`,
             [ids, actorId, messagesPerApp],
           );
@@ -231,7 +231,7 @@ async function main() {
                     jsonb_build_object('dataset',$3,'event',n),
                     a.created_at + n * interval '3 minutes'
                from ${perfTable("applications")} a
-               cross join generate_series(1,$4) n
+               cross join generate_series(1,$4::int) n
               where a.id = any($1::uuid[])`,
             [ids, actorId, datasetId, auditsPerApp],
           );
@@ -257,7 +257,7 @@ async function main() {
              (agency_id, application_id, type, amount, currency, balance_before, balance_after, reason, actor_id, created_at)
            select $1, null, 'CREDIT', 1, 'DZD', (g-1)::numeric, g::numeric,
                   $2, $3, now() - ($4 - g) * interval '1 minute'
-             from generate_series(1,$4) g`,
+             from generate_series(1,$4::int) g`,
           [ledgerAgency, `${marker}:LEDGER`, actorId, ledgerRows],
         );
         await client.query(
