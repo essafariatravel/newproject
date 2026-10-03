@@ -13,6 +13,7 @@ import { generateSessionToken, hashToken } from "@/lib/crypto";
 import type { User } from "@/db/schema";
 import { normalizeAgencyUsername, sessionPolicy } from "@/lib/identity-policy";
 import { lockIdentityState } from "@/lib/account-security";
+import { safeErrorCode, safeErrorText } from "@/lib/safe-error";
 
 /** Create a session and return the opaque cookie token. */
 export async function createSession(
@@ -89,7 +90,7 @@ export async function getSessionUser(): Promise<AuthUser | null> {
     };
   } catch (err) {
     // Database temporarily unavailable (e.g. missing migrations on Preview) must not become a 500.
-    console.error("[auth] getSessionUser failed", err);
+    console.error("[auth] getSessionUser failed", { code: safeErrorCode(err), error: safeErrorText(err) });
     return null;
   }
 }
@@ -185,7 +186,7 @@ export async function authenticate(identifier: string, password: string): Promis
     user = rows[0] as User | undefined;
   } catch (err) {
     // Hide raw database errors (e.g. missing table / connection failure) from the user.
-    console.error("[auth] authenticate query failed", err);
+    console.error("[auth] authenticate query failed", { code: safeErrorCode(err), error: safeErrorText(err) });
     throw new AppError("SERVICE_UNAVAILABLE", "Service temporarily unavailable. Please try again.");
   }
   if (!user) {
@@ -209,7 +210,7 @@ export async function authenticate(identifier: string, password: string): Promis
       }
     } catch (err) {
       if (err instanceof AppError) throw err;
-      console.error("[auth] authenticate agency lookup failed", err);
+      console.error("[auth] authenticate agency lookup failed", { code: safeErrorCode(err), error: safeErrorText(err) });
       throw new AppError("SERVICE_UNAVAILABLE", "Service temporarily unavailable. Please try again.");
     }
   }

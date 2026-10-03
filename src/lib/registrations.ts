@@ -59,6 +59,7 @@ import { notifyUsers, staffUserIds } from "@/lib/notifications";
 import { generateSessionToken, hashPassword, hashToken } from "@/lib/crypto";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import type { RegistrationCopy, RegistrationLocale } from "@/lib/i18n";
+import { safeErrorCode, safeErrorText } from "@/lib/safe-error";
 
 /* ------------------------------------------------------------------ */
 /* Constants                                                           */
@@ -295,7 +296,7 @@ export async function assertRegistrationRateLimit(ipAddress: string | null): Pro
     }
   } catch (err) {
     if (err instanceof AppError) throw err;
-    console.error("[registrations] rate-limit check failed (failing closed)", err);
+    console.error("[registrations] rate-limit check failed (failing closed)", { code: safeErrorCode(err), error: safeErrorText(err) });
     throw new AppError("SERVICE_UNAVAILABLE", "Service temporarily unavailable. Please try again.");
   }
 }
@@ -363,7 +364,7 @@ export async function submitAgencyRegistration(params: {
     }
   } catch (err) {
     for (const s of stored) await storageProvider().delete(s.key).catch(() => {});
-    console.error("[registrations] document storage failed", err);
+    console.error("[registrations] document storage failed", { code: safeErrorCode(err), error: safeErrorText(err) });
     throw new AppError("STORAGE_WRITE_FAILED", "Could not store the uploaded documents.");
   }
 
@@ -378,7 +379,7 @@ export async function submitAgencyRegistration(params: {
       title: `New agency registration — ${data.legalName}`,
       body: `${data.legalName} (${data.country}) applied for partnership. Reference ${reference}.`,
       link: `/admin/registrations/${id}`,
-    }).catch((err) => console.error("[registrations] staff notification failed", err));
+    }).catch((err) => console.error("[registrations] staff notification failed", { code: safeErrorCode(err), error: safeErrorText(err) }));
     return { id, reference };
   } catch (err) {
     for (const s of stored) await storageProvider().delete(s.key).catch(() => {});
@@ -889,14 +890,14 @@ export async function approveRegistration(params: {
     body: "Your agency workspace is ready. Activate your account with the secure link provided by ESSAFARIA to access your portal.",
     link: "/portal",
     agencyId: result.agencyId,
-  }).catch((err) => console.error("[registrations] onboarding notification failed", err));
+  }).catch((err) => console.error("[registrations] onboarding notification failed", { code: safeErrorCode(err), error: safeErrorText(err) }));
   const staff = await staffUserIds([...REGISTRATION_DECIDE_ROLES]).catch(() => [] as string[]);
   await notifyUsers(staff, {
     type: "REGISTRATION_APPROVED",
     title: `Registration approved — ${result.legalName}`,
     body: `${result.legalName} was approved by ${actor.name}. The agency and its Agency Admin were created.`,
     link: `/admin/registrations/${registrationId}`,
-  }).catch((err) => console.error("[registrations] staff notification failed", err));
+  }).catch((err) => console.error("[registrations] staff notification failed", { code: safeErrorCode(err), error: safeErrorText(err) }));
 
   return result;
 }

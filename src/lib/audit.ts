@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { safeErrorCode, safeErrorText } from "@/lib/safe-error";
 import { auditLogs } from "@/db/schema";
 import type { AuthUser } from "@/lib/types";
 
@@ -27,6 +28,6 @@ export async function recordAudit(input: AuditInput): Promise<void> {
       ipAddress: input.ipAddress ?? null,
     });
   } catch (err) {
-    console.error("audit-log-failure", { action: input.action, entity: input.entity, err });
+    console.error("audit-log-failure", { action: input.action, entity: input.entity, code: safeErrorCode(err), error: safeErrorText(err) });
   }
 }
