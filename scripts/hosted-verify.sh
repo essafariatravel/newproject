@@ -305,15 +305,18 @@ CODE_ANON=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$BASE_URL/api/
   && ok "anonymous document download denied ($CODE_ANON)" || bad "anonymous document access returned $CODE_ANON"
 
 # -------------------------------------------------------------------------- #
-STAFF_ITEMS=("staff login" "Admin > Agency Registrations list" "pending counter" \
+STAFF_ITEMS=("Admin > Agency Registrations list" "pending counter" \
   "start review" "request more information" "approve → agency provisioning" \
   "generate activation link" "activation password set → agency login" \
   "agency portal" "first-contact document minimization" "rejection path" \
   "wallet untouched" "cross-tenant isolation")
+
+# Establish Staff independently from public onboarding. The legal publication
+# gate may intentionally close /agency/register, but that must never suppress
+# Back Office/runtime verification.
+STAFF_SESSION=0
 if [ -z "$STAFF_EMAIL" ] || [ -z "$STAFF_PASS" ]; then
-  for ITEM in "${STAFF_ITEMS[@]}"; do skp "$ITEM (needs PREVIEW_VERIFY_STAFF_EMAIL/PASSWORD)"; done
-elif [ -z "$REF1" ]; then
-  for ITEM in "${STAFF_ITEMS[@]}"; do skp "$ITEM (no submitted registration to review)"; done
+  skp "staff login (needs PREVIEW_VERIFY_STAFF_EMAIL/PASSWORD)"
 else
   log "-- [6] Staff login"
   CODE_L=$(status_of "$BASE_URL/login" "$WORK/login.html")
@@ -321,11 +324,25 @@ else
   CODE=$(submit_form "$WORK/login.html" "$BASE_URL/login" "Sign in" "$WORK/staff.txt" "$WORK/loginfields.txt")
   LOC_L=$(loc_header)
   if grep -qi 'set-cookie:.*evos_session=' "$WORK/headers.txt" && echo "$LOC_L" | grep -qE "/admin|/portal"; then
+    STAFF_SESSION=1
     ok "staff login → evos_session + redirect ${LOC_L}"
   else
     bad "staff login failed (http $CODE, ${LOC_L:-no redirect})"
   fi
+fi
 
+if [ "$STAFF_SESSION" != "1" ]; then
+  for ITEM in "${STAFF_ITEMS[@]}"; do skp "$ITEM (no authenticated Preview staff session)"; done
+elif [ -z "$REF1" ]; then
+  # Staff is authenticated, so staff-only checks later in the harness still run.
+  # Only the registration-review/provisioning chain depends on a fresh public request.
+  skp "Admin > Agency Registrations reference review (no submitted registration; legal publication gate may be closed)"
+  for ITEM in "pending counter" "start review" "request more information" "approve → agency provisioning" \
+    "generate activation link" "activation password set → agency login" "agency portal" \
+    "first-contact document minimization" "rejection path" "wallet untouched" "cross-tenant isolation"; do
+    skp "$ITEM (no submitted registration to review)"
+  done
+else
   log "-- [7] Admin > Agency Registrations"
   CODE_LIST=$(statusb_of "$BASE_URL/admin/registrations" "$WORK/list.html" "$WORK/staff.txt")
   if [ "$CODE_LIST" = "200" ] && grep -q "Agency Registrations" "$WORK/list.html"; then
