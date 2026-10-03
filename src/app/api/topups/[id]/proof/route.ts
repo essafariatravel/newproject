@@ -25,7 +25,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       expectedSizeBytes: row.proofSizeBytes,
       expectedSha256: row.proofSha256,
     });
-    await recordAuditStrict({ actor: user, action: "TOPUP_RECEIPT_DOWNLOADED", entity: "wallet_topup_request", entityId: id, agencyId: row.agencyId });
+    await recordAuditStrict({
+      actor: user,
+      action: "TOPUP_RECEIPT_DOWNLOADED",
+      entity: "wallet_topup_request",
+      entityId: id,
+      agencyId: row.agencyId,
+      metadata: { filename: row.proofFilename, sizeBytes: row.proofSizeBytes, sha256: row.proofSha256 },
+    });
     const fallback = row.proofFilename.replace(/[^\x20-\x7e]|["\\]/g, "_");
     const encoded = encodeURIComponent(row.proofFilename).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
     return new NextResponse(new Uint8Array(stored.data), { headers: {
