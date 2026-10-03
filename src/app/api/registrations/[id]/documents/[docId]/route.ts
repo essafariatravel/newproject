@@ -5,6 +5,7 @@ import { getRegistrationDocument } from "@/lib/registrations";
 import { storageProvider } from "@/lib/storage";
 import { AppError } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
+import { assertStoredFileIntegrity } from "@/lib/file-integrity";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ export async function GET(
       return NextResponse.json({ error: "Not found." }, { status: 404 });
     }
     const { data, mimeType } = await storageProvider().get(doc.storageKey);
+    assertStoredFileIntegrity({ data, expectedSizeBytes: doc.sizeBytes, expectedSha256: doc.sha256 });
     await recordAudit({
       actor: user,
       action: "REGISTRATION_DOCUMENT_DOWNLOADED",
