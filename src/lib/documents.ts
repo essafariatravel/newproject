@@ -33,6 +33,7 @@ import { buildStorageKey, storageProvider } from "@/lib/storage";
 import { recordAudit } from "@/lib/audit";
 import { agencyUserIds, staffUserIds, notifyUsers } from "@/lib/notifications";
 import { getStatusByCode } from "@/lib/applications";
+import { logErrorOnce, logEvent, pseudonymizeIdentifier } from "@/lib/observability";
 
 interface ApplicationAccess {
   applicationId: string;
@@ -66,6 +67,18 @@ export async function assertApplicationAccess(
   const app = rows[0];
   if (!app) throw new AppError("NOT_FOUND", "Application not found.");
   if (user.agencyId && app.agencyId !== user.agencyId) {
+    logEvent({
+      eventName: "security.cross_tenant_access.denied",
+      severity: "warning",
+      classification: "SAFE_PREVENTION",
+      result: "denied",
+      errorCode: "NOT_FOUND",
+      actorRole: user.role,
+      tenantRef: pseudonymizeIdentifier(user.agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(applicationId),
+      metadata: { target_tenant_ref: pseudonymizeIdentifier(app.agencyId) },
+    });
     throw new AppError("NOT_FOUND", "Application not found.");
   }
   return {
@@ -110,6 +123,18 @@ export async function getDocumentForUser(documentId: string, user: AuthUser) {
   const row = rows[0];
   if (!row) throw new AppError("NOT_FOUND", "Document not found.");
   if (user.agencyId && row.appAgencyId !== user.agencyId) {
+    logEvent({
+      eventName: "security.cross_tenant_access.denied",
+      severity: "warning",
+      classification: "SAFE_PREVENTION",
+      result: "denied",
+      errorCode: "NOT_FOUND",
+      actorRole: user.role,
+      tenantRef: pseudonymizeIdentifier(user.agencyId),
+      resourceType: "document",
+      resourceRef: pseudonymizeIdentifier(documentId),
+      metadata: { target_tenant_ref: pseudonymizeIdentifier(row.appAgencyId) },
+    });
     throw new AppError("NOT_FOUND", "Document not found.");
   }
   return row;
@@ -283,8 +308,41 @@ export async function uploadDocument(input: UploadDocumentInput) {
     });
   } catch (error) {
     await storageProvider().delete(storageKey).catch(() => {});
+    if (error instanceof AppError && ["UPLOAD_NOT_ALLOWED","NOT_FOUND","VALIDATION","FILE_TOO_LARGE","UNSUPPORTED_TYPE","INVALID_FILENAME"].includes(error.code)) {
+      logEvent({
+        eventName: "document.upload.prevented",
+        severity: "info",
+        classification: "SAFE_PREVENTION",
+        result: "prevented",
+        errorCode: error.code,
+        actorRole: input.actor.role,
+        tenantRef: pseudonymizeIdentifier(access.agencyId),
+        resourceType: "application",
+        resourceRef: pseudonymizeIdentifier(input.applicationId),
+      });
+    } else {
+      logErrorOnce("document.persistence.failed", error, {
+        severity: "error",
+        classification: "BUSINESS_FAILURE",
+        result: "technical_failed",
+        actorRole: input.actor.role,
+        tenantRef: pseudonymizeIdentifier(access.agencyId),
+        resourceType: "application",
+        resourceRef: pseudonymizeIdentifier(input.applicationId),
+      });
+    }
     throw error;
   }
+
+  logEvent({
+    eventName: "document.upload.succeeded",
+    result: "succeeded",
+    actorRole: input.actor.role,
+    tenantRef: pseudonymizeIdentifier(access.agencyId),
+    resourceType: "document",
+    resourceRef: pseudonymizeIdentifier(doc.id),
+    metadata: { mime_type: input.file.type, size_bytes: input.file.data.length, fulfilled_request: fulfilledRequest },
+  });
 
   // Notify staff if agency uploaded outside fulfillment path (draft stage)
   if (input.actor.agencyId && access.isDraft && !fulfilledRequest) {
@@ -318,6 +376,14 @@ export async function uploadResubmission(input: UploadDocumentInput & { original
     agencyId: original.appAgencyId,
     metadata: { replaces: original.doc.id, filename: doc.originalFilename },
     ipAddress: input.ipAddress ?? null,
+  });
+  logEvent({
+    eventName: "document.resubmission.succeeded",
+    result: "succeeded",
+    actorRole: input.actor.role,
+    tenantRef: pseudonymizeIdentifier(original.appAgencyId),
+    resourceType: "document",
+    resourceRef: pseudonymizeIdentifier(doc.id),
   });
   return doc;
 }
