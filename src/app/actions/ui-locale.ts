@@ -16,8 +16,9 @@ export async function setUiLocaleAction(formData: FormData): Promise<void> {
 
   const store = await cookies();
   store.set(UI_LOCALE_COOKIE, locale, {
-    httpOnly: false, // cosmetic preference: must also be inspectable client-side
+    httpOnly: false, // non-sensitive UI preference
     sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     maxAge: 60 * 60 * 24 * 365,
     path: "/",
   });

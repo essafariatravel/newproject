@@ -32,7 +32,7 @@ export default async function PortalApplicationsPage({
   const page = Number(sp.page ?? "1") || 1;
 
   const [result, statuses] = await Promise.all([
-    searchApplications(user, { q: sp.q, documents: sp.documents === "requested" ? "requested" : undefined, statusCode: sp.status, dateFrom: sp.from, dateTo: sp.to, page, pageSize: resolvePageSize(sp.per) }),
+    searchApplications(user, { q: sp.q, queue:sp.queue==="active"||sp.queue==="completed"?sp.queue:undefined, documents: sp.documents === "requested" ? "requested" : undefined, statusCode: sp.status, dateFrom: sp.from, dateTo: sp.to, page, pageSize: resolvePageSize(sp.per) }),
     listStatuses(true),
   ]);
 
@@ -55,7 +55,7 @@ export default async function PortalApplicationsPage({
 
       <FilterBar locale={uiLocale}
         action="/portal/applications"
-        hidden={sp.documents === "requested" ? { documents: "requested" } : undefined}
+        hidden={{ documents:sp.documents==="requested"?"requested":"", queue:sp.queue??"" }}
         fields={[
           { name: "q", label: ct("Search"), type: "text", value: sp.q, placeholder: ct("Reference or applicant…") },
           {
@@ -146,9 +146,9 @@ export default async function PortalApplicationsPage({
             </tbody>
           </TableWrap>
           </div>
-          <Pagination locale={uiLocale} page={result.page} pageCount={result.pageCount} total={result.total} basePath="/portal/applications" query={{ q: sp.q, status: sp.status, from: sp.from, to: sp.to, per: sp.per }} />
+          <Pagination locale={uiLocale} page={result.page} pageCount={result.pageCount} total={result.total} basePath="/portal/applications" query={{ q: sp.q, queue: sp.queue, documents: sp.documents, status: sp.status, from: sp.from, to: sp.to, per: sp.per }} />
           <div className="flex justify-end">
-            <PageSizeSelector locale={uiLocale} pageSize={resolvePageSize(sp.per)} basePath="/portal/applications" query={{ q: sp.q, status: sp.status, from: sp.from, to: sp.to }} />
+            <PageSizeSelector locale={uiLocale} pageSize={resolvePageSize(sp.per)} basePath="/portal/applications" query={{ q: sp.q, queue: sp.queue, documents: sp.documents, status: sp.status, from: sp.from, to: sp.to }} />
           </div>
         </>
       )}

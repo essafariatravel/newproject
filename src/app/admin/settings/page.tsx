@@ -14,8 +14,13 @@ import { BrandStudio } from "@/components/brand-studio";
 import { Card, CardHeader, EmptyState, Flash, PageHeader } from "@/components/ui";
 import { contentT } from "@/lib/i18n-content";
 import { getUiLocale } from "@/lib/ui-i18n";
+import { readLatestLegal } from "@/lib/legal";
 
 export const dynamic = "force-dynamic";
+
+function dateInput(value: Date | undefined): string {
+  return value ? value.toISOString().slice(0, 10) : "";
+}
 
 export default async function AdminSettingsPage({
   searchParams,
@@ -30,11 +35,22 @@ export default async function AdminSettingsPage({
   const flash = flashFrom(sp);
   const settings = await getSiteSettings();
   const canManage = hasPermission(staff, "cms.manage");
+  const canPublishLegal = staff.role === "SUPER_ADMIN";
   const social = settingObject(settings, "site.social");
   const uiLocale = await getUiLocale();
   const ct = contentT(uiLocale);
   const branding = await readBranding();
   const logoUrl = brandLogoUrl(branding);
+  const publishedLegal = Object.fromEntries(
+    await Promise.all(
+      (["en", "fr", "ar"] as const).flatMap((locale) =>
+        (["terms", "privacy"] as const).map(
+          async (kind) =>
+            [`legal.${kind}.${locale}`, await readLatestLegal(kind, locale)] as const,
+        ),
+      ),
+    ),
+  );
 
   return (
     <>
@@ -97,56 +113,90 @@ export default async function AdminSettingsPage({
                 </div>
               </div>
             </Card>
-
-            <SubmitButton className="btn-primary" pendingLabel="Saving…">{ct("Save website content")}</SubmitButton>
+            <SubmitButton className="btn-primary" pendingLabel="Saving…">
+              {ct("Save website content")}
+            </SubmitButton>
           </form>
 
-          {/* §Settings — legal copy has its OWN save, so editing the public site
-              copy can never publish half-finished legal text (and vice versa).
-              Each language is a separate field: EN/FR/AR are preserved side by
-              side and the public page picks the current interface language. */}
-          <form action={updateSiteSettingsAction} className="mt-4 space-y-4">
-            <input type="hidden" name="section" value="legal" />
-            <Card>
-              <CardHeader title="Legal content" subtitle="Rendered on the public /privacy and /terms pages, per interface language." />
-              <div className="space-y-5 px-5 py-5">
-                {([
-                  ["en", "English"],
-                  ["fr", "Français"],
-                  ["ar", "العربية"],
-                ] as const).map(([code, label]) => (
-                  <div key={code} className="rounded-lg border border-ivory-200 p-4">
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="label" htmlFor={`legal.privacy.${code}`}>Privacy notice</label>
-                        <textarea
-                          id={`legal.privacy.${code}`}
-                          name={`legal.privacy.${code}`}
-                          rows={4}
-                          dir={code === "ar" ? "rtl" : undefined}
-                          defaultValue={settingString(settings, `legal.privacy.${code}`)}
-                          className="input"
-                        />
-                      </div>
-                      <div>
-                        <label className="label" htmlFor={`legal.terms.${code}`}>Terms of service</label>
-                        <textarea
-                          id={`legal.terms.${code}`}
-                          name={`legal.terms.${code}`}
-                          rows={4}
-                          dir={code === "ar" ? "rtl" : undefined}
-                          defaultValue={settingString(settings, `legal.terms.${code}`)}
-                          className="input"
-                        />
+          {canPublishLegal ? (
+            <form action={updateSiteSettingsAction} className="space-y-4">
+              <input type="hidden" name="section" value="legal" />
+              <Card>
+                <CardHeader
+                  title="Legal publication"
+                  subtitle="Publication control only — not a drafting CMS. Paste owner/legal-approved text and its approved effective date. Publication creates immutable history."
+                />
+                <div className="space-y-5 px-5 py-5">
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-800">
+                    Only publish content that has completed the required owner/legal review. The system records the actual publication timestamp automatically; do not use a deployment date as the legal effective date.
+                  </div>
+                  {([
+                    ["en", "English"],
+                    ["fr", "Français"],
+                    ["ar", "العربية"],
+                  ] as const).map(([code, label]) => (
+                    <div key={code} className="rounded-lg border border-ivory-200 p-4">
+                      <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+                      <div className="grid gap-5 xl:grid-cols-2">
+                        {(["privacy", "terms"] as const).map((kind) => {
+                          const legal = publishedLegal[`legal.${kind}.${code}`];
+                          const title = kind === "privacy" ? "Privacy notice" : "Terms of service";
+                          return (
+                            <div key={kind} className="space-y-3 rounded-lg bg-ivory-50/60 p-4">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <label className="label m-0" htmlFor={`legal.${kind}.${code}`}>{title}</label>
+                                {legal ? (
+                                  <span className="text-[11px] text-slate-500">
+                                    Current v{legal.version} · effective {dateInput(legal.effectiveAt)}
+                                  </span>
+                                ) : (
+                                  <span className="text-[11px] font-medium text-amber-700">Not published</span>
+                                )}
+                              </div>
+                              <textarea
+                                id={`legal.${kind}.${code}`}
+                                name={`legal.${kind}.${code}`}
+                                rows={8}
+                                dir={code === "ar" ? "rtl" : undefined}
+                                defaultValue={legal?.body ?? ""}
+                                className="input"
+                                placeholder="Approved legal text only"
+                              />
+                              <div>
+                                <label className="label" htmlFor={`legal.${kind}.${code}.effectiveAt`}>
+                                  Approved effective date
+                                </label>
+                                <input
+                                  id={`legal.${kind}.${code}.effectiveAt`}
+                                  name={`legal.${kind}.${code}.effectiveAt`}
+                                  type="date"
+                                  defaultValue={dateInput(legal?.effectiveAt)}
+                                  className="input"
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              </Card>
+              <SubmitButton className="btn-primary" pendingLabel="Publishing…">
+                Publish approved legal versions
+              </SubmitButton>
+            </form>
+          ) : (
+            <Card>
+              <CardHeader
+                title="Legal publication"
+                subtitle="Restricted to SUPER_ADMIN. Legal text is published only after the owner/legal approval process."
+              />
+              <div className="px-5 py-5 text-sm text-slate-600">
+                Your current role can manage ordinary website content but cannot publish or supersede legal versions.
               </div>
             </Card>
-            <SubmitButton className="btn-primary" pendingLabel="Saving…">{ct("Save legal content")}</SubmitButton>
-          </form>
+          )}
         </div>
       ) : (
         <Card>

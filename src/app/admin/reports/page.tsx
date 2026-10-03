@@ -4,6 +4,7 @@ import { countryName } from "@/lib/country-names";
 import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
+import { STAFF_ROLES } from "@/lib/types";
 import { reportData, listAgencies } from "@/lib/queries";
 import { parseReportFilters } from "@/lib/report-filters";
 import { FilterBar } from "@/components/app-widgets";
@@ -80,7 +81,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
         { name: "visa", label: ct("Visa type"), type: "select", value: query.visa, options: visaOptions.map(({ vt }) => ({ value: vt.id, label: vt.name })) },
         { name: "status", label: ct("Status"), type: "select", value: query.status, options: statusOptions.map((s) => ({ value: s.id, label: localizedStatusName(s.code, s.name, uiLocale) })) },
         { name: "priority", label: ct("Priority"), type: "select", value: query.priority, options: priorityOptions.map((p) => ({ value: p.id, label: localizedPriority(p.code, p.name, uiLocale) })) },
-        { name: "officer", label: ct("Case officer"), type: "select", value: query.officer, options: officerOptions.filter(({ user }) => user.status === "ACTIVE" && ["SUPER_ADMIN", "ADMIN", "VISA_AGENT"].includes(user.role)).map(({ user }) => ({ value: user.id, label: user.name })) },
+        { name: "officer", label: ct("Case officer"), type: "select", value: query.officer, options: officerOptions.filter(({ user }) => user.status === "ACTIVE" && !user.agencyId && (STAFF_ROLES as readonly string[]).includes(user.role)).map(({ user }) => ({ value: user.id, label: user.name })) },
       ]} />
       <p className="mb-4 text-xs text-slate-500">{ct("Application metrics use the creation date; wallet totals use the transaction date. Exports use these same filters.")}</p>
 
@@ -122,7 +123,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
         <Card className="p-4">
           <h3 className="text-sm font-semibold text-navy-900">{ct("Wallet credits vs charges")}</h3>
           <p className="mt-1 text-sm text-slate-600">
-            {formatAmount(walletFlow.credits, "DZD", uiLocale)} {ct("credited")} · {formatAmount(walletFlow.charges, "DZD", uiLocale)} {ct("charged")}
+            <bdi dir="ltr">{formatAmount(walletFlow.credits, "DZD", uiLocale)}</bdi> {ct("credited")} · <bdi dir="ltr">{formatAmount(walletFlow.charges, "DZD", uiLocale)}</bdi> {ct("charged")}
           </p>
           <p className="mt-0.5 text-xs text-slate-400">{ct("All amounts are DZD. Correction entries appear as their own ledger rows.")}</p>
         </Card>

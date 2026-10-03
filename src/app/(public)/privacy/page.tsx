@@ -1,31 +1,54 @@
-import { getSiteSettings, settingString } from "@/lib/settings";
+import type { Metadata } from "next";
+import { readPublishedLegal } from "@/lib/legal";
 import { getUiLocale } from "@/lib/ui-i18n";
-import { formatMonthYear } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { contentT } from "@/lib/i18n-content";
+import { publicBrandCopy } from "@/lib/public-brand-copy";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Privacy Notice" };
+
+const LABELS = {
+  en: { effective: "Effective", version: "Version" },
+  fr: { effective: "Date d’effet", version: "Version" },
+  ar: { effective: "تاريخ السريان", version: "الإصدار" },
+} as const;
+
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getUiLocale();
+  const legal = await readPublishedLegal("privacy", locale);
+  return {
+    title: {"en":"Privacy Notice","fr":"Avis de confidentialité","ar":"إشعار الخصوصية"}[locale],
+    robots: legal ? undefined : { index: false, follow: false },
+  };
+}
 
 export default async function PrivacyPage() {
-  const settings = await getSiteSettings();
   const locale = await getUiLocale();
   const ct = contentT(locale);
-  // §Settings EN/FR/AR — the language-specific copy wins when it exists; the
-  // single-language value (and then the built-in fallback) keeps older
-  // installations working without overwriting anyone's published text.
-  const body =
-    settingString(settings, `legal.privacy.${locale}`) ||
-    settingString(settings, "legal.privacy") ||
-    "This notice will be published shortly.";
+  const legal = await readPublishedLegal("privacy", locale);
+  const labels = LABELS[locale];
+
   return (
-    <div className="ess-container max-w-3xl py-14">
+    <section
+      dir={locale === "ar" ? "rtl" : "ltr"}
+      lang={locale}
+      className="ess-container max-w-3xl py-14"
+    >
       <h1 className="font-serif text-3xl text-navy-900">{ct("Privacy Notice")}</h1>
-      <p className="mt-1 text-xs text-slate-400">
-        {ct("Last updated")} {formatMonthYear(new Date(), locale)}
-      </p>
-      <div className="card mt-8 whitespace-pre-line p-8 text-[15px] leading-relaxed text-slate-700">
-        {body}
-      </div>
-    </div>
+      {legal ? (
+        <>
+          <p className="mt-2 text-xs text-slate-500">
+            {labels.version} {legal.version} · {labels.effective}: {formatDate(legal.effectiveAt, locale)}
+          </p>
+          <div className="mt-8 whitespace-pre-line border-t border-line pt-6 text-base leading-relaxed text-slate-700">
+            {legal.body}
+          </div>
+        </>
+      ) : (
+        <p role="status" className="mt-6 border-t border-line pt-6 text-sm leading-relaxed text-slate-600">
+          {publicBrandCopy(locale).legalMissing}
+        </p>
+      )}
+    </section>
   );
 }

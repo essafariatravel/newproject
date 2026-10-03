@@ -5,17 +5,19 @@ import { readBranding, brandLogoUrl, BRANDING_DEFAULTS } from "@/lib/branding";
 import { LoginForm } from "./login-form";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
+import { identityT } from "@/lib/identity-copy";
+import { safeErrorCode } from "@/lib/safe-error";
 
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
-  const ct = contentT(await getUiLocale());
+  const locale = await getUiLocale(), ct = contentT(locale), it = identityT(locale);
   // Already signed in → straight to the right workspace. Never 500 if DB is temporarily unavailable.
   let user: Awaited<ReturnType<typeof getSessionUser>> = null;
   try {
     user = await getSessionUser();
   } catch (err) {
-    console.error("[login] getSessionUser failed", err);
+    console.error("[login] getSessionUser failed", safeErrorCode(err) ?? "unknown");
     user = null;
   }
   if (user) {
@@ -27,7 +29,7 @@ export default async function LoginPage() {
   try {
     branding = await readBranding();
   } catch (err) {
-    console.error("[login] readBranding failed", err);
+    console.error("[login] readBranding failed", safeErrorCode(err) ?? "unknown");
     branding = BRANDING_DEFAULTS;
   }
   const logoUrl = brandLogoUrl(branding);
@@ -59,11 +61,12 @@ export default async function LoginPage() {
           <p className="mt-1 text-sm text-slate-500">{ct("Agency portal and Back Office access.")}</p>
           <LoginForm
         copy={{
-          email: ct("Email"),
+          email: it("Username or staff email"),
           password: ct("Password"),
           signIn: ct("Sign in"),
           signingIn: `${ct("Signing in")}…`,
-          footer: ct("Agency access is provisioned. Forgotten credentials? Contact your account manager."),
+          footer: it("Enter your agency username or your staff professional email."),
+          forgotPassword: it("Forgot password?"),
         }} brandName={branding.name} />
         </div>
       </div>

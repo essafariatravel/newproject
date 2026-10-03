@@ -5,7 +5,7 @@ import { getUiLocale, pickUiLocale } from "@/lib/ui-i18n";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Application received" };
+export const metadata: Metadata = { title: "Application received", robots:{index:false,follow:false} };
 
 const REFERENCE_RE = /^AGR-\d{4}-[A-Z0-9]{6}$/;
 
@@ -23,7 +23,7 @@ export default async function RegistrationSuccessPage({
   return (
     <div dir={copy.dir} lang={locale} className="ess-container flex flex-col items-center py-16 sm:py-20">
       <div className="card w-full max-w-2xl overflow-hidden">
-        <div className="relative bg-gradient-to-br from-navy-800 via-navy-900 to-navy-950 px-8 py-11 text-center sm:px-12">
+        <div className="relative bg-navy-900 px-8 py-11 text-center sm:px-12">
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0"

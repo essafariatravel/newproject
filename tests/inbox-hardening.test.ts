@@ -1,0 +1,30 @@
+import {beforeEach,describe,it,expect} from "vitest";
+import {eq} from "drizzle-orm";
+import {suiteSetup} from "./helpers/global-state";
+import {resetData} from "./helpers/pg";
+import {seedFixtures,userByEmail,agencyByEmail} from "./helpers/fixtures";
+import {db} from "@/lib/db";
+import {applicants,communications,notifications,visaTypes} from "@/db/schema";
+import {createDraftApplication} from "@/lib/applications";
+import {conversationInbox} from "@/lib/inbox";
+suiteSetup();
+beforeEach(async()=>{await resetData();await seedFixtures();});
+describe("dossier inbox read model",()=>{
+ it("groups conversations, searches context, and excludes foreign and internal messages before selecting the latest",async()=>{
+  const a=await userByEmail("a-user@test.example"),b=await userByEmail("b-admin@test.example"),staff=await userByEmail("accounting@test.example"),visa=(await db.select().from(visaTypes))[0]!;
+  const app=await createDraftApplication({agencyId:a.agencyId!,visaTypeId:visa.id,createdBy:a});
+  const other=await createDraftApplication({agencyId:(await agencyByEmail("ops@agencyb.example")).id,visaTypeId:visa.id,createdBy:b});
+  await db.insert(applicants).values({applicationId:app.id,fullName:"Lina Passport",firstName:"Lina Passport",lastName:"",nationality:"Algeria"});
+  await db.insert(communications).values([{applicationId:app.id,authorId:staff.id,visibility:"AGENCY",body:"Please provide the readable scan",createdAt:new Date(Date.now()-1000)},{applicationId:app.id,authorId:staff.id,visibility:"INTERNAL",body:"INTERNAL SECRET"},{applicationId:other.id,authorId:b.id,visibility:"AGENCY",body:"FOREIGN SECRET"}]);
+  await db.insert(notifications).values({userId:a.id,applicationId:app.id,type:"MESSAGE_POSTED",title:"Reply",body:"Reply"});
+  const mine=await conversationInbox(a,{q:"Lina",filter:"unread"});
+  expect(mine).toHaveLength(1);expect(mine[0]).toMatchObject({applicationId:app.id,body:"Please provide the readable scan",unread:true,needsReply:true});
+  expect(await conversationInbox(b,{q:"Lina"})).toEqual([]);
+  expect((await conversationInbox(staff,{q:"Lina"}))[0]?.body).toBe("INTERNAL SECRET");
+  await db.insert(communications).values({applicationId:app.id,authorId:a.id,visibility:"AGENCY",body:"Readable scan attached",createdAt:new Date(Date.now()+1000)});
+  expect(await conversationInbox(a,{filter:"reply"})).toEqual([]);
+  expect((await conversationInbox(staff,{filter:"reply",q:"Lina"}))[0]?.needsReply).toBe(true);
+  await db.update(notifications).set({readAt:new Date()}).where(eq(notifications.userId,a.id));
+  expect(await conversationInbox(a,{filter:"unread"})).toEqual([]);
+ });
+});

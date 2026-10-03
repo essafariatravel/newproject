@@ -296,7 +296,7 @@ export default async function PortalApplicationDetailPage({
                       <ul className="mt-3 space-y-2">
                         {itemDocs.map(({ doc }) => (
                           <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ivory-50 px-3 py-2 text-xs">
-                            <span className="flex items-center gap-2 min-w-0">
+                            <span className="flex min-w-0 flex-wrap items-center gap-2">
                               <a href={`/api/documents/${doc.id}`} target="_blank" className="font-medium text-navy-800 truncate hover:underline">{doc.originalFilename}</a>
                               <span className="text-slate-400">v{doc.version} · {bytes(doc.sizeBytes)} · {formatDateTime(doc.createdAt, uiLocale)}</span>
                             </span>
@@ -331,7 +331,7 @@ export default async function PortalApplicationDetailPage({
               <div className="divide-y divide-slate-100">
                 {documentGroups.unassigned.map(({ doc }) => (
                   <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-xs">
-                    <span className="flex min-w-0 items-center gap-2">
+                    <span className="flex min-w-0 flex-wrap items-center gap-2">
                       <a href={`/api/documents/${doc.id}`} target="_blank" className="truncate font-medium text-navy-800 hover:underline">{doc.originalFilename}</a>
                       <span className="text-slate-400">v{doc.version} · {bytes(doc.sizeBytes)} · {formatDateTime(doc.createdAt, uiLocale)}</span>
                     </span>

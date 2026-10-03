@@ -17,7 +17,7 @@ import { exportApplications, searchApplications, reportData, EXPORT_ROW_LIMIT } 
 import { toCsv, toXlsx, csvCell, type Column, type Row } from "@/lib/tabular-export";
 import { agencyByEmail, userByEmail } from "./helpers/fixtures";
 import { request } from "./helpers/request";
-import { createDraftApplication, submitApplication } from "@/lib/applications";
+import { changeApplicationStatus, createDraftApplication, submitApplication } from "@/lib/applications";
 import { adjustWallet } from "@/lib/wallet";
 import type { AuthUser } from "@/lib/types";
 
@@ -274,9 +274,9 @@ describe("bulk actions are limited to assign / priority / export", () => {
   it("12. finished dossiers are excluded from bulk changes", async () => {
     const { bulkAssignAction, bulkPriorityAction } = await import("@/app/actions/applications");
     await actAsStaff();
-    const { app } = await oneApplication("bulk-final");
-    const finalStatus = (await db.select().from(statuses).where(eq(statuses.code, "APPROVED")).limit(1))[0]!;
-    await db.update(applications).set({ statusId: finalStatus.id, decisionAt: new Date() }).where(eq(applications.id, app.id));
+    const { app, staffActor } = await oneApplication("bulk-final");
+    const finalStatus = (await db.select().from(statuses).where(eq(statuses.code, "CANCELLED")).limit(1))[0]!;
+    await changeApplicationStatus({ applicationId: app.id, toStatusCode: "CANCELLED", actor: staffActor, reason: "Closed bulk fixture" });
 
     const form = new FormData();
     form.append("ids", app.id);

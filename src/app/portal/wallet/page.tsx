@@ -1,6 +1,7 @@
 import { businessReason } from "@/lib/business-labels";
 import Link from "next/link";
 import { portalPageUser } from "@/lib/page-auth";
+import { hasPermission } from "@/lib/rbac";
 import { getBalance } from "@/lib/wallet";
 import { listWalletTransactions } from "@/lib/queries";
 import { listTopupRequestsForAgency } from "@/lib/topup";
@@ -31,6 +32,10 @@ export default async function PortalWalletPage({
   const sp: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(raw)) sp[k] = typeof v === "string" ? v : undefined;
   const user = await portalPageUser();
+  if (!hasPermission(user,"transactions.view.own")) {
+    const balance = await getBalance(user.agencyId);
+    return <><PageHeader title={ct("Available balance")}/><div className="card p-6"><p className="font-serif text-4xl tabular-nums">{formatAmount(balance.balance)}</p><p className="mt-3 text-sm text-slate-500">{ct("Your Agency Admin manages wallet funding and transactions.")}</p></div></>;
+  }
   const flash = flashFrom(sp);
   const page = Number(sp.page ?? "1") || 1;
   const range = resolveLedgerPeriod({ period: sp.period, from: sp.from, to: sp.to });
@@ -318,7 +323,7 @@ export default async function PortalWalletPage({
               <tbody className="divide-y divide-slate-100">
                 {topups.map((t) => (
                   <tr key={t.id} className="tr-hover">
-                    <td className="td whitespace-nowrap font-mono text-[11px]">{t.reference}</td>
+                    <td className="td whitespace-nowrap font-mono text-[11px]">{t.reference}{t.proofFilename?<Link href={`/api/topups/${t.id}/proof`} className="ms-2 text-sm underline">{ct("Open bank transfer receipt")}</Link>:null}</td>
                     <td className="td whitespace-nowrap text-xs">{formatDateTime(t.createdAt, uiLocale)}</td>
                     <td className="td whitespace-nowrap tabular-nums">{formatAmount(t.amount, "DZD", uiLocale)}</td>
                     <td className="td">

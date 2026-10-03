@@ -60,7 +60,7 @@ export async function resetData(): Promise<void> {
       status_transitions, statuses, priorities, currencies,
       account_activation_tokens, agency_registration_history,
       agency_registration_documents, agency_registrations,
-      sessions, users, agencies, site_settings
+      auth_rate_limits, legal_versions, sessions, users, agencies, site_settings
     restart identity cascade
   `);
   await pool.end();

@@ -154,6 +154,8 @@ export async function applyPriceAdjustment(params: {
   const key = params.idempotencyKey?.trim() || null;
 
   const client = await pool.connect();
+  let result: ApplyPriceAdjustmentResult;
+  let auditInput: Parameters<typeof recordAudit>[0];
   try {
     await client.query("begin");
 
@@ -274,9 +276,7 @@ export async function applyPriceAdjustment(params: {
 
     await client.query("commit");
 
-    // Audit AFTER the commit (same pattern as submitApplication): a writing
-    // failure here never produces a phantom wallet reversal.
-    await recordAudit({
+    auditInput = {
       actor: params.actor,
       action: "PRICE_ADJUSTED",
       entity: "application",
@@ -294,9 +294,9 @@ export async function applyPriceAdjustment(params: {
         adjustmentId,
         idempotencyKey: key,
       },
-    });
+    };
 
-    return {
+    result = {
       adjustmentId,
       replayed: false,
       effectiveBefore: before.toFixed(2),
@@ -313,4 +313,8 @@ export async function applyPriceAdjustment(params: {
   } finally {
     client.release();
   }
+
+  // Audit uses the shared pool, so run it only after releasing the client.
+  await recordAudit(auditInput);
+  return result;
 }

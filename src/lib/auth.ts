@@ -5,22 +5,22 @@ import { agencies, sessions, users } from "@/db/schema";
 import {
   AppError,
   SESSION_COOKIE,
-  SESSION_TTL_DAYS,
   type AuthUser,
   type Role,
   isAgencyRole,
 } from "@/lib/types";
 import { generateSessionToken, hashToken } from "@/lib/crypto";
 import type { User } from "@/db/schema";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
+import { normalizeAgencyUsername, sessionPolicy } from "@/lib/identity-policy";
+import { lockIdentityState } from "@/lib/account-security";
+import { safeErrorCode } from "@/lib/safe-error";
 
 /** Create a session and return the opaque cookie token. */
 export async function createSession(
   userId: string,
+  options: { expectedCredentialVersion?: number } = {},
 ): Promise<{ token: string; expiresAt: Date }> {
   const token = generateSessionToken();
-  const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * DAY_MS);
   let ipAddress: string | null = null;
   let userAgent: string | null = null;
   try {
@@ -30,12 +30,19 @@ export async function createSession(
   } catch {
     // outside a request scope (scripts/tests) — metadata is optional
   }
-  await db.insert(sessions).values({
-    userId,
-    tokenHash: hashToken(token),
-    expiresAt,
-    ipAddress,
-    userAgent,
+  const expiresAt = await db.transaction(async (tx) => {
+    await lockIdentityState(tx);
+    const [row] = await tx.select({ user: users, agencyStatus: agencies.status }).from(users)
+      .leftJoin(agencies, eq(users.agencyId, agencies.id)).where(eq(users.id, userId)).limit(1);
+    if (!row || row.user.status !== "ACTIVE" || row.user.activationPending ||
+      (row.user.agencyId && row.agencyStatus !== "ACTIVE") ||
+      (options.expectedCredentialVersion !== undefined && row.user.credentialVersion !== options.expectedCredentialVersion)) {
+      throw new AppError("INVALID_CREDENTIALS", "Invalid username, email or password.");
+    }
+    const expiresAt = new Date(Date.now() + sessionPolicy(row.user.agencyId).absoluteMs);
+    await tx.insert(sessions).values({ userId, tokenHash: hashToken(token), expiresAt,
+      lastActivityAt: new Date(), credentialVersion: row.user.credentialVersion, ipAddress, userAgent });
+    return expiresAt;
   });
   return { token, expiresAt };
 }
@@ -57,20 +64,22 @@ export async function getSessionUser(): Promise<AuthUser | null> {
         user: users,
         agencyStatus: agencies.status,
         agencyName: agencies.legalName,
-        sessionExpired: sql<boolean>`(${sessions.expiresAt} < now())`,
       })
       .from(sessions)
       .innerJoin(users, eq(sessions.userId, users.id))
       .leftJoin(agencies, eq(users.agencyId, agencies.id))
-      .where(and(eq(sessions.tokenHash, tokenHash), gt(sessions.expiresAt, new Date())))
+      .where(and(eq(sessions.tokenHash, tokenHash), gt(sessions.expiresAt, new Date()),
+        eq(sessions.credentialVersion, users.credentialVersion),
+        sql`${sessions.lastActivityAt} > now() - CASE WHEN ${users.agencyId} IS NULL THEN interval '30 minutes' ELSE interval '2 hours' END`))
       .limit(1);
     const row = rows[0];
     if (!row) return null;
-    if (row.user.status !== "ACTIVE") return null;
-    if (row.agencyStatus !== null && row.agencyStatus !== "ACTIVE") return null;
+    if (row.user.status !== "ACTIVE" || row.user.activationPending) return null;
+    if (row.user.agencyId && row.agencyStatus !== "ACTIVE") return null;
     return {
       id: row.user.id,
       email: row.user.email,
+      username: row.user.username,
       name: row.user.name,
       role: row.user.role as Role,
       agencyId: row.user.agencyId,
@@ -81,7 +90,7 @@ export async function getSessionUser(): Promise<AuthUser | null> {
     };
   } catch (err) {
     // Database temporarily unavailable (e.g. missing migrations on Preview) must not become a 500.
-    console.error("[auth] getSessionUser failed", err);
+    console.error("[auth] getSessionUser failed", safeErrorCode(err) ?? "unknown");
     return null;
   }
 }
@@ -103,7 +112,6 @@ export async function requireUser(): Promise<AuthUser> {
 export async function requirePasswordChangeSession(): Promise<AuthUser> {
   const user = await getSessionUser();
   if (!user) throw new AppError("UNAUTHENTICATED", "Please sign in to continue.");
-  if (!user.mustChangePassword) throw new AppError("BAD_STATE", "No password change is pending.");
   return user;
 }
 
@@ -149,38 +157,43 @@ export async function destroySession(): Promise<void> {
   if (token) {
     try {
       await db.delete(sessions).where(eq(sessions.tokenHash, hashToken(token)));
-    } catch (err) {
-      console.error("[auth] destroySession failed", err);
-    }
+    } finally { await clearSessionCookie(); }
+    return;
   }
   await clearSessionCookie();
 }
 
-/** Authenticate by email + password. Returns the user row. */
-export async function authenticate(email: string, password: string): Promise<User> {
+/** Agency username or unique Staff professional email; mailbox is never an agency login key. */
+export async function authenticate(identifier: string, password: string): Promise<User> {
   const { verifyPassword } = await import("@/lib/crypto");
   let user: User | undefined;
   try {
+    let normalized = identifier.trim().toLowerCase();
+    const staffEmail = normalized.includes("@");
+    if (!staffEmail) {
+      try { normalized = normalizeAgencyUsername(normalized); }
+      catch { normalized = ""; }
+    }
     const rows = await db
       .select()
       .from(users)
-      .where(sql`lower(${users.email}) = lower(${email})`)
+      .where(staffEmail ? and(sql`lower(btrim(${users.email})) = ${normalized}`, sql`${users.agencyId} IS NULL`) :
+        and(eq(users.username, normalized), sql`${users.agencyId} IS NOT NULL`))
       .limit(1);
     user = rows[0] as User | undefined;
   } catch (err) {
     // Hide raw database errors (e.g. missing table / connection failure) from the user.
-    console.error("[auth] authenticate query failed", err);
+    console.error("[auth] authenticate query failed", safeErrorCode(err) ?? "unknown");
     throw new AppError("SERVICE_UNAVAILABLE", "Service temporarily unavailable. Please try again.");
   }
   if (!user) {
     // Perform a dummy verification to keep timing uniform.
-    await verifyPassword(password, "scrypt$00$00");
-    throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
+    await verifyPassword(password, `scrypt$${"0".repeat(32)}$${"0".repeat(128)}`);
+    throw new AppError("INVALID_CREDENTIALS", "Invalid username, email or password.");
   }
   const ok = await verifyPassword(password, user.passwordHash);
-  if (!ok) throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
-  if (user.status !== "ACTIVE") {
-    throw new AppError("USER_SUSPENDED", "This account has been suspended. Contact ESSAFARIA support.");
+  if (!ok || user.status !== "ACTIVE" || user.activationPending) {
+    throw new AppError("INVALID_CREDENTIALS", "Invalid username, email or password.");
   }
   if (user.agencyId) {
     try {
@@ -190,13 +203,26 @@ export async function authenticate(email: string, password: string): Promise<Use
         .where(eq(agencies.id, user.agencyId))
         .limit(1);
       if (agency[0]?.status !== "ACTIVE") {
-        throw new AppError("AGENCY_SUSPENDED", "Your agency account is currently suspended.");
+        throw new AppError("INVALID_CREDENTIALS", "Invalid username, email or password.");
       }
     } catch (err) {
       if (err instanceof AppError) throw err;
-      console.error("[auth] authenticate agency lookup failed", err);
+      console.error("[auth] authenticate agency lookup failed", safeErrorCode(err) ?? "unknown");
       throw new AppError("SERVICE_UNAVAILABLE", "Service temporarily unavailable. Please try again.");
     }
   }
   return user;
+}
+
+/** Only explicit human interaction calls this; reads and background polls never extend idle time. */
+export async function touchCurrentSession(): Promise<boolean> {
+  const user = await getSessionUser();
+  if (!user) return false;
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (!token) return false;
+  const updated = await db.update(sessions).set({ lastActivityAt: new Date() })
+    .where(and(eq(sessions.tokenHash, hashToken(token)), gt(sessions.expiresAt, new Date()),
+      sql`${sessions.lastActivityAt} > now() - ${sessionPolicy(user.agencyId).idleMs} * interval '1 millisecond'`))
+    .returning({ id: sessions.id });
+  return updated.length === 1;
 }

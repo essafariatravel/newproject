@@ -267,7 +267,7 @@ export default async function VisaTypeDetailPage({
                     <input id="e-fee" name="fee" type="number" step="0.01" min="0" required defaultValue={vt.fee} className="input" />
                     <input name="currency" value="DZD" type="hidden" />
                     <p className="mt-1.5 text-xs text-slate-500">
-                      {formatAmount(vt.fee, "DZD", locale)} — {ct("Charged in Algerian dinar from the agency prepaid balance at submission. Applications already submitted keep the price they were charged at.")}
+                      <bdi dir="ltr">{formatAmount(vt.fee, "DZD", locale)}</bdi> — {ct("Charged in Algerian dinar from the agency prepaid balance at submission. Applications already submitted keep the price they were charged at.")}
                     </p>
                   </div>
                 </fieldset>

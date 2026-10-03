@@ -17,6 +17,7 @@
 
 import { useMemo, useRef, useState, useEffect } from "react";
 import { contentT } from "@/lib/i18n-content";
+import { formatDZD } from "@/lib/format";
 
 export interface WizardVisaOption {
   id: string;
@@ -450,7 +451,7 @@ export function RequestWizard(props: Props) {
                     <span className="block font-semibold text-navy-900">{v.name}</span>
                     <span className="mt-0.5 block text-xs text-slate-500">{v.categoryName}</span>
                     <span className="mt-1.5 block text-sm font-medium text-navy-800 tabular-nums">
-                      {v.fee} DZD <span className="text-xs text-slate-400">· {t.processing} {processingLabel(v)}</span>
+                      {formatDZD(v.fee)} <span className="text-xs text-slate-400">· {t.processing} {processingLabel(v)}</span>
                     </span>
                     {v.description ? <span className="mt-1 block text-xs text-slate-500">{v.description}</span> : null}
                   </label>
@@ -524,7 +525,7 @@ export function RequestWizard(props: Props) {
             </div>
             <div className="flex flex-col gap-0.5">
               <dt className="text-xs text-slate-400">{t.fee}</dt>
-              <dd className="font-medium tabular-nums text-navy-900">{visa ? `${visa.fee} DZD` : "—"}</dd>
+              <dd className="font-medium tabular-nums text-navy-900">{visa ? formatDZD(visa.fee) : "—"}</dd>
             </div>
             <div className="flex flex-col gap-0.5">
               <dt className="text-xs text-slate-400">{t.processing}</dt>
@@ -663,16 +664,16 @@ export function RequestWizard(props: Props) {
             <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
               <div className="flex justify-between gap-3 rounded-md bg-ivory-50 px-3 py-2">
                 <dt className="text-slate-500">{t.fee}</dt>
-                <dd className="font-medium tabular-nums text-navy-900">{visa ? `${visa.fee} DZD` : "—"}</dd>
+                <dd className="font-medium tabular-nums text-navy-900">{visa ? formatDZD(visa.fee) : "—"}</dd>
               </div>
               <div className="flex justify-between gap-3 rounded-md bg-ivory-50 px-3 py-2">
                 <dt className="text-slate-500">{t.currentBalance}</dt>
-                <dd className="font-medium tabular-nums text-navy-900">{props.walletBalance} DZD</dd>
+                <dd className="font-medium tabular-nums text-navy-900">{formatDZD(props.walletBalance)}</dd>
               </div>
               <div className={`flex justify-between gap-3 rounded-xl px-3 py-2 ${canAfford ? "bg-emerald-50" : "bg-gold-50"}`}>
                 <dt className={canAfford ? "text-emerald-700" : "text-gold-800"}>{t.balanceAfter}</dt>
                 <dd className={`font-medium tabular-nums ${canAfford ? "text-emerald-800" : "text-gold-800"}`}>
-                  {canAfford && visa ? `${afterNum.toFixed(2)} DZD` : "—"}
+                  {canAfford && visa ? formatDZD(afterNum) : "—"}
                 </dd>
               </div>
             </dl>
@@ -687,7 +688,7 @@ export function RequestWizard(props: Props) {
               className="btn-primary w-full sm:w-auto disabled:opacity-50"
               data-testid="wizard-submit"
             >
-              {pending ? t.submitting : `${t.submitApplication} — ${visa?.fee ?? ""} DZD`}
+              {pending ? t.submitting : <>{t.submitApplication} — <bdi dir="ltr">{visa ? formatDZD(visa.fee) : "—"}</bdi></>}
             </button>
           ) : (
             <div className="space-y-3 rounded-2xl border border-gold-200 bg-gold-50 p-4">
@@ -695,15 +696,15 @@ export function RequestWizard(props: Props) {
               <dl className="grid grid-cols-1 gap-1 text-sm sm:grid-cols-3">
                 <div className="flex justify-between gap-2">
                   <dt className="text-gold-800">{t.requiredAmount}</dt>
-                  <dd className="font-medium tabular-nums text-gold-900">{feeNumber.toFixed(2)} DZD</dd>
+                  <dd className="font-medium tabular-nums text-gold-900">{formatDZD(feeNumber)}</dd>
                 </div>
                 <div className="flex justify-between gap-2">
                   <dt className="text-gold-800">{t.currentBalance}</dt>
-                  <dd className="font-medium tabular-nums text-gold-900">{balanceNumber.toFixed(2)} DZD</dd>
+                  <dd className="font-medium tabular-nums text-gold-900">{formatDZD(balanceNumber)}</dd>
                 </div>
                 <div className="flex justify-between gap-2">
                   <dt className="text-gold-800">{t.missingAmount}</dt>
-                  <dd className="font-semibold tabular-nums text-gold-900">{missing.toFixed(2)} DZD</dd>
+                  <dd className="font-semibold tabular-nums text-gold-900">{formatDZD(missing)}</dd>
                 </div>
               </dl>
               <a href={topupHref} className="btn-primary inline-flex w-full sm:w-auto" data-testid="wizard-topup-cta">

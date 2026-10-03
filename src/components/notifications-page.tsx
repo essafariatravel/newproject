@@ -1,6 +1,6 @@
-import { businessLabel, notificationCategory } from "@/lib/business-labels";
+import { businessLabel } from "@/lib/business-labels";
 import Link from "next/link";
-import { listNotificationsForUser } from "@/lib/queries";
+import { listNotificationsForUser, unreadNotificationCount } from "@/lib/queries";
 import { markNotificationsReadAction } from "@/app/actions/communications";
 import { SubmitButton } from "@/components/forms";
 import { EmptyState, PageHeader } from "@/components/ui";
@@ -20,16 +20,14 @@ export async function NotificationsPage({
 }) {
   const locale = await getUiLocale(sp);
   const ct = contentT(locale);
-  const notifications = await listNotificationsForUser(user.id);
-  const filter = typeof sp?.filter === "string" ? sp.filter : "all";
-  const visible = notifications.filter((n) => filter === "all" || notificationCategory(n.type) === filter);
-  const unread = notifications.filter((n) => !n.readAt).length;
+  const filter = typeof sp?.filter === "string" && ["all", "action", "applications", "messages", "wallet"].includes(sp.filter) ? sp.filter as "all" | "action" | "applications" | "messages" | "wallet" : "all";
+  const [unread, visible] = await Promise.all([unreadNotificationCount(user.id), listNotificationsForUser(user.id, 100, filter)]);
 
   return (
     <>
       <PageHeader
         title={ct("Notifications")}
-        subtitle={`${unread} ${ct("unread notifications")} · ${notifications.length} ${ct("total")}`}
+        subtitle={`${unread} ${ct("unread notifications")}`}
         actions={
           unread > 0 ? (
             <form action={markNotificationsReadAction}>
@@ -56,13 +54,15 @@ export async function NotificationsPage({
                   {n.link ? <Link href={n.link} className="hover:underline">{businessLabel(n.type, locale)}</Link> : businessLabel(n.type, locale)}
                   {!n.readAt ? <span className="badge ms-2 bg-gold-100 text-gold-600">{ct("New")}</span> : null}
                 </p>
+                <p className="mt-1 text-sm text-navy-900">{[!user.agencyId ? n.agencyName : null, n.travellerName, n.destination, n.visaName].filter(Boolean).join(" · ")}</p>
+                {n.reference ? <p className="text-xs text-slate-500"><bdi>{n.reference}</bdi></p> : null}
                 <p className="mt-0.5 text-sm text-slate-600">{["MESSAGE_POSTED", "DOCUMENT_REQUESTED"].includes(n.type) ? n.body : null}</p>
                 <p className="mt-1 text-[11px] text-slate-400">{formatDateTime(n.createdAt, locale)}</p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1.5">
                 {n.link ? (
                   <Link href={n.link} className="btn-secondary btn-sm">
-                    {ct("Open")} →
+                    {ct(filter === "action" ? "Next action" : "Open")} <span aria-hidden="true" className="directional-arrow">→</span>
                   </Link>
                 ) : null}
                 {!n.readAt ? (

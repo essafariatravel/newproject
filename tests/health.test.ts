@@ -1,12 +1,17 @@
 import { randomBytes } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { suiteSetup } from "./helpers/global-state";
 import { Pool } from "pg";
 import { readdirSync } from "node:fs";
 import path from "node:path";
 import { testConnectionString } from "./helpers/pg";
+import { request } from "./helpers/request";
+import { userByEmail } from "./helpers/fixtures";
+import { createSession } from "@/lib/auth";
 
 suiteSetup();
+beforeEach(async()=>{request.cookie=(await createSession((await userByEmail("admin@test.example")).id)).token;});
+afterEach(()=>{request.cookie="";});
 
 /** Every migration file, in ledger order. */
 const MIGRATION_FILES = readdirSync(path.join(__dirname, "..", "migrations"))
@@ -16,6 +21,14 @@ const MIGRATION_FILES = readdirSync(path.join(__dirname, "..", "migrations"))
 import { GET as healthGET } from "../src/app/api/health/route";
 
 describe("GET /api/health (deployment diagnostics, never a 500, never secrets)", () => {
+  it("public and Agency monitoring expose readiness without catalogue, account or infrastructure details",async()=>{
+    request.cookie="";
+    const publicResponse=await (await healthGET()).json();
+    expect(publicResponse.ok).toBe(true);
+    expect(Object.keys(publicResponse).sort()).toEqual(["deployment","ok","service"]);
+    request.cookie=(await createSession((await userByEmail("a-admin@test.example")).id)).token;
+    expect(Object.keys(await (await healthGET()).json()).sort()).toEqual(["deployment","ok","service"]);
+  });
   it("does not report healthy when table names exist but columns are incompatible", async () => {
     const pool = new Pool({ connectionString: testConnectionString() });
     const previous = process.env.DATABASE_SCHEMA;

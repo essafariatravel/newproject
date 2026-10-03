@@ -15,7 +15,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { PoolClient } from "pg";
 import { db, pool } from "@/lib/db";
 import { agencies, applications, walletTransactions } from "@/db/schema";
-import { AppError, type AuthUser } from "@/lib/types";
+import { AppError, type AuthUser, isStaffRole } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
 import { agencyUserIds, notifyUsers } from "@/lib/notifications";
 
@@ -144,6 +144,7 @@ export async function adjustWallet(params: {
   ipAddress?: string | null;
   operation?: "CREDIT" | "DEBIT";
 }): Promise<string> {
+  if (!isStaffRole(params.actor.role) || params.actor.agencyId || params.actor.mustChangePassword) throw new AppError("FORBIDDEN", "Only ESSAFARIA staff can adjust wallets.");
   let operation: "CREDIT" | "DEBIT";
   let amountAbs: string;
   if (params.operation) {
@@ -160,6 +161,9 @@ export async function adjustWallet(params: {
     amountAbs = Math.abs(rounded).toFixed(2);
     operation = rounded > 0 ? "CREDIT" : "DEBIT";
   }
+  if (Number(amountAbs) <= 0) throw new AppError("INVALID_AMOUNT", "Amount must be at least 0.01 DZD.");
+  const reason = params.reason?.trim();
+  if (!reason || reason.length < 5 || reason.length > 500) throw new AppError("REASON_REQUIRED", "Give a reason between 5 and 500 characters for this wallet adjustment.");
 
   const client = await pool.connect();
   let result: WalletMutationResult;
@@ -169,7 +173,7 @@ export async function adjustWallet(params: {
       agencyId: params.agencyId,
       operation,
       amountAbs,
-      reason: params.reason,
+      reason,
       actorId: params.actor.id,
     });
     await client.query("commit");

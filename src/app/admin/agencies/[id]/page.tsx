@@ -1,4 +1,6 @@
+import { WalletAdjustmentForm } from "@/components/wallet-adjustment-form";
 import { businessLabel } from "@/lib/business-labels";
+import { identityT } from "@/lib/identity-copy";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { pageUser } from "@/lib/page-auth";
@@ -9,7 +11,7 @@ import { agencies, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatAmount, formatDateTime } from "@/lib/format";
-import { adjustWalletAction, toggleAgencyStatusAction, updateAgencyAction, createUserAction } from "@/app/actions/admin";
+import { toggleAgencyStatusAction, updateAgencyAction, createUserAction } from "@/app/actions/admin";
 import { searchApplications } from "@/lib/queries";
 import { PasswordField, SubmitButton } from "@/components/forms";
 import BrandMark from "@/components/brand-mark";
@@ -231,27 +233,8 @@ export default async function AdminAgencyDetailPage({
         <div className="space-y-4">
           {canAdjust ? (
             <Card>
-              <CardHeader title={ct("Wallet adjustment")} subtitle={`${ct("Current balance")} ${formatAmount(balance.balance, "DZD", uiLocale)}. DZD only. ${ct("Every adjustment is logged.")}`} />
-              <form action={adjustWalletAction} className="space-y-3 px-4 py-4">
-                <input type="hidden" name="agencyId" value={id} />
-                <input type="hidden" name="back" value={`/admin/agencies/${id}`} />
-                <div>
-                  <label className="label" htmlFor="operation">{ct("Operation")} *</label>
-                  <select id="operation" name="operation" required className="input" defaultValue="CREDIT">
-                    <option value="CREDIT">{ct("Credit wallet")}</option>
-                    <option value="DEBIT">{ct("Debit wallet")}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label" htmlFor="amount">{ct("Amount (DZD)")} *</label>
-                  <input id="amount" name="amount" type="number" step="0.01" min="0.01" required className="input" placeholder="50000" />
-                </div>
-                <div>
-                  <label className="label" htmlFor="reason">{ct("Reason (mandatory)")} *</label>
-                  <input id="reason" name="reason" required minLength={5} className="input" placeholder={ct("Bank transfer #1234, refund…")} />
-                </div>
-                <SubmitButton className="btn-primary w-full" pendingLabel="Adjusting…">{ct("Apply adjustment")}</SubmitButton>
-              </form>
+              <CardHeader title={ct("Wallet adjustment")} subtitle={<>{ct("Current balance")} <bdi dir="ltr">{formatAmount(balance.balance, "DZD", uiLocale)}</bdi>. DZD only. {ct("Every adjustment is logged.")}</>} />
+              <WalletAdjustmentForm agencies={[{id:agency.id,name:agency.tradingName??agency.legalName,balance:balance.balance}]} back={`/admin/agencies/${id}`} locale={uiLocale}/>
             </Card>
           ) : null}
 
@@ -266,8 +249,8 @@ export default async function AdminAgencyDetailPage({
                   <input id="u-name" name="name" required className="input" />
                 </div>
                 <div>
-                  <label className="label" htmlFor="u-email">{ct("Email")} *</label>
-                  <input id="u-email" name="email" type="email" required className="input" />
+                  <label className="label" htmlFor="u-username">{identityT(uiLocale)("Username")} *</label>
+                  <input id="u-username" name="username" type="text" required minLength={3} maxLength={48} className="input" dir="ltr" />
                 </div>
                 <div>
                   <label className="label" htmlFor="u-role">{ct("Role")} *</label>
@@ -297,7 +280,7 @@ export default async function AdminAgencyDetailPage({
                 <li key={u.id} className="flex items-center justify-between gap-2 py-2.5">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-navy-900">{u.name}</p>
-                    <p className="truncate text-xs text-slate-400">{u.email}</p>
+                    <p className="truncate text-xs text-slate-400" dir="ltr">{u.username}</p>
                   </div>
                   <div className="text-right">
                     <span className="badge bg-navy-900/5 text-navy-800">{businessLabel(u.role, uiLocale)}</span>

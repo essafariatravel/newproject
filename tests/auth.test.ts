@@ -38,7 +38,7 @@ describe("authentication", () => {
   it("suspended users cannot authenticate", async () => {
     await db.update(users).set({ status: "SUSPENDED" }).where(sql`lower(${users.email}) = 'agent@test.example'`);
     await expect(authenticate("agent@test.example", "Test-Password-123")).rejects.toMatchObject({
-      code: "USER_SUSPENDED",
+      code: "INVALID_CREDENTIALS",
     });
     await db.update(users).set({ status: "ACTIVE" }).where(sql`lower(${users.email}) = 'agent@test.example'`);
   });
@@ -47,8 +47,8 @@ describe("authentication", () => {
     const { agencies } = await import("@/db/schema");
     const agency = (await db.select().from(agencies)).find((a) => a.legalName === "Agency A Ltd")!;
     await db.update(agencies).set({ status: "SUSPENDED" }).where(eq(agencies.id, agency.id));
-    await expect(authenticate("a-user@test.example", "Test-Password-123")).rejects.toMatchObject({
-      code: "AGENCY_SUSPENDED",
+    await expect(authenticate("a-user", "Test-Password-123")).rejects.toMatchObject({
+      code: "INVALID_CREDENTIALS",
     });
     await db.update(agencies).set({ status: "ACTIVE" }).where(eq(agencies.id, agency.id));
   });

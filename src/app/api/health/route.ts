@@ -21,6 +21,8 @@ import { safeErrorCode, safeErrorText } from "@/lib/safe-error";
 import { databaseSchema, qualifiedTable } from "@/lib/database-schema";
 import { getTableColumns, getTableName, is, Table } from "drizzle-orm";
 import * as applicationSchema from "@/db/schema";
+import { getSessionUser } from "@/lib/auth";
+import { isStaffRole } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -148,7 +150,7 @@ export async function GET() {
 
   const tablesOk = REQUIRED_TABLES.every((table) => report.schema.requiredTables[table] === true);
   report.ok = report.database.connected && !report.database.error && tablesOk && report.schema.columnsValid &&
-    ["0001_init.sql", "0002_branding.sql"].every((name) => report.schema.migrationLedger.includes(name));
+    ["0001_init.sql", "0002_branding.sql", "0020_identity_security.sql", "0021_business_invariants.sql", "0022_registration_review.sql", "0023_operations_legal.sql", "0024_preview_api_lockdown.sql", "0025_legal_privacy_readiness.sql", "0026_function_privilege_hardening.sql", "0027_document_integrity.sql", "0028_file_identity_hardening.sql"].every((name) => report.schema.migrationLedger.includes(name));
 
   if (report.database.configured && !report.database.connected) {
     report.notes.push("DATABASE_URL is set but the connection failed — see database.error for the PostgreSQL error code.");
@@ -165,5 +167,9 @@ export async function GET() {
     );
   }
 
-  return NextResponse.json(report, { headers: { "Cache-Control": "no-store" } });
+  const user = await getSessionUser().catch(()=>null);
+  const staff = user && isStaffRole(user.role) && !user.mustChangePassword;
+  // Public monitoring reports readiness only. Catalogue/account population and
+  // infrastructure diagnostics are restricted to authenticated operational staff.
+  return NextResponse.json(staff ? report : {ok:report.ok,service:report.service,deployment:report.deployment}, { headers: { "Cache-Control": "no-store" } });
 }

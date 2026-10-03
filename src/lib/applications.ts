@@ -7,6 +7,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   applicants,
+  agencies,
   auditLogs,
   notifications,
   communications,
@@ -22,8 +23,11 @@ import {
   visaCategories,
   visaRequirements,
   visaTypes,
+  documentRequests,
 } from "@/db/schema";
-import { AppError, OVERRIDE_ROLES, type AuthUser, MAX_UPLOAD_BYTES } from "@/lib/types";
+import { AppError, OVERRIDE_ROLES, type AuthUser, MAX_UPLOAD_BYTES, isStaffRole, isAgencyRole } from "@/lib/types";
+import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
+import { validateDocumentFormat } from "@/lib/upload-validation";
 import { chargeApplicationSubmission } from "@/lib/wallet";
 import { recordAudit } from "@/lib/audit";
 import { getEmbassyApplicability } from "@/lib/queries";
@@ -89,8 +93,8 @@ async function generateReference(): Promise<string> {
 /* ------------------------------------------------------------------ */
 
 /** Snapshot the visa requirements of this visa type into checklist items. */
-export async function generateChecklist(applicationId: string, visaTypeId: string): Promise<void> {
-  const reqs = await db
+export async function generateChecklist(applicationId: string, visaTypeId: string, executor: Pick<typeof db, "select" | "insert"> = db): Promise<void> {
+  const reqs = await executor
     .select({
       documentTypeId: documentTypes.id,
       name: documentTypes.name,
@@ -104,7 +108,7 @@ export async function generateChecklist(applicationId: string, visaTypeId: strin
     .where(and(eq(visaRequirements.visaTypeId, visaTypeId), eq(visaRequirements.active, true)))
     .orderBy(asc(visaRequirements.sortOrder));
   if (reqs.length === 0) return;
-  await db
+  await executor
     .insert(checklistItems)
     .values(
       reqs.map((r) => ({
@@ -207,49 +211,38 @@ export interface CreateApplicationInput {
  * from the current visa configuration and never re-derived later.
  */
 export async function createDraftApplication(input: CreateApplicationInput) {
-  const rows = await db
-    .select({
-      visaType: visaTypes,
-      country: countries,
-      category: visaCategories,
-    })
-    .from(visaTypes)
-    .innerJoin(countries, eq(visaTypes.countryId, countries.id))
-    .innerJoin(visaCategories, eq(visaTypes.categoryId, visaCategories.id))
-    .where(and(eq(visaTypes.id, input.visaTypeId), eq(visaTypes.active, true)))
-    .limit(1);
-  const cfg = rows[0];
-  if (!cfg) throw new AppError("NOT_FOUND", "Visa type not found or inactive.");
-
+  const actor = input.createdBy;
+  if (actor.mustChangePassword || (actor.agencyId ? !isAgencyRole(actor.role) || actor.agencyId !== input.agencyId : !isStaffRole(actor.role))) {
+    throw new AppError("FORBIDDEN", "You cannot create an application for this agency.");
+  }
   const draftStatus = await getStatusByCode("DRAFT");
   const priorityId = input.priorityCode
     ? ((await getPriorityByCode(input.priorityCode))?.id ?? (await getDefaultPriorityId()))
     : await getDefaultPriorityId();
-
   const reference = await generateReference();
-  const inserted = await db
-    .insert(applications)
-    .values({
-      reference,
-      agencyId: input.agencyId,
-      countryId: cfg.country.id,
-      visaTypeId: cfg.visaType.id,
-      statusId: draftStatus.id,
-      priorityId,
-      visaTypeName: cfg.visaType.name,
-      visaTypeCode: cfg.visaType.code,
-      categoryName: cfg.category.name,
-      countryName: cfg.country.name,
-      fee: cfg.visaType.fee,
-      currency: cfg.visaType.currency,
-      processingMinDays: cfg.visaType.processingMinDays,
-      processingMaxDays: cfg.visaType.processingMaxDays,
-      agencyNotes: input.agencyNotes ?? null,
-      createdBy: input.createdBy.id,
-    })
-    .returning();
-  const app = inserted[0]!;
-  await generateChecklist(app.id, app.visaTypeId);
+  const app = await db.transaction(async (tx) => {
+    const [agency] = await tx.select({ id: agencies.id, status: agencies.status }).from(agencies).where(eq(agencies.id, input.agencyId)).for("share");
+    if (!agency || agency.status !== "ACTIVE") throw new AppError("NOT_FOUND", "Agency not found or inactive.");
+    const rows = await tx
+      .select({ visaType: visaTypes, country: countries, category: visaCategories })
+      .from(visaTypes)
+      .innerJoin(countries, eq(visaTypes.countryId, countries.id))
+      .innerJoin(visaCategories, eq(visaTypes.categoryId, visaCategories.id))
+      .where(and(eq(visaTypes.id, input.visaTypeId), eq(visaTypes.active, true), eq(countries.active, true), eq(visaCategories.active, true), eq(visaTypes.currency, "DZD")))
+      .limit(1)
+      .for("share");
+    const cfg = rows[0];
+    if (!cfg) throw new AppError("NOT_FOUND", "Visa type not found or inactive.");
+    const [created] = await tx.insert(applications).values({
+      reference, agencyId: input.agencyId, countryId: cfg.country.id, visaTypeId: cfg.visaType.id,
+      statusId: draftStatus.id, priorityId, visaTypeName: cfg.visaType.name, visaTypeCode: cfg.visaType.code,
+      categoryName: cfg.category.name, countryName: cfg.country.name, fee: cfg.visaType.fee, currency: cfg.visaType.currency,
+      processingMinDays: cfg.visaType.processingMinDays, processingMaxDays: cfg.visaType.processingMaxDays,
+      agencyNotes: input.agencyNotes ?? null, createdBy: input.createdBy.id,
+    }).returning();
+    await generateChecklist(created!.id, created!.visaTypeId, tx);
+    return created!;
+  });
   await recordAudit({
     actor: input.createdBy,
     action: "APPLICATION_CREATED",
@@ -462,8 +455,6 @@ export async function changeApplicationStatus(params: {
   reason?: string | null;
   actor: AuthUser;
   ipAddress?: string | null;
-  /** internal: set by the decision workflow only */
-  viaDecision?: boolean;
 }) {
   const { actor } = params;
   const row = await getApplicationForUser(params.applicationId, actor);
@@ -472,23 +463,28 @@ export async function changeApplicationStatus(params: {
   const fromRows = await db.select().from(statuses).where(eq(statuses.id, app.statusId)).limit(1);
   const from = fromRows[0];
   if (!from) throw new AppError("CONFIG_ERROR", "Current status is not configured.");
+  if (from.isTerminal) throw new AppError("BAD_STATE", "This application is closed.");
 
   const to = await getStatusByCode(params.toStatusCode);
   if (from.id === to.id) {
     throw new AppError("INVALID_TRANSITION", "Application is already in that status.");
   }
 
-  if (!params.viaDecision && DECISION_LOCKED_STATUSES.has(to.code)) {
+  if (DECISION_LOCKED_STATUSES.has(to.code)) {
     throw new AppError(
       "DECISION_REQUIRED",
       `${to.name} outcomes must be recorded through the final-decision panel: upload the decision document first.`,
     );
   }
+  if (to.code === "SUBMITTED") throw new AppError("SUBMISSION_REQUIRED", "Submit this application through the submission workflow so its documents and wallet charge are recorded together.");
+  if (to.isDraft) throw new AppError("INVALID_TRANSITION", "Submitted applications cannot return to a draft.");
+  if (from.isDraft && to.code !== "CANCELLED") throw new AppError("SUBMISSION_REQUIRED", "Submit this application before it enters operational processing.");
+  if (actor.mustChangePassword || (actor.agencyId && !(from.isDraft && to.code === "CANCELLED"))) throw new AppError("FORBIDDEN", "Only ESSAFARIA staff can perform operational status changes.");
 
   // §18 — the embassy stage is programme-driven, not a global step. A
   // programme that declares NOT_APPLICABLE can never be moved there, and the
   // guard lives here (server-side), not only in the UI.
-  if (EMBASSY_STATUS_CODES.has(to.code) && !params.viaDecision) {
+  if (EMBASSY_STATUS_CODES.has(to.code)) {
     const applicability = await getEmbassyApplicability(app.visaTypeId);
     if (applicability === "NOT_APPLICABLE") {
       throw new AppError(
@@ -511,12 +507,12 @@ export async function changeApplicationStatus(params: {
     );
   }
 
-  const isStaffWorkflow = ["SUPER_ADMIN", "ADMIN", "VISA_AGENT"].includes(actor.role);
+  const isStaffWorkflow = isStaffRole(actor.role) && !actor.agencyId;
   const isAgencyRole = ["AGENCY_ADMIN", "AGENCY_USER"].includes(actor.role);
   const scopeOk =
     (t.scope === "STAFF" && isStaffWorkflow) ||
     (t.scope === "AGENCY" && isAgencyRole) ||
-    t.scope === "BOTH";
+    (t.scope === "BOTH" && (isStaffWorkflow || isAgencyRole));
   if (!scopeOk) {
     throw new AppError("FORBIDDEN", "Your role cannot perform this status change.");
   }
@@ -539,6 +535,8 @@ export async function changeApplicationStatus(params: {
       changedBy: actor.id,
       reason: params.reason?.trim() || null,
     });
+    if (to.isTerminal) await tx.update(documentRequests).set({ status: "CANCELLED", updatedAt: new Date() })
+      .where(and(eq(documentRequests.applicationId, app.id), eq(documentRequests.status, "OPEN")));
   });
 
   await recordAudit({
@@ -591,8 +589,6 @@ export async function changeApplicationStatus(params: {
 /* ------------------------------------------------------------------ */
 
 export type DecisionOutcome = "APPROVED" | "REJECTED";
-
-const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 export const DECISION_DOC_TYPE_CODES = ["DECISION_VISA_APPROVAL", "DECISION_REFUSAL_LETTER"] as const;
 
@@ -649,43 +645,45 @@ interface DecisionInput {
   file?: { name: string; type: string; size: number; data: Buffer };
   note?: string | null; ipAddress?: string | null;
 }
-export function recordApplicationDecision(params: DecisionInput & { file: NonNullable<DecisionInput["file"]> }): Promise<{ documentId: string; statusCode: string }>;
-export function recordApplicationDecision(params: DecisionInput): Promise<{ documentId: string | null; statusCode: string }>;
-export async function recordApplicationDecision(params: DecisionInput): Promise<{ documentId: string | null; statusCode: string }> {
+export async function recordApplicationDecision(params: DecisionInput): Promise<{ documentId: string; statusCode: string }> {
   const { actor, file: f } = params;
-  if (!["SUPER_ADMIN", "ADMIN", "VISA_AGENT"].includes(actor.role) || actor.agencyId) {
+  if (!isStaffRole(actor.role) || actor.agencyId || actor.mustChangePassword) {
     throw new AppError("FORBIDDEN", "Only ESSAFARIA staff can record application decisions.");
   }
   if (!["APPROVED", "REJECTED"].includes(params.outcome)) throw new AppError("VALIDATION", "Choose a final decision.");
   const note = params.note?.trim() || null;
   if (note && note.length > 4000) throw new AppError("VALIDATION", "The note is too long.");
-  if (f) {
+  if (!f) throw new AppError("NO_FILE", "Select the official approval or refusal document before recording the decision.");
+  {
     if (f.size <= 0 || !f.data.length) throw new AppError("NO_FILE", "The uploaded file is empty.");
     if (f.size > MAX_UPLOAD_BYTES || f.data.length > MAX_UPLOAD_BYTES) throw new AppError("UPLOAD_TOO_LARGE", "Files must be 2 MB or smaller.");
-    const valid = (f.type === "application/pdf" && f.data.subarray(0, 4).toString("latin1") === "%PDF")
-      || (f.type === "image/jpeg" && f.data.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])))
-      || (f.type === "image/png" && f.data.subarray(0, 8).equals(PNG_MAGIC));
-    if (!valid) throw new AppError("UPLOAD_TYPE", "Only matching PDF, JPG or PNG decision documents are accepted.");
+    const problem = fileNameProblem(f.name);
+    if (problem) throw new AppError("INVALID_FILENAME", fileNameErrorMessage(problem));
+    if (!["application/pdf", "image/jpeg", "image/png"].includes(f.type)) throw new AppError("UPLOAD_TYPE", "Only matching PDF, JPG or PNG decision documents are accepted.");
+    try { validateDocumentFormat(f); } catch { throw new AppError("UPLOAD_TYPE", "Only matching PDF, JPG or PNG decision documents are accepted."); }
   }
   const app = (await getApplicationForUser(params.applicationId, actor)).app;
-  const documentId = f ? crypto.randomUUID() : null;
-  const storageKey = documentId ? buildStorageKey(app.id, documentId) : null;
-  if (f && storageKey) await storageProvider().put(storageKey, f.data, f.type);
+  const documentId = crypto.randomUUID();
+  const storageKey = buildStorageKey(app.id, documentId);
+  await storageProvider().put(storageKey, f.data, f.type);
   try {
     return await db.transaction(async (tx) => {
       const [locked] = await tx.select().from(applications).where(eq(applications.id, app.id)).for("update");
-      const [from] = await tx.select().from(statuses).where(eq(statuses.id, locked!.statusId));
+      if (!locked) throw new AppError("NOT_FOUND", "Application not found.");
+      const [from] = await tx.select().from(statuses).where(eq(statuses.id, locked.statusId));
       const [to] = await tx.select().from(statuses).where(and(eq(statuses.code, params.outcome), eq(statuses.active, true)));
       if (!from || !to) throw new AppError("CONFIG_ERROR", "Decision workflow is not configured.");
       if (!(DECISION_SOURCES[from.code] ?? []).includes(params.outcome)) {
         throw new AppError("BAD_STATE", "The application must be in Processing or at the Embassy and must not already be decided.");
       }
+      const [programme] = await tx.select({ applicability: visaTypes.embassyApplicability }).from(visaTypes).where(eq(visaTypes.id, locked.visaTypeId));
+      if (programme?.applicability === "APPLICABLE" && from.code !== "EMBASSY_SENT") throw new AppError("EMBASSY_REQUIRED", "This programme requires the embassy stage before its final decision.");
       const [transition] = await tx.select().from(statusTransitions).where(and(
         eq(statusTransitions.fromStatusId, from.id), eq(statusTransitions.toStatusId, to.id),
       ));
       if (!transition || !["STAFF", "BOTH"].includes(transition.scope)) throw new AppError("BAD_STATE", "This decision is not allowed by the configured workflow.");
       const now = new Date();
-      if (f && documentId && storageKey) {
+      {
         const [dt] = await tx.select().from(documentTypes).where(and(eq(documentTypes.code, documentTypeForOutcome(params.outcome)), eq(documentTypes.active, true)));
         if (!dt) throw new AppError("CONFIG_ERROR", "Decision document type is not available.");
         await tx.insert(documents).values({ id: documentId, applicationId: app.id, documentTypeId: dt.id,
@@ -695,6 +693,8 @@ export async function recordApplicationDecision(params: DecisionInput): Promise<
         });
       }
       await tx.update(applications).set({ statusId: to.id, decisionAt: now, updatedAt: now }).where(eq(applications.id, app.id));
+      await tx.update(documentRequests).set({ status: "CANCELLED", updatedAt: now })
+        .where(and(eq(documentRequests.applicationId, app.id), eq(documentRequests.status, "OPEN")));
       await tx.insert(applicationStatusHistory).values({ applicationId: app.id, fromStatusId: from.id,
         toStatusId: to.id, changedBy: actor.id, reason: note ?? `Final decision: ${to.name}`,
       });
@@ -714,7 +714,7 @@ export async function recordApplicationDecision(params: DecisionInput): Promise<
       return { documentId, statusCode: to.code };
     });
   } catch (error) {
-    if (storageKey) await storageProvider().delete(storageKey).catch(() => {});
+    await storageProvider().delete(storageKey).catch(() => {});
     throw error;
   }
 }
@@ -752,15 +752,18 @@ export async function listTransitions() {
 
 /** Allowed next statuses for the UI. */
 export async function allowedNextStatuses(fromStatusId: string, role: AuthUser["role"]) {
+  const [from] = await db.select({ draft: statuses.isDraft, terminal: statuses.isTerminal }).from(statuses).where(eq(statuses.id, fromStatusId));
+  if (!from || from.terminal) return [];
   const rows = await db
     .select({ status: statuses, scope: statusTransitions.scope })
     .from(statusTransitions)
     .innerJoin(statuses, eq(statusTransitions.toStatusId, statuses.id))
     .where(and(eq(statusTransitions.fromStatusId, fromStatusId), eq(statuses.active, true)))
     .orderBy(asc(statuses.sortOrder));
-  const isStaffWorkflow = ["SUPER_ADMIN", "ADMIN", "VISA_AGENT"].includes(role);
+  const isStaffWorkflow = isStaffRole(role);
   const isAgencyRole = ["AGENCY_ADMIN", "AGENCY_USER"].includes(role);
-  return rows.filter((r) =>
+  return rows.filter((r) => !r.status.isDraft && !["SUBMITTED", "APPROVED", "REJECTED"].includes(r.status.code))
+    .filter((r) => (!from.draft || r.status.code === "CANCELLED") && (!isAgencyRole || (from.draft && r.status.code === "CANCELLED"))).filter((r) =>
     r.scope === "BOTH"
       ? isStaffWorkflow || isAgencyRole
       : r.scope === "STAFF"

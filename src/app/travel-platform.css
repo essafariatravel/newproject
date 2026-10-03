@@ -67,6 +67,7 @@ a, button, summary, input, select, textarea { -webkit-tap-highlight-color: trans
 .public-site > header { background: white; color: var(--color-navy-900); border-bottom: 1px solid var(--color-line); }
 .public-site > header a:not(.btn-gold), .public-site > header button { color: var(--color-navy-900); }
 .public-site > header .text-white { color: var(--color-navy-900); }
+.public-site > header button[aria-current="true"] { color: white; }
 .public-site > header .public-menu-panel { background: white; border-color: var(--color-line); }
 .public-site > header [data-testid='public-menu-toggle'] { border-color: #b6c2cb; border-radius: 6px; width: 44px; height: 44px; }
 .public-site > header nav a:hover { background: #f1f5f6; }
