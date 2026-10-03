@@ -16,6 +16,8 @@ on:
       - "scripts/dr-finalize.ts"
       - "scripts/dr-local-drill.ts"
       - "scripts/dr-verify-offsite-copy.ts"
+      - "scripts/dr-repo-safety.ts"
+      - "tests/dr-repo-safety.test.ts"
       - "scripts/reset.ts"
       - "scripts/lib/reset-plan.ts"
       - "scripts/lib/build-policy.ts"
@@ -76,9 +78,13 @@ jobs:
           tests/dr-safety.test.ts
           tests/dr-backup.test.ts
           tests/dr-finalization.test.ts
+          tests/dr-repo-safety.test.ts
           tests/reset-plan.test.ts
           tests/build-preview-guard.test.ts
           tests/prod-release-preflight.test.ts
+
+      - name: Public repository DR artifact safety
+        run: npm run dr:repo-safety
 
       - name: Full local synthetic backup-to-restore drill
         run: npm run dr:local-drill
