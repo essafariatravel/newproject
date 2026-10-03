@@ -22,6 +22,19 @@ async function requirePerfActor(client: PoolClient, email: string): Promise<stri
   return result.rows[0].id;
 }
 
+
+async function requirePerfAgency(client: PoolClient): Promise<string> {
+  const result = await client.query<{ id: string; status: string; currency: string }>(
+    `select id, status, currency from ${perfTable("agencies")} where lower(email)=lower($1) limit 1`,
+    ["perf.agency@load.example"],
+  );
+  const row = result.rows[0];
+  if (!row || row.status !== "ACTIVE" || row.currency !== "DZD") {
+    throw new Error("Run perf-seed-identities first; PERF_LOAD_AGENCY is missing or inactive.");
+  }
+  return row.id;
+}
+
 async function main() {
   const target = assertSafePerfTarget();
   const datasetId = (process.env.PERF_DATASET_ID ?? "").toLowerCase();
@@ -33,7 +46,7 @@ async function main() {
   }
 
   const applicationCount = intEnv("PERF_APPLICATIONS", 1000, 1, 100000);
-  const agencyCount = intEnv("PERF_AGENCIES", Math.min(100, Math.max(10, Math.ceil(applicationCount / 100))), 1, 1000);
+  const agencyCount = intEnv("PERF_AGENCIES", Math.min(100, Math.max(10, Math.ceil(applicationCount / 100))), 2, 1000);
   const docsPerApp = intEnv("PERF_DOCS_PER_APP", 4, 0, 10);
   const notificationsPerApp = intEnv("PERF_NOTIFICATIONS_PER_APP", 3, 0, 10);
   const messagesPerApp = intEnv("PERF_MESSAGES_PER_APP", 1, 0, 5);
@@ -62,12 +75,17 @@ async function main() {
 
       const actorId = await requirePerfActor(client, "perf.superadmin@load.example");
       const staffNotificationUserId = await requirePerfActor(client, "perf.agent@load.example");
+      const portalAgencyId = await requirePerfAgency(client);
 
       await client.query("begin");
 
-      const agencies: string[] = [];
-      for (let offset = 0; offset < agencyCount; offset += 250) {
-        const n = Math.min(250, agencyCount - offset);
+      // Include the authenticated PERF agency so Agency Portal list/detail/search
+      // paths receive realistic scale. Remaining agencies exercise Staff/global views.
+      const agencies: string[] = [portalAgencyId];
+      const dataAgencyCount = agencyCount - 1;
+      const ledgerAgencyIds: string[] = [];
+      for (let offset = 0; offset < dataAgencyCount; offset += 250) {
+        const n = Math.min(250, dataAgencyCount - offset);
         const rows = await client.query<{ id: string }>(
           `insert into ${perfTable("agencies")}
              (legal_name, trading_name, email, status, balance, currency, notes)
@@ -78,9 +96,11 @@ async function main() {
              'ACTIVE', 0, 'DZD', $3
            from generate_series(1,$1) g
            returning id`,
-          [n, offset, marker],
+          [n, offset + 1, marker],
         );
-        agencies.push(...rows.rows.map((row) => row.id));
+        const createdIds = rows.rows.map((row) => row.id);
+        agencies.push(...createdIds);
+        ledgerAgencyIds.push(...createdIds);
       }
 
       for (let offset = 0; offset < applicationCount; offset += batchSize) {
@@ -230,7 +250,8 @@ async function main() {
       }
 
       if (ledgerRows > 0) {
-        const ledgerAgency = agencies[0]!;
+        const ledgerAgency = ledgerAgencyIds[0];
+        if (!ledgerAgency) throw new Error("Synthetic ledger requires at least one dedicated PERF_DATA agency.");
         await client.query(
           `insert into ${perfTable("wallet_transactions")}
              (agency_id, application_id, type, amount, currency, balance_before, balance_after, reason, actor_id, created_at)
