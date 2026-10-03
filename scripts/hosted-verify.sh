@@ -214,7 +214,9 @@ EOF
 
 LEGAL_READY_COUNT=0
 for legal_page in "$WORK/reg-en.html" "$WORK/reg-fr.html" "$WORK/reg-ar.html"; do
-  grep -q 'name="termsVersionId"' "$legal_page" && LEGAL_READY_COUNT=$((LEGAL_READY_COUNT+1))
+  if grep -q 'name="termsVersionId"' "$legal_page" && grep -q 'name="privacyVersionId"' "$legal_page"; then
+    LEGAL_READY_COUNT=$((LEGAL_READY_COUNT+1))
+  fi
 done
 
 if [ "$LEGAL_READY_COUNT" = "3" ]; then
@@ -224,7 +226,10 @@ log "-- [2] Public minimized submission + mass-assignment junk"
 make_form en "$LEGAL_EN" "$EMAIL_EN"
 # push the mass-assignment junk fields into the multipart as well
 { printf '%s\n' "role=SUPER_ADMIN" "permissions=wallet.credit" "status=APPROVED" \
-  "agencyId=00000000-0000-0000-0000-000000000000" "balance=99999.00" "internalNotes=should-never-persist"; } >> "$WORK/form.txt"
+  "agencyId=00000000-0000-0000-0000-000000000000" "balance=99999.00" "internalNotes=should-never-persist" \
+  "addressLine=SHOULD-NOT-PERSIST" "commercialRegistrationNumber=SHOULD-NOT-PERSIST" \
+  "taxId=SHOULD-NOT-PERSIST" "licenceNumber=SHOULD-NOT-PERSIST" \
+  "monthlyVolume=200+" "mainMarkets=SHOULD-NOT-PERSIST"; } >> "$WORK/form.txt"
 CODE=$(submit_form "$WORK/reg-en.html" "$BASE_URL/agency/register?lang=en" \
   "Submit application for review" "$WORK/nojar.txt" "$WORK/form.txt")
 LOC=$(loc_header)
@@ -355,6 +360,11 @@ else
     grep -qi "No administrative documents received" "$WORK/detail1.html" \
       && ok "first-contact review correctly starts with no administrative documents" \
       || bad "first-contact document-minimization state missing"
+    if grep -q "SHOULD-NOT-PERSIST" "$WORK/detail1.html"; then
+      bad "legacy KYC/mass-assignment payload leaked into staff registration detail"
+    else
+      ok "legacy KYC/mass-assignment payload was discarded by the public action"
+    fi
 
     submit_form "$WORK/detail1.html" "$BASE_URL/admin/registrations/$ID1" "Start review" "$WORK/staff.txt" /dev/null >/dev/null
     statusb_of "$BASE_URL/admin/registrations/$ID1" "$WORK/detail1b.html" "$WORK/staff.txt" >/dev/null
@@ -813,10 +823,10 @@ fi
 CODE_SET=$(statusb_of "$BASE_URL/admin/settings" "$WORK/hx-settings.html" "$WORK/staff.txt")
 if [ "$CODE_SET" = "200" ]; then
   FORMS=$(grep -o '<form' "$WORK/hx-settings.html" | wc -l | tr -d ' ')
-  SAVES=$(grep -Eo 'Save website content|Save legal content|Save branding' "$WORK/hx-settings.html" | sort -u | wc -l | tr -d ' ')
+  SAVES=$(grep -Eo 'Save website content|Publish approved legal versions|Save branding' "$WORK/hx-settings.html" | sort -u | wc -l | tr -d ' ')
   LEGAL=$(grep -o 'name="legal\.[a-z]*\.\(en\|fr\|ar\)"' "$WORK/hx-settings.html" | sort -u | wc -l | tr -d ' ')
   [ "$SAVES" -ge 3 ] && [ "$LEGAL" -ge 6 ] \
-    && ok "HX-17 settings: independent saves ($SAVES) and 6+ per-language legal fields ($FORMS forms)" \
+    && ok "HX-17 settings: independent website/branding saves + controlled legal publication ($SAVES actions, $FORMS forms)" \
     || bad "HX-17 settings sections (saves=$SAVES legalFields=$LEGAL forms=$FORMS)"
   grep -q 'dir="rtl"' "$WORK/hx-settings.html" \
     && ok "HX-18 Arabic legal field is RTL on the settings screen" || bad "HX-18 Arabic legal field direction"
