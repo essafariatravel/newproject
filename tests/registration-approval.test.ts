@@ -274,6 +274,8 @@ describe("account activation — secure set-password flow", () => {
     expect(info?.locale).toBe("ar"); // registration locale drives status communication
 
     await expect(activateAccount(issued.token, "short")).rejects.toMatchObject({ code: "PASSWORD_POLICY" });
+    await expect(activateAccount(issued.token, "lettersOnlyPassword")).rejects.toMatchObject({ code: "PASSWORD_POLICY" });
+    await expect(activateAccount(issued.token, "12345678901")).rejects.toMatchObject({ code: "PASSWORD_POLICY" });
     const activated = await activateAccount(issued.token, "NewSecure!2345", "10.5.0.1");
     expect(activated.role).toBe("AGENCY_ADMIN");
     expect(activated.agencyId).toBe(approved.agencyId);
