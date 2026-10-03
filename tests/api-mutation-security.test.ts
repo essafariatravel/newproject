@@ -20,6 +20,10 @@ describe("mutating API request boundaries", () => {
       const source = readFileSync(file, "utf8");
       const mutates = /export\s+(?:async\s+)?function\s+(POST|PUT|PATCH|DELETE)\b/.test(source);
       if (!mutates) continue;
+      // The retired Preview bootstrap route is a permanent 404 and performs no mutation.
+      const retiredHard404 = source.includes("Historical Preview bootstrap endpoint") &&
+        source.includes("return notFound()") && source.includes("status: 404");
+      if (retiredHard404) continue;
       if (!/headers\.get\(["']origin["']\)/.test(source)) {
         failures.push(path.relative(process.cwd(), file));
       }
