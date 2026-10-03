@@ -42,12 +42,12 @@ The final non-deploying GitHub verification workflow passes with least-privilege
 - TypeScript typecheck: PASS;
 - lint: PASS;
 - protected Preview build-write guard: PASS;
-- full deterministic test suite: PASS — **100 test files / 689 tests** on verified code snapshot `190f52dfe9be05fe247b890fac52d12e8a3dd5e3`;
+- full deterministic test suite: PASS — **106 test files / 714 tests** on verified code snapshot `2c1dbd1926e3cf2272b315c3cd272acfb25fa71f`;
 - Next.js production build with no deployment/database access: PASS;
 - immutable third-party GitHub Actions gate: PASS — 6 workflow files;
 - dangerous source construct AST gate: PASS — 193 source files;
-- tracked-tree secret scan: PASS — 404 tracked files;
-- Git-history secret scan: PASS — 835 revisions.
+- tracked-tree secret scan: PASS — 413 tracked files;
+- Git-history secret scan: PASS — 1,042 revisions.
 
 The security branch is explicitly excluded from automatic Vercel deployment and from automatic Preview database migration/seeding.
 
@@ -168,11 +168,11 @@ A migration-number collision with the parallel Legal/Privacy work was discovered
 - Legal/Privacy already owns `0025_legal_privacy_readiness.sql`.
 - Security migration was therefore renumbered to `0026_function_privilege_hardening.sql`.
 
-`0026` was applied only to `visa_os_preview`.
+`0026`, `0027_document_integrity.sql` and `0028_file_identity_hardening.sql` were applied only to `visa_os_preview`.
 
 Postflight proof:
 
-- Preview ledger: through `0026_function_privilege_hardening.sql`;
+- Preview ledger: through `0028_file_identity_hardening.sql`;
 - Production ledger: remains through `0019_config_translations.sql`;
 - Preview tables with RLS disabled: zero;
 - Preview table grants to `anon` / `authenticated`: zero;
@@ -190,7 +190,7 @@ Production was not deployed, migrated, seeded, reset or penetration-tested.
 Read-only before/after checks prove:
 
 - `visa_os.schema_migrations` remains at 19 entries, last `0019_config_translations.sql`;
-- `0026_function_privilege_hardening.sql` is absent from Production;
+- `0026_function_privilege_hardening.sql`, `0027_document_integrity.sql` and `0028_file_identity_hardening.sql` are absent from Production;
 - Production application functions retain their pre-gate configuration.
 
 ## External governance/runtime observations
@@ -256,17 +256,17 @@ Malware/AV/CDR likewise requires an external scanning capability. The current ga
 
 Verified code snapshot before this report-only update:
 
-`190f52dfe9be05fe247b890fac52d12e8a3dd5e3`
+`2c1dbd1926e3cf2272b315c3cd272acfb25fa71f`
 
 Deterministic CI result: **SUCCESS**
 
-- 100 test files PASS
-- 689 tests PASS
+- 106 test files PASS
+- 714 tests PASS
 - typecheck PASS
 - lint PASS
 - build PASS
 - current-tree secret scan PASS
-- 835-revision history secret scan PASS
+- 1,042-revision history secret scan PASS
 - immutable GitHub Actions gate PASS
 - source-sink AST gate PASS
 - dependency vulnerability gate PASS
@@ -274,8 +274,36 @@ Deterministic CI result: **SUCCESS**
 
 Database postflight remains:
 
-- Preview: 26 migrations, last `0026_function_privilege_hardening.sql`;
+- Preview: 28 migrations, last `0028_file_identity_hardening.sql`;
 - Production: 19 migrations, last `0019_config_translations.sql`;
-- Security migration 0026 absent from Production.
+- Security migrations 0026–0028 absent from Production.
 
 **Production remains untouched by this security gate.**
+
+
+## Final local/Preview-only hardening addendum
+
+The last pre-Codex pass added tamper-evident file identity without changing Production:
+
+- dossier and agency-registration uploads persist a SHA-256 fingerprint of the authoritative server-side bytes;
+- wallet top-up receipts persist and verify their SHA-256 before financial credit and before disclosure;
+- private dossier, registration and top-up downloads verify stored byte length and SHA-256 before returning bytes or recording a successful-download audit;
+- legacy rows without a fingerprint remain size-verified and readable, avoiding an unsafe blind backfill of historical external objects;
+- permanent DB-backed dossier/registration/top-up blobs reject UPDATE at the database layer;
+- document storage identity fields and top-up request/receipt identity fields reject post-insert rewrites;
+- download/export/wallet-statement audit paths that disclose sensitive information fail closed when their audit evidence cannot be persisted;
+- Production session cookies use the `__Host-` prefix while retaining a controlled legacy-cookie read/delete path during transition;
+- Supabase service-role storage access is pinned to the exact ESSAFARIA project HTTPS endpoint, bounded by request timeouts and separated by Preview/Production bucket policy;
+- hosted database connections are pinned to the ESSAFARIA Supabase project and application search_path is `pg_catalog` first;
+- hosted verification hard-stops outside the isolated Preview boundary.
+
+Direct database postflight after 0028 proves:
+
+- `visa_os_preview.schema_migrations`: 28 entries, last `0028_file_identity_hardening.sql`;
+- `visa_os.schema_migrations`: 19 entries, last `0019_config_translations.sql`;
+- Preview has `documents.sha256`, `agency_registration_documents.sha256` and `wallet_topup_requests.proof_sha256`;
+- Production has none of those new integrity columns;
+- the four permanent-file/top-up immutability triggers exist in Preview and not Production;
+- every Preview application function, including the new trigger functions, remains pinned to `search_path=pg_catalog, visa_os_preview` and has no EXECUTE privilege for PUBLIC, `anon` or `authenticated`.
+
+The deterministic CI run for code snapshot `2c1dbd1926e3cf2272b315c3cd272acfb25fa71f` is SUCCESS with **106/106 test files and 714/714 tests**, plus production build success.
