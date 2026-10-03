@@ -35,7 +35,10 @@ The repository already contains and tests the backup, encryption, restore, walle
 - VERIFIED manifests require structured restore, off-site, application and tenant-isolation evidence;
 - reset planner accepts only a fresh VERIFIED backup (<=24h);
 - public-repository safety gate rejects tracked backups, environment files and private DR evidence;
-- full synthetic PostgreSQL 17 backup -> encrypt -> restore -> reconcile -> finalize drill runs in CI.
+- full synthetic PostgreSQL 17 backup -> encrypt -> restore -> reconcile -> finalize drill runs in CI;
+- private 256-bit DR key generation is automated and the repository rejects tracked `.dr-key` files;
+- runtime recovery verification detects pre-`0020` versus `0020+` identity/session columns;
+- when only one real agency tenant exists in the restore, the verifier creates a temporary synthetic second tenant in the disposable database, exercises cross-tenant denial, then removes it.
 
 ## External task 1 — resolve the exact current Production release SHA
 
@@ -57,6 +60,14 @@ Required inputs:
 - a Production PostgreSQL **direct or session-pooler** connection, not port 6543;
 - a newly generated 32-byte random backup key encoded as base64;
 - an absolute private output directory outside the repository.
+
+Generate the key with the repository tool rather than inventing one manually:
+
+```text
+npm run dr:key -- --output <absolute-private-path>/essafaria-recovery.dr-key
+```
+
+The tool writes one 32-byte base64 key to a mode-0600 file, never prints the key itself, and reports only its SHA-256 fingerprint. Load the single file line into `DR_BACKUP_KEY_BASE64` only on the trusted operator machine.
 
 Environment:
 
@@ -204,7 +215,7 @@ Expected result: `status: PASS`, plus private application/tenant evidence files 
 
 No password is needed for this check. The generated sessions exist only in the disposable restore and are deleted on exit. A successful private-document probe may create an audit row in the disposable recovery database; it does not change Production.
 
-If the restored dataset lacks enough active agency identities to exercise two tenants, stop and report that as the only test-fixture blocker. Do not weaken the tenant verifier.
+The current read-only Production evidence shows one qualifying agency user/tenant and two active unlocked Staff identities. That is enough: if no second real agency tenant is available in the restored snapshot, the verifier creates a temporary synthetic agency/user only in the disposable restore, records `foreignTenantFixture: SYNTHETIC_DISPOSABLE_TENANT`, runs the foreign-access probes, then removes the temporary records. Do not create synthetic data in Production.
 
 ## External task 7 — finalize the backup evidence
 
