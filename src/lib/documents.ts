@@ -278,7 +278,7 @@ export async function uploadDocument(input: UploadDocumentInput) {
       }
       await tx.insert(auditLogs).values({ actorId: input.actor.id, actorEmail: input.actor.email,
         actorRole: input.actor.role, agencyId: access.agencyId, action: "DOCUMENT_UPLOADED", entity: "document",
-        entityId: created!.id, metadata: { filename: name, sizeBytes: input.file.data.length, sha256, version, checklistItemId: checklistItem?.id ?? null },
+        entityId: created!.id, metadata: { sizeBytes: input.file.data.length, sha256, version, checklistItemId: checklistItem?.id ?? null },
         ipAddress: input.ipAddress ?? null,
       });
       return created!;
@@ -318,7 +318,7 @@ export async function uploadResubmission(input: UploadDocumentInput & { original
     entity: "document",
     entityId: doc.id,
     agencyId: original.appAgencyId,
-    metadata: { replaces: original.doc.id, filename: doc.originalFilename },
+    metadata: { replaces: original.doc.id },
     ipAddress: input.ipAddress ?? null,
   });
   return doc;
@@ -383,7 +383,6 @@ export async function reviewDocument(input: ReviewInput) {
     entityId: input.documentId,
     agencyId: row.appAgencyId,
     metadata: {
-      filename: row.doc.originalFilename,
       reason: requiresReason ? reason : null,
       notes: input.reviewNotes ?? null,
     },
@@ -436,7 +435,6 @@ export async function deleteDocument(documentId: string, actor: AuthUser, ipAddr
     entity: "document",
     entityId: documentId,
     agencyId: row.appAgencyId,
-    metadata: { filename: row.doc.originalFilename },
     ipAddress: ipAddress ?? null,
   });
 }
