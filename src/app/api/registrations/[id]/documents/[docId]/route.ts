@@ -5,6 +5,7 @@ import { getRegistrationDocument } from "@/lib/registrations";
 import { storageProvider } from "@/lib/storage";
 import { AppError } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
+import { assertStoredFileIntegrity } from "@/lib/file-integrity";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,12 @@ export async function GET(
     if (!doc) {
       return NextResponse.json({ error: "Not found." }, { status: 404 });
     }
-    const { data, mimeType } = await storageProvider().get(doc.storageKey);
+    const { data } = await storageProvider().get(doc.storageKey);
+    assertStoredFileIntegrity({
+      data,
+      expectedSizeBytes: doc.sizeBytes,
+      expectedSha256: doc.sha256,
+    });
     await recordAudit({
       actor: user,
       action: "REGISTRATION_DOCUMENT_DOWNLOADED",
@@ -45,7 +51,7 @@ export async function GET(
     return new NextResponse(new Uint8Array(data), {
       status: 200,
       headers: {
-        "Content-Type": mimeType,
+        "Content-Type": doc.mimeType,
         "Content-Length": String(data.length),
         "Content-Disposition": `attachment; filename="${safeName}"`,
         "Cache-Control": "private, no-store",
