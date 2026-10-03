@@ -289,6 +289,38 @@ async function main() {
       })));
     }
 
+    if (tables.has("agencies") && hasColumn("agencies", "logo_key")) {
+      const rows = await client.query<{ id: string; key: string }>(
+        `select id::text, logo_key as key
+           from ${qualifiedTable("agencies", schema)}
+          where logo_key is not null and length(logo_key)>0
+          order by id`,
+      );
+      storageReferences.push(...rows.rows.map((row) => ({
+        id: row.id,
+        kind: "AGENCY_LOGO" as const,
+        key: row.key,
+        expectedSizeBytes: null,
+      })));
+    }
+
+    if (tables.has("site_settings")) {
+      const rows = await client.query<{ key: string | null }>(
+        `select value #>> '{}' as key
+           from ${qualifiedTable("site_settings", schema)}
+          where key='brand.logoKey'`,
+      );
+      const brandLogoKey = rows.rows[0]?.key?.trim();
+      if (brandLogoKey) {
+        storageReferences.push({
+          id: "brand.logoKey",
+          kind: "BRAND_LOGO",
+          key: brandLogoKey,
+          expectedSizeBytes: null,
+        });
+      }
+    }
+
     if ((process.env.STORAGE_PROVIDER ?? "db") === "db") {
       if (!tables.has("document_blobs")) {
         findings.push("DOCUMENT_BLOBS_TABLE_MISSING");
