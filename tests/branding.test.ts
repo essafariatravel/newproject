@@ -59,6 +59,14 @@ describe("white-label branding", () => {
     expect(() => validateLogoUpload("big.png", "image/png", 3 * 1024 * 1024)).toThrow(AppError);
   });
 
+  it("rejects a logo whose bytes do not match its declared image format", async () => {
+    const agency = await agencyByEmail("ops@agencya.example");
+    await expect(setAgencyLogo(agency.id, {
+      data: Buffer.from("<script>alert('logo')</script>"),
+      mimeType: "image/png",
+    })).rejects.toMatchObject({ code: "INVALID_FILE" });
+  });
+
   it("stores, resolves and clears an agency logo with cache-busting url", async () => {
     const agency = await agencyByEmail("ops@agencya.example");
     const png = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
