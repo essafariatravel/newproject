@@ -42,8 +42,12 @@ The final non-deploying GitHub verification workflow passes with least-privilege
 - TypeScript typecheck: PASS;
 - lint: PASS;
 - protected Preview build-write guard: PASS;
-- full deterministic test suite: PASS;
-- Next.js build with no deployment/database access: PASS.
+- full deterministic test suite: PASS — **100 test files / 689 tests** on verified code snapshot `190f52dfe9be05fe247b890fac52d12e8a3dd5e3`;
+- Next.js production build with no deployment/database access: PASS;
+- immutable third-party GitHub Actions gate: PASS — 6 workflow files;
+- dangerous source construct AST gate: PASS — 193 source files;
+- tracked-tree secret scan: PASS — 404 tracked files;
+- Git-history secret scan: PASS — 835 revisions.
 
 The security branch is explicitly excluded from automatic Vercel deployment and from automatic Preview database migration/seeding.
 
@@ -115,6 +119,8 @@ CI now fails on:
 
 No secret values are printed by the gates.
 
+All third-party GitHub Actions are pinned to immutable commit SHAs. GitHub-owned checkout/setup-node actions were moved to their Node 24-capable v5 majors while remaining SHA-pinned. Production dependency installation is lockfile-authoritative (`npm ci`) with no flexible fallback install.
+
 ## Preview database hardening
 
 A migration-number collision with the parallel Legal/Privacy work was discovered before deployment:
@@ -182,3 +188,96 @@ These are recommendations, not unresolved release-critical defects from this bra
 **CODE + ISOLATED PREVIEW DATABASE SECURITY GATE: PASS**
 
 **FULL HOSTED SECURITY GATE: PENDING VERIFIED PREVIEW RUNTIME TESTING**
+
+
+## Final abuse-hardening extension
+
+After the initial gate passed, the branch received an additional adversarial hardening pass.
+
+### Request / DoS boundaries
+
+- `/api/agency/requests` now enforces an authoritative streamed body-size limit even when `Content-Length` is missing or forged.
+- communication posting is rate-limited per user and, for Agency accounts, per agency;
+- expensive applications/report/wallet exports and wallet-statement generation are rate-limited per authenticated user and return HTTP 429 with `Retry-After`;
+- public/authentication limits continue to use the shared PostgreSQL-backed limiter.
+
+### Browser/server input boundaries
+
+- every mutating API route is regression-checked for an explicit Origin policy; the only exemption is the permanently retired hard-404 Preview bootstrap route;
+- a syntax-aware CI gate rejects actual JSX `dangerouslySetInnerHTML`, direct `eval()`, and `new Function()`;
+- the only raw branding-style sink discovered by that gate was removed: branding CSS is now rendered as text inside `<style>`, not via `dangerouslySetInnerHTML`.
+
+### Enumeration resistance
+
+- top-up receipt access now has regression evidence that a foreign Agency cannot use identifiers to distinguish or retrieve another tenant's proof;
+- recovery continues to respond generically for known/unknown identities;
+- tenant-facing unauthorized object lookups continue to use non-enumerating behavior where tested.
+
+### Configuration integrity
+
+- workflow status/transition mutations are now coupled transactionally to their audit evidence;
+- visa programme fee/applicability configuration mutations are likewise fail-closed when audit persistence fails;
+- regression probes deliberately fail audit insertion and prove the business/config mutation rolls back.
+
+### CI/CD least privilege
+
+Production and Preview workflows were additionally hardened:
+
+- Production apply remains restricted to the authoritative release branch and release sentinel;
+- dependency installation is deterministic from `package-lock.json`;
+- repository write permissions/tokens were removed from Production jobs where not required;
+- hosted Preview verification cannot combine test credentials with repository write capability;
+- security workflow dependencies are SHA-pinned;
+- the security branch remains non-deploying by Vercel configuration.
+
+### Permanent regression manifest
+
+The repository now includes:
+
+`docs/security/security-regression-manifest.json`
+
+and a manifest integrity test. Release-critical controls cannot be called `PROVEN` without named evidence, while hosted Preview controls remain explicitly `HOSTED_PENDING`.
+
+## Access-dependent residual
+
+The connected Vercel integration returned **no accessible teams/projects** during this gate. Therefore the following cannot be truthfully marked proven here:
+
+- Vercel Preview environment-variable isolation;
+- a new hosted deployment of the consolidated branch;
+- browser-level session/cookie/header/CSP behavior over that deployment;
+- real hosted cross-tenant/replay/concurrency probes;
+- strict nonce-based CSP compatibility.
+
+These remain the principal Codex/connected-environment tasks.
+
+MFA is also intentionally not force-enabled from this branch. The current custom authentication stack has no MFA subsystem, and mandatory Staff MFA should not be improvised without a protected factor-secret strategy, enrollment/recovery flow, and a verified hosted environment. Recommended rollout remains SUPER_ADMIN first, then ADMIN/ACCOUNTING/VISA_AGENT.
+
+Malware/AV/CDR likewise requires an external scanning capability. The current gate does enforce extension/MIME/magic-byte validation, traversal protection, size caps, and rejection of active HTML/SVG content; external malware scanning remains an integration task rather than a falsely claimed local proof.
+
+## Final evidence snapshot
+
+Verified code snapshot before this report-only update:
+
+`190f52dfe9be05fe247b890fac52d12e8a3dd5e3`
+
+Deterministic CI result: **SUCCESS**
+
+- 100 test files PASS
+- 689 tests PASS
+- typecheck PASS
+- lint PASS
+- build PASS
+- current-tree secret scan PASS
+- 835-revision history secret scan PASS
+- immutable GitHub Actions gate PASS
+- source-sink AST gate PASS
+- dependency vulnerability gate PASS
+- Preview build-write guard PASS
+
+Database postflight remains:
+
+- Preview: 26 migrations, last `0026_function_privilege_hardening.sql`;
+- Production: 19 migrations, last `0019_config_translations.sql`;
+- Security migration 0026 absent from Production.
+
+**Production remains untouched by this security gate.**
