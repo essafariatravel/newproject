@@ -66,7 +66,8 @@
         "tests/tenant-isolation.test.ts",
         "tests/file-access-hardening.test.ts",
         "tests/communications-36.test.ts",
-        "tests/notifications-35.test.ts"
+        "tests/notifications-35.test.ts",
+        "tests/topup.test.ts"
       ]
     },
     {
