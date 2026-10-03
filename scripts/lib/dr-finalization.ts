@@ -63,6 +63,7 @@ export interface TenantIsolationEvidence {
   restoreEvidenceSha256: string;
   testedAt: string;
   targetRef: string;
+  foreignTenantFixture: "RESTORED_TENANT" | "SYNTHETIC_DISPOSABLE_TENANT";
   checks: {
     foreignApplicationDenied: boolean;
     foreignDocumentDenied: boolean;
@@ -172,6 +173,9 @@ export function validateTenantIsolationEvidence(
   }
   if (!validIso(evidence.testedAt)) findings.push("tenant-isolation evidence timestamp is invalid");
   if (!EVIDENCE_REF.test(evidence.targetRef)) findings.push("tenant-isolation evidence targetRef is invalid");
+  if (!["RESTORED_TENANT", "SYNTHETIC_DISPOSABLE_TENANT"].includes(evidence.foreignTenantFixture)) {
+    findings.push("tenant-isolation evidence foreignTenantFixture is invalid");
+  }
   const required = [
     "foreignApplicationDenied",
     "foreignDocumentDenied",
