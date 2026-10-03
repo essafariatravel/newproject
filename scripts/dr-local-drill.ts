@@ -362,6 +362,7 @@ async function main() {
   const applicationEvidencePath = path.join(root, "synthetic.application-evidence.json");
   const tenantEvidencePath = path.join(root, "synthetic.tenant-evidence.json");
   const verifiedManifestPath = path.join(root, "synthetic.verified.manifest.json");
+  const evidenceBundlePath = path.join(root, "synthetic.evidence-bundle.json");
   const tamperedManifestPath = path.join(root, "synthetic.tampered.manifest.json");
   const key = Buffer.alloc(32, 73);
   const keyBase64 = key.toString("base64");
@@ -674,6 +675,28 @@ async function main() {
       NODE_ENV: "test",
     });
 
+    await run(process.execPath, [
+      tsx,
+      "scripts/dr-evidence-bundle.ts",
+      "--source-manifest",
+      manifestPath,
+      "--verified-manifest",
+      verifiedManifestPath,
+      "--restore-evidence",
+      restoreEvidencePath,
+      "--offsite-evidence",
+      offsiteEvidencePath,
+      "--application-evidence",
+      applicationEvidencePath,
+      "--tenant-evidence",
+      tenantEvidencePath,
+      "--output",
+      evidenceBundlePath,
+    ], {
+      ...process.env,
+      NODE_ENV: "test",
+    });
+
     const verified = JSON.parse(await readFile(verifiedManifestPath, "utf8"));
     const finalAssessment = assessBackupManifest(verified, {
       environment: "PRODUCTION",
@@ -703,6 +726,7 @@ async function main() {
       offsiteCopyByteIdentityVerified: true,
       offsiteCopyAuthenticationVerified: true,
       manifestMismatchRefusalExercised: true,
+      evidenceBundleVerified: true,
       finalManifestState: finalAssessment.status,
     }, null, 2));
   } finally {
