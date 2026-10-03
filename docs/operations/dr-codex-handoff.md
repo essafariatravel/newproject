@@ -145,44 +145,66 @@ The command already verifies:
 
 If `pg_restore` begins and any later step fails, discard the whole disposable target. Do not repair/reuse a partial target.
 
-## External task 5 — run application recovery validation on the restored environment
+## External tasks 5-6 — deploy the recovery application and run the automated runtime verifier
 
-Run the application release identified by the manifest's `source.releaseSha` against the disposable restored database, or prove an explicitly reviewed compatible recovery build. Do not silently test the restore with an unrelated newer release.
+Run the application release identified by the manifest's `source.releaseSha` against the disposable restored database. Do not silently test the restore with an unrelated newer release.
 
-Create `dr-application-evidence.example.json` as a private working copy outside the repository and set values only from observed tests.
+The repository now automates the application and tenant-isolation probes. It creates short-lived session rows **only inside the disposable restore**, calls the real recovery deployment, and removes those session rows on exit.
 
-Every required check must pass:
+Required environment:
 
-- health endpoint reachable and healthy;
-- authenticated Staff session works;
-- authenticated Agency session works;
-- Staff can read a critical operational dossier;
-- Agency can read its own dossier;
-- Agency can download its own private document;
-- Agency can read its own wallet.
+```text
+DR_ENVIRONMENT=RESTORE_TEST
+DATABASE_SCHEMA=visa_os
+DATABASE_URL=<same disposable restored database>
+DR_RESTORE_RELEASE_SHA=<exact manifest source.releaseSha>
+```
 
-The evidence `releaseSha` must exactly match the backup manifest release SHA.
-The evidence `restoreEvidenceSha256` must be the SHA-256 of the restore-evidence JSON.
+For remote disposable Supabase, also keep:
 
-Do not include passwords, tokens, passport data or document contents in the evidence file.
+```text
+DR_ALLOW_REMOTE_DISPOSABLE=true
+DR_DISPOSABLE_PROJECT_REF=<same non-Production restore project ref>
+```
 
-## External task 6 — run tenant-isolation validation on the restored environment
+Run:
 
-Use at least two different restored agency tenants.
+```text
+npm run dr:app-verify -- \
+  --manifest <private CREATED manifest> \
+  --restore-evidence <private restore evidence JSON> \
+  --base-url <HTTPS URL of the recovery application deployment> \
+  --target-ref <opaque recovery deployment ID> \
+  --application-evidence-output <absolute private application evidence JSON> \
+  --tenant-evidence-output <absolute private tenant evidence JSON>
+```
 
-Create `dr-tenant-evidence.example.json` as a private working copy outside the repository.
+The verifier refuses the real Production application hostname and refuses a Production database target.
 
-Every required check must pass:
+It automatically proves:
 
-- foreign application access denied;
-- foreign document access denied;
-- foreign applicant data inaccessible through the foreign dossier chain;
-- foreign wallet data not visible;
-- forged/cross-tenant upload path denied.
+- recovery deployment resolves Staff and Agency sessions created only in the disposable restored database;
+- health endpoint is healthy on the restored schema;
+- Staff can read a critical restored dossier;
+- owning agency can read its own dossier;
+- owning agency can download its own restored document with expected byte length;
+- owning agency can read its own wallet surface;
+- a second agency cannot open the first agency's dossier;
+- a second agency cannot download the first agency's document;
+- applicant data remains unreachable behind the denied foreign dossier;
+- a forged `agencyId` wallet-export parameter cannot expose the other tenant;
+- a forged mutation against the foreign document endpoint is denied/unavailable.
 
-The evidence must use the same backup ID, release SHA and restore-evidence SHA as the application evidence.
+Expected result: `status: PASS`, plus private application/tenant evidence files bound to:
 
-If any cross-tenant access succeeds, stop. The backup must remain CREATED, not VERIFIED.
+- backup ID;
+- exact backup release SHA;
+- exact restore-evidence SHA;
+- recovery target ID.
+
+No password is needed for this check. The generated sessions exist only in the disposable restore and are deleted on exit. A successful private-document probe may create an audit row in the disposable recovery database; it does not change Production.
+
+If the restored dataset lacks enough active agency identities to exercise two tenants, stop and report that as the only test-fixture blocker. Do not weaken the tenant verifier.
 
 ## External task 7 — finalize the backup evidence
 
