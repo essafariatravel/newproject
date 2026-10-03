@@ -664,7 +664,7 @@ export async function rejectRegistration(id: string, actor: AuthUser, reason: st
     await closeRegistrationFollowups(tx, id);
     await tx.update(agencyRegistrations).set({ status: "REJECTED", rejectionReason: clean, decidedBy: actor.id, decidedAt: new Date(), updatedAt: new Date() }).where(eq(agencyRegistrations.id, id));
     await tx.insert(agencyRegistrationHistory).values({ registrationId: id, kind: "STATUS", fromStatus: reg.status, toStatus: "REJECTED", actorId: actor.id, note: clean });
-    await registrationAudit(tx, id, actor, "REGISTRATION_REJECTED", { reason: clean, legalName: reg.legalName }, ipAddress);
+    await registrationAudit(tx, id, actor, "REGISTRATION_REJECTED", { reason: clean }, ipAddress);
   });
 }
 
