@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 
 type K6Metric = { values?: Record<string, number>; thresholds?: Record<string, { ok: boolean }> };
 type K6Summary = { metrics?: Record<string, K6Metric> };
@@ -140,7 +141,13 @@ async function main() {
     topTableScanDeltas: tableDeltas(before, after),
   };
 
-  console.log(JSON.stringify(output, null, 2));
+  const serialized = JSON.stringify(output, null, 2);
+  if (process.env.PERF_EVALUATE_OUTPUT) {
+    const file = resolve(process.env.PERF_EVALUATE_OUTPUT);
+    await mkdir(dirname(file), { recursive: true });
+    await writeFile(file, serialized, { mode: 0o600 });
+  }
+  console.log(serialized);
   if (!pass) process.exitCode = 2;
 }
 
