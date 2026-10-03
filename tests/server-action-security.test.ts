@@ -50,7 +50,7 @@ describe("exported Server Action authorization", () => {
   it("never treats a crafted application id as an authorization shortcut", async () => {
     const foreign = await userByEmail("b-admin@test.example");
     request.cookie = (await createSession(foreign.id)).token;
-    const real = (await db.select({ id: applications.id }).where(eq(applications.agencyId, foreign.agencyId!)).limit(1))[0];
+    const real = (await db.select({ id: applications.id }).from(applications).where(eq(applications.agencyId, foreign.agencyId!)).limit(1))[0];
     expect(real).toBeDefined();
     await expect(submissionGateFor("11111111-1111-4111-8111-111111111111")).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
