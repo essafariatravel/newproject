@@ -7,7 +7,6 @@
  * without an explicit attestation flag.
  */
 import { readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { privateArtifactPath } from "./lib/dr-private-path";
 import {
   PRODUCTION_PROJECT_REF,
