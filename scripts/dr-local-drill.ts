@@ -373,6 +373,7 @@ async function main() {
       restoreEvidenceSha256,
       testedAt: new Date().toISOString(),
       targetRef: "SYNTHETIC-RESTORE-TENANT-0001",
+      foreignTenantFixture: "SYNTHETIC_DISPOSABLE_TENANT",
       checks: {
         foreignApplicationDenied: true,
         foreignDocumentDenied: true,
