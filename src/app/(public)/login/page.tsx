@@ -43,7 +43,7 @@ export default async function LoginPage() {
             {ct("One platform for your entire")}
             <span className="italic text-gold-600"> {ct("visa operation")}</span>
           </h2>
-          <p className="mt-4 max-w-md text-sm leading-relaxed text-white/80">
+          <p className="mt-4 max-w-md text-base leading-relaxed text-white/80">
             {ct("Agency partners manage applications, documents and wallets. Staff process files from the central Back Office.")}
           </p>
         </div>
@@ -57,7 +57,7 @@ export default async function LoginPage() {
             <img className="h-20 w-28 object-contain" src={logoUrl ?? "/images/essafaria-logo.png"} alt={branding.name} width="112" height="80" />
           </div>
           <h1 className="font-serif text-2xl text-navy-900">{ct("Sign in")}</h1>
-          <p className="mt-1 text-sm text-slate-500">{ct("Agency portal and Back Office access.")}</p>
+          <p className="mt-1 text-base text-slate-500">{ct("Agency portal and Back Office access.")}</p>
           <LoginForm
         copy={{
           email: it("Username or staff email"),
