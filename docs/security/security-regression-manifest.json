@@ -268,7 +268,7 @@
     },
     {
       "id": "SEC-04",
-      "title": "Third-party GitHub Actions are pinned to immutable commit SHAs",
+      "title": "Third-party GitHub Actions are immutable-SHA pinned on Node 24-capable majors",
       "phase": "ci",
       "releaseCritical": true,
       "status": "PROVEN",
@@ -359,6 +359,47 @@
       "releaseCritical": false,
       "status": "DEFERRED_DESIGN_CHOICE",
       "evidence": []
+    },
+    {
+      "id": "ACL-04",
+      "title": "Top-up receipt lookup resists cross-tenant existence enumeration",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/topup.test.ts"
+      ]
+    },
+    {
+      "id": "DOS-03",
+      "title": "Heavy Staff and Agency exports are rate-limited per authenticated user",
+      "phase": "code",
+      "releaseCritical": false,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/export-rate-limit-security.test.ts"
+      ]
+    },
+    {
+      "id": "SEC-08",
+      "title": "Mutating HTTP API routes declare an explicit same-origin policy",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/api-mutation-security.test.ts"
+      ]
+    },
+    {
+      "id": "SEC-09",
+      "title": "Dynamic execution and raw HTML sinks are blocked by syntax-aware CI",
+      "phase": "ci",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "scripts/security-source-gate.ts",
+        "src/app/layout.tsx"
+      ]
     }
   ]
 }
