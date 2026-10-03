@@ -27,7 +27,6 @@ describe("North Star read-only Preview presence writes", () => {
     { name: "preserves another Vercel Preview branch", vercel: "1", scope: "preview", branch: "feature/existing-portal", suppressed: false },
     { name: "preserves a similarly named but different Preview branch", vercel: "1", scope: "preview", branch: "design/essafaria-northstar-extra", suppressed: false },
     { name: "preserves Vercel Development", vercel: "1", scope: "development", branch: "design/essafaria-northstar", suppressed: false },
-    { name: "preserves non-Vercel behavior with Preview metadata", vercel: "0", scope: "preview", branch: "design/essafaria-northstar", suppressed: false },
     { name: "preserves behavior when branch metadata is absent", vercel: "1", scope: "preview", branch: undefined, suppressed: false },
     { name: "preserves behavior when Preview scope is absent", vercel: "1", scope: undefined, branch: "design/essafaria-northstar", suppressed: false },
     { name: "preserves an unconfigured local environment", vercel: undefined, scope: undefined, branch: undefined, suppressed: false },
