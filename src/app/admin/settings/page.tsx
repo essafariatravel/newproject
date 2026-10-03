@@ -11,6 +11,7 @@ import {
 } from "@/app/actions/branding";
 import { SubmitButton } from "@/components/forms";
 import { BrandStudio } from "@/components/brand-studio";
+import { LegalSettingsPanel } from "@/components/legal-settings-panel";
 import { Card, CardHeader, EmptyState, Flash, PageHeader } from "@/components/ui";
 import { contentT } from "@/lib/i18n-content";
 import { getUiLocale } from "@/lib/ui-i18n";
@@ -101,52 +102,7 @@ export default async function AdminSettingsPage({
             <SubmitButton className="btn-primary" pendingLabel="Saving…">{ct("Save website content")}</SubmitButton>
           </form>
 
-          {/* §Settings — legal copy has its OWN save, so editing the public site
-              copy can never publish half-finished legal text (and vice versa).
-              Each language is a separate field: EN/FR/AR are preserved side by
-              side and the public page picks the current interface language. */}
-          <form action={updateSiteSettingsAction} className="mt-4 space-y-4">
-            <input type="hidden" name="section" value="legal" />
-            <Card>
-              <CardHeader title="Legal content" subtitle="Rendered on the public /privacy and /terms pages, per interface language." />
-              <div className="space-y-5 px-5 py-5">
-                {([
-                  ["en", "English"],
-                  ["fr", "Français"],
-                  ["ar", "العربية"],
-                ] as const).map(([code, label]) => (
-                  <div key={code} className="rounded-lg border border-ivory-200 p-4">
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="label" htmlFor={`legal.privacy.${code}`}>Privacy notice</label>
-                        <textarea
-                          id={`legal.privacy.${code}`}
-                          name={`legal.privacy.${code}`}
-                          rows={4}
-                          dir={code === "ar" ? "rtl" : undefined}
-                          defaultValue={settingString(settings, `legal.privacy.${code}`)}
-                          className="input"
-                        />
-                      </div>
-                      <div>
-                        <label className="label" htmlFor={`legal.terms.${code}`}>Terms of service</label>
-                        <textarea
-                          id={`legal.terms.${code}`}
-                          name={`legal.terms.${code}`}
-                          rows={4}
-                          dir={code === "ar" ? "rtl" : undefined}
-                          defaultValue={settingString(settings, `legal.terms.${code}`)}
-                          className="input"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-            <SubmitButton className="btn-primary" pendingLabel="Saving…">{ct("Save legal content")}</SubmitButton>
-          </form>
+          <LegalSettingsPanel role={staff.role} />
         </div>
       ) : (
         <Card>
