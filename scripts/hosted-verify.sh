@@ -174,6 +174,12 @@ if [ "$CODE_H" = "200" ]; then
   fi
 else bad "homepage CTA ($CODE_H)"; fi
 
+if grep -Eqi 'googletagmanager|google-analytics|gtag\\(|connect\.facebook\.net|facebook.*pixel|posthog|segment\.com|mixpanel|amplitude' "$WORK/home.html"; then
+  bad "public homepage contains an unapproved common analytics/advertising marker"
+else
+  ok "public homepage contains no common analytics/advertising marker"
+fi
+
 STAMP=$(date +%s)
 LEGAL_EN="Hosted Verify EN $STAMP SARL"
 LEGAL_XX="Hosted Verify Reject $STAMP SPA"
@@ -327,6 +333,15 @@ else
   if grep -qi 'set-cookie:.*evos_session=' "$WORK/headers.txt" && echo "$LOC_L" | grep -qE "/admin|/portal"; then
     STAFF_SESSION=1
     ok "staff login → evos_session + redirect ${LOC_L}"
+    SESSION_COOKIE_LINE=$(grep -i '^set-cookie:.*evos_session=' "$WORK/headers.txt" | head -1 | tr -d '\r')
+    if printf '%s' "$SESSION_COOKIE_LINE" | grep -qi 'HttpOnly' \
+      && printf '%s' "$SESSION_COOKIE_LINE" | grep -qi 'Secure' \
+      && printf '%s' "$SESSION_COOKIE_LINE" | grep -qi 'SameSite=Lax' \
+      && printf '%s' "$SESSION_COOKIE_LINE" | grep -qi 'Path=/'; then
+      ok "deployed evos_session cookie is HttpOnly + Secure + SameSite=Lax + Path=/"
+    else
+      bad "deployed evos_session cookie attributes are incomplete"
+    fi
   else
     bad "staff login failed (http $CODE, ${LOC_L:-no redirect})"
   fi
