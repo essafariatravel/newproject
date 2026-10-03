@@ -306,14 +306,53 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
     // overwrite legal text (and the legal section never touches the CMS fields).
     const section = String(formData.get("section") ?? "");
     if (section === "legal") {
-      const publishedAt = new Date(String(formData.get("legal.publishedAt") ?? ""));
-      if (!Number.isFinite(publishedAt.getTime()) || publishedAt.getTime() > Date.now()) throw new AppError("VALIDATION", "Supply the actual publication date of owner-approved legal text.");
-      const publications = (["en","fr","ar"] as const).flatMap(locale => (["terms","privacy"] as const).map(kind => ({kind,locale,body:String(formData.get(`legal.${kind}.${locale}`)??"").trim(),publishedAt,actor:staff}))).filter(p => p.body);
-      if (!publications.length) throw new AppError("VALIDATION", "Supply owner-approved legal content before publishing.");
-      if (publications.some(p=>p.body.length>50_000)) throw new AppError("VALIDATION", "Legal content is too long.");
-      for (const publication of publications) await publishLegalContent(publication);
-      revalidatePath("/admin/settings"); revalidatePath("/terms"); revalidatePath("/privacy"); revalidatePath("/register");
-      return "Legal versions published.";
+      if (staff.role !== "SUPER_ADMIN") {
+        throw new AppError("FORBIDDEN", "Only SUPER_ADMIN can publish approved legal content.");
+      }
+      const publications = (["en", "fr", "ar"] as const)
+        .flatMap((locale) =>
+          (["terms", "privacy"] as const).map((kind) => {
+            const body = String(formData.get(`legal.${kind}.${locale}`) ?? "").trim();
+            const effectiveRaw = String(
+              formData.get(`legal.${kind}.${locale}.effectiveAt`) ?? "",
+            ).trim();
+            return {
+              kind,
+              locale,
+              body,
+              effectiveAt: effectiveRaw ? new Date(effectiveRaw) : null,
+              actor: staff,
+            };
+          }),
+        )
+        .filter((publication) => publication.body);
+      if (!publications.length) {
+        throw new AppError("VALIDATION", "Supply owner-approved legal content before publishing.");
+      }
+      if (
+        publications.some(
+          (publication) =>
+            publication.body.length > 50_000 ||
+            !publication.effectiveAt ||
+            !Number.isFinite(publication.effectiveAt.getTime()),
+        )
+      ) {
+        throw new AppError(
+          "VALIDATION",
+          "Every legal version requires approved content and an approved effective date.",
+        );
+      }
+      for (const publication of publications) {
+        await publishLegalContent({
+          ...publication,
+          effectiveAt: publication.effectiveAt!,
+        });
+      }
+      revalidatePath("/admin/settings");
+      revalidatePath("/terms");
+      revalidatePath("/privacy");
+      revalidatePath("/agency/register");
+      return "Approved legal versions published.";
     }
     const entries: Array<[string, unknown]> = [];
     const simpleKeys = [
@@ -325,22 +364,8 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
       "site.contactPhone",
       "site.address",
       "site.officeHours",
-      "legal.privacy",
-      "legal.terms",
     ];
     for (const key of simpleKeys) {
-      const v = formData.get(key);
-      if (v !== null) entries.push([key, String(v)]);
-    }
-    // Multilingual legal copy (EN/FR/AR) — every language stored under its own key.
-    for (const key of [
-      "legal.privacy.en",
-      "legal.privacy.fr",
-      "legal.privacy.ar",
-      "legal.terms.en",
-      "legal.terms.fr",
-      "legal.terms.ar",
-    ]) {
       const v = formData.get(key);
       if (v !== null) entries.push([key, String(v)]);
     }
@@ -370,6 +395,6 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
     revalidatePath("/");
     revalidatePath("/privacy");
     revalidatePath("/terms");
-    return section === "legal" ? "Legal content saved." : "Website content saved.";
+    return "Website content saved.";
   });
 }
