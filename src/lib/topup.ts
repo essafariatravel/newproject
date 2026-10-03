@@ -437,6 +437,8 @@ export async function processTopupRequest(params: {
             walletReference: mutation.reference,
             balanceBefore: mutation.balanceBefore,
             balanceAfter: mutation.balanceAfter,
+            receiptSha256: req.proof_sha256,
+            receiptSizeBytes: req.proof_size_bytes,
           }),
           params.ipAddress ?? null,
         ],
