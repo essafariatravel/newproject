@@ -150,5 +150,9 @@ describe("DR encrypted archive", () => {
     expect(a).toBe(b);
     expect(a).toMatch(/^[0-9a-f]{64}$/);
     expect(storageInventorySha256([{ key: "a", sizeBytes: 9 }])).not.toBe(a);
+
+    const contentA = storageInventorySha256([{ key: "same", sizeBytes: 4, sha256: "a".repeat(64) }]);
+    const contentB = storageInventorySha256([{ key: "same", sizeBytes: 4, sha256: "b".repeat(64) }]);
+    expect(contentA).not.toBe(contentB);
   });
 });
