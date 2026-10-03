@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { auditLogs } from "@/db/schema";
 import type { AuthUser } from "@/lib/types";
+import { logErrorOnce, pseudonymizeIdentifier } from "@/lib/observability";
 
 interface AuditInput {
   actor: AuthUser | null;
@@ -27,6 +28,15 @@ export async function recordAudit(input: AuditInput): Promise<void> {
       ipAddress: input.ipAddress ?? null,
     });
   } catch (err) {
-    console.error("audit-log-failure", { action: input.action, entity: input.entity, err });
+    const critical = /(?:WALLET|TOPUP|ROLE|SUSPEND|REACTIVAT|DECISION|SUPER_ADMIN)/.test(input.action);
+    logErrorOnce("audit.persistence_failed", err, {
+      severity: critical ? "critical" : "error",
+      classification: "BUSINESS_FAILURE",
+      result: "technical_failed",
+      actorRole: input.actor?.role ?? null,
+      tenantRef: pseudonymizeIdentifier(input.agencyId ?? input.actor?.agencyId),
+      resourceType: input.entity,
+      metadata: { audit_action: input.action },
+    });
   }
 }
