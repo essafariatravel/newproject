@@ -22,14 +22,21 @@ The disposable experiment exercised that same staff ordering shape.
 
 ## A/B evidence
 
-100k synthetic applications with one communication per application:
+100k synthetic applications with one communication per application.
 
+**First exact-shape run**
 - before p95: **~18.49 ms**
 - after p95: **~0.38 ms**
 - p95 speedup: **~48.63x**
 - automated verdict: **PROVEN_LOCAL_CANDIDATE**
 
-The temporary proof index was dropped after the experiment.
+**Symmetric warm-up rerun (5 warmups per phase, 30 measured repeats)**
+- before p95: **~20.49 ms**
+- after p95: **~0.53 ms**
+- p95 speedup: **~38.44x**
+- automated verdict: **PROVEN_LOCAL_CANDIDATE**
+
+The benefit reproduced after removing cache asymmetry. The temporary proof index was dropped after each experiment.
 
 ## Promotion rule
 
