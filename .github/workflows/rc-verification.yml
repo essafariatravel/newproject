@@ -54,6 +54,9 @@ jobs:
       - name: Install dependencies from package-lock
         run: npm ci --no-audit --no-fund
 
+      - name: Production dependency vulnerability gate
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Typecheck
         run: npm run typecheck
 
