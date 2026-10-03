@@ -18,6 +18,8 @@ const AUTH_MARKERS = [
   "requireUser(",
   "requireStaff(",
   "requireAgencyUser(",
+  "requirePasswordChangeSession(",
+  "requireDecisionMaker(",
   "getSessionUser(",
 ];
 
