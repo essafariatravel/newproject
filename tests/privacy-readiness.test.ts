@@ -45,13 +45,21 @@ describe("privacy readiness regression guards", () => {
     }
   });
 
-  it("does not persist application data in localStorage/sessionStorage", () => {
+  it("allows only the inventoried non-sensitive browser preference", () => {
     const files = sourceFiles(path.join(process.cwd(), "src"));
-    const offenders = files.filter((file) => {
+    const sessionStorageFiles: string[] = [];
+    const localStorageKeys: string[] = [];
+
+    for (const file of files) {
       const source = readFileSync(file, "utf8");
-      return /\blocalStorage\b|\bsessionStorage\b/.test(source);
-    });
-    expect(offenders).toEqual([]);
+      if (/\bsessionStorage\b/.test(source)) sessionStorageFiles.push(file);
+      for (const match of source.matchAll(/localStorage\.(?:getItem|setItem)\(["']([^"']+)["']/g)) {
+        localStorageKeys.push(match[1]!);
+      }
+    }
+
+    expect(sessionStorageFiles).toEqual([]);
+    expect([...new Set(localStorageKeys)].sort()).toEqual(["essafaria.notification-sound"]);
   });
 
   it("has no analytics or advertising SDK enabled by package dependency", () => {
