@@ -50,6 +50,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Deep UX/UI static audit
+        run: node scripts/ux-ui-deep-audit.mjs
+
       - name: UX/UI polish guards
         run: npm test -- tests/ux-ui-*.test.ts
 
