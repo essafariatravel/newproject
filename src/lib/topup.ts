@@ -35,7 +35,6 @@ import { storageProvider } from "@/lib/storage";
 import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 import { validateDocumentFormat } from "@/lib/upload-validation";
 import { applyWalletMutation, getBalance } from "@/lib/wallet";
-import { recordAudit } from "@/lib/audit";
 import { agencyUserIds, notifyUsers } from "@/lib/notifications";
 
 /** Roles allowed to move money (crediting a processed top-up). */
