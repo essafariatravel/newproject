@@ -25,10 +25,13 @@ The disposable experiment exercised that same staff ordering shape.
 100k synthetic applications with one communication per application.
 
 **First exact-shape run**
-- before p95: **~18.49 ms**
-- after p95: **~0.38 ms**
-- p95 speedup: **~48.63x**
+**Authoritative symmetric-warmup rerun (5 warmups per phase, 30 measured repeats)**
+- before p95: **~20.49 ms**
+- after p95: **~0.53 ms**
+- p95 speedup: **~38.44x**
 - automated verdict: **PROVEN_LOCAL_CANDIDATE**
+
+A prior independent A/B run measured ~18.49 → ~0.38 ms (~48.63x), so the direction and large benefit are repeatable.
 
 **Symmetric warm-up rerun (5 warmups per phase, 30 measured repeats)**
 - before p95: **~20.49 ms**
