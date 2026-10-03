@@ -428,6 +428,12 @@ export function reconcileWalletSnapshot(
   };
 }
 
+export const DR_EPHEMERAL_STORAGE_PREFIXES = ["pending-request/"] as const;
+
+export function isEphemeralStorageKey(key: string): boolean {
+  return DR_EPHEMERAL_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix));
+}
+
 export type StorageReferenceKind = "DOSSIER_DOCUMENT" | "REGISTRATION_DOCUMENT" | "TOPUP_RECEIPT" | "OFFICIAL_DECISION" | "AGENCY_LOGO" | "BRAND_LOGO";
 
 export interface StorageReferenceSnapshot {
@@ -450,6 +456,8 @@ export interface StorageReconciliation {
   objectsChecked: number;
   missingObjects: number;
   orphanObjects: number;
+  ephemeralObjects: number;
+  ephemeralBytes: number;
 }
 
 export function reconcileStorageSnapshot(
@@ -458,8 +466,18 @@ export function reconcileStorageSnapshot(
 ): StorageReconciliation {
   const findings: string[] = [];
   const objectMap = new Map<string, StorageObjectSnapshot>();
+  let ephemeralObjects = 0;
+  let ephemeralBytes = 0;
   for (const object of objects) {
-    if (!object.key) findings.push("storage object has an empty key");
+    if (!object.key) {
+      findings.push("storage object has an empty key");
+      continue;
+    }
+    if (isEphemeralStorageKey(object.key)) {
+      ephemeralObjects++;
+      ephemeralBytes += Number.isFinite(object.sizeBytes) ? object.sizeBytes : 0;
+      continue;
+    }
     if (objectMap.has(object.key)) findings.push(`duplicate storage object manifest entry for key ${object.key}`);
     objectMap.set(object.key, object);
   }
@@ -489,8 +507,10 @@ export function reconcileStorageSnapshot(
     ok: findings.length === 0,
     findings,
     referencesChecked: references.length,
-    objectsChecked: objects.length,
+    objectsChecked: objectMap.size,
     missingObjects,
     orphanObjects,
+    ephemeralObjects,
+    ephemeralBytes,
   };
 }
