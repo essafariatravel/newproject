@@ -68,7 +68,7 @@ export default async function VisaCategoriesConfigPage({ searchParams }: {
   return <>
     <PageHeader title={ct("Visa categories")} subtitle={ct("Top-level visa families: tourist, business, student…")} />
     <Flash {...flashFrom(sp)} />
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
       <form className="flex flex-wrap items-center gap-2">
         <input name="q" defaultValue={q} placeholder={ct("Search categories…")} aria-label={ct("Search categories…")} className="input w-64 text-base" />
         <select name="status" defaultValue={status} aria-label={ct("Status")} className="input w-auto text-base">

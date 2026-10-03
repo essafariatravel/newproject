@@ -92,7 +92,7 @@ export default async function DocumentTypesConfigPage({
         }
       />
       <Flash {...flash} />
-      <div className="mb-5">
+      <div className="mb-6">
       {canManage ? (
         <ConfigDialog title={ct("Add document type")} closeLabel={ct("Close")}>
 
@@ -164,7 +164,7 @@ export default async function DocumentTypesConfigPage({
       {pageCount > 1 ? (
         <div className="mt-4 flex items-center justify-between text-xs">
           <span className="text-slate-500">{ct("Page")} {page} / {pageCount} — {total} {ct("total")}</span>
-          <span className="flex gap-1.5">
+          <span className="flex gap-2">
             {page > 1 ? <Link href={`/admin/config/document-types?${new URLSearchParams({ ...(q ? { q } : {}), ...(status ? { status } : {}), ...(per !== 20 ? { per: String(per) } : {}), page: String(page - 1) }).toString()}`} className="btn-secondary btn-sm">{ct("← Prev")}</Link> : null}
             {page < pageCount ? <Link href={`/admin/config/document-types?${new URLSearchParams({ ...(q ? { q } : {}), ...(status ? { status } : {}), ...(per !== 20 ? { per: String(per) } : {}), page: String(page + 1) }).toString()}`} className="btn-secondary btn-sm">{ct("Next →")}</Link> : null}
           </span>

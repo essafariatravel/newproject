@@ -83,7 +83,7 @@ export default async function StatusesConfigPage({
                         </form>
                         <details className="relative">
                           <summary className="btn-danger btn-xs cursor-pointer list-none">{ct("Delete")}</summary>
-                          <div className="absolute right-0 z-20 mt-2 w-64 rounded-lg border border-red-100 bg-white p-3 shadow-lg">
+                          <div className="absolute end-0 z-20 mt-2 w-64 rounded-lg border border-red-100 bg-white p-4 shadow-lg">
                             <p className="text-xs text-navy-800">
                               {ct("Delete status")} <strong>{localizedStatusName(s.code, s.name, locale, s.nameFr, s.nameAr)}</strong> (<code>{s.code}</code>)? {ct("Referenced statuses are deactivated instead of deleted.")}
                             </p>
@@ -109,14 +109,14 @@ export default async function StatusesConfigPage({
           <div className="space-y-4 px-4 py-4">
             {[...byFrom.entries()].map(([from, list]) => (
               <div key={from}>
-                <p className="mb-1.5 text-xs font-semibold text-navy-900">
+                <p className="mb-2 text-xs font-semibold text-navy-900">
                   <StatusBadge code={from} /> →
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {list.map((t) => (
                     <span key={`${t.fromCode}-${t.toCode}`} className="badge bg-ivory-100 text-slate-600">
                       {t.toName}
-                      <span className="text-[9px] uppercase tracking-wide text-gold-600">{ct(SCOPE_LABEL[t.scope] ?? t.scope)}</span>
+                      <span className="text-xs uppercase tracking-wide text-gold-600">{ct(SCOPE_LABEL[t.scope] ?? t.scope)}</span>
                     </span>
                   ))}
                 </div>
@@ -177,10 +177,10 @@ export default async function StatusesConfigPage({
                 <input id="s-order" name="sortOrder" type="number" defaultValue={120} className="input" />
               </div>
               <div className="flex items-end gap-4 pb-1 text-xs text-slate-600">
-                <label className="flex items-center gap-1.5">
+                <label className="flex items-center gap-2">
                   <input type="checkbox" name="isTerminal" className="h-3.5 w-3.5" /> Terminal
                 </label>
-                <label className="flex items-center gap-1.5">
+                <label className="flex items-center gap-2">
                   <input type="checkbox" name="isDraft" className="h-3.5 w-3.5" /> Draft-like
                 </label>
               </div>

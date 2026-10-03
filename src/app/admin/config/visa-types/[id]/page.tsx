@@ -116,7 +116,7 @@ export default async function VisaTypeDetailPage({
                     </td>
                     {canManage ? (
                       <td className="td text-right">
-                        <div className="flex justify-end gap-1.5">
+                        <div className="flex justify-end gap-2">
                           <form action={updateRequirementAction}>
                             <input type="hidden" name="id" value={req.id} />
                             <input type="hidden" name="visaTypeId" value={id} />
@@ -232,7 +232,7 @@ export default async function VisaTypeDetailPage({
               <form action={updateVisaTypeAction} className="space-y-4 px-4 py-4">
                 <input type="hidden" name="id" value={id} />
                 <input type="hidden" name="back" value={`/admin/config/visa-types/${id}`} />
-                <fieldset className="space-y-4 rounded-lg border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-information-edit">
+                <fieldset className="space-y-4 rounded-lg border border-line/80 bg-ivory-50/50 p-4" data-testid="vt-section-information-edit">
                   <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Information")}</legend>
                   <div>
                     <label className="label" htmlFor="e-name">{ct("Name *")} · EN</label>
@@ -260,18 +260,18 @@ export default async function VisaTypeDetailPage({
                     <ConfigTranslations value={vt} locale={locale} />
                   </div>
                 </fieldset>
-                <fieldset className="space-y-4 rounded-lg border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-pricing">
+                <fieldset className="space-y-4 rounded-lg border border-line/80 bg-ivory-50/50 p-4" data-testid="vt-section-pricing">
                   <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Pricing (DZD)")}</legend>
                   <div>
                     <label className="label" htmlFor="e-fee">{ct("Fee (DZD) *")}</label>
                     <input id="e-fee" name="fee" type="number" step="0.01" min="0" required defaultValue={vt.fee} className="input" />
                     <input name="currency" value="DZD" type="hidden" />
-                    <p className="mt-1.5 text-xs text-slate-500">
+                    <p className="mt-2 text-xs text-slate-500">
                       <bdi dir="ltr">{formatAmount(vt.fee, "DZD", locale)}</bdi> — {ct("Charged in Algerian dinar from the agency prepaid balance at submission. Applications already submitted keep the price they were charged at.")}
                     </p>
                   </div>
                 </fieldset>
-                <fieldset className="space-y-4 rounded-lg border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-processing">
+                <fieldset className="space-y-4 rounded-lg border border-line/80 bg-ivory-50/50 p-4" data-testid="vt-section-processing">
                   <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Processing")}</legend>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -287,7 +287,7 @@ export default async function VisaTypeDetailPage({
                     {ct("Shown to agencies as")} {formatProcessingDays(vt.processingMinDays, vt.processingMaxDays, locale)}. {ct("Zero means on request, never zero days.")}
                   </p>
                 </fieldset>
-                <fieldset className="rounded-lg border border-line/80 bg-ivory-50/50 p-3" data-testid="vt-section-workflow">
+                <fieldset className="rounded-lg border border-line/80 bg-ivory-50/50 p-4" data-testid="vt-section-workflow">
                   <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Workflow")}</legend>
                   <label className="label" htmlFor="e-embassy">{ct("Embassy / external authority step")}</label>
                   <select
@@ -300,7 +300,7 @@ export default async function VisaTypeDetailPage({
                     <option value="OPTIONAL">{ct("Optional — staff may send it, never required")}</option>
                     <option value="APPLICABLE">{ct("Applicable — the embassy stage is part of this programme")}</option>
                   </select>
-                  <p className="mt-1.5 text-xs text-slate-500">
+                  <p className="mt-2 text-xs text-slate-500">
                     {ct("When a programme is not applicable, staff cannot move an application to the embassy stage and agencies do not see an embassy step.")}
                   </p>
                 </fieldset>

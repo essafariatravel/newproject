@@ -90,7 +90,7 @@ export default async function VisaTypesConfigPage({
         }
       />
       <Flash {...flash} />
-      <div className="mb-5">
+      <div className="mb-6">
       {canManage ? (
         <ConfigDialog title={ct("Add visa type (DZD only)")} closeLabel={ct("Close")}>
 
@@ -195,7 +195,7 @@ export default async function VisaTypesConfigPage({
       {pageCount > 1 ? (
         <div className="mt-4 flex items-center justify-between text-xs">
           <span className="text-slate-500">{ct("Page")} {page} / {pageCount} — {total} {ct("total")}</span>
-          <span className="flex gap-1.5">
+          <span className="flex gap-2">
             {page > 1 ? <Link href={`/admin/config/visa-types?${new URLSearchParams({ ...filterQuery, ...(per !== 20 ? { per: String(per) } : {}), page: String(page - 1) }).toString()}`} className="btn-secondary btn-sm">{ct("← Prev")}</Link> : null}
             {page < pageCount ? <Link href={`/admin/config/visa-types?${new URLSearchParams({ ...filterQuery, ...(per !== 20 ? { per: String(per) } : {}), page: String(page + 1) }).toString()}`} className="btn-secondary btn-sm">{ct("Next →")}</Link> : null}
           </span>
