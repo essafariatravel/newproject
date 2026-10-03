@@ -61,6 +61,9 @@ jobs:
       - name: Historical secret and credential gate
         run: npx tsx scripts/security-history-gate.ts
 
+      - name: Immutable third-party GitHub Actions gate
+        run: npx tsx scripts/security-actions-gate.ts
+
       - name: Production dependency vulnerability gate
         run: npm audit --omit=dev --audit-level=high
 
