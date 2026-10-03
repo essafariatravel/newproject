@@ -79,6 +79,16 @@ describe("legal/privacy readiness regression guards", () => {
     expect(forbidden).toEqual([]);
   });
 
+  it("keeps public auth/login error logs code-only", () => {
+    const action = read("src/app/actions/auth.ts");
+    const loginPage = read("src/app/(public)/login/page.tsx");
+
+    expect(action).toContain("safeErrorCode(err)");
+    expect(loginPage).toContain("safeErrorCode(err)");
+    expect(action).not.toMatch(/console\.error\([^\n]*, err\s*\)/);
+    expect(loginPage).not.toMatch(/console\.error\([^\n]*, err\s*\)/);
+  });
+
   it("keeps sensitive database schemas server-only in documented architecture", () => {
     const env = read(".env.example");
     expect(env).toContain("server-side node-postgres + Drizzle");
