@@ -34,6 +34,7 @@ import { randomUUID } from "node:crypto";
 import { storageProvider } from "@/lib/storage";
 import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 import { validateDocumentFormat } from "@/lib/upload-validation";
+import { assertStoredFileIntegrity, sha256Hex } from "@/lib/file-integrity";
 import { applyWalletMutation, getBalance } from "@/lib/wallet";
 import { recordAudit } from "@/lib/audit";
 import { agencyUserIds, notifyUsers } from "@/lib/notifications";
@@ -105,6 +106,7 @@ export async function createTopupRequest(params: {
   }
   validateTopupProof(params.proof);
   const proof = params.proof;
+  const proofSha256 = sha256Hex(proof.data);
 
   const requestId = randomUUID();
   const key = `topup-proofs/${params.agencyId}/${requestId}/${randomUUID()}`;
@@ -121,10 +123,10 @@ export async function createTopupRequest(params: {
       if (pending) throw new AppError("TOPUP_PENDING", "You already have a pending top-up request.");
       const [row] = await tx.insert(walletTopupRequests).values({ id: requestId, agencyId: params.agencyId, amount: amountAbs, currency: "DZD", note: params.note?.trim() || null,
         requestedBy: params.actor.id, status: "PENDING", proofStorageKey: key, proofFilename: proof.name, proofMimeType: proof.type,
-        proofSizeBytes: proof.data.length, idempotencyKey: params.idempotencyKey ?? null }).returning();
+        proofSizeBytes: proof.data.length, proofSha256, idempotencyKey: params.idempotencyKey ?? null }).returning();
       await tx.insert(auditLogs).values({ actorId: params.actor.id, actorEmail: params.actor.email, actorRole: params.actor.role,
         action: "WALLET_TOPUP_REQUESTED", entity: "wallet_topup_request", entityId: row!.id, agencyId: params.agencyId,
-        metadata: { reference: row!.reference, amount: amountAbs, currency: "DZD", proofFilename: proof.name } });
+        metadata: { reference: row!.reference, amount: amountAbs, currency: "DZD", proofFilename: proof.name, proofSha256 } });
       const staff = await tx.select({ id: users.id }).from(users).where(sql`${users.agencyId} is null and ${users.status} = 'ACTIVE' and ${users.role} in ('SUPER_ADMIN','ADMIN','VISA_AGENT','ACCOUNTING')`);
       if (staff.length) await tx.insert(notifications).values(staff.map((u) => ({ userId: u.id, type: "TOPUP_REQUESTED", title: `Wallet top-up request ${row!.reference}`,
         body: `${params.actor.agencyName ?? "Agency"} requested ${amountAbs} DZD.`, link: `/admin/billing#topup-${row!.id}`, topupRequestId: row!.id, agencyId: params.agencyId })));
@@ -245,26 +247,41 @@ export async function processTopupRequest(params: {
 
   // The database storage provider needs its own pool connection. Complete the
   // read before holding a transaction client or the request's row lock.
-  let verifiedProofKey: string | null = null;
+  let verifiedProof: { key: string; sizeBytes: number; sha256: string | null } | null = null;
   let proofVerificationFailure: { error: unknown } | undefined;
   if (params.decision === "CREDIT") {
     const [request] = await db.select({
       reference: walletTopupRequests.reference,
       status: walletTopupRequests.status,
       proofStorageKey: walletTopupRequests.proofStorageKey,
+      proofSizeBytes: walletTopupRequests.proofSizeBytes,
+      proofSha256: walletTopupRequests.proofSha256,
     }).from(walletTopupRequests).where(eq(walletTopupRequests.id, params.requestId)).limit(1);
     if (!request) throw new AppError("NOT_FOUND", "Top-up request not found.");
     if (request.status !== "PENDING") {
       throw new AppError("TOPUP_ALREADY_PROCESSED", `Top-up request ${request.reference} was already ${request.status.toLowerCase()}.`);
     }
-    verifiedProofKey = request.proofStorageKey;
-    if (verifiedProofKey) {
-      try {
-        await storageProvider().get(verifiedProofKey);
-      } catch (error) {
-        // The locked status guard must still take precedence if another caller
-        // processed this request while its receipt was being read.
-        proofVerificationFailure = { error };
+    if (request.proofStorageKey) {
+      if (request.proofSizeBytes == null) {
+        proofVerificationFailure = { error: new AppError("PROOF_INVALID", "The bank transfer receipt integrity metadata is incomplete.") };
+      } else {
+        verifiedProof = {
+          key: request.proofStorageKey,
+          sizeBytes: request.proofSizeBytes,
+          sha256: request.proofSha256,
+        };
+        try {
+          const stored = await storageProvider().get(request.proofStorageKey);
+          assertStoredFileIntegrity({
+            data: stored.data,
+            expectedSizeBytes: request.proofSizeBytes,
+            expectedSha256: request.proofSha256,
+          });
+        } catch (error) {
+          // The locked status guard must still take precedence if another caller
+          // processed this request while its receipt was being read.
+          proofVerificationFailure = { error };
+        }
       }
     }
   }
@@ -290,8 +307,11 @@ export async function processTopupRequest(params: {
       status: string;
       note: string | null;
       proof_storage_key: string | null;
+      proof_size_bytes: number | null;
+      proof_sha256: string | null;
     }>(
-      `select id, reference, agency_id, amount::text as amount, status, note, proof_storage_key
+      `select id, reference, agency_id, amount::text as amount, status, note,
+              proof_storage_key, proof_size_bytes, proof_sha256
          from ${qualifiedTable("wallet_topup_requests")}
         where id = $1
         for update`,
@@ -328,8 +348,17 @@ export async function processTopupRequest(params: {
         agencyId: req.agency_id,
       };
     } else {
-      if (!req.proof_storage_key) throw new AppError("PROOF_REQUIRED", "A bank transfer receipt is required before crediting this request.");
-      if (req.proof_storage_key !== verifiedProofKey) throw new AppError("PROOF_CHANGED", "The bank transfer receipt changed. Review the request again before crediting it.");
+      if (!req.proof_storage_key || req.proof_size_bytes == null) {
+        throw new AppError("PROOF_REQUIRED", "A bank transfer receipt with integrity metadata is required before crediting this request.");
+      }
+      if (
+        !verifiedProof ||
+        req.proof_storage_key !== verifiedProof.key ||
+        req.proof_size_bytes !== verifiedProof.sizeBytes ||
+        req.proof_sha256 !== verifiedProof.sha256
+      ) {
+        throw new AppError("PROOF_CHANGED", "The bank transfer receipt changed. Review the request again before crediting it.");
+      }
       if (proofVerificationFailure) throw proofVerificationFailure.error;
       const requested = Number(req.amount);
       const credit = params.amount === undefined ? requested : params.amount;
