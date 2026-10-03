@@ -27,7 +27,8 @@
     "dr:app-verify": "tsx scripts/dr-verify-restored-app.ts",
     "dr:key": "tsx scripts/dr-generate-key.ts",
     "dr:prod-preflight": "tsx scripts/dr-prod-preflight.ts",
-    "dr:status": "tsx scripts/dr-status.ts"
+    "dr:status": "tsx scripts/dr-status.ts",
+    "dr:evidence-bundle": "tsx scripts/dr-evidence-bundle.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
