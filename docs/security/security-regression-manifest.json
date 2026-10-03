@@ -1,0 +1,319 @@
+{
+  "version": "2026-10-03",
+  "branch": "security/pre-codex-gate-2026-10-03",
+  "controls": [
+    {
+      "id": "AUTH-01",
+      "title": "Credential validation and oversized-secret rejection",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/auth.test.ts",
+        "tests/login-flow.test.ts"
+      ]
+    },
+    {
+      "id": "AUTH-02",
+      "title": "Shared DB-backed authentication rate limiting and bounded cleanup",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/auth-rate-limit-resource.test.ts"
+      ]
+    },
+    {
+      "id": "AUTH-03",
+      "title": "Forced first password change",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/forced-password-change-22.test.ts",
+        "tests/identity-security.test.ts"
+      ]
+    },
+    {
+      "id": "AUTH-04",
+      "title": "Recovery token expiry, single-use and access revocation",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/identity-recovery.test.ts",
+        "tests/identity-security.test.ts"
+      ]
+    },
+    {
+      "id": "AUTH-05",
+      "title": "Suspended user or agency session revocation",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/identity-security.test.ts",
+        "tests/auth.test.ts"
+      ]
+    },
+    {
+      "id": "ACL-01",
+      "title": "Cross-tenant dossier and data isolation",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/tenant-isolation.test.ts",
+        "tests/file-access-hardening.test.ts",
+        "tests/communications-36.test.ts",
+        "tests/notifications-35.test.ts"
+      ]
+    },
+    {
+      "id": "ACL-02",
+      "title": "Exported Server Actions require explicit authorization",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/server-action-export-guard.test.ts",
+        "tests/server-action-security.test.ts"
+      ]
+    },
+    {
+      "id": "ACL-03",
+      "title": "Agency identities cannot be assigned as ESSAFARIA Staff",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/server-action-security.test.ts",
+        "tests/exports-bulk-37.test.ts"
+      ]
+    },
+    {
+      "id": "FIN-01",
+      "title": "Concurrent wallet spending cannot overdraw",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/concurrency.test.ts",
+        "tests/wallet.test.ts"
+      ]
+    },
+    {
+      "id": "FIN-02",
+      "title": "Wallet ledger is immutable and compensating-entry based",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/business-invariants-hardening.test.ts",
+        "tests/wallet.test.ts"
+      ]
+    },
+    {
+      "id": "FIN-03",
+      "title": "Top-up processing is exactly-once under replay/concurrency",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/topup.test.ts",
+        "tests/business-invariants-hardening.test.ts"
+      ]
+    },
+    {
+      "id": "FIN-04",
+      "title": "Security-critical financial mutation and audit are atomic",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/business-invariants-hardening.test.ts",
+        "tests/price-adjustments-22.test.ts"
+      ]
+    },
+    {
+      "id": "FLOW-01",
+      "title": "Approved/Rejected requires official final decision evidence",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/decision-workflow.test.ts",
+        "tests/business-invariants-hardening.test.ts"
+      ]
+    },
+    {
+      "id": "FLOW-02",
+      "title": "Submitted applicant data is locked against direct mutation",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/server-action-security.test.ts",
+        "tests/business-invariants-hardening.test.ts"
+      ]
+    },
+    {
+      "id": "FILE-01",
+      "title": "Upload size, extension, MIME, magic bytes and active-content validation",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/upload-validation.test.ts",
+        "tests/agency-registration.test.ts",
+        "tests/request-uploads.test.ts"
+      ]
+    },
+    {
+      "id": "FILE-02",
+      "title": "Private document download authorization and no-store behavior",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/file-access-hardening.test.ts"
+      ]
+    },
+    {
+      "id": "REG-01",
+      "title": "Public registration anti-automation, rate limit and audit rollback",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/agency-registration.test.ts",
+        "tests/registration-approval.test.ts",
+        "tests/registration-hardening-unit.test.ts"
+      ]
+    },
+    {
+      "id": "DOS-01",
+      "title": "Agency request API body size is authoritative without Content-Length",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/http-body-security.test.ts"
+      ]
+    },
+    {
+      "id": "DOS-02",
+      "title": "Communication flooding is rate-limited per user and agency",
+      "phase": "code",
+      "releaseCritical": false,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/communications-security.test.ts"
+      ]
+    },
+    {
+      "id": "SEC-01",
+      "title": "Structural HTTP security headers and token-page cache/referrer policy",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/security-headers.test.ts"
+      ]
+    },
+    {
+      "id": "SEC-02",
+      "title": "Same-origin redirect normalization",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/navigation-security.test.ts",
+        "tests/action-feedback.test.ts"
+      ]
+    },
+    {
+      "id": "SEC-03",
+      "title": "Tracked-tree and Git-history credential scanning",
+      "phase": "ci",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "scripts/security-static-gate.ts",
+        "scripts/security-history-gate.ts"
+      ]
+    },
+    {
+      "id": "SEC-04",
+      "title": "Third-party GitHub Actions are pinned to immutable commit SHAs",
+      "phase": "ci",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "scripts/security-actions-gate.ts",
+        ".github/workflows/rc-verification.yml"
+      ]
+    },
+    {
+      "id": "SEC-05",
+      "title": "Remote Preview SUPER_ADMIN bootstrap is disabled",
+      "phase": "code",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/bootstrap-lockdown.test.ts"
+      ]
+    },
+    {
+      "id": "DB-01",
+      "title": "Preview application functions are private and search_path pinned",
+      "phase": "preview-db",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "migrations/0026_function_privilege_hardening.sql",
+        "tests/database-function-hardening.test.ts"
+      ]
+    },
+    {
+      "id": "DB-02",
+      "title": "Preview RLS/schema isolation and migration safety",
+      "phase": "preview-db",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/migration-schema-isolation.test.ts",
+        "tests/build-preview-guard.test.ts"
+      ]
+    },
+    {
+      "id": "HOST-01",
+      "title": "Vercel Preview environment-variable isolation from Production",
+      "phase": "hosted-preview",
+      "releaseCritical": true,
+      "status": "HOSTED_PENDING",
+      "evidence": [
+        ".github/workflows/preview-verify.yml"
+      ]
+    },
+    {
+      "id": "HOST-02",
+      "title": "Live HTTP/browser tenant, session, headers, token and replay probes",
+      "phase": "hosted-preview",
+      "releaseCritical": true,
+      "status": "HOSTED_PENDING",
+      "evidence": [
+        "scripts/hosted-verify.sh",
+        ".github/workflows/preview-verify.yml"
+      ]
+    },
+    {
+      "id": "MFA-01",
+      "title": "Mandatory Staff MFA with recovery and step-up controls",
+      "phase": "future-auth",
+      "releaseCritical": false,
+      "status": "DEFERRED_DESIGN_CHOICE",
+      "evidence": []
+    }
+  ]
+}
