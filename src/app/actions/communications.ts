@@ -8,13 +8,12 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { applications, communications, notifications, users } from "@/db/schema";
+import { applications, auditLogs, communications, notifications, users } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/rbac";
 import { AppError, STAFF_ROLES, type AuthUser } from "@/lib/types";
 import { agencyUserIds, notifyUsers, staffUserIds } from "@/lib/notifications";
 import { runAction } from "@/lib/action-helpers";
-import { recordAudit } from "@/lib/audit";
 
 const idSchema = z.string().uuid("Invalid identifier.");
 
@@ -57,19 +56,24 @@ export async function postMessageAction(formData: FormData): Promise<void> {
       visibility = data.visibility === "INTERNAL" ? "INTERNAL" : "AGENCY";
     }
 
-    await db.insert(communications).values({
-      applicationId: app.id,
-      authorId: user.id,
-      visibility,
-      body: data.body,
-    });
-    await recordAudit({
-      actor: user,
-      action: "MESSAGE_POSTED",
-      entity: "communication",
-      entityId: app.id,
-      agencyId: app.agencyId,
-      metadata: { visibility },
+    await db.transaction(async (tx) => {
+      const [message] = await tx.insert(communications).values({
+        applicationId: app.id,
+        authorId: user.id,
+        visibility,
+        body: data.body,
+      }).returning({ id: communications.id });
+      if (!message) throw new AppError("AUDIT_FAILED", "The message could not be persisted.");
+      await tx.insert(auditLogs).values({
+        actorId: user.id,
+        actorEmail: user.email,
+        actorRole: user.role,
+        agencyId: app.agencyId,
+        action: "MESSAGE_POSTED",
+        entity: "communication",
+        entityId: message.id,
+        metadata: { applicationId: app.id, visibility },
+      });
     });
     if (visibility === "AGENCY") {
       const recipients = user.agencyId
