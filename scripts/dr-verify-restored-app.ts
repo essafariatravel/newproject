@@ -161,6 +161,8 @@ async function main() {
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const sessionIds: string[] = [];
+  let syntheticUserId: string | null = null;
+  let syntheticAgencyId: string | null = null;
   try {
     const identityColumns = await pool.query<{ table_name: string; column_name: string }>(
       `select table_name,column_name
@@ -243,10 +245,59 @@ async function main() {
         limit 1`,
       [agencyA.agency_id],
     );
-    if (!foreign.rows[0]) {
-      throw new Error("Disposable restore needs a second active unlocked agency user from another tenant.");
+    let agencyB = foreign.rows[0];
+    let foreignTenantFixture: TenantIsolationEvidence["foreignTenantFixture"] = "RESTORED_TENANT";
+    if (!agencyB) {
+      foreignTenantFixture = "SYNTHETIC_DISPOSABLE_TENANT";
+      const suffix = randomBytes(6).toString("hex");
+      const createdAgency = await pool.query<{ id: string }>(
+        `insert into ${qualifiedTable("agencies", restoreSchema)}
+           (legal_name,trading_name,email,status,balance,currency,country)
+         values ($1,$2,$3,'ACTIVE',0,'DZD','Algeria')
+         returning id::text`,
+        [
+          "ESSAFARIA DR Synthetic Tenant",
+          "DR Synthetic Tenant",
+          `dr-recovery-${suffix}@example.invalid`,
+        ],
+      );
+      syntheticAgencyId = createdAgency.rows[0]!.id;
+
+      const userColumns = ["email", "password_hash", "name", "role", "agency_id", "status"];
+      const userValues = ["$1", "$2", "$3", "'AGENCY_USER'", "$4::uuid", "'ACTIVE'"];
+      const userParams: unknown[] = [
+        `dr-recovery-user-${suffix}@example.invalid`,
+        "DR_SESSION_ONLY_NO_PASSWORD_LOGIN",
+        "ESSAFARIA DR Synthetic Agency User",
+        syntheticAgencyId,
+      ];
+      if (hasColumn("users", "username")) {
+        userParams.push(`dr_recovery_${suffix}`);
+        userColumns.push("username");
+        userValues.push(`${userParams.length}`);
+      }
+      if (hasColumn("users", "activation_pending")) {
+        userColumns.push("activation_pending");
+        userValues.push("false");
+      }
+      if (hasColumn("users", "must_change_password")) {
+        userColumns.push("must_change_password");
+        userValues.push("false");
+      }
+      if (hasColumn("users", "credential_version")) {
+        userColumns.push("credential_version");
+        userValues.push("0");
+      }
+      const createdUser = await pool.query<{ id: string; agency_id: string; credential_version: number }>(
+        `insert into ${qualifiedTable("users", restoreSchema)}
+           (${userColumns.join(",")})
+         values (${userValues.join(",")})
+         returning id::text, agency_id::text, ${hasColumn("users", "credential_version") ? "credential_version" : "0::int as credential_version"}`,
+        userParams,
+      );
+      syntheticUserId = createdUser.rows[0]!.id;
+      agencyB = createdUser.rows[0]!;
     }
-    const agencyB = foreign.rows[0];
 
     async function createRecoverySession(userId: string, credentialVersion: number) {
       const token = randomBytes(32).toString("base64url");
@@ -441,6 +492,7 @@ async function main() {
       restoreEvidenceSha256,
       testedAt,
       targetRef: options.targetRef,
+      foreignTenantFixture,
       checks: tenantChecks,
     };
 
@@ -470,6 +522,7 @@ async function main() {
       tenantIsolationEvidenceSha256: await sha256File(options.tenantEvidenceOutput),
       applicationChecks,
       tenantChecks,
+      foreignTenantFixture,
       privateDataPrinted: false,
     }, null, 2));
   } finally {
@@ -477,6 +530,18 @@ async function main() {
       await pool.query(
         `delete from ${qualifiedTable("sessions", restoreSchema)} where id = any($1::uuid[])`,
         [sessionIds],
+      ).catch(() => undefined);
+    }
+    if (syntheticUserId) {
+      await pool.query(
+        `delete from ${qualifiedTable("users", restoreSchema)} where id=$1::uuid`,
+        [syntheticUserId],
+      ).catch(() => undefined);
+    }
+    if (syntheticAgencyId) {
+      await pool.query(
+        `delete from ${qualifiedTable("agencies", restoreSchema)} where id=$1::uuid`,
+        [syntheticAgencyId],
       ).catch(() => undefined);
     }
     await pool.end().catch(() => undefined);
