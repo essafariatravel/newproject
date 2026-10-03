@@ -1,5 +1,7 @@
 name: Performance 100k disposable proof
 
+# Advisor proof revision: exact query-shape evidence.
+
 on:
   push:
     branches:
