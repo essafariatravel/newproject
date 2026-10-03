@@ -170,6 +170,7 @@ describe("legal/privacy readiness regression guards", () => {
     expect(topups).not.toContain("proofFilename: proof.name, proofSha256");
     expect(registrationDownload).not.toContain("filename: doc.originalFilename");
     expect(registrations).not.toContain("metadata:{legalName:reg.legal_name");
+    expect(registrations).not.toContain("legalName: reg.legalName");
     expect(registrations).not.toContain("metadata:{role:\"AGENCY_ADMIN\",email:reg.email");
     expect(registrations).not.toContain("metadata: { registrationId, email: reg.email");
   });
