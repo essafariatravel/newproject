@@ -94,8 +94,8 @@ async function main() {
   const waitingLocks = number(after.waitingLocks ?? 0);
 
   const operationBudgets = Object.entries(budgets.operations).flatMap(([operation, budget]) => {
-    const key = `http_req_duration{operation:${operation}}`;
-    const values = summary.metrics?.[key]?.values;
+    const values = summary.metrics?.[`op_${operation}`]?.values
+      ?? summary.metrics?.[`http_req_duration{operation:${operation}}`]?.values;
     if (!values) return [];
     const opP95 = number(values["p(95)"]);
     const opP99 = number(values["p(99)"]);
