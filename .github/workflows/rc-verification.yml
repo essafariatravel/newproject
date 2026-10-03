@@ -54,6 +54,9 @@ jobs:
       - name: Install dependencies from package-lock
         run: npm ci --no-audit --no-fund
 
+      - name: Tracked secret and credential artifact gate
+        run: npx tsx scripts/security-static-gate.ts
+
       - name: Production dependency vulnerability gate
         run: npm audit --omit=dev --audit-level=high
 
