@@ -274,7 +274,7 @@ async function main() {
       if (hasColumn("users", "username")) {
         userParams.push(`dr_recovery_${suffix}`);
         userColumns.push("username");
-        userValues.push(`${userParams.length}`);
+        userValues.push(`$${userParams.length}`);
       }
       if (hasColumn("users", "activation_pending")) {
         userColumns.push("activation_pending");
@@ -311,7 +311,7 @@ async function main() {
       if (hasColumn("sessions", "credential_version")) {
         params.push(credentialVersion);
         columns.push("credential_version");
-        values.push(`${params.length}`);
+        values.push(`$${params.length}`);
       }
       if (hasColumn("sessions", "ip_address")) {
         columns.push("ip_address");
