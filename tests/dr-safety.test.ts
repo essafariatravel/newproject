@@ -56,6 +56,10 @@ function verifiedManifest(): BackupManifest {
       walletReconciliationPassed: true,
       storageReconciliationPassed: true,
       tenantIsolationPassed: true,
+      restoreEvidenceSha256: "c".repeat(64),
+      offsiteEvidenceRef: "OFFSITE-20261003-0001",
+      applicationEvidenceRef: "APPRECOVERY-20261003-0001",
+      tenantIsolationEvidenceRef: "TENANTISO-20261003-0001",
     },
   };
 }
