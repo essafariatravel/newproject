@@ -167,7 +167,6 @@ export async function submitRegistrationAction(
         locale,
         effectiveAt: terms.effectiveAt.toISOString(),
       },
-      ipAddress: ip,
     });
     await recordAudit({
       actor: null,
@@ -180,7 +179,6 @@ export async function submitRegistrationAction(
         locale,
         effectiveAt: privacy.effectiveAt.toISOString(),
       },
-      ipAddress: ip,
     });
   } catch (err) {
     if (err instanceof AppError) {
