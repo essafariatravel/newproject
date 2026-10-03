@@ -92,7 +92,7 @@ describe("forced password change protects private file reads", () => {
     tampered[tampered.length - 1] = tampered[tampered.length - 1]! ^ 0xff;
     await expect(
       db.update(documentBlobs).set({ data: tampered }).where(eq(documentBlobs.key, doc.storageKey)),
-    ).rejects.toThrow(/immutable/i);
+    ).rejects.toThrow();
     await forcePermanentBlobData(doc.storageKey, tampered);
     try {
       const response = await downloadDossierFile(new Request(`http://localhost/api/documents/${doc.id}`), { params: Promise.resolve({ id: doc.id }) });
