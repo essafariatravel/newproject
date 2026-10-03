@@ -74,7 +74,7 @@ jobs:
           npm run dev -- --hostname 127.0.0.1 > /tmp/ux-app.log 2>&1 &
           echo $! > /tmp/ux-app.pid
           for i in $(seq 1 120); do
-            if curl -fsS http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
+            if curl -fsS http://localhost:3000/login >/dev/null; then exit 0; fi
             sleep 1
           done
           cat /tmp/ux-app.log
@@ -82,7 +82,7 @@ jobs:
 
       - name: Browser smoke + axe + screenshots
         env:
-          BASE_URL: http://127.0.0.1:3000
+          BASE_URL: http://localhost:3000
         run: node scripts/ux-ui-browser-smoke.mjs
 
       - name: Upload browser evidence

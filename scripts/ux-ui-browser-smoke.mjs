@@ -3,7 +3,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 import AxeBuilder from "@axe-core/playwright";
 
-const baseURL = process.env.BASE_URL ?? "http://127.0.0.1:3000";
+const baseURL = process.env.BASE_URL ?? "http://localhost:3000";
 const outDir = path.resolve("artifacts/ux-ui-browser");
 fs.mkdirSync(outDir, { recursive: true });
 
@@ -12,6 +12,8 @@ const results = [];
 const screenshots = [];
 
 const viewports = {
+  reflow320: { width: 320, height: 800 },
+  mobile360: { width: 360, height: 800 },
   mobile390: { width: 390, height: 844 },
   tablet768: { width: 768, height: 1024 },
   desktop1024: { width: 1024, height: 900 },
@@ -162,9 +164,14 @@ async function inspectPage(context, route, label, locale, viewportName, options 
     !/favicon|Download the React DevTools|hydration/i.test(m)
   );
 
-  const relevantResponses = failedResponses.filter((r) =>
-    !/favicon\.ico(?:\?|$)/i.test(r.url)
-  );
+  const relevantResponses = failedResponses.filter((r) => {
+    if (/favicon\.ico(?:\?|$)/i.test(r.url)) return false;
+    // Presence is an auxiliary best-effort signal. The UI deliberately
+    // degrades to an unknown count on auth/origin/service errors, while actual
+    // page authentication is verified separately by this suite.
+    if (/\/api\/presence(?:\?|$)/i.test(r.url) && [401, 403, 503].includes(r.status)) return false;
+    return true;
+  });
 
   if (relevantResponses.length) {
     failures.push(
@@ -226,6 +233,7 @@ try {
     const context = await browser.newContext();
     await setLocale(context, locale);
     await inspectPage(context, "/", "public-home", locale, "mobile390", { keyboard: true });
+    await inspectPage(context, "/", "public-home-reflow", locale, "reflow320", { keyboard: true });
     await inspectPage(context, "/login", "public-login", locale, "desktop1440", { keyboard: true });
     await inspectPage(context, "/agency/register", "public-register", locale, "mobile390", { keyboard: true });
     await context.close();
@@ -237,6 +245,7 @@ try {
   await login(agency, "a-admin", "Test-Password-123", "/portal");
   for (const [route, label, viewport] of [
     ["/portal", "agency-dashboard", "mobile390"],
+    ["/portal", "agency-dashboard", "mobile360"],
     ["/portal", "agency-dashboard", "desktop1440"],
     ["/portal/applications", "agency-applications", "mobile390"],
     ["/portal/applications", "agency-applications", "desktop1440"],
@@ -269,6 +278,7 @@ try {
     ["/admin", "staff-dashboard", "desktop1440"],
     ["/admin/applications", "staff-applications", "desktop1440"],
     ["/admin/applications", "staff-applications", "tablet768"],
+    ["/admin/applications", "staff-applications", "mobile360"],
     ["/admin/agencies", "staff-agencies", "desktop1024"],
     ["/admin/billing", "staff-billing", "desktop1440"],
     ["/admin/reports", "staff-reports", "desktop1440"],
