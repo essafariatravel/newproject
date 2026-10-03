@@ -338,21 +338,6 @@ async function main() {
       createRecoverySession(agencyB.id, agencyB.credential_version),
     ]);
 
-    const staffSession = await fetchWithSession(options.baseUrl, "/api/session", staffToken);
-    const staffSessionJson = staffSession.status === 200 ? await staffSession.json() as { authenticated?: boolean } : {};
-    const staffAuthenticatedSession = staffSession.status === 200 && staffSessionJson.authenticated === true;
-
-    const agencySession = await fetchWithSession(options.baseUrl, "/api/session", agencyAToken);
-    const agencySessionJson = agencySession.status === 200 ? await agencySession.json() as { authenticated?: boolean } : {};
-    const agencyAuthenticatedSession = agencySession.status === 200 && agencySessionJson.authenticated === true;
-
-    // The random session hashes exist only in this disposable database. If both
-    // sessions resolve through the deployment, the application is necessarily
-    // connected to this recovery target rather than Production.
-    if (!staffAuthenticatedSession || !agencyAuthenticatedSession) {
-      throw new Error("Recovery deployment did not resolve sessions created in the disposable restored database.");
-    }
-
     const health = await fetchWithSession(options.baseUrl, "/api/health", staffToken);
     const healthJson = health.status === 200 ? await health.json() as {
       ok?: boolean;
@@ -378,6 +363,14 @@ async function main() {
     );
     const agencyOwnApplicationRead = ownApplication.status === 200;
     await ownApplication.body?.cancel().catch(() => undefined);
+
+    // These random session hashes exist only in the disposable restore.
+    // A 200 on protected Staff/Agency pages therefore proves both that the
+    // session was accepted and that the recovery deployment is reading the
+    // restored database. This deliberately avoids depending on a dedicated
+    // /api/session route, which older Production releases do not expose.
+    const staffAuthenticatedSession = staffCriticalRead;
+    const agencyAuthenticatedSession = agencyOwnApplicationRead;
 
     const ownDocument = await fetchWithSession(
       options.baseUrl,
