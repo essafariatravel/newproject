@@ -82,25 +82,26 @@ log ""
 # from branch deployments; verify what its own diagnostics endpoint reports.
 # GET /api/health is the app's purpose-built, credential-free, redacted
 # diagnostics route (SELECT to_regclass / limit-0 column probes / ledger read).
-log "-- [0a] P0 PROD diag (read-only): https://visa.essafariavoyages.com/api/health"
+log "-- [0a] PROD public readiness (read-only): https://visa.essafariavoyages.com/api/health"
 CODE_PROD=$(status_of "https://visa.essafariavoyages.com/api/health" "$WORK/prod-health.json")
 if [ "$CODE_PROD" = "200" ]; then
-  python3 -c "
-import json
+  if python3 -c "
+import json,sys
 d=json.load(open('$WORK/prod-health.json'))
-db=d.get('database') or {}; s=d.get('schema') or {}
-led=s.get('migrationLedger') or []
-err=db.get('error') or {}
-print('PASS  PROD health 200: ok=%s configured=%s connected=%s columnsValid=%s schema=%s ledger=%d last=%s accounts=%s' % (
-  d.get('ok'), db.get('configured'), db.get('connected'), s.get('columnsValid'),
-  s.get('name'), len(led), (led[-1] if led else 'none'), s.get('hasUserAccounts')))
-print('PASS  PROD db.identity: host=%s port=%s mode=%s ssl=%s intendedSupabaseProject=%s' % (
-  db.get('host'), db.get('port'), db.get('mode'), db.get('ssl'), db.get('intendedSupabaseProject')))
-print('PASS  PROD db.error: code=%s message=%s' % (err.get('code'), str(err.get('message'))[:140]))
-rt=' '.join('%s=%s' % (k, v) for k, v in (s.get('requiredTables') or {}).items())
-print('PASS  PROD requiredTables: %s' % (rt or 'none'))"
+sys.exit(0 if any(k in d for k in ('database','schema')) else 1)
+" 2>/dev/null; then
+    skp "PROD health still exposes legacy infrastructure diagnostics; preprod redaction is implemented but Production is intentionally untouched"
+  elif python3 -c "
+import json,sys
+d=json.load(open('$WORK/prod-health.json'))
+sys.exit(0 if d.get('ok') is True else 1)
+" 2>/dev/null; then
+    ok "PROD public health uses the redacted readiness contract"
+  else
+    bad "PROD public health returned 200 with an unexpected readiness payload"
+  fi
 else
-  log "INFO  PROD health returned http $CODE_PROD"
+  skp "PROD health returned http $CODE_PROD"
 fi
 CODE_PROD_LOGIN=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://visa.essafariavoyages.com/login")
 { [ "$CODE_PROD_LOGIN" = "200" ] && ok "PROD /login page renders (http 200)" || skp "PROD /login render returned http $CODE_PROD_LOGIN"; }
@@ -291,7 +292,7 @@ if [ -z "$P0_OUTCOME" ] && { [ "$CODE_P0" = "500" ] || [ "$CODE_P0" = "503" ]; }
 if [ -n "$P0_OUTCOME" ]; then
   bad "P0 REPRODUCED on hosted login: bogus credentials triggered service-failure ($P0_OUTCOME, http $CODE_P0)"
   printf '%s\n' "$P0_TEXT" | head -c 300 > /dev/null # body retained in $WORK for log tail
-elif echo "$P0_TEXT" | grep -qi "Invalid email or password"; then
+elif echo "$P0_TEXT" | grep -Eqi "Invalid (username, email|email) or password"; then
   ok "P0 neg: unknown credentials rejected with normal invalid-credentials (users query + verify healthy, http $CODE_P0)"
 else
   skp "P0 probe inconclusive (http $CODE_P0, login page http $CODE_L0 — body matched neither expected message; verify submit_form still parses the login form)"
@@ -933,7 +934,7 @@ printf 'email=%s\npassword=%s\n' "no-such-user-$STAMP@verify.invalid" "Wr0ng!Pro
 CODE_P0P=$(submit_form "$WORK/prod-login.html" "https://visa.essafariavoyages.com/login" "Sign in" "$WORK/prodjarb.txt" "$WORK/prodloginfields-bogus.txt")
 P0P_TEXT=$(tr -d '\r' < "$WORK/body.html" | LC_ALL=C sed 's/<[^>]*>//g' | tr -s ' \n' ' ' 2>/dev/null)
 case "$P0P_TEXT" in *"Service temporarily unavailable"*) bad "PROD P0 repro: bogus login produced service-failure on production domain";; esac
-echo "$P0P_TEXT" | grep -qi "Invalid email or password" \
+echo "$P0P_TEXT" | grep -Eqi "Invalid (username, email|email) or password" \
   && ok "PROD bogus login → normal invalid-credentials (auth + users query healthy on visa_os, http $CODE_P0P)" \
   || skp "PROD bogus-login probe inconclusive (http $CODE_P0P; login page http $CODE_PROD_L)"
 # Production is READ-ONLY for this harness: a real production login is only
