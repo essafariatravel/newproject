@@ -246,7 +246,7 @@ const { Client } = require("pg");
   if (ev?.locale !== "en") throw new Error("wrong consent locale");
 
   const audit = await c.query(
-    "select action, metadata from audit_logs where entity='agency_registration' and entity_id=$1 order by created_at",
+    "select action, metadata, ip_address from audit_logs where entity='agency_registration' and entity_id=$1 order by created_at",
     [row.id]
   );
   const actions = audit.rows.map(x => x.action);
@@ -260,6 +260,9 @@ const { Client } = require("pg");
   }
   if (privacyAudit?.metadata?.legalVersionId !== "22222222-2222-4222-8222-222222222222") {
     throw new Error("Privacy audit version ID mismatch");
+  }
+  if (termsAudit?.ip_address !== null || privacyAudit?.ip_address !== null) {
+    throw new Error("legal acceptance audit must not duplicate source IP");
   }
   await c.end();
 })().catch((err) => { console.error(err); process.exit(1); });
