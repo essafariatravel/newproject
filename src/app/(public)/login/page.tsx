@@ -6,6 +6,7 @@ import { LoginForm } from "./login-form";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { identityT } from "@/lib/identity-copy";
+import { safeErrorCode } from "@/lib/safe-error";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export default async function LoginPage() {
   try {
     user = await getSessionUser();
   } catch (err) {
-    console.error("[login] getSessionUser failed", err);
+    console.error("[login] getSessionUser failed", safeErrorCode(err) ?? "unknown");
     user = null;
   }
   if (user) {
@@ -28,7 +29,7 @@ export default async function LoginPage() {
   try {
     branding = await readBranding();
   } catch (err) {
-    console.error("[login] readBranding failed", err);
+    console.error("[login] readBranding failed", safeErrorCode(err) ?? "unknown");
     branding = BRANDING_DEFAULTS;
   }
   const logoUrl = brandLogoUrl(branding);
