@@ -29,3 +29,20 @@ describe("Production release workflow security", () => {
     expect(workflow).not.toContain("repos/%s/commits/%s/comments");
   });
 });
+
+
+describe("Hosted Preview verification workflow security", () => {
+  const workflow = readFileSync(path.join(process.cwd(), ".github/workflows/preview-verify.yml"), "utf8");
+
+  it("does not combine Preview credentials with repository write permission", () => {
+    expect(workflow).toContain("contents: read");
+    expect(workflow).not.toContain("contents: write");
+    expect(workflow).not.toContain("GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}");
+  });
+
+  it("publishes verification evidence through the Actions summary", () => {
+    expect(workflow).toContain("Publish the gate verdict to Actions summary");
+    expect(workflow).toContain("GITHUB_STEP_SUMMARY");
+    expect(workflow).not.toContain("repos/%s/commits/%s/comments");
+  });
+});
