@@ -81,3 +81,66 @@ Before a Privacy Notice or Terms version is pasted into the product publication 
 - approval date/evidence reference.
 
 ESSAFARIA VISA OS records immutable **publication** history. It does not fabricate external legal-review evidence.
+
+
+## Operational Staff access — OWNER BUSINESS DECISION REQUIRED
+
+Current V1 code gives ADMIN, VISA_AGENT and ACCOUNTING the same operational Staff permission perimeter, except user-account management and recovery remain SUPER_ADMIN-only.
+
+Owner must approve either:
+- keep the shared operational Staff perimeter for V1; or
+- define an explicit separation of duties.
+
+If separation is chosen, specify at minimum who may:
+- view applicant/document contents;
+- review documents;
+- change application status;
+- override submission gates;
+- adjust wallets;
+- view top-up receipts;
+- decide agency registrations;
+- manage catalogue/config/CMS;
+- view audit logs and reports.
+
+Do not delegate this choice to engineering/Codex.
+
+## Legal-version change behavior — OWNER + LEGAL REVIEW REQUIRED
+
+For each future Terms/Privacy update, approve the intended behavior:
+- INFORMATIONAL only;
+- acknowledgement requested;
+- explicit re-acceptance required;
+- block relevant use until re-accepted.
+
+Also decide whether acceptance is agency-level, individual-user-level, or another model.
+
+Engineering must not infer enforcement from textual differences between versions.
+
+## Cookies / analytics / marketing — OWNER + LEGAL REVIEW REQUIRED
+
+Current technical state does not intentionally include an analytics/advertising SDK.
+
+Until a decision is approved:
+- do not introduce new analytics/remarketing pixels;
+- do not add a cosmetic consent banner merely to appear compliant;
+- keep the technical cookie/browser-storage inventory current.
+
+If analytics/marketing technology is proposed, approve:
+- provider;
+- exact purpose;
+- data/events sent;
+- cookie/storage keys;
+- retention/configuration;
+- required notice/consent behavior;
+- vendor/transfer review.
+
+## Privacy request channel / internal owner
+
+Approve:
+- official privacy request contact/channel;
+- internal case owner;
+- identity/authority verification approach;
+- escalation path when deletion/retention obligations conflict;
+- external counsel/contact if applicable.
+
+Do not publish a response deadline or statutory right unless legally reviewed for the applicable jurisdiction and relationship.
