@@ -15,7 +15,9 @@
     "db:setup": "tsx scripts/migrate.ts && tsx scripts/seed.ts",
     "db:up": "tsx scripts/dev-db.ts",
     "db:reset": "tsx scripts/reset.ts",
-    "db:verify": "tsx scripts/verify-db.ts"
+    "db:verify": "tsx scripts/verify-db.ts",
+    "dr:manifest": "tsx scripts/dr-verify-manifest.ts",
+    "dr:restore-verify": "tsx scripts/dr-verify-restore.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
