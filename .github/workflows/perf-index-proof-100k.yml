@@ -1,0 +1,87 @@
+name: Performance local index A-B proof
+
+on:
+  push:
+    branches:
+      - perf/performance-gate-prep
+    paths:
+      - .github/workflows/perf-index-proof-100k.yml
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    name: Prove candidate indexes on disposable 100k dataset
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      VERCEL: "0"
+      VERCEL_ENV: ""
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/essafaria
+      DATABASE_SCHEMA: public
+      PERF_ACK_NONPROD: "YES"
+      PERF_SYNTHETIC_PASSWORD: "ci-only-performance-secret-2026"
+      STORAGE_PROVIDER: db
+      ALLOW_DEMO_SEED: "false"
+      CI: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Start disposable PostgreSQL
+        shell: bash
+        run: |
+          npm run db:up >/tmp/perf-pg.log 2>&1 &
+          echo $! > /tmp/perf-pg.pid
+          READY=0
+          for i in $(seq 1 45); do
+            if (echo > /dev/tcp/127.0.0.1/5432) >/dev/null 2>&1; then READY=1; break; fi
+            sleep 1
+          done
+          if [ "$READY" != "1" ]; then cat /tmp/perf-pg.log; exit 1; fi
+          npm run db:setup
+          npm run perf:seed-identities
+
+      - name: Seed exact high-volume notification and communications shapes
+        env:
+          PERF_DATASET_ID: indexproof100k
+          PERF_APPLICATIONS: "100000"
+          PERF_AGENCIES: "1000"
+          PERF_DOCS_PER_APP: "0"
+          PERF_NOTIFICATIONS_PER_APP: "3"
+          PERF_MESSAGES_PER_APP: "1"
+          PERF_AUDITS_PER_APP: "0"
+          PERF_LEDGER_ROWS: "0"
+          PERF_BATCH_SIZE: "2000"
+        run: npm run perf:seed-scale
+
+      - name: Run disposable index A-B experiments
+        shell: bash
+        run: |
+          mkdir -p perf/results
+          npm run perf:index-experiment | tee perf/results/index-experiment-100k.log
+
+      - name: Upload experiment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: essafaria-index-experiment-100k-${{ github.sha }}
+          path: perf/results/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Stop disposable PostgreSQL
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/perf-pg.pid ]; then kill "$(cat /tmp/perf-pg.pid)" >/dev/null 2>&1 || true; fi
