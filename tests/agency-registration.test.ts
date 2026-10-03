@@ -243,6 +243,22 @@ describe("public agency registration — duplicates & rate limiting", () => {
     const matches=await getRegistrationDuplicateCandidates(submitted.id,await userByEmail("admin@test.example"));
     expect(matches.some((match)=>match.kind==="agency" && match.signals.includes("name"))).toBe(true);
   });
+  it("atomically caps concurrent submissions from one source IP", async () => {
+    const ip = nextIp();
+    const attempts = await Promise.allSettled(
+      Array.from({ length: 12 }, () =>
+        submitAgencyRegistration({ data: registrationData(), files: [], ipAddress: ip }),
+      ),
+    );
+    const succeeded = attempts.filter((result) => result.status === "fulfilled").length;
+    const rejected = attempts.filter((result) => result.status === "rejected");
+    expect(succeeded).toBe(RATE_LIMIT_PER_IP_HOUR);
+    expect(rejected).toHaveLength(12 - RATE_LIMIT_PER_IP_HOUR);
+    for (const result of rejected) {
+      expect((result as PromiseRejectedResult).reason).toMatchObject({ code: "RATE_LIMITED" });
+    }
+  });
+
   it("rate limits abusive velocity from one source IP", async () => {
     const ip = nextIp();
     for (let i = 0; i < 5; i += 1) {
