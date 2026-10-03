@@ -276,6 +276,17 @@
       ]
     },
     {
+      "id": "SEC-07",
+      "title": "Hosted Preview verification cannot combine test credentials with repository write permission",
+      "phase": "ci",
+      "releaseCritical": true,
+      "status": "PROVEN",
+      "evidence": [
+        "tests/production-workflow-security.test.ts",
+        ".github/workflows/preview-verify.yml"
+      ]
+    },
+    {
       "id": "DB-01",
       "title": "Preview application functions are private and search_path pinned",
       "phase": "preview-db",
