@@ -20,6 +20,7 @@ if (BASE_HOST === PROD_HOST) {
 
 const SESSION_FILE = __ENV.PERF_SESSION_FILE || "./perf/.runtime/sessions.json";
 const sessionData = JSON.parse(open(SESSION_FILE));
+const BUDGETS = JSON.parse(open("../budgets.json"));
 
 const unexpectedFailure = new Rate("unexpected_failure");
 const backgroundRequests = new Counter("background_requests");
@@ -62,6 +63,13 @@ function scenarioForProfile() {
   if (profile === "soak-mixed-short") {
     return { executor: "constant-vus", vus: 100, duration: "25m", gracefulStop: "30s" };
   }
+  if (profile === "polling-only") {
+    const vus = Number(__ENV.PERF_VUS || "100");
+    if (![10, 50, 100, 250, 500, 1000].includes(vus)) {
+      throw new Error("PERF_VUS must be one of 10,50,100,250,500,1000.");
+    }
+    return { executor: "constant-vus", vus, duration: duration(__ENV.PERF_HOLD, "10m"), gracefulStop: "30s" };
+  }
   if (profile === "tier") {
     const vus = Number(__ENV.PERF_VUS || "10");
     if (![10, 50, 100, 250, 500, 1000].includes(vus)) {
@@ -78,12 +86,24 @@ function scenarioForProfile() {
   ], gracefulRampDown: "30s" };
 }
 
+function operationThresholds() {
+  const thresholds = {};
+  for (const [operation, budget] of Object.entries(BUDGETS.operations || {})) {
+    thresholds[`http_req_duration{operation:${operation}}`] = [
+      `p(95)<${budget.p95Ms}`,
+      `p(99)<${budget.p99Ms}`,
+    ];
+  }
+  return thresholds;
+}
+
 export const options = {
   scenarios: { workload: scenarioForProfile() },
   thresholds: {
-    http_req_failed: [{ threshold: "rate<0.01", abortOnFail: false }],
-    unexpected_failure: [{ threshold: "rate<0.01", abortOnFail: false }],
-    http_req_duration: ["p(95)<2000"],
+    http_req_failed: [{ threshold: `rate<${BUDGETS.global.errorRateMax}`, abortOnFail: false }],
+    unexpected_failure: [{ threshold: `rate<${BUDGETS.global.unexpectedFailureRateMax}`, abortOnFail: false }],
+    http_req_duration: [`p(95)<${BUDGETS.global.p95Ms}`],
+    ...operationThresholds(),
   },
   summaryTrendStats: ["avg", "med", "p(90)", "p(95)", "p(99)", "max"],
 };
@@ -229,7 +249,7 @@ function maximumVus() {
   if (profile === "peak") return 100;
   if (profile === "spike") return 250;
   if (profile === "soak-agency" || profile === "soak-mixed-short") return 100;
-  if (profile === "tier") return Number(__ENV.PERF_VUS || "10");
+  if (profile === "polling-only" || profile === "tier") return Number(__ENV.PERF_VUS || (profile === "polling-only" ? "100" : "10"));
   return 10;
 }
 
@@ -293,6 +313,10 @@ export function setup() {
     throw new Error("Unexpected database host in authenticated health report.");
   }
 
+  if (profile === "polling-only") {
+    return { startedAt: Date.now(), expectedProject: EXPECTED_PROJECT, agencyApplicationIds: [], staffApplicationIds: [] };
+  }
+
   const agencyApplicationIds = discoverApplications("AGENCY_USER", "/portal/applications?per=50", "/portal/applications");
   const staffApplicationIds = discoverApplications("VISA_AGENT", "/admin/applications?q=PERF&per=50", "/admin/applications");
   if (agencyApplicationIds.length === 0) throw new Error("No synthetic Agency application links discovered. Seed scale data first.");
@@ -330,6 +354,11 @@ export default function (setupData) {
   if (now - state.lastSession >= 60000) {
     checkSession(role);
     state.lastSession = now;
+  }
+
+  if (profile === "polling-only") {
+    sleep(1);
+    return;
   }
 
   // Exercise dossier details regularly, while keeping this profile read-heavy.
