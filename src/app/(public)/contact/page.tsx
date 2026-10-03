@@ -1,11 +1,15 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { getSiteSettings } from "@/lib/settings";
 import { publicContactDetails } from "@/lib/public-contact";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
+import { buildPublicMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Contact" };
+export async function generateMetadata(): Promise<Metadata> {
+  return buildPublicMetadata("contact", await getUiLocale());
+}
 
 export default async function ContactPage() {
   const settings = await getSiteSettings();

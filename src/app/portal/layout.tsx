@@ -2,6 +2,7 @@ import { LiveNotifications } from "@/components/live-notifications";
 import { contentT } from "@/lib/i18n-content";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import type { Metadata } from "next";
 import { getSessionUser } from "@/lib/auth";
 import { isAgencyRole } from "@/lib/types";
 import { unreadNotificationCount } from "@/lib/queries";
@@ -12,8 +13,10 @@ import { agencies } from "@/db/schema";
 import { agencyLogoUrl, brandLogoUrl, readBranding } from "@/lib/branding";
 import { chromeT, getUiLocale } from "@/lib/ui-i18n";
 import { UiLanguageSwitcher } from "@/components/ui-language-switcher";
+import { buildNoIndexMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = buildNoIndexMetadata("Agency Portal");
 
 export default async function PortalLayout({ children }: { children: ReactNode }) {
   const user = await getSessionUser();

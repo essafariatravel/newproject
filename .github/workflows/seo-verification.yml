@@ -1,0 +1,50 @@
+name: SEO and indexation safety verification
+
+on:
+  push:
+    branches:
+      - "seo/**"
+  workflow_dispatch:
+
+concurrency:
+  group: seo-indexation-verification-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Typecheck, lint, SEO contracts, tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERCEL: "0"
+      VERCEL_ENV: ""
+      DATABASE_URL: ""
+      ALLOW_DEMO_SEED: "false"
+      STORAGE_PROVIDER: "db"
+      CI: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+
+      - name: SEO safety contracts
+        run: npm test -- tests/seo-indexation.test.ts tests/seo-route-policy.test.ts tests/build-preview-guard.test.ts
+
+      - name: Full deterministic regression
+        run: npm test
+
+      - run: npm run build

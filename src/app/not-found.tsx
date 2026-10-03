@@ -1,4 +1,8 @@
 import Link from "next/link";
+import type { Metadata } from "next";
+import { buildNoIndexMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildNoIndexMetadata("Page not found");
 
 export default function NotFound() {
   return (

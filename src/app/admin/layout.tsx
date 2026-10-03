@@ -2,6 +2,7 @@ import { LiveNotifications } from "@/components/live-notifications";
 import { contentT } from "@/lib/i18n-content";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import type { Metadata } from "next";
 import { getSessionUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/rbac";
 import { unreadNotificationCount } from "@/lib/queries";
@@ -11,8 +12,10 @@ import { readBranding, brandLogoUrl } from "@/lib/branding";
 import { chromeT, getUiLocale } from "@/lib/ui-i18n";
 import { UiLanguageSwitcher } from "@/components/ui-language-switcher";
 import { StaffSearch } from "@/components/staff-search";
+import { buildNoIndexMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = buildNoIndexMetadata("Back Office");
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const user = await getSessionUser();

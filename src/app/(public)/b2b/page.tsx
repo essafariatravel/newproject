@@ -1,7 +1,12 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { publicBrandCopy } from "@/lib/public-brand-copy";
+import { buildPublicMetadata } from "@/lib/seo";
 export const dynamic = "force-dynamic";
+export async function generateMetadata(): Promise<Metadata> {
+  return buildPublicMetadata("b2b", await getUiLocale());
+}
 export default async function B2BPage() {
   const copy = publicBrandCopy(await getUiLocale());
   return <section className="ess-container grid items-center gap-10 py-14 sm:py-20 lg:grid-cols-2">

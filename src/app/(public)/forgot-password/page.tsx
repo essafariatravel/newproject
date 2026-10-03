@@ -1,10 +1,12 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { identityT } from "@/lib/identity-copy";
 import { RecoveryForm } from "./recovery-form";
+import { buildNoIndexMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Account recovery", robots: { index: false, follow: false } };
+export const metadata: Metadata = buildNoIndexMetadata("Account recovery");
 
 export default async function ForgotPasswordPage() {
   const locale = await getUiLocale(), t = identityT(locale);

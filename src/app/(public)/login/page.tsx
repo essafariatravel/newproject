@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { getSessionUser } from "@/lib/auth";
 import { isAgencyRole } from "@/lib/types";
 import { readBranding, brandLogoUrl, BRANDING_DEFAULTS } from "@/lib/branding";
@@ -6,8 +7,10 @@ import { LoginForm } from "./login-form";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { identityT } from "@/lib/identity-copy";
+import { buildNoIndexMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = buildNoIndexMetadata("Sign in");
 
 export default async function LoginPage() {
   const locale = await getUiLocale(), ct = contentT(locale), it = identityT(locale);

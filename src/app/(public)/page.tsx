@@ -1,10 +1,20 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { publicBrandCopy } from "@/lib/public-brand-copy";
+import { buildOrganizationJsonLd, buildPublicMetadata, serializeJsonLd } from "@/lib/seo";
 export const dynamic = "force-dynamic";
+export async function generateMetadata(): Promise<Metadata> {
+  return buildPublicMetadata("home", await getUiLocale());
+}
 export default async function HomePage() {
   const copy = publicBrandCopy(await getUiLocale());
+  const organizationJsonLd = buildOrganizationJsonLd();
   return <>
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: serializeJsonLd(organizationJsonLd) }}
+    />
     <section className="travel-public-hero" aria-labelledby="public-hero-title">
       <div className="travel-public-copy"><div>
         <p className="travel-eyebrow">{copy.eyebrow}</p>
