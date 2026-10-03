@@ -33,13 +33,17 @@ The privacy request/retention process must therefore include `agency_registratio
 
 ## localStorage / sessionStorage
 
-The Legal / Privacy branch contains a regression test that scans `src/` and fails if application code starts using:
-- `localStorage`;
-- `sessionStorage`.
+Current source-code inventory:
 
-Current intended state: no application personal/sensitive data is persisted there.
+| Key | Technology | Purpose | Personal identifier? | Duration |
+| --- | --- | --- | --- | --- |
+| `essafaria.notification-sound` | first-party `localStorage` | Remember whether the authenticated user enabled notification sound | No; value is only `on` / `off` | Until changed or browser storage is cleared |
 
-If browser persistence is introduced later, this inventory and privacy review must be updated before release.
+No `sessionStorage` use is currently inventoried.
+
+The Legal / Privacy branch contains a regression test that scans `src/` and permits only the exact `essafaria.notification-sound` key above. The test fails if another localStorage key or any sessionStorage use is introduced without updating the inventory/review.
+
+No applicant, agency, document, authentication token or financial value is intentionally stored in localStorage/sessionStorage.
 
 ## Analytics / advertising
 
