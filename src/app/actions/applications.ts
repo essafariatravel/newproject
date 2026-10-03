@@ -68,7 +68,6 @@ export async function createApplicationAction(formData: FormData): Promise<void>
       createdBy: user,
       ipAddress: clientIp(await headersOf()),
     });
-    await recordAudit({ actor: user, action: "APPLICATION_CREATED", entity: "application", entityId: app.id, agencyId: user.agencyId, metadata: { reference: app.reference } });
     revalidatePath("/portal/applications");
     return `Draft ${app.reference} created. Continue on the application page.`;
   });
@@ -459,11 +458,17 @@ export async function updateInternalNotesAction(formData: FormData): Promise<voi
 /* ------------------------------ gate preview ---------------------------- */
 
 export async function submissionGateFor(applicationId: string) {
-  return getSubmissionGate(applicationId);
+  const id = idSchema.parse(applicationId);
+  const user = await requireUser();
+  await assertOwnApplication(id, user);
+  return getSubmissionGate(id);
 }
 
 export async function historyFor(applicationId: string) {
-  return getStatusHistory(applicationId);
+  const id = idSchema.parse(applicationId);
+  const user = await requireUser();
+  await assertOwnApplication(id, user);
+  return getStatusHistory(id);
 }
 
 /* -------------------- atomic 3-step request (Phase 2.3) -------------------- */
