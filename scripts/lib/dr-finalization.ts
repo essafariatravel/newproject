@@ -40,6 +40,7 @@ export interface ApplicationRecoveryEvidence {
   version: 1;
   kind: "ESSAFARIA_DR_APPLICATION";
   backupId: string;
+  releaseSha: string;
   restoreEvidenceSha256: string;
   testedAt: string;
   targetRef: string;
@@ -58,6 +59,7 @@ export interface TenantIsolationEvidence {
   version: 1;
   kind: "ESSAFARIA_DR_TENANT_ISOLATION";
   backupId: string;
+  releaseSha: string;
   restoreEvidenceSha256: string;
   testedAt: string;
   targetRef: string;
@@ -129,6 +131,7 @@ export function validateApplicationEvidence(
   const findings: string[] = [];
   if (evidence.version !== 1 || evidence.kind !== "ESSAFARIA_DR_APPLICATION") findings.push("application evidence format is invalid");
   if (evidence.backupId !== manifest.backupId) findings.push("application evidence backupId does not match manifest");
+  if (evidence.releaseSha !== manifest.source.releaseSha) findings.push("application evidence releaseSha does not match backup release");
   if (!SHA256.test(evidence.restoreEvidenceSha256) || evidence.restoreEvidenceSha256 !== restoreEvidenceSha256) {
     findings.push("application evidence is not bound to the exact restore evidence");
   }
@@ -163,6 +166,7 @@ export function validateTenantIsolationEvidence(
   const findings: string[] = [];
   if (evidence.version !== 1 || evidence.kind !== "ESSAFARIA_DR_TENANT_ISOLATION") findings.push("tenant-isolation evidence format is invalid");
   if (evidence.backupId !== manifest.backupId) findings.push("tenant-isolation evidence backupId does not match manifest");
+  if (evidence.releaseSha !== manifest.source.releaseSha) findings.push("tenant-isolation evidence releaseSha does not match backup release");
   if (!SHA256.test(evidence.restoreEvidenceSha256) || evidence.restoreEvidenceSha256 !== restoreEvidenceSha256) {
     findings.push("tenant-isolation evidence is not bound to the exact restore evidence");
   }
