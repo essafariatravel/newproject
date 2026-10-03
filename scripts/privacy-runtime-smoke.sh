@@ -120,12 +120,12 @@ pass "registration carries exact legal version UUIDs"
 python3 - "$WORK/register-live.html" <<'PY'
 import re, sys
 src = open(sys.argv[1], encoding="utf-8").read()
-forms = re.findall(r"<form\\b[^>]*>.*?</form>", src, re.S)
+forms = re.findall(r"<form\b[^>]*>.*?</form>", src, re.S)
 chosen = next((form for form in forms if 'name="legalName"' in form), None)
 if not chosen:
     raise SystemExit("registration form not found")
 
-controls = re.findall(r"<(?:input|select|textarea)\\b[^>]*>", chosen, re.I)
+controls = re.findall(r"<(?:input|select|textarea)\b[^>]*>", chosen, re.I)
 names = set()
 has_file = False
 for tag in controls:
