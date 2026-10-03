@@ -48,11 +48,11 @@ describe("wallet ledger integrity", () => {
     const beforeTx = await db.select().from(walletTransactions).where(eq(walletTransactions.agencyId, agencyB.id));
 
     await pool.query(`
-      create or replace function fail_wallet_audit_probe() returns trigger language plpgsql as $
+      create or replace function fail_wallet_audit_probe() returns trigger language plpgsql as $probe$
       begin
         if new.action = 'WALLET_CREDIT' then raise exception 'audit probe failure'; end if;
         return new;
-      end $;
+      end $probe$;
       create trigger fail_wallet_audit_probe before insert on audit_logs
         for each row execute function fail_wallet_audit_probe();
     `);
