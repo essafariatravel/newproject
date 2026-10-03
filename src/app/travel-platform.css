@@ -147,6 +147,7 @@ a, button, summary, input, select, textarea { -webkit-tap-highlight-color: trans
   .agency-desktop-navigation a[aria-current] { background: #102a45; border-bottom-color: var(--color-gold-500); }
 }
 @media (min-width: 1024px) and (max-width: 1279px) {
+  .agency-bottom-navigation { display: none; }
   .workspace-agency .workspace-menu {
     display: inline-flex;
     width: 44px;
@@ -155,7 +156,7 @@ a, button, summary, input, select, textarea { -webkit-tap-highlight-color: trans
     justify-content: center;
     border: 0;
   }
-  .workspace-agency #workspace-main { padding-bottom: 92px; }
+  .workspace-agency #workspace-main { padding-bottom: 32px; }
 }
 
 @media (max-width: 1023px) {
