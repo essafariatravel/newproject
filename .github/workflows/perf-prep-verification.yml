@@ -1,0 +1,67 @@
+name: Performance Gate preparation verification
+
+on:
+  push:
+    branches:
+      - perf/performance-gate-prep
+  workflow_dispatch:
+
+concurrency:
+  group: performance-gate-prep-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify additive performance pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERCEL: "0"
+      VERCEL_ENV: ""
+      DATABASE_URL: ""
+      DATABASE_SCHEMA: ""
+      ALLOW_DEMO_SEED: "false"
+      STORAGE_PROVIDER: "db"
+      CI: "true"
+
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify checkout
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "Verified commit: $GITHUB_SHA"
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Verify performance safety guard
+        run: npm test -- tests/performance-safety.test.ts
+
+      - name: Verify wallet race invariants
+        run: npm test -- tests/performance-wallet-races.test.ts
+
+      - name: Verify concurrent 2 MB storage reliability
+        run: npm test -- tests/performance-storage-concurrency.test.ts
+
+      - name: Build without deployment or remote database access
+        run: npm run build
