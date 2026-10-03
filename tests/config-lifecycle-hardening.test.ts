@@ -19,33 +19,14 @@ afterEach(async () => {
 
 async function rejectConfigAudit(action: string) {
   if (!/^[A-Z_]+$/.test(action)) throw new Error("Invalid test action");
-  await db.execute(sql.raw(`create function config_audit_test_failure() returns trigger language plpgsql as $probe$
+  await db.execute(sql.raw(`create function config_audit_test_failure() returns trigger language plpgsql as $config_audit$
     begin
       if new.action='${action}' then
         raise exception 'Config audit unavailable';
       end if;
       return new;
     end
-  $probeimport { afterEach, describe, expect, it, vi } from "vitest";
-import { and, eq, sql } from "drizzle-orm";
-import { suiteSetup } from "./helpers/global-state";
-import { request } from "./helpers/request";
-import { agencyByEmail, userByEmail } from "./helpers/fixtures";
-import { db } from "@/lib/db";
-import { applications, documentTypes, statuses, statusTransitions, visaRequirements, visaTypes } from "@/db/schema";
-import { changeApplicationStatus, createDraftApplication, getStatusByCode } from "@/lib/applications";
-import { createSession } from "@/lib/auth";
-import { updateDocumentTypeAction, updateStatusAction, updateVisaTypeAction } from "@/app/actions/config";
-
-suiteSetup();
-vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
-afterEach(async () => {
-  request.cookie = "";
-  await db.execute(sql`drop trigger if exists config_audit_test_failure on audit_logs`);
-  await db.execute(sql`drop function if exists config_audit_test_failure()`);
-});
-
-));
+  $config_audit$;`));
   await db.execute(sql`create trigger config_audit_test_failure before insert on audit_logs for each row execute function config_audit_test_failure()`);
 }
 
