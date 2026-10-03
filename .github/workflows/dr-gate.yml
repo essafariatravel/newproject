@@ -1,0 +1,87 @@
+name: DR Gate — non-deploying verification
+
+on:
+  push:
+    branches:
+      - dr/pre-codex-gate-2026-10-03
+    paths:
+      - ".github/workflows/dr-gate.yml"
+      - "scripts/lib/dr-safety.ts"
+      - "scripts/dr-verify-manifest.ts"
+      - "scripts/dr-verify-restore.ts"
+      - "scripts/reset.ts"
+      - "scripts/lib/reset-plan.ts"
+      - "scripts/lib/build-policy.ts"
+      - "tests/dr-safety.test.ts"
+      - "tests/reset-plan.test.ts"
+      - "tests/build-preview-guard.test.ts"
+      - "docs/operations/disaster-recovery.md"
+      - "docs/operations/dr-backup-manifest.example.json"
+      - "docs/operations/go-live-reset.md"
+      - "package.json"
+      - "package-lock.json"
+      - "vercel.json"
+  workflow_dispatch:
+
+concurrency:
+  group: dr-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: DR safety, regression and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_SCHEMA: public
+      DR_ENVIRONMENT: RESTORE_TEST
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: DR unit and fail-closed tests
+        run: npx vitest run tests/dr-safety.test.ts tests/reset-plan.test.ts tests/build-preview-guard.test.ts
+
+      - name: Full regression suite
+        run: npm test
+
+      - name: Production build without deployment
+        env:
+          VERCEL_GIT_COMMIT_REF: dr/pre-codex-gate-2026-10-03
+        run: npm run build
+
+      - name: Prove example manifest is intentionally NOT verified
+        run: |
+          set +e
+          npm run dr:manifest -- --manifest docs/operations/dr-backup-manifest.example.json --source production
+          CODE=$?
+          set -e
+          test "$CODE" -eq 2
+
+      - name: Prove restore verifier refuses ambiguous target before connection
+        run: |
+          set +e
+          env -u DATABASE_URL -u DR_ENVIRONMENT npm run dr:restore-verify > /tmp/dr-refusal.log 2>&1
+          CODE=$?
+          set -e
+          cat /tmp/dr-refusal.log
+          test "$CODE" -eq 2
+          grep -q '"status": "REFUSED"' /tmp/dr-refusal.log
