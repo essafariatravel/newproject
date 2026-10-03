@@ -1,9 +1,11 @@
+import type { Metadata } from "next";
 import { resolveRegistrationFollowup } from "@/lib/registration-followup";
 import { registrationReviewCopy,resolveLocale } from "@/lib/i18n";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { RegistrationUploadForm } from "@/components/registration-upload-form";
+import { buildNoIndexMetadata } from "@/lib/seo";
 export const dynamic = "force-dynamic";
-export const metadata = {robots:{index:false,follow:false},referrer:"no-referrer" as const};
+export const metadata: Metadata = buildNoIndexMetadata("Agency verification", { referrer: "no-referrer" });
 export default async function AgencyVerificationPage({params}: {params:Promise<{token:string}>}) {
   const {token} = await params;
   const resolved = await resolveRegistrationFollowup(token);

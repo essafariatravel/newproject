@@ -2,10 +2,11 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { registrationCopy, resolveLocale } from "@/lib/i18n";
 import { getUiLocale, pickUiLocale } from "@/lib/ui-i18n";
+import { buildNoIndexMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Application received", robots:{index:false,follow:false} };
+export const metadata: Metadata = buildNoIndexMetadata("Application received", { referrer: "no-referrer" });
 
 const REFERENCE_RE = /^AGR-\d{4}-[A-Z0-9]{6}$/;
 

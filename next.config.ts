@@ -14,6 +14,9 @@ const authNoIndexSources = [
   "/change-password",
   "/agency/register",
   "/agency/register/success",
+];
+
+const utilityNoIndexSources = [
   "/countries",
   "/visas",
   "/privacy",
@@ -52,6 +55,13 @@ const nextConfig: NextConfig = {
         ],
       },
       ...authNoIndexSources.map((source) => ({
+        source,
+        headers: [
+          noIndexHeader,
+          { key: "Cache-Control", value: "no-store, max-age=0" },
+        ],
+      })),
+      ...utilityNoIndexSources.map((source) => ({
         source,
         headers: [noIndexHeader],
       })),

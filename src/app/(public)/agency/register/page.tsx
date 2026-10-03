@@ -5,10 +5,11 @@ import { registrationCopy, resolveLocale } from "@/lib/i18n";
 import { getUiLocale, pickUiLocale } from "@/lib/ui-i18n";
 import { readPublishedLegal } from "@/lib/legal";
 import { publicBrandCopy } from "@/lib/public-brand-copy";
+import { buildNoIndexMetadata } from "@/lib/seo";
 export const dynamic = "force-dynamic";
 export async function generateMetadata({searchParams}: {searchParams: Promise<Record<string,string|string[]|undefined>>}): Promise<Metadata> {
   const sp = await searchParams;
-  return {title: registrationCopy(resolveLocale(pickUiLocale(sp.lang) ?? await getUiLocale())).metaTitle,robots:{index:false,follow:false}};
+  return buildNoIndexMetadata(registrationCopy(resolveLocale(pickUiLocale(sp.lang) ?? await getUiLocale())).metaTitle);
 }
 export default async function AgencyRegisterPage({searchParams}: {searchParams: Promise<Record<string,string|string[]|undefined>>}) {
   const sp = await searchParams;

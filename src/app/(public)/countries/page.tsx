@@ -1,3 +1,9 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-export const metadata = { robots: { index: false, follow: false } };
-export default function CountriesPage() { redirect("/login"); }
+import { buildNoIndexMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildNoIndexMetadata("Visa services");
+
+export default function CountriesPage() {
+  redirect("/login");
+}

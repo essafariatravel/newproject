@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 function source(path: string): string {
@@ -13,6 +13,22 @@ function expectsNoIndex(path: string): void {
       /robots\s*:\s*\{[^}]*index\s*:\s*false/s.test(body),
     `${path} must explicitly remain noindex`,
   ).toBe(true);
+}
+
+function tsxFilesUnder(relativeRoot: string): string[] {
+  const absoluteRoot = resolve(process.cwd(), relativeRoot);
+  const out: string[] = [];
+  const visit = (dir: string) => {
+    for (const entry of readdirSync(dir)) {
+      const absolute = join(dir, entry);
+      if (statSync(absolute).isDirectory()) visit(absolute);
+      else if (entry.endsWith(".tsx")) {
+        out.push(absolute.slice(process.cwd().length + 1));
+      }
+    }
+  };
+  visit(absoluteRoot);
+  return out;
 }
 
 describe("SEO route classification contract", () => {
@@ -64,6 +80,28 @@ describe("SEO route classification contract", () => {
     ]) {
       expect(source(path)).toContain("buildPublicMetadata");
     }
+  });
+
+  it("prevents private child routes from reintroducing public SEO metadata", () => {
+    for (const root of ["src/app/admin", "src/app/portal"]) {
+      for (const path of tsxFilesUnder(root)) {
+        const body = source(path);
+        expect(body, `${path} must not use public SEO metadata`).not.toContain("buildPublicMetadata");
+        expect(body, `${path} must not become indexable`).not.toMatch(/index\s*:\s*true/);
+        expect(body, `${path} must not emit a canonical`).not.toMatch(/canonical\s*:/);
+        expect(body, `${path} must not emit Open Graph metadata`).not.toMatch(/openGraph\s*:/);
+        expect(body, `${path} must not emit JSON-LD`).not.toContain("application/ld+json");
+        expect(body, `${path} dynamic metadata requires explicit privacy review`).not.toContain("generateMetadata");
+      }
+    }
+  });
+
+  it("keeps the root metadata brand-safe rather than marketing-heavy", () => {
+    const body = source("src/app/layout.tsx");
+    expect(body).not.toMatch(/description\s*:/);
+    expect(body).not.toMatch(/openGraph\s*:/);
+    expect(body).not.toMatch(/canonical\s*:/);
+    expect(body).not.toContain("application/ld+json");
   });
 
   it("keeps the operational catalogue redirect routes non-indexable", () => {

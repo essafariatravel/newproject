@@ -1,11 +1,13 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { identityT } from "@/lib/identity-copy";
 import { resolveAccessToken } from "@/lib/account-recovery";
 import { ResetAccessForm } from "./reset-form";
+import { buildNoIndexMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Set password", robots: { index: false, follow: false }, referrer: "no-referrer" as const };
+export const metadata: Metadata = buildNoIndexMetadata("Set password", { referrer: "no-referrer" });
 
 export default async function ResetAccessPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params, locale = await getUiLocale(), t = identityT(locale);
