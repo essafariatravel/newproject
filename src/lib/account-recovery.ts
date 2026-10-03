@@ -16,9 +16,11 @@ const tokenShape = /^[A-Za-z0-9_-]{20,90}$/;
 export async function requestAccountRecovery(identifier: string, ipAddress: string | null = null): Promise<string> {
   const raw = identifier.trim().slice(0, 254).toLowerCase();
   try {
+    if (!raw) return RECOVERY_ACKNOWLEDGEMENT;
     const ipAllowed = await consumeAuthRateLimit("recovery-ip", ipAddress ?? "unknown", 20, 60 * 60_000);
+    if (!ipAllowed) return RECOVERY_ACKNOWLEDGEMENT;
     const identifierAllowed = await consumeAuthRateLimit("recovery-identity", raw, 3, 60 * 60_000);
-    if (!ipAllowed || !identifierAllowed || !raw) return RECOVERY_ACKNOWLEDGEMENT;
+    if (!identifierAllowed) return RECOVERY_ACKNOWLEDGEMENT;
     let normalized = raw;
     if (!raw.includes("@")) {
       try { normalized = normalizeAgencyUsername(raw); } catch { return RECOVERY_ACKNOWLEDGEMENT; }
