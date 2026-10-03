@@ -224,8 +224,10 @@ async function main() {
         "select sequence_name from information_schema.sequences where sequence_schema=$1 order by sequence_name",
         [PRODUCTION_SCHEMA],
       );
-      const objectResult = await sourcePool.query<{ key: string; size_bytes: number }>(
-        `select key,size_bytes from "${PRODUCTION_SCHEMA}".document_blobs order by key`,
+      const objectResult = await sourcePool.query<{ key: string; size_bytes: number; sha256: string }>(
+        `select key,size_bytes,encode(digest(data,'sha256'),'hex') as sha256
+           from "${PRODUCTION_SCHEMA}".document_blobs
+          order by key`,
       );
 
       await run(pgBinary("pg_dump"), [
@@ -242,7 +244,11 @@ async function main() {
       await verifyEncryptedFileAes256Gcm(encryptedPath, key);
 
       const encryptedStats = await stat(encryptedPath);
-      const objects = objectResult.rows.map((row) => ({ key: row.key, sizeBytes: Number(row.size_bytes) }));
+      const objects = objectResult.rows.map((row) => ({
+        key: row.key,
+        sizeBytes: Number(row.size_bytes),
+        sha256: row.sha256.toLowerCase(),
+      }));
       const manifest: BackupManifest = {
         version: 1,
         backupId: "ESSAFARIA-SYNTHETIC-DR-LOCAL-0001",
