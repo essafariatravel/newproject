@@ -68,6 +68,9 @@ jobs:
       - name: Verify concurrent 2 MB storage reliability
         run: npm test -- tests/performance-storage-concurrency.test.ts
 
+      - name: Verify fail-closed performance verdict tooling
+        run: npm test -- tests/performance-verdict-tooling.test.ts
+
       - name: Validate synthetic scale seeder on disposable local PostgreSQL
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/essafaria
@@ -122,6 +125,7 @@ jobs:
           NODE
           PERF_BENCH_REPEATS=2 PERF_BENCH_OUTPUT=perf/results/ci-query-benchmark.json npm run perf:benchmark
           PERF_ALLOW_EXPLAIN_ANALYZE=YES PERF_EXPLAIN_OUTPUT=perf/results/ci-explain.json npm run perf:explain
+          PERF_EXPLAIN_INPUT=perf/results/ci-explain.json npm run perf:index-advisor > perf/results/ci-index-advisor.json
           npm run perf:regression -- perf/results/ci-query-benchmark.json perf/results/ci-query-benchmark.json
 
           mkdir -p perf/results
