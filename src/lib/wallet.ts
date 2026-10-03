@@ -16,7 +16,6 @@ import type { PoolClient } from "pg";
 import { db, pool } from "@/lib/db";
 import { agencies, applications, walletTransactions } from "@/db/schema";
 import { AppError, type AuthUser, isStaffRole } from "@/lib/types";
-import { recordAudit } from "@/lib/audit";
 import { agencyUserIds, notifyUsers } from "@/lib/notifications";
 
 export interface WalletMutationResult {
@@ -176,6 +175,15 @@ export async function adjustWallet(params: {
       reason,
       actorId: params.actor.id,
     });
+    await client.query(
+      `insert into ${qualifiedTable("audit_logs")}
+         (actor_id, actor_email, actor_role, agency_id, action, entity, entity_id, metadata, ip_address)
+       values ($1,$2,$3,$4,$5,'wallet_transaction',$6,$7::jsonb,$8)`,
+      [params.actor.id, params.actor.email, params.actor.role, params.agencyId,
+       operation === "CREDIT" ? "WALLET_CREDIT" : "WALLET_DEBIT", result.transactionId,
+       JSON.stringify({ amount: amountAbs, reason: params.reason, balanceBefore: result.balanceBefore, balanceAfter: result.balanceAfter, currency: "DZD" }),
+       params.ipAddress ?? null],
+    );
     await client.query("commit");
   } catch (err) {
     await client.query("rollback").catch(() => {});
@@ -183,22 +191,6 @@ export async function adjustWallet(params: {
   } finally {
     client.release();
   }
-
-  await recordAudit({
-    actor: params.actor,
-    action: operation === "CREDIT" ? "WALLET_CREDIT" : "WALLET_DEBIT",
-    entity: "wallet_transaction",
-    entityId: result.transactionId,
-    agencyId: params.agencyId,
-    metadata: {
-      amount: amountAbs,
-      reason: params.reason,
-      balanceBefore: result.balanceBefore,
-      balanceAfter: result.balanceAfter,
-      currency: "DZD",
-    },
-    ipAddress: params.ipAddress ?? null,
-  });
 
   // §34 — a manual wallet movement is never silent: the agency is told what
   // changed, by how much and what the balance is now, with a deep link to the
@@ -315,6 +307,16 @@ export async function chargeApplicationSubmission(params: {
        values ($1, $2, $3, $4, 'Application submitted')`,
       [app.id, params.draftStatusId, params.submittedStatusId, params.actorId],
     );
+    const audit = await client.query(
+      `insert into ${qualifiedTable("audit_logs")}
+         (actor_id, actor_email, actor_role, agency_id, action, entity, entity_id, metadata, ip_address)
+       select u.id,u.email,u.role,$2,'APPLICATION_SUBMISSION_CHARGED','wallet_transaction',$3,$4::jsonb,$5
+       from ${qualifiedTable("users")} u where u.id=$1`,
+      [params.actorId, app.agency_id, txId,
+       JSON.stringify({ reference: app.reference, amount: app.fee, currency: "DZD", balanceBefore: balance_before, balanceAfter: balance_after }),
+       params.ipAddress ?? null],
+    );
+    if (audit.rowCount !== 1) throw new AppError("AUDIT_FAILED", "The application charge could not be audited.");
     await client.query("commit");
     return { transactionId: txId, balanceBefore: balance_before, balanceAfter: balance_after };
   } catch (err) {
