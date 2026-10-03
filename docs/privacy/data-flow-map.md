@@ -17,7 +17,7 @@ First-contact fields are deliberately limited to agency name, primary contact, p
 
 Administrative/KYC documents do **not** enter this flow.
 
-Security metadata may include request IP for anti-abuse/audit purposes.
+Anti-abuse uses a one-way hashed rate-limit subject in `auth_rate_limits`. The current first-contact flow does not persist the raw request IP in `agency_registrations` or in the public submission audit event.
 
 ## 2. Administrative follow-up
 
