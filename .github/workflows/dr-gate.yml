@@ -14,6 +14,7 @@ on:
       - "scripts/lib/dr-backup.ts"
       - "scripts/lib/dr-finalization.ts"
       - "scripts/dr-finalize.ts"
+      - "scripts/dr-local-drill.ts"
       - "scripts/reset.ts"
       - "scripts/lib/reset-plan.ts"
       - "scripts/lib/build-policy.ts"
@@ -74,6 +75,9 @@ jobs:
           tests/reset-plan.test.ts
           tests/build-preview-guard.test.ts
           tests/prod-release-preflight.test.ts
+
+      - name: Full local synthetic backup-to-restore drill
+        run: npm run dr:local-drill
 
       - name: Full regression suite
         run: npm test
