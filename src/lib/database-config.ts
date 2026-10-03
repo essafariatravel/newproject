@@ -1,6 +1,7 @@
 import type { PoolConfig } from "pg";
 import { rootCertificates } from "node:tls";
 import { SUPABASE_CA } from "./supabase-ca";
+import { databaseSchema } from "./database-schema";
 
 type Environment = Record<string, string | undefined>;
 const LOCAL_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/essafaria";
@@ -53,8 +54,10 @@ export function databasePoolConfig(env: Environment = process.env, migration = f
   const connectionString = databaseUrl(env, migration);
   const url = new URL(connectionString);
   const supabase = url.hostname.endsWith(".pooler.supabase.com") || url.hostname.endsWith(".supabase.co");
+  const schema = databaseSchema(env);
   return {
     connectionString,
+    options: `-c search_path=${schema},pg_catalog`,
     // Supabase enforces TLS even when a manually copied URI omits sslmode.
     // Keep certificate verification enabled; never fall back to plaintext.
     ...(supabase && !url.searchParams.has("sslmode") && !url.searchParams.has("ssl")
