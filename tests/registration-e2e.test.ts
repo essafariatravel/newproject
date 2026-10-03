@@ -36,8 +36,10 @@ import { getSessionUser } from "@/lib/auth";
 import { getApplicationForUser, createDraftApplication } from "@/lib/applications";
 import { searchApplications, agencyDashboard } from "@/lib/queries";
 import { getBalance, getTransactions } from "@/lib/wallet";
-import { registrationPdf, userByEmail } from "./helpers/fixtures";
+import { userByEmail } from "./helpers/fixtures";
 import { request } from "./helpers/request";
+import { updateSetting } from "@/lib/settings";
+import { auditLogs } from "@/db/schema";
 
 /** Run an action that ends in a Next redirect; returns the redirect digest. */
 async function captureRedirect(promise: Promise<unknown>): Promise<string> {
@@ -51,48 +53,77 @@ async function captureRedirect(promise: Promise<unknown>): Promise<string> {
   throw new Error("expected the action to redirect");
 }
 
+const TERMS_VERSION_ID = "33333333-3333-4333-8333-333333333333";
+const PRIVACY_VERSION_ID = "44444444-4444-4444-8444-444444444444";
+
+async function publishTestLegalVersions(): Promise<void> {
+  const now = "2026-10-01T00:00:00.000Z";
+  await updateSetting(`legal.version.${TERMS_VERSION_ID}`, {
+    schemaVersion: 1,
+    id: TERMS_VERSION_ID,
+    documentType: "terms",
+    language: "fr",
+    version: "test-terms-fr-v1",
+    content: "Approved test terms.",
+    status: "PUBLISHED",
+    effectiveAt: now,
+    createdAt: now,
+    createdBy: "test",
+    publishedAt: now,
+    publishedBy: "test",
+  }, null);
+  await updateSetting("legal.active.terms.fr", TERMS_VERSION_ID, null);
+
+  await updateSetting(`legal.version.${PRIVACY_VERSION_ID}`, {
+    schemaVersion: 1,
+    id: PRIVACY_VERSION_ID,
+    documentType: "privacy",
+    language: "fr",
+    version: "test-privacy-fr-v1",
+    content: "Approved test privacy notice.",
+    status: "PUBLISHED",
+    effectiveAt: now,
+    createdAt: now,
+    createdBy: "test",
+    publishedAt: now,
+    publishedBy: "test",
+  }, null);
+  await updateSetting("legal.active.privacy.fr", PRIVACY_VERSION_ID, null);
+}
+
 function publicForm(): FormData {
   const form = new FormData();
   form.set("locale", "fr");
   form.set("renderedAt", String(Date.now() - 30_000));
   form.set("legalName", "Atlas Cristal Voyages SARL");
-  form.set("tradingName", "Atlas Cristal");
   form.set("country", "Algérie");
   form.set("region", "Oran");
   form.set("city", "Oran");
-  form.set("addressLine", "44 Boulevard de la Soummam");
-  form.set("phone", "+213 41 00 00 00");
-  form.set("email", "contact@atlas-cristal.example");
-  form.set("website", "https://www.atlas-cristal.example");
-  form.set("commercialRegistrationNumber", "RC-31-445566");
-  form.set("taxId", "NIF-0931004455");
-  form.set("licenceNumber", "LIC-DZ-2024");
   form.set("contactFirstName", "Yasmine");
   form.set("contactLastName", "Kaci");
-  form.set("contactPosition", "Directrice Générale");
   form.set("contactEmail", "y.kaci@atlas-cristal.example");
   form.set("contactPhone", "+213 660 00 00 00");
   form.set("businessType", "TRAVEL_AGENCY");
-  form.set("monthlyVolume", "51-200");
-  form.set("mainMarkets", "Schengen, Turquie, Canada");
-  form.set("message", "Agence établie depuis 2012, 4 agences physiques.");
+  form.set("message", "Agence B2B sollicitant un accès partenaire.");
+  form.set("termsVersionId", TERMS_VERSION_ID);
+  form.set("privacyVersionId", PRIVACY_VERSION_ID);
   form.set("terms", "true");
   form.set("privacy", "true");
   form.set("accuracy", "true");
-  // Mass-assignment attempt — must be ignored by the action input model.
+  // Mass-assignment and legacy-KYC attempts must be ignored.
   form.set("role", "SUPER_ADMIN");
   form.set("status", "APPROVED");
   form.set("balance", "1000000");
+  form.set("commercialRegistrationNumber", "SHOULD-NOT-BE-COLLECTED");
+  form.set("taxId", "SHOULD-NOT-BE-COLLECTED");
   form.set("agencyId", "00000000-0000-0000-0000-000000000000");
-  // A real (magic-bytes-valid) PDF document via the multipart path.
-  const pdf = registrationPdf("COMMERCIAL_REGISTRATION");
-  form.set("doc_COMMERCIAL_REGISTRATION", new File([new Uint8Array(pdf.data)], pdf.name, { type: pdf.type }));
   return form;
 }
 
 describe("Phase 2 E2E — registration to portal", () => {
   it("walks the complete onboarding flow with the real actions and session stack", async () => {
     /* 1 — PUBLIC REGISTRATION (fr) through the real server action */
+    await publishTestLegalVersions();
     const beforePending = await pendingRegistrationCount();
     const redirect = await captureRedirect(submitRegistrationAction({}, publicForm()));
     expect(redirect).toContain("/agency/register/success");
@@ -110,7 +141,21 @@ describe("Phase 2 E2E — registration to portal", () => {
     // mass-assignment attempt did nothing
     expect(reg.agencyId).toBeNull();
     expect(reg.internalNotes).toBeNull();
+    expect(reg.addressLine).toBeNull();
+    expect(reg.commercialRegistrationNumber).toBeNull();
+    expect(reg.taxId).toBeNull();
+    expect(reg.licenceNumber).toBeNull();
+    expect(reg.contactPosition).toBeNull();
+    expect(reg.termsVersionId).toBe(TERMS_VERSION_ID);
+    expect(reg.privacyVersionId).toBe(PRIVACY_VERSION_ID);
     expect(await pendingRegistrationCount()).toBe(beforePending + 1);
+
+    const acceptance = await db
+      .select()
+      .from(auditLogs)
+      .where(eq(auditLogs.entityId, reg.id));
+    expect(acceptance.some((row) => row.action === "TERMS_ACCEPTED")).toBe(true);
+    expect(acceptance.some((row) => row.action === "PRIVACY_NOTICE_ACKNOWLEDGED")).toBe(true);
 
     const listed = await listRegistrations({ status: "PENDING", q: "Atlas Cristal" });
     expect(listed.rows.some((r) => r.id === reg.id)).toBe(true);
