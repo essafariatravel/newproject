@@ -55,7 +55,6 @@ import {
   type AuthUser,
 } from "@/lib/types";
 import { storageProvider } from "@/lib/storage";
-import { recordAudit } from "@/lib/audit";
 import { notifyUsers, staffUserIds } from "@/lib/notifications";
 import { generateSessionToken, hashPassword, hashToken } from "@/lib/crypto";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
