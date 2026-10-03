@@ -118,6 +118,8 @@ jobs:
             console.log(JSON.stringify(checks));
           })().catch((err) => { console.error(err); process.exit(1); });
           NODE
+          PERF_ALLOW_LIVE_WALLET=YES npx tsx scripts/perf-wallet-races-live.ts
+          PERF_ALLOW_LIVE_STORAGE=YES npx tsx scripts/perf-storage-live.ts
 
       - name: Build without deployment or remote database access
         run: npm run build
