@@ -61,7 +61,7 @@ export default async function PortalProfilePage({
               }
             />
             <div className="flex flex-wrap items-center gap-4 px-5 py-5">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-ivory-200 bg-ivory-50">
+              <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-ivory-200 bg-ivory-50">
                 <BrandMark className="h-11 w-11" src={agencyLogoUrl(agency)} alt={agency.tradingName ?? agency.legalName} />
               </div>
               {user.role === "AGENCY_ADMIN" ? (
@@ -77,7 +77,7 @@ export default async function PortalProfilePage({
                       name="logo"
                       accept="image/png,image/jpeg,image/webp"
                       required
-                      className="max-w-full text-xs file:me-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-iris-600 file:px-3.5 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+                      className="min-h-11 max-w-full text-base file:me-2 file:min-h-11 file:cursor-pointer file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-base file:font-semibold file:text-white"
                     />
                     <SubmitButton className="btn-secondary btn-sm" pendingLabel={ct("Uploading…")}>
                       {agency.logoKey ? ct("Replace logo") : ct("Upload logo")}
@@ -104,7 +104,7 @@ export default async function PortalProfilePage({
                 { label: ct("Partner since"), value: formatDateTime(agency.createdAt) },
               ]}
             />
-            {canManageUsers ? <form action={updateOwnAgencyContactAction} className="grid gap-3 border-t border-slate-100 p-5 sm:grid-cols-3">
+            {canManageUsers ? <form action={updateOwnAgencyContactAction} className="grid gap-4 border-t border-slate-100 p-6 sm:grid-cols-3">
               <div><label htmlFor="profile-phone" className="label">{ct("Phone")}</label><input id="profile-phone" name="phone" defaultValue={agency.phone ?? ""} className="input" maxLength={40} /></div>
               <div><label htmlFor="profile-city" className="label">{ct("City")}</label><input id="profile-city" name="city" defaultValue={agency.city ?? ""} className="input" maxLength={80} /></div>
               <div><label htmlFor="profile-address" className="label">{ct("Address")}</label><input id="profile-address" name="addressLine" defaultValue={agency.addressLine ?? ""} className="input" maxLength={300} /></div>
@@ -128,7 +128,7 @@ export default async function PortalProfilePage({
                 {team.map((u) => (
                   <tr key={u.id} className="tr-hover">
                     <td className="td">
-                      <span className="block font-medium text-navy-900">{u.name}</span>
+                      <span className="block font-semibold text-navy-900">{u.name}</span>
                       <span className="block text-xs text-slate-400" dir="ltr">{u.username}</span>
                     </td>
                     <td className="td"><span className="badge bg-navy-900/5 text-navy-800">{businessLabel(u.role, uiLocale)}</span></td>
@@ -168,7 +168,7 @@ export default async function PortalProfilePage({
           {canManageUsers ? (
             <Card>
               <CardHeader title={ct("Add team member")} subtitle={ct("New members are always created as Agency User with the temporary password you set.")} />
-              <form action={createUserAction} className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+              <form action={createUserAction} className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
                 <input type="hidden" name="back" value="/portal/profile" />
                 <div>
                   <label className="label" htmlFor="p-name">{ct("Full name")} *</label>
@@ -208,10 +208,10 @@ export default async function PortalProfilePage({
           </Card>
           <Card>
             <CardHeader title={ct("Your account")} />
-            <div className="px-4 py-4 text-sm text-slate-700">
+            <div className="px-4 py-4 text-base text-slate-700">
               <p>{user.name}</p>
               <p className="text-xs text-slate-400" dir="ltr">{user.username}</p>
-              <Link href="/change-password" className="mt-3 inline-block text-xs text-iris-700 underline">{it("Change password")}</Link>
+              <Link href="/change-password" className="mt-4 inline-flex min-h-11 items-center text-base font-semibold text-iris-700 underline">{it("Change password")}</Link>
               <p className="mt-2 text-xs">
                 {ct("Role")}: <span className="badge bg-gold-100 text-gold-600">{businessLabel(user.role, uiLocale)}</span>
               </p>

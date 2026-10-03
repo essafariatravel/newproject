@@ -87,10 +87,10 @@ export default async function PortalDashboardPage() {
       {hasPermission(user,"transactions.view.own") ? <Card>
         <CardHeader title={ct("Recent wallet activity")} actions={<Link href="/portal/wallet" className="btn-secondary btn-sm">{ct("Ledger")}</Link>} />
         <ul className="divide-y divide-slate-100 px-4">
-          {data.recentTx.length === 0 ? <li className="py-5 text-sm text-slate-500">{ct("No transactions yet.")}</li> : data.recentTx.map((tx) => (
-            <li key={tx.id} className="flex items-center justify-between gap-3 py-3">
-              <div className="min-w-0"><p className="text-sm font-medium text-navy-900">{(tx as { reference?: string | null }).reference ?? businessLabel(tx.type, locale)}</p><p className="text-xs text-slate-500">{formatDateTime(tx.createdAt, locale)}</p></div>
-              <span className={`whitespace-nowrap text-sm font-medium tabular-nums ${tx.type === "CREDIT" ? "text-emerald-700" : "text-red-700"}`}>{tx.type === "CREDIT" ? "+" : "-"}{formatAmount(tx.amount, "DZD", locale)}</span>
+          {data.recentTx.length === 0 ? <li className="py-5 text-base text-slate-500">{ct("No transactions yet.")}</li> : data.recentTx.map((tx) => (
+            <li key={tx.id} className="flex items-center justify-between gap-4 py-4">
+              <div className="min-w-0"><p className="text-base font-semibold text-navy-900">{(tx as { reference?: string | null }).reference ?? businessLabel(tx.type, locale)}</p><p className="text-xs text-slate-500">{formatDateTime(tx.createdAt, locale)}</p></div>
+              <span className={`whitespace-nowrap text-base font-semibold tabular-nums ${tx.type === "CREDIT" ? "text-emerald-700" : "text-red-700"}`}>{tx.type === "CREDIT" ? "+" : "-"}{formatAmount(tx.amount, "DZD", locale)}</span>
             </li>
           ))}
         </ul>
