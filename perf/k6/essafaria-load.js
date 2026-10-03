@@ -11,11 +11,12 @@ if (__ENV.PERF_ACK_NONPROD !== "YES") {
 }
 if (!__ENV.BASE_URL) throw new Error("BASE_URL is required.");
 
-const base = new URL(__ENV.BASE_URL);
-if (base.hostname.toLowerCase() === PROD_HOST) {
+const BASE_URL = String(__ENV.BASE_URL).trim().replace(/\/+$/, "");
+if (!/^https?:\/\//i.test(BASE_URL)) throw new Error("BASE_URL must be an HTTP(S) origin.");
+const BASE_HOST = BASE_URL.replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].toLowerCase();
+if (BASE_HOST === PROD_HOST) {
   throw new Error("The load harness refuses the Production hostname.");
 }
-const BASE_URL = base.origin;
 
 const SESSION_FILE = __ENV.PERF_SESSION_FILE || "./perf/.runtime/sessions.json";
 const sessionData = JSON.parse(open(SESSION_FILE));
@@ -40,8 +41,9 @@ function scenarioForProfile() {
     ], gracefulRampDown: "30s" };
   }
   if (profile === "peak") {
+    // Keep the pure-HTTP mixed run below the 30-minute Staff idle policy.
     return { executor: "ramping-vus", startVUs: 0, stages: [
-      { duration: "10m", target: 100 }, { duration: "20m", target: 100 }, { duration: "2m", target: 0 },
+      { duration: "5m", target: 100 }, { duration: "20m", target: 100 }, { duration: "2m", target: 0 },
     ], gracefulRampDown: "30s" };
   }
   if (profile === "spike") {
@@ -197,15 +199,45 @@ const SUPER_ADMIN_PATHS = [
   ["/admin/config/visa-types", "admin_visa_types"],
 ];
 
-function pickPersona() {
+function personaForVu(vu) {
   if (profile === "soak-agency") return "AGENCY_USER";
-  const slot = ((__VU - 1) % 100) + 1;
+  // 37 is coprime with 100, so each 100-VU block exactly matches the target mix
+  // while small smoke tiers are distributed instead of becoming all Agency users.
+  const slot = ((vu * 37) % 100) + 1;
   if (slot <= 45) return "AGENCY_USER";
   if (slot <= 65) return "AGENCY_ADMIN";
   if (slot <= 90) return "VISA_AGENT";
   if (slot <= 97) return "ACCOUNTING";
   return "SUPER_ADMIN";
 }
+
+function pickPersona() {
+  return personaForVu(__VU);
+}
+
+function maximumVus() {
+  if (profile === "normal") return 50;
+  if (profile === "peak") return 100;
+  if (profile === "spike") return 250;
+  if (profile === "soak-agency" || profile === "soak-mixed-short") return 100;
+  if (profile === "tier") return Number(__ENV.PERF_VUS || "10");
+  return 10;
+}
+
+function assertUniqueSessionCapacity() {
+  const required = {};
+  for (let vu = 1; vu <= maximumVus(); vu++) {
+    const role = personaForVu(vu);
+    required[role] = (required[role] || 0) + 1;
+  }
+  for (const [role, count] of Object.entries(required)) {
+    if (sessions(role).length < count) {
+      throw new Error(`Need at least ${count} distinct ${role} sessions for this profile; found ${sessions(role).length}.`);
+    }
+  }
+}
+
+assertUniqueSessionCapacity();
 
 function pickPath(paths) {
   return paths[(__ITER + __VU) % paths.length];
