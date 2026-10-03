@@ -104,16 +104,16 @@ jobs:
           rm -f /tmp/essafaria-ci.dr-key /tmp/dr-key.log
 
 
-      - name: Full local synthetic backup-to-restore drill
-        run: npm run dr:local-drill
-
-      - name: Full regression suite
-        run: npm test
-
       - name: Production build without deployment
         env:
           VERCEL_GIT_COMMIT_REF: dr/pre-codex-gate-2026-10-03
         run: npm run build
+
+      - name: Full local synthetic backup-to-restore + real Next.js recovery E2E
+        run: npm run dr:local-drill
+
+      - name: Full regression suite
+        run: npm test
 
       - name: Prove example manifest is intentionally NOT verified
         run: |
