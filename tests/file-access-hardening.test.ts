@@ -22,6 +22,15 @@ async function downloadAuditCount() {
   return row!.count;
 }
 
+async function forcePermanentBlobData(key: string, data: Buffer) {
+  await db.execute(sql`alter table document_blobs disable trigger document_blobs_permanent_immutable`);
+  try {
+    await db.update(documentBlobs).set({ data }).where(eq(documentBlobs.key, key));
+  } finally {
+    await db.execute(sql`alter table document_blobs enable trigger document_blobs_permanent_immutable`);
+  }
+}
+
 describe("forced password change protects private file reads", () => {
   it.each(["a-admin@test.example", "admin@test.example"])("denies dossier files for locked %s while preserving unlocked downloads", async (email) => {
     const owner = await userByEmail("a-admin@test.example");
@@ -81,13 +90,16 @@ describe("forced password change protects private file reads", () => {
     expect(blob).toBeDefined();
     const tampered = Buffer.from(blob!.data);
     tampered[tampered.length - 1] = tampered[tampered.length - 1]! ^ 0xff;
-    await db.update(documentBlobs).set({ data: tampered }).where(eq(documentBlobs.key, doc.storageKey));
+    await expect(
+      db.update(documentBlobs).set({ data: tampered }).where(eq(documentBlobs.key, doc.storageKey)),
+    ).rejects.toThrow(/immutable/i);
+    await forcePermanentBlobData(doc.storageKey, tampered);
     try {
       const response = await downloadDossierFile(new Request(`http://localhost/api/documents/${doc.id}`), { params: Promise.resolve({ id: doc.id }) });
       expect(response.status).toBe(500);
       expect(await downloadAuditCount()).toBe(beforeAudit);
     } finally {
-      await db.update(documentBlobs).set({ data: blob!.data }).where(eq(documentBlobs.key, doc.storageKey));
+      await forcePermanentBlobData(doc.storageKey, blob!.data);
     }
   });
 
@@ -105,13 +117,13 @@ describe("forced password change protects private file reads", () => {
     expect(blob).toBeDefined();
     const tampered = Buffer.from(blob!.data);
     tampered[tampered.length - 1] = tampered[tampered.length - 1]! ^ 0xff;
-    await db.update(documentBlobs).set({ data: tampered }).where(eq(documentBlobs.key, doc!.storageKey));
+    await forcePermanentBlobData(doc!.storageKey, tampered);
     try {
       const response = await downloadRegistrationFile(new Request(`http://localhost/api/registrations/${reg.id}/documents/${doc!.id}`), { params: Promise.resolve({ id: reg.id, docId: doc!.id }) });
       expect(response.status).toBe(500);
       expect(await downloadAuditCount()).toBe(beforeAudit);
     } finally {
-      await db.update(documentBlobs).set({ data: blob!.data }).where(eq(documentBlobs.key, doc!.storageKey));
+      await forcePermanentBlobData(doc!.storageKey, blob!.data);
     }
   });
 
