@@ -29,6 +29,16 @@ npm run dr:key -- --output <absolute-private-path>/essafaria-recovery.dr-key
 
 The key file is created exclusively with private permissions, the key is never printed, `*.dr-key` is ignored by Git, and the repository safety gate fails if a DR key is ever tracked. Keep this file separately from the encrypted backup.
 
+## Read-only Production preflight
+
+Before backup creation:
+
+```text
+npm run dr:prod-preflight
+```
+
+Use the same Production source environment required by `dr:backup`. The command opens a read-only transaction and returns `READY_FOR_BACKUP` only if the source identity, critical tables, migration ledger, pgcrypto hashing, wallet chain, document/blob references and terminal decision evidence are internally consistent.
+
 ## Create the encrypted backup
 
 
@@ -247,3 +257,57 @@ This is traceability, not magic proof: an operator must not use the attestation 
 The runtime verifier does not require a dedicated `/api/session` endpoint. It proves the generated recovery sessions by opening protected Staff and Agency pages that exist in the release line.
 
 If the restore contains only one usable agency tenant, the verifier may create a temporary synthetic second agency/user **only inside the disposable recovery database**, exercise foreign dossier/document/wallet/mutation denial, record the fixture source in tenant evidence, and clean up the temporary session/user/agency on exit. Production is never modified by this fallback.
+
+
+## Offline status, evidence bundle and final release gate
+
+At any point after a CREATED manifest exists:
+
+```text
+npm run dr:status -- --manifest <manifest> [evidence options...]
+```
+
+The stages are `CREATED_NEEDS_EVIDENCE`, `READY_TO_FINALIZE`, `EVIDENCE_INVALID`, `VERIFIED_FRESH`, `VERIFIED_STALE` or `INVALID`.
+
+After finalization:
+
+```text
+npm run dr:evidence-bundle -- \
+  --source-manifest <CREATED manifest> \
+  --verified-manifest <VERIFIED manifest> \
+  --restore-evidence <restore evidence> \
+  --offsite-evidence <off-site evidence> \
+  --application-evidence <application evidence> \
+  --tenant-evidence <tenant evidence> \
+  --output <absolute private bundle path>
+```
+
+The bundle contains only hashes, opaque recovery references and boolean results; it does not embed secrets or customer PII.
+
+Then:
+
+```text
+npm run dr:release-gate -- \
+  --verified-manifest <VERIFIED manifest> \
+  --evidence-bundle <bundle> \
+  --expected-release-sha <40-character release SHA> \
+  --max-age-hours 24
+```
+
+Only `status: PASS` clears the final repository-side DR release gate.
+
+## Synthetic fault injection and real application E2E
+
+The CI drill now builds the real Next.js application, restores a real encrypted PostgreSQL custom dump, starts `next start` against the restored database, and invokes the same runtime verifier used for an external recovery deployment.
+
+The drill also proves that:
+
+- a one-byte mutation of the encrypted archive fails AES-256-GCM authentication;
+- a database blob changed to different bytes with the same size fails manifest storage digest comparison;
+- a tampered row-count manifest fails exact restore comparison;
+- Staff/Agency sessions generated only in the restore resolve through the application;
+- own dossier/document/wallet reads work;
+- foreign dossier/document/wallet/mutation probes are denied;
+- temporary recovery sessions/fixtures are removed before evidence is written;
+- 0019 and 0020+ identity/session shapes are both supported by tested policy;
+- the final VERIFIED manifest, evidence bundle and release gate all agree.
