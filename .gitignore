@@ -55,3 +55,7 @@ work/*.sha256
 
 *.restore-evidence.json
 *.verified.manifest.json
+
+*.offsite-evidence.json
+*.application-evidence.json
+*.tenant-evidence.json
