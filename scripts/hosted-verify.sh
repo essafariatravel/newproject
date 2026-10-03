@@ -149,12 +149,12 @@ print((json.load(open('$WORK/health.json')).get('schema') or {}).get('name') or 
   if python3 -c "
 import json
 led=(json.load(open('$WORK/health.json')).get('schema') or {}).get('migrationLedger') or []
-required=['0013_embassy_applicability.sql','0014_wallet_topup_requests.sql','0016_document_type_audience.sql','0017_decision_types_audience.sql']
+required=['0020_identity_security.sql','0021_business_invariants.sql','0022_registration_review.sql','0023_operations_legal.sql','0024_preview_api_lockdown.sql','0025_legal_privacy_readiness.sql','0026_function_privilege_hardening.sql']
 missing=[m for m in required if m not in led]
 raise SystemExit(1 if missing else 0)" 2>/dev/null; then
-    ok "health: Preview ledger carries the preview work-set (0013, 0014, 0016, 0017)"
+    ok "health: Preview ledger carries hardening migrations 0020–0026"
   else
-    bad "health: Preview ledger is missing part of the preview work-set (0013/0014/0016/0017)"
+    bad "health: Preview ledger is missing part of hardening migrations 0020–0026"
   fi
 else
   bad "health endpoint ($CODE)"
@@ -196,44 +196,32 @@ EMAIL_XX="hosted-reject-$STAMP@hosted-verify.invalid"
 # Mass-assignment junk fields — the server must ignore every one of them.
 JUNK="-F role=SUPER_ADMIN -F permissions=wallet.credit -F status=APPROVED -F agencyId=00000000-0000-0000-0000-000000000000 -F balance=99999.00 -F internalNotes=should-never-persist"
 
-make_form() { # $1=locale $2=legal $3=contactEmail $4=companyEmail $5=withpdf(1/0)
-  # unique commercial-registration number per company (duplicate detection covers it)
-  local CRSUF; CRSUF=$(printf '%s' "$2$3" | md5sum | head -c 8)
+make_form() { # $1=locale $2=agencyName $3=professionalEmail
   cat > "$WORK/form.txt" <<EOF
 locale=$1
 legalName=$2
-tradingName=
-country=Algeria
-region=Algiers
-city=Algiers
-addressLine=12 Rue de la Merced, Bab Ezzouar
-phone=+213 23 00 00 00
-email=$4
-website=https://hosted-verify.example
-commercialRegistrationNumber=RC-$STAMP-$CRSUF
-taxId=NIF-$STAMP
-licenceNumber=AGR-$STAMP
 contactFirstName=Nadia
-contactLastName=Bensaid
-contactPosition=Managing Director
-contactEmail=$3
-contactPhone=+213 55 00 00 00
-businessType=TRAVEL_AGENCY
-monthlyVolume=11-50
-mainMarkets=Schengen, Gulf, West Africa
-message=Hosted verification submission (safe test data).
+email=$3
+phone=+213 55 00 00 00
+city=Algiers
 terms=on
 privacy=on
 accuracy=on
 fax=
 EOF
-  sleep 2  # respect the ≥1.5s render-time antibot trap (page carries its own renderedAt)
-  [ "$5" = "1" ] && echo "doc_COMMERCIAL_REGISTRATION=@$HOSTED_PDF;type=application/pdf" >> "$WORK/form.txt"
+  sleep 2  # respect the ≥1.5s render-time antibot trap
 }
 
+LEGAL_READY_COUNT=0
+for legal_page in "$WORK/reg-en.html" "$WORK/reg-fr.html" "$WORK/reg-ar.html"; do
+  grep -q 'name="termsVersionId"' "$legal_page" && LEGAL_READY_COUNT=$((LEGAL_READY_COUNT+1))
+done
+
+if [ "$LEGAL_READY_COUNT" = "3" ]; then
+  ok "legal publication ready in EN/FR/AR — onboarding E2E enabled"
 # -------------------------------------------------------------------------- #
-log "-- [2] Public submission EN + PDF upload + mass-assignment junk"
-make_form en "$LEGAL_EN" "$EMAIL_EN" "$EMAIL_EN" 1
+log "-- [2] Public minimized submission + mass-assignment junk"
+make_form en "$LEGAL_EN" "$EMAIL_EN"
 # push the mass-assignment junk fields into the multipart as well
 { printf '%s\n' "role=SUPER_ADMIN" "permissions=wallet.credit" "status=APPROVED" \
   "agencyId=00000000-0000-0000-0000-000000000000" "balance=99999.00" "internalNotes=should-never-persist"; } >> "$WORK/form.txt"
@@ -255,14 +243,14 @@ fi
 
 # -------------------------------------------------------------------------- #
 log "-- [3] Duplicate + invalid-email probes"
-make_form en "$LEGAL_EN DUP" "$EMAIL_EN" "$EMAIL_EN" 0
+make_form en "$LEGAL_EN DUP" "$EMAIL_EN"
 CODE_DUP=$(submit_form "$WORK/reg-en.html" "$BASE_URL/agency/register?lang=en" "Submit application for review" "$WORK/nojar3.txt" "$WORK/form.txt")
 LOC_DUP=$(loc_header)
 echo "$LOC_DUP" | grep -q "success?ref=AGR-" \
   && bad "duplicate contact email was accepted ($LOC_DUP)" \
   || ok "duplicate contact email blocked politely (http $CODE_DUP, no success redirect)"
 
-make_form fr "$LEGAL_EN INJ" "not-an-email" "not-an-email" 0
+make_form fr "$LEGAL_EN INJ" "not-an-email"
 CODE_BAD=$(submit_form "$WORK/reg-fr.html" "$BASE_URL/agency/register?lang=fr" "Soumettre la demande pour examen" "$WORK/nojar4.txt" "$WORK/form.txt")
 LOC_BAD=$(loc_header)
 echo "$LOC_BAD" | grep -q "success?ref=AGR-" \
@@ -271,7 +259,7 @@ echo "$LOC_BAD" | grep -q "success?ref=AGR-" \
 
 # -------------------------------------------------------------------------- #
 log "-- [4] Second submission (AR locale) — subject for the REJECTION path"
-make_form ar "$LEGAL_XX" "$EMAIL_XX" "$EMAIL_XX" 0
+make_form ar "$LEGAL_XX" "$EMAIL_XX"
 CODE2=$(submit_form "$WORK/reg-ar.html" "$BASE_URL/agency/register?lang=ar" "إرسال الطلب للمراجعة" "$WORK/nojar6.txt" "$WORK/form.txt")
 LOC2=$(loc_header)
 if echo "$LOC2" | grep -q "agency/register/success?ref=AGR-"; then
@@ -279,6 +267,19 @@ if echo "$LOC2" | grep -q "agency/register/success?ref=AGR-"; then
   ok "AR-locale submission accepted ($REF2)"
 else
   REF2=""; bad "AR submission failed (http $CODE2)"
+fi
+
+
+else
+  REF1=""; REF2=""; SUCCESS_URL=""
+  if [ "$LEGAL_READY_COUNT" = "0" ]; then
+    ok "agency registration fails closed until approved legal versions are published"
+  else
+    bad "legal publication is incomplete across EN/FR/AR ($LEGAL_READY_COUNT/3 registration forms enabled)"
+  fi
+  skp "public registration submission (approved legal content not available in all three locales)"
+  skp "duplicate + invalid-email registration probes (legal publication blocker)"
+  skp "AR rejection-path registration (legal publication blocker)"
 fi
 
 # -------------------------------------------------------------------------- #
@@ -316,7 +317,7 @@ CODE_ANON=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$BASE_URL/api/
 STAFF_ITEMS=("staff login" "Admin > Agency Registrations list" "pending counter" \
   "start review" "request more information" "approve → agency provisioning" \
   "generate activation link" "activation password set → agency login" \
-  "agency portal" "staff document download authorized" "rejection path" \
+  "agency portal" "first-contact document minimization" "rejection path" \
   "wallet untouched" "cross-tenant isolation")
 if [ -z "$STAFF_EMAIL" ] || [ -z "$STAFF_PASS" ]; then
   for ITEM in "${STAFF_ITEMS[@]}"; do skp "$ITEM (needs PREVIEW_VERIFY_STAFF_EMAIL/PASSWORD)"; done
@@ -351,7 +352,9 @@ else
     log "-- [8] review → info request → approve"
     CODE_D1=$(statusb_of "$BASE_URL/admin/registrations/$ID1" "$WORK/detail1.html" "$WORK/staff.txt")
     [ "$CODE_D1" = "200" ] && grep -q "Company information" "$WORK/detail1.html" && ok "detail renders all sections" || bad "detail $CODE_D1"
-    grep -qi "proof.pdf" "$WORK/detail1.html" && ok "uploaded document row visible" || bad "document row missing"
+    grep -qi "No administrative documents received" "$WORK/detail1.html" \
+      && ok "first-contact review correctly starts with no administrative documents" \
+      || bad "first-contact document-minimization state missing"
 
     submit_form "$WORK/detail1.html" "$BASE_URL/admin/registrations/$ID1" "Start review" "$WORK/staff.txt" /dev/null >/dev/null
     statusb_of "$BASE_URL/admin/registrations/$ID1" "$WORK/detail1b.html" "$WORK/staff.txt" >/dev/null
@@ -441,7 +444,7 @@ print(m.group(1) if m else '')" | tr -d '\r')
         && ok "staff document download authorized (200, PDF bytes)" || bad "staff download ($CODE_DOC)"
       CODE_ADOC=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$BASE_URL/api/registrations/$ID1/documents/$DOCID")
       [ "$CODE_ADOC" = "401" ] && ok "real document: anonymous still 401" || bad "real doc anonymous $CODE_ADOC"
-    else bad "document id missing"; fi
+    else ok "no first-contact administrative document exists to download (expected)"; fi
 
     log "-- [10] rejection path"
     if [ -n "$ID2" ]; then
