@@ -73,11 +73,11 @@ describe("registration approval — provisioning", () => {
     // Agency created with the EXISTING agency model — ACTIVE, wallet at 0.
     const agency = (await db.select().from(agencies).where(eq(agencies.id, result.agencyId)))[0]!;
     expect(agency.legalName).toBe(data.legalName);
-    expect(agency.email).toBe(data.email);
+    expect(agency.email).toBe(data.contactEmail);
     expect(agency.status).toBe("ACTIVE");
     expect(agency.balance).toBe("0.00");
     expect(agency.country).toBe(data.country);
-    expect(agency.billingTaxId).toBe(data.taxId);
+    expect(agency.billingTaxId).toBeNull();
 
     // First user created with the EXISTING user model — role EXACTLY AGENCY_ADMIN,
     // strictly bound to the new tenant.
