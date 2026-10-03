@@ -147,6 +147,17 @@ describe("legal/privacy readiness regression guards", () => {
     expect(read("src/lib/registrations.ts")).toContain("safeErrorCode(err)");
   });
 
+  it("uses hashed registration rate-limit state without persisting raw public IP", () => {
+    const registrations = read("src/lib/registrations.ts");
+
+    expect(registrations).toContain('consumeAuthRateLimit(');
+    expect(registrations).toContain('"agency-registration-hour"');
+    expect(registrations).toContain('"agency-registration-day"');
+    expect(registrations).not.toContain(".where(eq(agencyRegistrations.ipAddress, key))");
+    expect(registrations).not.toContain("ipAddress: params.ipAddress");
+    expect(registrations).not.toMatch(/status:\s*"PENDING",[\s\S]{0,180}ipAddress,/);
+  });
+
   it("keeps durable audit metadata free of redundant filenames and identity fields", () => {
     const documents = read("src/lib/documents.ts");
     const registrations = read("src/lib/registrations.ts");
