@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: legal-privacy-v2-${{ github.ref }}
-  cancel-in-progress: true
+  group: legal-privacy-v2-${{ github.sha }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
