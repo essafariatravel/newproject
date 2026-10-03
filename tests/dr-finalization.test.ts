@@ -104,6 +104,7 @@ function applicationEvidence(): ApplicationRecoveryEvidence {
     version: 1,
     kind: "ESSAFARIA_DR_APPLICATION",
     backupId: "ESSAFARIA-PROD-20261003T180000Z-abcdef123456",
+    releaseSha: "abcdef1234567890abcdef1234567890abcdef12",
     restoreEvidenceSha256: "d".repeat(64),
     testedAt: "2026-10-03T18:33:00.000Z",
     targetRef: "RESTORE-APP-0001",
@@ -124,6 +125,7 @@ function tenantEvidence(): TenantIsolationEvidence {
     version: 1,
     kind: "ESSAFARIA_DR_TENANT_ISOLATION",
     backupId: "ESSAFARIA-PROD-20261003T180000Z-abcdef123456",
+    releaseSha: "abcdef1234567890abcdef1234567890abcdef12",
     restoreEvidenceSha256: "d".repeat(64),
     testedAt: "2026-10-03T18:34:00.000Z",
     targetRef: "RESTORE-TENANT-0001",
@@ -197,6 +199,27 @@ describe("DR evidence-bound finalization", () => {
     });
     expect(result.manifest).toBeNull();
     expect(result.findings.join(" ")).toContain("not bound to this source manifest");
+  });
+
+  it("refuses application evidence from a different code release", () => {
+    const application = applicationEvidence();
+    application.releaseSha = "1111111111111111111111111111111111111111";
+    const result = finalizeBackupManifest({
+      manifest: createdManifest(),
+      sourceManifestSha256: "c".repeat(64),
+      restoreEvidence: restoreEvidence(),
+      restoreEvidenceSha256: "d".repeat(64),
+      offsiteEvidence: offsiteEvidence(),
+      offsiteEvidenceSha256: "e".repeat(64),
+      applicationEvidence: application,
+      applicationEvidenceSha256: "f".repeat(64),
+      tenantIsolationEvidence: tenantEvidence(),
+      tenantIsolationEvidenceSha256: "1".repeat(64),
+      externalEvidenceAttested: true,
+      verifiedAt: new Date("2026-10-03T18:35:00.000Z"),
+    });
+    expect(result.manifest).toBeNull();
+    expect(result.findings.join(" ")).toContain("releaseSha does not match");
   });
 
   it("refuses application evidence when a required recovery check failed", () => {
