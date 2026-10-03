@@ -39,7 +39,9 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write # post the release report as a commit comment
+  # Production jobs can read the exact release commit but cannot mutate GitHub.
+  # Reports are written to the Actions Job Summary instead of commit comments.
+  contents: read
 
 jobs:
   audit:
@@ -51,7 +53,6 @@ jobs:
       audit_ran: ${{ steps.guard.outputs.audit_ran }}
       go: ${{ steps.sentinel.outputs.go }}
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
       SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
@@ -174,7 +175,6 @@ jobs:
     timeout-minutes: 20
     environment: Production
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
       SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
