@@ -164,7 +164,7 @@ export function registrationFormSchema(msg: ErrorCopy) {
 
 export type RegistrationData = z.infer<ReturnType<typeof registrationFormSchema>> & {
   locale: RegistrationLocale;
-  legalConsentVersions?: {terms:number;privacy:number;locale:RegistrationLocale};
+  legalConsentVersions?: {terms:{id:string;version:number;effectiveAt:string};privacy:{id:string;version:number;effectiveAt:string};locale:RegistrationLocale};
 };
 
 /** Map a zod failure into `{ field: localizedMessage }`. */
