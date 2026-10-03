@@ -7,7 +7,6 @@
  * manifest and decrypts/authenticates with the separately held recovery key.
  */
 import { readFile, stat, writeFile } from "node:fs/promises";
-import path from "node:path";
 import {
   PRODUCTION_PROJECT_REF,
   PRODUCTION_SCHEMA,
