@@ -248,7 +248,7 @@ describe("public agency registration — duplicates & rate limiting", () => {
     const data = registrationData();
     await submitAgencyRegistration({ data, files: [], ipAddress: nextIp() });
     await expect(
-      submitAgencyRegistration({ data: registrationData({ contactEmail: data.contactEmail, email: "other@company.example", legalName: "Completely Different Name SARL", commercialRegistrationNumber: "RC-OTHER-1" }), files: [], ipAddress: nextIp() }),
+      submitAgencyRegistration({ data: registrationData({ contactEmail: data.contactEmail, legalName: "Completely Different Name SARL" }), files: [], ipAddress: nextIp() }),
     ).rejects.toMatchObject({ code: "DUPLICATE" });
 
     await expect(
@@ -267,7 +267,7 @@ describe("public agency registration — duplicates & rate limiting", () => {
       submitAgencyRegistration({ data: registrationData({ legalName: "Agency A Ltd" }), files: [], ipAddress: nextIp() }),
     ).rejects.toMatchObject({ code: "DUPLICATE" });
     await expect(
-      submitAgencyRegistration({ data: registrationData({ email: "ops@agencya.example" }), files: [], ipAddress: nextIp() }),
+      submitAgencyRegistration({ data: registrationData({ contactEmail: "ops@agencya.example" }), files: [], ipAddress: nextIp() }),
     ).rejects.toMatchObject({ code: "DUPLICATE" });
   });
 
