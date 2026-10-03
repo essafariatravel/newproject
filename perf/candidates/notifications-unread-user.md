@@ -28,13 +28,19 @@ At ~200k unread rows for the selected synthetic user:
 - after p95: ~19.42 ms
 - apparent reduction: ~71.8%
 
-**Exact-shape warmed A/B experiment**
+**Exact-shape warmed A/B experiment — first controlled run**
 - before p95: ~24.57 ms
 - after p95: ~19.18 ms
 - speedup: ~1.28x
 - automated verdict: `NO_STRONG_LOCAL_BENEFIT`
 
-The second experiment controls warm-up and removes more noise, so the evidence is not strong enough to promote this index yet.
+**Exact-shape symmetric warm-up rerun (5 warmups per phase, 30 measured repeats)**
+- before p95: **~29.56 ms**
+- after p95: **~30.84 ms**
+- speedup: **~0.96x**
+- automated verdict: **`NO_STRONG_LOCAL_BENEFIT`**
+
+The symmetric rerun removes the earlier cache bias and shows no repeatable benefit. The original ~71.8% apparent gain must therefore be treated as noisy/non-authoritative evidence, not as a migration justification.
 
 ## Decision
 
