@@ -653,17 +653,17 @@ export const agencyRegistrations = pgTable(
     country: text("country").notNull(),
     region: text("region"),
     city: text("city").notNull(),
-    addressLine: text("address_line").notNull(),
+    addressLine: text("address_line"),
     phone: text("phone").notNull(),
     email: text("email").notNull(), // normalized lowercase
     website: text("website"),
-    commercialRegistrationNumber: text("commercial_registration_number").notNull(),
+    commercialRegistrationNumber: text("commercial_registration_number"),
     taxId: text("tax_id"),
     licenceNumber: text("licence_number"),
     /* primary contact */
     contactFirstName: text("contact_first_name").notNull(),
     contactLastName: text("contact_last_name").notNull(),
-    contactPosition: text("contact_position").notNull(),
+    contactPosition: text("contact_position"),
     contactEmail: text("contact_email").notNull(), // normalized lowercase
     contactPhone: text("contact_phone").notNull(),
     /* business profile */
@@ -676,6 +676,9 @@ export const agencyRegistrations = pgTable(
     privacyAcknowledged: boolean("privacy_acknowledged").notNull().default(false),
     infoConfirmed: boolean("info_confirmed").notNull().default(false),
     consentedAt: timestamp("consented_at", { withTimezone: true }),
+    /** Exact published legal versions acknowledged/accepted for this submission. */
+    termsVersionId: uuid("terms_version_id"),
+    privacyVersionId: uuid("privacy_version_id"),
     /* workflow */
     status: text("status").notNull().default("PENDING"),
     internalNotes: text("internal_notes"),
