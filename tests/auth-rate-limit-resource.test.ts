@@ -4,6 +4,7 @@ import { suiteSetup } from "./helpers/global-state";
 import { db } from "@/lib/db";
 import { authRateLimits } from "@/db/schema";
 import { requestAccountRecovery } from "@/lib/account-recovery";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 
 suiteSetup();
 
@@ -19,5 +20,18 @@ describe("authentication rate-limit resource safety", () => {
     // One shared IP key + at most the first 20 identity keys. Attempts beyond
     // the IP limit must not create attacker-controlled identity rows.
     expect(after - before).toBe(21);
+  });
+
+  it("prunes expired limiter keys in bounded batches", async () => {
+    const stale = Array.from({ length: 12 }, (_, i) => ({
+      key: `stale-rate-key-${i}-${Date.now()}`,
+      attempts: 1,
+      windowStart: new Date(Date.now() - 3 * 24 * 60 * 60_000),
+    }));
+    await db.insert(authRateLimits).values(stale);
+    await consumeAuthRateLimit("cleanup-probe", String(Date.now()), 5, 60_000);
+    const remaining = await db.select({ n: sql<number>`count(*)::int` }).from(authRateLimits)
+      .where(sql`${authRateLimits.key} like 'stale-rate-key-%'`);
+    expect(Number(remaining[0]?.n ?? 0)).toBe(0);
   });
 });
