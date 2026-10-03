@@ -160,7 +160,12 @@ async function main() {
     ], pgEnv, true);
 
     const tsx = path.join(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs");
-    await run(process.execPath, [tsx, "scripts/dr-verify-restore.ts"], {
+    await run(process.execPath, [
+      tsx,
+      "scripts/dr-verify-restore.ts",
+      "--expected-manifest",
+      manifestPath,
+    ], {
       ...process.env,
       STORAGE_PROVIDER: "db",
     }, true);
