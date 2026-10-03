@@ -31,6 +31,7 @@ import {
   assessRestoreTarget,
 } from "./lib/dr-safety";
 import type { RestoreEvidence } from "./lib/dr-finalization";
+import { privateArtifactPath } from "./lib/dr-private-path";
 import {
   backupKeyFromEnvironment,
   decryptFileAes256Gcm,
@@ -62,9 +63,11 @@ function parseArgs(args: string[]) {
   }
   if (!manifestPath) throw new Error("--manifest is required");
   return {
-    manifestPath: path.resolve(manifestPath),
-    artifactPath: artifactPath ? path.resolve(artifactPath) : null,
-    evidenceOutput: evidenceOutput ? path.resolve(evidenceOutput) : null,
+    manifestPath: privateArtifactPath(manifestPath, "--manifest"),
+    artifactPath: artifactPath ? privateArtifactPath(artifactPath, "--artifact") : null,
+    evidenceOutput: evidenceOutput
+      ? privateArtifactPath(evidenceOutput, "--evidence-output", { requireAbsolute: true })
+      : null,
   };
 }
 
@@ -170,11 +173,11 @@ async function main() {
       STORAGE_PROVIDER: "db",
     }, true);
 
-    const evidencePath = evidenceOutput ?? path.join(path.dirname(manifestPath), `${manifest.backupId}.restore-evidence.json`);
-    const cwd = path.resolve(process.cwd()) + path.sep;
-    if ((path.resolve(evidencePath) + path.sep).startsWith(cwd)) {
-      throw new Error("Restore evidence must be written outside the repository working tree.");
-    }
+    const evidencePath = evidenceOutput ??
+      privateArtifactPath(
+        path.join(path.dirname(manifestPath), `${manifest.backupId}.restore-evidence.json`),
+        "restore evidence output",
+      );
     const restoredAt = new Date().toISOString();
     const evidence: RestoreEvidence = {
       version: 1,
