@@ -79,6 +79,12 @@ function supabaseConfig() {
   if (!/^[A-Za-z0-9_-]{1,80}$/.test(bucket)) {
     throw new AppError("STORAGE_MISCONFIGURED", "Supabase storage bucket name is invalid.");
   }
+  if (process.env.VERCEL_ENV === "preview" && !/preview/i.test(bucket)) {
+    throw new AppError("STORAGE_MISCONFIGURED", "Vercel Preview must use an isolated Preview storage bucket.");
+  }
+  if (process.env.VERCEL_ENV === "production" && /preview/i.test(bucket)) {
+    throw new AppError("STORAGE_MISCONFIGURED", "Production cannot use a Preview storage bucket.");
+  }
   return { url: `https://${parsed.hostname}`, key, bucket };
 }
 
