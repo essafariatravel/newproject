@@ -11,7 +11,8 @@
     "foreignDocumentDenied": false,
     "foreignApplicantDenied": false,
     "foreignWalletDataNotVisible": false,
-    "forgedForeignUploadDenied": false
+    "forgedForeignUploadDenied": false,
+    "temporaryRecoveryArtifactsCleaned": false
   },
   "releaseSha": "0000000000000000000000000000000000000000"
 }
