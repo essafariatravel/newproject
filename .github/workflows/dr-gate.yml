@@ -13,6 +13,7 @@ on:
       - "scripts/dr-restore.ts"
       - "scripts/lib/dr-backup.ts"
       - "scripts/lib/dr-finalization.ts"
+      - "scripts/lib/dr-runtime-identity.ts"
       - "scripts/dr-finalize.ts"
       - "scripts/dr-local-drill.ts"
       - "scripts/dr-verify-offsite-copy.ts"
@@ -32,6 +33,7 @@ on:
       - "tests/dr-safety.test.ts"
       - "tests/dr-backup.test.ts"
       - "tests/dr-finalization.test.ts"
+      - "tests/dr-runtime-identity.test.ts"
       - "tests/reset-plan.test.ts"
       - "tests/build-preview-guard.test.ts"
       - "docs/operations/disaster-recovery.md"
@@ -87,6 +89,7 @@ jobs:
           tests/dr-safety.test.ts
           tests/dr-backup.test.ts
           tests/dr-finalization.test.ts
+          tests/dr-runtime-identity.test.ts
           tests/dr-repo-safety.test.ts
           tests/dr-private-path.test.ts
           tests/reset-plan.test.ts
