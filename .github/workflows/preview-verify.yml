@@ -100,9 +100,31 @@ jobs:
               fi
             done <<< "$CANDIDATES"
 
+            # The deployment list can be saturated by >100 rate-limited attempts.
+            # Fall back to the last Preview that was actually observed reachable
+            # during this gate, but ONLY if Git proves it is an ancestor of HEAD.
+            KNOWN_GOOD_SHA="db47b8237d692c9639e1bbf8c268ce0e764d9d72"
+            if git merge-base --is-ancestor "$KNOWN_GOOD_SHA" "$WF_SHA" 2>/dev/null; then
+              KNOWN_DEP=$(gh api "repos/$WF_REPO/deployments?sha=$KNOWN_GOOD_SHA&environment=Preview&per_page=20" --jq '.[0].id // empty' 2>/dev/null || true)
+              if [ -n "$KNOWN_DEP" ]; then
+                ENV_URL=$(gh api "repos/$WF_REPO/deployments/$KNOWN_DEP/statuses" --jq '[.[] | select(.state=="success" and .environment_url!=null)][0].environment_url // empty' 2>/dev/null || true)
+                if [ -n "$ENV_URL" ]; then
+                  BASE_URL="$ENV_URL"
+                  echo "BASE_URL=$BASE_URL" >> "$GITHUB_ENV"
+                  echo "PREVIEW_AVAILABLE=true" >> "$GITHUB_ENV"
+                  echo "PREVIEW_STALE=true" >> "$GITHUB_ENV"
+                  echo "PREVIEW_DEPLOYED_SHA=$KNOWN_GOOD_SHA" >> "$GITHUB_ENV"
+                  printf 'SKIP  Current SHA Preview blocked by Vercel quota: %s\n' "${VERCEL_DESC:-rate limited}" > /tmp/gate.prefix
+                  printf 'Resolved STALE ancestor Preview: sha=%s url=%s\n' "$KNOWN_GOOD_SHA" "$BASE_URL" >> /tmp/gate.prefix
+                  echo "Resolved known-good ancestor Preview $KNOWN_GOOD_SHA: $BASE_URL"
+                  exit 0
+                fi
+              fi
+            fi
+
             echo "PREVIEW_AVAILABLE=false" >> "$GITHUB_ENV"
-            printf 'SKIP  Hosted Preview unavailable: Vercel deployment/build quota (%s); no successful same-branch fallback found\n' "${VERCEL_DESC:-rate limited}" > /tmp/gate.out
-            echo "No successful same-branch Preview fallback found."
+            printf 'SKIP  Hosted Preview unavailable: Vercel deployment/build quota (%s); no successful ancestor fallback found\n' "${VERCEL_DESC:-rate limited}" > /tmp/gate.out
+            echo "No successful ancestor Preview fallback found."
             exit 0
           fi
           echo "PREVIEW_CURRENT=true" >> "$GITHUB_ENV"
