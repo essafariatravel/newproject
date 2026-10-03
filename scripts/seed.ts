@@ -464,6 +464,10 @@ async function main() {
       agencyNotes: "Honeymoon couple, departure in 6 weeks.",
       createdBy: { ...agencyAdminA, role: agencyAdminA.role as Role, userStatus: "ACTIVE", agencyStatus: "ACTIVE", agencyName: agencyA.legalName } as AuthUser,
     });
+    // Set the stable demo reference BEFORE submission. Submission snapshots this
+    // reference into the immutable wallet ledger, so changing the ledger later
+    // would correctly be rejected by the immutability trigger.
+    await db.update(applications).set({ reference: "EVT-DEMO-0001" }).where(eq(applications.id, app.id));
     await db.insert(applicants).values({
       applicationId: app.id,
       firstName: "Leila",
@@ -495,8 +499,6 @@ async function main() {
       await db.delete(applications).where(eq(applications.id, app.id));
       throw err;
     }
-    await db.update(applications).set({ reference: "EVT-DEMO-0001" }).where(eq(applications.id, app.id));
-    await db.execute(sql`update ${sql.raw(qualifiedTable("wallet_transactions"))} set reason = 'Visa application EVT-DEMO-0001' where application_id = ${app.id}`);
   }
 
   console.log("Seed complete.");
