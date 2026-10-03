@@ -67,3 +67,41 @@ jobs:
 
       - name: Build without deployment or database access
         run: npm run build
+
+      - name: Local legal/privacy runtime smoke
+        shell: bash
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/essafaria
+          DATABASE_SCHEMA: public
+          STORAGE_PROVIDER: db
+          BASE_URL: http://127.0.0.1:3011
+          PORT: "3011"
+        run: |
+          set -euo pipefail
+          npm run db:up > /tmp/privacy-pg.log 2>&1 &
+          PG_PID=$!
+          APP_PID=""
+          cleanup() {
+            if [ -n "$APP_PID" ]; then kill "$APP_PID" 2>/dev/null || true; fi
+            kill "$PG_PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for i in $(seq 1 60); do
+            if (echo > /dev/tcp/127.0.0.1/5432) >/dev/null 2>&1; then break; fi
+            if [ "$i" = "60" ]; then cat /tmp/privacy-pg.log; exit 1; fi
+            sleep 1
+          done
+
+          npm run db:migrate
+          npm run db:seed
+
+          npm start > /tmp/privacy-next.log 2>&1 &
+          APP_PID=$!
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 3 "$BASE_URL/" >/dev/null 2>&1; then break; fi
+            if [ "$i" = "60" ]; then cat /tmp/privacy-next.log; exit 1; fi
+            sleep 1
+          done
+
+          bash scripts/privacy-runtime-smoke.sh
