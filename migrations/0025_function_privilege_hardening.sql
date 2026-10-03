@@ -15,8 +15,14 @@
 --
 -- It is schema-local and forward-only. No Production/global/public-schema
 -- objects are modified.
+--
+-- The same migration also indexes the age column used by the bounded
+-- authentication-rate-limit cleanup. This does not alter any identity data.
 
-do $$
+create index if not exists auth_rate_limits_window_start_idx
+  on auth_rate_limits(window_start);
+
+do $
 declare
   selected_schema text := current_schema();
   fn record;
