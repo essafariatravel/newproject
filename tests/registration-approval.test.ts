@@ -363,15 +363,28 @@ describe("registration approval — provisioning", () => {
   });
 });
 
-);
+
+describe("registration submission — audit atomicity", () => {
+  it("rolls back the public registration when its audit row cannot be persisted", async () => {
+    const fn = qualifiedTable("test_fail_registration_submission_audit");
+    const audit = qualifiedTable("audit_logs");
+    await pool.query(`create or replace function ${fn}() returns trigger language plpgsql as $audit$
+      begin
+        if new.action = 'AGENCY_REGISTRATION_SUBMITTED' then
+          raise exception 'synthetic registration audit failure';
+        end if;
+        return new;
+      end
+    $audit$`);
     await pool.query(`drop trigger if exists test_fail_registration_submission_audit on ${audit}`);
     await pool.query(`create trigger test_fail_registration_submission_audit before insert on ${audit}
       for each row execute function ${fn}()`);
+
     const data = registrationData({
       legalName: `Audit Rollback Travel ${randomUUID()}`,
       email: `audit-rollback-${randomUUID()}@example.test`,
       contactEmail: `audit-rollback-${randomUUID()}@example.test`,
-    } as Parameters<typeof registrationData>[0]);
+    });
     try {
       await expect(submitAgencyRegistration({ data, files: [], ipAddress: nextIp() }))
         .rejects.toThrow(/synthetic registration audit failure/i);
