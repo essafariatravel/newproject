@@ -33,6 +33,7 @@ import { buildStorageKey, storageProvider } from "@/lib/storage";
 import { recordAudit } from "@/lib/audit";
 import { agencyUserIds, staffUserIds, notifyUsers } from "@/lib/notifications";
 import { getStatusByCode } from "@/lib/applications";
+import { sha256Hex } from "@/lib/file-integrity";
 
 interface ApplicationAccess {
   applicationId: string;
@@ -198,6 +199,7 @@ export async function uploadDocument(input: UploadDocumentInput) {
   if (problem) throw new AppError("INVALID_FILENAME", fileNameErrorMessage(problem));
 
   validateDocumentFormat(input.file);
+  const sha256 = sha256Hex(input.file.data);
   const dtRows = await db
     .select({ id: documentTypes.id, name: documentTypes.name, active: documentTypes.active, agencyUploadable: documentTypes.agencyUploadable })
     .from(documentTypes)
@@ -259,7 +261,7 @@ export async function uploadDocument(input: UploadDocumentInput) {
         id: documentId, applicationId: input.applicationId, applicantId: input.applicantId ?? null,
         checklistItemId: checklistItem?.id ?? null, documentTypeId,
         originalFilename: name, mimeType: input.file.type, sizeBytes: input.file.data.length,
-        storageKey, status: "UPLOADED", uploadedBy: input.actor.id, version,
+        sha256, storageKey, status: "UPLOADED", uploadedBy: input.actor.id, version,
       }).returning();
       if (request) {
         await tx.update(documentRequests).set({ status: "FULFILLED", fulfilledBy: input.actor.id,
@@ -276,7 +278,7 @@ export async function uploadDocument(input: UploadDocumentInput) {
       }
       await tx.insert(auditLogs).values({ actorId: input.actor.id, actorEmail: input.actor.email,
         actorRole: input.actor.role, agencyId: access.agencyId, action: "DOCUMENT_UPLOADED", entity: "document",
-        entityId: created!.id, metadata: { filename: name, sizeBytes: input.file.data.length, version, checklistItemId: checklistItem?.id ?? null },
+        entityId: created!.id, metadata: { filename: name, sizeBytes: input.file.data.length, sha256, version, checklistItemId: checklistItem?.id ?? null },
         ipAddress: input.ipAddress ?? null,
       });
       return created!;
