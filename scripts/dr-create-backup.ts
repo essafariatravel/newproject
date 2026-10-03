@@ -162,10 +162,16 @@ async function main() {
       throw new Error("wallet_reference_seq is missing from the source schema.");
     }
 
-    const objectRows = await client.query<{ key: string; size_bytes: number }>(
-      `select key, size_bytes from ${qualifiedTable("document_blobs", PRODUCTION_SCHEMA)} order by key`,
+    const objectRows = await client.query<{ key: string; size_bytes: number; sha256: string }>(
+      `select key, size_bytes, encode(digest(data,'sha256'),'hex') as sha256
+         from ${qualifiedTable("document_blobs", PRODUCTION_SCHEMA)}
+        order by key`,
     );
-    const objectInventory = objectRows.rows.map((row) => ({ key: row.key, sizeBytes: Number(row.size_bytes) }));
+    const objectInventory = objectRows.rows.map((row) => ({
+      key: row.key,
+      sizeBytes: Number(row.size_bytes),
+      sha256: row.sha256.toLowerCase(),
+    }));
     const objectCount = objectInventory.length;
     const totalBytes = objectInventory.reduce((total, row) => total + row.sizeBytes, 0);
     const objectInventorySha = storageInventorySha256(objectInventory);
