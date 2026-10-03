@@ -35,9 +35,11 @@ The repository already contains and tests the backup, encryption, restore, walle
 - VERIFIED manifests require structured restore, off-site, application and tenant-isolation evidence;
 - reset planner accepts only a fresh VERIFIED backup (<=24h);
 - public-repository safety gate rejects tracked backups, environment files and private DR evidence;
-- full synthetic PostgreSQL 17 backup -> encrypt -> restore -> reconcile -> finalize drill runs in CI;
+- full synthetic PostgreSQL 17 backup -> encrypt -> restore -> real `next start` -> Staff/Agency/document/wallet/tenant HTTP checks -> finalize -> evidence bundle -> release gate runs in CI;
 - private 256-bit DR key generation is automated and the repository rejects tracked `.dr-key` files;
-- runtime recovery verification detects pre-`0020` versus `0020+` identity/session columns;
+- runtime recovery verification detects pre-`0020` versus `0020+` identity/session columns and both generations are unit-tested;
+- fault injection rejects a one-byte encrypted archive change and a same-size blob content corruption;
+- runtime recovery PASS requires temporary recovery sessions/users/agencies to be cleaned and re-counted to zero;
 - when only one real agency tenant exists in the restore, the verifier creates a temporary synthetic second tenant in the disposable database, exercises cross-tenant denial, then removes it.
 
 ## External task 1 — resolve the exact current Production release SHA
@@ -49,6 +51,24 @@ This value becomes `DR_RELEASE_SHA`.
 Do not guess it from `main`, the DR branch, a Preview deployment or a local checkout.
 
 Record only the SHA in the recovery evidence. Do not copy Vercel tokens or environment secrets into reports.
+
+## External task 1A — run the read-only Production preflight
+
+Before creating the archive, use the exact Production SHA and approved direct/session-pooler URI:
+
+```text
+DR_BACKUP_ENVIRONMENT=PRODUCTION
+DR_STORAGE_MODE=DATABASE_BLOBS
+DR_RELEASE_SHA=<exact Production deployment SHA>
+DATABASE_SCHEMA=visa_os
+MIGRATION_DATABASE_URL=<approved direct/session Production PostgreSQL URI>
+
+npm run dr:prod-preflight
+```
+
+Expected result: `status: READY_FOR_BACKUP`.
+
+The preflight is transaction-level read-only. It verifies project/schema identity, critical tables, migration ledger presence, pgcrypto/blob hashing, wallet integrity, durable storage references, official decision evidence and stale staging counts. If it returns `BLOCKED`, do not start the backup.
 
 ## External task 2 — create the real encrypted Production backup
 
@@ -241,6 +261,48 @@ npm run dr:manifest -- --manifest <private VERIFIED manifest> --source productio
 Expected exit: 0 and `status: VERIFIED`.
 
 Do not hand-edit a CREATED manifest into VERIFIED.
+
+## External task 7A — verify readiness, build the evidence bundle and pass the final release gate
+
+Before finalization, the CREATED backup and all four evidence files can be checked offline:
+
+```text
+npm run dr:status -- \
+  --manifest <CREATED manifest> \
+  --restore-evidence <restore evidence> \
+  --offsite-evidence <off-site evidence> \
+  --application-evidence <application evidence> \
+  --tenant-evidence <tenant evidence>
+```
+
+Expected stage: `READY_TO_FINALIZE`.
+
+After `dr:finalize`, create the sanitized evidence index:
+
+```text
+npm run dr:evidence-bundle -- \
+  --source-manifest <CREATED manifest> \
+  --verified-manifest <VERIFIED manifest> \
+  --restore-evidence <restore evidence> \
+  --offsite-evidence <off-site evidence> \
+  --application-evidence <application evidence> \
+  --tenant-evidence <tenant evidence> \
+  --output <absolute private evidence-bundle path>
+```
+
+Finally:
+
+```text
+npm run dr:release-gate -- \
+  --verified-manifest <VERIFIED manifest> \
+  --evidence-bundle <evidence bundle> \
+  --expected-release-sha <exact Production SHA> \
+  --max-age-hours 24
+```
+
+Expected result: `status: PASS`.
+
+The release gate verifies backup freshness, exact release SHA, bundle/manifest SHA binding, encrypted archive digest, restore/off-site/application/tenant evidence hashes and all mandatory reconciliation flags.
 
 ## External task 8 — only if a go-live reset is later authorized
 
