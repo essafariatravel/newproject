@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     // Content-Length is only an early reject. The streamed cap remains authoritative
     // for chunked or forged-length requests.
     const rawBody = await readRequestBodyLimited(request, maxBodyBytes);
-    const replay = new Request(request.url, { method: "POST", headers: request.headers, body: rawBody });
+    const replay = new Request(request.url, { method: "POST", headers: request.headers, body: new Uint8Array(rawBody) });
     if (request.headers.get("content-type")?.startsWith("multipart/form-data")) {
       const form = await replay.formData(), file = form.get("file");
       if (!(file instanceof File)) throw new AppError("EMPTY_FILE", "Choose a file.");
