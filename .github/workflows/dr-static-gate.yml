@@ -1,0 +1,84 @@
+name: DR Gate — static and fail-closed verification
+
+on:
+  push:
+    branches:
+      - dr/pre-codex-gate-2026-10-03
+  workflow_dispatch:
+
+concurrency:
+  group: dr-static-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: DR repository verification (no Production, no secrets)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Keep the job self-contained. No database/service credentials are supplied.
+      DATABASE_SCHEMA: visa_os_restore_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: DR targeted tests
+        run: >
+          npx vitest run
+          tests/dr-safety.test.ts
+          tests/build-preview-guard.test.ts
+          tests/reset-plan.test.ts
+          tests/prod-release-preflight.test.ts
+          tests/business-invariants-hardening.test.ts
+          tests/reference-integrity-32.test.ts
+
+      - name: Prove restore verifier refuses the Production project before connecting
+        shell: bash
+        run: |
+          set +e
+          DR_ENVIRONMENT=RESTORE_TEST \
+          DR_ALLOW_REMOTE_DISPOSABLE=true \
+          DR_DISPOSABLE_PROJECT_REF=xgetzgixalrsmuvfthpf \
+          DATABASE_URL='postgresql://postgres.xgetzgixalrsmuvfthpf:not-a-secret@aws-1-us-east-1.pooler.supabase.com:6543/postgres' \
+          npm run dr:restore-verify >/tmp/dr-refusal.out 2>&1
+          RC=$?
+          set -e
+          cat /tmp/dr-refusal.out
+          test "$RC" -ne 0
+          grep -q 'Production Supabase project can never be a restore-test target' /tmp/dr-refusal.out
+
+      - name: Prove example manifest cannot be mistaken for VERIFIED
+        shell: bash
+        run: |
+          set +e
+          npm run dr:manifest -- \
+            --manifest docs/operations/dr-backup-manifest.example.json \
+            --source production >/tmp/manifest-example.out 2>&1
+          RC=$?
+          set -e
+          cat /tmp/manifest-example.out
+          test "$RC" -ne 0
+          grep -q '"status": "CREATED"' /tmp/manifest-example.out
+
+      - name: Full regression once
+        run: npm test
+
+      - name: Production build without database access
+        run: npm run build
