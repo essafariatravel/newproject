@@ -161,3 +161,76 @@ Still required before final DR PASS:
 6. record the restore/off-site/application evidence and produce a manifest that evaluates to `VERIFIED`.
 
 Until those external proofs exist, the DR gate remains incomplete even though current live integrity checks are clean.
+
+
+## Connected provider re-check — 2026-10-03 22:12Z
+
+A second read-only provider inspection was performed through the connected Supabase/Vercel/GitHub integrations.
+
+### Supabase provider facts
+
+- organization: `essafaria travel's projects`
+- organization ID: `vercel_icfg_lAKNVL5OfNJRRzKgeAMXr2Ta`
+- plan/tier: `free / tier_free`
+- Production project: `xgetzgixalrsmuvfthpf`
+- project state: `ACTIVE_HEALTHY`
+- region: `us-east-1`
+- PostgreSQL: `17.6.1.127`
+- development branches: **0**
+- `pgcrypto`: installed, version **1.3**
+- `pg_stat_statements`: installed, version **1.11**
+
+The Supabase management migration history contains platform/project-level records newer than the application's `visa_os.schema_migrations` ledger, including Preview/hardening operations. These records MUST NOT be treated as proof that Production `visa_os` has advanced beyond application migration `0019_config_translations.sql`. The application schema ledger remains the authoritative application-migration evidence.
+
+### Supabase security-advisor observations
+
+The official security advisor currently reports the following findings specifically for `visa_os`:
+
+- WARN: six functions with mutable `search_path`:
+  - `generate_wallet_reference`
+  - `set_updated_at`
+  - `reject_price_adjustment_mutation`
+  - `generate_topup_reference`
+  - `assign_wallet_reference`
+  - `assign_topup_reference`
+- INFO: `visa_os.session_presence` has RLS enabled but no policy.
+
+The table-listing API separately returned a critical advisory stating that many `visa_os` tables have RLS disabled and described them as exposed to `anon`/`authenticated`. The official advisor result does not independently reproduce that exact claim for those tables. This discrepancy is intentionally left unresolved in this DR evidence: it belongs to the Security/Release gate and requires Data API exposure/grant verification before pilot/go-live.
+
+Do **not** auto-enable RLS in Production from this DR gate. Enabling RLS without the intended access model/policies can block the application. The hardened branch already contains API-lockdown/RLS work; Production application migration state is still evidenced at `0019`.
+
+### Performance-advisor observations
+
+The performance advisor reports, for `visa_os`:
+
+- 35 foreign keys without a covering index;
+- 49 tables without a primary key, dominated by historical `_restore_*` snapshot tables;
+- 6 currently unused indexes.
+
+These are not DR-integrity failures. They are performance/cleanup findings and must not be "fixed" by deleting historical restore tables during a DR proof.
+
+## Vercel release-identity evidence
+
+GitHub commit status metadata identifies:
+
+- Vercel team slug: `essafaria-travel-s-projects`
+- Vercel team ID returned by the Vercel API error: `team_KlSuy7Z6To4vppiHgR0KhrLK`
+- Vercel project name: `newproject`
+
+The current connected Vercel authorization is **not authorized for that team scope** and returns HTTP 403. Therefore no exact Production SHA is claimed from the Vercel connector.
+
+GitHub shows a successful Vercel status for default-branch commit:
+
+`831607a2ed0423d575d693b8f8f3a9dfc1e5d9d1`
+
+with Vercel deployment dashboard reference:
+
+`57Zqe1SS6ArbAy6tH1LGCdKabom4`
+
+This is a **candidate only**, not certified proof that `visa.essafariavoyages.com` currently points to that deployment.
+
+The repository now provides:
+
+`npm run dr:release-resolve`
+
+which uses a read-only `VERCEL_TOKEN` authorized for the ESSAFARIA team, filters READY production deployments, verifies the exact custom-domain alias, and returns the full Git SHA. A 403/missing token is a hard blocker; the candidate above must never be substituted automatically.
