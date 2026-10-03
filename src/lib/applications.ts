@@ -34,6 +34,7 @@ import { getEmbassyApplicability } from "@/lib/queries";
 import { agencyUserIds, staffUserIds, notifyUsers } from "@/lib/notifications";
 import { buildStorageKey, storageProvider } from "@/lib/storage";
 import { documents } from "@/db/schema";
+import { logErrorOnce, logEvent, pseudonymizeIdentifier } from "@/lib/observability";
 
 /* ------------------------------------------------------------------ */
 /* Status helpers                                                      */
@@ -276,6 +277,7 @@ export async function getApplicationForUser(applicationId: string, user: AuthUse
   const row = rows[0];
   if (!row) throw new AppError("NOT_FOUND", "Application not found.");
   if (user.agencyId && row.app.agencyId !== user.agencyId) {
+    logEvent({ eventName: "security.cross_tenant_access.denied", severity: "warning", classification: "SAFE_PREVENTION", result: "denied", errorCode: "NOT_FOUND", actorRole: user.role, tenantRef: pseudonymizeIdentifier(user.agencyId), resourceType: "application", resourceRef: pseudonymizeIdentifier(applicationId), metadata: { target_tenant_ref: pseudonymizeIdentifier(row.app.agencyId) } });
     throw new AppError("NOT_FOUND", "Application not found."); // tenant isolation
   }
   return row;
@@ -387,6 +389,16 @@ export async function submitApplication(params: {
     ipAddress: params.ipAddress ?? null,
   });
 
+  logEvent({
+    eventName: "application.submission.succeeded",
+    result: "succeeded",
+    actorRole: actor.role,
+    tenantRef: pseudonymizeIdentifier(app.agencyId),
+    resourceType: "application",
+    resourceRef: pseudonymizeIdentifier(app.id),
+    metadata: { override_used: usedOverride },
+  });
+
   await recordAudit({
     actor,
     action: usedOverride ? "APPLICATION_SUBMITTED_OVERRIDE" : "APPLICATION_SUBMITTED",
@@ -471,6 +483,18 @@ export async function changeApplicationStatus(params: {
   }
 
   if (DECISION_LOCKED_STATUSES.has(to.code)) {
+    logEvent({
+      eventName: "application.status_transition.prevented",
+      severity: "warning",
+      classification: "SAFE_PREVENTION",
+      result: "prevented",
+      errorCode: "DECISION_REQUIRED",
+      actorRole: actor.role,
+      tenantRef: pseudonymizeIdentifier(app.agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(app.id),
+      metadata: { from: from.code, to: to.code },
+    });
     throw new AppError(
       "DECISION_REQUIRED",
       `${to.name} outcomes must be recorded through the final-decision panel: upload the decision document first.`,
@@ -581,6 +605,15 @@ export async function changeApplicationStatus(params: {
       applicationId: app.id,
     });
   }
+  logEvent({
+    eventName: "application.status_transition.succeeded",
+    result: "succeeded",
+    actorRole: actor.role,
+    tenantRef: pseudonymizeIdentifier(app.agencyId),
+    resourceType: "application",
+    resourceRef: pseudonymizeIdentifier(app.id),
+    metadata: { from: from.code, to: to.code },
+  });
   return { from: from.code, to: to.code };
 }
 
@@ -653,7 +686,21 @@ export async function recordApplicationDecision(params: DecisionInput): Promise<
   if (!["APPROVED", "REJECTED"].includes(params.outcome)) throw new AppError("VALIDATION", "Choose a final decision.");
   const note = params.note?.trim() || null;
   if (note && note.length > 4000) throw new AppError("VALIDATION", "The note is too long.");
-  if (!f) throw new AppError("NO_FILE", "Select the official approval or refusal document before recording the decision.");
+  if (!f) {
+    logEvent({
+      eventName: "application.decision.blocked_missing_document",
+      severity: "warning",
+      classification: "SAFE_PREVENTION",
+      result: "prevented",
+      errorCode: "DECISION_DOCUMENT_REQUIRED",
+      actorRole: actor.role,
+      tenantRef: pseudonymizeIdentifier(actor.agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(params.applicationId),
+      metadata: { outcome: params.outcome },
+    });
+    throw new AppError("NO_FILE", "Select the official approval or refusal document before recording the decision.");
+  }
   {
     if (f.size <= 0 || !f.data.length) throw new AppError("NO_FILE", "The uploaded file is empty.");
     if (f.size > MAX_UPLOAD_BYTES || f.data.length > MAX_UPLOAD_BYTES) throw new AppError("UPLOAD_TOO_LARGE", "Files must be 2 MB or smaller.");
@@ -667,7 +714,7 @@ export async function recordApplicationDecision(params: DecisionInput): Promise<
   const storageKey = buildStorageKey(app.id, documentId);
   await storageProvider().put(storageKey, f.data, f.type);
   try {
-    return await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
       const [locked] = await tx.select().from(applications).where(eq(applications.id, app.id)).for("update");
       if (!locked) throw new AppError("NOT_FOUND", "Application not found.");
       const [from] = await tx.select().from(statuses).where(eq(statuses.id, locked.statusId));
@@ -713,8 +760,43 @@ export async function recordApplicationDecision(params: DecisionInput): Promise<
       if (events.length) await tx.insert(notifications).values(events);
       return { documentId, statusCode: to.code };
     });
+    logEvent({
+      eventName: "application.decision.succeeded",
+      result: "succeeded",
+      actorRole: actor.role,
+      tenantRef: pseudonymizeIdentifier(app.agencyId),
+      resourceType: "application",
+      resourceRef: pseudonymizeIdentifier(app.id),
+      metadata: { outcome: params.outcome },
+    });
+    return result;
   } catch (error) {
     await storageProvider().delete(storageKey).catch(() => {});
+    if (error instanceof AppError && ["BAD_STATE","FORBIDDEN","VALIDATION","EMBASSY_REQUIRED","NO_FILE","UPLOAD_TYPE","UPLOAD_TOO_LARGE"].includes(error.code)) {
+      logEvent({
+        eventName: "application.decision.prevented",
+        severity: "warning",
+        classification: "SAFE_PREVENTION",
+        result: "prevented",
+        errorCode: error.code,
+        actorRole: actor.role,
+        tenantRef: pseudonymizeIdentifier(app.agencyId),
+        resourceType: "application",
+        resourceRef: pseudonymizeIdentifier(app.id),
+        metadata: { outcome: params.outcome },
+      });
+    } else {
+      logErrorOnce("application.decision.technical_failed", error, {
+        severity: "error",
+        classification: "BUSINESS_FAILURE",
+        result: "technical_failed",
+        actorRole: actor.role,
+        tenantRef: pseudonymizeIdentifier(app.agencyId),
+        resourceType: "application",
+        resourceRef: pseudonymizeIdentifier(app.id),
+        metadata: { outcome: params.outcome },
+      });
+    }
     throw error;
   }
 }
