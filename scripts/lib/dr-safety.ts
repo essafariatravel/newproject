@@ -40,6 +40,10 @@ export interface BackupVerification {
   walletReconciliationPassed: boolean;
   storageReconciliationPassed: boolean;
   tenantIsolationPassed: boolean;
+  restoreEvidenceSha256: string | null;
+  offsiteEvidenceRef: string | null;
+  applicationEvidenceRef: string | null;
+  tenantIsolationEvidenceRef: string | null;
 }
 
 export interface BackupManifest {
@@ -241,8 +245,22 @@ function parseManifest(input: unknown, findings: string[]): BackupManifest | nul
   if (verification.verifiedAt !== null && !verifiedAt) findings.push("verification.verifiedAt must be null or an ISO UTC timestamp");
   const restoreTestedAt = verification.restoreTestedAt === null ? null : isoDate(verification.restoreTestedAt);
   if (verification.restoreTestedAt !== null && !restoreTestedAt) findings.push("verification.restoreTestedAt must be null or an ISO UTC timestamp");
-  const restoreEnvironment = verification.restoreEnvironment === null ? null : stringValue(verification.restoreEnvironment);
-  if (verification.restoreEnvironment !== null && !restoreEnvironment) findings.push("verification.restoreEnvironment must be null or a non-empty string");
+  const restoreEnvironment = verification.restoreEnvironment == null ? null : stringValue(verification.restoreEnvironment);
+  if (verification.restoreEnvironment != null && !restoreEnvironment) findings.push("verification.restoreEnvironment must be null or a non-empty string");
+  const restoreEvidenceSha256 = verification.restoreEvidenceSha256 == null ? null : sha256(verification.restoreEvidenceSha256);
+  if (verification.restoreEvidenceSha256 != null && !restoreEvidenceSha256) findings.push("verification.restoreEvidenceSha256 must be null or a SHA-256 digest");
+  const evidenceRef = (key: "offsiteEvidenceRef" | "applicationEvidenceRef" | "tenantIsolationEvidenceRef") => {
+    if (verification[key] == null) return null;
+    const value = stringValue(verification[key]);
+    if (!value || !/^[A-Za-z0-9][A-Za-z0-9._:-]{7,159}$/.test(value)) {
+      findings.push(`verification.${key} must be null or an opaque evidence reference`);
+      return null;
+    }
+    return value;
+  };
+  const offsiteEvidenceRef = evidenceRef("offsiteEvidenceRef");
+  const applicationEvidenceRef = evidenceRef("applicationEvidenceRef");
+  const tenantIsolationEvidenceRef = evidenceRef("tenantIsolationEvidenceRef");
 
   if (findings.length) return null;
 
@@ -277,6 +295,10 @@ function parseManifest(input: unknown, findings: string[]): BackupManifest | nul
       verifiedAt,
       restoreTestedAt,
       restoreEnvironment,
+      restoreEvidenceSha256,
+      offsiteEvidenceRef,
+      applicationEvidenceRef,
+      tenantIsolationEvidenceRef,
     },
   };
 }
@@ -316,10 +338,20 @@ export function assessBackupManifest(
     v.tenantIsolationPassed,
   ];
   const restoreIsIsolated = Boolean(v.restoreTestedAt && v.restoreEnvironment && v.restoreEnvironment !== "PRODUCTION");
-  if (verifiedChecks.every(Boolean) && v.verifiedAt && restoreIsIsolated) {
+  const evidenceIsTraceable = Boolean(
+    v.restoreEvidenceSha256 &&
+    v.offsiteEvidenceRef &&
+    v.applicationEvidenceRef &&
+    v.tenantIsolationEvidenceRef
+  );
+  if (verifiedChecks.every(Boolean) && v.verifiedAt && restoreIsIsolated && evidenceIsTraceable) {
     return { status: "VERIFIED", findings: [], manifest };
   }
-  return { status: "CREATED", findings: ["backup exists but has not satisfied every verification and isolated-restore requirement"], manifest };
+  const incomplete = ["backup exists but has not satisfied every verification and isolated-restore requirement"];
+  if (verifiedChecks.every(Boolean) && v.verifiedAt && restoreIsIsolated && !evidenceIsTraceable) {
+    incomplete.push("verification claims are not traceable to restore, off-site, application and tenant-isolation evidence");
+  }
+  return { status: "CREATED", findings: incomplete, manifest };
 }
 
 export interface RestoreTargetAssessment {
