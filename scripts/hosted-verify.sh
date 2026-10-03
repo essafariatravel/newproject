@@ -775,8 +775,9 @@ if [ -s "$WORK/staff.txt" ]; then
 
   CODE_EX=$(curl -s -b "$WORK/staff.txt" -o "$WORK/hx-apps.csv" -w "%{http_code}" --max-time 30 "$BASE_URL/api/admin/applications/export")
   BOM_EX=$(head -c 3 "$WORK/hx-apps.csv" | od -An -tx1 | tr -d ' \n')
-  if [ "$CODE_EX" = "200" ] && [ "$BOM_EX" = "efbbbf" ] && head -1 "$WORK/hx-apps.csv" | grep -q "Reference"; then
-    ok "HX-07 staff applications CSV export is real CSV (BOM + Reference header)"
+  if [ "$CODE_EX" = "200" ] && [ "$BOM_EX" = "efbbbf" ] \
+    && head -2 "$WORK/hx-apps.csv" | grep -q "Reference"; then
+    ok "HX-07 staff applications CSV export is real Excel-compatible CSV (BOM + sep hint + Reference header)"
   elif [ "$CODE_EX" = "403" ] || [ "$CODE_EX" = "401" ]; then
     skp "HX-07 staff applications export needs applications.view.all (staff account lacks it)"
   else
