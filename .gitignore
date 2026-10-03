@@ -52,3 +52,6 @@ tmp-final-verify/
 work/*backup-manifest*.json
 work/*storage-manifest*.json
 work/*.sha256
+
+*.restore-evidence.json
+*.verified.manifest.json
