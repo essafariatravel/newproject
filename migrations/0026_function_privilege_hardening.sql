@@ -22,7 +22,7 @@
 create index if not exists auth_rate_limits_window_start_idx
   on auth_rate_limits(window_start);
 
-do $
+do $$
 declare
   selected_schema text := current_schema();
   fn record;
