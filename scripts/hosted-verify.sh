@@ -32,6 +32,28 @@ status_of()  { curl -s -o "$2" -w "%{http_code}" --max-time 30 "$1"; }
 statusb_of() { curl -s -b "$3" -c "$3" -o "$2" -w "%{http_code}" --max-time 30 "$1"; }
 statusbl_of() { curl -s -b "$3" -c "$3" -b "evos_ui_locale=$4" -o "$2" -w "%{http_code}" --max-time 30 "$1"; }
 
+# Hard safety boundary: this harness may mutate ONLY local dev or a Vercel
+# Preview hostname. Never allow the Production custom domain (or any arbitrary
+# host supplied through BASE_URL) to reach a mutating probe.
+TARGET_HOST=$(python3 - "$BASE_URL" <<'PY'
+from urllib.parse import urlparse
+import sys
+print((urlparse(sys.argv[1]).hostname or "").lower())
+PY
+)
+case "$TARGET_HOST" in
+  localhost|127.0.0.1) ;;
+  *.vercel.app) ;;
+  visa.essafariavoyages.com|essafariavoyages.com|www.essafariavoyages.com)
+    log "FAIL  SAFETY: hosted verification refuses the Production domain"
+    exit 2
+    ;;
+  *)
+    log "FAIL  SAFETY: hosted verification target must be localhost or *.vercel.app (got: ${TARGET_HOST:-unknown})"
+    exit 2
+    ;;
+esac
+
 # Submit the <form> identified by `marker` (a string inside it, e.g. the submit
 # button label) from the given fetched HTML file to `pageurl`, exactly like a
 # no-JS browser would: every hidden input is carried; extra fields come from an
@@ -105,6 +127,20 @@ else
 fi
 CODE_PROD_LOGIN=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://visa.essafariavoyages.com/login")
 { [ "$CODE_PROD_LOGIN" = "200" ] && ok "PROD /login page renders (http 200)" || skp "PROD /login render returned http $CODE_PROD_LOGIN"; }
+
+# -------------------------------------------------------------------------- #
+log "-- [0] Public readiness + deployment-boundary check"
+CODE_BOUNDARY=$(status_of "$BASE_URL/api/health" "$WORK/health-boundary.json")
+if [ "$CODE_BOUNDARY" = "200" ] && python3 -c "
+import json,sys
+d=json.load(open('$WORK/health-boundary.json'))
+sys.exit(0 if d.get('ok') is True and d.get('service') == 'essafaria-visa-os' else 1)
+" 2>/dev/null; then
+  ok "public health: configured deployment boundary accepted ($CODE_BOUNDARY)"
+else
+  bad "SAFETY: Preview public health/boundary check failed ($CODE_BOUNDARY)"
+  exit 2
+fi
 
 # -------------------------------------------------------------------------- #
 log "-- [0] Health check"
@@ -357,10 +393,29 @@ else
   printf 'email=%s\npassword=%s\n' "$STAFF_EMAIL" "$STAFF_PASS" > "$WORK/loginfields.txt"
   CODE=$(submit_form "$WORK/login.html" "$BASE_URL/login" "Sign in" "$WORK/staff.txt" "$WORK/loginfields.txt")
   LOC_L=$(loc_header)
-  if grep -qi 'set-cookie:.*evos_session=' "$WORK/headers.txt" && echo "$LOC_L" | grep -qE "/admin|/portal"; then
+  if grep -Eqi 'set-cookie:.*(__Host-)?evos_session=' "$WORK/headers.txt" && echo "$LOC_L" | grep -qE "/admin|/portal"; then
     STAFF_SESSION=1
-    ok "staff login → evos_session + redirect ${LOC_L}"
-    SESSION_COOKIE_LINE=$(grep -i '^set-cookie:.*evos_session=' "$WORK/headers.txt" | head -1 | tr -d '\r')
+    ok "staff login → hardened session cookie + redirect ${LOC_L}"
+
+    # Security hard-stop: no privileged hosted mutation until the authenticated
+    # diagnostics prove this is the intended isolated Preview database.
+    CODE_SH=$(statusb_of "$BASE_URL/api/health" "$WORK/staff-health.json" "$WORK/staff.txt")
+    if [ "$CODE_SH" = "200" ] && python3 -c "
+import json,sys
+d=json.load(open('$WORK/staff-health.json'))
+db=d.get('database') or {}; s=d.get('schema') or {}
+led=s.get('migrationLedger') or []
+required=['0025_legal_privacy_readiness.sql','0026_function_privilege_hardening.sql','0027_document_integrity.sql','0028_file_identity_hardening.sql']
+ok=(d.get('ok') is True and db.get('connected') is True and db.get('intendedSupabaseProject') is True
+    and s.get('name') == 'visa_os_preview' and all(x in led for x in required))
+sys.exit(0 if ok else 1)
+" 2>/dev/null; then
+      ok "SAFETY: authenticated health confirms visa_os_preview + intended project + legal/security ledger"
+    else
+      bad "SAFETY: authenticated Preview DB boundary verification failed — STOP"
+      exit 2
+    fi
+    SESSION_COOKIE_LINE=$(grep -Ei '^set-cookie:.*(__Host-)?evos_session=' "$WORK/headers.txt" | head -1 | tr -d '\r')
     if printf '%s' "$SESSION_COOKIE_LINE" | grep -qi 'HttpOnly' \
       && printf '%s' "$SESSION_COOKIE_LINE" | grep -qi 'Secure' \
       && printf '%s' "$SESSION_COOKIE_LINE" | grep -qi 'SameSite=Lax' \
@@ -476,7 +531,7 @@ print(m.group(1) if m else '')" | tr -d '\r')
         CACT=$(submit_form "$WORK/activate.html" "$BASE_URL/activate/$TOKEN" "Set password" "$WORK/agency.txt" "$WORK/activatefields.txt")
       fi
       LOC_A=$(loc_header)
-      if echo "$LOC_A" | grep -q "/portal" && grep -qi 'set-cookie:.*evos_session=' "$WORK/headers.txt"; then
+      if echo "$LOC_A" | grep -q "/portal" && grep -Eqi 'set-cookie:.*(__Host-)?evos_session=' "$WORK/headers.txt"; then
         ok "activation sets password → session issued → /portal"
       else bad "activation post ($CACT → ${LOC_A:-none})"; fi
     else
@@ -521,7 +576,7 @@ print(m.group(1) if m else '')" | tr -d '\r')
       printf 'email=%s\npassword=%s\n' "$EMAIL_XX" "Verify-H0sted!$((STAMP % 900))" > "$WORK/loginfields2.txt"
       submit_form "$WORK/login2.html" "$BASE_URL/login" "Sign in" "$WORK/xrej.txt" "$WORK/loginfields2.txt" >/dev/null
       LOC_R=$(loc_header)
-      if ! grep -qi 'set-cookie:.*evos_session=' "$WORK/headers.txt" && ! echo "$LOC_R" | grep -q "/portal"; then
+      if ! grep -Eqi 'set-cookie:.*(__Host-)?evos_session=' "$WORK/headers.txt" && ! echo "$LOC_R" | grep -q "/portal"; then
         ok "rejected applicant has NO account / NO portal access"
       else bad "rejected applicant could sign in"; fi
     else skp "rejection path (no second registration)"; fi
@@ -994,7 +1049,7 @@ if [ -n "$PROD_EMAIL" ] && [ -n "$PROD_PASS" ]; then
   printf 'email=%s\npassword=%s\n' "$PROD_EMAIL" "$PROD_PASS" > "$WORK/prodloginfields.txt"
   CODE_RP=$(submit_form "$WORK/prod-login2.html" "https://visa.essafariavoyages.com/login" "Sign in" "$WORK/prodjar.txt" "$WORK/prodloginfields.txt")
   LOC_RP=$(loc_header)
-  if grep -qi 'set-cookie:.*evos_session=' "$WORK/headers.txt" && echo "$LOC_RP" | grep -qE "/admin|/portal|/change-password"; then
+  if grep -Eqi 'set-cookie:.*(__Host-)?evos_session=' "$WORK/headers.txt" && echo "$LOC_RP" | grep -qE "/admin|/portal|/change-password"; then
     ok "PROD real login → evos_session + redirect ${LOC_RP} (authentication operational on production domain)"
   else
     RP_TEXT=$(tr -d '\r' < "$WORK/body.html" | LC_ALL=C sed 's/<[^>]*>//g' | tr -s ' \n' ' ' 2>/dev/null)
