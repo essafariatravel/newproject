@@ -1,5 +1,6 @@
 import { contentT } from "@/lib/i18n-content";
-import { getUiLocale, localizedStatusName, localizedPriority } from "@/lib/ui-i18n";
+import { configName } from "@/lib/config-localization";
+import { getUiLocale, localizedStatusName, localizedPriority, localizedDocStatus } from "@/lib/ui-i18n";
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/rbac";
@@ -54,11 +55,16 @@ export async function GET(request: Request) {
   ];
 
   const rows: Row[] = [];
+  rows.push({ section: ct("Activity"), label: ct("Created applications"), applications: data.activity.created });
+  rows.push({ section: ct("Activity"), label: ct("Submitted applications"), applications: data.activity.submitted });
+  rows.push({ section: ct("Activity"), label: ct("Decisions recorded"), applications: data.activity.decisions });
   for (const r of data.byAgency) rows.push({ section: ct("By agency"), label: r.agencyName ?? "—", applications: Number(r.total), amountDzd: Number(r.charged) });
   for (const r of data.byCountry) rows.push({ section: ct("By country"), label: r.countryName ?? "—", applications: Number(r.total), amountDzd: Number(r.revenue) });
-  for (const r of data.byVisaType) rows.push({ section: ct("By visa type"), label: r.visaTypeName ?? "—", applications: Number(r.total), amountDzd: null });
+  for (const r of data.byVisaType) rows.push({ section: ct("By visa type"), label: configName({name:r.visaTypeName,nameFr:r.visaTypeNameFr,nameAr:r.visaTypeNameAr},locale), applications: Number(r.total), amountDzd: null });
   for (const r of data.byStatus) rows.push({ section: ct("By status"), label: localizedStatusName(r.statusCode, r.statusName, locale), applications: Number(r.total), amountDzd: null });
-  for (const r of data.byPriority) rows.push({ section: ct("By priority"), label: localizedPriority(r.priorityName.toUpperCase(), r.priorityName, locale), applications: Number(r.total), amountDzd: null });
+  for (const r of data.byPriority) rows.push({ section: ct("By priority"), label: localizedPriority(r.priorityCode, r.priorityName, locale), applications: Number(r.total), amountDzd: null });
+  for (const r of data.docIssues) rows.push({ section: ct("Document review"), label: localizedDocStatus(r.status, locale, r.status), applications: Number(r.total) });
+  for (const r of data.workload) rows.push({ section: ct("Current workload"), label: r.officer ?? "-", applications: Number(r.assigned), metric: ct("Current assignments; independent of the selected event period") });
 
   const wallet = data.walletFlow!;
   rows.push({ section: ct("Wallet (DZD)"), label: ct("Credits"), applications: null, amountDzd: Number(wallet.credits) });

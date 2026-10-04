@@ -1,6 +1,7 @@
 import { listStatuses, listPriorities } from "@/lib/applications-exports";
 import { listCountries, listVisaTypesWithRelations, listUsers } from "@/lib/queries";
 import { countryName } from "@/lib/country-names";
+import { configName } from "@/lib/config-localization";
 import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
@@ -78,14 +79,21 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
         { name: "to", label: ct("To"), type: "date", value: query.to },
         { name: "agency", label: ct("Agency"), type: "select", value: query.agency, options: agencyOptions.map(({ agency }) => ({ value: agency.id, label: agency.tradingName ?? agency.legalName })) },
         { name: "country", label: ct("Country"), type: "select", value: query.country, options: countryOptions.map((c) => ({ value: c.id, label: countryName(c, uiLocale) })) },
-        { name: "visa", label: ct("Visa type"), type: "select", value: query.visa, options: visaOptions.map(({ vt }) => ({ value: vt.id, label: vt.name })) },
+        { name: "visa", label: ct("Visa type"), type: "select", value: query.visa, options: visaOptions.map(({ vt }) => ({ value: vt.id, label: configName(vt, uiLocale) })) },
         { name: "status", label: ct("Status"), type: "select", value: query.status, options: statusOptions.map((s) => ({ value: s.id, label: localizedStatusName(s.code, s.name, uiLocale) })) },
         { name: "priority", label: ct("Priority"), type: "select", value: query.priority, options: priorityOptions.map((p) => ({ value: p.id, label: localizedPriority(p.code, p.name, uiLocale) })) },
         { name: "officer", label: ct("Case officer"), type: "select", value: query.officer, options: officerOptions.filter(({ user }) => user.status === "ACTIVE" && !user.agencyId && (STAFF_ROLES as readonly string[]).includes(user.role)).map(({ user }) => ({ value: user.id, label: user.name })) },
       ]} />
-      <p className="mb-4 text-xs text-slate-500">{ct("Application metrics use the creation date; wallet totals use the transaction date. Exports use these same filters.")}</p>
+      <p className="mb-4 text-xs text-slate-500">{ct("Submission metrics use the submission date; decision metrics use the decision date; wallet totals use the transaction date. Exports use these same filters.")}</p>
+
+      <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <StatCard label={ct("Created applications")} value={data.activity.created} hint={ct("Creation date in the selected period")} />
+        <StatCard label={ct("Submitted applications")} value={data.activity.submitted} hint={ct("Submission date in the selected period")} />
+        <StatCard label={ct("Decisions recorded")} value={data.activity.decisions} hint={ct("Decision date in the selected period")} />
+      </div>
 
       <p className="mb-4 text-xs text-slate-500">{ct("Application filters include only linked wallet entries. Document review counts include rejected or replacement-required versions.")}</p>
+      <p className="mb-4 text-xs text-slate-500">{ct("Document review metrics use the review date.")}</p>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label={ct("Wallet credits")} value={formatAmount(walletFlow.credits, "DZD", uiLocale)} tone="gold" />
         <StatCard label={ct("Manual debits")} value={formatAmount(walletFlow.debits, "DZD", uiLocale)} />
@@ -131,7 +139,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
 
       <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card>
-          <CardHeader title={ct("Applications by agency")} />
+          <CardHeader title={ct("Applications by agency")} subtitle={ct("Submissions in the selected period")} />
           <TableWrap>
             <thead className="border-b border-slate-100 bg-ivory-50/60">
               <tr><th className="th">{ct("Agency")}</th><th className="th">{ct("Applications")}</th><th className="th">{ct("Charged volume (DZD)")}</th></tr>
@@ -183,8 +191,8 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
           <CardHeader title={ct("Applications by visa type")} />
           <div className="space-y-3 px-4 py-4">
             {data.byVisaType.map((r) => (
-              <div key={r.visaTypeName} className="flex items-center justify-between gap-3">
-                <span className="w-56 truncate text-sm text-slate-700">{r.visaTypeName}</span>
+              <div key={`${r.visaTypeId}:${r.visaTypeName}`} className="flex items-center justify-between gap-3">
+                <span className="w-56 truncate text-sm text-slate-700">{configName({name:r.visaTypeName,nameFr:r.visaTypeNameFr,nameAr:r.visaTypeNameAr},uiLocale)}</span>
                 <Bar max={maxVisa} value={Number(r.total)} />
                 <span className="w-10 text-right text-xs tabular-nums text-slate-500">{r.total}</span>
               </div>
@@ -194,7 +202,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
         </Card>
 
         <Card>
-          <CardHeader title={ct("Processing workload (assigned files)")} />
+          <CardHeader title={ct("Processing workload (assigned files)")} subtitle={ct("Current assignments; independent of the selected event period")} />
           <TableWrap>
             <thead className="border-b border-slate-100 bg-ivory-50/60">
               <tr><th className="th">{ct("Case officer")}</th><th className="th">{ct("Assigned applications")}</th></tr>
@@ -219,8 +227,8 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
             </thead>
             <tbody className="divide-y divide-slate-100">
               {data.byPriority.map((r) => (
-                <tr key={r.priorityName} className="tr-hover">
-                  <td className="td">{r.priorityName}</td>
+                <tr key={r.priorityCode} className="tr-hover">
+                  <td className="td">{localizedPriority(r.priorityCode,r.priorityName,uiLocale)}</td>
                   <td className="td tabular-nums">{Number(r.total)}</td>
                 </tr>
               ))}

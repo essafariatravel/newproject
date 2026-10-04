@@ -91,6 +91,14 @@ const applicationSelection = {
   )`,
   /** §25 — the case officer currently owning the dossier (null = unassigned). */
   ownerName: sql<string | null>`(select u.name from ${sql.raw(qualifiedTable("users"))} u where u.id = applications.assigned_to)`,
+  agencyNextAction: sql<string>`case when ${statuses.isTerminal} then 'View final dossier'
+    when exists(select 1 from ${sql.raw(qualifiedTable("document_requests"))} r where r.application_id=${applications.id} and r.status='OPEN') then 'Upload requested documents'
+    else 'Await ESSAFARIA review' end`,
+  staffNextAction: sql<string>`case when ${statuses.isTerminal} then 'View final dossier'
+    when exists(select 1 from ${sql.raw(qualifiedTable("document_requests"))} r where r.application_id=${applications.id} and r.status='OPEN') then 'Await requested documents'
+    when ${statuses.code}='SUBMITTED' then 'Review submitted documents'
+    when ${statuses.code}='IN_PROCESS' or ${statuses.code}='EMBASSY_SENT' then 'Process application'
+    else 'Review dossier' end`,
 };
 
 /**
@@ -121,7 +129,8 @@ export async function buildApplicationConditions(user: AuthUser, filters: Applic
     const p = await db.select().from(priorities).where(eq(priorities.code, filters.priorityCode)).limit(1);
     if (p[0]) conditions.push(eq(applications.priorityId, p[0].id));
   }
-  if (filters.queue) conditions.push(eq(statuses.isTerminal,filters.queue==="completed"));
+  if (filters.queue === "completed") conditions.push(user.agencyId ? inArray(statuses.code,["APPROVED","COMPLETED"]) : eq(statuses.isTerminal,true));
+  else if (filters.queue) conditions.push(eq(statuses.isTerminal,false));
   if (filters.dateFrom) conditions.push(gte(applications.createdAt, new Date(filters.dateFrom)));
   if (filters.dateTo) conditions.push(lte(applications.createdAt, new Date(`${filters.dateTo}T23:59:59`)));
   // §25/§27 — ownership scope.
@@ -440,9 +449,26 @@ export async function reportData(filters: ReportFilters = {}) {
     filters.priorityId ? eq(applications.priorityId, filters.priorityId) : undefined,
     filters.officerId ? eq(applications.assignedTo, filters.officerId) : undefined,
   );
+  // Grouped application activity means real submissions, regardless of creation date.
   const appWhere = and(dimensions,
+    isNotNull(applications.submittedAt),
+    filters.from ? gte(applications.submittedAt, filters.from) : undefined,
+    filters.to ? lt(applications.submittedAt, filters.to) : undefined,
+    filters.agencyId ? eq(applications.agencyId, filters.agencyId) : undefined,
+  );
+  const createdWhere = and(dimensions,
     filters.from ? gte(applications.createdAt, filters.from) : undefined,
     filters.to ? lt(applications.createdAt, filters.to) : undefined,
+    filters.agencyId ? eq(applications.agencyId, filters.agencyId) : undefined,
+  );
+  // Workload is the current operational assignment snapshot, independent of
+  // the selected event period. A prior submission still needs an officer today.
+  const liveWorkloadWhere = and(dimensions,
+    filters.agencyId ? eq(applications.agencyId, filters.agencyId) : undefined,
+  );
+  const decisionWhere = and(dimensions,
+    filters.from ? gte(applications.decisionAt, filters.from) : undefined,
+    filters.to ? lt(applications.decisionAt, filters.to) : undefined,
     filters.agencyId ? eq(applications.agencyId, filters.agencyId) : undefined,
   );
   // Application dimensions apply only to ledger entries linked to matching
@@ -464,6 +490,7 @@ export async function reportData(filters: ReportFilters = {}) {
     .leftJoin(applications, and(eq(applications.agencyId, agencies.id), appWhere))
     .where(filters.agencyId ? eq(agencies.id, filters.agencyId) : undefined)
     .groupBy(agencies.id)
+    .having(sql`count(${applications.id}) > 0`)
     .orderBy(desc(count(applications.id)));
 
   const byCountry = await db
@@ -479,12 +506,16 @@ export async function reportData(filters: ReportFilters = {}) {
 
   const byVisaType = await db
     .select({
+      visaTypeId: applications.visaTypeId,
       visaTypeName: applications.visaTypeName,
+      visaTypeNameFr: visaTypes.nameFr,
+      visaTypeNameAr: visaTypes.nameAr,
       total: count(),
     })
     .from(applications)
+    .leftJoin(visaTypes, eq(applications.visaTypeId, visaTypes.id))
     .where(appWhere)
-    .groupBy(applications.visaTypeName)
+    .groupBy(applications.visaTypeId, applications.visaTypeName, visaTypes.nameFr, visaTypes.nameAr)
     .orderBy(desc(count()));
 
   const byStatus = await db
@@ -496,19 +527,22 @@ export async function reportData(filters: ReportFilters = {}) {
     .orderBy(asc(statuses.sortOrder));
 
   const byPriority = await db
-    .select({ priorityName: priorities.name, total: count() })
+    .select({ priorityCode: priorities.code, priorityName: priorities.name, total: count() })
     .from(applications)
     .innerJoin(priorities, eq(applications.priorityId, priorities.id))
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
     .where(and(appWhere, eq(statuses.isTerminal, false)))
-    .groupBy(priorities.name, priorities.weight)
+    .groupBy(priorities.code, priorities.name, priorities.weight)
     .orderBy(desc(priorities.weight));
 
   const docIssues = await db
     .select({ status: documents.status, total: count() })
     .from(documents)
     .innerJoin(applications, eq(documents.applicationId, applications.id))
-    .where(and(appWhere, inArray(documents.status, ["REJECTED", "RESUBMISSION_REQUIRED"])))
+    .where(and(dimensions, filters.agencyId ? eq(applications.agencyId,filters.agencyId) : undefined,
+      filters.from ? gte(documents.reviewedAt,filters.from) : undefined,
+      filters.to ? lt(documents.reviewedAt,filters.to) : undefined,
+      isNotNull(documents.reviewedAt),inArray(documents.status, ["REJECTED", "RESUBMISSION_REQUIRED"])))
     .groupBy(documents.status);
 
   const [walletFlow] = await db
@@ -525,7 +559,7 @@ export async function reportData(filters: ReportFilters = {}) {
       assigned: count(applications.id),
     })
     .from(users)
-    .leftJoin(applications, and(eq(applications.assignedTo, users.id), appWhere, isNull(applications.completedAt), isNull(applications.decisionAt), notInArray(applications.statusId, db.select({ id: statuses.id }).from(statuses).where(inArray(statuses.code, ["CANCELLED", "COMPLETED", "APPROVED", "REJECTED"])))))
+    .leftJoin(applications, and(eq(applications.assignedTo, users.id), liveWorkloadWhere, isNull(applications.completedAt), isNull(applications.decisionAt), notInArray(applications.statusId, db.select({ id: statuses.id }).from(statuses).where(eq(statuses.isTerminal, true)))))
     .where(and(inArray(users.role, [...STAFF_ROLES]), isNull(users.agencyId), eq(users.status, "ACTIVE"), filters.officerId ? eq(users.id, filters.officerId) : undefined))
     .groupBy(users.id, users.name)
     .orderBy(desc(count(applications.id)));
@@ -542,7 +576,11 @@ export async function reportData(filters: ReportFilters = {}) {
       slowestDays: sql<string | null>`max(extract(epoch from (${applications.decisionAt} - ${applications.submittedAt})) / 86400.0)::text`,
     })
     .from(applications)
-    .where(and(appWhere, isNotNull(applications.submittedAt), isNotNull(applications.decisionAt)));
+    .where(and(decisionWhere, isNotNull(applications.submittedAt), isNotNull(applications.decisionAt),sql`${applications.decisionAt} >= ${applications.submittedAt}`));
+
+  const [createdActivity] = await db.select({ total:count() }).from(applications).where(createdWhere);
+  const [submittedActivity] = await db.select({ total:count() }).from(applications).where(appWhere);
+  const [decisionActivity] = await db.select({ total:count() }).from(applications).where(and(decisionWhere,isNotNull(applications.decisionAt)));
 
   return {
     byAgency,
@@ -553,6 +591,7 @@ export async function reportData(filters: ReportFilters = {}) {
     docIssues,
     walletFlow,
     workload,
+    activity: { created: Number(createdActivity?.total??0), submitted: Number(submittedActivity?.total??0), decisions: Number(decisionActivity?.total??0) },
     processing: processing ?? { decided: 0, avgDays: null, fastestDays: null, slowestDays: null },
   };
 }
@@ -821,6 +860,8 @@ export async function listAuditLogs(filters: { q?: string; agencyId?: string; ac
   const rows = await db
     .select({
       log: auditLogs,
+      actorName: sql<string | null>`(select u.name from ${sql.raw(qualifiedTable("users"))} u where u.id = audit_logs.actor_id)`,
+      actorUsername: sql<string | null>`(select u.username from ${sql.raw(qualifiedTable("users"))} u where u.id = audit_logs.actor_id)`,
       agencyName: sql<string | null>`(select coalesce(a.trading_name, a.legal_name) from ${sql.raw(qualifiedTable("agencies"))} a where a.id = audit_logs.agency_id)`,
     })
     .from(auditLogs)
@@ -873,6 +914,8 @@ export async function listWalletTransactions(filters: WalletLedgerFilters) {
       tx: walletTransactions,
       agencyName: sql<string>`(select coalesce(a.trading_name, a.legal_name) from ${sql.raw(qualifiedTable("agencies"))} a where a.id = wallet_transactions.agency_id)`,
       applicationReference: applications.reference,
+      topupRequestId: sql<string | null>`(select t.id from ${sql.raw(qualifiedTable("wallet_topup_requests"))} t where t.wallet_transaction_id = wallet_transactions.id)`,
+      topupReference: sql<string | null>`(select t.reference from ${sql.raw(qualifiedTable("wallet_topup_requests"))} t where t.wallet_transaction_id = wallet_transactions.id)`,
     })
     .from(walletTransactions)
     .leftJoin(applications, eq(walletTransactions.applicationId, applications.id))
