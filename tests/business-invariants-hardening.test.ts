@@ -176,17 +176,15 @@ describe("proof and immutable money", () => {
     const fn = qualifiedTable("test_fail_topup_reject_audit");
     const audit = qualifiedTable("audit_logs");
 
-    await pool.query(`create or replace function ${fn}() returns trigger language plpgsql as $probe$
+    await pool.query(`create or replace function ${fn}() returns trigger language plpgsql as \'
       begin
-        if new.action = 'WALLET_TOPUP_REJECTED' then
-          raise exception 'synthetic top-up audit failure';
+        if new.action = ''WALLET_TOPUP_REJECTED'' then
+          raise exception ''synthetic top-up audit failure'';
         end if;
         return new;
-      end
-    $probe$`);
+      end'`);
     await pool.query(`drop trigger if exists test_fail_topup_reject_audit on ${audit}`);
-    await pool.query(`create trigger test_fail_topup_reject_audit before insert on ${audit}
-      for each row execute function ${fn}()`);
+    await pool.query(`create trigger test_fail_topup_reject_audit before insert on ${audit} for each row execute function ${fn}()`);
 
     try {
       await expect(processTopupRequest({
@@ -208,7 +206,6 @@ describe("proof and immutable money", () => {
       await pool.query(`drop function if exists ${fn}()`);
     }
   });
-
   it("does not credit a legacy pending request with no proof", async () => {
     const agency = await agencyByEmail("ops@agencya.example"), actor = await userByEmail("a-admin@test.example"), staff = await userByEmail("admin@test.example");
     const [request] = await db.insert(walletTopupRequests).values({ agencyId: agency.id, amount: "100.00", requestedBy: actor.id }).returning();
@@ -235,14 +232,16 @@ describe("proof and immutable money", () => {
         await receiptUpdater.query("begin");
         // Bound failures if proof verification regresses into holding the request lock.
         await receiptUpdater.query("set local lock_timeout = '500ms'");
-        // Deliberately bypass the new DB identity trigger so this test still
-        // proves the independent application-level TOCTOU guard.
+        // 0028 normally blocks this metadata rewrite. Disable only this trigger
+        // inside the test to simulate corruption beneath the database barrier and
+        // independently prove the service-level PROOF_CHANGED guard.
         await receiptUpdater.query(`alter table ${qualifiedTable("wallet_topup_requests")} disable trigger wallet_topup_request_identity_immutable`);
         await receiptUpdater.query(`update ${qualifiedTable("wallet_topup_requests")} set proof_storage_key = $2 where id = $1`, [created.id, replacementKey]);
         await receiptUpdater.query(`alter table ${qualifiedTable("wallet_topup_requests")} enable trigger wallet_topup_request_identity_immutable`);
         await receiptUpdater.query("commit");
       } catch (error) {
         await receiptUpdater.query("rollback");
+        await receiptUpdater.query(`alter table ${qualifiedTable("wallet_topup_requests")} enable trigger wallet_topup_request_identity_immutable`).catch(() => {});
         throw error;
       } finally { receiptUpdater.release(); }
       return stored;
