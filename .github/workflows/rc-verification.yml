@@ -6,6 +6,7 @@ on:
       - release/essafaria-rc-2026-09
       - preprod/essafaria-final-hardening
       - security/pre-codex-gate-2026-10-03
+      - rc/final-consolidation-hardening-security-2026-10-04
   workflow_dispatch:
 
 concurrency:
@@ -20,7 +21,7 @@ permissions:
 jobs:
   verify:
     name: Typecheck, lint, tests, build
-    if: github.ref == 'refs/heads/release/essafaria-rc-2026-09' || github.ref == 'refs/heads/preprod/essafaria-final-hardening' || github.ref == 'refs/heads/security/pre-codex-gate-2026-10-03'
+    if: github.ref == 'refs/heads/release/essafaria-rc-2026-09' || github.ref == 'refs/heads/preprod/essafaria-final-hardening' || github.ref == 'refs/heads/security/pre-codex-gate-2026-10-03' || github.ref == 'refs/heads/rc/final-consolidation-hardening-security-2026-10-04'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
