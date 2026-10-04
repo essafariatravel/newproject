@@ -66,6 +66,8 @@ export const REGISTRATION_MAX_UPLOAD_BYTES = MAX_UPLOAD_BYTES; // 2 MB
 export const REGISTRATION_MAX_DOCUMENTS = 4;
 
 export const SESSION_COOKIE = "evos_session";
+/** Production-preferred cookie name. __Host- forbids Domain and requires Secure + Path=/. */
+export const PRODUCTION_SESSION_COOKIE = "__Host-evos_session";
 
 /** Authenticated user resolved server-side on every request. */
 export interface AuthUser {
