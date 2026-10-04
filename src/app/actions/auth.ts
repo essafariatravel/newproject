@@ -13,7 +13,7 @@ import { AppError, isAgencyRole, type AuthUser, type Role } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
 import type { ActionState } from "@/components/forms";
 import { runAction } from "@/lib/action-helpers";
-import { safeErrorCode } from "@/lib/safe-error";
+import { safeErrorCode, safeErrorText } from "@/lib/safe-error";
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const email = String(formData.get("identifier") ?? formData.get("email") ?? "").trim().slice(0, 254);
@@ -21,19 +21,23 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   if (!email || !password) {
     return { error: "Enter your username or staff email and password." };
   }
+  if (password.length > 200) {
+    return { error: "Invalid username, email or password." };
+  }
   let user;
   try {
     const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
     const ipAllowed = await consumeAuthRateLimit("login-ip", ip, 40, 15 * 60_000);
+    if (!ipAllowed) return { error: "Sign-in is temporarily unavailable. Please try again later." };
     const accountAllowed = await consumeAuthRateLimit("login-identity", email.toLowerCase(), 10, 15 * 60_000);
-    if (!ipAllowed || !accountAllowed) return { error: "Sign-in is temporarily unavailable. Please try again later." };
+    if (!accountAllowed) return { error: "Sign-in is temporarily unavailable. Please try again later." };
     user = await authenticate(email, password);
   } catch (err) {
     // Never expose raw database errors (e.g. Failed query: select ... from users) to the user.
     if (err instanceof AppError) {
       return { error: err.message };
     }
-    console.error("[auth] loginAction authenticate failed", safeErrorCode(err) ?? "unknown");
+    console.error("[auth] loginAction authenticate failed", { code: safeErrorCode(err), error: safeErrorText(err) });
     return { error: "Service temporarily unavailable. Please try again." };
   }
   let token: string;
@@ -44,14 +48,14 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
     expiresAt = session.expiresAt;
     await setSessionCookie(token, expiresAt);
   } catch (err) {
-    console.error("[auth] createSession failed", safeErrorCode(err) ?? "unknown");
+    console.error("[auth] createSession failed", { code: safeErrorCode(err), error: safeErrorText(err) });
     return { error: "Service temporarily unavailable. Please try again." };
   }
   try {
     await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
   } catch (err) {
     // Non-critical: login should succeed even if last_login_at update fails.
-    console.error("[auth] lastLoginAt update failed", safeErrorCode(err) ?? "unknown");
+    console.error("[auth] lastLoginAt update failed", { code: safeErrorCode(err), error: safeErrorText(err) });
   }
 
   const authUser: AuthUser = {
@@ -76,7 +80,7 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
       ipAddress: hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
     });
   } catch (err) {
-    console.error("[auth] recordAudit failed", safeErrorCode(err) ?? "unknown");
+    console.error("[auth] recordAudit failed", { code: safeErrorCode(err), error: safeErrorText(err) });
     // Not fatal for login.
   }
   // Phase 2.2 §11 — forced first password change before any shell page
