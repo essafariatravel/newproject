@@ -133,7 +133,7 @@ describe("durable operation audits", () => {
     request.cookie = (await createSession(actor.id)).token;
     await rejectAudit("DOCUMENT_DOWNLOADED");
     const response = await downloadDocument(new Request("http://localhost/api/documents/" + doc.id), { params: Promise.resolve({ id: doc.id }) });
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(503);
     expect(await response.text()).not.toContain("%PDF");
   });
   it("rolls back country configuration when its audit fails", async () => {
@@ -162,7 +162,7 @@ describe("durable operation audits", () => {
     request.cookie = (await createSession(actor.id)).token;
     await rejectAudit("TOPUP_RECEIPT_DOWNLOADED");
     const response = await downloadProof(new Request("http://localhost/api/topups/proof"), { params: Promise.resolve({ id: pending.id }) });
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(503);
     expect(await response.text()).not.toContain("%PDF");
   });
 });
