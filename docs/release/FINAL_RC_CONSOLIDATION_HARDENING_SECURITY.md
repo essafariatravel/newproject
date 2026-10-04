@@ -106,15 +106,17 @@ Use the Security final version for:
 - `src/app/api/documents/[id]/route.ts`
   - preserves SHA verification
   - preserves fail-closed strict disclosure audit
-  - preserves filename/size/hash audit metadata
+  - preserves Hardening data minimization: no redundant filename PII is reintroduced into durable download audit metadata
 
 - `src/app/api/registrations/[id]/documents/[docId]/route.ts`
   - preserves strict disclosure audit and integrity evidence
+  - keeps registration-document audit metadata privacy-minimized
 
 - `src/app/api/topups/[id]/proof/route.ts`
   - preserves strict disclosure audit
-  - preserves receipt SHA metadata
+  - preserves receipt SHA integrity
   - maps audit failure to 503
+  - avoids restoring receipt filename PII into durable audit metadata
 
 - `src/lib/auth.ts`
   - preserves Production `__Host-` session cookie
@@ -165,19 +167,14 @@ The following files must not be resolved by whole-file winner selection:
 
 #### `.github/workflows/preview-verify.yml`
 
-Start from Security semantics:
+Final resolution:
 - `contents: read`
 - immutable SHA-pinned GitHub Actions
-- no commit-comment write permission
-- current-SHA verification only
-- no stale Preview result may be treated as current-SHA proof
-
-Add from Hardening:
-- trigger for `preprod/essafaria-final-hardening` as needed during transition
-- trigger for `rc/final-hardening-security-consolidation`
-- relevant `src/**` and `migrations/**` path triggers
-
-Do not restore the Hardening stale-ancestor Preview fallback as release evidence.
+- no repository comment/write permission
+- current-SHA deployment remains the only hosted proof for the current RC
+- Hardening stale-ancestor fallback is retained only as an explicitly labelled **STALE SAME-BRANCH DIAGNOSTIC**
+- a stale deployment can never be represented as current-SHA validation
+- triggers include Final Hardening, Security and the consolidation branch plus relevant `src/**` / `migrations/**` paths
 
 #### `.github/workflows/rc-verification.yml`
 
@@ -219,7 +216,7 @@ Retain Security authenticated health assertions:
 
 Update the required Preview ledger to include 0025 through 0028.
 
-Production checks inside this harness must remain read-only and must never become part of a mutating path.
+All direct Production probes were removed from this harness. The target is rejected before the first HTTP request unless it is localhost/127.0.0.1 or `*.vercel.app`. The Production custom domain is present only in the explicit deny-list.
 
 #### `src/app/api/health/route.ts`
 
@@ -355,10 +352,61 @@ Only read-only Production postflight evidence is allowed.
 
 ## 11. Final target
 
-A single consolidated RC commit must:
-- preserve both source histories
+The consolidated RC lineage must:
+- preserve both source histories through a real two-parent merge point
 - contain Final Hardening product/privacy behavior
 - contain Security hardening and CI guards
 - contain migration chain through 0028 for Preview
 - be green under the combined deterministic gate
 - remain non-deployed until explicit hosted Preview verification is authorized
+
+## 12. Executed consolidation result
+
+The planned 3-way consolidation was executed on `rc/final-hardening-security-consolidation`.
+
+Actual topology resolved from merge-base `53dc61de334c6412c1e5337b4f745c360f69facd`:
+
+- 70 Security-only files integrated without modification;
+- 35 Hardening-only files preserved from the functional/privacy parent;
+- 6 overlapping blobs were already byte-identical;
+- 21 true overlaps were semantically resolved.
+
+Resolution principle used throughout:
+
+**Security enforcement + Final Hardening product/privacy behavior + no PII regression.**
+
+Notable combined results:
+
+- Security fail-closed download auditing + Hardening privacy-minimized audit metadata;
+- registration Legal consent model + raw-IP minimization + DB-backed atomic abuse controls + transactional submission audit;
+- receipt SHA integrity + immutable top-up identity + transactional CREDIT and REJECT financial audits;
+- Production `__Host-` session cookie + hardened login/rate-limit behavior;
+- cheap anonymous health + Staff-only detailed diagnostics + required Legal/Security ledger through 0028;
+- strict Supabase project/host/bucket separation while retaining the verified `documents` storage bucket default;
+- Security CI gates + Final Hardening Legal/Privacy runtime smoke;
+- hosted verifier now refuses Production before any HTTP probe.
+
+Verified consolidated snapshot before the history-sealing merge marker:
+
+`3f999ba2a14a2f30f86987b4c616398f25f34d0f`
+
+GitHub Actions run:
+
+`37208337190` — **SUCCESS**
+
+Evidence:
+
+- tracked-secret gate: PASS — 430 tracked files;
+- Git-history secret gate: PASS — 1,089 revisions;
+- immutable GitHub Actions gate: PASS — 7 workflow files;
+- source-sink AST gate: PASS — 194 source files;
+- production dependency audit: PASS — 0 vulnerabilities;
+- typecheck: PASS;
+- lint: PASS;
+- shell harness syntax: PASS;
+- Preview build-write guard: PASS;
+- complete deterministic suite: **107/107 test files, 727/727 tests PASS**;
+- Next.js production build without deployment/database access: PASS;
+- local Legal/Privacy runtime smoke: PASS.
+
+No Production deployment or migration was performed by this consolidation.
