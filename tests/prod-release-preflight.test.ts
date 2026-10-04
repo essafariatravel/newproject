@@ -47,6 +47,9 @@ describe("current Production release manifest", () => {
       "0022_registration_review.sql",
       "0023_operations_legal.sql",
       "0024_preview_api_lockdown.sql",
+      "0025_legacy_reconciliation.sql",
+      "0026_reconciliation_api_lockdown.sql",
+      "0027_reconciliation_event_sequence_repair.sql",
     ]);
     expect(preflightFindings(approvedSnapshot(), pending).some((finding) => finding.includes("pending migration set is not this release"))).toBe(true);
   });

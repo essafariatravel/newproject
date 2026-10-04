@@ -1,90 +1,67 @@
-/** Read-only go-live cleanup inventory. Deletion is deliberately unavailable.
- * npm run db:reset -- --dry-run [--preserve-user UUID] [--backup-manifest PATH]
- * npm run db:reset -- --blueprint (offline; never opens a connection)
- */
-import { readFile } from "node:fs/promises";
+/* eslint-disable no-console -- Standalone CLI emits its reviewable JSON report to stdout. */
+/** Dry-run by default. Never invoke a real go-live reset during candidate hardening. */
 import { Pool } from "pg";
+import { execFileSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { databasePoolConfig } from "../src/lib/database-config";
-import { assertDryRunTarget, cleanupPolicy, dependencyDeleteOrder, parseResetOptions } from "./lib/reset-plan";
-import { qualifiedTable } from "../src/lib/database-schema";
+import { assertDryRunTarget, cleanupPolicy, dependencyDeleteOrder, parseResetOptions, verifyPreviewResetIdentity, type VerifiedPreviewResetIdentity } from "./lib/reset-plan";
+import { executeVerifiedLocalReset, verifiedResetPlan } from "./lib/reset-executor";
 
 async function main() {
   const options = parseResetOptions(process.argv.slice(2));
-  if (options.blueprint) {
-    console.log(JSON.stringify({ mode: "OFFLINE_BLUEPRINT", executionAvailable: false, ...cleanupPolicy }, null, 2));
-    return;
-  }
-  const target = assertDryRunTarget(process.env);
+  if (options.blueprint) { console.log(JSON.stringify({ ...cleanupPolicy, mode: "OFFLINE_BLUEPRINT", executionAvailable: true, productionExecutionAvailable: false }, null, 2)); return; }
+  let preview: VerifiedPreviewResetIdentity | undefined;
+  let target;
+  if(options.isolatedPreview) {
+    const manifest = JSON.parse(await readFile(options.approvalManifest!, "utf8"));
+    if(manifest.authorization?.purpose!=="ISOLATED_PREVIEW_GO_LIVE_CLEANUP" || !manifest.previewIdentity) throw new Error("Dedicated isolated Preview authorization is required.");
+    const git = (args: string[]) => execFileSync("git", args, { encoding: "utf8", stdio: ["ignore","pipe","pipe"] }).trim();
+    const origin = git(["remote","get-url","origin"]);
+    const repository = /^(https:\/\/github\.com\/|git@github\.com:)essafariatravel\/newproject(?:\.git)?$/.test(origin) ? "essafariatravel/newproject" : "UNIDENTIFIED";
+    target = assertDryRunTarget(process.env, { isolatedPreview:true, previewIdentity:manifest.previewIdentity,
+      gitIdentity:{branch:git(["branch","--show-current"]),sha:git(["rev-parse","HEAD"]),clean:git(["status","--porcelain"])==="",repository} });
+    preview = await verifyPreviewResetIdentity(manifest.previewIdentity, process.env.RESET_VERCEL_ACCESS_TOKEN);
+  } else target = assertDryRunTarget(process.env);
+  if (options.execute && (!options.approvalManifest || process.env.STORAGE_PROVIDER !== "db")) throw new Error("A reviewed approval manifest and verified database storage are required.");
   const pool = new Pool(databasePoolConfig(process.env));
   const client = await pool.connect();
   try {
-    await client.query("begin transaction read only");
-    await client.query("set local statement_timeout='10s'");
-    const tables = await client.query<{ name: string }>("select table_name as name from information_schema.tables where table_schema=$1 and table_type='BASE TABLE' order by table_name", [target.schema]);
-    const counts: Record<string, number> = {};
-    for (const { name } of tables.rows) {
-      const result = await client.query(`select count(*)::int as total from ${qualifiedTable(name, target.schema)}`);
-      counts[name] = Number(result.rows[0].total);
+    // Execution must obtain a fresh snapshot after its exclusive table locks.
+    // SERIALIZABLE/REPEATABLE READ would reuse the initial verification snapshot
+    // and miss a writer committed while this transaction waited for the locks.
+    await client.query(options.execute ? "begin isolation level read committed" : "begin transaction isolation level repeatable read read only");
+    await client.query("set local lock_timeout='10s'"); await client.query("set local statement_timeout='5min'");
+    const plan = await verifiedResetPlan(client, target.schema, options.approvalManifest, preview);
+    if (options.execute) {
+      const result = await executeVerifiedLocalReset(client, plan); await client.query("commit"); console.log(JSON.stringify(result, null, 2));
+    } else {
+      let dependencyAwareDeleteOrder: string[] = [];
+      try { dependencyAwareDeleteOrder = dependencyDeleteOrder(plan.inventory.tables, plan.inventory.edges); } catch { /* Archive/recreate avoids immutable-parent deletion and dependency cycles. */ }
+      const users = plan.inventory.tableRows.users;
+      if (!users) throw new Error("Unknown preserved identity inventory.");
+      const approved = users.filter(row => (plan.manifest?.preservedUserIds ?? options.preserveUsers).includes(String(row.id)));
+      const blockers = plan.manifest ? [] : ["A verified encrypted backup, isolated restore and explicit reviewed approval manifest are required for execution."];
+      console.log(JSON.stringify({ mode: "DRY_RUN_READ_ONLY", executionAvailable: true, schema: target.schema, counts: plan.inventory.counts,
+        inventorySha256: plan.inventory.inventorySha256, definitionSha256: plan.inventory.definitionSha256,
+        dependencyAwareDeleteOrder, preservedStaffIds: plan.manifest?.preservedUserIds ?? approved.map(row => row.id),
+        protectedCounts: { approvedStaff: approved.length, approvedActiveSuperAdmins: approved.filter(row => row.role === "SUPER_ADMIN" && row.status === "ACTIVE" && !row.agency_id).length },
+        backupStatus: plan.backupStatus, effects: plan.effects,
+        destructiveSteps: ["Lock all application tables; refuse stale inventory and cross-schema dependencies.",
+          "Rename original schema to immutable-history archive; retain all original rows and blobs.",
+          "Create clean operational schema from the exact verified migration bytes.",
+          "Restore only approved Staff and configuration; revoke old sessions/tokens by incrementing credential version.",
+          "Copy only explicitly preserved blobs into live schema; removed test objects remain recoverable in archive and encrypted backup.",
+          "Preserve sequence counters; verify zero/preserved counts, definitions, archive bytes and references before commit."],
+        preserveTables: cleanupPolicy.preserveTables, preservedRowRules: cleanupPolicy.preservedRowRules,
+        storageCleanupPlan: cleanupPolicy.storageCleanupPlan, postResetVerification: cleanupPolicy.postResetVerification, ownerDecisions: cleanupPolicy.ownerDecisions, blockers }, null, 2));
+      await client.query("rollback");
     }
-    const edges = await client.query<{ child: string; parent: string; parentSchema: string }>(`
-      select child.relname as child, parent.relname as parent, pn.nspname as "parentSchema"
-      from pg_constraint c join pg_class child on child.oid=c.conrelid join pg_namespace cn on cn.oid=child.relnamespace
-      join pg_class parent on parent.oid=c.confrelid join pg_namespace pn on pn.oid=parent.relnamespace
-      where c.contype='f' and cn.nspname=$1`, [target.schema]);
-    const approved = options.preserveUsers.length ? (await client.query<{ id: string; role: string; status: string; agency_id: string | null }>(
-      `select id,role,status,agency_id from ${qualifiedTable("users", target.schema)} where id=any($1::uuid[])`, [options.preserveUsers])).rows : [];
-    const activeSuper = approved.filter((user) => user.role === "SUPER_ADMIN" && user.status === "ACTIVE" && user.agency_id === null).length;
-    const blockers = ["Execution is disabled in this release. A separate owner-authorized executor is required."];
-    if (!activeSuper) blockers.push("Explicitly preserve at least one real active SUPER_ADMIN UUID.");
-    if (approved.length !== options.preserveUsers.length || approved.some((user) => user.agency_id !== null)) blockers.push("Every preserved user must resolve to a real Staff identity.");
-    if (edges.rows.some((edge) => edge.parentSchema !== target.schema)) blockers.push("Cross-schema dependencies require manual review before cleanup.");
-    let backupStatus = "MISSING";
-    if (options.backupManifest) {
-      try {
-        const manifest = JSON.parse(await readFile(options.backupManifest, "utf8"));
-        if (manifest.schema === target.schema && /^[0-9a-f]{64}$/.test(manifest.sha256 ?? "") && manifest.createdAt && manifest.verifiedRestoreAt) backupStatus = "MANIFEST_PRESENT_RESTORE_ATTESTED";
-      } catch { /* Missing/invalid manifest remains a blocker; never print its contents. */ }
-    }
-    if (backupStatus === "MISSING") blockers.push("A current encrypted backup and successfully tested isolated restore are required; record schema, SHA-256 and timestamps in a manifest.");
-    const candidates = cleanupPolicy.removeOperationalTables.filter((name) => name in counts);
-    let deleteOrder: string[] = [];
-    try { deleteOrder = dependencyDeleteOrder(candidates, edges.rows.filter((edge) => edge.parentSchema === target.schema)); }
-    catch { blockers.push("Dependency cycles need an explicit constraint-safe cleanup design; no deletion order is approved."); }
-    const unclassified = Object.keys(counts).filter((name) => !candidates.includes(name) && !cleanupPolicy.preserveTables.includes(name));
-    if (unclassified.length) blockers.push("Unclassified tables remain preserved until owner review.");
-    if ((counts.audit_logs ?? 0) > 0) blockers.push("Immutable audit foreign keys can retain operational parents. Approve an encrypted synthetic-history archive/removal policy before expecting zero operational rows.");
-    if ((counts.wallet_transactions ?? 0) + (counts.application_price_adjustments ?? 0) > 0) blockers.push("Immutable financial history needs a separately approved archive/removal design; ordinary DELETE is rejected by its triggers.");
-    const protectedDependencies = edges.rows.filter((edge) => candidates.includes(edge.parent) && !candidates.includes(edge.child) && (counts[edge.child] ?? 0) > 0);
-    if (protectedDependencies.length) blockers.push("Preserved table rows still reference proposed cleanup parents; review these dependencies before any future executor.");
-    const columns = await client.query<{ table_name: string; column_name: string }>("select table_name,column_name from information_schema.columns where table_schema=$1", [target.schema]);
-    const hasColumn = (table: string, column: string) => columns.rows.some((row) => row.table_name === table && row.column_name === column);
-    const referenceSources = [["documents", "storage_key"], ["agency_registration_documents", "storage_key"], ["wallet_topup_requests", "proof_storage_key"]]
-      .filter(([table, column]) => hasColumn(table!, column!));
-    const referenceQuery = referenceSources.map(([table, column]) => `select "${column}" as key from ${qualifiedTable(table!, target.schema)} where "${column}" is not null`).join(" union ");
-    const referencedKeys = referenceQuery ? Number((await client.query(`select count(*)::int as total from (${referenceQuery}) refs`)).rows[0].total) : 0;
-    const blobInventory = hasColumn("document_blobs", "size_bytes") ? (await client.query(`select count(*)::int as objects,coalesce(sum(size_bytes),0)::text as bytes from ${qualifiedTable("document_blobs", target.schema)}`)).rows[0] : null;
-    const storageInventory = { provider: process.env.STORAGE_PROVIDER === "supabase" ? "supabase" : "db", distinctOperationalReferences: referencedKeys,
-      databaseBlobObjects: blobInventory ? Number(blobInventory.objects) : null, databaseBlobBytes: blobInventory?.bytes ?? null,
-      externalObjectInventory: "NOT_FETCHED: separate owner-approved object manifest required", customerFileContentsRead: false };
-    console.log(JSON.stringify({ mode: "DRY_RUN_READ_ONLY", executionAvailable: false, schema: target.schema,
-      counts, dependencyAwareDeleteOrder: deleteOrder, preservedStaffIds: approved.map((user) => user.id),
-      protectedCounts: { approvedStaff: approved.length, approvedActiveSuperAdmins: activeSuper,
-        workflowStatuses: counts.statuses ?? 0, workflowTransitions: counts.status_transitions ?? 0,
-        documentTypes: counts.document_types ?? 0, priorities: counts.priorities ?? 0, legalVersions: counts.legal_versions ?? 0, auditRows: counts.audit_logs ?? 0 },
-      preserveTables: cleanupPolicy.preserveTables, unclassifiedPreservedTables: unclassified,
-      preservedRowRules: cleanupPolicy.preservedRowRules, protectedDependencies,
-      backupStatus, storageInventory, storageCleanupPlan: cleanupPolicy.storageCleanupPlan,
-      postResetVerification: cleanupPolicy.postResetVerification, ownerDecisions: cleanupPolicy.ownerDecisions, blockers }, null, 2));
-    await client.query("rollback");
-  } finally {
-    await client.query("rollback").catch(() => {});
-    client.release();
-    await pool.end();
-  }
+  } finally { await client.query("rollback").catch(() => {}); client.release(); await pool.end(); }
 }
-
-main().catch((error) => {
-  // Never print pg error objects/URIs: connection configuration can contain secrets.
-  console.error(error instanceof Error && /Execution is disabled|Production reset planning|local disposable|must be supplied|Unknown reset option|Invalid preserved/.test(error.message) ? error.message : "Read-only reset inventory could not be produced. No data was changed.");
+main().catch((error: unknown) => {
+  // Only known constant guard errors are safe to print. Database/IO errors can contain credentials or row data.
+  const safeGuard = error instanceof Error && (/^Reset evidence failed verification: [a-z-]+\. No data was changed\.$/.test(error.message)
+    || /^(Execution is disabled without one explicit reviewed approval manifest and an unambiguous --execute request\.|Production reset planning is forbidden\. Use a disposable local snapshot\.)$/.test(error.message));
+  console.error(safeGuard ? (error as Error).message : "Reset evidence or target verification failed. No reset committed. Production is forbidden; no credentials are displayed.");
   process.exitCode = 1;
 });
