@@ -59,6 +59,7 @@ import { sha256Hex } from "@/lib/file-integrity";
 import { recordAudit } from "@/lib/audit";
 import { notifyUsers, staffUserIds } from "@/lib/notifications";
 import { generateSessionToken, hashPassword, hashToken } from "@/lib/crypto";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import type { RegistrationCopy, RegistrationLocale } from "@/lib/i18n";
 import { safeErrorCode } from "@/lib/safe-error";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
@@ -220,7 +221,9 @@ function matchesMagicBytes(data: Buffer, mimeType: string): boolean {
  * action maps to localized copy.
  */
 export function validateRegistrationFile(file: RegistrationFileInput): void {
-  if (file.size <= 0) throw new AppError("EMPTY_FILE", "The uploaded file is empty.");
+  if (file.size <= 0 || file.data.length === 0) throw new AppError("EMPTY_FILE", "The uploaded file is empty.");
+  // Validate both metadata and authoritative bytes against the limit. Exact
+  // equality is not a security invariant once the server already owns bytes.
   if (file.size > REGISTRATION_MAX_UPLOAD_BYTES || file.data.length > REGISTRATION_MAX_UPLOAD_BYTES) {
     throw new AppError("FILE_TOO_LARGE", "Files must be 2 MB or smaller.");
   }
@@ -371,18 +374,8 @@ export async function submitAgencyRegistration(params: {
   // 2. Database, one transaction (registration + documents + history).
   try {
     const reference = await persistRegistration(id, data, stored);
-    // 3. Side effects (non-critical, individually guarded).
-    await recordAudit({
-      actor: null,
-      action: "AGENCY_REGISTRATION_SUBMITTED",
-      entity: "agency_registration",
-      entityId: id,
-      metadata: {
-        reference,
-        documents: stored.length,
-        locale: data.locale,
-      },
-    });
+    // 3. Notifications are non-critical post-commit side effects. The
+    // registration audit itself is persisted inside persistRegistration().
     const staff = await staffUserIds([...REGISTRATION_DECIDE_ROLES]).catch(() => [] as string[]);
     await notifyUsers(staff, {
       type: "REGISTRATION_SUBMITTED",
@@ -460,6 +453,45 @@ async function persistRegistration(
           toStatus: "PENDING",
           actorId: null,
           note: "Application submitted from the public website.",
+        });
+        // Audit and registration commit atomically. Privacy hardening deliberately
+        // does not persist the raw source IP on the partnership record or audit.
+        await tx.insert(auditLogs).values({
+          actorId: null,
+          actorEmail: null,
+          actorRole: null,
+          agencyId: null,
+          action: "AGENCY_REGISTRATION_SUBMITTED",
+          entity: "agency_registration",
+          entityId: id,
+          metadata: {
+            reference,
+            legalName: data.legalName,
+            country: data.country,
+            businessType: data.businessType,
+            documents: stored.length,
+            locale: data.locale,
+          },
+        });
+        // Audit and registration commit atomically: a persisted KYC/partnership
+        // request must never exist without its submission evidence.
+        await tx.insert(auditLogs).values({
+          actorId: null,
+          actorEmail: null,
+          actorRole: null,
+          agencyId: null,
+          action: "AGENCY_REGISTRATION_SUBMITTED",
+          entity: "agency_registration",
+          entityId: id,
+          metadata: {
+            reference,
+            legalName: data.legalName,
+            country: data.country,
+            businessType: data.businessType,
+            documents: stored.length,
+            locale: data.locale,
+          },
+          ipAddress,
         });
         return reference;
       });
@@ -990,8 +1022,8 @@ export async function activateAccount(
   if (!/^[A-Za-z0-9_-]{20,90}$/.test(token)) {
     throw new AppError("INVALID_TOKEN", "This activation link is invalid or has expired.");
   }
-  if (password.length < 10 || password.length > 200) {
-    throw new AppError("PASSWORD_POLICY", "Password must be at least 10 characters.");
+  if (password.length < 10 || password.length > 200 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+    throw new AppError("PASSWORD_POLICY", "Password must be 10–200 characters and include letters and numbers.");
   }
   const passwordHash = await hashPassword(password);
   const { row, credentialVersion } = await db.transaction(async (tx) => {
