@@ -10,8 +10,9 @@ import { applyMigrations } from "../scripts/lib/migrations";
 import { hashPassword, verifyPassword } from "@/lib/crypto";
 import { dependencyDeleteOrder } from "../scripts/lib/reset-plan";
 import { resetCliNodePath, resetCliPath } from "./helpers/reset-cli";
+import { testDbReady } from "./helpers/pg";
 
-const url = "postgresql://postgres:postgres@localhost:5434/essafaria_test";
+const url = "postgresql://postgres:postgres@127.0.0.1:5434/essafaria_test";
 const adminId = "ad000000-0000-4000-8000-000000000001";
 const testId = "ad000000-0000-4000-8000-000000000002";
 const agencyId = "ad000000-0000-4000-8000-000000000003";
@@ -117,7 +118,7 @@ async function fixture(label: string, changeBeforeBackup?: (schema: string) => P
 }
 
 describe("guarded executable cleanup on synthetic localhost data", () => {
-  beforeAll(async () => { directory = await mkdtemp(path.join(os.tmpdir(), "essafaria-reset-test-")); });
+  beforeAll(async () => { await testDbReady(); directory = await mkdtemp(path.join(os.tmpdir(), "essafaria-reset-test-")); });
   afterAll(async () => {
     for (const schema of schemas) await pool.query(`drop schema if exists "${schema}" cascade`);
     await pool.end();
@@ -227,6 +228,23 @@ describe("guarded executable cleanup on synthetic localhost data", () => {
     expect(result.stderr).toContain("preservation");
     expect((await pool.query(`select role from "${f.source}".users where id=$1`, [testId])).rows[0].role).toBe("AGENCY_USER");
     expect((await pool.query("select exists(select 1 from pg_namespace where nspname=$1) present", [f.archive])).rows[0].present).toBe(false);
+  });
+
+  it("refuses execution-lock timeout after valid evidence without destructive mutation", async () => {
+    const f = await fixture("lock_refusal");
+    const valid = invoke(f.source, ["--approval-manifest", f.manifestPath]);
+    expect(valid.status, valid.stderr).toBe(0);
+    const blocker = await pool.connect();
+    const lock = `${f.source}:go-live-reset`;
+    try {
+      await blocker.query("select pg_advisory_lock(hashtext($1))", [lock]);
+      const result = invoke(f.source, ["--execute", "--approval-manifest", f.manifestPath]);
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain("No reset committed");
+      expect((await pool.query(`select to_jsonb(t) row from "${f.source}".wallet_transactions t`)).rows.map(r => r.row)).toEqual(f.beforeWallet);
+      expect((await pool.query(`select count(*)::int n from "${f.source}".users`)).rows[0].n).toBe(2);
+      expect((await pool.query("select to_regnamespace($1) present", [f.archive])).rows[0].present).toBeNull();
+    } finally { await blocker.query("select pg_advisory_unlock(hashtext($1))", [lock]); blocker.release(); }
   });
 
   it("rechecks a writer committed after verification while the CLI waits for its execution lock", async () => {
@@ -343,6 +361,8 @@ describe("guarded executable cleanup on synthetic localhost data", () => {
     const result = invoke(f.source, ["--execute", "--approval-manifest", f.manifestPath]);
     expect(result.status).not.toBe(0);
     expect(result.stderr).not.toContain("postgres:postgres");
+    if (failure === "target") expect(result.stderr).toContain("Reset evidence failed verification: target.");
+    if (failure === "checksum") expect(result.stderr).toContain("Reset evidence failed verification: encrypted-backup.");
     expect((await pool.query(`select count(*)::int n from "${f.source}".wallet_transactions`)).rows[0].n).toBe(1);
     expect((await pool.query(`select count(*)::int n from "${f.source}".users`)).rows[0].n).toBe(2);
     expect((await pool.query("select exists(select 1 from pg_namespace where nspname=$1) present", [f.archive])).rows[0].present).toBe(false);

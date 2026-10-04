@@ -54,6 +54,11 @@ describe("wallet top-up receipt integrity", () => {
     expect(row.proofSha256).toBe(sha256Hex(proof.data));
     expect(row.proofSizeBytes).toBe(proof.data.length);
     expect(row.proofStorageKey).toBeTruthy();
+    const [audit] = await db.select().from(auditLogs).where(sql`${auditLogs.action} = 'WALLET_TOPUP_REQUESTED' and ${auditLogs.entityId} = ${created.id}`);
+    expect(audit).toBeDefined();
+    expect(audit!.metadata).toMatchObject({ evidenceIntegrity: "SHA256_RECORDED" });
+    expect(JSON.stringify(audit!.metadata)).not.toContain(proof.name);
+    expect(JSON.stringify(audit!.metadata)).not.toContain(row.proofSha256);
 
     const [blob] = await db.select().from(documentBlobs).where(eq(documentBlobs.key, row.proofStorageKey!));
     expect(blob).toBeDefined();

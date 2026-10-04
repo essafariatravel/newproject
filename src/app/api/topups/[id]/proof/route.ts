@@ -24,7 +24,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     assertStoredFileIntegrity({ data: stored.data, expectedSizeBytes: row.proofSizeBytes, expectedSha256: row.proofSha256 });
     await db.transaction(async tx => {
       const actor = await currentOperationActor(tx, user);
-      await recordAuditStrict({ actor, action: "TOPUP_RECEIPT_DOWNLOADED", entity: "wallet_topup_request", entityId: id, agencyId: row.agencyId, metadata: { filename: row.proofFilename, sizeBytes: row.proofSizeBytes, sha256: row.proofSha256 } }, tx);
+      await recordAuditStrict({ actor, action: "TOPUP_RECEIPT_DOWNLOADED", entity: "wallet_topup_request", entityId: id, agencyId: row.agencyId, metadata: { evidenceIntegrity: "VERIFIED" } }, tx);
     });
     const fallback = row.proofFilename.replace(/[^\x20-\x7e]|["\\]/g, "_");
     const encoded = encodeURIComponent(row.proofFilename).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);

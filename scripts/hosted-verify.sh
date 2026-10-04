@@ -19,6 +19,7 @@ set -u
 BASE_URL="${BASE_URL:?set BASE_URL, e.g. https://<preview>.vercel.app}"
 STAFF_EMAIL="${PREVIEW_VERIFY_STAFF_EMAIL:-}"
 STAFF_PASS="${PREVIEW_VERIFY_STAFF_PASSWORD:-}"
+BASE_URL=$(npx --no-install tsx scripts/lib/hosted-target.ts "$BASE_URL") || exit 2
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 PASS=0; FAIL=0; SKIP=0; FAILED_CHECKS=()
@@ -83,7 +84,7 @@ CODE=$(status_of "$BASE_URL/api/health" "$WORK/health.json")
 if [ "$CODE" = "200" ] && python3 -c "
 import json,sys
 d=json.load(open('$WORK/health.json'))
-sys.exit(0 if d.get('ok') is True and d.get('service') == 'essafaria-visa-os' else 1)
+sys.exit(0 if d.get('ok') is True and d.get('service') == 'essafaria-visa-os' and (not '$BASE_URL'.startswith('https://') or (d.get('deployment') or {}).get('environment') == 'preview') else 1)
 " 2>/dev/null; then
   ok "public health: configured deployment boundary accepted ($CODE)"
 else

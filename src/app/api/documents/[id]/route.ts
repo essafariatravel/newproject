@@ -41,7 +41,7 @@ export async function GET(
         entity: "document",
         entityId: id,
         agencyId: row.appAgencyId,
-        metadata: { filename: row.doc.originalFilename, sizeBytes: row.doc.sizeBytes, sha256: row.doc.sha256 },
+        metadata: { evidenceIntegrity: "VERIFIED" },
       }, tx);
     });
     // Content-Disposition attachment prevents inline script execution for HTML-like uploads

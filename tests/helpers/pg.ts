@@ -2,7 +2,8 @@
  * Test PostgreSQL lifecycle: a dedicated embedded PostgreSQL instance on port
  * 5434, fresh schema, migrations applied once per run.
  */
-import { rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { Pool } from "pg";
 
@@ -10,11 +11,10 @@ import EmbeddedPostgres from "embedded-postgres";
 import { applyMigrations } from "../../scripts/lib/migrations";
 
 const PORT = 5434;
-const DATA_DIR = path.join(process.cwd(), "tests", ".pgdata-test");
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let pg: any = null;
-let ready: Promise<void> | null = null;
+// Module resets must not create a second owner of the same running cluster.
+type ClusterState = { pg: EmbeddedPostgres | null; ready: Promise<void> | null; directory: string | null };
+const globalState = globalThis as typeof globalThis & { __essafariaTestCluster?: ClusterState };
+const state = globalState.__essafariaTestCluster ??= { pg: null, ready: null, directory: null };
 
 async function start(): Promise<void> {
   // Optional externally managed LOCAL test cluster, useful on Windows where
@@ -22,30 +22,32 @@ async function start(): Promise<void> {
   // The connection is deliberately fixed; this flag cannot target a remote DB.
   if (process.env.ESSAFARIA_LOCAL_TEST_PG === "1") {
     const admin = new Pool({ connectionString: `postgresql://postgres:postgres@localhost:${PORT}/essafaria_test` });
-    await applyMigrations(admin, path.join(process.cwd(), "migrations"));
-    await admin.end();
+    try { await applyMigrations(admin, path.join(process.cwd(), "migrations")); }
+    finally { await admin.end(); }
     return;
   }
-  await rm(DATA_DIR, { recursive: true, force: true });
-  pg = new EmbeddedPostgres({
-    databaseDir: DATA_DIR,
+  state.directory = await mkdtemp(path.join(os.tmpdir(), "essafaria-test-pg-"));
+  state.pg = new EmbeddedPostgres({
+    databaseDir: state.directory,
     user: "postgres",
     password: "postgres",
     port: PORT,
-    persistent: false,
+    persistent: true,
   });
-  await pg.initialise();
-  await pg.start();
-  await pg.createDatabase("essafaria_test");
+  await state.pg.initialise();
+  await state.pg.start();
+  await state.pg.createDatabase("essafaria_test");
   const admin = new Pool({ connectionString: `postgresql://postgres:postgres@localhost:${PORT}/essafaria_test` });
-  await applyMigrations(admin, path.join(process.cwd(), "migrations"));
-  await admin.end();
+  try { await applyMigrations(admin, path.join(process.cwd(), "migrations")); }
+  finally { await admin.end(); }
 }
 
 /** Idempotent: boots PG + migrations exactly once per test run. */
 export function testDbReady(): Promise<void> {
-  ready ??= start();
-  return ready;
+  state.ready ??= start().catch(error => {
+    throw new Error(`Disposable PostgreSQL startup failed (port ${PORT}, directory ${state.directory ?? "external local"}): ${error instanceof Error ? error.message : String(error ?? "embedded process exited before readiness")}`, { cause: error });
+  });
+  return state.ready;
 }
 
 /** Truncate all business tables between tests (fast, deterministic). */
@@ -71,9 +73,11 @@ export function testConnectionString(): string {
 }
 
 export async function teardownTestDb(): Promise<void> {
-  if (pg) {
-    await pg.stop();
-    pg = null;
-    ready = null;
+  if (state.pg) {
+    await state.pg.stop();
+    state.pg = null;
+    if (state.directory) await rm(state.directory, { recursive: true, force: true });
+    state.directory = null;
+    state.ready = null;
   }
 }
