@@ -45,18 +45,47 @@ const dbProvider: StorageProvider = {
 /* -------------------------- supabase provider ---------------------------- */
 
 const SUPABASE_UPLOAD_LIMIT = 10 * 1024 * 1024;
+const SUPABASE_REQUEST_TIMEOUT_MS = 15_000;
+const EXPECTED_SUPABASE_STORAGE_HOST = "xgetzgixalrsmuvfthpf.supabase.co";
 
 function supabaseConfig() {
-  const url = process.env.SUPABASE_URL;
+  const rawUrl = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? "documents";
-  if (!url || !key) {
+  if (!rawUrl || !key) {
     throw new AppError(
       "STORAGE_MISCONFIGURED",
       "Supabase storage is not configured (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).",
     );
   }
-  return { url: url.replace(/\/$/, ""), key, bucket };
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new AppError("STORAGE_MISCONFIGURED", "Supabase storage URL is invalid.");
+  }
+  if (
+    parsed.protocol !== "https:" ||
+    parsed.hostname !== EXPECTED_SUPABASE_STORAGE_HOST ||
+    parsed.username ||
+    parsed.password ||
+    (parsed.port && parsed.port !== "443") ||
+    (parsed.pathname !== "/" && parsed.pathname !== "") ||
+    parsed.search ||
+    parsed.hash
+  ) {
+    throw new AppError("STORAGE_MISCONFIGURED", "Supabase storage URL is not an approved HTTPS project endpoint.");
+  }
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(bucket)) {
+    throw new AppError("STORAGE_MISCONFIGURED", "Supabase storage bucket name is invalid.");
+  }
+  if (process.env.VERCEL_ENV === "preview" && !/preview/i.test(bucket)) {
+    throw new AppError("STORAGE_MISCONFIGURED", "Vercel Preview must use an isolated Preview storage bucket.");
+  }
+  if (process.env.VERCEL_ENV === "production" && /preview/i.test(bucket)) {
+    throw new AppError("STORAGE_MISCONFIGURED", "Production cannot use a Preview storage bucket.");
+  }
+  return { url: `https://${parsed.hostname}`, key, bucket };
 }
 
 const supabaseProvider: StorageProvider = {
@@ -73,6 +102,7 @@ const supabaseProvider: StorageProvider = {
         "x-upsert": "true",
       },
       body: new Uint8Array(data),
+      signal: AbortSignal.timeout(SUPABASE_REQUEST_TIMEOUT_MS),
     });
     if (!res.ok) {
       console.error("supabase-storage-put-failed", res.status);
@@ -83,6 +113,7 @@ const supabaseProvider: StorageProvider = {
     const { url, key: serviceKey, bucket } = supabaseConfig();
     const res = await fetch(`${url}/storage/v1/object/${bucket}/${encodeURIComponent(key)}`, {
       headers: { Authorization: `Bearer ${serviceKey}` },
+      signal: AbortSignal.timeout(SUPABASE_REQUEST_TIMEOUT_MS),
     });
     if (!res.ok) {
       console.error("supabase-storage-get-failed", res.status);
@@ -96,6 +127,7 @@ const supabaseProvider: StorageProvider = {
     const res = await fetch(`${url}/storage/v1/object/${bucket}/${encodeURIComponent(key)}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${serviceKey}` },
+      signal: AbortSignal.timeout(SUPABASE_REQUEST_TIMEOUT_MS),
     });
     if (!res.ok && res.status !== 404) {
       console.error("supabase-storage-delete-failed", res.status);
