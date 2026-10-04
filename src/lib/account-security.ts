@@ -13,7 +13,7 @@ export async function recordIdentityAudit(tx: IdentityTransaction, input: Parame
   await tx.insert(auditLogs).values({ actorId: input.actor?.id ?? null, actorEmail: input.actor?.email ?? null,
     actorRole: input.actor?.role ?? null, agencyId: input.agencyId ?? input.actor?.agencyId ?? null,
     action: input.action, entity: input.entity, entityId: input.entityId ?? null,
-    metadata: input.metadata ?? null, ipAddress: input.ipAddress ?? null });
+    metadata: input.actor ? { ...input.metadata, actorName: input.actor.name, actorUsername: input.actor.username } : input.metadata ?? null, ipAddress: input.ipAddress ?? null });
 }
 
 /** Small V1 identity population: serialize credential changes and login minting. */
@@ -25,10 +25,13 @@ export async function currentAccountActor(tx: IdentityTransaction, actor: AuthUs
   const [row] = await tx.select({ user: users, agencyStatus: agencies.status })
     .from(users).leftJoin(agencies, eq(users.agencyId, agencies.id)).where(eq(users.id, actor.id)).limit(1);
   if (!row || row.user.status !== "ACTIVE" || row.user.activationPending || row.user.mustChangePassword ||
-      (row.user.agencyId && row.agencyStatus !== "ACTIVE")) {
+      (row.user.agencyId && row.agencyStatus !== "ACTIVE") || row.user.role !== actor.role || row.user.agencyId !== actor.agencyId ||
+      (actor.credentialVersion !== undefined && row.user.credentialVersion !== actor.credentialVersion)) {
     throw new AppError("UNAUTHENTICATED", "Please sign in to continue.");
   }
-  return { ...actor, role: row.user.role as Role, agencyId: row.user.agencyId, userStatus: row.user.status, agencyStatus: row.agencyStatus };
+  return { ...actor, name: row.user.name, email: row.user.email, username: row.user.username, role: row.user.role as Role,
+    agencyId: row.user.agencyId, userStatus: row.user.status, agencyStatus: row.agencyStatus,
+    credentialVersion: row.user.credentialVersion };
 }
 
 /** Must run in the same transaction as the state/credential mutation. */
@@ -140,12 +143,15 @@ export async function changeAccountPassword(actor: AuthUser, currentPassword: st
     const [target] = await tx.select({ user: users, agencyStatus: agencies.status }).from(users)
       .leftJoin(agencies, eq(users.agencyId, agencies.id)).where(eq(users.id, actor.id)).limit(1);
     if (!target || target.user.status !== "ACTIVE" || target.user.activationPending ||
+      target.user.role !== actor.role || target.user.agencyId !== actor.agencyId ||
+      (actor.credentialVersion !== undefined && target.user.credentialVersion !== actor.credentialVersion) ||
       (isAgencyRole(target.user.role) && target.agencyStatus !== "ACTIVE") || !await verifyPassword(currentPassword, target.user.passwordHash)) {
       throw new AppError("UNAUTHENTICATED", "Current password is incorrect.");
     }
     await tx.update(users).set({ passwordHash, mustChangePassword: false, updatedAt: new Date() }).where(eq(users.id, actor.id));
     const version = await revokeUserAccess(tx, actor.id);
-    await recordIdentityAudit(tx, { actor: { ...actor, email: target.user.email, role: target.user.role as Role, agencyId: target.user.agencyId }, action: "PASSWORD_CHANGED", entity: "user", entityId: actor.id, agencyId: target.user.agencyId,
+    await recordIdentityAudit(tx, { actor: { ...actor, email: target.user.email, name: target.user.name, username: target.user.username,
+      role: target.user.role as Role, agencyId: target.user.agencyId }, action: "PASSWORD_CHANGED", entity: "user", entityId: actor.id, agencyId: target.user.agencyId,
       metadata: { forced: Boolean(target.user.mustChangePassword) } });
     return version;
   });

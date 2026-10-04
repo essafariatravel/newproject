@@ -7,12 +7,13 @@ import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
 import { getTransactions, getBalance } from "@/lib/wallet";
 import { db } from "@/lib/db";
-import { agencies, users } from "@/db/schema";
+import { agencies, users, agencyRegistrations, agencyRegistrationDocuments } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { toggleAgencyStatusAction, updateAgencyAction, createUserAction } from "@/app/actions/admin";
-import { searchApplications } from "@/lib/queries";
+import { searchApplications, listAuditLogs } from "@/lib/queries";
+import { AuditTime } from "@/components/audit-time";
 import { PasswordField, SubmitButton } from "@/components/forms";
 import BrandMark from "@/components/brand-mark";
 import { agencyLogoUrl } from "@/lib/branding";
@@ -50,10 +51,13 @@ export default async function AdminAgencyDetailPage({
   const canAdjust = WALLET_MANAGE_ROLES.includes(staff.role);
   const canUsers = hasPermission(staff, "users.manage");
 
-  const [agencyUsers, txs, apps] = await Promise.all([
+  const [agencyUsers, txs, apps, activity, verificationDocuments] = await Promise.all([
     db.select().from(users).where(eq(users.agencyId, id)),
     getTransactions(id, 25),
     searchApplications(staff, { agencyId: id, page: 1 }),
+    hasPermission(staff,"audit.view") ? listAuditLogs({agencyId:id,pageSize:25}) : Promise.resolve(null),
+    hasPermission(staff,"registrations.view") ? db.select({document:agencyRegistrationDocuments,registrationId:agencyRegistrations.id}).from(agencyRegistrationDocuments)
+      .innerJoin(agencyRegistrations,eq(agencyRegistrationDocuments.registrationId,agencyRegistrations.id)).where(eq(agencyRegistrations.agencyId,id)) : Promise.resolve([]),
   ]);
   const balance = await getBalance(id);
 
@@ -70,6 +74,14 @@ export default async function AdminAgencyDetailPage({
         }
       />
       <Flash {...flash} />
+      <div className="my-4 grid gap-4 lg:grid-cols-2">
+        <Card><CardHeader title={ct("Verification documents")}/><div className="space-y-3 p-5">
+          {verificationDocuments.length?verificationDocuments.map(({document,registrationId})=><div key={document.id}><Link href={`/api/registrations/${registrationId}/documents/${document.id}`} className="block underline">{document.originalFilename}</Link><Link href={`/admin/registrations/${registrationId}`} className="text-xs underline">{ct("View registration")}</Link></div>):<p className="text-sm text-slate-500">{ct("No verification documents are linked to this agency.")}</p>}
+        </div></Card>
+        {activity?<Card><CardHeader title={ct("Agency activity")} actions={<Link href={`/admin/audit?agency=${id}`} className="btn-secondary btn-sm">{ct("View all")}</Link>}/><ul className="divide-y px-5">
+          {activity.rows.length?activity.rows.slice(0,6).map(({log,actorName,actorUsername})=><li key={log.id} className="py-3 text-xs"><p className="font-medium">{businessLabel(log.action,uiLocale)}</p><p>{String(log.metadata?.actorName??actorName??log.actorEmail??ct("System"))} · <bdi dir="ltr">{String(log.metadata?.actorUsername??actorUsername??log.actorId??"")}</bdi></p><AuditTime iso={log.createdAt.toISOString()} locale={uiLocale}/></li>):<li className="py-5 text-sm text-slate-500">{ct("No agency activity yet.")}</li>}
+        </ul></Card>:null}
+      </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label={ct("Wallet balance")} value={formatAmount(balance.balance, "DZD", uiLocale)} tone="gold" />
@@ -91,7 +103,7 @@ export default async function AdminAgencyDetailPage({
                   {agency.logoKey ? (
                     <form action={removeAgencyLogoAction}>
                       <input type="hidden" name="agencyId" value={id} />
-                      <SubmitButton className="btn-danger btn-sm" pendingLabel="Removing…">{ct("Remove logo")}</SubmitButton>
+                      <SubmitButton className="btn-danger btn-sm" pendingLabel={ct("Removing…")}>{ct("Remove logo")}</SubmitButton>
                     </form>
                   ) : null}
                   <form action={uploadAgencyLogoAction} encType="multipart/form-data" className="flex flex-wrap items-center gap-2">
@@ -103,7 +115,7 @@ export default async function AdminAgencyDetailPage({
                       required
                       className="max-w-full text-xs file:mr-2 file:cursor-pointer file:rounded-full file:border-0 file:bg-iris-600 file:px-3.5 file:py-1.5 file:text-xs file:font-semibold file:text-white"
                     />
-                    <SubmitButton className="btn-secondary btn-sm" pendingLabel="Uploading…">
+                    <SubmitButton className="btn-secondary btn-sm" pendingLabel={ct("Uploading…")}>
                       {agency.logoKey ? ct("Replace logo") : ct("Upload logo")}
                     </SubmitButton>
                   </form>
@@ -176,7 +188,7 @@ export default async function AdminAgencyDetailPage({
                   <textarea id="notes" name="notes" rows={2} defaultValue={agency.notes ?? ""} className="input" />
                 </div>
                 <div className="sm:col-span-2">
-                  <SubmitButton className="btn-primary" pendingLabel="Saving…">{ct("Save agency")}</SubmitButton>
+                  <SubmitButton className="btn-primary" pendingLabel={ct("Saving…")}>{ct("Save agency")}</SubmitButton>
                 </div>
               </form>
             </Card>
@@ -255,7 +267,7 @@ export default async function AdminAgencyDetailPage({
                 <div>
                   <label className="label" htmlFor="u-role">{ct("Role")} *</label>
                   <select id="u-role" name="role" required className="input" defaultValue="AGENCY_USER">
-                    <option value="AGENCY_ADMIN">{ct("Agency Admin")}</option>
+                    {staff.role === "SUPER_ADMIN" ? <option value="AGENCY_ADMIN">{ct("Agency Admin")}</option> : null}
                     <option value="AGENCY_USER">{ct("Agency User")}</option>
                   </select>
                 </div>
@@ -268,7 +280,7 @@ export default async function AdminAgencyDetailPage({
                   showLabel={ct("Show")}
                   hideLabel={ct("Hide")}
                 />
-                <SubmitButton className="btn-secondary w-full" pendingLabel="Creating…">{ct("Create user")}</SubmitButton>
+                <SubmitButton className="btn-secondary w-full" pendingLabel={ct("Creating…")}>{ct("Create user")}</SubmitButton>
               </form>
             </Card>
           ) : null}
@@ -313,17 +325,17 @@ export default async function AdminAgencyDetailPage({
               {txs.length === 0 ? (
                 <tr><td colSpan={7} className="td py-8 text-center text-slate-500">{ct("No transactions yet.")}</td></tr>
               ) : (
-                txs.map(({ tx, applicationReference }) => (
+                txs.map(({ tx, applicationReference, topupRequestId, topupReference }) => (
                   <tr key={tx.id} className="tr-hover">
-                    <td className="td whitespace-nowrap text-xs font-mono">{(tx as { reference?: string | null }).reference ?? tx.id.slice(0, 8)}</td>
+                    <td className="td whitespace-nowrap text-xs font-mono">{tx.reference ?? tx.id.slice(0, 8)}{topupRequestId?<Link href={`/api/topups/${topupRequestId}/proof`} className="mt-1 block underline">{topupReference} · {ct("View receipt")}</Link>:null}</td>
                     <td className="td whitespace-nowrap text-xs">{formatDateTime(tx.createdAt, uiLocale)}</td>
                     <td className="td">
                       <span className={`badge ${tx.type === "CREDIT" ? "bg-emerald-100 text-emerald-800" : tx.type === "DEBIT" ? "bg-red-100 text-red-700" : "bg-navy-900/5 text-navy-800"}`}>
                         {businessLabel(tx.type, uiLocale)}
                       </span>
                     </td>
-                    <td className={`td whitespace-nowrap tabular-nums font-medium ${tx.type === "DEBIT" || tx.type === "APPLICATION_CHARGE" ? "text-red-700" : "text-emerald-700"}`}>
-                      {tx.type === "CREDIT" ? "+" : "−"}{formatAmount(tx.amount, "DZD", uiLocale)}
+                    <td className={`td whitespace-nowrap tabular-nums font-medium ${Number(tx.balanceAfter) >= Number(tx.balanceBefore) ? "text-emerald-700" : "text-red-700"}`}>
+                      {Number(tx.balanceAfter) >= Number(tx.balanceBefore) ? "+" : "-"}{formatAmount(tx.amount, "DZD", uiLocale)}
                     </td>
                     <td className="td whitespace-nowrap tabular-nums text-xs">
                       {formatAmount(tx.balanceBefore, "DZD", uiLocale)} → {formatAmount(tx.balanceAfter, "DZD", uiLocale)}

@@ -206,7 +206,7 @@ export default async function PortalWalletPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {ledger.rows.map(({ tx, applicationReference }) => {
+                {ledger.rows.map(({ tx, applicationReference, topupRequestId, topupReference }) => {
                   const creditEffect = Number(tx.balanceAfter) > Number(tx.balanceBefore);
                   const typeLabel =
                     tx.type === "COMMERCIAL_DISCOUNT"
@@ -223,7 +223,7 @@ export default async function PortalWalletPage({
                   return (
                     <tr key={tx.id} className="tr-hover">
                       <td className="td whitespace-nowrap text-xs">{formatDateTime(tx.createdAt, uiLocale)}</td>
-                      <td className="td whitespace-nowrap font-mono text-[11px]">{tx.reference ?? "—"}</td>
+                      <td className="td whitespace-nowrap font-mono text-[11px]">{tx.reference ?? "-"}{topupRequestId?<Link href={`/api/topups/${topupRequestId}/proof`} className="mt-1 block underline">{topupReference} · {ct("View receipt")}</Link>:null}</td>
                       <td className="td">
                         <span className={`badge ${creditEffect ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}`}>
                           {typeLabel}

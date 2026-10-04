@@ -26,11 +26,21 @@ import {
 } from "@/db/schema";
 import { requireStaff } from "@/lib/auth";
 import { requirePermission } from "@/lib/rbac";
-import { recordAudit } from "@/lib/audit";
+import { recordAudit, type AuditTransaction } from "@/lib/audit";
+import type { AuthUser } from "@/lib/types";
 import { AppError } from "@/lib/types";
 import { draftApplicationIdsForVisaType, resyncChecklist } from "@/lib/applications";
 import { runAction } from "@/lib/action-helpers";
+import { currentOperationActor } from "@/lib/operation-identity";
 import { assertWorkflowCode, assertMutableWorkflowState, assertMutableDocumentType, assertProgrammeRequirementType, assertActiveProgrammeChecklist, assertWorkflowTransition, validateVisaActivation } from "@/lib/configuration-policy";
+
+async function runConfigAction(path: string, fn: (tx: AuditTransaction, staff: AuthUser) => Promise<string>): Promise<never> {
+  return runAction(path, async () => {
+    const staff = await requireStaff();
+    requirePermission(staff, "config.manage");
+    return db.transaction(async tx => fn(tx, await currentOperationActor(tx,staff)));
+  });
+}
 
 const idSchema = z.string().uuid("Invalid identifier.");
 const codeSchema = z
@@ -58,14 +68,12 @@ const countrySchema = z.object({
 });
 
 export async function createCountryAction(formData: FormData): Promise<void> {
-  await runAction("/admin/config/countries", async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction("/admin/config/countries", async (tx, staff) => {
     const data = countrySchema.parse(Object.fromEntries(formData));
-    const existing = await db.select({ id: countries.id }).from(countries).where(eq(countries.iso2, data.iso2)).limit(1);
+    const existing = await tx.select({ id: countries.id }).from(countries).where(eq(countries.iso2, data.iso2)).limit(1);
     if (existing[0]) throw new AppError("DUPLICATE", `A country with ISO code ${data.iso2} already exists.`);
-    const inserted = await db.insert(countries).values(data).returning();
-    await recordAudit({ actor: staff, action: "CONFIG_COUNTRY_CREATED", entity: "country", entityId: inserted[0]!.id, metadata: data });
+    const inserted = await tx.insert(countries).values(data).returning();
+    await recordAudit({ actor: staff, action: "CONFIG_COUNTRY_CREATED", entity: "country", entityId: inserted[0]!.id, metadata: data }, tx);
     revalidatePath("/admin/config/countries");
     revalidatePath("/countries");
     return `Country "${data.name}" created.`;
@@ -73,18 +81,18 @@ export async function createCountryAction(formData: FormData): Promise<void> {
 }
 
 export async function updateCountryAction(formData: FormData): Promise<void> {
-  await runAction("/admin/config/countries", async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction("/admin/config/countries", async (tx, staff) => {
     const id = idSchema.parse(formData.get("id"));
+    const [before] = await tx.select().from(countries).where(eq(countries.id, id)).for("update");
+    if (!before) throw new AppError("NOT_FOUND", "Country not found.");
     const toggle = formData.get("toggle");
     if (toggle) {
-      await db.update(countries).set({ active: sql`not ${countries.active}`, updatedAt: new Date() }).where(eq(countries.id, id));
-      await recordAudit({ actor: staff, action: "CONFIG_COUNTRY_TOGGLED", entity: "country", entityId: id });
+      await tx.update(countries).set({ active: sql`not ${countries.active}`, updatedAt: new Date() }).where(eq(countries.id, id));
+      await recordAudit({ actor: staff, action: "CONFIG_COUNTRY_TOGGLED", entity: "country", entityId: id, metadata: { oldValues: {active:before.active}, newValues:{active:!before.active} } }, tx);
     } else {
       const data = countrySchema.parse(Object.fromEntries(formData));
-      await db.update(countries).set({ ...data, updatedAt: new Date() }).where(eq(countries.id, id));
-      await recordAudit({ actor: staff, action: "CONFIG_COUNTRY_UPDATED", entity: "country", entityId: id, metadata: data });
+      await tx.update(countries).set({ ...data, updatedAt: new Date() }).where(eq(countries.id, id));
+      await recordAudit({ actor: staff, action: "CONFIG_COUNTRY_UPDATED", entity: "country", entityId: id, metadata: {oldValues:before,newValues:data} }, tx);
     }
     revalidatePath("/admin/config/countries");
     revalidatePath("/countries");
@@ -93,26 +101,24 @@ export async function updateCountryAction(formData: FormData): Promise<void> {
 }
 
 export async function deleteCountryAction(formData: FormData): Promise<void> {
-  await runAction("/admin/config/countries", async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction("/admin/config/countries", async (tx, staff) => {
     const id = idSchema.parse(formData.get("id"));
-    const rows = await db.select().from(countries).where(eq(countries.id, id)).limit(1);
+    const rows = await tx.select().from(countries).where(eq(countries.id, id)).limit(1);
     const country = rows[0];
     if (!country) throw new AppError("NOT_FOUND", "Country not found.");
 
     // Safe hard-delete: block if referenced by visa_types or applications
-    const vtRef = await db.select({ id: visaTypes.id }).from(visaTypes).where(eq(visaTypes.countryId, id)).limit(1);
+    const vtRef = await tx.select({ id: visaTypes.id }).from(visaTypes).where(eq(visaTypes.countryId, id)).limit(1);
     if (vtRef.length > 0) {
       throw new AppError("REFERENCED", `Cannot delete ${country.name}: it is referenced by ${vtRef.length > 0 ? "visa types" : ""}. Deactivate it instead.`);
     }
-    const appRef = await db.select({ id: applications.id }).from(applications).where(eq(applications.countryId, id)).limit(1);
+    const appRef = await tx.select({ id: applications.id }).from(applications).where(eq(applications.countryId, id)).limit(1);
     if (appRef.length > 0) {
       throw new AppError("REFERENCED", `Cannot delete ${country.name}: it has historical applications. Deactivate it instead.`);
     }
 
-    await db.delete(countries).where(eq(countries.id, id));
-    await recordAudit({ actor: staff, action: "CONFIG_COUNTRY_DELETED", entity: "country", entityId: id, metadata: { name: country.name, mode: "hard" } });
+    await tx.delete(countries).where(eq(countries.id, id));
+    await recordAudit({ actor: staff, action: "CONFIG_COUNTRY_DELETED", entity: "country", entityId: id, metadata: { name: country.name, mode: "hard" } }, tx);
     revalidatePath("/admin/config/countries");
     return `Country "${country.name}" deleted.`;
   });
@@ -132,32 +138,30 @@ const categorySchema = z.object({
 });
 
 export async function createVisaCategoryAction(formData: FormData): Promise<void> {
-  await runAction("/admin/config/visa-categories", async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction("/admin/config/visa-categories", async (tx, staff) => {
     const data = categorySchema.parse(Object.fromEntries(formData));
-    const inserted = await db.insert(visaCategories).values(data).onConflictDoNothing().returning();
+    const inserted = await tx.insert(visaCategories).values(data).onConflictDoNothing().returning();
     if (!inserted[0]) throw new AppError("DUPLICATE", `Category code ${data.code} already exists.`);
-    await recordAudit({ actor: staff, action: "CONFIG_CATEGORY_CREATED", entity: "visa_category", entityId: inserted[0].id, metadata: { code: data.code } });
+    await recordAudit({ actor: staff, action: "CONFIG_CATEGORY_CREATED", entity: "visa_category", entityId: inserted[0].id, metadata: { code: data.code } }, tx);
     revalidatePath("/admin/config/visa-categories");
     return `Category "${data.name}" created.`;
   });
 }
 
 export async function updateVisaCategoryAction(formData: FormData): Promise<void> {
-  await runAction("/admin/config/visa-categories", async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction("/admin/config/visa-categories", async (tx, staff) => {
     const id = idSchema.parse(formData.get("id"));
+    const [before] = await tx.select().from(visaCategories).where(eq(visaCategories.id,id)).for("update");
+    if (!before) throw new AppError("NOT_FOUND", "Category not found.");
     if (formData.get("toggle")) {
-      await db.update(visaCategories).set({ active: sql`not ${visaCategories.active}`, updatedAt: new Date() }).where(eq(visaCategories.id, id));
-      await recordAudit({ actor: staff, action: "CONFIG_CATEGORY_TOGGLED", entity: "visa_category", entityId: id });
+      await tx.update(visaCategories).set({ active: sql`not ${visaCategories.active}`, updatedAt: new Date() }).where(eq(visaCategories.id, id));
+      await recordAudit({ actor: staff, action: "CONFIG_CATEGORY_TOGGLED", entity: "visa_category", entityId: id, metadata:{oldValues:{active:before.active},newValues:{active:!before.active}} }, tx);
     } else {
-      const existing = (await db.select().from(visaCategories).where(eq(visaCategories.id, id)).limit(1))[0];
+      const existing = (await tx.select().from(visaCategories).where(eq(visaCategories.id, id)).limit(1))[0];
       if (!existing) throw new AppError("NOT_FOUND", "Category not found.");
       const data = categorySchema.parse({ ...Object.fromEntries(formData), code: existing.code });
-      await db.update(visaCategories).set({ ...data, updatedAt: new Date() }).where(eq(visaCategories.id, id));
-      await recordAudit({ actor: staff, action: "CONFIG_CATEGORY_UPDATED", entity: "visa_category", entityId: id });
+      await tx.update(visaCategories).set({ ...data, updatedAt: new Date() }).where(eq(visaCategories.id, id));
+      await recordAudit({ actor: staff, action: "CONFIG_CATEGORY_UPDATED", entity: "visa_category", entityId: id, metadata: {oldValues:existing,newValues:data} }, tx);
     }
     revalidatePath("/admin/config/visa-categories");
     return "Category saved.";
@@ -167,11 +171,9 @@ export async function updateVisaCategoryAction(formData: FormData): Promise<void
 /* ------------------------------ visa types ----------------------------- */
 
 export async function deleteVisaCategoryAction(formData: FormData): Promise<void> {
-  await runAction("/admin/config/visa-categories", async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction("/admin/config/visa-categories", async (tx, staff) => {
     const id = idSchema.parse(formData.get("id"));
-    const category = await db.transaction(async (tx) => {
+    const category = await tx.transaction(async (tx) => {
       // Lock the parent while checking references; concurrent FK inserts wait.
       const row = (await tx.select().from(visaCategories).where(eq(visaCategories.id, id)).for("update"))[0];
       if (!row) throw new AppError("NOT_FOUND", "Category not found.");
@@ -180,7 +182,7 @@ export async function deleteVisaCategoryAction(formData: FormData): Promise<void
       await tx.delete(visaCategories).where(eq(visaCategories.id, id));
       return row;
     });
-    await recordAudit({ actor: staff, action: "CONFIG_CATEGORY_DELETED", entity: "visa_category", entityId: id, metadata: { code: category.code, mode: "hard" } });
+    await recordAudit({ actor: staff, action: "CONFIG_CATEGORY_DELETED", entity: "visa_category", entityId: id, metadata: { code: category.code, mode: "hard" } }, tx);
     revalidatePath("/admin/config/visa-categories");
     return `Category "${category.name}" deleted.`;
   });
@@ -210,17 +212,15 @@ const visaTypeSchema = z.object({
 });
 
 export async function createVisaTypeAction(formData: FormData): Promise<void> {
-  await runAction("/admin/config/visa-types", async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction("/admin/config/visa-types", async (tx, staff) => {
     const data = visaTypeSchema.parse(Object.fromEntries(formData));
-    const inserted = await db
+    const inserted = await tx
       .insert(visaTypes)
       .values({ ...data, fee: data.fee.toFixed(2), currency: "DZD", active: false })
       .onConflictDoNothing()
       .returning();
     if (!inserted[0]) throw new AppError("DUPLICATE", `Visa type code ${data.code} already exists.`);
-    await recordAudit({ actor: staff, action: "CONFIG_VISA_TYPE_CREATED", entity: "visa_type", entityId: inserted[0].id, metadata: { code: data.code, fee: data.fee } });
+    await recordAudit({ actor: staff, action: "CONFIG_VISA_TYPE_CREATED", entity: "visa_type", entityId: inserted[0].id, metadata: { code: data.code, fee: data.fee } }, tx);
     revalidatePath("/admin/config/visa-types");
     revalidatePath("/visas");
     return `Visa type "${data.name}" created.`;
@@ -230,11 +230,11 @@ export async function createVisaTypeAction(formData: FormData): Promise<void> {
 export async function updateVisaTypeAction(formData: FormData): Promise<void> {
   const id = idSchema.parse(formData.get("id"));
   const back = String(formData.get("back") ?? "/admin/config/visa-types");
-  await runAction(back, async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction(back, async (tx, staff) => {
+    const [before] = await tx.select().from(visaTypes).where(eq(visaTypes.id,id)).for("update");
+    if (!before) throw new AppError("NOT_FOUND", "Visa type not found.");
     if (formData.get("toggle")) {
-      await db.transaction(async tx => {
+      await tx.transaction(async tx => {
         const existing = (await tx.select().from(visaTypes).where(eq(visaTypes.id,id)).for("update"))[0];
         if (!existing) throw new AppError("NOT_FOUND", "Visa type not found.");
         if (!existing.active) {
@@ -245,25 +245,25 @@ export async function updateVisaTypeAction(formData: FormData): Promise<void> {
         }
         await tx.update(visaTypes).set({active:!existing.active,updatedAt:new Date()}).where(eq(visaTypes.id,id));
       });
-      await recordAudit({ actor: staff, action: "CONFIG_VISA_TYPE_TOGGLED", entity: "visa_type", entityId: id });
+      await recordAudit({ actor: staff, action: "CONFIG_VISA_TYPE_TOGGLED", entity: "visa_type", entityId: id, metadata:{oldValues:{active:before.active},newValues:{active:!before.active}} }, tx);
     } else {
-      const existing = (await db.select().from(visaTypes).where(eq(visaTypes.id, id)).limit(1))[0];
+      const existing = (await tx.select().from(visaTypes).where(eq(visaTypes.id, id)).limit(1))[0];
       if (!existing) throw new AppError("NOT_FOUND", "Visa type not found.");
       const data = visaTypeSchema.parse({ ...Object.fromEntries(formData), code: existing.code });
       if (existing.active) {
-        const country = (await db.select().from(countries).where(eq(countries.id,data.countryId)))[0];
-        const category = (await db.select().from(visaCategories).where(eq(visaCategories.id,data.categoryId)))[0];
-        const requirements = await db.select({id:visaRequirements.id}).from(visaRequirements).innerJoin(documentTypes,eq(visaRequirements.documentTypeId,documentTypes.id)).where(and(eq(visaRequirements.visaTypeId,id),eq(visaRequirements.active,true),eq(documentTypes.active,true),eq(documentTypes.agencyUploadable,true)));
+        const country = (await tx.select().from(countries).where(eq(countries.id,data.countryId)))[0];
+        const category = (await tx.select().from(visaCategories).where(eq(visaCategories.id,data.categoryId)))[0];
+        const requirements = await tx.select({id:visaRequirements.id}).from(visaRequirements).innerJoin(documentTypes,eq(visaRequirements.documentTypeId,documentTypes.id)).where(and(eq(visaRequirements.visaTypeId,id),eq(visaRequirements.active,true),eq(documentTypes.active,true),eq(documentTypes.agencyUploadable,true)));
         validateVisaActivation({countryActive:country?.active??false,categoryActive:category?.active??false,name:data.name,nameFr:data.nameFr??null,nameAr:data.nameAr??null,fee:String(data.fee),minDays:data.processingMinDays,maxDays:data.processingMaxDays,agencyRequirements:requirements.length});
       }
-      await db.update(visaTypes).set({ ...data, fee: data.fee.toFixed(2), currency: "DZD", updatedAt: new Date() }).where(eq(visaTypes.id, id));
+      await tx.update(visaTypes).set({ ...data, fee: data.fee.toFixed(2), currency: "DZD", updatedAt: new Date() }).where(eq(visaTypes.id, id));
       await recordAudit({
         actor: staff,
         action: "CONFIG_VISA_TYPE_UPDATED",
         entity: "visa_type",
         entityId: id,
-        metadata: { fee: data.fee, embassyApplicability: data.embassyApplicability },
-      });
+        metadata: { oldValues: existing, newValues: {...data,fee:data.fee.toFixed(2),currency:"DZD"} },
+      }, tx);
     }
     revalidatePath("/admin/config/visa-types");
     revalidatePath(`/admin/config/visa-types/${id}`);
@@ -275,11 +275,9 @@ export async function updateVisaTypeAction(formData: FormData): Promise<void> {
 /* ----------------------------- requirements ---------------------------- */
 
 export async function deleteVisaTypeAction(formData: FormData): Promise<void> {
-  await runAction("/admin/config/visa-types", async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction("/admin/config/visa-types", async (tx, staff) => {
     const id = idSchema.parse(formData.get("id"));
-    const visaType = await db.transaction(async (tx) => {
+    const visaType = await tx.transaction(async (tx) => {
       const row = (await tx.select().from(visaTypes).where(eq(visaTypes.id, id)).for("update"))[0];
       if (!row) throw new AppError("NOT_FOUND", "Visa type not found.");
       const applicationRefs = await tx.select({ id: applications.id }).from(applications).where(eq(applications.visaTypeId, id)).limit(1);
@@ -289,7 +287,7 @@ export async function deleteVisaTypeAction(formData: FormData): Promise<void> {
       await tx.delete(visaTypes).where(eq(visaTypes.id, id));
       return row;
     });
-    await recordAudit({ actor: staff, action: "CONFIG_VISA_TYPE_DELETED", entity: "visa_type", entityId: id, metadata: { code: visaType.code, mode: "hard" } });
+    await recordAudit({ actor: staff, action: "CONFIG_VISA_TYPE_DELETED", entity: "visa_type", entityId: id, metadata: { code: visaType.code, mode: "hard" } }, tx);
     revalidatePath("/admin/config/visa-types");
     revalidatePath("/visas");
     return `Visa type "${visaType.name}" deleted.`;
@@ -298,14 +296,12 @@ export async function deleteVisaTypeAction(formData: FormData): Promise<void> {
 
 export async function addRequirementAction(formData: FormData): Promise<void> {
   const visaTypeId = idSchema.parse(formData.get("visaTypeId"));
-  await runAction(`/admin/config/visa-types/${visaTypeId}`, async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction(`/admin/config/visa-types/${visaTypeId}`, async (tx, staff) => {
     const documentTypeId = idSchema.parse(formData.get("documentTypeId"));
     const required = formData.get("required") === "on" || formData.get("required") === "true";
     const notes = z.string().trim().max(500).optional().nullable().parse(formData.get("notes") || null);
     const sortOrder = z.coerce.number().int().min(0).max(999).default(0).parse(formData.get("sortOrder") ?? 0);
-    const inserted = await db.transaction(async (tx) => {
+    const inserted = await tx.transaction(async (tx) => {
       const [visa] = await tx.select({ id: visaTypes.id }).from(visaTypes).where(eq(visaTypes.id, visaTypeId)).for("update");
       if (!visa) throw new AppError("NOT_FOUND", "Visa type not found.");
       const [type] = await tx.select().from(documentTypes).where(eq(documentTypes.id, documentTypeId)).for("share");
@@ -315,15 +311,15 @@ export async function addRequirementAction(formData: FormData): Promise<void> {
     });
     if (!inserted[0]) throw new AppError("DUPLICATE", "This document type is already a requirement for the visa.");
     // Propagate to draft applications of this visa type (additions only).
-    const draftIds = await draftApplicationIdsForVisaType(visaTypeId);
-    for (const appId of draftIds) await resyncChecklist(appId, visaTypeId);
+    const draftIds = await draftApplicationIdsForVisaType(visaTypeId, tx);
+    for (const appId of draftIds) await resyncChecklist(appId, visaTypeId, tx);
     await recordAudit({
       actor: staff,
       action: "CONFIG_REQUIREMENT_ADDED",
       entity: "visa_requirement",
       entityId: inserted[0].id,
       metadata: { visaTypeId, documentTypeId, required, draftsResynced: draftIds.length },
-    });
+    }, tx);
     revalidatePath(`/admin/config/visa-types/${visaTypeId}`);
     return "Requirement added. Draft applications were re-synced.";
   });
@@ -331,11 +327,9 @@ export async function addRequirementAction(formData: FormData): Promise<void> {
 
 export async function updateRequirementAction(formData: FormData): Promise<void> {
   const visaTypeId = idSchema.parse(formData.get("visaTypeId"));
-  await runAction(`/admin/config/visa-types/${visaTypeId}`, async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction(`/admin/config/visa-types/${visaTypeId}`, async (tx, staff) => {
     const id = idSchema.parse(formData.get("id"));
-    const req = await db.transaction(async (tx) => {
+    const req = await tx.transaction(async (tx) => {
       const [visa] = await tx.select().from(visaTypes).where(eq(visaTypes.id, visaTypeId)).for("update");
       const [row] = await tx.select().from(visaRequirements).where(and(eq(visaRequirements.id, id), eq(visaRequirements.visaTypeId, visaTypeId)));
       if (!visa || !row) throw new AppError("NOT_FOUND", "Requirement not found.");
@@ -355,9 +349,9 @@ export async function updateRequirementAction(formData: FormData): Promise<void>
       return row;
     });
     if (formData.get("toggleActive")) {
-      await recordAudit({ actor: staff, action: "CONFIG_REQUIREMENT_TOGGLED", entity: "visa_requirement", entityId: id, metadata: { active: !req.active } });
+      await recordAudit({ actor: staff, action: "CONFIG_REQUIREMENT_TOGGLED", entity: "visa_requirement", entityId: id, metadata: { active: !req.active } }, tx);
     } else if (formData.get("toggleRequired")) {
-      await recordAudit({ actor: staff, action: "CONFIG_REQUIREMENT_TOGGLED", entity: "visa_requirement", entityId: id, metadata: { required: !req.required } });
+      await recordAudit({ actor: staff, action: "CONFIG_REQUIREMENT_TOGGLED", entity: "visa_requirement", entityId: id, metadata: { required: !req.required } }, tx);
     }
     revalidatePath(`/admin/config/visa-types/${visaTypeId}`);
     return "Requirement updated.";
@@ -366,11 +360,9 @@ export async function updateRequirementAction(formData: FormData): Promise<void>
 
 export async function removeRequirementAction(formData: FormData): Promise<void> {
   const visaTypeId = idSchema.parse(formData.get("visaTypeId"));
-  await runAction(`/admin/config/visa-types/${visaTypeId}`, async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction(`/admin/config/visa-types/${visaTypeId}`, async (tx, staff) => {
     const id = idSchema.parse(formData.get("id"));
-    await db.transaction(async (tx) => {
+    await tx.transaction(async (tx) => {
       const [visa] = await tx.select().from(visaTypes).where(eq(visaTypes.id, visaTypeId)).for("update");
       const [req] = await tx.select().from(visaRequirements).where(and(eq(visaRequirements.id, id), eq(visaRequirements.visaTypeId, visaTypeId)));
       if (!visa || !req) throw new AppError("NOT_FOUND", "Requirement not found.");
@@ -380,7 +372,7 @@ export async function removeRequirementAction(formData: FormData): Promise<void>
       }
       await tx.delete(visaRequirements).where(eq(visaRequirements.id, id));
     });
-    await recordAudit({ actor: staff, action: "CONFIG_REQUIREMENT_REMOVED", entity: "visa_requirement", entityId: id, metadata: { visaTypeId } });
+    await recordAudit({ actor: staff, action: "CONFIG_REQUIREMENT_REMOVED", entity: "visa_requirement", entityId: id, metadata: { visaTypeId } }, tx);
     revalidatePath(`/admin/config/visa-types/${visaTypeId}`);
     return "Requirement removed. Existing application checklists are preserved.";
   });
@@ -408,13 +400,11 @@ const docTypeSchema = z.object({
 });
 
 export async function createDocumentTypeAction(formData: FormData): Promise<void> {
-  await runAction("/admin/config/document-types", async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction("/admin/config/document-types", async (tx, staff) => {
     const data = docTypeSchema.parse(Object.fromEntries(formData));
-    const inserted = await db.insert(documentTypes).values(data).onConflictDoNothing().returning();
+    const inserted = await tx.insert(documentTypes).values(data).onConflictDoNothing().returning();
     if (!inserted[0]) throw new AppError("DUPLICATE", `Document type code ${data.code} already exists.`);
-    await recordAudit({ actor: staff, action: "CONFIG_DOCUMENT_TYPE_CREATED", entity: "document_type", entityId: inserted[0].id });
+    await recordAudit({ actor: staff, action: "CONFIG_DOCUMENT_TYPE_CREATED", entity: "document_type", entityId: inserted[0].id }, tx);
     revalidatePath("/admin/config/document-types");
     return `Document type "${data.name}" created.`;
   });
@@ -441,29 +431,29 @@ async function keepAgencyRequirements(tx: Pick<typeof db, "select">, programmes:
 }
 
 export async function updateDocumentTypeAction(formData: FormData): Promise<void> {
-  await runAction("/admin/config/document-types", async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction("/admin/config/document-types", async (tx, staff) => {
     const id = idSchema.parse(formData.get("id"));
     if (formData.get("toggle")) {
-      await db.transaction(async (tx) => {
+      const change=await tx.transaction(async (tx) => {
         const { type, programmes } = await lockDocumentTypeForChange(tx, id);
         if (type.active) {
           assertMutableDocumentType(type.code);
           if (type.agencyUploadable) await keepAgencyRequirements(tx, programmes, id);
         }
         await tx.update(documentTypes).set({ active: !type.active, updatedAt: new Date() }).where(eq(documentTypes.id, id));
+        return {oldValues:{active:type.active},newValues:{active:!type.active}};
       });
-      await recordAudit({ actor: staff, action: "CONFIG_DOCUMENT_TYPE_TOGGLED", entity: "document_type", entityId: id });
+      await recordAudit({ actor: staff, action: "CONFIG_DOCUMENT_TYPE_TOGGLED", entity: "document_type", entityId: id,metadata:change }, tx);
     } else {
-      await db.transaction(async (tx) => {
+      const change=await tx.transaction(async (tx) => {
         const { type, programmes } = await lockDocumentTypeForChange(tx, id);
         const data = docTypeSchema.parse({ ...Object.fromEntries(formData), code: type.code });
         if (type.code.startsWith("DECISION_") && data.agencyUploadable) throw new AppError("FORBIDDEN", "Official decision types must remain Staff-issued.");
         if (type.active && type.agencyUploadable && !data.agencyUploadable) await keepAgencyRequirements(tx, programmes, id);
         await tx.update(documentTypes).set({ ...data, updatedAt: new Date() }).where(eq(documentTypes.id, id));
+        return {oldValues:type,newValues:data};
       });
-      await recordAudit({ actor: staff, action: "CONFIG_DOCUMENT_TYPE_UPDATED", entity: "document_type", entityId: id });
+      await recordAudit({ actor: staff, action: "CONFIG_DOCUMENT_TYPE_UPDATED", entity: "document_type", entityId: id, metadata:change }, tx);
     }
     revalidatePath("/admin/config/document-types");
     return "Document type saved.";
@@ -473,11 +463,9 @@ export async function updateDocumentTypeAction(formData: FormData): Promise<void
 /* ------------------------------ currencies ----------------------------- */
 
 export async function deleteDocumentTypeAction(formData: FormData): Promise<void> {
-  await runAction("/admin/config/document-types", async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction("/admin/config/document-types", async (tx, staff) => {
     const id = idSchema.parse(formData.get("id"));
-    const docType = await db.transaction(async (tx) => {
+    const docType = await tx.transaction(async (tx) => {
       const row = (await tx.select().from(documentTypes).where(eq(documentTypes.id, id)).for("update"))[0];
       if (!row) throw new AppError("NOT_FOUND", "Document type not found.");
       assertMutableDocumentType(row.code);
@@ -491,7 +479,7 @@ export async function deleteDocumentTypeAction(formData: FormData): Promise<void
       await tx.delete(documentTypes).where(eq(documentTypes.id, id));
       return row;
     });
-    await recordAudit({ actor: staff, action: "CONFIG_DOCUMENT_TYPE_DELETED", entity: "document_type", entityId: id, metadata: { code: docType.code, mode: "hard" } });
+    await recordAudit({ actor: staff, action: "CONFIG_DOCUMENT_TYPE_DELETED", entity: "document_type", entityId: id, metadata: { code: docType.code, mode: "hard" } }, tx);
     revalidatePath("/admin/config/document-types");
     return `Document type "${docType.name}" deleted.`;
   });
@@ -505,30 +493,28 @@ const currencySchema = z.object({
 });
 
 export async function createCurrencyAction(formData: FormData): Promise<void> {
-  await runAction("/admin/config/currencies", async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction("/admin/config/currencies", async (tx, staff) => {
     const data = currencySchema.parse(Object.fromEntries(formData));
-    const inserted = await db.insert(currencies).values(data).onConflictDoNothing().returning();
+    const inserted = await tx.insert(currencies).values(data).onConflictDoNothing().returning();
     if (!inserted[0]) throw new AppError("DUPLICATE", `Currency ${data.code} already exists.`);
-    await recordAudit({ actor: staff, action: "CONFIG_CURRENCY_CREATED", entity: "currency", entityId: inserted[0].id });
+    await recordAudit({ actor: staff, action: "CONFIG_CURRENCY_CREATED", entity: "currency", entityId: inserted[0].id }, tx);
     revalidatePath("/admin/config/currencies");
     return `Currency ${data.code} created.`;
   });
 }
 
 export async function updateCurrencyAction(formData: FormData): Promise<void> {
-  await runAction("/admin/config/currencies", async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction("/admin/config/currencies", async (tx, staff) => {
     const id = idSchema.parse(formData.get("id"));
+    const [before] = await tx.select().from(currencies).where(eq(currencies.id,id)).for("update");
+    if (!before) throw new AppError("NOT_FOUND", "Currency not found.");
     if (formData.get("toggle")) {
-      await db.update(currencies).set({ active: sql`not ${currencies.active}`, updatedAt: new Date() }).where(eq(currencies.id, id));
-      await recordAudit({ actor: staff, action: "CONFIG_CURRENCY_TOGGLED", entity: "currency", entityId: id });
+      await tx.update(currencies).set({ active: sql`not ${currencies.active}`, updatedAt: new Date() }).where(eq(currencies.id, id));
+      await recordAudit({ actor: staff, action: "CONFIG_CURRENCY_TOGGLED", entity: "currency", entityId: id, metadata:{oldValues:{active:before.active},newValues:{active:!before.active}} }, tx);
     } else {
       const data = currencySchema.parse(Object.fromEntries(formData));
-      await db.update(currencies).set({ ...data, updatedAt: new Date() }).where(eq(currencies.id, id));
-      await recordAudit({ actor: staff, action: "CONFIG_CURRENCY_UPDATED", entity: "currency", entityId: id });
+      await tx.update(currencies).set({ ...data, updatedAt: new Date() }).where(eq(currencies.id, id));
+      await recordAudit({ actor: staff, action: "CONFIG_CURRENCY_UPDATED", entity: "currency", entityId: id, metadata:{oldValues:before,newValues:data} }, tx);
     }
     revalidatePath("/admin/config/currencies");
     return "Currency saved.";
@@ -538,9 +524,7 @@ export async function updateCurrencyAction(formData: FormData): Promise<void> {
 /* ------------------------------- statuses ------------------------------ */
 
 export async function createStatusAction(formData: FormData): Promise<void> {
-  await runAction("/admin/config/statuses", async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction("/admin/config/statuses", async (tx, staff) => {
     const data = z
       .object({
         code: codeSchema,
@@ -563,27 +547,27 @@ export async function createStatusAction(formData: FormData): Promise<void> {
         isDraft: formData.get("isDraft") === "on",
       });
     assertWorkflowCode(data.code);
-    const inserted = await db.insert(statuses).values(data).onConflictDoNothing().returning();
+    const inserted = await tx.insert(statuses).values(data).onConflictDoNothing().returning();
     if (!inserted[0]) throw new AppError("DUPLICATE", `Status ${data.code} already exists.`);
-    await recordAudit({ actor: staff, action: "CONFIG_STATUS_CREATED", entity: "status", entityId: inserted[0].id, metadata: { code: data.code } });
+    await recordAudit({ actor: staff, action: "CONFIG_STATUS_CREATED", entity: "status", entityId: inserted[0].id, metadata: { code: data.code } }, tx);
     revalidatePath("/admin/config/statuses");
     return `Status "${data.name}" created. Configure its transitions below.`;
   });
 }
 
 export async function updateStatusAction(formData: FormData): Promise<void> {
-  await runAction("/admin/config/statuses", async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction("/admin/config/statuses", async (tx, staff) => {
     const id = idSchema.parse(formData.get("id"));
+    const [before] = await tx.select().from(statuses).where(eq(statuses.id,id)).for("update");
+    if (!before) throw new AppError("NOT_FOUND", "Status not found.");
     if (formData.get("toggle")) {
-      const st = (await db.select().from(statuses).where(eq(statuses.id, id)))[0];
+      const st = (await tx.select().from(statuses).where(eq(statuses.id, id)))[0];
       if (!st) throw new AppError("NOT_FOUND", "Status not found");
       assertMutableWorkflowState(st.code);
       // Q12 — terminal statuses are locked and cannot be deactivated
       if (st.isTerminal && st.active) throw new AppError("FORBIDDEN", "Terminal statuses (APPROVED / REJECTED / CANCELLED) cannot be deactivated.");
-      await db.update(statuses).set({ active: sql`not ${statuses.active}`, updatedAt: new Date() }).where(eq(statuses.id, id));
-      await recordAudit({ actor: staff, action: "CONFIG_STATUS_TOGGLED", entity: "status", entityId: id });
+      await tx.update(statuses).set({ active: sql`not ${statuses.active}`, updatedAt: new Date() }).where(eq(statuses.id, id));
+      await recordAudit({ actor: staff, action: "CONFIG_STATUS_TOGGLED", entity: "status", entityId: id, metadata:{oldValues:{active:before.active},newValues:{active:!before.active}} }, tx);
       revalidatePath("/admin/config/statuses");
       return "Status toggled.";
     }
@@ -591,21 +575,22 @@ export async function updateStatusAction(formData: FormData): Promise<void> {
       const fromStatusId = idSchema.parse(formData.get("fromStatusId"));
       const toStatusId = id;
       const scope = z.enum(["STAFF", "AGENCY", "BOTH"]).parse(formData.get("transitionScope"));
+      const [oldTransition] = await tx.select().from(statusTransitions).where(and(eq(statusTransitions.fromStatusId,fromStatusId),eq(statusTransitions.toStatusId,toStatusId)));
       if (formData.get("remove") === "true") {
-        await db.delete(statusTransitions).where(and(eq(statusTransitions.fromStatusId, fromStatusId), eq(statusTransitions.toStatusId, toStatusId)));
-        await recordAudit({ actor: staff, action: "CONFIG_TRANSITION_REMOVED", entity: "status_transition", entityId: `${fromStatusId}->${toStatusId}` });
+        await tx.delete(statusTransitions).where(and(eq(statusTransitions.fromStatusId, fromStatusId), eq(statusTransitions.toStatusId, toStatusId)));
+        await recordAudit({ actor: staff, action: "CONFIG_TRANSITION_REMOVED", entity: "status_transition", entityId: `${fromStatusId}->${toStatusId}`, metadata:{oldValues:oldTransition??null,newValues:null} }, tx);
         revalidatePath("/admin/config/statuses");
         return "Transition removed.";
       }
-      const [from] = await db.select().from(statuses).where(eq(statuses.id, fromStatusId));
-      const [to] = await db.select().from(statuses).where(eq(statuses.id, toStatusId));
+      const [from] = await tx.select().from(statuses).where(eq(statuses.id, fromStatusId));
+      const [to] = await tx.select().from(statuses).where(eq(statuses.id, toStatusId));
       if (!from || !to) throw new AppError("NOT_FOUND", "Status not found.");
       assertWorkflowTransition(from.code, to.code, scope);
-      await db
+      await tx
         .insert(statusTransitions)
         .values({ fromStatusId, toStatusId, scope })
         .onConflictDoUpdate({ target: [statusTransitions.fromStatusId, statusTransitions.toStatusId], set: { scope, updatedAt: new Date() } });
-      await recordAudit({ actor: staff, action: "CONFIG_TRANSITION_SAVED", entity: "status_transition", entityId: `${fromStatusId}->${toStatusId}`, metadata: { scope } });
+      await recordAudit({ actor: staff, action: "CONFIG_TRANSITION_SAVED", entity: "status_transition", entityId: `${fromStatusId}->${toStatusId}`, metadata: { oldValues:oldTransition??null,newValues:{fromStatusId,toStatusId,scope} } }, tx);
       revalidatePath("/admin/config/statuses");
       return "Transition saved.";
     }
@@ -624,8 +609,8 @@ export async function updateStatusAction(formData: FormData): Promise<void> {
         description: formData.get("description") || null,
         sortOrder: formData.get("sortOrder"),
       });
-    await db.update(statuses).set({ ...data, updatedAt: new Date() }).where(eq(statuses.id, id));
-    await recordAudit({ actor: staff, action: "CONFIG_STATUS_UPDATED", entity: "status", entityId: id });
+    await tx.update(statuses).set({ ...data, updatedAt: new Date() }).where(eq(statuses.id, id));
+    await recordAudit({ actor: staff, action: "CONFIG_STATUS_UPDATED", entity: "status", entityId: id, metadata:{oldValues:before,newValues:data} }, tx);
     revalidatePath("/admin/config/statuses");
     return "Status saved.";
   });
@@ -640,17 +625,15 @@ export async function updateStatusAction(formData: FormData): Promise<void> {
  *    historical meaning stay intact.
  */
 export async function deleteStatusAction(formData: FormData): Promise<void> {
-  await runAction("/admin/config/statuses", async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction("/admin/config/statuses", async (tx, staff) => {
     const id = idSchema.parse(formData.get("id"));
-    const rows = await db.select().from(statuses).where(eq(statuses.id, id)).limit(1);
+    const rows = await tx.select().from(statuses).where(eq(statuses.id, id)).limit(1);
     const status = rows[0];
     if (!status) throw new AppError("NOT_FOUND", "Status not found.");
     assertMutableWorkflowState(status.code);
 
-    const appRef = await db.select({ id: applications.id }).from(applications).where(eq(applications.statusId, id)).limit(1);
-    const histRef = await db
+    const appRef = await tx.select({ id: applications.id }).from(applications).where(eq(applications.statusId, id)).limit(1);
+    const histRef = await tx
       .select({ id: applicationStatusHistory.id })
       .from(applicationStatusHistory)
       .where(or(eq(applicationStatusHistory.fromStatusId, id), eq(applicationStatusHistory.toStatusId, id)))
@@ -659,41 +642,39 @@ export async function deleteStatusAction(formData: FormData): Promise<void> {
 
     // transition edges are always stripped — an inactive/deleted status must
     // never stay selectable.
-    await db
+    await tx
       .delete(statusTransitions)
       .where(or(eq(statusTransitions.fromStatusId, id), eq(statusTransitions.toStatusId, id)));
 
     if (!referenced) {
-      await db.delete(statuses).where(eq(statuses.id, id));
-      await recordAudit({ actor: staff, action: "CONFIG_STATUS_DELETED", entity: "status", entityId: id, metadata: { code: status.code, mode: "hard" } });
+      await tx.delete(statuses).where(eq(statuses.id, id));
+      await recordAudit({ actor: staff, action: "CONFIG_STATUS_DELETED", entity: "status", entityId: id, metadata: { code: status.code, mode: "hard" } }, tx);
       revalidatePath("/admin/config/statuses");
       return `Status "${status.name}" deleted (it was never referenced).`;
     }
 
-    await db.update(statuses).set({ active: false, updatedAt: new Date() }).where(eq(statuses.id, id));
-    await recordAudit({ actor: staff, action: "CONFIG_STATUS_DELETED", entity: "status", entityId: id, metadata: { code: status.code, mode: "deactivated-referenced" } });
+    await tx.update(statuses).set({ active: false, updatedAt: new Date() }).where(eq(statuses.id, id));
+    await recordAudit({ actor: staff, action: "CONFIG_STATUS_DELETED", entity: "status", entityId: id, metadata: { code: status.code, mode: "deactivated-referenced" } }, tx);
     revalidatePath("/admin/config/statuses");
     return `Status "${status.name}" is referenced by historical records — deactivated instead of deleted so history stays interpretable.`;
   });
 }
 
 export async function addTransitionAction(formData: FormData): Promise<void> {
-  await runAction("/admin/config/statuses", async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction("/admin/config/statuses", async (tx, staff) => {
     const fromStatusId = idSchema.parse(formData.get("fromStatusId"));
     const toStatusId = idSchema.parse(formData.get("toStatusId"));
     const scope = z.enum(["STAFF", "AGENCY", "BOTH"]).parse(formData.get("scope") ?? "STAFF");
     if (fromStatusId === toStatusId) throw new AppError("VALIDATION", "A status cannot transition to itself.");
-    const [from] = await db.select().from(statuses).where(eq(statuses.id, fromStatusId));
-    const [to] = await db.select().from(statuses).where(eq(statuses.id, toStatusId));
+    const [from] = await tx.select().from(statuses).where(eq(statuses.id, fromStatusId));
+    const [to] = await tx.select().from(statuses).where(eq(statuses.id, toStatusId));
     if (!from || !to) throw new AppError("NOT_FOUND", "Status not found.");
     assertWorkflowTransition(from.code, to.code, scope);
-    await db
+    await tx
       .insert(statusTransitions)
       .values({ fromStatusId, toStatusId, scope })
       .onConflictDoNothing();
-    await recordAudit({ actor: staff, action: "CONFIG_TRANSITION_ADDED", entity: "status_transition", entityId: `${fromStatusId}->${toStatusId}`, metadata: { scope } });
+    await recordAudit({ actor: staff, action: "CONFIG_TRANSITION_ADDED", entity: "status_transition", entityId: `${fromStatusId}->${toStatusId}`, metadata: { scope } }, tx);
     revalidatePath("/admin/config/statuses");
     return "Transition added.";
   });
@@ -702,9 +683,7 @@ export async function addTransitionAction(formData: FormData): Promise<void> {
 /* ------------------------------ priorities ----------------------------- */
 
 export async function createPriorityAction(formData: FormData): Promise<void> {
-  await runAction("/admin/config/priorities", async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction("/admin/config/priorities", async (tx, staff) => {
     const data = z
       .object({
         code: codeSchema,
@@ -713,22 +692,22 @@ export async function createPriorityAction(formData: FormData): Promise<void> {
         sortOrder: z.coerce.number().int().min(0).max(999).default(0),
       })
       .parse(Object.fromEntries(formData));
-    const inserted = await db.insert(priorities).values(data).onConflictDoNothing().returning();
+    const inserted = await tx.insert(priorities).values(data).onConflictDoNothing().returning();
     if (!inserted[0]) throw new AppError("DUPLICATE", `Priority ${data.code} already exists.`);
-    await recordAudit({ actor: staff, action: "CONFIG_PRIORITY_CREATED", entity: "priority", entityId: inserted[0].id });
+    await recordAudit({ actor: staff, action: "CONFIG_PRIORITY_CREATED", entity: "priority", entityId: inserted[0].id }, tx);
     revalidatePath("/admin/config/priorities");
     return `Priority "${data.name}" created.`;
   });
 }
 
 export async function updatePriorityAction(formData: FormData): Promise<void> {
-  await runAction("/admin/config/priorities", async () => {
-    const staff = await requireStaff();
-    requirePermission(staff, "config.manage");
+  await runConfigAction("/admin/config/priorities", async (tx, staff) => {
     const id = idSchema.parse(formData.get("id"));
+    const [before] = await tx.select().from(priorities).where(eq(priorities.id,id)).for("update");
+    if (!before) throw new AppError("NOT_FOUND", "Priority not found.");
     if (formData.get("toggle")) {
-      await db.update(priorities).set({ active: sql`not ${priorities.active}`, updatedAt: new Date() }).where(eq(priorities.id, id));
-      await recordAudit({ actor: staff, action: "CONFIG_PRIORITY_TOGGLED", entity: "priority", entityId: id });
+      await tx.update(priorities).set({ active: sql`not ${priorities.active}`, updatedAt: new Date() }).where(eq(priorities.id, id));
+      await recordAudit({ actor: staff, action: "CONFIG_PRIORITY_TOGGLED", entity: "priority", entityId: id, metadata:{oldValues:{active:before.active},newValues:{active:!before.active}} }, tx);
     } else {
       const data = z
         .object({
@@ -737,8 +716,8 @@ export async function updatePriorityAction(formData: FormData): Promise<void> {
           sortOrder: z.coerce.number().int().min(0).max(999),
         })
         .parse(Object.fromEntries(formData));
-      await db.update(priorities).set({ ...data, updatedAt: new Date() }).where(eq(priorities.id, id));
-      await recordAudit({ actor: staff, action: "CONFIG_PRIORITY_UPDATED", entity: "priority", entityId: id });
+      await tx.update(priorities).set({ ...data, updatedAt: new Date() }).where(eq(priorities.id, id));
+      await recordAudit({ actor: staff, action: "CONFIG_PRIORITY_UPDATED", entity: "priority", entityId: id, metadata:{oldValues:before,newValues:data} }, tx);
     }
     revalidatePath("/admin/config/priorities");
     return "Priority saved.";

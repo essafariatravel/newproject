@@ -57,19 +57,9 @@ export default async function VisaTypeDetailPage({
     <>
       <PageHeader
         title={configName(vt, locale)}
-        subtitle={`${vt.code} · ${ct(vt.active ? "Active" : "Inactive")} — ${ct("Existing applications keep their snapshot; new applications use these values.")}`}
+        subtitle={`${vt.code} · ${ct(vt.active ? "Published to agencies" : "Not published")} — ${ct("Existing applications keep their snapshot; new applications use these values.")}`}
         actions={
           <>
-            {canManage ? (
-              <form action={updateVisaTypeAction}>
-                <input type="hidden" name="id" value={id} />
-                <input type="hidden" name="back" value={`/admin/config/visa-types/${id}`} />
-                <input type="hidden" name="toggle" value="1" />
-                <SubmitButton className={vt.active ? "btn-danger btn-sm" : "btn-secondary btn-sm"} pendingLabel="…">
-                  {ct(vt.active ? "Deactivate" : "Activate")}
-                </SubmitButton>
-              </form>
-            ) : null}
             <Link href="/admin/config/visa-types" className="btn-secondary btn-sm">{ct("← All visa types")}</Link>
           </>
         }
@@ -208,7 +198,7 @@ export default async function VisaTypeDetailPage({
                   <input type="hidden" name="back" value={`/admin/config/visa-types/${id}`} />
                   <input type="hidden" name="toggle" value="1" />
                   <SubmitButton className={vt.active ? "btn-danger btn-sm" : "btn-primary btn-sm"} pendingLabel="…">
-                    {ct(vt.active ? "Unpublish" : "Publish to agencies")}
+                    {ct(vt.active ? "Hide from agencies" : "Publish to agencies")}
                   </SubmitButton>
                 </form>
               ) : null}

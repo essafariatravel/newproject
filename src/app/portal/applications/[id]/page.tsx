@@ -1,4 +1,5 @@
 import { configName } from "@/lib/config-localization";
+import { ReconciliationWarning } from "@/components/reconciliation-warning";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { portalPageUser } from "@/lib/page-auth";
@@ -108,6 +109,7 @@ export default async function PortalApplicationDetailPage({
         }
       /></div>
       <Flash {...flash} />
+      <ReconciliationWarning applicationId={id} user={user} locale={uiLocale}/>
 
       <Tabs tabs={TABS.map((t) => ({ ...t, label: ct(t.label), href: `${back}?tab=${t.id}` }))} current={tab} />
 

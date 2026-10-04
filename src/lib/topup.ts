@@ -35,8 +35,9 @@ import { storageProvider } from "@/lib/storage";
 import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 import { validateDocumentFormat } from "@/lib/upload-validation";
 import { applyWalletMutation, getBalance } from "@/lib/wallet";
-import { recordAudit } from "@/lib/audit";
+import { recordAuditPg } from "@/lib/audit";
 import { agencyUserIds, notifyUsers } from "@/lib/notifications";
+import { currentOperationActor, currentOperationActorPg } from "@/lib/operation-identity";
 
 /** Roles allowed to move money (crediting a processed top-up). */
 export const TOPUP_PROCESSING_ROLES = STAFF_ROLES;
@@ -78,6 +79,28 @@ export function validateTopupProof(file: TopupProofFile | undefined): asserts fi
   validateDocumentFormat(file);
 }
 
+interface ReceiptSnapshot {
+  key: string | null;
+  filename: string | null;
+  mimeType: string | null;
+  sizeBytes: number | null;
+}
+
+function invalidStoredReceipt(): AppError {
+  return new AppError("PROOF_INVALID", "The stored receipt is invalid. Reject this request and ask the Agency to upload a valid receipt.");
+}
+
+/** Metadata alone cannot authorize money when the original storage is corrupt. */
+function assertStoredReceipt(proof: ReceiptSnapshot, stored: { data: Buffer; mimeType: string }): void {
+  if (!proof.filename || !proof.mimeType || !proof.sizeBytes || proof.sizeBytes !== stored.data.length ||
+      stored.mimeType.split(";")[0]?.trim().toLowerCase() !== proof.mimeType) throw invalidStoredReceipt();
+  try {
+    validateTopupProof({ name: proof.filename, type: proof.mimeType, size: proof.sizeBytes, data: stored.data });
+  } catch {
+    throw invalidStoredReceipt();
+  }
+}
+
 export async function createTopupRequest(params: {
   agencyId: string;
   amount: number;
@@ -111,6 +134,7 @@ export async function createTopupRequest(params: {
   await storageProvider().put(key, proof.data, proof.type);
   try {
     const result = await db.transaction(async (tx) => {
+      const actor = await currentOperationActor(tx, params.actor);
       const [agency] = await tx.select({ id: agencies.id, status: agencies.status }).from(agencies).where(eq(agencies.id, params.agencyId)).for("update");
       if (!agency || agency.status !== "ACTIVE") throw new AppError("FORBIDDEN", "This agency cannot request a top-up.");
       if (params.idempotencyKey) {
@@ -120,14 +144,15 @@ export async function createTopupRequest(params: {
       const [pending] = await tx.select({ id: walletTopupRequests.id }).from(walletTopupRequests).where(and(eq(walletTopupRequests.agencyId, params.agencyId), eq(walletTopupRequests.status, "PENDING")));
       if (pending) throw new AppError("TOPUP_PENDING", "You already have a pending top-up request.");
       const [row] = await tx.insert(walletTopupRequests).values({ id: requestId, agencyId: params.agencyId, amount: amountAbs, currency: "DZD", note: params.note?.trim() || null,
-        requestedBy: params.actor.id, status: "PENDING", proofStorageKey: key, proofFilename: proof.name, proofMimeType: proof.type,
+        requestedBy: actor.id, status: "PENDING", proofStorageKey: key, proofFilename: proof.name, proofMimeType: proof.type,
         proofSizeBytes: proof.data.length, idempotencyKey: params.idempotencyKey ?? null }).returning();
-      await tx.insert(auditLogs).values({ actorId: params.actor.id, actorEmail: params.actor.email, actorRole: params.actor.role,
+      await tx.insert(auditLogs).values({ actorId: actor.id, actorEmail: actor.email, actorRole: actor.role,
         action: "WALLET_TOPUP_REQUESTED", entity: "wallet_topup_request", entityId: row!.id, agencyId: params.agencyId,
-        metadata: { reference: row!.reference, amount: amountAbs, currency: "DZD", proofFilename: proof.name } });
+        metadata: { reference: row!.reference, amount: amountAbs, currency: "DZD", proofFilename: proof.name,
+          actorName: actor.name, actorUsername: actor.username } });
       const staff = await tx.select({ id: users.id }).from(users).where(sql`${users.agencyId} is null and ${users.status} = 'ACTIVE' and ${users.role} in ('SUPER_ADMIN','ADMIN','VISA_AGENT','ACCOUNTING')`);
       if (staff.length) await tx.insert(notifications).values(staff.map((u) => ({ userId: u.id, type: "TOPUP_REQUESTED", title: `Wallet top-up request ${row!.reference}`,
-        body: `${params.actor.agencyName ?? "Agency"} requested ${amountAbs} DZD.`, link: `/admin/billing#topup-${row!.id}`, topupRequestId: row!.id, agencyId: params.agencyId })));
+        body: `${actor.agencyName ?? "Agency"} requested ${amountAbs} DZD.`, link: `/admin/billing#topup-${row!.id}`, topupRequestId: row!.id, agencyId: params.agencyId })));
       return { id: row!.id, reference: row!.reference, amount: row!.amount, reused: false };
     });
     if (result.reused) await storageProvider().delete(key).catch(() => {});
@@ -245,22 +270,27 @@ export async function processTopupRequest(params: {
 
   // The database storage provider needs its own pool connection. Complete the
   // read before holding a transaction client or the request's row lock.
-  let verifiedProofKey: string | null = null;
+  let verifiedProof: ReceiptSnapshot | null = null;
   let proofVerificationFailure: { error: unknown } | undefined;
   if (params.decision === "CREDIT") {
     const [request] = await db.select({
       reference: walletTopupRequests.reference,
       status: walletTopupRequests.status,
       proofStorageKey: walletTopupRequests.proofStorageKey,
+      proofFilename: walletTopupRequests.proofFilename,
+      proofMimeType: walletTopupRequests.proofMimeType,
+      proofSizeBytes: walletTopupRequests.proofSizeBytes,
     }).from(walletTopupRequests).where(eq(walletTopupRequests.id, params.requestId)).limit(1);
     if (!request) throw new AppError("NOT_FOUND", "Top-up request not found.");
     if (request.status !== "PENDING") {
       throw new AppError("TOPUP_ALREADY_PROCESSED", `Top-up request ${request.reference} was already ${request.status.toLowerCase()}.`);
     }
-    verifiedProofKey = request.proofStorageKey;
-    if (verifiedProofKey) {
+    verifiedProof = { key: request.proofStorageKey, filename: request.proofFilename,
+      mimeType: request.proofMimeType, sizeBytes: request.proofSizeBytes };
+    if (verifiedProof.key) {
       try {
-        await storageProvider().get(verifiedProofKey);
+        const stored = await storageProvider().get(verifiedProof.key);
+        assertStoredReceipt(verifiedProof, stored);
       } catch (error) {
         // The locked status guard must still take precedence if another caller
         // processed this request while its receipt was being read.
@@ -280,6 +310,7 @@ export async function processTopupRequest(params: {
   };
   try {
     await client.query("begin");
+    const actor = await currentOperationActorPg(client, params.actor);
 
     // 1. Claim — FOR UPDATE + status guard makes concurrent processing impossible.
     const claim = await client.query<{
@@ -290,8 +321,12 @@ export async function processTopupRequest(params: {
       status: string;
       note: string | null;
       proof_storage_key: string | null;
+      proof_filename: string | null;
+      proof_mime_type: string | null;
+      proof_size_bytes: number | null;
     }>(
-      `select id, reference, agency_id, amount::text as amount, status, note, proof_storage_key
+      `select id, reference, agency_id, amount::text as amount, status, note, proof_storage_key,
+              proof_filename, proof_mime_type, proof_size_bytes
          from ${qualifiedTable("wallet_topup_requests")}
         where id = $1
         for update`,
@@ -316,8 +351,10 @@ export async function processTopupRequest(params: {
             set status = 'REJECTED', decision_note = $2, processed_by = $3,
                 processed_at = now(), updated_at = now()
           where id = $1 and status = 'PENDING'`,
-        [req.id, note, params.actor.id],
+        [req.id, note, actor.id],
       );
+      await recordAuditPg(client, { actor, action: "WALLET_TOPUP_REJECTED", entity: "wallet_topup_request",
+        entityId: req.id, agencyId: req.agency_id, metadata: { reference: req.reference, reason: note }, ipAddress: params.ipAddress ?? null });
       await client.query("commit");
       outcome = {
         status: "REJECTED",
@@ -329,8 +366,22 @@ export async function processTopupRequest(params: {
       };
     } else {
       if (!req.proof_storage_key) throw new AppError("PROOF_REQUIRED", "A bank transfer receipt is required before crediting this request.");
-      if (req.proof_storage_key !== verifiedProofKey) throw new AppError("PROOF_CHANGED", "The bank transfer receipt changed. Review the request again before crediting it.");
+      if (!verifiedProof || req.proof_storage_key !== verifiedProof.key || req.proof_filename !== verifiedProof.filename ||
+          req.proof_mime_type !== verifiedProof.mimeType || req.proof_size_bytes !== verifiedProof.sizeBytes) {
+        throw new AppError("PROOF_CHANGED", "The bank transfer receipt changed. Review the request again before crediting it.");
+      }
       if (proofVerificationFailure) throw proofVerificationFailure.error;
+      if (process.env.STORAGE_PROVIDER !== "supabase") {
+        // Keep DB storage proof valid through the financial commit. Re-read on
+        // this client; a second provider call while holding locks can deadlock
+        // a small pool. The row lock also prevents concurrent blob deletion.
+        const blob = (await client.query<{ data: Buffer; mime_type: string; size_bytes: number }>(
+          `select data, mime_type, size_bytes from ${qualifiedTable("document_blobs")} where key=$1 for share`,
+          [req.proof_storage_key],
+        )).rows[0];
+        if (!blob || blob.size_bytes !== verifiedProof.sizeBytes) throw invalidStoredReceipt();
+        assertStoredReceipt(verifiedProof, { data: blob.data, mimeType: blob.mime_type });
+      }
       const requested = Number(req.amount);
       const credit = params.amount === undefined ? requested : params.amount;
       if (!Number.isFinite(credit) || credit <= 0) {
@@ -353,7 +404,7 @@ export async function processTopupRequest(params: {
         operation: "CREDIT",
         amountAbs,
         reason: `Wallet top-up ${req.reference}`,
-        actorId: params.actor.id,
+        actorId: actor.id,
       });
 
       // 3. Link + close the request (unique index guarantees 1:1).
@@ -363,7 +414,7 @@ export async function processTopupRequest(params: {
                 processed_by = $4, processed_at = now(), updated_at = now()
           where id = $1 and status = 'PENDING'
           returning id`,
-        [req.id, mutation.transactionId, note ?? `Credited ${amountAbs} DZD.`, params.actor.id],
+        [req.id, mutation.transactionId, note ?? `Credited ${amountAbs} DZD.`, actor.id],
       );
       if (!updated.rows[0]) {
         await client.query("rollback");
@@ -375,9 +426,9 @@ export async function processTopupRequest(params: {
            (actor_id, actor_email, actor_role, agency_id, action, entity, entity_id, metadata, ip_address)
          values ($1, $2, $3, $4, 'WALLET_TOPUP_PROCESSED', 'wallet_topup_request', $5, $6::jsonb, $7)`,
         [
-          params.actor.id,
-          params.actor.email,
-          params.actor.role,
+          actor.id,
+          actor.email,
+          actor.role,
           req.agency_id,
           req.id,
           JSON.stringify({
@@ -388,6 +439,8 @@ export async function processTopupRequest(params: {
             walletReference: mutation.reference,
             balanceBefore: mutation.balanceBefore,
             balanceAfter: mutation.balanceAfter,
+            actorName: actor.name,
+            actorUsername: actor.username,
           }),
           params.ipAddress ?? null,
         ],
@@ -407,19 +460,6 @@ export async function processTopupRequest(params: {
     throw err;
   } finally {
     client.release();
-  }
-
-  // Notifications + audit are best-effort post-commit side effects.
-  if (params.decision === "REJECT") {
-    await recordAudit({
-      actor: params.actor,
-      action: "WALLET_TOPUP_REJECTED",
-      entity: "wallet_topup_request",
-      entityId: params.requestId,
-      agencyId: outcome.agencyId,
-      metadata: { reference: outcome.reference, reason: note },
-      ipAddress: params.ipAddress ?? null,
-    });
   }
 
   const recipients = await agencyUserIds(outcome.agencyId);

@@ -324,7 +324,7 @@ describe("C6 — nationality selector with localized labels and Algeria default"
 /*  Correction 7 — applications list: APPLICANT column after REFERENCE */
 /* =================================================================== */
 describe("C7 — Applications list APPLICANT column (order, search, fallback, localization)", () => {
-  it("column order: REFERENCE → APPLICANT → VISA/COUNTRY → DOCUMENTS → FEE → STATUS → CREATED", () => {
+  it("column order includes current next action and last update after status", () => {
     // evaluate header order INSIDE the <thead> markup (labels like "Status"
     // also appear earlier in the filter bar).
     const thead = LIST_PAGE.slice(LIST_PAGE.indexOf("<thead"), LIST_PAGE.indexOf("</thead>"));
@@ -333,14 +333,17 @@ describe("C7 — Applications list APPLICANT column (order, search, fallback, lo
     const docsIdx = thead.indexOf('ct("Documents")');
     const feeIdx = thead.indexOf('ct("Fee")');
     const statusIdx = thead.indexOf('ct("Status")');
-    const createdIdx = thead.indexOf('ct("Created")');
+    const nextIdx = thead.indexOf('ct("Next action")');
+    const updatedIdx = thead.indexOf('ct("Last updated")');
     expect(applicantIdx).toBeGreaterThan(-1);
     expect(LIST_PAGE).toContain("{r.app.reference}</span>");
     expect(applicantIdx).toBeLessThan(visaIdx);
     expect(visaIdx).toBeLessThan(docsIdx);
     expect(docsIdx).toBeLessThan(feeIdx);
     expect(feeIdx).toBeLessThan(statusIdx);
-    expect(statusIdx).toBeLessThan(createdIdx);
+    expect(statusIdx).toBeLessThan(nextIdx);
+    expect(nextIdx).toBeLessThan(updatedIdx);
+    expect(LIST_PAGE).toContain("r.app.updatedAt");
     expect(LIST_PAGE).toContain("r.applicantSummary ?? \"—\""); // safe legacy fallback
   });
 

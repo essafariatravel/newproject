@@ -38,6 +38,7 @@ import type { AuthUser } from "@/lib/types";
 import { AppError, ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES, isAgencyRole } from "@/lib/types";
 import { buildStorageKey, storageProvider } from "@/lib/storage";
 import { isValidNationality } from "@/lib/nationalities";
+import { currentOperationActorPg } from "@/lib/operation-identity";
 
 /**
  * Phase 2-Final: exactly ONE applicant per request — the portal collects
@@ -318,18 +319,12 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
 
   const requirements = cfg ? await listRequirementsForVisaType(cfg.visaTypeId) : [];
 
-  let priorityOk = true;
-  let priorityName = "STANDARD";
-  if (!input.priorityCode) {
-    const std = await db.select({ id: priorities.id }).from(priorities).where(eq(priorities.code, "STANDARD")).limit(1);
-    if (std[0]) priorityName = "STANDARD";
-  }
   const priorityRow = await db
     .select({ id: priorities.id, code: priorities.code })
     .from(priorities)
-    .where(eq(priorities.code, (input.priorityCode ?? priorityName) || "STANDARD"))
+    .where(and(eq(priorities.code, "STANDARD"), eq(priorities.active, true)))
     .limit(1);
-  if (!priorityRow[0]) priorityOk = false;
+  const priorityOk = (!input.priorityCode || input.priorityCode === "STANDARD") && !!priorityRow[0];
 
   const docs = validateRequest(input, cfg, requirements, priorityOk);
 
@@ -359,11 +354,14 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
     try {
       await client.query("begin");
       await client.query(`set local search_path to "${databaseSchema().replaceAll('"', '""')}"`);
+      const actor = await currentOperationActorPg(client, input.actor);
 
       const submittedId = submitted[0]?.id;
       if (!submittedId || !cfg) throw new AppError("CONFIG_ERROR", "Workflow is not configured.");
       const agency = await client.query<{ status: string }>(`select status from ${qualifiedTable("agencies")} where id=$1 for update`, [agencyId]);
       if (agency.rows[0]?.status !== "ACTIVE") throw new AppError("FORBIDDEN", "This agency is not active.");
+      const currentPriority = await client.query<{ id: string }>(`select id from ${qualifiedTable("priorities")} where id=$1 and code='STANDARD' and active for share`, [priorityRow[0]!.id]);
+      if (!currentPriority.rows[0]) throw new AppError("PRIORITY_INVALID", "Priority is not available.");
 
       // Idempotency, re-checked inside the transaction (covers races between the
       // pre-check above and commit).
@@ -426,7 +424,7 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
               applicationId, reference, agencyId, cfg.countryId, cfg.visaTypeId, submittedId,
               priorityRow[0]!.id, cfg.visaTypeName, cfg.visaTypeCode, cfg.categoryName, cfg.countryName,
               cfg.fee, "DZD", cfg.processingMinDays, cfg.processingMaxDays,
-              input.agencyNotes?.trim() || null, input.actor.id, input.idempotencyKey,
+              input.agencyNotes?.trim() || null, actor.id, input.idempotencyKey,
             ],
           );
           break;
@@ -493,7 +491,7 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
           [
             d.id, applicationId, itemByType.get(d.documentTypeId) ?? null, d.documentTypeId,
             d.file.name.slice(0, 200), d.file.type, d.file.data.length,
-            buildStorageKey(applicationId, d.id), input.actor.id,
+            buildStorageKey(applicationId, d.id), actor.id,
           ],
         );
       }
@@ -516,14 +514,14 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
            (agency_id, application_id, type, amount, currency, balance_before, balance_after, reason, actor_id)
          values ($1,$2,'APPLICATION_CHARGE',$3,$4,$5,$6,$7,$8)
          returning id`,
-        [agencyId, applicationId, cfg.fee, "DZD", balance_before, balance_after, `Visa application ${reference}`, input.actor.id],
+        [agencyId, applicationId, cfg.fee, "DZD", balance_before, balance_after, `Visa application ${reference}`, actor.id],
       );
 
       await client.query(
         `insert into ${qualifiedTable("application_status_history")}
            (application_id, from_status_id, to_status_id, changed_by, reason)
          values ($1, null, $2, $3, 'Request submitted')`,
-        [applicationId, submittedId, input.actor.id],
+        [applicationId, submittedId, actor.id],
       );
 
       await client.query(
@@ -531,8 +529,9 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
            (actor_id, actor_email, actor_role, agency_id, action, entity, entity_id, metadata, ip_address)
          values ($1,$2,$3,$4,'APPLICATION_SUBMITTED','application',$5,$6,$7)`,
         [
-          input.actor.id, input.actor.email, input.actor.role, agencyId, applicationId,
-          JSON.stringify({ reference, visaTypeCode: cfg.visaTypeCode, fee: cfg.fee, currency: "DZD", source: "three-step-request" }),
+          actor.id, actor.email, actor.role, agencyId, applicationId,
+          JSON.stringify({ reference, visaTypeCode: cfg.visaTypeCode, fee: cfg.fee, currency: "DZD", source: "three-step-request",
+            actorName: actor.name, actorUsername: actor.username }),
           input.ipAddress ?? null,
         ],
       );

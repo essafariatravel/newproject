@@ -16,7 +16,7 @@ export function publicContactDetails(settings: SiteSettingsMap) {
     }),
   );
   return {
-    email: email.toLowerCase().endsWith(".example") ? "" : email,
+    email: !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.toLowerCase().endsWith(".example") ? "" : email,
     phone: phone.replace(/\s/g, "") === "+212500000000" ? "" : phone,
     address: address.toLowerCase() === "boulevard mohammed v, casablanca, morocco" ? "" : address,
     officeHours: officeHours === "Monday – Friday, 09:00 – 18:00 (GMT+1)" ? "" : officeHours,

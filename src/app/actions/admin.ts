@@ -1,4 +1,5 @@
 "use server";
+import { currentOperationActor } from "@/lib/operation-identity";
 
 /**
  * Administrative actions: agencies, users, wallet adjustments, site settings.
@@ -16,7 +17,7 @@ import { hashPassword } from "@/lib/crypto";
 import { runAction } from "@/lib/action-helpers";
 import { updateSetting } from "@/lib/settings";
 import { adjustWallet } from "@/lib/wallet";
-import { publishLegalContent } from "@/lib/legal";
+import { publishLegalContents } from "@/lib/legal";
 import { normalizeOptionalAgencyName } from "@/lib/agency-display";
 import { createAccount, currentAccountActor, lockIdentityState, recordIdentityAudit, toggleAgencyAccess, updateAccount } from "@/lib/account-security";
 import { normalizeAgencyUsername } from "@/lib/identity-policy";
@@ -54,7 +55,7 @@ export async function createAgencyAction(formData: FormData): Promise<void> {
       if (dup[0]) throw new AppError("DUPLICATE", "An agency with this legal name already exists.");
       const inserted = await tx.insert(agencies)
         .values({ ...data, currency: data.currency ?? "DZD", billingName: data.billingName ?? data.legalName, billingEmail: data.billingEmail ?? data.email }).returning();
-      await recordIdentityAudit(tx, { actor: current, action: "AGENCY_CREATED", entity: "agency", entityId: inserted[0]!.id, metadata: { legalName: data.legalName } });
+      await recordIdentityAudit(tx, { actor: current, action: "AGENCY_CREATED", entity: "agency", entityId: inserted[0]!.id, agencyId: inserted[0]!.id, metadata: { legalName: data.legalName } });
     });
     revalidatePath("/admin/agencies");
     revalidatePath("/admin");
@@ -72,9 +73,13 @@ export async function updateAgencyAction(formData: FormData): Promise<void> {
       await lockIdentityState(tx);
       const current = await currentAccountActor(tx, staff);
       requirePermission(current, "agencies.manage");
+      const [previous]=await tx.select().from(agencies).where(eq(agencies.id,id)).for("update");
+      if(!previous)throw new AppError("NOT_FOUND","Agency not found.");
       await tx.update(agencies).set({ ...data, updatedAt: new Date() }).where(eq(agencies.id, id));
       await tx.update(users).set({ email: data.email, updatedAt: new Date() }).where(eq(users.agencyId, id));
-      await recordIdentityAudit(tx, { actor: current, action: "AGENCY_UPDATED", entity: "agency", entityId: id });
+      const oldValues=Object.fromEntries(Object.keys(data).map(key=>[key,previous[key as keyof typeof previous]]));
+      await recordIdentityAudit(tx, { actor: current, action: "AGENCY_UPDATED", entity: "agency", entityId: id, agencyId:id,
+        metadata:{oldValues,newValues:data} });
     });
     revalidatePath(`/admin/agencies/${id}`);
     revalidatePath("/admin/agencies");
@@ -311,41 +316,28 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
       const publications = (["en","fr","ar"] as const).flatMap(locale => (["terms","privacy"] as const).map(kind => ({kind,locale,body:String(formData.get(`legal.${kind}.${locale}`)??"").trim(),publishedAt,actor:staff}))).filter(p => p.body);
       if (!publications.length) throw new AppError("VALIDATION", "Supply owner-approved legal content before publishing.");
       if (publications.some(p=>p.body.length>50_000)) throw new AppError("VALIDATION", "Legal content is too long.");
-      for (const publication of publications) await publishLegalContent(publication);
+      await publishLegalContents(publications);
       revalidatePath("/admin/settings"); revalidatePath("/terms"); revalidatePath("/privacy"); revalidatePath("/register");
       return "Legal versions published.";
     }
     const entries: Array<[string, unknown]> = [];
     const simpleKeys = [
-      "brand.name",
-      "brand.product",
-      "brand.tagline",
-      "brand.description",
       "site.contactEmail",
       "site.contactPhone",
       "site.address",
       "site.officeHours",
-      "legal.privacy",
-      "legal.terms",
+      "public.about.en",
+      "public.about.fr",
+      "public.about.ar",
     ];
     for (const key of simpleKeys) {
       const v = formData.get(key);
-      if (v !== null) entries.push([key, String(v)]);
-    }
-    // Multilingual legal copy (EN/FR/AR) — every language stored under its own key.
-    for (const key of [
-      "legal.privacy.en",
-      "legal.privacy.fr",
-      "legal.privacy.ar",
-      "legal.terms.en",
-      "legal.terms.fr",
-      "legal.terms.ar",
-    ]) {
-      const v = formData.get(key);
-      if (v !== null) entries.push([key, String(v)]);
-    }
-    if (entries.length === 0) {
-      throw new AppError("VALIDATION", "Nothing to save in this section.");
+      if (v !== null) {
+        const value = String(v).trim();
+        if (value.length > (key.startsWith("public.about.") ? 2000 : 300)) throw new AppError("VALIDATION", "Please check the form values and try again.");
+        if (key === "site.contactEmail" && value && !z.string().email().safeParse(value).success) throw new AppError("VALIDATION", "Enter a valid contact email.");
+        entries.push([key, value]);
+      }
     }
     if (formData.get("site.social.linkedin") !== null || formData.get("site.social.instagram") !== null || formData.get("site.social.x") !== null) {
       entries.push([
@@ -357,19 +349,29 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
         },
       ]);
     }
-    for (const [key, value] of entries) {
-      await updateSetting(key, value, staff.id);
+    const socialEntry = entries.find(([key]) => key === "site.social");
+    if (socialEntry) {
+      for (const value of Object.values(socialEntry[1] as Record<string, string>)) {
+        if (!value.trim()) continue;
+        try { if (!["http:","https:"].includes(new URL(value).protocol)) throw new Error(); }
+        catch { throw new AppError("VALIDATION", "Use an http or https social link."); }
+      }
     }
-    await recordAudit({
+    if (entries.length === 0 || section !== "content") throw new AppError("VALIDATION", "Nothing to save in this section.");
+    await db.transaction(async tx => {
+      await currentOperationActor(tx,staff);
+      for (const [key, value] of entries) await updateSetting(key, value, staff.id, tx);
+      await recordAudit({
       actor: staff,
       action: "SETTINGS_UPDATED",
       entity: "site_settings",
       metadata: { section: section || "unspecified", keys: entries.map(([k]) => k) },
+      }, tx);
     });
     revalidatePath("/admin/settings");
     revalidatePath("/");
     revalidatePath("/privacy");
     revalidatePath("/terms");
-    return section === "legal" ? "Legal content saved." : "Website content saved.";
+    return "Website content saved.";
   });
 }

@@ -3,14 +3,14 @@ import { ZodError } from "zod";
 import { AppError } from "@/lib/types";
 import { actionFeedbackPath } from "@/lib/action-feedback";
 import { getUiLocale } from "@/lib/ui-i18n";
-import { contentT } from "@/lib/i18n-content";
+import { contentT, localizeError } from "@/lib/i18n-content";
 
 /**
  * Shared server-action wrapper: runs the mutation, converts expected errors to
  * user-safe feedback via redirect query params, and never leaks internals.
  * NEXT_REDIRECT from redirect() propagates (thrown outside try/catch).
  */
-export async function runAction(path: string, fn: () => Promise<string>): Promise<never> {
+export async function runAction(path: string, fn: () => Promise<string>, options?: { successPath: () => string }): Promise<never> {
   let msg: string;
   let kind: "ok" | "error";
   try {
@@ -22,12 +22,14 @@ export async function runAction(path: string, fn: () => Promise<string>): Promis
     } else if (err instanceof ZodError) {
       msg = err.issues[0]?.message ?? "Please check the form values.";
     } else {
-      console.error("action-failed", err);
+      console.error("[action] Operation failed.");
       msg = "Something went wrong. Please try again.";
     }
     kind = "error";
   }
-  redirect(actionFeedbackPath(path, kind, contentT(await getUiLocale())(msg)));
+  const locale = await getUiLocale();
+  const destination = kind === "ok" && options ? options.successPath() : path;
+  redirect(actionFeedbackPath(destination, kind, kind === "error" ? localizeError(locale, msg) : contentT(locale)(msg)));
 }
 
 /** Read + clean flash feedback from search params. */

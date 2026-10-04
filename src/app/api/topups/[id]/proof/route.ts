@@ -4,6 +4,8 @@ import { topupRequestById } from "@/lib/topup";
 import { storageProvider } from "@/lib/storage";
 import { recordAudit } from "@/lib/audit";
 import { AppError } from "@/lib/types";
+import { db } from "@/lib/db";
+import { currentOperationActor } from "@/lib/operation-identity";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +19,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const row = await topupRequestById(id, user);
     if (!row?.proofStorageKey || !row.proofFilename || !row.proofMimeType) throw new AppError("NOT_FOUND", "Receipt not found.");
     const stored = await storageProvider().get(row.proofStorageKey);
-    await recordAudit({ actor: user, action: "TOPUP_RECEIPT_DOWNLOADED", entity: "wallet_topup_request", entityId: id, agencyId: row.agencyId });
+    await db.transaction(async tx => {
+      const actor = await currentOperationActor(tx, user);
+      await recordAudit({ actor, action: "TOPUP_RECEIPT_DOWNLOADED", entity: "wallet_topup_request", entityId: id, agencyId: row.agencyId }, tx);
+    });
     const fallback = row.proofFilename.replace(/[^\x20-\x7e]|["\\]/g, "_");
     const encoded = encodeURIComponent(row.proofFilename).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
     return new NextResponse(new Uint8Array(stored.data), { headers: {
@@ -28,6 +33,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       "X-Content-Type-Options": "nosniff",
     } });
   } catch (error) {
+    if (error instanceof AppError && error.code === "UNAUTHENTICATED") return NextResponse.json({error:"UNAUTHENTICATED"},{status:401});
     if (error instanceof AppError) return NextResponse.json({ error: error.code === "FORBIDDEN" ? "FORBIDDEN" : "NOT_FOUND" }, { status: error.code === "FORBIDDEN" ? 403 : 404 });
     console.error("topup-receipt-download-failed");
     return NextResponse.json({ error: "DOWNLOAD_FAILED" }, { status: 500 });

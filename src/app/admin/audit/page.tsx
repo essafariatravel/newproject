@@ -1,11 +1,12 @@
 import { contentT } from "@/lib/i18n-content";
+import Link from "next/link";
+import { AuditTime } from "@/components/audit-time";
 import { businessLabel } from "@/lib/business-labels";
 import { pageUser } from "@/lib/page-auth";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { hasPermission } from "@/lib/rbac";
 import { listAgencies, listAuditLogs, listUsers, resolvePageSize } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
-import { formatDateTime } from "@/lib/format";
 import { FilterBar, Pagination, PageSizeSelector } from "@/components/app-widgets";
 import { EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
 
@@ -20,6 +21,19 @@ const ENTITY_LABELS: Record<string, string> = {
   document_type: "Document type", currency: "Currency", priority: "Priority", status: "Status",
   status_transition: "Status transition", site_settings: "Settings",
 };
+
+function auditTarget(entity: string, id: string | null, metadata: Record<string, unknown> | null) {
+  const uuid = (value: unknown): value is string => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  if (!uuid(id)) return undefined;
+  if (entity === "application") return `/admin/applications/${id}`;
+  if (entity === "agency") return `/admin/agencies/${id}`;
+  if (entity === "user") return `/admin/users/${id}`;
+  if (["registration","agency_registration"].includes(entity)) return `/admin/registrations/${id}`;
+  if (entity === "legacy_reconciliation") return "/admin/reconciliation";
+  if (uuid(metadata?.applicationId)) return `/admin/applications/${metadata.applicationId}`;
+  if (["document","document_request"].includes(entity)) return `/admin/documents?q=${encodeURIComponent(id)}`;
+  return undefined;
+}
 
 /**
  * Audit metadata is stored as JSON, but it is read by humans: render it as
@@ -41,7 +55,7 @@ function fmtValue(value: unknown): string {
 
 function readableMetadata(metadata: unknown): React.ReactNode {
   if (!metadata || typeof metadata !== "object") return <span className="text-xs text-slate-400">—</span>;
-  const entries = Object.entries(metadata as Record<string, unknown>).filter(([, v]) => v !== null && v !== undefined && v !== "");
+  const entries = Object.entries(metadata as Record<string, unknown>).filter(([k, v]) => !/password|token|secret|credential/i.test(k) && v !== null && v !== undefined && v !== "");
   if (entries.length === 0) return <span className="text-xs text-slate-400">—</span>;
   return (
     <span className="block text-[11px] leading-relaxed text-slate-500">
@@ -122,16 +136,20 @@ export default async function AdminAuditPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {result.rows.map(({ log, agencyName }) => (
+              {result.rows.map(({ log, agencyName, actorName, actorUsername }) => (
                 <tr key={log.id} className="tr-hover">
-                  <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(log.createdAt, uiLocale)}</td>
-                  <td className="td max-w-[160px] truncate text-xs">{log.actorEmail ?? ct("System")}</td>
+                  <td className="td whitespace-nowrap text-xs text-slate-500"><AuditTime iso={log.createdAt.toISOString()} locale={uiLocale} /></td>
+                  <td className="td max-w-[200px] text-xs">
+                    <p className="font-medium">{String(log.metadata?.actorName ?? actorName ?? log.actorEmail ?? ct("System"))}</p>
+                    <p dir="ltr">{String(log.metadata?.actorUsername ?? actorUsername ?? log.actorId ?? "")}</p>
+                    {log.actorId ? <span className="block font-mono text-[10px]" dir="ltr">{log.actorId}</span> : null}
+                  </td>
                   <td className="td text-xs">{log.actorRole ? businessLabel(log.actorRole, uiLocale) : "—"}</td>
                   <td className="td max-w-[140px] truncate text-xs">{agencyName ?? "—"}</td>
                   <td className="td">
                     <span className="badge bg-navy-900/5 text-navy-800">{businessLabel(log.action, uiLocale)}</span>
                   </td>
-                  <td className="td text-xs text-slate-500">{entityLabel(log.entity)}</td>
+                  <td className="td text-xs text-slate-500">{auditTarget(log.entity, log.entityId, log.metadata) ? <Link href={auditTarget(log.entity, log.entityId, log.metadata)!} className="text-navy-800 underline">{entityLabel(log.entity)}</Link> : entityLabel(log.entity)}</td>
                   <td className="td max-w-[260px]">
                     <details><summary className="cursor-pointer font-medium text-navy-800">{ct("Details")}</summary><p className="my-2 text-xs">{log.action} · {log.entityId}</p>{readableMetadata(log.metadata)}</details>
                   </td>

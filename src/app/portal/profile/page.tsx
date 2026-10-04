@@ -1,6 +1,6 @@
 import { businessLabel } from "@/lib/business-labels";
 import Link from "next/link";
-import { eq } from "drizzle-orm";
+import { eq, getTableColumns, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { agencies, users } from "@/db/schema";
 import { portalPageUser } from "@/lib/page-auth";
@@ -33,9 +33,15 @@ export default async function PortalProfilePage({
   const ct = contentT(uiLocale);
   const it = identityT(uiLocale);
   const flash = flashFrom(sp);
+  const canViewFinancialAdministration = hasPermission(user, "transactions.view.own");
 
   const [agencyRows, team, balance] = await Promise.all([
-    db.select().from(agencies).where(eq(agencies.id, user.agencyId)).limit(1),
+    db.select({ ...getTableColumns(agencies),
+      billingName: canViewFinancialAdministration ? agencies.billingName : sql<string | null>`null`,
+      billingEmail: canViewFinancialAdministration ? agencies.billingEmail : sql<string | null>`null`,
+      billingTaxId: canViewFinancialAdministration ? agencies.billingTaxId : sql<string | null>`null`,
+      notes: sql<string | null>`null`,
+    }).from(agencies).where(eq(agencies.id, user.agencyId)).limit(1),
     db.select().from(users).where(eq(users.agencyId, user.agencyId)),
     getBalance(user.agencyId),
   ]);
@@ -99,9 +105,9 @@ export default async function PortalProfilePage({
                 { label: "Email", value: agency.email },
                 { label: ct("Phone"), value: agency.phone ?? "—" },
                 { label: ct("Address"), value: [agency.addressLine, agency.city, agency.country].filter(Boolean).join(", ") || "—" },
-                { label: ct("Billing"), value: [agency.billingName, agency.billingEmail, agency.billingTaxId].filter(Boolean).join(" · ") || "—" },
+                ...(canViewFinancialAdministration ? [{ label: ct("Billing"), value: [agency.billingName, agency.billingEmail, agency.billingTaxId].filter(Boolean).join(" · ") || "-" }] : []),
                 { label: ct("Wallet currency"), value: "DZD" },
-                { label: ct("Partner since"), value: formatDateTime(agency.createdAt) },
+                { label: ct("Partner since"), value: formatDateTime(agency.createdAt, uiLocale) },
               ]}
             />
             {canManageUsers ? <form action={updateOwnAgencyContactAction} className="grid gap-3 border-t border-slate-100 p-5 sm:grid-cols-3">
@@ -179,6 +185,7 @@ export default async function PortalProfilePage({
                   <input id="p-username" name="username" type="text" required minLength={3} maxLength={48} autoComplete="off" className="input" dir="ltr" />
                   <p className="mt-1 text-xs text-slate-500">{it("3–48 letters, digits, dots, hyphens or underscores. No personal email needed.")}</p>
                 </div>
+                <div><label className="label" htmlFor="p-role">{ct("Role")}</label><input id="p-role" className="input" value={businessLabel("AGENCY_USER", uiLocale)} readOnly /><p className="mt-1 text-xs text-slate-500">{ct("Role is assigned by ESSAFARIA.")}</p></div>
                 <input type="hidden" name="role" value="AGENCY_USER" />
                 <PasswordField
                   id="p-password"

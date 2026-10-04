@@ -8,6 +8,8 @@ import { requireUser } from "@/lib/auth";
 import { AppError } from "@/lib/types";
 import { closeRecoveryRequest, issueAccessToken, requestAccountRecovery, resetAccountFromToken } from "@/lib/account-recovery";
 import { runAction } from "@/lib/action-helpers";
+import { getUiLocale } from "@/lib/ui-i18n";
+import { localizeError } from "@/lib/i18n-content";
 
 export interface RecoveryState { message?: string; error?: string; link?: string; expiresAt?: string }
 
@@ -27,15 +29,16 @@ export async function generateAccessLinkAction(_previous: RecoveryState, form: F
     revalidatePath("/admin/recovery");
     return { link: `/reset-access/${issued.token}`, expiresAt: issued.expiresAt.toISOString(), message: "Copy this single-use link now and share it securely with the user. Previous links were revoked." };
   } catch (err) {
-    return { error: err instanceof AppError ? err.message : "The access link could not be generated." };
+    return { error: localizeError(await getUiLocale(),err instanceof AppError ? err.message : "The access link could not be generated.") };
   }
 }
 
 export async function resetAccessAction(_previous: RecoveryState, form: FormData): Promise<RecoveryState> {
+  const locale = await getUiLocale();
   const password = String(form.get("password") ?? "");
-  if (password !== String(form.get("confirm") ?? "")) return { error: "The confirmation does not match the new password." };
+  if (password !== String(form.get("confirm") ?? "")) return { error: localizeError(locale,"The confirmation does not match the new password.") };
   try { await resetAccountFromToken(String(form.get("token") ?? ""), password); }
-  catch (err) { return { error: err instanceof AppError ? err.message : "The password could not be updated. Please try again." }; }
+  catch (err) { return { error: localizeError(locale,err instanceof AppError ? err.message : "The password could not be updated. Please try again.") }; }
   redirect("/login?reset=complete");
 }
 

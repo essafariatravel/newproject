@@ -34,7 +34,7 @@ export default async function PortalDashboardPage() {
             </span>
             <span className="travel-record-traveller"><strong>{row.applicantSummary}</strong><small><bdi>{row.app.reference}</bdi></small></span>
             <span className="travel-record-status"><StatusBadge code={row.statusCode} name={row.statusName} /><small>{formatDateTime(row.app.updatedAt, locale)}</small></span>
-            <span className="travel-record-action">{ct(attention ? "Upload requested documents" : "Open dossier")}<span aria-hidden="true" className="directional-arrow"> →</span></span>
+            <span className="travel-record-action">{ct(row.agencyNextAction)}<span aria-hidden="true" className="directional-arrow"> →</span></span>
           </Link>
         </li>
       ))}
@@ -70,7 +70,7 @@ export default async function PortalDashboardPage() {
       <nav className="agency-stats" aria-label={ct("Agency dashboard")}>
         <Link href="/portal/applications?queue=active"><strong>{totals.active}</strong><span>{ct("Active applications")}</span></Link>
         <Link href="/portal/applications?documents=requested"><strong>{(totals as { actionRequired?: number }).actionRequired ?? 0}</strong><span>{ct("Action required")}</span></Link>
-        <Link href="/portal/applications?status=APPROVED"><strong>{totals.completed}</strong><span>{ct("Completed")}</span></Link>
+        <Link href="/portal/applications?queue=completed"><strong>{totals.completed}</strong><span>{ct("Completed")}</span></Link>
         <Link href="/portal/wallet"><strong className="wallet-value tabular-nums">{formatAmount(wallet.balance, "DZD", locale)}</strong><span>{ct("Wallet balance")}</span></Link>
       </nav>
 

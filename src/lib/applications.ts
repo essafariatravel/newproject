@@ -1,4 +1,5 @@
 import { qualifiedTable } from "./database-schema";
+import { officialDocumentIntegritySql } from "./decision-integrity";
 /**
  * Application service — creation, checklist, submission gate, status workflow.
  * All business rules execute server-side; callers are authenticated+authorized.
@@ -24,6 +25,7 @@ import {
   visaRequirements,
   visaTypes,
   documentRequests,
+  documentBlobs,
 } from "@/db/schema";
 import { AppError, OVERRIDE_ROLES, type AuthUser, MAX_UPLOAD_BYTES, isStaffRole, isAgencyRole } from "@/lib/types";
 import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
@@ -34,6 +36,7 @@ import { getEmbassyApplicability } from "@/lib/queries";
 import { agencyUserIds, staffUserIds, notifyUsers } from "@/lib/notifications";
 import { buildStorageKey, storageProvider } from "@/lib/storage";
 import { documents } from "@/db/schema";
+import { currentOperationActor } from "@/lib/operation-identity";
 
 /* ------------------------------------------------------------------ */
 /* Status helpers                                                      */
@@ -129,8 +132,8 @@ export async function generateChecklist(applicationId: string, visaTypeId: strin
  * visa configuration since creation are appended; existing items are never
  * rewritten (historical integrity).
  */
-export async function resyncChecklist(applicationId: string, visaTypeId: string): Promise<void> {
-  await generateChecklist(applicationId, visaTypeId);
+export async function resyncChecklist(applicationId: string, visaTypeId: string, executor: Pick<typeof db, "select" | "insert"> = db): Promise<void> {
+  await generateChecklist(applicationId, visaTypeId, executor);
 }
 
 export interface ChecklistProgress {
@@ -216,11 +219,17 @@ export async function createDraftApplication(input: CreateApplicationInput) {
     throw new AppError("FORBIDDEN", "You cannot create an application for this agency.");
   }
   const draftStatus = await getStatusByCode("DRAFT");
-  const priorityId = input.priorityCode
-    ? ((await getPriorityByCode(input.priorityCode))?.id ?? (await getDefaultPriorityId()))
-    : await getDefaultPriorityId();
+  const priorityCode = input.priorityCode?.trim() || "STANDARD";
+  if (priorityCode === "EXPRESS" || (actor.agencyId && priorityCode !== "STANDARD")) {
+    throw new AppError("PRIORITY_INVALID", "Agency applications use Standard priority.");
+  }
   const reference = await generateReference();
   const app = await db.transaction(async (tx) => {
+    input = { ...input, createdBy: await currentOperationActor(tx, input.createdBy) };
+    const [priority] = await tx.select().from(priorities).where(and(eq(priorities.code, priorityCode), eq(priorities.active, true))).for("share");
+    if (!priority) throw new AppError("PRIORITY_INVALID", "The selected priority is unavailable.");
+    const [currentDraft] = await tx.select().from(statuses).where(and(eq(statuses.id, draftStatus.id), eq(statuses.active, true), eq(statuses.isDraft, true))).for("share");
+    if (!currentDraft || currentDraft.isTerminal) throw new AppError("CONFIG_ERROR", "Draft status is unavailable.");
     const [agency] = await tx.select({ id: agencies.id, status: agencies.status }).from(agencies).where(eq(agencies.id, input.agencyId)).for("share");
     if (!agency || agency.status !== "ACTIVE") throw new AppError("NOT_FOUND", "Agency not found or inactive.");
     const rows = await tx
@@ -235,22 +244,16 @@ export async function createDraftApplication(input: CreateApplicationInput) {
     if (!cfg) throw new AppError("NOT_FOUND", "Visa type not found or inactive.");
     const [created] = await tx.insert(applications).values({
       reference, agencyId: input.agencyId, countryId: cfg.country.id, visaTypeId: cfg.visaType.id,
-      statusId: draftStatus.id, priorityId, visaTypeName: cfg.visaType.name, visaTypeCode: cfg.visaType.code,
+      statusId: draftStatus.id, priorityId: priority.id, visaTypeName: cfg.visaType.name, visaTypeCode: cfg.visaType.code,
       categoryName: cfg.category.name, countryName: cfg.country.name, fee: cfg.visaType.fee, currency: cfg.visaType.currency,
       processingMinDays: cfg.visaType.processingMinDays, processingMaxDays: cfg.visaType.processingMaxDays,
       agencyNotes: input.agencyNotes ?? null, createdBy: input.createdBy.id,
     }).returning();
     await generateChecklist(created!.id, created!.visaTypeId, tx);
+    await recordAudit({ actor: input.createdBy, action: "APPLICATION_CREATED", entity: "application", entityId: created!.id,
+      agencyId: input.agencyId, metadata: { reference, visaTypeCode: created!.visaTypeCode, fee: created!.fee, currency: created!.currency },
+      ipAddress: input.ipAddress ?? null }, tx);
     return created!;
-  });
-  await recordAudit({
-    actor: input.createdBy,
-    action: "APPLICATION_CREATED",
-    entity: "application",
-    entityId: app.id,
-    agencyId: input.agencyId,
-    metadata: { reference, visaTypeCode: app.visaTypeCode, fee: app.fee, currency: app.currency },
-    ipAddress: input.ipAddress ?? null,
   });
   return app;
 }
@@ -372,10 +375,6 @@ export async function submitApplication(params: {
         );
       }
       usedOverride = true;
-      await db
-        .update(applications)
-        .set({ overrideReason: reason, overrideBy: actor.id, updatedAt: new Date() })
-        .where(eq(applications.id, app.id));
     }
   }
 
@@ -385,21 +384,8 @@ export async function submitApplication(params: {
     submittedStatusId: submittedStatus.id,
     draftStatusId: draftStatus.id,
     ipAddress: params.ipAddress ?? null,
-  });
-
-  await recordAudit({
     actor,
-    action: usedOverride ? "APPLICATION_SUBMITTED_OVERRIDE" : "APPLICATION_SUBMITTED",
-    entity: "application",
-    entityId: app.id,
-    agencyId: app.agencyId,
-    metadata: {
-      reference: app.reference,
-      fee: app.fee,
-      currency: app.currency,
-      ...(usedOverride ? { overrideReason: params.overrideReason } : {}),
-    },
-    ipAddress: params.ipAddress ?? null,
+    overrideReason: usedOverride ? params.overrideReason!.trim() : null,
   });
 
   const sIds = await staffUserIds();
@@ -525,8 +511,23 @@ export async function changeApplicationStatus(params: {
   if (tsField) patch[tsField] = new Date();
 
   await db.transaction(async (tx) => {
+    const currentActor = await currentOperationActor(tx, actor);
     const [current] = await tx.select({ statusId: applications.statusId }).from(applications).where(eq(applications.id, app.id)).for("update");
     if (!current || current.statusId !== from.id) throw new AppError("BAD_STATE", "This application changed. Refresh before changing its status.");
+    const currentStates = await tx.select().from(statuses).where(inArray(statuses.id, [from.id, to.id])).for("share");
+    const currentFrom = currentStates.find(state => state.id === from.id), currentTo = currentStates.find(state => state.id === to.id);
+    const [currentTransition] = await tx.select().from(statusTransitions).where(and(eq(statusTransitions.fromStatusId, from.id), eq(statusTransitions.toStatusId, to.id))).for("share");
+    const staff = !currentActor.agencyId && isStaffRole(currentActor.role);
+    const scopeAllowed = currentTransition && (currentTransition.scope === "BOTH" || currentTransition.scope === (staff ? "STAFF" : "AGENCY"));
+    if (!currentFrom?.active || currentFrom.isTerminal || !currentTo?.active || currentTo.isDraft ||
+        ["SUBMITTED", "APPROVED", "REJECTED"].includes(currentTo.code) || !scopeAllowed ||
+        (currentFrom.isDraft && currentTo.code !== "CANCELLED")) {
+      throw new AppError("INVALID_TRANSITION", "This transition is no longer available. Refresh the application.");
+    }
+    if (EMBASSY_STATUS_CODES.has(currentTo.code)) {
+      const [programme] = await tx.select({ embassy: visaTypes.embassyApplicability }).from(visaTypes).where(eq(visaTypes.id, app.visaTypeId)).for("share");
+      if (programme?.embassy === "NOT_APPLICABLE") throw new AppError("INVALID_TRANSITION", "This visa programme does not use an embassy stage.");
+    }
     await tx.update(applications).set(patch).where(eq(applications.id, app.id));
     await tx.insert(applicationStatusHistory).values({
       applicationId: app.id,
@@ -537,16 +538,8 @@ export async function changeApplicationStatus(params: {
     });
     if (to.isTerminal) await tx.update(documentRequests).set({ status: "CANCELLED", updatedAt: new Date() })
       .where(and(eq(documentRequests.applicationId, app.id), eq(documentRequests.status, "OPEN")));
-  });
-
-  await recordAudit({
-    actor,
-    action: "STATUS_CHANGED",
-    entity: "application",
-    entityId: app.id,
-    agencyId: app.agencyId,
-    metadata: { from: from.code, to: to.code, reason: params.reason ?? null },
-    ipAddress: params.ipAddress ?? null,
+    await recordAudit({ actor: currentActor, action: "STATUS_CHANGED", entity: "application", entityId: app.id, agencyId: app.agencyId,
+      metadata: { from: from.code, to: to.code, reason: params.reason ?? null }, ipAddress: params.ipAddress ?? null }, tx);
   });
 
   const aIds = await agencyUserIds(app.agencyId);
@@ -615,6 +608,9 @@ function documentTypeForOutcome(outcome: DecisionOutcome): string {
 
 /** Decision documents recorded for an application (for admin + portal views). */
 export async function getDecisionDocuments(applicationId: string) {
+  // External storage needs a provider inventory before historical proof can be
+  // vouched for. Preserve the dossier and show its reconciliation warning.
+  if (process.env.STORAGE_PROVIDER && process.env.STORAGE_PROVIDER !== "db") return [];
   return db
     .select({
       id: documents.id,
@@ -628,7 +624,12 @@ export async function getDecisionDocuments(applicationId: string) {
     })
     .from(documents)
     .innerJoin(documentTypes, eq(documents.documentTypeId, documentTypes.id))
-    .where(and(eq(documents.applicationId, applicationId), inArray(documentTypes.code, [...DECISION_DOC_TYPE_CODES])))
+    .innerJoin(documentBlobs, eq(documentBlobs.key, documents.storageKey))
+    .innerJoin(applications, eq(applications.id, documents.applicationId))
+    .innerJoin(statuses, eq(statuses.id, applications.statusId))
+    .where(and(eq(documents.applicationId, applicationId), inArray(documentTypes.code, [...DECISION_DOC_TYPE_CODES]),
+      sql.raw(officialDocumentIntegritySql("documents", "document_blobs")), sql`${applications.decisionAt} is not null`,
+      sql`((${statuses.code}='APPROVED' and ${documentTypes.code}='DECISION_VISA_APPROVAL') or (${statuses.code}='REJECTED' and ${documentTypes.code}='DECISION_REFUSAL_LETTER'))`))
     .orderBy(desc(documents.createdAt));
 }
 
@@ -668,6 +669,8 @@ export async function recordApplicationDecision(params: DecisionInput): Promise<
   await storageProvider().put(storageKey, f.data, f.type);
   try {
     return await db.transaction(async (tx) => {
+      const { currentOperationActor } = await import("@/lib/operation-identity");
+      const actor = await currentOperationActor(tx, params.actor);
       const [locked] = await tx.select().from(applications).where(eq(applications.id, app.id)).for("update");
       if (!locked) throw new AppError("NOT_FOUND", "Application not found.");
       const [from] = await tx.select().from(statuses).where(eq(statuses.id, locked.statusId));
@@ -701,7 +704,7 @@ export async function recordApplicationDecision(params: DecisionInput): Promise<
       if (note) await tx.insert(communications).values({ applicationId: app.id, authorId: actor.id, visibility: "AGENCY", body: note });
       await tx.insert(auditLogs).values({ actorId: actor.id, actorEmail: actor.email, actorRole: actor.role,
         agencyId: app.agencyId, action: "APPLICATION_DECISION_RECORDED", entity: "application", entityId: app.id,
-        metadata: { outcome: params.outcome, documentId, from: from.code }, ipAddress: params.ipAddress ?? null,
+        metadata: { outcome: params.outcome, documentId, from: from.code, actorName: actor.name, actorUsername: actor.username }, ipAddress: params.ipAddress ?? null,
       });
       const recipients = await tx.select({ id: users.id, agencyId: users.agencyId }).from(users)
         .where(sql`${users.status} = 'ACTIVE' and (${users.agencyId} = ${app.agencyId} or ${users.agencyId} is null)`);
@@ -773,9 +776,10 @@ export async function allowedNextStatuses(fromStatusId: string, role: AuthUser["
 }
 
 /** Applications eligible for checklist re-sync (still drafts). */
-export async function draftApplicationIdsForVisaType(visaTypeId: string): Promise<string[]> {
-  const draft = await getStatusByCode("DRAFT");
-  const rows = await db
+export async function draftApplicationIdsForVisaType(visaTypeId: string, executor: Pick<typeof db, "select"> = db): Promise<string[]> {
+  const [draft] = await executor.select({ id: statuses.id }).from(statuses).where(eq(statuses.code, "DRAFT")).limit(1);
+  if (!draft) throw new AppError("CONFIG_ERROR", "Draft workflow is not configured.");
+  const rows = await executor
     .select({ id: applications.id })
     .from(applications)
     .where(and(eq(applications.visaTypeId, visaTypeId), inArray(applications.statusId, [draft.id])));

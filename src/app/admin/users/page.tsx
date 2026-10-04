@@ -136,7 +136,7 @@ export default async function AdminUsersPage({
                         <input type="hidden" name="role" value={u.role} />
                         <input type="hidden" name="toggleStatus" value="1" />
                         <ConfirmButton
-                          message={u.status === "ACTIVE" ? `Suspend ${u.email}?` : `Reactivate ${u.email}?`}
+                          message={`${ct(u.status === "ACTIVE" ? "Suspend this user?" : "Reactivate this user?")} ${u.name} (${u.username ?? u.email})`}
                           className="btn-secondary btn-sm"
                         >
                           {ct(u.status === "ACTIVE" ? "Suspend" : "Activate")}
@@ -202,7 +202,7 @@ export default async function AdminUsersPage({
               hideLabel={ct("Hide")}
             />
             <div className="lg:col-span-5">
-              <SubmitButton className="btn-primary" pendingLabel="Creating…">{ct("Create user")}</SubmitButton>
+              <SubmitButton className="btn-primary" pendingLabel={ct("Creating…")}>{ct("Create user")}</SubmitButton>
             </div>
           </form>
         </div>

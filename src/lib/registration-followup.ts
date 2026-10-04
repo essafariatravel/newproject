@@ -8,6 +8,7 @@ import { AppError, type AuthUser } from "@/lib/types";
 import { validateRegistrationFile, type RegistrationFileInput } from "@/lib/registrations";
 import { REGISTRATION_DOCUMENT_CATEGORIES, type RegistrationDocumentCategory } from "@/lib/registration-constants";
 import { storageProvider } from "@/lib/storage";
+import { currentOperationActorPg } from "@/lib/operation-identity";
 
 const issueSchema = z.object({ registrationId: z.string().uuid(), note: z.string().trim().min(10).max(2000), slots: z.array(z.object({category: z.enum(REGISTRATION_DOCUMENT_CATEGORIES), label: z.string().trim().min(2).max(160)})).min(1).max(4) });
 const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
@@ -22,6 +23,7 @@ export async function createRegistrationFollowup(input: { actor: AuthUser; regis
   const client = await pool.connect();
   try {
     await client.query("begin");
+    input={...input,actor:await currentOperationActorPg(client,input.actor)};
     const found = await client.query(`select status from ${q("agency_registrations")} where id=$1 for update`, [values.registrationId]);
     const status = found.rows[0]?.status as string | undefined;
     if (!status || !["UNDER_REVIEW", "MORE_INFORMATION_REQUIRED"].includes(status)) throw new AppError("INVALID_STATE", "Start review before requesting administrative documents.");

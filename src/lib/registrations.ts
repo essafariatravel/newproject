@@ -25,6 +25,7 @@ import { z } from "zod";
 import { db, pool } from "@/lib/db";
 import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 import { qualifiedTable } from "@/lib/database-schema";
+import { currentOperationActor, currentOperationActorPg } from "@/lib/operation-identity";
 import { requirePermission } from "@/lib/rbac";
 import { legacyAgencyUsername } from "@/lib/identity-policy";
 import { lockIdentityState, recordIdentityAudit, requireRecoveryManager, revokeUnusedAccessTokens, revokeUserAccess } from "@/lib/account-security";
@@ -361,22 +362,7 @@ export async function submitAgencyRegistration(params: {
   // 2. Database, one transaction (registration + documents + history).
   try {
     const reference = await persistRegistration(id, data, stored, params.ipAddress);
-    // 3. Side effects (non-critical, individually guarded).
-    await recordAudit({
-      actor: null,
-      action: "AGENCY_REGISTRATION_SUBMITTED",
-      entity: "agency_registration",
-      entityId: id,
-      metadata: {
-        reference,
-        legalName: data.legalName,
-        country: data.country,
-        businessType: data.businessType,
-        documents: stored.length,
-        locale: data.locale,
-      },
-      ipAddress: params.ipAddress,
-    });
+    // 3. Notifications follow the audited registration commit.
     const staff = await staffUserIds([...REGISTRATION_DECIDE_ROLES]).catch(() => [] as string[]);
     await notifyUsers(staff, {
       type: "REGISTRATION_SUBMITTED",
@@ -456,6 +442,9 @@ async function persistRegistration(
           actorId: null,
           note: "Application submitted from the public website.",
         });
+        await recordAudit({ actor: null, action: "AGENCY_REGISTRATION_SUBMITTED", entity: "agency_registration", entityId: id,
+          metadata: { reference, legalName: data.legalName, country: data.country, businessType: data.businessType,
+            documents: stored.length, locale: data.locale }, ipAddress }, tx);
         return reference;
       });
     } catch (err) {
@@ -618,12 +607,13 @@ async function closeRegistrationFollowups(tx: RegistrationTransaction, id: strin
 
 async function registrationAudit(tx: RegistrationTransaction, id: string, actor: AuthUser, action: string, metadata?: Record<string, unknown>, ipAddress?: string | null): Promise<void> {
   await tx.insert(auditLogs).values({ actorId: actor.id, actorEmail: actor.email, actorRole: actor.role, action,
-    entity: "agency_registration", entityId: id, metadata: metadata ?? null, ipAddress: ipAddress ?? null });
+    entity: "agency_registration", entityId: id, metadata: {...metadata,actorName:actor.name,actorUsername:actor.username}, ipAddress: ipAddress ?? null });
 }
 
 export async function startRegistrationReview(id: string, actor: AuthUser, ipAddress?: string | null): Promise<void> {
   requirePermission(actor, "registrations.manage");
   await db.transaction(async (tx) => {
+    actor=await currentOperationActor(tx,actor);
     const reg = await lockRegistration(tx, id);
     if (!["PENDING", "MORE_INFORMATION_REQUIRED", "REJECTED"].includes(reg.status)) {
       throw new AppError("INVALID_STATE", "This registration cannot be moved to review.");
@@ -640,6 +630,7 @@ export async function requestMoreInformation(id: string, actor: AuthUser, note: 
   const clean = note.trim();
   if (clean.length < 10 || clean.length > 2000) throw new AppError("VALIDATION", "Describe the information required (10–2000 characters).");
   await db.transaction(async (tx) => {
+    actor=await currentOperationActor(tx,actor);
     const reg = await lockRegistration(tx, id);
     if (!["PENDING", "UNDER_REVIEW"].includes(reg.status)) throw new AppError("INVALID_STATE", "More information can only be requested while the application is open.");
     await closeRegistrationFollowups(tx, id);
@@ -654,6 +645,7 @@ export async function rejectRegistration(id: string, actor: AuthUser, reason: st
   const clean = reason.trim();
   if (clean.length < 10 || clean.length > 2000) throw new AppError("VALIDATION", "A rejection reason (10–2000 characters) is mandatory.");
   await db.transaction(async (tx) => {
+    actor=await currentOperationActor(tx,actor);
     const reg = await lockRegistration(tx, id);
     if (!ACTIVE_REGISTRATION_STATUSES.includes(reg.status as RegistrationStatus)) throw new AppError("INVALID_STATE", "Only an open application can be rejected.");
     await closeRegistrationFollowups(tx, id);
@@ -668,6 +660,7 @@ export async function addInternalNote(id: string, actor: AuthUser, note: string,
   const clean = note.trim();
   if (clean.length < 3 || clean.length > 2000) throw new AppError("VALIDATION", "The note must contain 3–2000 characters.");
   await db.transaction(async (tx) => {
+    actor=await currentOperationActor(tx,actor);
     const reg = await lockRegistration(tx, id);
     const appended = reg.internalNotes ? reg.internalNotes + "\n\n" + clean : clean;
     await tx.update(agencyRegistrations).set({ internalNotes: appended, updatedAt: new Date() }).where(eq(agencyRegistrations.id, id));
@@ -710,7 +703,8 @@ export async function approveRegistration(params: {
   actor: AuthUser;
   ipAddress?: string | null;
 }): Promise<ApprovalResult> {
-  const { actor, registrationId } = params;
+  const { registrationId } = params;
+  let actor=params.actor;
   if (!REGISTRATION_DECIDE_ROLES.includes(actor.role)) {
     throw new AppError("FORBIDDEN", "Only authorized ESSAFARIA administrators can approve registrations.");
   }
@@ -720,6 +714,7 @@ export async function approveRegistration(params: {
   let result: ApprovalResult;
   try {
     await client.query("begin");
+    actor=await currentOperationActorPg(client,actor);
     await client.query("set local statement_timeout = '30s'");
     const found = await client.query(
       `select * from ${q("agency_registrations")} where id = $1 for update`,

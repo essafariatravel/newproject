@@ -39,16 +39,17 @@ describe("white-label branding", () => {
     expect(b.logoKey).toBeNull();
   });
 
-  it("derives full color scales via color-mix in the CSS override", async () => {
+  it("keeps legacy visual settings stored while resolving the approved token scales", async () => {
     await updateSetting("brand.primary", "#123456", null);
     const b = await readBranding();
     const css = brandingCssOverride(b);
-    expect(css).toContain("--color-iris-600: #123456");
-    expect(css).toContain("color-mix(in srgb, #123456");
+    expect(css).toContain("--color-iris-600: #102a45");
+    expect(css).toContain("color-mix(in srgb, #102a45");
     expect(css).not.toContain("undefined");
     // radius + font presets appear
     await updateSetting("brand.radius", "crisp", null);
-    expect(brandingCssOverride(await readBranding())).toContain("--radius-card: 0.55rem");
+    expect(brandingCssOverride(await readBranding())).toContain("--radius-card: 0.9rem");
+    expect((await db.select().from(siteSettings).where(eq(siteSettings.key, "brand.radius")))[0]?.value).toBe("crisp");
     // cleanup so later assertions start from defaults
     await db.delete(siteSettings);
   });
@@ -63,7 +64,8 @@ describe("white-label branding", () => {
     const agency = await agencyByEmail("ops@agencya.example");
     const png = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
 
-    await setAgencyLogo(agency.id, { data: png, mimeType: "image/png" });
+    const actor=await userByEmail("superadmin@test.example");
+    await setAgencyLogo(agency.id, { data: png, mimeType: "image/png" }, actor);
 
     const rows = await db.select().from(agencies).where(eq(agencies.id, agency.id)).limit(1);
     const row = rows[0]!;
@@ -76,7 +78,7 @@ describe("white-label branding", () => {
     const url = agencyLogoUrl(row);
     expect(url).toBe(`/api/agencies/${agency.id}/logo?v=${new Date(row.logoUploadedAt!).getTime()}`);
 
-    await clearAgencyLogo(agency.id);
+    await clearAgencyLogo(agency.id, actor);
     const after = (await db.select().from(agencies).where(eq(agencies.id, agency.id)).limit(1))[0]!;
     expect(after.logoKey).toBeNull();
     const blobs = await db.select().from(documentBlobs).where(eq(documentBlobs.key, `agency-logos/${agency.id}/logo`));

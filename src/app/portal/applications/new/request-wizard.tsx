@@ -18,6 +18,7 @@
 import { useMemo, useRef, useState, useEffect } from "react";
 import { contentT } from "@/lib/i18n-content";
 import { formatDZD } from "@/lib/format";
+import { readRequestResponse, requestFailureFeedback } from "@/lib/request-feedback";
 
 export interface WizardVisaOption {
   id: string;
@@ -157,6 +158,8 @@ export function RequestWizard(props: Props) {
   const [files, setFiles] = useState<Record<string, File[]>>({});
   const [pending, setPending] = useState(false);
   const [clientError, setClientError] = useState("");
+  const [catalogueRecovery, setCatalogueRecovery] = useState(false);
+  const [sessionRecovery, setSessionRecovery] = useState(false);
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -287,8 +290,7 @@ export function RequestWizard(props: Props) {
           body.set("attempt", idempotencyKey); body.set("visaTypeId", visaTypeId);
           body.set("documentTypeId", requirement.documentTypeId); body.set("slot", String(slot)); body.set("file", selected[slot]!);
           const response = await fetch("/api/agency/requests", { method: "POST", body });
-          const data = await response.json();
-          if (!response.ok) throw new Error(data.error);
+          const data = await readRequestResponse<{token:string}>(response,props.locale);
           tokens.push(data.token);
         }
       }
@@ -296,11 +298,13 @@ export function RequestWizard(props: Props) {
       const response = await fetch("/api/agency/requests", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ attempt: idempotencyKey, countryId, visaTypeId, tokens,
           fullName: String(fields.get("t0_fullName") ?? ""), nationality: String(fields.get("t0_nationality") ?? ""), notes: String(fields.get("agencyNotes") ?? "") }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
+      const data = await readRequestResponse<{applicationId:string}>(response,props.locale);
       window.location.assign(`/portal/applications/${data.applicationId}?submitted=1`);
     } catch (error) {
-      setClientError(error instanceof Error && error.message ? error.message : contentT(props.locale)("request.error.INTERNAL"));
+      const feedback=requestFailureFeedback(error,props.locale);
+      setClientError(feedback.message);
+      setCatalogueRecovery(feedback.catalogue);
+      setSessionRecovery(feedback.session);
       setPending(false);
     }
   }
@@ -335,7 +339,7 @@ export function RequestWizard(props: Props) {
         <p className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{props.serverError}</p>
       ) : null}
       {clientError ? (
-        <p className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{clientError}</p>
+        <div role="alert" className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"><p>{clientError}</p>{catalogueRecovery ? <button type="button" className="btn-secondary mt-3" onClick={() => window.location.reload()}>{contentT(props.locale)("Refresh catalogue and choose again")}</button> : null}{sessionRecovery ? <a className="btn-secondary mt-3" href="/login?reason=session-expired">{contentT(props.locale)("Sign in")}</a> : null}</div>
       ) : null}
 
       {/* STEP 1 — destination search, then programmes, then applicant */}
@@ -684,7 +688,7 @@ export function RequestWizard(props: Props) {
           {canAfford ? (
             <button
               type="submit"
-              disabled={pending}
+              disabled={pending || catalogueRecovery || sessionRecovery}
               className="btn-primary w-full sm:w-auto disabled:opacity-50"
               data-testid="wizard-submit"
             >

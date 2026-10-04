@@ -184,7 +184,7 @@ describe("§18 — the admin surface exposes the choice", () => {
 
     const action = readFileSync("src/app/actions/config.ts", "utf8");
     expect(action).toContain('"NOT_APPLICABLE", "OPTIONAL", "APPLICABLE"');
-    // The stamp is audited with the change.
-    expect(action).toContain("embassyApplicability: data.embassyApplicability");
+    // The real action's persisted before/after embassy values are verified by
+    // configuration-audit-values.test.ts; audit object punctuation may change.
   });
 });

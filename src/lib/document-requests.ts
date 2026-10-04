@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { applications, statuses, checklistItems, documentRequests, documentTypes } from "@/db/schema";
 import { AppError, type AuthUser, isStaffRole } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
+import { currentOperationActor } from "@/lib/operation-identity";
 import { agencyUserIds, notifyUsers } from "@/lib/notifications";
 import { assertApplicationAccess } from "@/lib/documents";
 
@@ -66,6 +67,7 @@ export async function requestDocumentReplacement(input: RequestReplacementInput)
   }
 
   const created = await db.transaction(async (tx) => {
+    input = { ...input, actor: await currentOperationActor(tx,input.actor) };
     const [app] = await tx.select().from(applications).where(eq(applications.id, input.applicationId)).for("update");
     if (!app) throw new AppError("NOT_FOUND", "Application not found.");
     const [status] = await tx.select().from(statuses).where(eq(statuses.id, app.statusId));
@@ -117,10 +119,7 @@ export async function requestDocumentReplacement(input: RequestReplacementInput)
       requestedBy: input.actor.id,
     })
     .returning();
-  return { request: inserted[0]!, item };
-  });
-  const { request, item } = created;
-
+  const request = inserted[0]!;
   await recordAudit({
     actor: input.actor,
     action: "DOCUMENT_REPLACEMENT_REQUESTED",
@@ -129,7 +128,10 @@ export async function requestDocumentReplacement(input: RequestReplacementInput)
     agencyId: access.agencyId,
     metadata: { checklistItemId: item.id, documentTypeCode: item.documentTypeCode, reason: request.reason },
     ipAddress: input.ipAddress ?? null,
+  }, tx);
+  return { request, item };
   });
+  const { request, item } = created;
 
   const aIds = await agencyUserIds(access.agencyId);
   await notifyUsers(aIds, {
@@ -163,6 +165,7 @@ export async function requestAdditionalDocument(input: RequestAdditionalInput) {
   }
 
   const created = await db.transaction(async (tx) => {
+    input = { ...input, actor: await currentOperationActor(tx,input.actor) };
     const [app] = await tx.select().from(applications).where(eq(applications.id, input.applicationId)).for("update");
     if (!app) throw new AppError("NOT_FOUND", "Application not found.");
     const [status] = await tx.select().from(statuses).where(eq(statuses.id, app.statusId));
@@ -234,10 +237,7 @@ export async function requestAdditionalDocument(input: RequestAdditionalInput) {
       requestedBy: input.actor.id,
     })
     .returning();
-    return { request: inserted[0]!, dt };
-  });
-  const { request, dt } = created;
-
+  const request = inserted[0]!;
   await recordAudit({
     actor: input.actor,
     action: "DOCUMENT_ADDITIONAL_REQUESTED",
@@ -246,7 +246,10 @@ export async function requestAdditionalDocument(input: RequestAdditionalInput) {
     agencyId: access.agencyId,
     metadata: { documentTypeCode: dt.code, reason: request.reason },
     ipAddress: input.ipAddress ?? null,
+  }, tx);
+  return { request, dt };
   });
+  const { request, dt } = created;
 
   const aIds = await agencyUserIds(access.agencyId);
   await notifyUsers(aIds, {

@@ -1,4 +1,5 @@
 import { configName } from "@/lib/config-localization";
+import { ReconciliationWarning } from "@/components/reconciliation-warning";
 import { businessLabel } from "@/lib/business-labels";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -141,6 +142,7 @@ export default async function AdminApplicationDetailPage({
         }
       />
       <Flash {...flash} />
+      <ReconciliationWarning applicationId={id} user={user} locale={uiLocale}/>
       <Tabs tabs={TABS.map((t) => ({ ...t, label: ct(t.label), href: `${back}?tab=${t.id}` }))} current={tab} />
 
       {tab === "overview" ? (
@@ -172,7 +174,7 @@ export default async function AdminApplicationDetailPage({
               </div>
             </Card>
 
-            {canStatusChange ? (
+            {canStatusChange && !isClosed ? (
               <Card>
                 <CardHeader
                   title={ct("Workflow")}
@@ -198,7 +200,7 @@ export default async function AdminApplicationDetailPage({
                     <label className="label">{ct("Reason (recommended)")}</label>
                     <input aria-label={ct("Reason (recommended)")} name="reason" className="input" placeholder={ct("Why is the status changing?")} />
                   </div>
-                  <SubmitButton className="btn-primary" pendingLabel={ct("Updating…")}>{ct("Update status")}</SubmitButton>
+                  <SubmitButton disabled={selectableStatuses.length===0} className="btn-primary" pendingLabel={ct("Updating…")}>{ct("Update status")}</SubmitButton>
                 </form>
               </Card>
             ) : null}
@@ -322,7 +324,7 @@ export default async function AdminApplicationDetailPage({
                     <input name="confirm" type="checkbox" required className="h-4 w-4 rounded border-slate-300" />
                     <label className="text-xs text-slate-700">{ct("I confirm this commercial adjustment")}</label>
                   </div>
-                  <SubmitButton className="btn-primary btn-sm" pendingLabel="Applying…">{ct("Apply adjustment")}</SubmitButton>
+                  <SubmitButton className="btn-primary btn-sm" pendingLabel={ct("Applying…")}>{ct("Apply adjustment")}</SubmitButton>
                 </form>
               </Card>
             ) : null}

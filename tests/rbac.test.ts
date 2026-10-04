@@ -115,7 +115,7 @@ describe("Phase 2.2 §9 — agency admins create ONLY AGENCY_USER", () => {
     try {
       await createUserAction(fd);
     } catch (err) {
-      return String((err as Error).message ?? err);
+      return String((err as {digest?:string}).digest ?? (err as Error).message ?? err);
     }
     return "RESOLVED";
   }
@@ -126,10 +126,12 @@ describe("Phase 2.2 §9 — agency admins create ONLY AGENCY_USER", () => {
     const email = `evil-${Date.now()}@test.example`;
     const fd = new FormData();
     fd.set("name", "Evil Pear"); fd.set("email", email);
+    fd.set("username", email.split("@")[0]!); fd.set("agencyId", admin.agencyId!);
     fd.set("role", "AGENCY_ADMIN"); fd.set("password", "TempPass1234!"); fd.set("back", "/portal/profile");
     const res = await attemptCreate(fd);
     expect(res).toContain("NEXT_REDIRECT");
-    const created = await db.select().from(users).where(eq(users.email, email));
+    expect(res).toContain("error=");
+    const created = await db.select().from(users).where(eq(users.username, email.split("@")[0]!));
     expect(created.length).toBe(0);
   });
 
@@ -139,9 +141,11 @@ describe("Phase 2.2 §9 — agency admins create ONLY AGENCY_USER", () => {
     const email = `root-${Date.now()}@test.example`;
     const fd = new FormData();
     fd.set("name", "Evil Root"); fd.set("email", email);
+    fd.set("username", email.split("@")[0]!); fd.set("agencyId", admin.agencyId!);
     fd.set("role", "SUPER_ADMIN"); fd.set("password", "TempPass1234!"); fd.set("back", "/portal/profile");
     const res = await attemptCreate(fd);
     expect(res).toContain("NEXT_REDIRECT");
+    expect(res).toContain("error=");
     expect((await db.select().from(users).where(eq(users.email, email))).length).toBe(0);
   });
 
@@ -151,6 +155,7 @@ describe("Phase 2.2 §9 — agency admins create ONLY AGENCY_USER", () => {
     const member = (await db.select().from(users).where(and(eq(users.agencyId, admin.agencyId!), eq(users.role, "AGENCY_USER"))))[0]!;
     const fd = new FormData();
     fd.set("id", member.id); fd.set("name", member.name); fd.set("role", "AGENCY_ADMIN"); fd.set("back", "/portal/profile");
+    fd.set("username", member.username!); fd.set("email", member.email); fd.set("agencyId", member.agencyId!); fd.set("confirmRoleChange", "true");
     let res = "RESOLVED";
     try {
       await updateUserAction(fd);

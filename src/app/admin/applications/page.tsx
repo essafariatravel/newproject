@@ -193,10 +193,15 @@ export default async function AdminApplicationsPage({
                 <label className="label" htmlFor="bulk-priority">{ct("Set priority to")}</label>
                 <select id="bulk-priority" name="priorityId" className="input">
                   <option value="">{ct("Leave unchanged")}</option>
-                  {priorities.map((p) => (
+                  {priorities.filter((p) => p.active && p.code !== "EXPRESS").map((p) => (
                     <option key={p.id} value={p.id}>{localizedPriority(p.code, p.name, uiLocale)}</option>
                   ))}
                 </select>
+              </div>
+              <div className="min-w-[240px] flex-1">
+                <label className="label" htmlFor="bulk-priority-reason">{ct("Priority change reason")}</label>
+                <input id="bulk-priority-reason" name="reason" className="input" minLength={10} maxLength={1000} aria-describedby="bulk-priority-reason-help" />
+                <p id="bulk-priority-reason-help" className="mt-1 text-xs text-slate-500">{ct("Required for priority changes (at least 10 characters).")}</p>
               </div>
               {canAssign ? (
                 <button type="submit" className="btn-primary btn-sm" formAction={bulkAssignAction}>{ct("Apply to selected")}</button>

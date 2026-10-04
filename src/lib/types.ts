@@ -82,6 +82,8 @@ export interface AuthUser {
   agencyName: string | null;
   /** Phase 2.2 §11 — when true, only the password-change screen is reachable. */
   mustChangePassword?: boolean;
+  /** Credential generation resolved from the current session, checked at commit. */
+  credentialVersion?: number;
 }
 
 /** Error carrying a user-safe message; never leaks internals. */

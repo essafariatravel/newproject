@@ -8,7 +8,7 @@ import { applications } from "@/db/schema";
 import { AppError } from "@/lib/types";
 import { submitVisaRequest } from "@/lib/requests";
 import { stageRequestUpload, resolveRequestUploads, clearRequestUploads } from "@/lib/request-uploads";
-import { contentT } from "@/lib/i18n-content";
+import { requestErrorMessage } from "@/lib/request-feedback";
 import { getUiLocale } from "@/lib/ui-i18n";
 
 export const runtime = "nodejs";
@@ -40,9 +40,8 @@ export async function POST(request: Request) {
     revalidatePath("/portal", "layout"); revalidatePath("/admin", "layout");
     return NextResponse.json({ applicationId: id }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    const ct = contentT(await getUiLocale());
+    const locale = await getUiLocale();
     const code = error instanceof AppError ? error.code : error instanceof z.ZodError ? "VALIDATION" : "INTERNAL";
-    const key = `request.error.${code}`;
-    return NextResponse.json({ code, error: ct(key) === key ? ct("request.error.INTERNAL") : ct(key) }, { status: code === "UNAUTHENTICATED" ? 401 : code === "FORBIDDEN" ? 403 : code === "INTERNAL" ? 500 : 400 });
+    return NextResponse.json({ code, error: requestErrorMessage(code,locale) }, { status: code === "UNAUTHENTICATED" ? 401 : code === "FORBIDDEN" ? 403 : code === "INTERNAL" ? 500 : 400 });
   }
 }

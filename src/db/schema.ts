@@ -620,7 +620,7 @@ export const auditLogs = pgTable(
     action: text("action").notNull(),
     entity: text("entity").notNull(),
     entityId: text("entity_id"),
-    metadata: jsonb("metadata"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
     ipAddress: text("ip_address"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

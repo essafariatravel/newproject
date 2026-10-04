@@ -9,8 +9,9 @@ import { identityT } from "@/lib/identity-copy";
 
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage() {
-  const locale = await getUiLocale(), ct = contentT(locale), it = identityT(locale);
+export default async function LoginPage({searchParams}: {searchParams: Promise<Record<string, string | string[] | undefined>>}) {
+  const sp = await searchParams;
+  const locale = await getUiLocale(sp), ct = contentT(locale), it = identityT(locale);
   // Already signed in → straight to the right workspace. Never 500 if DB is temporarily unavailable.
   let user: Awaited<ReturnType<typeof getSessionUser>> = null;
   try {
@@ -40,15 +41,14 @@ export default async function LoginPage() {
         <img className="relative h-20 w-28 rounded bg-white p-2 object-contain" src={logoUrl ?? "/images/essafaria-logo.png"} alt={branding.name} width="112" height="80" />
         <div className="relative">
           <h2 className="font-serif text-4xl leading-snug text-white">
-            {ct("One platform for your entire")}
-            <span className="italic text-gold-600"> {ct("visa operation")}</span>
+            {ct("Your travellers. Our shared ambition.")}
           </h2>
           <p className="mt-4 max-w-md text-sm leading-relaxed text-white/80">
-            {ct("Agency partners manage applications, documents and wallets. Staff process files from the central Back Office.")}
+            {ct("A dedicated space for ESSAFARIA agency partners.")}
           </p>
         </div>
         <p className="relative text-xs text-white/65">
-          {ct("Access is restricted to authorized users. All activity is logged and audited.")}
+          {ct("Partner access")}
         </p>
       </div>
       <div className="flex items-center justify-center p-6">
@@ -57,7 +57,9 @@ export default async function LoginPage() {
             <img className="h-20 w-28 object-contain" src={logoUrl ?? "/images/essafaria-logo.png"} alt={branding.name} width="112" height="80" />
           </div>
           <h1 className="font-serif text-2xl text-navy-900">{ct("Sign in")}</h1>
-          <p className="mt-1 text-sm text-slate-500">{ct("Agency portal and Back Office access.")}</p>
+          <p className="mt-1 text-sm text-slate-500">{ct("Partner access")}</p>
+          {sp.reason === "session-expired" ? <p role="status" className="mt-4 border-s-2 border-gold-500 ps-3 text-sm text-slate-600">{ct("Your session has expired. Sign in again to continue.")}</p> : null}
+          {sp.reset === "complete" ? <p role="status" className="mt-4 border-s-2 border-emerald-600 ps-3 text-sm text-slate-600">{ct("Your password has been updated. Sign in with your new password.")}</p> : null}
           <LoginForm
         copy={{
           email: it("Username or staff email"),

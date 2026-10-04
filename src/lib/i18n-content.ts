@@ -7,6 +7,8 @@
  * names, references, applicant names, free-text notes) are NEVER translated.
  */
 import type { UiLocale } from "@/lib/ui-i18n";
+import { PRODUCT_COPY } from "@/lib/product-copy";
+import { identityT } from "@/lib/identity-copy";
 
 type Entry = { fr: string; ar: string };
 
@@ -716,7 +718,7 @@ const CONTENT: Record<string, Entry> = {
   /* enumerated submit-gate error strap (stable codes → localized copy) */
   "request.error.IDEMPOTENCY_KEY_REQUIRED": { fr: "Clé de soumission manquante. Rechargez la page et réessayez.", ar: "مفتاح الإرسال مفقود. أعد تحميل الصفحة وحاول مجددًا." },
   "request.error.VISA_TYPE_REQUIRED": { fr: "Choisissez un type de visa.", ar: "اختر نوع التأشيرة." },
-  "request.error.VISA_TYPE_INVALID": { fr: "Type de visa introuvable ou inactif.", ar: "نوع التأشيرة غير موجود أو غير نشط." },
+  "request.error.VISA_TYPE_INVALID": { fr: "Ce programme est indisponible. Actualisez le catalogue, choisissez un programme disponible et vérifiez à nouveau le prix et les documents.", ar: "هذا البرنامج غير متاح. حدّث الكتالوج واختر برنامجًا متاحًا وراجع السعر والوثائق مجددًا." },
   "request.error.PRIORITY_INVALID": { fr: "La priorité choisie n'est pas disponible.", ar: "الأولوية المختارة غير متاحة." },
   "request.error.TRAVELLER_REQUIRED": { fr: "Ajoutez au moins un voyageur.", ar: "أضف مسافرًا واحدًا على الأقل." },
   "request.error.TRAVELLER_LIMIT": { fr: "Une demande est limitée à 25 voyageurs.", ar: "الطلب الواحد محدود بـ 25 مسافرًا." },
@@ -1267,14 +1269,14 @@ const CONTENT: Record<string, Entry> = {
 };
 
 /** All registered content keys (guard-test target). */
-export const REGISTERED_CONTENT_KEYS: string[] = Object.keys(CONTENT);
+export const REGISTERED_CONTENT_KEYS: string[] = [...new Set([...Object.keys(CONTENT), ...Object.keys(PRODUCT_COPY)])];
 
 /** Translate registered page content; unknown strings pass through (EN). */
 export function contentT(locale: UiLocale): (s: string) => string {
   return (s: string) => {
     if (locale === "en") return s;
-    const entry = CONTENT[s];
-    if (!entry) return s;
+    const entry = PRODUCT_COPY[s] ?? CONTENT[s];
+    if (!entry) return identityT(locale)(s);
     return locale === "fr" ? entry.fr : entry.ar;
 };
 }
@@ -1288,5 +1290,12 @@ export function localizedGreeting(kind: "morning" | "afternoon" | "evening", loc
 
 /** True when a content key carries an explicit translation in both locales. */
 export function contentHas(key: string): boolean {
-  return key in CONTENT;
+  return key in CONTENT || key in PRODUCT_COPY;
+}
+
+/** Expected errors never leak untranslated schema or browser messages. */
+export function localizeError(locale: UiLocale, message: string): string {
+  const translated = contentT(locale)(message);
+  if (locale === "en" || translated !== message || contentHas(message)) return translated;
+  return contentT(locale)("Please check the form values and try again.");
 }

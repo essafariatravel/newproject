@@ -31,6 +31,7 @@ import {
 } from "@/lib/types";
 import { buildStorageKey, storageProvider } from "@/lib/storage";
 import { recordAudit } from "@/lib/audit";
+import { currentOperationActor } from "@/lib/operation-identity";
 import { agencyUserIds, staffUserIds, notifyUsers } from "@/lib/notifications";
 import { getStatusByCode } from "@/lib/applications";
 
@@ -125,7 +126,7 @@ export interface UploadDocumentInput {
   ipAddress?: string | null;
 }
 
-export async function uploadDocument(input: UploadDocumentInput) {
+export async function uploadDocument(input: UploadDocumentInput, resubmittedDocumentId?: string) {
   const access = await assertApplicationAccess(input.applicationId, input.actor);
 
   // Resolve checklist item first to know document type
@@ -199,7 +200,7 @@ export async function uploadDocument(input: UploadDocumentInput) {
 
   validateDocumentFormat(input.file);
   const dtRows = await db
-    .select({ id: documentTypes.id, name: documentTypes.name, active: documentTypes.active, agencyUploadable: documentTypes.agencyUploadable })
+    .select({ id: documentTypes.id, code: documentTypes.code, name: documentTypes.name, active: documentTypes.active, agencyUploadable: documentTypes.agencyUploadable })
     .from(documentTypes)
     .where(eq(documentTypes.id, documentTypeId))
     .limit(1);
@@ -213,6 +214,7 @@ export async function uploadDocument(input: UploadDocumentInput) {
       `"${dtRows[0].name}" is issued by ESSAFARIA and is not uploaded by agencies.`,
     );
   }
+  if (dtRows[0].code.startsWith("DECISION_")) throw new AppError("DECISION_REQUIRED", "Official decision documents must be recorded through the final-decision panel.");
 
   if (input.applicantId) {
     const rows = await db
@@ -232,6 +234,7 @@ export async function uploadDocument(input: UploadDocumentInput) {
   let fulfilledRequest = false;
   try {
     doc = await db.transaction(async (tx) => {
+      input = { ...input, actor: await currentOperationActor(tx,input.actor) };
       // Lock the dossier across request validation, version allocation and insert.
       // A concurrent replacement waits, then sees the request already fulfilled.
       await tx.select({ id: applications.id }).from(applications)
@@ -276,9 +279,12 @@ export async function uploadDocument(input: UploadDocumentInput) {
       }
       await tx.insert(auditLogs).values({ actorId: input.actor.id, actorEmail: input.actor.email,
         actorRole: input.actor.role, agencyId: access.agencyId, action: "DOCUMENT_UPLOADED", entity: "document",
-        entityId: created!.id, metadata: { filename: name, sizeBytes: input.file.data.length, version, checklistItemId: checklistItem?.id ?? null },
+        entityId: created!.id, metadata: { actorName: input.actor.name, actorUsername: input.actor.username, filename: name, sizeBytes: input.file.data.length, version, checklistItemId: checklistItem?.id ?? null },
         ipAddress: input.ipAddress ?? null,
       });
+      if (resubmittedDocumentId) await recordAudit({ actor: input.actor, action: "DOCUMENT_RESUBMITTED", entity: "document",
+        entityId: created!.id, agencyId: access.agencyId, metadata: { replaces: resubmittedDocumentId, filename: name, applicationId: input.applicationId },
+        ipAddress: input.ipAddress ?? null }, tx);
       return created!;
     });
   } catch (error) {
@@ -302,23 +308,15 @@ export async function uploadDocument(input: UploadDocumentInput) {
 
 export async function uploadResubmission(input: UploadDocumentInput & { originalDocumentId: string }) {
   const original = await getDocumentForUser(input.originalDocumentId, input.actor);
+  if (original.doc.applicationId !== input.applicationId) throw new AppError("NOT_FOUND", "Document not found for this application.");
   if (!["REJECTED", "RESUBMISSION_REQUIRED"].includes(original.doc.status)) {
     throw new AppError("INVALID_STATE", "This document was not rejected; upload to the checklist instead.");
   }
   const doc = await uploadDocument({
     ...input,
     checklistItemId: original.doc.checklistItemId,
-    documentTypeId: null,
-  });
-  await recordAudit({
-    actor: input.actor,
-    action: "DOCUMENT_RESUBMITTED",
-    entity: "document",
-    entityId: doc.id,
-    agencyId: original.appAgencyId,
-    metadata: { replaces: original.doc.id, filename: doc.originalFilename },
-    ipAddress: input.ipAddress ?? null,
-  });
+    documentTypeId: original.doc.documentTypeId,
+  }, original.doc.id);
   return doc;
 }
 
@@ -362,7 +360,9 @@ export async function reviewDocument(input: ReviewInput) {
     );
   }
 
-  await db
+  await db.transaction(async (tx) => {
+  input = { ...input, actor: await currentOperationActor(tx,input.actor) };
+  await tx
     .update(documents)
     .set({
       status: input.status,
@@ -386,6 +386,7 @@ export async function reviewDocument(input: ReviewInput) {
       notes: input.reviewNotes ?? null,
     },
     ipAddress: input.ipAddress ?? null,
+  }, tx);
   });
 
   const aIds = await agencyUserIds(row.appAgencyId);
@@ -426,8 +427,11 @@ export async function deleteDocument(documentId: string, actor: AuthUser, ipAddr
   if (appRows[0]?.statusId !== draft.id) {
     throw new AppError("DELETE_NOT_ALLOWED", "Documents can only be removed while the application is a draft.");
   }
-  await db.delete(documents).where(eq(documents.id, documentId));
-  await storageProvider().delete(row.doc.storageKey).catch(() => {});
+  await db.transaction(async (tx) => {
+  actor = await currentOperationActor(tx,actor);
+  const [current] = await tx.select({ statusId: applications.statusId }).from(applications).where(eq(applications.id,row.doc.applicationId)).for("update");
+  if (current?.statusId !== draft.id) throw new AppError("DELETE_NOT_ALLOWED", "Documents can only be removed while the application is a draft.");
+  await tx.delete(documents).where(eq(documents.id, documentId));
   await recordAudit({
     actor,
     action: "DOCUMENT_DELETED",
@@ -436,7 +440,9 @@ export async function deleteDocument(documentId: string, actor: AuthUser, ipAddr
     agencyId: row.appAgencyId,
     metadata: { filename: row.doc.originalFilename },
     ipAddress: ipAddress ?? null,
+  }, tx);
   });
+  await storageProvider().delete(row.doc.storageKey).catch(() => {});
 }
 
 export async function listApplicantsForApplication(applicationId: string) {

@@ -22,7 +22,6 @@ export default async function AdminDashboardPage() {
   const data = await adminDashboard();
   const { totals } = data;
 
-  const recent = data.recentApplications;
   const canSeeBilling = hasPermission(user, "wallet.view.all");
 
   return (
@@ -54,6 +53,7 @@ export default async function AdminDashboardPage() {
                 <th className="th">{ct("Visa")}</th>
                 <th className="th">{ct("Status")}</th>
                 <th className="th">{ct("Priority")}</th>
+                <th className="th">{ct("Next action")}</th>
                 <th className="th">{ct("Time in status")}</th>
               </tr>
             </thead>
@@ -65,6 +65,7 @@ export default async function AdminDashboardPage() {
                   <td className="td">{countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}<span className="block text-xs text-slate-500">{configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}</span></td>
                   <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
                   <td className="td">{r.priorityName}</td>
+                  <td className="td text-xs">{ct(r.staffNextAction)}</td>
                   <td className="td whitespace-nowrap">{elapsedLabel(new Date(r.statusSince), uiLocale)}</td>
                 </NavigableTableRow>
               ))}
@@ -74,55 +75,7 @@ export default async function AdminDashboardPage() {
       </Card>
 
       <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2">
-          <Card>
-            <CardHeader
-              title={ct("Recent applications")}
-              actions={
-                <Link href="/admin/applications" className="btn-secondary btn-sm">
-                  {ct("View all")} →
-                </Link>
-              }
-            />
-            {recent.length === 0 ? (
-              <EmptyState title={ct("No applications yet")} body={ct("Applications submitted by partner agencies will appear here.")} />
-            ) : (
-              <TableWrap>
-                <thead className="border-b border-slate-100 bg-ivory-50/60">
-                  <tr>
-                    <th className="th">{ct("Reference")}</th>
-                    <th className="th">{ct("Agency")}</th>
-                    <th className="th">{ct("Applicant")}</th>
-                    <th className="th">{ct("Visa")}</th>
-                    <th className="th">{ct("Status")}</th>
-                    <th className="th">{ct("Created")}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {recent.map((r) => (
-                    <NavigableTableRow key={r.app.id} href={`/admin/applications/${r.app.id}`} className="tr-hover">
-                      <td className="td">
-                        <Link href={`/admin/applications/${r.app.id}`} className="font-medium text-navy-900 hover:underline">
-                          {r.app.reference}
-                        </Link>
-                      </td>
-                      <td className="td max-w-[140px] truncate">{r.agencyName}</td>
-                      <td className="td max-w-[140px] truncate font-medium text-navy-900">{(r as { applicantSummary?: string }).applicantSummary ?? "—"}</td>
-                      <td className="td">
-                        <span className="block">{countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}</span>
-                        <span className="block text-xs text-slate-400">{configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}</span>
-                      </td>
-                      <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
-                      <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(r.app.createdAt, uiLocale)}</td>
-                    </NavigableTableRow>
-                  ))}
-                </tbody>
-              </TableWrap>
-            )}
-          </Card>
-        </div>
-
-        <div className="space-y-4">
+        <div className="grid gap-4 xl:col-span-3 xl:grid-cols-3">
           {canSeeBilling ? (
             <Card>
               <CardHeader title={ct("Wallet activity")} actions={<Link href="/admin/billing" className="btn-secondary btn-sm">{ct("Ledger")} →</Link>} />

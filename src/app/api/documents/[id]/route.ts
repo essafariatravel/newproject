@@ -4,6 +4,8 @@ import { getDocumentForUser } from "@/lib/documents";
 import { storageProvider } from "@/lib/storage";
 import { AppError } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
+import { db } from "@/lib/db";
+import { currentOperationActor } from "@/lib/operation-identity";
 
 export const dynamic = "force-dynamic";
 
@@ -29,12 +31,15 @@ export async function GET(
   try {
     const row = await getDocumentForUser(id, user);
     const { data, mimeType } = await storageProvider().get(row.doc.storageKey);
-    await recordAudit({
-      actor: user,
+    await db.transaction(async tx => {
+      const actor = await currentOperationActor(tx, user);
+      await recordAudit({
+      actor,
       action: "DOCUMENT_DOWNLOADED",
       entity: "document",
       entityId: id,
       agencyId: row.appAgencyId,
+      }, tx);
     });
     // Content-Disposition attachment prevents inline script execution for HTML-like uploads
     const safeName = row.doc.originalFilename.replace(/["\\\r\n]/g, "_");
@@ -50,9 +55,10 @@ export async function GET(
     });
   } catch (err) {
     if (err instanceof AppError) {
+      if (err.code === "UNAUTHENTICATED") return NextResponse.json({error:"UNAUTHENTICATED"},{status:401});
       return NextResponse.json({ error: "Not found." }, { status: err.code === "NOT_FOUND" ? 404 : 400 });
     }
-    console.error("document-download-failed", err);
+    console.error("document-download-failed");
     return NextResponse.json({ error: "Download failed." }, { status: 500 });
   }
 }

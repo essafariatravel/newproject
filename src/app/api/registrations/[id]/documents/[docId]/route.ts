@@ -5,6 +5,8 @@ import { getRegistrationDocument } from "@/lib/registrations";
 import { storageProvider } from "@/lib/storage";
 import { AppError } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
+import { db } from "@/lib/db";
+import { currentOperationActor } from "@/lib/operation-identity";
 
 export const dynamic = "force-dynamic";
 
@@ -34,12 +36,15 @@ export async function GET(
       return NextResponse.json({ error: "Not found." }, { status: 404 });
     }
     const { data, mimeType } = await storageProvider().get(doc.storageKey);
-    await recordAudit({
-      actor: user,
-      action: "REGISTRATION_DOCUMENT_DOWNLOADED",
-      entity: "agency_registration_document",
-      entityId: doc.id,
-      metadata: { registrationId: id, filename: doc.originalFilename },
+    await db.transaction(async tx => {
+      const actor = await currentOperationActor(tx, user);
+      await recordAudit({
+        actor,
+        action: "REGISTRATION_DOCUMENT_DOWNLOADED",
+        entity: "agency_registration_document",
+        entityId: doc.id,
+        metadata: { registrationId: id, filename: doc.originalFilename },
+      }, tx);
     });
     const safeName = doc.originalFilename.replace(/["\\\r\n]/g, "_");
     return new NextResponse(new Uint8Array(data), {
@@ -54,9 +59,10 @@ export async function GET(
     });
   } catch (err) {
     if (err instanceof AppError) {
+      if (err.code === "UNAUTHENTICATED") return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
       return NextResponse.json({ error: "Not found." }, { status: err.code === "NOT_FOUND" ? 404 : 400 });
     }
-    console.error("registration-document-download-failed", err);
+    console.error("registration-document-download-failed");
     return NextResponse.json({ error: "Download failed." }, { status: 500 });
   }
 }

@@ -4,7 +4,7 @@ import { portalPageUser } from "@/lib/page-auth";
 import { searchApplications, resolvePageSize } from "@/lib/queries";
 import { listStatuses } from "@/lib/applications";
 import { flashFrom } from "@/lib/action-helpers";
-import { formatAmount, formatDate } from "@/lib/format";
+import { formatAmount, formatDateTime } from "@/lib/format";
 import { FilterBar, Pagination, PageSizeSelector } from "@/components/app-widgets";
 import { localizedStatusName } from "@/lib/ui-i18n";
 import { EmptyState, Flash, PageHeader, Progress, TableWrap } from "@/components/ui";
@@ -103,9 +103,10 @@ export default async function PortalApplicationsPage({
                     <span className="tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</span>
                     <span className="flex items-center gap-2">
                       {p ? <Progress done={p.done} total={p.total} /> : null}
-                      <span>{formatDate(r.app.createdAt, uiLocale)}</span>
+                      <span>{formatDateTime(r.app.updatedAt, uiLocale)}</span>
                     </span>
                   </div>
+                  <p className="mt-3 text-xs font-medium text-navy-800">{ct("Next action")}: {ct(r.agencyNextAction)}</p>
                 </Link>
               );
             })}
@@ -120,7 +121,8 @@ export default async function PortalApplicationsPage({
                 <th className="th">{ct("Documents")}</th>
                 <th className="th">{ct("Fee")}</th>
                 <th className="th">{ct("Status")}</th>
-                <th className="th">{ct("Created")}</th>
+                <th className="th">{ct("Next action")}</th>
+                <th className="th">{ct("Last updated")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -139,7 +141,8 @@ export default async function PortalApplicationsPage({
                     <td className="td">{p ? <Progress done={p.done} total={p.total} /> : "—"}</td>
                     <td className="td whitespace-nowrap tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</td>
                     <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
-                    <td className="td whitespace-nowrap text-xs text-slate-500">{formatDate(r.app.createdAt, uiLocale)}</td>
+                    <td className="td text-xs">{ct(r.agencyNextAction)}</td>
+                    <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(r.app.updatedAt, uiLocale)}</td>
                   </NavigableTableRow>
                 );
               })}

@@ -1,4 +1,5 @@
 "use server";
+import { currentOperationActor } from "@/lib/operation-identity";
 
 /**
  * Communication + notification actions.
@@ -57,19 +58,22 @@ export async function postMessageAction(formData: FormData): Promise<void> {
       visibility = data.visibility === "INTERNAL" ? "INTERNAL" : "AGENCY";
     }
 
-    await db.insert(communications).values({
+    await db.transaction(async (tx) => {
+    await currentOperationActor(tx,user);
+    const [message] = await tx.insert(communications).values({
       applicationId: app.id,
       authorId: user.id,
       visibility,
       body: data.body,
-    });
+    }).returning({ id: communications.id });
     await recordAudit({
       actor: user,
       action: "MESSAGE_POSTED",
       entity: "communication",
-      entityId: app.id,
+      entityId: message!.id,
       agencyId: app.agencyId,
-      metadata: { visibility },
+      metadata: { visibility, applicationId: app.id, reference: app.reference },
+    }, tx);
     });
     if (visibility === "AGENCY") {
       const recipients = user.agencyId

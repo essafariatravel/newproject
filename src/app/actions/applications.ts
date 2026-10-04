@@ -1,4 +1,5 @@
 "use server";
+import { currentOperationActor } from "@/lib/operation-identity";
 
 /**
  * Application lifecycle actions — used by both the agency portal and the
@@ -8,13 +9,13 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { applicants, applications, priorities, statuses, users } from "@/db/schema";
-import { requireUser } from "@/lib/auth";
+import { applications, notifications, priorities, statuses, users } from "@/db/schema";
+import { requireStaff, requireUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/rbac";
-import { AppError, type AuthUser } from "@/lib/types";
+import { assertApplicationAccess } from "@/lib/documents";
+import { AppError, isStaffRole, type AuthUser } from "@/lib/types";
 import {
   changeApplicationStatus,
-  createDraftApplication,
   getStatusHistory,
   getSubmissionGate,
   recordApplicationDecision,
@@ -22,8 +23,7 @@ import {
   type DecisionOutcome,
 } from "@/lib/applications";
 import { runAction } from "@/lib/action-helpers";
-import { recordAudit } from "@/lib/audit";
-import { notifyUsers } from "@/lib/notifications";
+import { recordAudit, type AuditTransaction } from "@/lib/audit";
 
 const idSchema = z.string().uuid("Invalid identifier.");
 
@@ -31,7 +31,7 @@ const idSchema = z.string().uuid("Invalid identifier.");
  * Dossiers in a terminal state never participate in bulk changes: an outcome
  * (approved / rejected) and a cancellation are business events, not batch edits.
  */
-const FINAL_STATUS_CODES = new Set(["APPROVED", "REJECTED", "CANCELLED"]);
+const FINAL_STATUS_CODES = new Set(["APPROVED", "REJECTED", "CANCELLED", "COMPLETED", "REFUSED"]);
 
 function clientIp(headers: Headers): string | null {
   return headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
@@ -42,162 +42,29 @@ async function headersOf(): Promise<Headers> {
   return headers();
 }
 
-/* ------------------------------ create draft ---------------------------- */
-
-export async function createApplicationAction(formData: FormData): Promise<void> {
-  await runAction("/portal/applications", async () => {
-    const user = await requireUser();
-    requirePermission(user, "applications.create");
-    if (!user.agencyId) throw new AppError("FORBIDDEN", "Only agency users can create applications.");
-    const data = z
-      .object({
-        visaTypeId: idSchema,
-        priorityCode: z.string().trim().max(40).optional(),
-        agencyNotes: z.string().trim().max(2000).optional().nullable(),
-      })
-      .parse({
-        visaTypeId: formData.get("visaTypeId"),
-        priorityCode: formData.get("priorityCode") || undefined,
-        agencyNotes: formData.get("agencyNotes") || null,
-      });
-    const app = await createDraftApplication({
-      agencyId: user.agencyId,
-      visaTypeId: data.visaTypeId,
-      priorityCode: data.priorityCode ?? null,
-      agencyNotes: data.agencyNotes ?? null,
-      createdBy: user,
-      ipAddress: clientIp(await headersOf()),
-    });
-    await recordAudit({ actor: user, action: "APPLICATION_CREATED", entity: "application", entityId: app.id, agencyId: user.agencyId, metadata: { reference: app.reference } });
-    revalidatePath("/portal/applications");
-    return `Draft ${app.reference} created. Continue on the application page.`;
+/** Retained only to refuse callers from obsolete deployed clients. */
+async function refuseLegacyMutation(path: string): Promise<never> {
+  return runAction(path, async () => {
+    await requireUser();
+    throw new AppError("OBSOLETE_WORKFLOW", "Use the three-step request wizard. Submitted traveller details are locked.");
   });
 }
 
-/* ------------------------------- applicants ----------------------------- */
-
-const applicantSchema = z.object({
-  firstName: z.string().trim().min(1, "First name is required.").max(80),
-  middleName: z.string().trim().max(80).optional().nullable(),
-  lastName: z.string().trim().min(1, "Last name is required.").max(80),
-  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use format YYYY-MM-DD."),
-  gender: z.enum(["MALE", "FEMALE", "OTHER"]).optional().or(z.literal("")).transform((v) => (v === "" ? null : v)),
-  nationality: z.string().trim().min(2, "Nationality is required.").max(80),
-  passportNumber: z
-    .string()
-    .trim()
-    .min(4, "Passport number is required.")
-    .max(40)
-    .regex(/^[A-Za-z0-9]+$/, "Passport number may only contain letters and digits.")
-    .transform((v) => v.toUpperCase()),
-  passportIssueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")).transform((v) => (v === "" ? null : v)),
-  passportExpiryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Passport expiry is required."),
-  email: z.string().trim().email().optional().or(z.literal("")).transform((v) => (v === "" ? null : v)),
-  phone: z.string().trim().max(40).optional().nullable(),
-  addressLine: z.string().trim().max(300).optional().nullable(),
-  city: z.string().trim().max(80).optional().nullable(),
-  country: z.string().trim().max(80).optional().nullable(),
-}).refine((d) => !d.passportIssueDate || d.passportIssueDate < d.passportExpiryDate, {
-  message: "Passport issue date must be before expiry date.",
-  path: ["passportIssueDate"],
-});
-
-/** Assert the agency user owns this application (staff bypass). */
-async function assertOwnApplication(applicationId: string, user: AuthUser) {
-  const rows = await db
-    .select({ id: applications.id, agencyId: applications.agencyId })
-    .from(applications)
-    .where(eq(applications.id, applicationId))
-    .limit(1);
-  const app = rows[0];
-  if (!app) throw new AppError("NOT_FOUND", "Application not found.");
-  if (user.agencyId && app.agencyId !== user.agencyId) {
-    throw new AppError("NOT_FOUND", "Application not found.");
-  }
-  return app;
+export async function createApplicationAction(_formData: FormData): Promise<void> {
+  return refuseLegacyMutation("/portal/applications/new");
 }
 
-export async function addApplicantAction(formData: FormData): Promise<void> {
-  const applicationId = idSchema.parse(formData.get("applicationId"));
-  const back = String(formData.get("back") ?? `/portal/applications/${applicationId}`);
-  await runAction(back, async () => {
-    const user = await requireUser();
-    const app = await assertOwnApplication(applicationId, user);
-    const data = applicantSchema.parse(Object.fromEntries(formData));
-    const dob = new Date(data.dateOfBirth);
-    const expiry = new Date(data.passportExpiryDate);
-    if (Number.isNaN(dob.getTime()) || dob > new Date()) throw new AppError("VALIDATION", "Date of birth must be in the past.");
-    if (expiry < new Date()) throw new AppError("VALIDATION", "Passport is already expired; renew before applying.");
-    const inserted = await db
-      .insert(applicants)
-      .values({ applicationId: app.id, ...data })
-      .returning();
-    await recordAudit({
-      actor: user,
-      action: "APPLICANT_ADDED",
-      entity: "applicant",
-      entityId: inserted[0]!.id,
-      agencyId: app.agencyId,
-      metadata: { applicationId: app.id, passport: data.passportNumber },
-    });
-    revalidatePath(back);
-    return `Applicant ${data.firstName} ${data.lastName} added.`;
-  });
+export async function addApplicantAction(_formData: FormData): Promise<void> {
+  return refuseLegacyMutation("/portal/applications");
 }
 
-export async function updateApplicantAction(formData: FormData): Promise<void> {
-  const applicantId = idSchema.parse(formData.get("applicantId"));
-  const applicationId = idSchema.parse(formData.get("applicationId"));
-  const back = String(formData.get("back") ?? `/portal/applications/${applicationId}`);
-  await runAction(back, async () => {
-    const user = await requireUser();
-    const app = await assertOwnApplication(applicationId, user);
-    const rows = await db
-      .select({ id: applicants.id })
-      .from(applicants)
-      .where(and(eq(applicants.id, applicantId), eq(applicants.applicationId, app.id)))
-      .limit(1);
-    if (!rows[0]) throw new AppError("NOT_FOUND", "Applicant not found.");
-    const data = applicantSchema.parse(Object.fromEntries(formData));
-    await db.update(applicants).set({ ...data, updatedAt: new Date() }).where(eq(applicants.id, applicantId));
-    await recordAudit({
-      actor: user,
-      action: "APPLICANT_UPDATED",
-      entity: "applicant",
-      entityId: applicantId,
-      agencyId: app.agencyId,
-      metadata: { applicationId: app.id },
-    });
-    revalidatePath(back);
-    return "Applicant saved.";
-  });
+export async function updateApplicantAction(_formData: FormData): Promise<void> {
+  return refuseLegacyMutation("/portal/applications");
 }
 
-export async function removeApplicantAction(formData: FormData): Promise<void> {
-  const applicantId = idSchema.parse(formData.get("applicantId"));
-  const applicationId = idSchema.parse(formData.get("applicationId"));
-  const back = String(formData.get("back") ?? `/portal/applications/${applicationId}`);
-  await runAction(back, async () => {
-    const user = await requireUser();
-    const app = await assertOwnApplication(applicationId, user);
-    const removed = await db
-      .delete(applicants)
-      .where(and(eq(applicants.id, applicantId), eq(applicants.applicationId, app.id)))
-      .returning();
-    if (!removed[0]) throw new AppError("NOT_FOUND", "Applicant not found.");
-    await recordAudit({
-      actor: user,
-      action: "APPLICANT_REMOVED",
-      entity: "applicant",
-      entityId: applicantId,
-      agencyId: app.agencyId,
-      metadata: { applicationId: app.id },
-    });
-    revalidatePath(back);
-    return "Applicant removed.";
-  });
+export async function removeApplicantAction(_formData: FormData): Promise<void> {
+  return refuseLegacyMutation("/portal/applications");
 }
-
 /* -------------------------------- submit -------------------------------- */
 
 export async function submitApplicationAction(formData: FormData): Promise<void> {
@@ -299,45 +166,47 @@ export async function recordDecisionAction(formData: FormData): Promise<void> {
   });
 }
 
+async function activeOfficer(tx: AuditTransaction, officerId: string | null) {
+  if (!officerId) return null;
+  const [officer] = await tx.select({ id: users.id, name: users.name, username: users.username,
+    role: users.role, agencyId: users.agencyId, status: users.status, activationPending: users.activationPending })
+    .from(users).where(eq(users.id, officerId)).limit(1).for("share");
+  if (!officer || !isStaffRole(officer.role) || officer.agencyId || officer.status !== "ACTIVE" || officer.activationPending) {
+    throw new AppError("VALIDATION", "Dossiers can only be assigned to active ESSAFARIA staff.");
+  }
+  return officer;
+}
+
+async function writeAssignment(tx: AuditTransaction, app: { id: string; reference: string; agencyId: string; assignedTo: string | null },
+  officer: Awaited<ReturnType<typeof activeOfficer>>, actor: AuthUser, bulk: boolean) {
+  const assignedTo = officer?.id ?? null;
+  if (app.assignedTo === assignedTo) return;
+  const [previous] = app.assignedTo ? await tx.select({ name: users.name }).from(users).where(eq(users.id, app.assignedTo)) : [];
+  await tx.update(applications).set({ assignedTo, updatedAt: new Date() }).where(eq(applications.id, app.id));
+  await recordAudit({ actor, action: "APPLICATION_ASSIGNED", entity: "application", entityId: app.id, agencyId: app.agencyId,
+    metadata: { reference: app.reference, oldAssignedTo: app.assignedTo, oldAssignedToName: previous?.name ?? null,
+      assignedTo, assignedToName: officer?.name ?? null, assignedToUsername: officer?.username ?? null, bulk } }, tx);
+  if (assignedTo && assignedTo !== actor.id) {
+    await tx.insert(notifications).values({ userId: assignedTo, type: "APPLICATION_ASSIGNED", title: `Assigned: ${app.reference}`,
+      body: `${actor.name} assigned this dossier to you.`, link: `/admin/applications/${app.id}`, agencyId: app.agencyId, applicationId: app.id });
+  }
+}
+
 export async function assignOfficerAction(formData: FormData): Promise<void> {
   const applicationId = idSchema.parse(formData.get("applicationId"));
   const back = String(formData.get("back") ?? `/admin/applications/${applicationId}`);
   await runAction(back, async () => {
-    const user = await requireUser();
+    const user = await requireStaff();
     requirePermission(user, "applications.assign");
     const assignedToRaw = formData.get("assignedTo");
     const assignedTo = assignedToRaw && assignedToRaw !== "" ? idSchema.parse(assignedToRaw) : null;
-    await db
-      .update(applications)
-      .set({ assignedTo, updatedAt: new Date() })
-      .where(eq(applications.id, applicationId));
-    await recordAudit({
-      actor: user,
-      action: "APPLICATION_ASSIGNED",
-      entity: "application",
-      entityId: applicationId,
-      metadata: { assignedTo },
+    await db.transaction(async (tx) => {
+      await currentOperationActor(tx,user);
+      const [app] = await tx.select({ id: applications.id, reference: applications.reference, agencyId: applications.agencyId, assignedTo: applications.assignedTo })
+        .from(applications).where(eq(applications.id, applicationId)).limit(1).for("update");
+      if (!app) throw new AppError("NOT_FOUND", "Application not found.");
+      await writeAssignment(tx, app, await activeOfficer(tx, assignedTo), user, false);
     });
-    // §25 — the new case officer is told, with a deep link to the dossier.
-    if (assignedTo && assignedTo !== user.id) {
-      const app = (
-        await db
-          .select({ reference: applications.reference, agencyId: applications.agencyId })
-          .from(applications)
-          .where(eq(applications.id, applicationId))
-          .limit(1)
-      )[0];
-      if (app) {
-        await notifyUsers([assignedTo], {
-          type: "APPLICATION_ASSIGNED",
-          title: `Assigned: ${app.reference}`,
-          body: `${user.name} assigned this dossier to you.`,
-          link: `/admin/applications/${applicationId}`,
-          agencyId: app.agencyId,
-          applicationId,
-        });
-      }
-    }
     revalidatePath(back);
     return assignedTo ? "Case officer assigned." : "Assignment cleared.";
   });
@@ -356,19 +225,19 @@ export async function assignOfficerAction(formData: FormData): Promise<void> {
  */
 const BULK_LIMIT = 200;
 
-async function parseBulkIds(formData: FormData) {
+async function parseBulkIds(formData: FormData, executor: AuditTransaction | typeof db = db) {
   const raw = formData.getAll("ids").map(String).filter((v) => v.trim() !== "");
   if (raw.length === 0) throw new AppError("VALIDATION", "Select at least one dossier first.");
   if (raw.length > BULK_LIMIT) throw new AppError("VALIDATION", `Select at most ${BULK_LIMIT} dossiers at a time.`);
-  const ids = raw.map((v) => idSchema.parse(v));
+  const ids = [...new Set(raw.map((v) => idSchema.parse(v)))];
   // Tenant/RBAC safe by construction: staff-only, and only ids that really exist.
-  const rows = await db
-    .select({ id: applications.id, reference: applications.reference, statusCode: statuses.code, agencyId: applications.agencyId })
+  const rows = await executor
+    .select({ id: applications.id, reference: applications.reference, statusCode: statuses.code, terminal: statuses.isTerminal, agencyId: applications.agencyId, priorityId: applications.priorityId })
     .from(applications)
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
-    .where(inArray(applications.id, ids));
+    .where(inArray(applications.id, ids)).for("update", { of: applications });
   if (rows.length !== ids.length) throw new AppError("NOT_FOUND", "One of the selected dossiers no longer exists.");
-  if (rows.some((r) => FINAL_STATUS_CODES.has(r.statusCode))) {
+  if (rows.some((r) => r.terminal || FINAL_STATUS_CODES.has(r.statusCode))) {
     throw new AppError(
       "VALIDATION",
       "Finished dossiers (approved / rejected / cancelled) are excluded from bulk changes — open them individually if a correction is needed.",
@@ -379,38 +248,20 @@ async function parseBulkIds(formData: FormData) {
 
 export async function bulkAssignAction(formData: FormData): Promise<void> {
   await runAction("/admin/applications", async () => {
-    const user = await requireUser();
+    const user = await requireStaff();
     requirePermission(user, "applications.assign");
-    const rows = await parseBulkIds(formData);
     const assignedToRaw = formData.get("assignedTo");
     const assignedTo = assignedToRaw && String(assignedToRaw) !== "" ? idSchema.parse(assignedToRaw) : null;
-    if (assignedTo) {
-      const officer = await db.select({ id: users.id, role: users.role }).from(users).where(eq(users.id, assignedTo)).limit(1);
-      if (!officer[0] || officer[0].role === "AGENCY_ADMIN" || officer[0].role === "AGENCY_USER") {
-        throw new AppError("VALIDATION", "Dossiers can only be assigned to ESSAFARIA staff.");
+    const rows = await db.transaction(async (tx) => {
+      await currentOperationActor(tx,user);
+      const rows = await parseBulkIds(formData, tx);
+      const officer = await activeOfficer(tx, assignedTo);
+      for (const row of rows) {
+        const [current] = await tx.select({ assignedTo: applications.assignedTo }).from(applications).where(eq(applications.id, row.id));
+        await writeAssignment(tx, { ...row, assignedTo: current!.assignedTo }, officer, user, true);
       }
-    }
-    for (const row of rows) {
-      await db.update(applications).set({ assignedTo, updatedAt: new Date() }).where(eq(applications.id, row.id));
-      await recordAudit({
-        actor: user,
-        action: "APPLICATION_ASSIGNED",
-        entity: "application",
-        entityId: row.id,
-        agencyId: row.agencyId,
-        metadata: { assignedTo, bulk: true },
-      });
-      if (assignedTo && assignedTo !== user.id) {
-        await notifyUsers([assignedTo], {
-          type: "APPLICATION_ASSIGNED",
-          title: `Assigned: ${row.reference}`,
-          body: `${user.name} assigned this dossier to you.`,
-          link: `/admin/applications/${row.id}`,
-          agencyId: row.agencyId,
-          applicationId: row.id,
-        });
-      }
-    }
+      return rows;
+    });
     revalidatePath("/admin/applications");
     return assignedTo
       ? `${rows.length} dossier(s) assigned to the selected officer.`
@@ -420,25 +271,28 @@ export async function bulkAssignAction(formData: FormData): Promise<void> {
 
 export async function bulkPriorityAction(formData: FormData): Promise<void> {
   await runAction("/admin/applications", async () => {
-    const user = await requireUser();
+    const user = await requireStaff();
     requirePermission(user, "applications.review");
-    const rows = await parseBulkIds(formData);
-    const priorityId = idSchema.parse(formData.get("priorityId"));
-    const priority = await db.select({ id: priorities.id, name: priorities.name }).from(priorities).where(eq(priorities.id, priorityId)).limit(1);
-    if (!priority[0]) throw new AppError("VALIDATION", "Choose a valid priority.");
-    for (const row of rows) {
-      await db.update(applications).set({ priorityId, updatedAt: new Date() }).where(eq(applications.id, row.id));
-      await recordAudit({
-        actor: user,
-        action: "APPLICATION_PRIORITY_CHANGED",
-        entity: "application",
-        entityId: row.id,
-        agencyId: row.agencyId,
-        metadata: { priorityId, priorityName: priority[0].name, bulk: true },
-      });
-    }
+    const { rows, priority } = await db.transaction(async (tx) => {
+      await currentOperationActor(tx,user);
+      const rows = await parseBulkIds(formData, tx);
+      const reason = z.string().trim().min(10, "A priority change reason of at least 10 characters is required.").max(1000).parse(formData.get("reason") ?? "");
+      const priorityId = idSchema.parse(formData.get("priorityId"));
+      const [priority] = await tx.select().from(priorities).where(and(eq(priorities.id, priorityId), eq(priorities.active, true))).limit(1).for("share");
+      if (!priority) throw new AppError("VALIDATION", "Choose a valid priority.");
+      if (priority.code === "EXPRESS") throw new AppError("VALIDATION", "Express priority requires an approved business definition before use.");
+      for (const row of rows) {
+        if (row.priorityId === priorityId) continue;
+        const [oldPriority] = await tx.select({ code: priorities.code, name: priorities.name }).from(priorities).where(eq(priorities.id, row.priorityId));
+        await tx.update(applications).set({ priorityId, updatedAt: new Date() }).where(eq(applications.id, row.id));
+        await recordAudit({ actor: user, action: "APPLICATION_PRIORITY_CHANGED", entity: "application", entityId: row.id, agencyId: row.agencyId,
+          metadata: { oldPriorityId: row.priorityId, oldPriorityCode: oldPriority?.code, oldPriorityName: oldPriority?.name,
+            newPriorityId: priorityId, newPriorityCode: priority.code, newPriorityName: priority.name, reason, bulk: true } }, tx);
+      }
+      return { rows, priority };
+    });
     revalidatePath("/admin/applications");
-    return `Priority "${priority[0].name}" applied to ${rows.length} dossier(s).`;
+    return `Priority "${priority.name}" applied to ${rows.length} dossier(s).`;
   });
 }
 
@@ -446,11 +300,19 @@ export async function updateInternalNotesAction(formData: FormData): Promise<voi
   const applicationId = idSchema.parse(formData.get("applicationId"));
   const back = String(formData.get("back") ?? `/admin/applications/${applicationId}`);
   await runAction(back, async () => {
-    const user = await requireUser();
+    const user = await requireStaff();
     requirePermission(user, "applications.review");
     const notes = z.string().trim().max(5000).parse(formData.get("internalNotes") ?? "");
-    await db.update(applications).set({ internalNotes: notes, updatedAt: new Date() }).where(eq(applications.id, applicationId));
-    await recordAudit({ actor: user, action: "APPLICATION_NOTES_UPDATED", entity: "application", entityId: applicationId });
+    await db.transaction(async (tx) => {
+      await currentOperationActor(tx,user);
+      const [app] = await tx.select({ id: applications.id, reference: applications.reference, agencyId: applications.agencyId, internalNotes: applications.internalNotes })
+        .from(applications).where(eq(applications.id, applicationId)).limit(1).for("update");
+      if (!app) throw new AppError("NOT_FOUND", "Application not found.");
+      if (app.internalNotes === notes) return;
+      await tx.update(applications).set({ internalNotes: notes, updatedAt: new Date() }).where(eq(applications.id, applicationId));
+      await recordAudit({ actor: user, action: "APPLICATION_NOTES_UPDATED", entity: "application", entityId: applicationId, agencyId: app.agencyId,
+        metadata: { reference: app.reference, oldInternalNotes: app.internalNotes, newInternalNotes: notes } }, tx);
+    });
     revalidatePath(back);
     return "Internal notes saved.";
   });
@@ -459,11 +321,15 @@ export async function updateInternalNotesAction(formData: FormData): Promise<voi
 /* ------------------------------ gate preview ---------------------------- */
 
 export async function submissionGateFor(applicationId: string) {
-  return getSubmissionGate(applicationId);
+  const user = await requireUser(),id=idSchema.parse(applicationId);
+  await assertApplicationAccess(id,user);
+  return getSubmissionGate(id);
 }
 
 export async function historyFor(applicationId: string) {
-  return getStatusHistory(applicationId);
+  const user = await requireUser(),id=idSchema.parse(applicationId);
+  await assertApplicationAccess(id,user);
+  return getStatusHistory(id);
 }
 
 /* -------------------- atomic 3-step request (Phase 2.3) -------------------- */

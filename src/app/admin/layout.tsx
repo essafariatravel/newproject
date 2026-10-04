@@ -70,6 +70,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       items: [
         { href: "/admin/reports", label: tr("Reports")},
         { href: "/admin/audit", label: tr("Audit Logs")},
+        ...(["SUPER_ADMIN","ADMIN"].includes(user.role) ? [{href:"/admin/reconciliation",label:{en:"Reconciliation",fr:"Régularisation",ar:"التسوية"}[locale]}] : []),
         { href: "/admin/settings", label: tr("Settings")},
       ],
     },

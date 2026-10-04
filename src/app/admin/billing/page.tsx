@@ -159,9 +159,9 @@ export default async function AdminBillingPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {txs.rows.map(({ tx, agencyName, applicationReference }) => (
+                {txs.rows.map(({ tx, agencyName, applicationReference, topupRequestId, topupReference }) => (
                   <tr key={tx.id} className="tr-hover">
-                    <td className="td whitespace-nowrap text-xs font-mono">{(tx as { reference?: string | null }).reference ?? tx.id.slice(0, 8)}</td>
+                    <td className="td whitespace-nowrap text-xs font-mono">{tx.reference ?? tx.id.slice(0, 8)}{topupRequestId?<Link href={`/api/topups/${topupRequestId}/proof`} className="mt-1 block underline">{topupReference} · {ct("View receipt")}</Link>:null}</td>
                     <td className="td whitespace-nowrap text-xs">{formatDateTime(tx.createdAt, uiLocale)}</td>
                     <td className="td max-w-[160px] truncate">
                       <Link href={`/admin/agencies/${tx.agencyId}`} className="text-navy-800 hover:underline">

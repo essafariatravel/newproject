@@ -12,12 +12,12 @@ import {
 import { generateSessionToken, hashToken } from "@/lib/crypto";
 import type { User } from "@/db/schema";
 import { normalizeAgencyUsername, sessionPolicy } from "@/lib/identity-policy";
-import { lockIdentityState } from "@/lib/account-security";
+import { lockIdentityState, recordIdentityAudit } from "@/lib/account-security";
 
 /** Create a session and return the opaque cookie token. */
 export async function createSession(
   userId: string,
-  options: { expectedCredentialVersion?: number } = {},
+  options: { expectedCredentialVersion?: number; auditLogin?: boolean } = {},
 ): Promise<{ token: string; expiresAt: Date }> {
   const token = generateSessionToken();
   let ipAddress: string | null = null;
@@ -41,6 +41,14 @@ export async function createSession(
     const expiresAt = new Date(Date.now() + sessionPolicy(row.user.agencyId).absoluteMs);
     await tx.insert(sessions).values({ userId, tokenHash: hashToken(token), expiresAt,
       lastActivityAt: new Date(), credentialVersion: row.user.credentialVersion, ipAddress, userAgent });
+    if (options.auditLogin) {
+      await recordIdentityAudit(tx, { actor: { id: row.user.id, email: row.user.email,
+        username: row.user.username, name: row.user.name, role: row.user.role as Role,
+        agencyId: row.user.agencyId, userStatus: row.user.status, agencyStatus: row.agencyStatus,
+        agencyName: null }, action: "USER_LOGIN", entity: "user", entityId: userId,
+        agencyId: row.user.agencyId, ipAddress });
+      await tx.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id,userId));
+    }
     return expiresAt;
   });
   return { token, expiresAt };
@@ -86,6 +94,7 @@ export async function getSessionUser(): Promise<AuthUser | null> {
       agencyStatus: row.agencyStatus,
       agencyName: row.agencyName,
       mustChangePassword: row.user.mustChangePassword,
+      credentialVersion: row.user.credentialVersion,
     };
   } catch (err) {
     // Database temporarily unavailable (e.g. missing migrations on Preview) must not become a 500.
