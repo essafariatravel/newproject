@@ -62,7 +62,6 @@ import { generateSessionToken, hashPassword, hashToken } from "@/lib/crypto";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import type { RegistrationCopy, RegistrationLocale } from "@/lib/i18n";
 import { safeErrorCode } from "@/lib/safe-error";
-import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 
 /* ------------------------------------------------------------------ */
 /* Constants                                                           */
@@ -472,26 +471,6 @@ async function persistRegistration(
             documents: stored.length,
             locale: data.locale,
           },
-        });
-        // Audit and registration commit atomically: a persisted KYC/partnership
-        // request must never exist without its submission evidence.
-        await tx.insert(auditLogs).values({
-          actorId: null,
-          actorEmail: null,
-          actorRole: null,
-          agencyId: null,
-          action: "AGENCY_REGISTRATION_SUBMITTED",
-          entity: "agency_registration",
-          entityId: id,
-          metadata: {
-            reference,
-            legalName: data.legalName,
-            country: data.country,
-            businessType: data.businessType,
-            documents: stored.length,
-            locale: data.locale,
-          },
-          ipAddress,
         });
         return reference;
       });
