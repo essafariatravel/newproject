@@ -9,6 +9,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { pickUiLocale, UI_LOCALE_COOKIE } from "@/lib/ui-i18n";
+import { safeLocalRedirectPath } from "@/lib/navigation-security";
 
 export async function setUiLocaleAction(formData: FormData): Promise<void> {
   const locale = pickUiLocale(formData.get("locale"));
@@ -25,16 +26,16 @@ export async function setUiLocaleAction(formData: FormData): Promise<void> {
 
   // Redirect back where the visitor came from (Referer), never to an external host.
   let back: string | null = null;
-  const next = formData.get("next");
-  if (typeof next === "string" && next.startsWith("/")) back = next;
+  const next = safeLocalRedirectPath(formData.get("next"));
+  if (next) back = next;
   if (!back) {
     try {
       const referer = (await headers()).get("referer") ?? "";
       const url = new URL(referer);
-      back = `${url.pathname}${url.search}`;
+      back = safeLocalRedirectPath(`${url.pathname}${url.search}`);
     } catch {
       back = null;
     }
   }
-  redirect(back && back.startsWith("/") ? back : "/");
+  redirect(safeLocalRedirectPath(back) ?? "/");
 }
