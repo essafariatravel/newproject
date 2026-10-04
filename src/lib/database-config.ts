@@ -1,9 +1,11 @@
 import type { PoolConfig } from "pg";
 import { rootCertificates } from "node:tls";
 import { SUPABASE_CA } from "./supabase-ca";
+import { databaseSchema } from "./database-schema";
 
 type Environment = Record<string, string | undefined>;
 const LOCAL_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/essafaria";
+const EXPECTED_SUPABASE_PROJECT = "xgetzgixalrsmuvfthpf";
 // Used only when a deployed environment has no DATABASE_URL: nothing listens on
 // 127.0.0.1:1, so the first query fails immediately (ECONNREFUSED) instead of
 // hanging on a 10s connection timeout, and every handler already maps database
@@ -39,6 +41,12 @@ export function databaseUrl(env: Environment = process.env, migration = false): 
     // Do not include the input: URL parsing errors can contain the password.
     throw new Error("Database configuration must be a PostgreSQL connection URI.");
   }
+  if (
+    (env.VERCEL_ENV === "preview" || env.VERCEL_ENV === "production") &&
+    !targetsSupabaseProject(value, EXPECTED_SUPABASE_PROJECT)
+  ) {
+    throw new Error("Deployment database project boundary mismatch.");
+  }
   return value;
 }
 
@@ -46,8 +54,10 @@ export function databasePoolConfig(env: Environment = process.env, migration = f
   const connectionString = databaseUrl(env, migration);
   const url = new URL(connectionString);
   const supabase = url.hostname.endsWith(".pooler.supabase.com") || url.hostname.endsWith(".supabase.co");
+  const schema = databaseSchema(env);
   return {
     connectionString,
+    options: `-c search_path=pg_catalog,${schema}`,
     // Supabase enforces TLS even when a manually copied URI omits sslmode.
     // Keep certificate verification enabled; never fall back to plaintext.
     ...(supabase && !url.searchParams.has("sslmode") && !url.searchParams.has("ssl")

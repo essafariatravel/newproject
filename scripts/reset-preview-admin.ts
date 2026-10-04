@@ -20,11 +20,12 @@
  *   npx tsx scripts/reset-preview-admin.ts
  */
 import "./lib/load-env";
-import { sql } from "drizzle-orm";
+import { and, isNull, sql } from "drizzle-orm";
 import { db, pool } from "../src/lib/db";
 import { users } from "../src/db/schema";
 import { hashPassword } from "../src/lib/crypto";
 import { databaseSchema } from "../src/lib/database-schema";
+import { lockIdentityState, recordIdentityAudit, revokeUserAccess } from "../src/lib/account-security";
 
 const EXPECTED_SCHEMA = "visa_os_preview";
 const FORBIDDEN_SCHEMA = "visa_os"; // Production — never touch, ever.
@@ -65,48 +66,65 @@ async function main(): Promise<void> {
 
   const passwordHash = await hashPassword(password);
 
-  const existing = await db
-    .select()
-    .from(users)
-    .where(sql`lower(${users.email}) = lower(${email})`)
-    .limit(1);
+  const result = await db.transaction(async (tx) => {
+    await lockIdentityState(tx);
+    const [existing] = await tx
+      .select()
+      .from(users)
+      .where(and(sql`lower(${users.email}) = lower(${email})`, isNull(users.agencyId)))
+      .for("update")
+      .limit(1);
 
-  let mode: "created" | "rotated";
-  if (existing[0]) {
-    // Upsert without deleting anything: rotate exactly this account's hash and
-    // re-assert the staff SUPER_ADMIN invariants (agencyId must be null).
-    await db
-      .update(users)
-      .set({ passwordHash, role: "SUPER_ADMIN", agencyId: null, status: "ACTIVE", name })
-      .where(sql`${users.id} = ${existing[0].id}`);
-    mode = "rotated";
-  } else {
-    await db.insert(users).values({
-      email,
-      passwordHash,
-      name,
-      role: "SUPER_ADMIN",
-      agencyId: null,
-      status: "ACTIVE",
+    let row;
+    let mode: "created" | "rotated";
+    if (existing) {
+      [row] = await tx
+        .update(users)
+        .set({
+          passwordHash,
+          role: "SUPER_ADMIN",
+          agencyId: null,
+          status: "ACTIVE",
+          name,
+          activationPending: false,
+          mustChangePassword: false,
+          updatedAt: new Date(),
+        })
+        .where(sql`${users.id} = ${existing.id}`)
+        .returning();
+      await revokeUserAccess(tx, existing.id);
+      mode = "rotated";
+    } else {
+      [row] = await tx.insert(users).values({
+        email,
+        passwordHash,
+        name,
+        role: "SUPER_ADMIN",
+        agencyId: null,
+        status: "ACTIVE",
+        activationPending: false,
+        mustChangePassword: false,
+      }).returning();
+      mode = "created";
+    }
+
+    if (!row || row.role !== "SUPER_ADMIN" || row.status !== "ACTIVE" || row.agencyId !== null) {
+      throw new Error("Preview administrator invariant failed");
+    }
+    await recordIdentityAudit(tx, {
+      actor: null,
+      action: "PREVIEW_ADMIN_RESET",
+      entity: "user",
+      entityId: row.id,
+      metadata: { mode, schema, source: "schema_pinned_reset_script" },
     });
-    mode = "created";
-  }
+    return { row, mode };
+  });
 
-  // Read-back sanity: role never trust-verify via the same connection only.
-  const afterwards = await db
-    .select()
-    .from(users)
-    .where(sql`lower(${users.email}) = lower(${email})`)
-    .limit(1);
-  const row = afterwards[0];
-  if (!row || row.role !== "SUPER_ADMIN" || row.status !== "ACTIVE" || row.agencyId !== null) {
-    console.error("[reset-preview-admin] Verification failed after write; manual inspection advised.");
-    process.exit(1);
-  }
+  const { row, mode } = result;
 
   console.log(
-    `[reset-preview-admin] OK (${mode}) schema=${schema} email=${email} role=SUPER_ADMIN status=ACTIVE ` +
-      `hashPrefix=${row.passwordHash.slice(0, 8)}… (never the plaintext)`,
+    `[reset-preview-admin] OK (${mode}) schema=${schema} email=${email} role=SUPER_ADMIN status=ACTIVE credentialRevoked=${mode === "rotated" ? "YES" : "N/A"}`,
   );
 }
 

@@ -16,7 +16,6 @@
  */
 import { pool } from "@/lib/db";
 import { qualifiedTable } from "@/lib/database-schema";
-import { recordAudit } from "@/lib/audit";
 import { requirePermission } from "@/lib/rbac";
 import { AppError, type AuthUser } from "@/lib/types";
 
@@ -155,7 +154,6 @@ export async function applyPriceAdjustment(params: {
 
   const client = await pool.connect();
   let result: ApplyPriceAdjustmentResult;
-  let auditInput: Parameters<typeof recordAudit>[0];
   try {
     await client.query("begin");
 
@@ -274,27 +272,31 @@ export async function applyPriceAdjustment(params: {
     );
     const adjustmentId = adjRes.rows[0]!.id;
 
+    await client.query(
+      `insert into ${qualifiedTable("audit_logs")}
+         (actor_id, actor_email, actor_role, agency_id, action, entity, entity_id, metadata)
+       values ($1,$2,$3,$4,'PRICE_ADJUSTED','application',$5,$6::jsonb)`,
+      [
+        params.actor.id,
+        params.actor.email,
+        params.actor.role,
+        app.agency_id,
+        app.id,
+        JSON.stringify({
+          reference: app.reference,
+          type: params.type,
+          amount: amountStr,
+          currency: app.submitted_currency,
+          reason,
+          effectiveBefore: before.toFixed(2),
+          effectiveAfter: after.toFixed(2),
+          walletTransactionId: walletTxId,
+          adjustmentId,
+          idempotencyKey: key,
+        }),
+      ],
+    );
     await client.query("commit");
-
-    auditInput = {
-      actor: params.actor,
-      action: "PRICE_ADJUSTED",
-      entity: "application",
-      entityId: app.id,
-      agencyId: app.agency_id,
-      metadata: {
-        reference: app.reference,
-        type: params.type,
-        amount: amountStr,
-        currency: app.submitted_currency,
-        reason,
-        effectiveBefore: before.toFixed(2),
-        effectiveAfter: after.toFixed(2),
-        walletTransactionId: walletTxId,
-        adjustmentId,
-        idempotencyKey: key,
-      },
-    };
 
     result = {
       adjustmentId,
@@ -314,7 +316,5 @@ export async function applyPriceAdjustment(params: {
     client.release();
   }
 
-  // Audit uses the shared pool, so run it only after releasing the client.
-  await recordAudit(auditInput);
   return result;
 }

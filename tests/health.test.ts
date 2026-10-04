@@ -25,9 +25,9 @@ describe("GET /api/health (deployment diagnostics, never a 500, never secrets)",
     request.cookie="";
     const publicResponse=await (await healthGET()).json();
     expect(publicResponse.ok).toBe(true);
-    expect(Object.keys(publicResponse).sort()).toEqual(["deployment","ok","service"]);
+    expect(Object.keys(publicResponse).sort()).toEqual(["ok","service"]);
     request.cookie=(await createSession((await userByEmail("a-admin@test.example")).id)).token;
-    expect(Object.keys(await (await healthGET()).json()).sort()).toEqual(["deployment","ok","service"]);
+    expect(Object.keys(await (await healthGET()).json()).sort()).toEqual(["ok","service"]);
   });
   it("does not report healthy when table names exist but columns are incompatible", async () => {
     const pool = new Pool({ connectionString: testConnectionString() });

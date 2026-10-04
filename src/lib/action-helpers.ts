@@ -4,6 +4,7 @@ import { AppError } from "@/lib/types";
 import { actionFeedbackPath } from "@/lib/action-feedback";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
+import { safeErrorCode, safeErrorText } from "@/lib/safe-error";
 
 /**
  * Shared server-action wrapper: runs the mutation, converts expected errors to
@@ -22,7 +23,7 @@ export async function runAction(path: string, fn: () => Promise<string>): Promis
     } else if (err instanceof ZodError) {
       msg = err.issues[0]?.message ?? "Please check the form values.";
     } else {
-      console.error("action-failed", err);
+      console.error("action-failed", { code: safeErrorCode(err), error: safeErrorText(err) });
       msg = "Something went wrong. Please try again.";
     }
     kind = "error";

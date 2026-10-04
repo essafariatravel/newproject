@@ -12,7 +12,6 @@ import { applyPriceAdjustment, getApplicationPricing } from "@/lib/price-adjustm
 import { adjustWallet, getBalance } from "@/lib/wallet";
 import { storageProvider } from "@/lib/storage";
 import * as notificationService from "@/lib/notifications";
-import * as auditService from "@/lib/audit";
 
 suiteSetup();
 
@@ -123,19 +122,11 @@ describe("three-client pool transaction boundaries", () => {
 
   it("concurrent adjustments retain one audit and ledger row per committed adjustment", async () => {
     const { agency, staff, input } = await requestInput();
-    const submitted = await submitVisaRequest(input), before = await getBalance(agency.id), arrive = threeArrivals();
-    const audit = auditService.recordAudit;
-    const spy = vi.spyOn(auditService, "recordAudit").mockImplementation(async (entry) => {
-      if (entry.action === "PRICE_ADJUSTED") await arrive();
-      return audit(entry);
-    });
-    let results: Awaited<ReturnType<typeof applyPriceAdjustment>>[];
-    try {
-      results = await withThreeClientBudget(() => Promise.all(Array.from({ length: 3 }, () => applyPriceAdjustment({
-        applicationId: submitted.applicationId, actor: staff, type: "DISCOUNT", amount: 10,
-        reason: "Concurrent pool regression discount", idempotencyKey: crypto.randomUUID(),
-      }))));
-    } finally { spy.mockRestore(); }
+    const submitted = await submitVisaRequest(input), before = await getBalance(agency.id);
+    const results = await withThreeClientBudget(() => Promise.all(Array.from({ length: 3 }, () => applyPriceAdjustment({
+      applicationId: submitted.applicationId, actor: staff, type: "DISCOUNT", amount: 10,
+      reason: "Concurrent pool regression discount", idempotencyKey: crypto.randomUUID(),
+    }))));
     expect(Number((await getBalance(agency.id)).balance) - Number(before.balance)).toBe(30);
     expect((await getApplicationPricing(submitted.applicationId))!.effectivePrice).toBe("90.00");
     expect(await db.select().from(auditLogs).where(and(eq(auditLogs.entityId, submitted.applicationId), eq(auditLogs.action, "PRICE_ADJUSTED")))).toHaveLength(3);
