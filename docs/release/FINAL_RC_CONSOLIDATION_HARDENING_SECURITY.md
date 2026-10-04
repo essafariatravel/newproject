@@ -410,3 +410,66 @@ Evidence:
 - local Legal/Privacy runtime smoke: PASS.
 
 No Production deployment or migration was performed by this consolidation.
+
+
+## 13. Sealed merge and final evidence
+
+The two source histories are now formally joined by merge commit:
+
+`232ec37a578a59ac1b1a9a57c7c5e9ff563ef2a0`
+
+Parents:
+
+1. consolidated Final Hardening lineage: `429b97de296399e977a8f695ea1fca1444f5feb2`
+2. final Security head: `5d8aebe9648fe2c121df0693f033e84c7ac6611e`
+
+Git ancestry verification:
+
+- `preprod/essafaria-final-hardening` is an ancestor of the consolidated RC;
+- `security/pre-codex-gate-2026-10-03` is an ancestor of the consolidated RC;
+- neither source lineage is left behind.
+
+Final deterministic verification on the sealed two-parent merge:
+
+GitHub Actions run `37208612598` — **SUCCESS**
+
+- tracked-secret gate: PASS — 430 tracked files;
+- full Git-history secret gate: PASS — 1,091 revisions;
+- immutable GitHub Actions pinning gate: PASS — 7 workflow files;
+- dangerous source AST gate: PASS — 194 source files;
+- production dependency audit: PASS — 0 vulnerabilities;
+- typecheck: PASS;
+- lint: PASS;
+- hosted/privacy shell syntax: PASS;
+- targeted Preview build-write guard: PASS;
+- deterministic suite: **107/107 test files, 727/727 tests PASS**;
+- Next.js production build: PASS;
+- local Legal/Privacy runtime smoke: PASS.
+
+Hosted runtime evidence was also obtained against the current consolidated application snapshot
+`3f999ba2a14a2f30f86987b4c616398f25f34d0f`
+before documentation-only/history-sealing commits. Application source is unchanged by those later commits.
+
+Hosted Preview run `37208337208` — **SUCCESS**:
+
+- current-SHA Preview resolved successfully (not stale fallback);
+- authenticated safety boundary confirmed `visa_os_preview`;
+- intended ESSAFARIA Supabase project confirmed;
+- migrations 0025–0028 confirmed;
+- hosted checks: **41 PASS / 0 FAIL / 60 SKIP**.
+
+The SKIP count reflects checks whose runtime prerequisites were unavailable and is not represented as proof for those skipped controls.
+
+Read-only database postflight after consolidation:
+
+- Preview `visa_os_preview`: 28 migrations, last `0028_file_identity_hardening.sql`;
+- Production `visa_os`: 19 migrations, last `0019_config_translations.sql`;
+- unsafe Preview application functions under search_path/EXECUTE policy: **0**.
+
+No Production deployment, migration, seed, reset, destructive test or release-sentinel action was performed during this consolidation.
+
+### Consolidation verdict
+
+**FINAL RC HARDENING + SECURITY CONSOLIDATION: PASS**
+
+The branch is technically consolidated and verified. Any later promotion into the authoritative release branch remains a separate release operation and is not performed by this consolidation.
