@@ -311,14 +311,14 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
     // overwrite legal text (and the legal section never touches the CMS fields).
     const section = String(formData.get("section") ?? "");
     if (section === "legal") {
-      const publishedAt = new Date(String(formData.get("legal.publishedAt") ?? ""));
-      if (!Number.isFinite(publishedAt.getTime()) || publishedAt.getTime() > Date.now()) throw new AppError("VALIDATION", "Supply the actual publication date of owner-approved legal text.");
-      const publications = (["en","fr","ar"] as const).flatMap(locale => (["terms","privacy"] as const).map(kind => ({kind,locale,body:String(formData.get(`legal.${kind}.${locale}`)??"").trim(),publishedAt,actor:staff}))).filter(p => p.body);
+      if (staff.role !== "SUPER_ADMIN") throw new AppError("FORBIDDEN", "Only SUPER_ADMIN can publish approved legal content.");
+      const publications = (["en","fr","ar"] as const).flatMap(locale => (["terms","privacy"] as const).map(kind => ({kind,locale,body:String(formData.get(`legal.${kind}.${locale}`)??"").trim(),effectiveAt:new Date(String(formData.get(`legal.${kind}.${locale}.effectiveAt`)??"")),actor:staff}))).filter(p => p.body);
       if (!publications.length) throw new AppError("VALIDATION", "Supply owner-approved legal content before publishing.");
+      if (publications.some(p=>!Number.isFinite(p.effectiveAt.getTime()))) throw new AppError("VALIDATION", "Every legal version requires approved content and an approved effective date.");
       if (publications.some(p=>p.body.length>50_000)) throw new AppError("VALIDATION", "Legal content is too long.");
       await publishLegalContents(publications);
-      revalidatePath("/admin/settings"); revalidatePath("/terms"); revalidatePath("/privacy"); revalidatePath("/register");
-      return "Legal versions published.";
+      revalidatePath("/admin/settings"); revalidatePath("/terms"); revalidatePath("/privacy"); revalidatePath("/agency/register");
+      return "Approved legal versions published.";
     }
     const entries: Array<[string, unknown]> = [];
     const simpleKeys = [

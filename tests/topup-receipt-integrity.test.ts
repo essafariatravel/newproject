@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
+import type { QueryResult } from "pg";
 import { suiteSetup } from "./helpers/global-state";
 import { resetData } from "./helpers/pg";
 import { seedFixtures, userByEmail } from "./helpers/fixtures";
-import { db } from "@/lib/db";
+import { db, pool } from "@/lib/db";
 import { agencies, auditLogs, documentBlobs, walletTopupRequests, walletTransactions } from "@/db/schema";
 import { createTopupRequest, processTopupRequest } from "@/lib/topup";
 import { storageProvider } from "@/lib/storage";
@@ -33,37 +34,82 @@ describe("a genuine valid persisted receipt is required for wallet top-up credit
   for (const corruption of ["empty stored bytes", "size mismatch", "MIME mismatch", "invalid format signature"] as const) {
     it(`refuses ${corruption} without creating a credit or processing audit`, async () => {
       const fixture = await pending();
-      const patch = corruption === "empty stored bytes" ? { data: Buffer.alloc(0), sizeBytes: 0 }
-        : corruption === "size mismatch" ? { data: Buffer.concat([fixture.bytes, Buffer.from(" extra")]), sizeBytes: fixture.bytes.length + 6 }
-        : corruption === "MIME mismatch" ? { mimeType: "image/png" }
-        : { data: Buffer.alloc(fixture.bytes.length, 88) };
-      await db.update(documentBlobs).set(patch).where(eq(documentBlobs.key, fixture.request.proofStorageKey!));
+      // Fault the provider response, not protected permanent database rows.
+      const data = corruption === "empty stored bytes" ? Buffer.alloc(0)
+        : corruption === "size mismatch" ? Buffer.concat([fixture.bytes, Buffer.from(" extra")])
+        : corruption === "invalid format signature" ? Buffer.alloc(fixture.bytes.length, 88) : fixture.bytes;
+      vi.spyOn(storageProvider(), "get").mockResolvedValueOnce({ data, mimeType: corruption === "MIME mismatch" ? "image/png" : "application/pdf" });
       await expect(processTopupRequest({ requestId: fixture.request.id, actor: fixture.staff, decision: "CREDIT" })).rejects.toMatchObject({ code: "PROOF_INVALID" });
       await remainsPending(fixture);
     });
   }
 
-  it("refuses receipt metadata changed after retrieval but before the request lock", async () => {
+  it("keeps receipt metadata immutable during retrieval and credits only the unchanged request", async () => {
     const fixture = await pending(), provider = storageProvider(), get = provider.get.bind(provider);
     vi.spyOn(provider, "get").mockImplementationOnce(async key => {
       const stored = await get(key);
-      await db.update(walletTopupRequests).set({ proofSizeBytes: fixture.bytes.length + 1 }).where(eq(walletTopupRequests.id, fixture.request.id));
+      await expect(db.update(walletTopupRequests).set({ proofSizeBytes: fixture.bytes.length + 1 }).where(eq(walletTopupRequests.id, fixture.request.id)))
+        .rejects.toMatchObject({ cause: expect.objectContaining({ message: expect.stringMatching(/immutable/i) }) });
       return stored;
     });
-    await expect(processTopupRequest({ requestId: fixture.request.id, actor: fixture.staff, decision: "CREDIT" })).rejects.toMatchObject({ code: "PROOF_CHANGED" });
-    await remainsPending(fixture);
+    await processTopupRequest({ requestId: fixture.request.id, actor: fixture.staff, decision: "CREDIT" });
+    const [saved] = await db.select().from(walletTopupRequests).where(eq(walletTopupRequests.id, fixture.request.id));
+    expect(saved!.proofSizeBytes).toBe(fixture.bytes.length);
+    expect(await db.select({ id: walletTransactions.id }).from(walletTransactions)).toHaveLength(1);
   });
 
-  it("refuses a DB receipt corrupted after retrieval but before credit commit", async () => {
+  it("prevents a permanent DB receipt rewrite after retrieval", async () => {
     const fixture = await pending(), provider = storageProvider(), get = provider.get.bind(provider);
     vi.spyOn(provider, "get").mockImplementationOnce(async key => {
       const stored = await get(key);
-      await db.update(documentBlobs).set({ data: Buffer.alloc(0), sizeBytes: 0 }).where(eq(documentBlobs.key, key));
+      await expect(db.update(documentBlobs).set({ data: Buffer.alloc(0), sizeBytes: 0 }).where(eq(documentBlobs.key, key)))
+        .rejects.toMatchObject({ cause: expect.objectContaining({ message: expect.stringMatching(/immutable/i) }) });
       return stored;
     });
+    await processTopupRequest({ requestId: fixture.request.id, actor: fixture.staff, decision: "CREDIT" });
+    const [blob] = await db.select().from(documentBlobs).where(eq(documentBlobs.key, fixture.request.proofStorageKey!));
+    expect(blob!.data).toEqual(fixture.bytes);
+    expect(await db.select({ id: walletTransactions.id }).from(walletTransactions)).toHaveLength(1);
+  });
+
+  it("rejects same-size altered PDF bytes from the provider using the original SHA-256", async () => {
+    const fixture = await pending(), altered = Buffer.from(fixture.bytes);
+    altered[altered.length - 1] = altered[altered.length - 1]! ^ 1;
+    vi.spyOn(storageProvider(), "get").mockResolvedValueOnce({ data: altered, mimeType: "application/pdf" });
     await expect(processTopupRequest({ requestId: fixture.request.id, actor: fixture.staff, decision: "CREDIT" })).rejects.toMatchObject({ code: "PROOF_INVALID" });
     await remainsPending(fixture);
   });
+
+  for (const fault of ["locked receipt metadata", "locked blob bytes"] as const) {
+    it(`revalidates ${fault} on its existing transaction client before credit`, async () => {
+      const fixture = await pending(), provider = storageProvider(), get = provider.get.bind(provider);
+      let intercepted = false;
+      vi.spyOn(provider, "get").mockImplementationOnce(async key => {
+        const stored = await get(key);
+        const client = await pool.connect(), query = client.query.bind(client);
+        vi.spyOn(client, "query").mockImplementation((async (...args: unknown[]) => {
+          const result = await (query as (...values: unknown[]) => Promise<QueryResult<Record<string, unknown>>>)(...args);
+          const text = typeof args[0] === "string" ? args[0] : "";
+          const match = fault === "locked blob bytes" ? /from .*document_blobs.*for share/i : /from .*wallet_topup_requests[\s\S]*for update/i;
+          if (match.test(text)) {
+            intercepted = true;
+            result.rows = result.rows.map(row => {
+              if (fault === "locked receipt metadata") return { ...row, proof_size_bytes: Number(row.proof_size_bytes) + 1 };
+              const altered = Buffer.from(row.data as Buffer); altered[altered.length - 1] = altered[altered.length - 1]! ^ 1;
+              return { ...row, data: altered };
+            });
+          }
+          return result;
+        }) as typeof client.query);
+        vi.spyOn(pool, "connect").mockImplementationOnce((async () => client) as typeof pool.connect);
+        return stored;
+      });
+      await expect(processTopupRequest({ requestId: fixture.request.id, actor: fixture.staff, decision: "CREDIT" }))
+        .rejects.toMatchObject({ code: fault === "locked blob bytes" ? "PROOF_INVALID" : "PROOF_CHANGED" });
+      expect(intercepted).toBe(true);
+      await remainsPending(fixture);
+    });
+  }
 
   it("credits a valid persisted receipt exactly once under concurrent attempts", async () => {
     const fixture = await pending();

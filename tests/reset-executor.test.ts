@@ -15,6 +15,7 @@ const url = "postgresql://postgres:postgres@localhost:5434/essafaria_test";
 const adminId = "ad000000-0000-4000-8000-000000000001";
 const testId = "ad000000-0000-4000-8000-000000000002";
 const agencyId = "ad000000-0000-4000-8000-000000000003";
+const legalId = "ad000000-0000-4000-8000-000000000004";
 const catalogueIds = {
   country: "ca000000-0000-4000-8000-000000000001", testCountry: "ca000000-0000-4000-8000-000000000002",
   category: "ca000000-0000-4000-8000-000000000003", testCategory: "ca000000-0000-4000-8000-000000000004",
@@ -59,6 +60,9 @@ async function fixture(label: string, changeBeforeBackup?: (schema: string) => P
   await pool.query(`insert into "${source}".wallet_transactions(agency_id,type,amount,currency,balance_before,balance_after,reason,actor_id)
     values($1,'CREDIT',100,'DZD',0,100,'Synthetic immutable history',$2)`, [agencyId, adminId]);
   await pool.query(`insert into "${source}".audit_logs(actor_id,action,entity,entity_id) values($1,'SYNTHETIC_SEEDED','agency',$2)`, [adminId, agencyId]);
+  // Synthetic preservation evidence only, never owner-approved product copy.
+  await pool.query(`insert into "${source}".legal_versions(id,kind,locale,version,body,published_at,effective_at,author_id)
+    values($1,'terms','en',1,'Synthetic legal preservation fixture, never owner-approved content.',now(),now()-interval '1 month',$2)`, [legalId, adminId]);
   await pool.query(`insert into "${source}".priorities(code,name,weight) values('STANDARD','Standard',0) on conflict do nothing`);
   await pool.query(`insert into "${source}".currencies(code,name,symbol) values('DZD','Algerian Dinar','DZD') on conflict do nothing`);
   await pool.query(`insert into "${source}".document_blobs(key,mime_type,size_bytes,data) values('synthetic/remove.pdf','application/pdf',3,$1),('brand/retained.png','image/png',3,$1)`, [Buffer.from("abc")]);
@@ -109,7 +113,7 @@ async function fixture(label: string, changeBeforeBackup?: (schema: string) => P
   };
   const manifestPath = path.join(directory, `${suffix}.json`);
   await writeFile(manifestPath, JSON.stringify(manifest));
-  return { source, restored, archive, manifest, manifestPath, backup, beforeWallet: tableRows.wallet_transactions, beforeAudit: tableRows.audit_logs };
+  return { source, restored, archive, manifest, manifestPath, backup, beforeWallet: tableRows.wallet_transactions, beforeAudit: tableRows.audit_logs, beforeLegal: tableRows.legal_versions };
 }
 
 describe("guarded executable cleanup on synthetic localhost data", () => {
@@ -129,6 +133,8 @@ describe("guarded executable cleanup on synthetic localhost data", () => {
       effects: { archiveImmutableHistory: true, recreateOperationalSchema: true, removeDatabaseBlobs: 1, preserveDatabaseBlobs: 1 } });
     expect((await pool.query(`select count(*)::int n from "${f.source}".wallet_transactions`)).rows[0].n).toBe(1);
     expect((await pool.query("select exists(select 1 from pg_namespace where nspname=$1) present", [f.archive])).rows[0].present).toBe(false);
+    if (process.env.ESSAFARIA_RESET_EVIDENCE_PATH) await writeFile(process.env.ESSAFARIA_RESET_EVIDENCE_PATH,
+      JSON.stringify({ scope: "DISPOSABLE LOCAL SYNTHETIC FIXTURES ONLY", dryRun: report, dryRunDidNotMutate: true }, null, 2));
   });
 
   it("executes the real transaction, preserves immutable archive bytes and admin credentials, and reports actual post-zero counts", async () => {
@@ -140,6 +146,11 @@ describe("guarded executable cleanup on synthetic localhost data", () => {
       wallet_transactions: 0, application_price_adjustments: 0, sessions: 0, users: 1, document_blobs: 1 }, preservedActiveSuperAdmins: 1 });
     expect((await pool.query(`select to_jsonb(t) row from "${f.archive}".wallet_transactions t`)).rows.map(r => r.row)).toEqual(f.beforeWallet);
     expect((await pool.query(`select to_jsonb(t) row from "${f.archive}".audit_logs t`)).rows.map(r => r.row)).toEqual(f.beforeAudit);
+    expect((await pool.query(`select to_jsonb(t) row from "${f.source}".legal_versions t order by to_jsonb(t)::text`)).rows.map(r => r.row)).toEqual(f.beforeLegal);
+    const legal = (await pool.query(`select id,effective_at,published_at,author_id from "${f.source}".legal_versions`)).rows[0];
+    expect(legal).toMatchObject({ id: legalId, author_id: adminId });
+    expect(legal.effective_at.getTime()).toBeLessThan(legal.published_at.getTime());
+    await expect(pool.query(`update "${f.source}".legal_versions set body='Changed' where id=$1`, [legalId])).rejects.toThrow(/Immutable/);
     const user = (await pool.query(`select id,email,password_hash,status,role from "${f.source}".users`)).rows[0];
     expect(user).toMatchObject({ id: adminId, email: "approved-admin@synthetic.example", status: "ACTIVE", role: "SUPER_ADMIN" });
     expect(await verifyPassword("Synthetic-Admin-123", user.password_hash)).toBe(true);
@@ -151,9 +162,16 @@ describe("guarded executable cleanup on synthetic localhost data", () => {
     const triggers = (await pool.query(`select tgname from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname=$1 and not t.tgisinternal`, [f.source])).rows.map(r => r.tgname);
     expect(triggers).toContain("applications_official_final_decision");
     expect(triggers).toContain("wallet_transactions_immutable");
+    if (process.env.ESSAFARIA_RESET_EVIDENCE_PATH) {
+      const evidence = JSON.parse(await readFile(process.env.ESSAFARIA_RESET_EVIDENCE_PATH, "utf8"));
+      await writeFile(process.env.ESSAFARIA_RESET_EVIDENCE_PATH, JSON.stringify({ ...evidence, syntheticExecution: report,
+        preservationVerified: { originalLedgerAndAuditArchived: true, legalUuidEffectivePublicationDatesAndAuthorUnchanged: true,
+          superAdminPasswordStillAuthenticates: true, retainedBlobExact: true, immutableHistoryRejectsDeletion: true,
+          foreignKeysRecreated: constraints, decisionAndWalletTriggersRecreated: true }, realGoLiveResetExecuted: false }, null, 2));
+    }
   });
 
-  it.each(["disabled-rls", "forced-rls", "policy", "table-acl", "column-acl", "sequence-acl", "function-acl", "schema-acl", "default-acl"])("refuses restored %s changes even when rows, sequences and SQL definitions match", async failure => {
+  it.each(["disabled-rls", "forced-rls", "policy", "table-acl", "column-acl", "sequence-acl", "function-acl", "function-search-path", "schema-acl", "default-acl"])("refuses restored %s changes while rows and sequences match", async failure => {
     const f = await fixture(`security_${failure.replaceAll("-", "_")}`);
     if (failure === "disabled-rls") await pool.query(`alter table "${f.restored}".users disable row level security`);
     if (failure === "forced-rls") await pool.query(`alter table "${f.restored}".users force row level security`);
@@ -161,12 +179,25 @@ describe("guarded executable cleanup on synthetic localhost data", () => {
     if (failure === "table-acl") await pool.query(`grant select on "${f.restored}".users to public`);
     if (failure === "column-acl") await pool.query(`grant select(password_hash) on "${f.restored}".users to public`);
     if (failure === "sequence-acl") await pool.query(`grant usage on sequence "${f.restored}".wallet_reference_seq to public`);
-    if (failure === "function-acl") await pool.query(`revoke execute on function "${f.restored}".reject_wallet_history_mutation() from public`);
+    if (failure === "function-acl") await pool.query(`grant execute on function "${f.restored}".reject_wallet_history_mutation() to public`);
+    if (failure === "function-search-path") await pool.query(`alter function "${f.restored}".reject_wallet_history_mutation() set search_path to pg_catalog,public`);
     if (failure === "schema-acl") await pool.query(`grant usage on schema "${f.restored}" to public`);
     if (failure === "default-acl") await pool.query(`alter default privileges in schema "${f.restored}" grant select on tables to public`);
     const result = invoke(f.source, ["--execute", "--approval-manifest", f.manifestPath]);
     expect(result.status).not.toBe(0);
     expect((await pool.query(`select count(*)::int n from "${f.source}".users`)).rows[0].n).toBe(2);
+    expect((await pool.query("select exists(select 1 from pg_namespace where nspname=$1) present", [f.archive])).rows[0].present).toBe(false);
+  });
+
+  it("refuses removal of an immutable legal version's author before offering execution", async () => {
+    const f = await fixture("legal_author", async source => {
+      await pool.query(`insert into "${source}".legal_versions(kind,locale,version,body,published_at,effective_at,author_id)
+        values('privacy','en',1,'Synthetic author-dependency fixture, never owner-approved content.',now(),now(),$1)`, [testId]);
+    });
+    const result = invoke(f.source, ["--approval-manifest", f.manifestPath]);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("protected-dependencies");
+    expect((await pool.query(`select count(*)::int n from "${f.source}".legal_versions`)).rows[0].n).toBe(2);
     expect((await pool.query("select exists(select 1 from pg_namespace where nspname=$1) present", [f.archive])).rows[0].present).toBe(false);
   });
 

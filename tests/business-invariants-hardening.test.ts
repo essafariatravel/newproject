@@ -177,13 +177,12 @@ describe("proof and immutable money", () => {
     expect((await topupRequestById(request!.id))!.status).toBe("PENDING");
   });
 
-  it("does not credit when the receipt key changes during proof verification", async () => {
+  it("refuses a receipt-key rewrite during verification and credits exactly once against the unchanged proof", async () => {
     const agency = await agencyByEmail("ops@agencya.example"), actor = await userByEmail("a-admin@test.example"), staff = await userByEmail("admin@test.example");
     const created = await createTopupRequest({ agencyId: agency.id, amount: 100, actor, proof: receipt() });
     const original = (await topupRequestById(created.id))!;
     const replacementKey = `${original.proofStorageKey}/replacement`;
     const provider = storageProvider();
-    await provider.put(replacementKey, receipt().data, receipt().type);
     const before = await getBalance(agency.id);
     const ledgerBefore = await db.select().from(walletTransactions).where(eq(walletTransactions.agencyId, agency.id));
     const getProof = provider.get.bind(provider);
@@ -194,24 +193,23 @@ describe("proof and immutable money", () => {
         await receiptUpdater.query("begin");
         // Bound failures if proof verification regresses into holding the request lock.
         await receiptUpdater.query("set local lock_timeout = '500ms'");
-        await receiptUpdater.query(`update ${qualifiedTable("wallet_topup_requests")} set proof_storage_key = $2 where id = $1`, [created.id, replacementKey]);
-        await receiptUpdater.query("commit");
-      } catch (error) {
-        await receiptUpdater.query("rollback");
-        throw error;
-      } finally { receiptUpdater.release(); }
+        await expect(receiptUpdater.query(`update ${qualifiedTable("wallet_topup_requests")} set proof_storage_key = $2 where id = $1`, [created.id, replacementKey]))
+          .rejects.toThrow(/immutable/i);
+      } finally { await receiptUpdater.query("rollback"); receiptUpdater.release(); }
       return stored;
     });
     try {
-      await expect(processTopupRequest({ requestId: created.id, decision: "CREDIT", actor: staff })).rejects.toMatchObject({ code: "PROOF_CHANGED" });
+      await processTopupRequest({ requestId: created.id, decision: "CREDIT", actor: staff });
     } finally { proofRead.mockRestore(); }
     const current = (await topupRequestById(created.id))!;
-    expect(current.proofStorageKey).toBe(replacementKey);
-    expect(current.status).toBe("PENDING");
-    expect(current.walletTransactionId).toBeNull();
-    expect(current.processedAt).toBeNull();
-    expect(await getBalance(agency.id)).toEqual(before);
-    expect(await db.select().from(walletTransactions).where(eq(walletTransactions.agencyId, agency.id))).toEqual(ledgerBefore);
+    expect(current.proofStorageKey).toBe(original.proofStorageKey);
+    expect(current.proofSha256).toBe(original.proofSha256);
+    expect(current.status).toBe("PROCESSED");
+    expect(current.walletTransactionId).toBeTruthy();
+    expect(current.processedAt).not.toBeNull();
+    expect(Number((await getBalance(agency.id)).balance)).toBe(Number(before.balance) + 100);
+    expect(await db.select().from(walletTransactions).where(eq(walletTransactions.agencyId, agency.id))).toHaveLength(ledgerBefore.length + 1);
+    await expect(processTopupRequest({ requestId: created.id, decision: "CREDIT", actor: staff })).rejects.toMatchObject({ code: "TOPUP_ALREADY_PROCESSED" });
   });
 
   it("does not credit a pending request whose stored receipt is missing", async () => {

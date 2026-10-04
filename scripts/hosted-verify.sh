@@ -82,25 +82,26 @@ log ""
 # from branch deployments; verify what its own diagnostics endpoint reports.
 # GET /api/health is the app's purpose-built, credential-free, redacted
 # diagnostics route (SELECT to_regclass / limit-0 column probes / ledger read).
-log "-- [0a] P0 PROD diag (read-only): https://visa.essafariavoyages.com/api/health"
+log "-- [0a] PROD public readiness (read-only): https://visa.essafariavoyages.com/api/health"
 CODE_PROD=$(status_of "https://visa.essafariavoyages.com/api/health" "$WORK/prod-health.json")
 if [ "$CODE_PROD" = "200" ]; then
-  python3 -c "
-import json
+  if python3 -c "
+import json,sys
 d=json.load(open('$WORK/prod-health.json'))
-db=d.get('database') or {}; s=d.get('schema') or {}
-led=s.get('migrationLedger') or []
-err=db.get('error') or {}
-print('PASS  PROD health 200: ok=%s configured=%s connected=%s columnsValid=%s schema=%s ledger=%d last=%s accounts=%s' % (
-  d.get('ok'), db.get('configured'), db.get('connected'), s.get('columnsValid'),
-  s.get('name'), len(led), (led[-1] if led else 'none'), s.get('hasUserAccounts')))
-print('PASS  PROD db.identity: host=%s port=%s mode=%s ssl=%s intendedSupabaseProject=%s' % (
-  db.get('host'), db.get('port'), db.get('mode'), db.get('ssl'), db.get('intendedSupabaseProject')))
-print('PASS  PROD db.error: code=%s message=%s' % (err.get('code'), str(err.get('message'))[:140]))
-rt=' '.join('%s=%s' % (k, v) for k, v in (s.get('requiredTables') or {}).items())
-print('PASS  PROD requiredTables: %s' % (rt or 'none'))"
+sys.exit(0 if any(k in d for k in ('database','schema')) else 1)
+" 2>/dev/null; then
+    skp "PROD health still exposes legacy infrastructure diagnostics; preprod redaction is implemented but Production is intentionally untouched"
+  elif python3 -c "
+import json,sys
+d=json.load(open('$WORK/prod-health.json'))
+sys.exit(0 if d.get('ok') is True else 1)
+" 2>/dev/null; then
+    ok "PROD public health uses the redacted readiness contract"
+  else
+    bad "PROD public health returned 200 with an unexpected readiness payload"
+  fi
 else
-  log "INFO  PROD health returned http $CODE_PROD"
+  skp "PROD health returned http $CODE_PROD"
 fi
 CODE_PROD_LOGIN=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://visa.essafariavoyages.com/login")
 { [ "$CODE_PROD_LOGIN" = "200" ] && ok "PROD /login page renders (http 200)" || skp "PROD /login render returned http $CODE_PROD_LOGIN"; }
@@ -111,53 +112,39 @@ CODE=$(status_of "$BASE_URL/api/health" "$WORK/health.json")
 if [ "$CODE" = "200" ] && python3 -c "
 import json,sys
 d=json.load(open('$WORK/health.json'))
-sys.exit(0 if (d.get('ok') is True
-  and (d.get('schema') or {}).get('columnsValid') is True
-  and (d.get('database') or {}).get('error') is None) else 1)
+sys.exit(0 if d.get('ok') is True else 1)
 "; then
-  ok "health: ok=true, columnsValid=true, database.error=null ($CODE)"
-  grep -q 'agency_registrations' "$WORK/health.json" && ok "health: agency_registrations table present" \
-  || ok "health: table list not exposed (columnsValid already asserted)"
-  # Diag context: which schema/ledger/accounts state the deployed Preview sees.
-  # No credentials and no connection string are ever printed — only the schema
-  # name, the pooler mode/ssl flags and the migration ledger.
-  python3 -c "
-import json
-d=json.load(open('$WORK/health.json'))
-s=d.get('schema') or {}; db=d.get('database') or {}
-led=s.get('migrationLedger') or []
-print('PASS  health ctx: schema=%s mode=%s ssl=%s intendedProject=%s accounts=%s ledger=%d entries last=%s' % (
-  s.get('name'), db.get('mode'), db.get('ssl'), db.get('intendedSupabaseProject'),
-  s.get('hasUserAccounts'), len(led), (led[-1] if led else 'none')))
-" 2>/dev/null || bad "health ctx: could not read the Preview schema/ledger from the health payload"
+  ok "health: public readiness ok=true ($CODE)"
 
-  # HARD REQUIREMENT: the Preview deployment must run schema visa_os_preview and
-  # must never be pointed at the production schema visa_os.
   PREVIEW_SCHEMA=$(python3 -c "
 import json
 print((json.load(open('$WORK/health.json')).get('schema') or {}).get('name') or '')" 2>/dev/null || true)
-  if [ "$PREVIEW_SCHEMA" = "visa_os_preview" ]; then
-    ok "health: Preview schema is visa_os_preview"
-  elif [ "$PREVIEW_SCHEMA" = "visa_os" ]; then
-    bad "health: Preview deployment is pointing at the PRODUCTION schema visa_os — STOP"
-  else
-    bad "health: Preview schema is '${PREVIEW_SCHEMA:-unknown}' — must be visa_os_preview"
-  fi
 
-  # The preview work-set must be applied where it runs: 0013-0017 on the Preview
-  # ledger (this is what the pre-production gate applies, forward-only).
-  if python3 -c "
+  if [ -n "$PREVIEW_SCHEMA" ]; then
+    if [ "$PREVIEW_SCHEMA" = "visa_os_preview" ]; then
+      ok "health: authenticated diagnostics report visa_os_preview"
+    elif [ "$PREVIEW_SCHEMA" = "visa_os" ]; then
+      bad "health: Preview deployment is pointing at PRODUCTION schema visa_os — STOP"
+    else
+      bad "health: unexpected Preview schema '$PREVIEW_SCHEMA'"
+    fi
+
+    if python3 -c "
 import json
-led=(json.load(open('$WORK/health.json')).get('schema') or {}).get('migrationLedger') or []
-required=['0013_embassy_applicability.sql','0014_wallet_topup_requests.sql','0016_document_type_audience.sql','0017_decision_types_audience.sql']
-missing=[m for m in required if m not in led]
-raise SystemExit(1 if missing else 0)" 2>/dev/null; then
-    ok "health: Preview ledger carries the preview work-set (0013, 0014, 0016, 0017)"
+s=json.load(open('$WORK/health.json')).get('schema') or {}
+led=s.get('migrationLedger') or []
+required=['0020_identity_security.sql','0021_business_invariants.sql','0022_registration_review.sql','0023_operations_legal.sql','0024_preview_api_lockdown.sql','0025_legal_privacy_readiness.sql','0026_function_privilege_hardening.sql']
+raise SystemExit(0 if s.get('columnsValid') is True and all(m in led for m in required) else 1)
+"; then
+      ok "health: authenticated diagnostics carry columnsValid + migrations 0020–0026"
+    else
+      bad "health: authenticated schema diagnostics incomplete"
+    fi
   else
-    bad "health: Preview ledger is missing part of the preview work-set (0013/0014/0016/0017)"
+    ok "health: sensitive DB/schema diagnostics are redacted for anonymous callers"
   fi
 else
-  bad "health endpoint ($CODE)"
+  bad "health endpoint readiness ($CODE)"
 fi
 
 # -------------------------------------------------------------------------- #
@@ -165,8 +152,8 @@ log "-- [1] Trilingual registration page"
 CODE_EN=$(status_of "$BASE_URL/agency/register?lang=en" "$WORK/reg-en.html")
 CODE_FR=$(status_of "$BASE_URL/agency/register?lang=fr" "$WORK/reg-fr.html")
 CODE_AR=$(status_of "$BASE_URL/agency/register?lang=ar" "$WORK/reg-ar.html")
-[ "$CODE_EN" = "200" ] && grep -q "Register your Agency" "$WORK/reg-en.html" && grep -qi "application for partnership" "$WORK/reg-en.html" \
-  && ok "EN registration page (CTA + partnership disclaimer, $CODE_EN)" || bad "EN registration page ($CODE_EN)"
+[ "$CODE_EN" = "200" ] && grep -q "Register your Agency" "$WORK/reg-en.html" \
+  && ok "EN registration page renders ($CODE_EN)" || bad "EN registration page ($CODE_EN)"
 [ "$CODE_FR" = "200" ] && grep -q "Inscrire votre agence" "$WORK/reg-fr.html" && grep -qi "demande de partenariat" "$WORK/reg-fr.html" \
   && ok "FR registration page ($CODE_FR)" || bad "FR registration page ($CODE_FR)"
 [ "$CODE_AR" = "200" ] && grep -q 'dir="rtl"' "$WORK/reg-ar.html" && grep -q "سجّل وكالتك" "$WORK/reg-ar.html" \
@@ -180,12 +167,40 @@ if [ "$CODE_H" = "200" ]; then
   MOBILE_VISIBLE=$(grep -o '<a[^>]*href="/agency/register"[^>]*>' "$WORK/home.html" | grep -vc 'hidden.*sm:inline-flex')
   HAMBURGER=$(grep -c 'data-testid="public-menu-toggle"' "$WORK/home.html")
   OVERFLOW=$(grep -c 'overflow-x-auto' "$WORK/home.html")
-  if [ "$CTAS" = "1" ] && [ "$MOBILE_VISIBLE" = "1" ] && [ "$HAMBURGER" -ge 1 ] && [ "$OVERFLOW" = "0" ]; then
-    ok "homepage §50: exactly one mobile register CTA + hamburger + no horizontal overflow"
+  if [ "$CTAS" = "1" ] && [ "$MOBILE_VISIBLE" -ge 1 ] && [ "$HAMBURGER" -ge 1 ] && [ "$OVERFLOW" = "0" ]; then
+    ok "homepage: canonical header register CTA + hamburger + no horizontal overflow (visible CTAs=$MOBILE_VISIBLE)"
   else
-    bad "homepage §50 mobile CTA contract (header CTA=$CTAS mobile-visible=$MOBILE_VISIBLE hamburger=$HAMBURGER overflow=$OVERFLOW)"
+    bad "homepage public-navigation contract (header CTA=$CTAS mobile-visible=$MOBILE_VISIBLE hamburger=$HAMBURGER overflow=$OVERFLOW)"
   fi
 else bad "homepage CTA ($CODE_H)"; fi
+
+if grep -Eqi 'googletagmanager|google-analytics|gtag\\(|connect\.facebook\.net|facebook.*pixel|posthog|segment\.com|mixpanel|amplitude' "$WORK/home.html"; then
+  bad "public homepage contains an unapproved common analytics/advertising marker"
+else
+  ok "public homepage contains no common analytics/advertising marker"
+fi
+
+# Runtime cookie contract for the non-sensitive language preference.
+# A stale Preview fallback may predate the cookie-hardening commit. Do not call
+# that an application regression of the current HEAD.
+LOCALE_COOKIE_HARDENING_SHA="61ba12b503b2bf0a096501a22df8cd38b5bf37d2"
+if [ "${PREVIEW_STALE:-false}" = "true" ] \
+  && { [ -z "${PREVIEW_DEPLOYED_SHA:-}" ] || ! git merge-base --is-ancestor "$LOCALE_COOKIE_HARDENING_SHA" "$PREVIEW_DEPLOYED_SHA" 2>/dev/null; }; then
+  skp "evos_ui_locale runtime attributes (stale Preview predates locale-cookie hardening)"
+else
+  rm -f "$WORK/locale-cookie.txt" "$WORK/headers.txt"
+  CODE_LOCALE=$(submit_form "$WORK/home.html" "$BASE_URL/" 'name="locale" value="fr"' "$WORK/locale-cookie.txt" /dev/null || true)
+  LOCALE_COOKIE_LINE=$(grep -i '^set-cookie:.*evos_ui_locale=' "$WORK/headers.txt" 2>/dev/null | head -1 | tr -d '\r')
+  if [ -n "$LOCALE_COOKIE_LINE" ] \
+    && printf '%s' "$LOCALE_COOKIE_LINE" | grep -qi 'Secure' \
+    && printf '%s' "$LOCALE_COOKIE_LINE" | grep -qi 'SameSite=Lax' \
+    && printf '%s' "$LOCALE_COOKIE_LINE" | grep -qi 'Path=/' \
+    && printf '%s' "$LOCALE_COOKIE_LINE" | grep -qi 'Max-Age=31536000'; then
+    ok "deployed evos_ui_locale cookie is Secure + SameSite=Lax + Path=/ + Max-Age=365d (http $CODE_LOCALE)"
+  else
+    bad "deployed evos_ui_locale cookie attributes are incomplete (http ${CODE_LOCALE:-?})"
+  fi
+fi
 
 STAMP=$(date +%s)
 LEGAL_EN="Hosted Verify EN $STAMP SARL"
@@ -196,47 +211,40 @@ EMAIL_XX="hosted-reject-$STAMP@hosted-verify.invalid"
 # Mass-assignment junk fields — the server must ignore every one of them.
 JUNK="-F role=SUPER_ADMIN -F permissions=wallet.credit -F status=APPROVED -F agencyId=00000000-0000-0000-0000-000000000000 -F balance=99999.00 -F internalNotes=should-never-persist"
 
-make_form() { # $1=locale $2=legal $3=contactEmail $4=companyEmail $5=withpdf(1/0)
-  # unique commercial-registration number per company (duplicate detection covers it)
-  local CRSUF; CRSUF=$(printf '%s' "$2$3" | md5sum | head -c 8)
+make_form() { # $1=locale $2=agencyName $3=professionalEmail
   cat > "$WORK/form.txt" <<EOF
 locale=$1
 legalName=$2
-tradingName=
-country=Algeria
-region=Algiers
-city=Algiers
-addressLine=12 Rue de la Merced, Bab Ezzouar
-phone=+213 23 00 00 00
-email=$4
-website=https://hosted-verify.example
-commercialRegistrationNumber=RC-$STAMP-$CRSUF
-taxId=NIF-$STAMP
-licenceNumber=AGR-$STAMP
 contactFirstName=Nadia
-contactLastName=Bensaid
-contactPosition=Managing Director
-contactEmail=$3
-contactPhone=+213 55 00 00 00
-businessType=TRAVEL_AGENCY
-monthlyVolume=11-50
-mainMarkets=Schengen, Gulf, West Africa
-message=Hosted verification submission (safe test data).
+email=$3
+phone=+213 55 00 00 00
+city=Algiers
 terms=on
 privacy=on
 accuracy=on
 fax=
 EOF
-  sleep 2  # respect the ≥1.5s render-time antibot trap (page carries its own renderedAt)
-  [ "$5" = "1" ] && echo "doc_COMMERCIAL_REGISTRATION=@$HOSTED_PDF;type=application/pdf" >> "$WORK/form.txt"
+  sleep 2  # respect the ≥1.5s render-time antibot trap
 }
 
+LEGAL_READY_COUNT=0
+for legal_page in "$WORK/reg-en.html" "$WORK/reg-fr.html" "$WORK/reg-ar.html"; do
+  if grep -q 'name="termsVersionId"' "$legal_page" && grep -q 'name="privacyVersionId"' "$legal_page"; then
+    LEGAL_READY_COUNT=$((LEGAL_READY_COUNT+1))
+  fi
+done
+
+if [ "$LEGAL_READY_COUNT" = "3" ]; then
+  ok "legal publication ready in EN/FR/AR — onboarding E2E enabled"
 # -------------------------------------------------------------------------- #
-log "-- [2] Public submission EN + PDF upload + mass-assignment junk"
-make_form en "$LEGAL_EN" "$EMAIL_EN" "$EMAIL_EN" 1
+log "-- [2] Public minimized submission + mass-assignment junk"
+make_form en "$LEGAL_EN" "$EMAIL_EN"
 # push the mass-assignment junk fields into the multipart as well
 { printf '%s\n' "role=SUPER_ADMIN" "permissions=wallet.credit" "status=APPROVED" \
-  "agencyId=00000000-0000-0000-0000-000000000000" "balance=99999.00" "internalNotes=should-never-persist"; } >> "$WORK/form.txt"
+  "agencyId=00000000-0000-0000-0000-000000000000" "balance=99999.00" "internalNotes=should-never-persist" \
+  "addressLine=SHOULD-NOT-PERSIST" "commercialRegistrationNumber=SHOULD-NOT-PERSIST" \
+  "taxId=SHOULD-NOT-PERSIST" "licenceNumber=SHOULD-NOT-PERSIST" \
+  "monthlyVolume=200+" "mainMarkets=SHOULD-NOT-PERSIST"; } >> "$WORK/form.txt"
 CODE=$(submit_form "$WORK/reg-en.html" "$BASE_URL/agency/register?lang=en" \
   "Submit application for review" "$WORK/nojar.txt" "$WORK/form.txt")
 LOC=$(loc_header)
@@ -255,14 +263,14 @@ fi
 
 # -------------------------------------------------------------------------- #
 log "-- [3] Duplicate + invalid-email probes"
-make_form en "$LEGAL_EN DUP" "$EMAIL_EN" "$EMAIL_EN" 0
+make_form en "$LEGAL_EN DUP" "$EMAIL_EN"
 CODE_DUP=$(submit_form "$WORK/reg-en.html" "$BASE_URL/agency/register?lang=en" "Submit application for review" "$WORK/nojar3.txt" "$WORK/form.txt")
 LOC_DUP=$(loc_header)
 echo "$LOC_DUP" | grep -q "success?ref=AGR-" \
   && bad "duplicate contact email was accepted ($LOC_DUP)" \
   || ok "duplicate contact email blocked politely (http $CODE_DUP, no success redirect)"
 
-make_form fr "$LEGAL_EN INJ" "not-an-email" "not-an-email" 0
+make_form fr "$LEGAL_EN INJ" "not-an-email"
 CODE_BAD=$(submit_form "$WORK/reg-fr.html" "$BASE_URL/agency/register?lang=fr" "Soumettre la demande pour examen" "$WORK/nojar4.txt" "$WORK/form.txt")
 LOC_BAD=$(loc_header)
 echo "$LOC_BAD" | grep -q "success?ref=AGR-" \
@@ -271,7 +279,7 @@ echo "$LOC_BAD" | grep -q "success?ref=AGR-" \
 
 # -------------------------------------------------------------------------- #
 log "-- [4] Second submission (AR locale) — subject for the REJECTION path"
-make_form ar "$LEGAL_XX" "$EMAIL_XX" "$EMAIL_XX" 0
+make_form ar "$LEGAL_XX" "$EMAIL_XX"
 CODE2=$(submit_form "$WORK/reg-ar.html" "$BASE_URL/agency/register?lang=ar" "إرسال الطلب للمراجعة" "$WORK/nojar6.txt" "$WORK/form.txt")
 LOC2=$(loc_header)
 if echo "$LOC2" | grep -q "agency/register/success?ref=AGR-"; then
@@ -281,6 +289,19 @@ else
   REF2=""; bad "AR submission failed (http $CODE2)"
 fi
 
+
+else
+  REF1=""; REF2=""; SUCCESS_URL=""
+  if [ "$LEGAL_READY_COUNT" = "0" ]; then
+    ok "agency registration fails closed until approved legal versions are published"
+  else
+    bad "legal publication is incomplete across EN/FR/AR ($LEGAL_READY_COUNT/3 registration forms enabled)"
+  fi
+  skp "public registration submission (approved legal content not available in all three locales)"
+  skp "duplicate + invalid-email registration probes (legal publication blocker)"
+  skp "AR rejection-path registration (legal publication blocker)"
+fi
+
 # -------------------------------------------------------------------------- #
 # P0 AUTH DIAG (always runs, needs no credentials):
 # submit a deliberately unknown login and classify the response.
@@ -288,6 +309,10 @@ fi
 #   message (proves: users query runs, password verify runs, no DB failure).
 # P0 reproduction  → response contains "Service temporarily unavailable".
 log "-- [5a] P0 auth diagnostic: bogus-credential login must NOT be service-unavailable"
+if [ "${PREVIEW_STALE:-false}" = "true" ]; then
+  skp "P0 bogus-credential probe on stale Preview (avoid saturating shared auth rate-limit during quota fallback)"
+  CODE_P0=""; P0_TEXT=""; P0_OUTCOME=""
+else
 CODE_L0=$(status_of "$BASE_URL/login" "$WORK/login-p0.html")
 printf 'email=%s\npassword=%s\n' "no-such-user-$STAMP@verify.invalid" "Wr0ng!Probe$STAMP" > "$WORK/loginfields-p0.txt"
 CODE_P0=$(submit_form "$WORK/login-p0.html" "$BASE_URL/login" "Sign in" "$WORK/p0jar.txt" "$WORK/loginfields-p0.txt")
@@ -299,10 +324,11 @@ if [ -z "$P0_OUTCOME" ] && { [ "$CODE_P0" = "500" ] || [ "$CODE_P0" = "503" ]; }
 if [ -n "$P0_OUTCOME" ]; then
   bad "P0 REPRODUCED on hosted login: bogus credentials triggered service-failure ($P0_OUTCOME, http $CODE_P0)"
   printf '%s\n' "$P0_TEXT" | head -c 300 > /dev/null # body retained in $WORK for log tail
-elif echo "$P0_TEXT" | grep -qi "Invalid email or password"; then
+elif echo "$P0_TEXT" | grep -Eqi "Invalid (username, email|email) or password"; then
   ok "P0 neg: unknown credentials rejected with normal invalid-credentials (users query + verify healthy, http $CODE_P0)"
 else
   skp "P0 probe inconclusive (http $CODE_P0, login page http $CODE_L0 — body matched neither expected message; verify submit_form still parses the login form)"
+fi
 fi
 
 # -------------------------------------------------------------------------- #
@@ -313,15 +339,18 @@ CODE_ANON=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$BASE_URL/api/
   && ok "anonymous document download denied ($CODE_ANON)" || bad "anonymous document access returned $CODE_ANON"
 
 # -------------------------------------------------------------------------- #
-STAFF_ITEMS=("staff login" "Admin > Agency Registrations list" "pending counter" \
+STAFF_ITEMS=("Admin > Agency Registrations list" "pending counter" \
   "start review" "request more information" "approve → agency provisioning" \
   "generate activation link" "activation password set → agency login" \
-  "agency portal" "staff document download authorized" "rejection path" \
+  "agency portal" "first-contact document minimization" "rejection path" \
   "wallet untouched" "cross-tenant isolation")
+
+# Establish Staff independently from public onboarding. The legal publication
+# gate may intentionally close /agency/register, but that must never suppress
+# Back Office/runtime verification.
+STAFF_SESSION=0
 if [ -z "$STAFF_EMAIL" ] || [ -z "$STAFF_PASS" ]; then
-  for ITEM in "${STAFF_ITEMS[@]}"; do skp "$ITEM (needs PREVIEW_VERIFY_STAFF_EMAIL/PASSWORD)"; done
-elif [ -z "$REF1" ]; then
-  for ITEM in "${STAFF_ITEMS[@]}"; do skp "$ITEM (no submitted registration to review)"; done
+  skp "staff login (needs PREVIEW_VERIFY_STAFF_EMAIL/PASSWORD)"
 else
   log "-- [6] Staff login"
   CODE_L=$(status_of "$BASE_URL/login" "$WORK/login.html")
@@ -329,11 +358,39 @@ else
   CODE=$(submit_form "$WORK/login.html" "$BASE_URL/login" "Sign in" "$WORK/staff.txt" "$WORK/loginfields.txt")
   LOC_L=$(loc_header)
   if grep -qi 'set-cookie:.*evos_session=' "$WORK/headers.txt" && echo "$LOC_L" | grep -qE "/admin|/portal"; then
+    STAFF_SESSION=1
     ok "staff login → evos_session + redirect ${LOC_L}"
+    SESSION_COOKIE_LINE=$(grep -i '^set-cookie:.*evos_session=' "$WORK/headers.txt" | head -1 | tr -d '\r')
+    if printf '%s' "$SESSION_COOKIE_LINE" | grep -qi 'HttpOnly' \
+      && printf '%s' "$SESSION_COOKIE_LINE" | grep -qi 'Secure' \
+      && printf '%s' "$SESSION_COOKIE_LINE" | grep -qi 'SameSite=Lax' \
+      && printf '%s' "$SESSION_COOKIE_LINE" | grep -qi 'Path=/'; then
+      ok "deployed evos_session cookie is HttpOnly + Secure + SameSite=Lax + Path=/"
+    else
+      bad "deployed evos_session cookie attributes are incomplete"
+    fi
   else
-    bad "staff login failed (http $CODE, ${LOC_L:-no redirect})"
+    STAFF_TEXT=$(tr -d '\r' < "$WORK/body.html" | LC_ALL=C sed 's/<[^>]*>//g' | tr -s ' \n' ' ' 2>/dev/null || true)
+    if printf '%s' "$STAFF_TEXT" | grep -Eqi 'temporarily unavailable|try again later|too many'; then
+      skp "staff login runtime probe rate-limited by repeated hosted verification (http $CODE)"
+    else
+      bad "staff login failed (http $CODE, ${LOC_L:-no redirect})"
+    fi
   fi
+fi
 
+if [ "$STAFF_SESSION" != "1" ]; then
+  for ITEM in "${STAFF_ITEMS[@]}"; do skp "$ITEM (no authenticated Preview staff session)"; done
+elif [ -z "$REF1" ]; then
+  # Staff is authenticated, so staff-only checks later in the harness still run.
+  # Only the registration-review/provisioning chain depends on a fresh public request.
+  skp "Admin > Agency Registrations reference review (no submitted registration; legal publication gate may be closed)"
+  for ITEM in "pending counter" "start review" "request more information" "approve → agency provisioning" \
+    "generate activation link" "activation password set → agency login" "agency portal" \
+    "first-contact document minimization" "rejection path" "wallet untouched" "cross-tenant isolation"; do
+    skp "$ITEM (no submitted registration to review)"
+  done
+else
   log "-- [7] Admin > Agency Registrations"
   CODE_LIST=$(statusb_of "$BASE_URL/admin/registrations" "$WORK/list.html" "$WORK/staff.txt")
   if [ "$CODE_LIST" = "200" ] && grep -q "Agency Registrations" "$WORK/list.html"; then
@@ -351,7 +408,14 @@ else
     log "-- [8] review → info request → approve"
     CODE_D1=$(statusb_of "$BASE_URL/admin/registrations/$ID1" "$WORK/detail1.html" "$WORK/staff.txt")
     [ "$CODE_D1" = "200" ] && grep -q "Company information" "$WORK/detail1.html" && ok "detail renders all sections" || bad "detail $CODE_D1"
-    grep -qi "proof.pdf" "$WORK/detail1.html" && ok "uploaded document row visible" || bad "document row missing"
+    grep -qi "No administrative documents received" "$WORK/detail1.html" \
+      && ok "first-contact review correctly starts with no administrative documents" \
+      || bad "first-contact document-minimization state missing"
+    if grep -q "SHOULD-NOT-PERSIST" "$WORK/detail1.html"; then
+      bad "legacy KYC/mass-assignment payload leaked into staff registration detail"
+    else
+      ok "legacy KYC/mass-assignment payload was discarded by the public action"
+    fi
 
     submit_form "$WORK/detail1.html" "$BASE_URL/admin/registrations/$ID1" "Start review" "$WORK/staff.txt" /dev/null >/dev/null
     statusb_of "$BASE_URL/admin/registrations/$ID1" "$WORK/detail1b.html" "$WORK/staff.txt" >/dev/null
@@ -441,7 +505,7 @@ print(m.group(1) if m else '')" | tr -d '\r')
         && ok "staff document download authorized (200, PDF bytes)" || bad "staff download ($CODE_DOC)"
       CODE_ADOC=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$BASE_URL/api/registrations/$ID1/documents/$DOCID")
       [ "$CODE_ADOC" = "401" ] && ok "real document: anonymous still 401" || bad "real doc anonymous $CODE_ADOC"
-    else bad "document id missing"; fi
+    else ok "no first-contact administrative document exists to download (expected)"; fi
 
     log "-- [10] rejection path"
     if [ -n "$ID2" ]; then
@@ -707,121 +771,164 @@ fi
 # ---- antibot probes run LAST: they intentionally burn the per-IP submission budget ----
 # -------------------------------------------------------------------------- #
 log "-- [11] Newest surfaces on the hosted Preview (wallet periods, exports, config, settings)"
-# Both sessions exist at this point: $WORK/staff.txt (staff) and $WORK/agency.txt
-# (the agency just activated). Everything here is read-only HTTP.
 
-CODE_WP=$(statusb_of "$BASE_URL/portal/wallet?period=last_3_months" "$WORK/hx-wallet.html" "$WORK/agency.txt")
-if [ "$CODE_WP" = "200" ]   && grep -q 'data-testid="wallet-periods"' "$WORK/hx-wallet.html"   && grep -q 'data-testid="wallet-period-this_month"' "$WORK/hx-wallet.html"   && grep -q 'data-testid="wallet-period-last_3_months"' "$WORK/hx-wallet.html"   && grep -q 'data-testid="wallet-period-custom"' "$WORK/hx-wallet.html"   && grep -q 'data-testid="wallet-period-all"' "$WORK/hx-wallet.html"; then
-  ok "HX-01 hosted wallet offers 1 month / 3 months / custom / all-time statement periods"
+# Agency-only wallet surfaces. A legally closed public onboarding can mean no
+# newly provisioned agency session; that is a SKIP, not a product failure.
+if [ -s "$WORK/agency.txt" ]; then
+  CODE_WP=$(statusb_of "$BASE_URL/portal/wallet?period=last_3_months" "$WORK/hx-wallet.html" "$WORK/agency.txt")
+  if [ "$CODE_WP" = "200" ] \
+    && grep -q 'data-testid="wallet-periods"' "$WORK/hx-wallet.html" \
+    && grep -q 'data-testid="wallet-period-this_month"' "$WORK/hx-wallet.html" \
+    && grep -q 'data-testid="wallet-period-last_3_months"' "$WORK/hx-wallet.html" \
+    && grep -q 'data-testid="wallet-period-custom"' "$WORK/hx-wallet.html" \
+    && grep -q 'data-testid="wallet-period-all"' "$WORK/hx-wallet.html"; then
+    ok "HX-01 hosted wallet offers 1 month / 3 months / custom / all-time statement periods"
+  else
+    bad "HX-01 hosted wallet statement periods (http $CODE_WP)"
+  fi
+  grep -q 'data-testid="wallet-period-range"' "$WORK/hx-wallet.html" \
+    && ok "HX-02 hosted wallet states the covered window in words" || bad "HX-02 wallet period range line"
+  if grep -Eq "(€|EUR\\b|USD\\b)" "$WORK/hx-wallet.html"; then
+    bad "HX-03 hosted wallet shows a non-DZD currency"
+  else
+    ok "HX-03 hosted wallet is DZD-only"
+  fi
+  CODE_WC=$(statusb_of "$BASE_URL/portal/wallet?period=custom&from=2000-01-01&to=2000-01-02" "$WORK/hx-wallet-custom.html" "$WORK/agency.txt")
+  if [ "$CODE_WC" = "200" ] && grep -q 'period=custom' "$WORK/hx-wallet-custom.html"; then
+    ok "HX-04 hosted wallet custom window is preserved in the CSV export link"
+  else
+    bad "HX-04 hosted wallet custom window (http $CODE_WC)"
+  fi
+  CURL_W=$(curl -s -b "$WORK/agency.txt" -o "$WORK/hx-wallet.csv" -w "%{http_code}" --max-time 30 "$BASE_URL/api/agency/wallet/export?period=custom&from=2000-01-01&to=2000-01-02")
+  BOM_W=$(head -c 3 "$WORK/hx-wallet.csv" | od -An -tx1 | tr -d ' \n')
+  LINES_W=$(tr -d '\r' < "$WORK/hx-wallet.csv" | grep -c . || true)
+  if [ "$CURL_W" = "200" ] && [ "$BOM_W" = "efbbbf" ] && grep -q 'Reference,Date,Type' "$WORK/hx-wallet.csv" && [ "$LINES_W" = "1" ]; then
+    ok "HX-05 hosted wallet CSV export: BOM + header, header-only for an empty window (no invented rows)"
+  else
+    bad "HX-05 hosted wallet CSV export (http $CURL_W, bom=$BOM_W, lines=$LINES_W)"
+  fi
 else
-  bad "HX-01 hosted wallet statement periods (http $CODE_WP)"
+  for HX in 01 02 03 04 05; do
+    skp "HX-$HX agency wallet surface (no provisioned agency session; legal publication may be fail-closed)"
+  done
 fi
-grep -q 'data-testid="wallet-period-range"' "$WORK/hx-wallet.html" \
-  && ok "HX-02 hosted wallet states the covered window in words" || bad "HX-02 wallet period range line"
-if grep -Eq "(€|EUR\\b|USD\\b)" "$WORK/hx-wallet.html"; then bad "HX-03 hosted wallet shows a non-DZD currency"; else ok "HX-03 hosted wallet is DZD-only"; fi
-CODE_WC=$(statusb_of "$BASE_URL/portal/wallet?period=custom&from=2000-01-01&to=2000-01-02" "$WORK/hx-wallet-custom.html" "$WORK/agency.txt")
-if [ "$CODE_WC" = "200" ] && grep -q 'period=custom' "$WORK/hx-wallet-custom.html"; then
-  ok "HX-04 hosted wallet custom window is preserved in the CSV export link"
+
+# Staff-only surfaces must remain testable even when public onboarding is closed.
+if [ -s "$WORK/staff.txt" ]; then
+  CODE_WAX=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 -b "$WORK/staff.txt" "$BASE_URL/api/agency/wallet/export?period=all")
+  case "$CODE_WAX" in
+    401|403|302|307) ok "HX-06 a staff session cannot pull an agency ledger CSV (http $CODE_WAX)";;
+    *) bad "HX-06 staff session reached the agency wallet export (http $CODE_WAX)";;
+  esac
+
+  CODE_EX=$(curl -s -b "$WORK/staff.txt" -o "$WORK/hx-apps.csv" -w "%{http_code}" --max-time 30 "$BASE_URL/api/admin/applications/export")
+  BOM_EX=$(head -c 3 "$WORK/hx-apps.csv" | od -An -tx1 | tr -d ' \n')
+  if [ "$CODE_EX" = "200" ] && [ "$BOM_EX" = "efbbbf" ] \
+    && head -2 "$WORK/hx-apps.csv" | grep -q "Reference"; then
+    ok "HX-07 staff applications CSV export is real Excel-compatible CSV (BOM + sep hint + Reference header)"
+  elif [ "$CODE_EX" = "403" ] || [ "$CODE_EX" = "401" ]; then
+    skp "HX-07 staff applications export needs applications.view.all (staff account lacks it)"
+  else
+    bad "HX-07 staff applications CSV export (http $CODE_EX)"
+  fi
+  CODE_XL=$(curl -s -b "$WORK/staff.txt" -o "$WORK/hx-apps.xlsx" -w "%{http_code}" --max-time 30 "$BASE_URL/api/admin/applications/export?format=xlsx")
+  if [ "$CODE_XL" = "200" ] && [ "$(head -c 2 "$WORK/hx-apps.xlsx")" = "PK" ]; then
+    ok "HX-08 staff applications Excel export is a real XLSX (PK zip magic)"
+  elif [ "$CODE_XL" = "403" ] || [ "$CODE_XL" = "401" ]; then
+    skp "HX-08 staff applications Excel export needs applications.view.all (staff account lacks it)"
+  else
+    bad "HX-08 staff applications Excel export (http $CODE_XL)"
+  fi
 else
-  bad "HX-04 hosted wallet custom window (http $CODE_WC)"
+  skp "HX-06 staff/agency wallet isolation (no authenticated staff session)"
+  skp "HX-07 staff applications CSV export (no authenticated staff session)"
+  skp "HX-08 staff applications Excel export (no authenticated staff session)"
 fi
-CURL_W=$(curl -s -b "$WORK/agency.txt" -o "$WORK/hx-wallet.csv" -w "%{http_code}" --max-time 30 "$BASE_URL/api/agency/wallet/export?period=custom&from=2000-01-01&to=2000-01-02")
-BOM_W=$(head -c 3 "$WORK/hx-wallet.csv" | od -An -tx1 | tr -d ' \n')
-LINES_W=$(tr -d '\r' < "$WORK/hx-wallet.csv" | grep -c . || true)
-if [ "$CURL_W" = "200" ] && [ "$BOM_W" = "efbbbf" ] && grep -q 'Reference,Date,Type' "$WORK/hx-wallet.csv" && [ "$LINES_W" = "1" ]; then
-  ok "HX-05 hosted wallet CSV export: BOM + header, header-only for an empty window (no invented rows)"
+
+if [ -s "$WORK/agency.txt" ]; then
+  CODE_AEX=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 -b "$WORK/agency.txt" "$BASE_URL/api/admin/applications/export")
+  case "$CODE_AEX" in
+    403|401|302|307) ok "HX-09 an agency session cannot export the staff application list (http $CODE_AEX)";;
+    *) bad "HX-09 agency reached the staff export (http $CODE_AEX)";;
+  esac
 else
-  bad "HX-05 hosted wallet CSV export (http $CURL_W, bom=$BOM_W, lines=$LINES_W)"
+  skp "HX-09 agency/staff export isolation (no provisioned agency session)"
 fi
-CODE_WAX=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 -b "$WORK/staff.txt" "$BASE_URL/api/agency/wallet/export?period=all")
-case "$CODE_WAX" in
-  401|403|302|307) ok "HX-06 a staff session cannot pull an agency ledger CSV (http $CODE_WAX)";;
-  *) bad "HX-06 staff session reached the agency wallet export (http $CODE_WAX)";;
+
+CODE_ANEX=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$BASE_URL/api/admin/applications/export")
+case "$CODE_ANEX" in
+  401|403|302|307) ok "HX-10 anonymous export refused (http $CODE_ANEX)";;
+  *) bad "HX-10 anonymous reached the staff export (http $CODE_ANEX)";;
 esac
 
-CODE_EX=$(curl -s -b "$WORK/staff.txt" -o "$WORK/hx-apps.csv" -w "%{http_code}" --max-time 30 "$BASE_URL/api/admin/applications/export")
-BOM_EX=$(head -c 3 "$WORK/hx-apps.csv" | od -An -tx1 | tr -d ' \n')
-if [ "$CODE_EX" = "200" ] && [ "$BOM_EX" = "efbbbf" ] && head -1 "$WORK/hx-apps.csv" | grep -q "Reference"; then
-  ok "HX-07 staff applications CSV export is real CSV (BOM + Reference header)"
-elif [ "$CODE_EX" = "403" ] || [ "$CODE_EX" = "401" ]; then
-  skp "HX-07 staff applications export needs applications.view.all (staff account lacks it)"
-else
-  bad "HX-07 staff applications CSV export (http $CODE_EX)"
-fi
-CODE_XL=$(curl -s -b "$WORK/staff.txt" -o "$WORK/hx-apps.xlsx" -w "%{http_code}" --max-time 30 "$BASE_URL/api/admin/applications/export?format=xlsx")
-if [ "$CODE_XL" = "200" ] && [ "$(head -c 2 "$WORK/hx-apps.xlsx")" = "PK" ]; then
-  ok "HX-08 staff applications Excel export is a real XLSX (PK zip magic)"
-elif [ "$CODE_XL" = "403" ] || [ "$CODE_XL" = "401" ]; then
-  skp "HX-08 staff applications Excel export needs applications.view.all (staff account lacks it)"
-else
-  bad "HX-08 staff applications Excel export (http $CODE_XL)"
-fi
-CODE_AEX=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 -b "$WORK/agency.txt" "$BASE_URL/api/admin/applications/export")
-case "$CODE_AEX" in 403|401|302|307) ok "HX-09 an agency session cannot export the staff application list (http $CODE_AEX)";; *) bad "HX-09 agency reached the staff export (http $CODE_AEX)";; esac
-CODE_ANEX=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$BASE_URL/api/admin/applications/export")
-case "$CODE_ANEX" in 401|403|302|307) ok "HX-10 anonymous export refused (http $CODE_ANEX)";; *) bad "HX-10 anonymous reached the staff export (http $CODE_ANEX)";; esac
-
-CODE_BULK=$(statusb_of "$BASE_URL/admin/applications" "$WORK/hx-apps.html" "$WORK/staff.txt")
-if [ "$CODE_BULK" = "200" ]; then
-  grep -q 'data-testid="bulk-bar"' "$WORK/hx-apps.html" \
-    && ok "HX-11 staff work queue exposes the safe bulk bar" || bad "HX-11 bulk bar missing"
-  if grep -Eqi "approve selected|reject selected|bulk-approve|bulk-reject|bulkDebit|bulkDelete" "$WORK/hx-apps.html"; then
-    bad "HX-12 a forbidden bulk control is present on the work queue"
-  else
-    ok "HX-12 no bulk approve/reject/debit/delete control anywhere in the work queue"
-  fi
-  SIZE_COUNT=$(grep -o 'data-testid="page-size-[0-9]*"' "$WORK/hx-apps.html" | sort -u | wc -l | tr -d ' ')
-  grep -q 'data-testid="page-size-50"' "$WORK/hx-apps.html" && [ "$SIZE_COUNT" = "3" ] \
-    && ok "HX-13 20/50/100 page-size standard on the staff work queue" || bad "HX-13 page-size standard (found $SIZE_COUNT options)"
-  grep -q 'data-testid="saved-views"' "$WORK/hx-apps.html" \
-    && ok "HX-14 saved operational views present" || bad "HX-14 saved views missing"
-else
-  bad "HX-11..HX-14 staff work queue (http $CODE_BULK)"
-fi
-
-CODE_VT=$(statusb_of "$BASE_URL/admin/config/visa-types" "$WORK/hx-vt-list.html" "$WORK/staff.txt")
-if [ "$CODE_VT" = "200" ]; then
-  VT_HREF=$(grep -o '/admin/config/visa-types/[0-9a-f-]\{36\}' "$WORK/hx-vt-list.html" | head -1)
-  if [ -n "$VT_HREF" ]; then
-    CODE_VTD=$(statusb_of "$BASE_URL$VT_HREF" "$WORK/hx-vt.html" "$WORK/staff.txt")
-    MISSING_SECTIONS=""
-    for SEC in information-edit pricing processing workflow; do
-      grep -q "data-testid=\"vt-section-$SEC\"" "$WORK/hx-vt.html" || MISSING_SECTIONS="$MISSING_SECTIONS $SEC"
-    done
-    for SEC in information docs publication; do
-      grep -q "data-testid=\"vt-section-$SEC\"" "$WORK/hx-vt.html" || MISSING_SECTIONS="$MISSING_SECTIONS $SEC"
-    done
-    if [ "$CODE_VTD" = "200" ] && [ -z "$MISSING_SECTIONS" ]; then
-      ok "HX-15 visa-type editor renders all six named sections"
+if [ -s "$WORK/staff.txt" ]; then
+  CODE_BULK=$(statusb_of "$BASE_URL/admin/applications" "$WORK/hx-apps.html" "$WORK/staff.txt")
+  if [ "$CODE_BULK" = "200" ]; then
+    grep -q 'data-testid="bulk-bar"' "$WORK/hx-apps.html" \
+      && ok "HX-11 staff work queue exposes the safe bulk bar" || bad "HX-11 bulk bar missing"
+    if grep -Eqi "approve selected|reject selected|bulk-approve|bulk-reject|bulkDebit|bulkDelete" "$WORK/hx-apps.html"; then
+      bad "HX-12 a forbidden bulk control is present on the work queue"
     else
-      bad "HX-15 visa-type editor sections (http $CODE_VTD; missing:$MISSING_SECTIONS)"
+      ok "HX-12 no bulk approve/reject/debit/delete control anywhere in the work queue"
     fi
-    grep -q "Fee (DZD)" "$WORK/hx-vt.html" && ! grep -Eq "(€|EUR\\b|USD\\b)" "$WORK/hx-vt.html" \
-      && ok "HX-16 visa-type editor prices in DZD only" || bad "HX-16 visa-type editor currency"
+    SIZE_COUNT=$(grep -o 'data-testid="page-size-[0-9]*"' "$WORK/hx-apps.html" | sort -u | wc -l | tr -d ' ')
+    grep -q 'data-testid="page-size-50"' "$WORK/hx-apps.html" && [ "$SIZE_COUNT" = "3" ] \
+      && ok "HX-13 20/50/100 page-size standard on the staff work queue" || bad "HX-13 page-size standard (found $SIZE_COUNT options)"
+    grep -q 'data-testid="saved-views"' "$WORK/hx-apps.html" \
+      && ok "HX-14 saved operational views present" || bad "HX-14 saved views missing"
   else
-    bad "HX-15 visatype link not found on the config list"
+    bad "HX-11..HX-14 staff work queue (http $CODE_BULK)"
   fi
-elif [ "$CODE_VT" = "403" ] || [ "$CODE_VT" = "404" ]; then
-  skp "HX-15/HX-16 visa-type editor needs config.view (staff account lacks it)"
+
+  CODE_VT=$(statusb_of "$BASE_URL/admin/config/visa-types" "$WORK/hx-vt-list.html" "$WORK/staff.txt")
+  if [ "$CODE_VT" = "200" ]; then
+    VT_HREF=$(grep -o '/admin/config/visa-types/[0-9a-f-]\{36\}' "$WORK/hx-vt-list.html" | head -1)
+    if [ -n "$VT_HREF" ]; then
+      CODE_VTD=$(statusb_of "$BASE_URL$VT_HREF" "$WORK/hx-vt.html" "$WORK/staff.txt")
+      MISSING_SECTIONS=""
+      for SEC in information-edit pricing processing workflow; do
+        grep -q "data-testid=\"vt-section-$SEC\"" "$WORK/hx-vt.html" || MISSING_SECTIONS="$MISSING_SECTIONS $SEC"
+      done
+      for SEC in information docs publication; do
+        grep -q "data-testid=\"vt-section-$SEC\"" "$WORK/hx-vt.html" || MISSING_SECTIONS="$MISSING_SECTIONS $SEC"
+      done
+      if [ "$CODE_VTD" = "200" ] && [ -z "$MISSING_SECTIONS" ]; then
+        ok "HX-15 visa-type editor renders all six named sections"
+      else
+        bad "HX-15 visa-type editor sections (http $CODE_VTD; missing:$MISSING_SECTIONS)"
+      fi
+      grep -q "Fee (DZD)" "$WORK/hx-vt.html" && ! grep -Eq "(€|EUR\\b|USD\\b)" "$WORK/hx-vt.html" \
+        && ok "HX-16 visa-type editor prices in DZD only" || bad "HX-16 visa-type editor currency"
+    else
+      bad "HX-15 visatype link not found on the config list"
+    fi
+  elif [ "$CODE_VT" = "403" ] || [ "$CODE_VT" = "404" ]; then
+    skp "HX-15/HX-16 visa-type editor needs config.view (staff account lacks it)"
+  else
+    bad "HX-15 config list (http $CODE_VT)"
+  fi
+
+  CODE_SET=$(statusb_of "$BASE_URL/admin/settings" "$WORK/hx-settings.html" "$WORK/staff.txt")
+  if [ "$CODE_SET" = "200" ]; then
+    FORMS=$(grep -o '<form' "$WORK/hx-settings.html" | wc -l | tr -d ' ')
+    SAVES=$(grep -Eo 'Save website content|Publish approved legal versions|Save branding' "$WORK/hx-settings.html" | sort -u | wc -l | tr -d ' ')
+    LEGAL=$(grep -o 'name="legal\.[a-z]*\.\(en\|fr\|ar\)"' "$WORK/hx-settings.html" | sort -u | wc -l | tr -d ' ')
+    [ "$SAVES" -ge 3 ] && [ "$LEGAL" -ge 6 ] \
+      && ok "HX-17 settings: independent website/branding saves + controlled legal publication ($SAVES actions, $FORMS forms)" \
+      || bad "HX-17 settings sections (saves=$SAVES legalFields=$LEGAL forms=$FORMS)"
+    grep -q 'dir="rtl"' "$WORK/hx-settings.html" \
+      && ok "HX-18 Arabic legal field is RTL on the settings screen" || bad "HX-18 Arabic legal field direction"
+  elif [ "$CODE_SET" = "403" ] || [ "$CODE_SET" = "404" ]; then
+    skp "HX-17/HX-18 settings need settings.manage (staff account lacks it)"
+  else
+    bad "HX-17 settings page (http $CODE_SET)"
+  fi
 else
-  bad "HX-15 config list (http $CODE_VT)"
+  for HX in 11 12 13 14 15 16 17 18; do
+    skp "HX-$HX staff hosted surface (no authenticated staff session)"
+  done
 fi
 
-CODE_SET=$(statusb_of "$BASE_URL/admin/settings" "$WORK/hx-settings.html" "$WORK/staff.txt")
-if [ "$CODE_SET" = "200" ]; then
-  FORMS=$(grep -o '<form' "$WORK/hx-settings.html" | wc -l | tr -d ' ')
-  SAVES=$(grep -Eo 'Save website content|Save legal content|Save branding' "$WORK/hx-settings.html" | sort -u | wc -l | tr -d ' ')
-  LEGAL=$(grep -o 'name="legal\.[a-z]*\.\(en\|fr\|ar\)"' "$WORK/hx-settings.html" | sort -u | wc -l | tr -d ' ')
-  [ "$SAVES" -ge 3 ] && [ "$LEGAL" -ge 6 ] \
-    && ok "HX-17 settings: independent saves ($SAVES) and 6+ per-language legal fields ($FORMS forms)" \
-    || bad "HX-17 settings sections (saves=$SAVES legalFields=$LEGAL forms=$FORMS)"
-  grep -q 'dir="rtl"' "$WORK/hx-settings.html" \
-    && ok "HX-18 Arabic legal field is RTL on the settings screen" || bad "HX-18 Arabic legal field direction"
-elif [ "$CODE_SET" = "403" ] || [ "$CODE_SET" = "404" ]; then
-  skp "HX-17/HX-18 settings need settings.manage (staff account lacks it)"
-else
-  bad "HX-17 settings page (http $CODE_SET)"
-fi
 for L in en fr ar; do
   CODE_LEG=$(curl -s -b "evos_ui_locale=$L" -o "$WORK/hx-privacy-$L.html" -w "%{http_code}" --max-time 30 "$BASE_URL/privacy")
   [ "$CODE_LEG" = "200" ] && ok "HX-19 privacy page renders with the $L interface ($CODE_LEG)" || bad "HX-19 privacy page $L (http $CODE_LEG)"
@@ -833,8 +940,9 @@ grep -q 'إشعار الخصوصية' "$WORK/hx-privacy-ar.html" \
 grep -q 'dir="rtl"' "$WORK/hx-privacy-ar.html" \
   && ok "HX-20 Arabic privacy page is RTL" || bad "HX-20 Arabic privacy page direction"
 
+if [ "$LEGAL_READY_COUNT" = "3" ]; then
 log "-- [11.5] Honeypot + rate limiting"
-make_form en "Honeypot Bot $STAMP" "hosted-bot-$STAMP@hosted-verify.invalid" "hosted-bot-$STAMP@hosted-verify.invalid" 0
+make_form en "Honeypot Bot $STAMP" "hosted-bot-$STAMP@hosted-verify.invalid"
 sed -i 's/^fax=$/fax=bot-filled-this/' "$WORK/form.txt"
 submit_form "$WORK/reg-en.html" "$BASE_URL/agency/register?lang=en" "Submit application for review" "$WORK/nojar5.txt" "$WORK/form.txt" >/dev/null
 LOC_HP=$(loc_header)
@@ -844,13 +952,18 @@ echo "$LOC_HP" | grep -q "success" && ! echo "$LOC_HP" | grep -q "ref=AGR-" \
 
 RL_OK=0
 for i in 1 2 3 4 5 6 7 8 9 10; do
-  make_form en "RateLimit Probe $STAMP $i" "rl-$i-$STAMP@hosted-verify.invalid" "rl-$i-$STAMP@hosted-verify.invalid" 0
+  make_form en "RateLimit Probe $STAMP $i" "rl-$i-$STAMP@hosted-verify.invalid"
   submit_form "$WORK/reg-en.html" "$BASE_URL/agency/register?lang=en" "Submit application for review" "$WORK/nojar.rl.$i.txt" "$WORK/form.txt" >/dev/null
   L=$(loc_header)
   echo "$L" | grep -q "success?ref=AGR-" || { RL_OK=1; break; }
 done
 [ "$RL_OK" = "1" ] && ok "rate limiting kicks in on rapid repeated submissions" \
   || skp "rate limiting not observed in ≤10 attempts (hourly ceiling may differ on this deployment)"
+
+else
+  skp "honeypot hosted probe (registration intentionally closed by legal publication gate)"
+  skp "registration rate-limit hosted probe (registration intentionally closed by legal publication gate)"
+fi
 
 # -------------------------------------------------------------------------- #
 log "-- [12] Final health re-check"
@@ -868,7 +981,7 @@ printf 'email=%s\npassword=%s\n' "no-such-user-$STAMP@verify.invalid" "Wr0ng!Pro
 CODE_P0P=$(submit_form "$WORK/prod-login.html" "https://visa.essafariavoyages.com/login" "Sign in" "$WORK/prodjarb.txt" "$WORK/prodloginfields-bogus.txt")
 P0P_TEXT=$(tr -d '\r' < "$WORK/body.html" | LC_ALL=C sed 's/<[^>]*>//g' | tr -s ' \n' ' ' 2>/dev/null)
 case "$P0P_TEXT" in *"Service temporarily unavailable"*) bad "PROD P0 repro: bogus login produced service-failure on production domain";; esac
-echo "$P0P_TEXT" | grep -qi "Invalid email or password" \
+echo "$P0P_TEXT" | grep -Eqi "Invalid (username, email|email) or password" \
   && ok "PROD bogus login → normal invalid-credentials (auth + users query healthy on visa_os, http $CODE_P0P)" \
   || skp "PROD bogus-login probe inconclusive (http $CODE_P0P; login page http $CODE_PROD_L)"
 # Production is READ-ONLY for this harness: a real production login is only

@@ -1,19 +1,21 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { suiteSetup } from "./helpers/global-state";
 import { request } from "./helpers/request";
 import { nextIp, registrationData, registrationPdf, userByEmail } from "./helpers/fixtures";
 import { db } from "@/lib/db";
-import { agencyRegistrationDocuments, auditLogs, checklistItems, users, visaTypes } from "@/db/schema";
+import { agencyRegistrationDocuments, auditLogs, checklistItems, documentBlobs, documents, users, visaTypes } from "@/db/schema";
 import { createSession } from "@/lib/auth";
 import { createDraftApplication } from "@/lib/applications";
 import { getDocumentForUser, uploadDocument } from "@/lib/documents";
 import { submitAgencyRegistration } from "@/lib/registrations";
+import { sha256Hex } from "@/lib/file-integrity";
+import { storageProvider } from "@/lib/storage";
 import { GET as downloadDossierFile } from "@/app/api/documents/[id]/route";
 import { GET as downloadRegistrationFile } from "@/app/api/registrations/[id]/documents/[docId]/route";
 
 suiteSetup();
-afterEach(() => { request.cookie = ""; });
+afterEach(() => { vi.restoreAllMocks(); request.cookie = ""; });
 
 async function downloadAuditCount() {
   const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(auditLogs)
@@ -22,6 +24,36 @@ async function downloadAuditCount() {
 }
 
 describe("forced password change protects private file reads", () => {
+  it("uses immutable dossier MIME and fingerprint instead of untrusted provider response MIME", async () => {
+    const owner = await userByEmail("a-admin@test.example");
+    const [visa] = await db.select().from(visaTypes).where(eq(visaTypes.code, "FR-SCH-TOUR"));
+    const app = await createDraftApplication({ agencyId: owner.agencyId!, visaTypeId: visa!.id, createdBy: owner });
+    const [item] = await db.select().from(checklistItems).where(eq(checklistItems.applicationId, app.id));
+    const pdf = registrationPdf();
+    const doc = await uploadDocument({ applicationId: app.id, actor: owner, checklistItemId: item!.id, file: pdf });
+    await expect(db.update(documents).set({ mimeType: "text/html" }).where(eq(documents.id, doc.id))).rejects.toThrow();
+    request.cookie = (await createSession(owner.id)).token;
+    vi.spyOn(storageProvider(), "get").mockResolvedValueOnce({ data: pdf.data, mimeType: "text/html" });
+    const response = await downloadDossierFile(new Request("http://localhost/api/documents"), { params: Promise.resolve({ id: doc.id }) });
+    expect(response.status).toBe(200); expect(response.headers.get("content-type")).toBe(pdf.type);
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(pdf.data);
+  });
+
+  it("uses immutable registration MIME rather than provider response MIME", async () => {
+    const pdf = registrationPdf();
+    const reg = await submitAgencyRegistration({ data: registrationData(), files: [pdf], ipAddress: nextIp() });
+    const [doc] = await db.select().from(agencyRegistrationDocuments).where(eq(agencyRegistrationDocuments.registrationId, reg.id));
+    await expect(db.update(agencyRegistrationDocuments).set({ mimeType: "text/html" }).where(eq(agencyRegistrationDocuments.id, doc!.id))).rejects.toThrow();
+    const staff = await userByEmail("admin@test.example");
+    request.cookie = (await createSession(staff.id)).token;
+    vi.spyOn(storageProvider(), "get").mockResolvedValueOnce({ data: pdf.data, mimeType: "text/html" });
+    const response = await downloadRegistrationFile(new Request("http://localhost/api/registrations/document"), { params: Promise.resolve({ id: reg.id, docId: doc!.id }) });
+    expect(response.status).toBe(200); expect(response.headers.get("content-type")).toBe(pdf.type);
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(pdf.data);
+  });
+
   it.each(["a-admin@test.example", "admin@test.example"])("denies dossier files for locked %s while preserving unlocked downloads", async (email) => {
     const owner = await userByEmail("a-admin@test.example");
     const [visa] = await db.select().from(visaTypes).where(eq(visaTypes.code, "FR-SCH-TOUR"));
@@ -33,6 +65,7 @@ describe("forced password change protects private file reads", () => {
     request.cookie = (await createSession(actor.id)).token;
     const unlocked = await downloadDossierFile(new Request(`http://localhost/api/documents/${doc.id}`), { params: Promise.resolve({ id: doc.id }) });
     expect(unlocked.status).toBe(200);
+    expect(unlocked.headers.get("content-type")).toBe(pdf.type);
     expect(Buffer.from(await unlocked.arrayBuffer())).toEqual(pdf.data);
     const audits = await downloadAuditCount();
     await db.update(users).set({ mustChangePassword: true }).where(eq(users.id, actor.id));
@@ -53,6 +86,7 @@ describe("forced password change protects private file reads", () => {
     request.cookie = (await createSession(actor.id)).token;
     const unlocked = await downloadRegistrationFile(new Request(`http://localhost/api/registrations/${reg.id}/documents/${doc!.id}`), { params: Promise.resolve({ id: reg.id, docId: doc!.id }) });
     expect(unlocked.status).toBe(200);
+    expect(unlocked.headers.get("content-type")).toBe(pdf.type);
     expect(Buffer.from(await unlocked.arrayBuffer())).toEqual(pdf.data);
     const audits = await downloadAuditCount();
     await db.update(users).set({ mustChangePassword: true }).where(eq(users.id, actor.id));
@@ -65,4 +99,48 @@ describe("forced password change protects private file reads", () => {
       expect(await downloadAuditCount()).toBe(audits);
     } finally { await db.update(users).set({ mustChangePassword: false }).where(eq(users.id, actor.id)); }
   });
+  it("refuses a same-size tampered dossier blob before download/audit", async () => {
+    const owner = await userByEmail("a-admin@test.example");
+    const [visa] = await db.select().from(visaTypes).where(eq(visaTypes.code, "FR-SCH-TOUR"));
+    const app = await createDraftApplication({ agencyId: owner.agencyId!, visaTypeId: visa!.id, createdBy: owner });
+    const [item] = await db.select().from(checklistItems).where(eq(checklistItems.applicationId, app.id));
+    const pdf = registrationPdf();
+    const doc = await uploadDocument({ applicationId: app.id, actor: owner, checklistItemId: item!.id, file: pdf });
+    expect(doc.sha256).toBe(sha256Hex(pdf.data));
+
+    request.cookie = (await createSession(owner.id)).token;
+    const beforeAudit = await downloadAuditCount();
+    const [blob] = await db.select().from(documentBlobs).where(eq(documentBlobs.key, doc.storageKey));
+    expect(blob).toBeDefined();
+    const tampered = Buffer.from(blob!.data);
+    tampered[tampered.length - 1] = tampered[tampered.length - 1]! ^ 0xff;
+    await expect(
+      db.update(documentBlobs).set({ data: tampered }).where(eq(documentBlobs.key, doc.storageKey)),
+    ).rejects.toThrow();
+    vi.spyOn(storageProvider(), "get").mockResolvedValueOnce({ data: tampered, mimeType: pdf.type });
+    const response = await downloadDossierFile(new Request(`http://localhost/api/documents/${doc.id}`), { params: Promise.resolve({ id: doc.id }) });
+    expect(response.status).toBe(500);
+    expect(await downloadAuditCount()).toBe(beforeAudit);
+  });
+
+  it("refuses a same-size tampered registration blob before download/audit", async () => {
+    const pdf = registrationPdf();
+    const reg = await submitAgencyRegistration({ data: registrationData(), files: [pdf], ipAddress: nextIp() });
+    const [doc] = await db.select().from(agencyRegistrationDocuments).where(eq(agencyRegistrationDocuments.registrationId, reg.id));
+    expect(doc).toBeDefined();
+    expect(doc!.sha256).toBe(sha256Hex(pdf.data));
+
+    const actor = await userByEmail("admin@test.example");
+    request.cookie = (await createSession(actor.id)).token;
+    const beforeAudit = await downloadAuditCount();
+    const [blob] = await db.select().from(documentBlobs).where(eq(documentBlobs.key, doc!.storageKey));
+    expect(blob).toBeDefined();
+    const tampered = Buffer.from(blob!.data);
+    tampered[tampered.length - 1] = tampered[tampered.length - 1]! ^ 0xff;
+    vi.spyOn(storageProvider(), "get").mockResolvedValueOnce({ data: tampered, mimeType: pdf.type });
+    const response = await downloadRegistrationFile(new Request(`http://localhost/api/registrations/${reg.id}/documents/${doc!.id}`), { params: Promise.resolve({ id: reg.id, docId: doc!.id }) });
+    expect(response.status).toBe(500);
+    expect(await downloadAuditCount()).toBe(beforeAudit);
+  });
+
 });

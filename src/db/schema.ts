@@ -430,6 +430,8 @@ export const documents = pgTable(
     originalFilename: text("original_filename").notNull(),
     mimeType: text("mime_type").notNull(),
     sizeBytes: integer("size_bytes").notNull(),
+    /** SHA-256 of uploaded bytes for storage-provider-independent integrity checks. */
+    sha256: text("sha256"),
     storageKey: text("storage_key").notNull(),
     status: text("status").notNull().default("UPLOADED"), // UPLOADED | UNDER_REVIEW | ACCEPTED | REJECTED | RESUBMISSION_REQUIRED
     reviewNotes: text("review_notes"),
@@ -726,6 +728,8 @@ export const agencyRegistrationDocuments = pgTable(
     originalFilename: text("original_filename").notNull(),
     mimeType: text("mime_type").notNull(),
     sizeBytes: integer("size_bytes").notNull(),
+    /** SHA-256 of uploaded KYC/follow-up bytes; null only for historical rows. */
+    sha256: text("sha256"),
     storageKey: text("storage_key").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -841,6 +845,8 @@ export const walletTopupRequests = pgTable(
     proofFilename: text("proof_filename"),
     proofMimeType: text("proof_mime_type"),
     proofSizeBytes: integer("proof_size_bytes"),
+    /** SHA-256 of the submitted receipt; null only for historical rows. */
+    proofSha256: text("proof_sha256"),
     idempotencyKey: uuid("idempotency_key"),
     /** PENDING | PROCESSED | REJECTED | CANCELLED */
     status: text("status").notNull().default("PENDING"),

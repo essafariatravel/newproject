@@ -1,7 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import { databaseSchema, qualifiedTable } from "@/lib/database-schema";
 import { AppError, type AuthUser } from "@/lib/types";
-import { officialDocumentIntegritySql } from "./decision-integrity";
+import { officialDocumentIntegritySql, storedDocumentIntegritySql } from "./decision-integrity";
 
 export interface ReconciliationIssue {
   id: string; kind: "MISSING_OFFICIAL_DECISION" | "MISSING_STORAGE_OBJECT"; applicationId: string;
@@ -51,7 +51,7 @@ export function createLegacyReconciliationService(pool: Pool, schema = databaseS
         from ${table("applications")} a join ${table("statuses")} s on s.id=a.status_id where s.code in ('APPROVED','REJECTED') and (a.decision_at is null or not ${official("a.id")})
         union all select 'storage:'||d.id,'MISSING_STORAGE_OBJECT',d.application_id,d.id,d.storage_key
         from ${table("documents")} d left join ${table("document_blobs")} b on b.key=d.storage_key
-        where b.key is null or b.size_bytes<>d.size_bytes or octet_length(b.data)<>d.size_bytes or b.mime_type<>d.mime_type`)).rows;
+        where b.key is null or not (${storedDocumentIntegritySql("d", "b")})`)).rows;
       let detected = 0;
       for (const finding of missing) {
         let row = (await client.query<{ id: string }>(`insert into ${table("legacy_reconciliation_issues")}(fingerprint,kind,application_id,document_id,storage_key)
@@ -72,7 +72,7 @@ export function createLegacyReconciliationService(pool: Pool, schema = databaseS
       if (!issue) throw new AppError("NOT_FOUND", "Not found.");
       if (input.outcome === "RESTORED") {
         const healthy = issue.kind === "MISSING_STORAGE_OBJECT"
-          ? (await client.query(`select exists(select 1 from ${table("documents")} d join ${table("document_blobs")} b on b.key=d.storage_key where d.id=$1 and b.size_bytes=d.size_bytes and octet_length(b.data)=d.size_bytes and b.mime_type=d.mime_type) healthy`, [issue.documentId])).rows[0]?.healthy
+          ? (await client.query(`select exists(select 1 from ${table("documents")} d join ${table("document_blobs")} b on b.key=d.storage_key where d.id=$1 and (${storedDocumentIntegritySql("d", "b")})) healthy`, [issue.documentId])).rows[0]?.healthy
           : (await client.query(`select a.decision_at is not null and ${official("a.id")} as healthy from ${table("applications")} a join ${table("statuses")} s on s.id=a.status_id where a.id=$1 and s.code in ('APPROVED','REJECTED')`, [issue.applicationId])).rows[0]?.healthy;
         if (!healthy) throw new AppError("RECONCILIATION_UNRESOLVED", "The genuine original document or storage object is still missing.");
       }

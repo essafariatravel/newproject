@@ -8,6 +8,7 @@ import { nextIp, registrationData, registrationPdf, userByEmail } from "./helper
 import { getRegistrationDuplicateCandidates, startRegistrationReview, submitAgencyRegistration, approveRegistration, rejectRegistration, requestMoreInformation, addInternalNote } from "@/lib/registrations";
 import { createRegistrationFollowup, resolveRegistrationFollowup, uploadRegistrationFollowup } from "@/lib/registration-followup";
 import { submitRegistrationAction } from "@/app/actions/registrations";
+import { sha256Hex } from "@/lib/file-integrity";
 
 suiteSetup();
 async function reviewed() {
@@ -43,7 +44,9 @@ describe("partnership review", () => {
     await uploadRegistrationFollowup({ token: issued.token, slotId: slot.id, file: registrationPdf() });
     expect(await resolveRegistrationFollowup(issued.token)).toBeNull();
     await expect(uploadRegistrationFollowup({ token: issued.token, slotId: slot.id, file: registrationPdf() })).rejects.toMatchObject({ code: "INVALID_LINK" });
-    expect(await db.select().from(agencyRegistrationDocuments).where(eq(agencyRegistrationDocuments.registrationId, reg.id))).toHaveLength(1);
+    const storedDocs = await db.select().from(agencyRegistrationDocuments).where(eq(agencyRegistrationDocuments.registrationId, reg.id));
+    expect(storedDocs).toHaveLength(1);
+    expect(storedDocs[0]!.sha256).toBe(sha256Hex(registrationPdf().data));
     expect((await db.select().from(agencyRegistrations).where(eq(agencyRegistrations.id, reg.id)))[0]?.status).toBe("UNDER_REVIEW");
   });
   it("revokes previous links and closes follow-up access after approval", async () => {

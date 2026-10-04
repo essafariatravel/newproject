@@ -23,6 +23,7 @@ import {
 import { AppError } from "@/lib/types";
 import { readPublishedLegal } from "@/lib/legal";
 import { publicBrandCopy } from "@/lib/public-brand-copy";
+import { safeErrorCode } from "@/lib/safe-error";
 
 
 export interface RegistrationFormState {
@@ -93,7 +94,7 @@ export async function submitRegistrationAction(
     redirect(`/agency/register/success?lang=${locale}`);
   }
 
-  // Anti-automation 2 — render-time trap: a real KYC form takes a moment.
+  // Anti-automation 2 — render-time trap: a real partnership request takes a moment.
   const renderedAt = Number(formData.get("renderedAt"));
   if (Number.isFinite(renderedAt) && renderedAt > 0 && Date.now() - renderedAt < 1500) {
     return { error: copy.errors.tooFast };
@@ -105,7 +106,6 @@ export async function submitRegistrationAction(
     legalName: field(formData, "legalName"),
     contactFirstName: field(formData, "contactFirstName"),
     city: field(formData, "city"),
-    addressLine: field(formData, "addressLine"),
     phone: field(formData, "phone"),
     email: field(formData, "email"),
     terms: field(formData, "terms"),
@@ -123,20 +123,44 @@ export async function submitRegistrationAction(
   try {
     const [terms, privacy] = await Promise.all([readPublishedLegal("terms",locale),readPublishedLegal("privacy",locale)]);
     if (!terms || !privacy) return {error:publicBrandCopy(locale).legalMissing};
-    if (Number(field(formData,"termsVersion")) !== terms.version || Number(field(formData,"privacyVersion")) !== privacy.version) {
-      return {error:publicBrandCopy(locale).legalChanged};
+    const acceptedTermsId = field(formData, "termsVersionId");
+    const acknowledgedPrivacyId = field(formData, "privacyVersionId");
+    if (
+      Number(field(formData, "termsVersion")) !== terms.version ||
+      Number(field(formData, "privacyVersion")) !== privacy.version ||
+      acceptedTermsId !== terms.id ||
+      acknowledgedPrivacyId !== privacy.id
+    ) {
+      return { error: publicBrandCopy(locale).legalChanged };
     }
     const submitted = await submitAgencyRegistration({
-      data: { ...parsed.data, locale, legalConsentVersions: {terms:terms.version,privacy:privacy.version,locale} },
+      data: {
+        ...parsed.data,
+        locale,
+        legalConsentVersions: {
+          terms: {
+            id: terms.id,
+            version: terms.version,
+            effectiveAt: terms.effectiveAt.toISOString(),
+          },
+          privacy: {
+            id: privacy.id,
+            version: privacy.version,
+            effectiveAt: privacy.effectiveAt.toISOString(),
+          },
+          locale,
+        },
+      },
       files: [],
       ipAddress: ip,
     });
     reference = submitted.reference;
   } catch (err) {
     if (err instanceof AppError) {
+      if (err.code === "LEGAL_CHANGED") return { error: publicBrandCopy(locale).legalChanged };
       return { error: localizedError(err.code, copy.errors) };
     }
-    console.error("[registrations] submission failed", err);
+    console.error("[registrations] submission failed", safeErrorCode(err) ?? "unknown");
     return { error: copy.errors.generic };
   }
   redirect(`/agency/register/success?ref=${encodeURIComponent(reference)}&lang=${locale}`);

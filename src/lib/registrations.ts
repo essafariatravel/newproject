@@ -56,10 +56,13 @@ import {
   type AuthUser,
 } from "@/lib/types";
 import { storageProvider } from "@/lib/storage";
+import { sha256Hex } from "@/lib/file-integrity";
 import { recordAudit } from "@/lib/audit";
 import { notifyUsers, staffUserIds } from "@/lib/notifications";
 import { generateSessionToken, hashPassword, hashToken } from "@/lib/crypto";
 import type { RegistrationCopy, RegistrationLocale } from "@/lib/i18n";
+import { safeErrorCode } from "@/lib/safe-error";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 
 /* ------------------------------------------------------------------ */
 /* Constants                                                           */
@@ -165,7 +168,7 @@ export function registrationFormSchema(msg: ErrorCopy) {
 
 export type RegistrationData = z.infer<ReturnType<typeof registrationFormSchema>> & {
   locale: RegistrationLocale;
-  legalConsentVersions?: {terms:number;privacy:number;locale:RegistrationLocale};
+  legalConsentVersions?: {terms:{id:string;version:number;effectiveAt:string};privacy:{id:string;version:number;effectiveAt:string};locale:RegistrationLocale};
 };
 
 /** Map a zod failure into `{ field: localizedMessage }`. */
@@ -274,20 +277,26 @@ export async function assertRegistrationRateLimit(ipAddress: string | null): Pro
     throw new AppError("RATE_LIMITED", "Too many attempts. Please wait before submitting again.");
   }
   try {
-    const rows = await db
-      .select({
-        lastHour: sql<number>`count(*) filter (where ${agencyRegistrations.createdAt} > now() - interval '1 hour')::int`,
-        lastDay: sql<number>`count(*) filter (where ${agencyRegistrations.createdAt} > now() - interval '1 day')::int`,
-      })
-      .from(agencyRegistrations)
-      .where(eq(agencyRegistrations.ipAddress, key));
-    const r = rows[0];
-    if (r && (r.lastHour >= RATE_LIMIT_PER_IP_HOUR || r.lastDay >= RATE_LIMIT_PER_IP_DAY)) {
+    // Persist only a one-way hash of the rate-limit subject in auth_rate_limits.
+    // The public partnership record itself does not need a durable raw IP copy.
+    const hourAllowed = await consumeAuthRateLimit(
+      "agency-registration-hour",
+      key,
+      RATE_LIMIT_PER_IP_HOUR,
+      60 * 60_000,
+    );
+    const dayAllowed = await consumeAuthRateLimit(
+      "agency-registration-day",
+      key,
+      RATE_LIMIT_PER_IP_DAY,
+      24 * 60 * 60_000,
+    );
+    if (!hourAllowed || !dayAllowed) {
       throw new AppError("RATE_LIMITED", "Too many attempts. Please wait before submitting again.");
     }
   } catch (err) {
     if (err instanceof AppError) throw err;
-    console.error("[registrations] rate-limit check failed (failing closed)", err);
+    console.error("[registrations] rate-limit check failed (failing closed)", safeErrorCode(err) ?? "unknown");
     throw new AppError("SERVICE_UNAVAILABLE", "Service temporarily unavailable. Please try again.");
   }
 }
@@ -346,42 +355,46 @@ export async function submitAgencyRegistration(params: {
 
   const id = randomUUID();
   // 1. Private storage first (keys are server-generated, never from input).
-  const stored: Array<{ key: string; file: RegistrationFileInput }> = [];
+  const stored: Array<{ key: string; file: RegistrationFileInput; sha256: string }> = [];
   try {
     for (const file of files) {
       const key = `agency-registrations/${id}/${randomUUID()}`;
+      const sha256 = sha256Hex(file.data);
       await storageProvider().put(key, file.data, file.type);
-      stored.push({ key, file });
+      stored.push({ key, file, sha256 });
     }
   } catch (err) {
     for (const s of stored) await storageProvider().delete(s.key).catch(() => {});
-    console.error("[registrations] document storage failed", err);
+    console.error("[registrations] document storage failed", safeErrorCode(err) ?? "unknown");
     throw new AppError("STORAGE_WRITE_FAILED", "Could not store the uploaded documents.");
   }
 
-  // 2. Database, one transaction (registration + documents + history).
+  // 2. Database, one transaction (registration + documents + history + audits).
+  let reference: string;
   try {
-    const reference = await persistRegistration(id, data, stored, params.ipAddress);
-    // 3. Notifications follow the audited registration commit.
-    const staff = await staffUserIds([...REGISTRATION_DECIDE_ROLES]).catch(() => [] as string[]);
-    await notifyUsers(staff, {
-      type: "REGISTRATION_SUBMITTED",
-      title: `New agency registration — ${data.legalName}`,
-      body: `${data.legalName} (${data.country}) applied for partnership. Reference ${reference}.`,
-      link: `/admin/registrations/${id}`,
-    }).catch((err) => console.error("[registrations] staff notification failed", err));
-    return { id, reference };
+    reference = await persistRegistration(id, data, stored);
   } catch (err) {
+    // This boundary covers only a failed commit. Post-commit delivery failures
+    // must never delete files belonging to a persisted registration.
     for (const s of stored) await storageProvider().delete(s.key).catch(() => {});
     throw err;
   }
+
+  // 3. Optional delivery follows the audited commit, outside rollback cleanup.
+  const staff = await staffUserIds([...REGISTRATION_DECIDE_ROLES]).catch(() => [] as string[]);
+  await notifyUsers(staff, {
+    type: "REGISTRATION_SUBMITTED",
+    title: `New agency registration — ${data.legalName}`,
+    body: `${data.legalName} (${data.country}) applied for partnership. Reference ${reference}.`,
+    link: `/admin/registrations/${id}`,
+  }).catch((err) => console.error("[registrations] staff notification failed", safeErrorCode(err) ?? "unknown"));
+  return { id, reference };
 }
 
 async function persistRegistration(
   id: string,
   data: RegistrationData,
-  stored: Array<{ key: string; file: RegistrationFileInput }>,
-  ipAddress: string | null,
+  stored: Array<{ key: string; file: RegistrationFileInput; sha256: string }>,
 ): Promise<string> {
   let lastError: unknown = null;
   // Retry only on (practically impossible) reference collisions.
@@ -389,6 +402,41 @@ async function persistRegistration(
     const reference = newReference();
     try {
       return await db.transaction(async (tx) => {
+        let consent = data.legalConsentVersions;
+        let consentedAt = new Date();
+        if (consent) {
+          if (consent.locale !== data.locale || !["en","fr","ar"].includes(data.locale)) {
+            throw new AppError("LEGAL_CHANGED", "Review the currently effective legal documents before submitting.");
+          }
+          // Publication uses these same keys and lexical order. Serialize the
+          // accepted snapshot with publication rather than trusting an earlier
+          // form read while storage or validation work was in progress.
+          for (const kind of ["privacy","terms"] as const) {
+            await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`legal:${kind}:${data.locale}`}))`);
+          }
+          // now() is fixed at transaction start, before a publication-lock wait.
+          // Use one database acceptance instant for both snapshots and the receipt.
+          const acceptance = (await tx.execute(sql`select clock_timestamp() as "acceptedAt"`)).rows[0] as { acceptedAt: Date | string };
+          consentedAt = acceptance.acceptedAt instanceof Date ? acceptance.acceptedAt : new Date(acceptance.acceptedAt);
+          const canonical = {} as Record<"terms" | "privacy", NonNullable<RegistrationData["legalConsentVersions"]>["terms"]>;
+          for (const kind of ["privacy","terms"] as const) {
+            const result = await tx.execute(sql`select id, version, effective_at as "effectiveAt"
+              from ${sql.raw(qualifiedTable("legal_versions"))}
+              where kind=${kind} and locale=${data.locale} and effective_at<=${consentedAt}
+              order by version desc limit 1`);
+            const current = result.rows[0] as { id: string; version: number; effectiveAt: Date | string } | undefined;
+            const effectiveAt = current ? current.effectiveAt instanceof Date ? current.effectiveAt : new Date(current.effectiveAt) : null;
+            const supplied = consent[kind];
+            if (!current || !supplied || typeof supplied.effectiveAt !== "string" ||
+                current.id !== supplied.id || current.version !== supplied.version ||
+                !effectiveAt || !Number.isFinite(effectiveAt.getTime()) ||
+                effectiveAt.getTime() !== new Date(supplied.effectiveAt).getTime()) {
+              throw new AppError("LEGAL_CHANGED", "Review the currently effective legal documents before submitting.");
+            }
+            canonical[kind] = { id: current.id, version: current.version, effectiveAt: effectiveAt.toISOString() };
+          }
+          consent = { ...canonical, locale: data.locale };
+        }
         await tx.insert(agencyRegistrations).values({
           id,
           reference,
@@ -417,19 +465,19 @@ async function persistRegistration(
           termsAccepted: data.terms === "true",
           privacyAcknowledged: data.privacy === "true",
           infoConfirmed: data.accuracy === "true",
-          consentedAt: new Date(),
-          legalConsentVersions: data.legalConsentVersions ?? {},
+          consentedAt,
+          legalConsentVersions: consent ?? {},
           status: "PENDING",
-          ipAddress,
         });
         if (stored.length > 0) {
           await tx.insert(agencyRegistrationDocuments).values(
-            stored.map(({ key, file }) => ({
+            stored.map(({ key, file, sha256 }) => ({
               registrationId: id,
               category: file.category,
               originalFilename: file.name,
               mimeType: file.type,
               sizeBytes: file.size,
+              sha256,
               storageKey: key,
             })),
           );
@@ -443,8 +491,15 @@ async function persistRegistration(
           note: "Application submitted from the public website.",
         });
         await recordAudit({ actor: null, action: "AGENCY_REGISTRATION_SUBMITTED", entity: "agency_registration", entityId: id,
-          metadata: { reference, legalName: data.legalName, country: data.country, businessType: data.businessType,
-            documents: stored.length, locale: data.locale }, ipAddress }, tx);
+          metadata: { reference, documents: stored.length, locale: data.locale } }, tx);
+        if (consent) {
+          for (const [kind, action] of [["terms", "TERMS_ACCEPTED"], ["privacy", "PRIVACY_NOTICE_ACKNOWLEDGED"]] as const) {
+            const legal = consent[kind];
+            await recordAudit({ actor: null, action, entity: "agency_registration", entityId: id,
+              metadata: { legalVersionId: legal.id, version: legal.version, locale: consent.locale,
+                effectiveAt: legal.effectiveAt } }, tx);
+          }
+        }
         return reference;
       });
     } catch (err) {
@@ -651,7 +706,7 @@ export async function rejectRegistration(id: string, actor: AuthUser, reason: st
     await closeRegistrationFollowups(tx, id);
     await tx.update(agencyRegistrations).set({ status: "REJECTED", rejectionReason: clean, decidedBy: actor.id, decidedAt: new Date(), updatedAt: new Date() }).where(eq(agencyRegistrations.id, id));
     await tx.insert(agencyRegistrationHistory).values({ registrationId: id, kind: "STATUS", fromStatus: reg.status, toStatus: "REJECTED", actorId: actor.id, note: clean });
-    await registrationAudit(tx, id, actor, "REGISTRATION_REJECTED", { reason: clean, legalName: reg.legalName }, ipAddress);
+    await registrationAudit(tx, id, actor, "REGISTRATION_REJECTED", { reason: clean }, ipAddress);
   });
 }
 
@@ -837,9 +892,9 @@ export async function approveRegistration(params: {
     await client.query(`update ${q("agency_registration_followup_tokens")} set revoked_at=now() where registration_id=$1 and revoked_at is null and used_at is null`,[registrationId]);
     await client.query(`update ${q("agency_registration_requests")} set status='CANCELLED' where registration_id=$1 and status='OPEN'`,[registrationId]);
     for (const event of [
-      { action:"REGISTRATION_APPROVED",entity:"agency_registration",id:registrationId,metadata:{legalName:reg.legal_name,adminUserId} },
-      { action:"AGENCY_CREATED",entity:"agency",id:agencyId,metadata:{legalName:reg.legal_name,source:"agency_registration",registrationId} },
-      { action:"USER_CREATED",entity:"user",id:adminUserId,metadata:{role:"AGENCY_ADMIN",email:reg.email,username:legacyAgencyUsername(newAdminId),source:"agency_registration",registrationId} },
+      { action:"REGISTRATION_APPROVED",entity:"agency_registration",id:registrationId,metadata:{adminUserId} },
+      { action:"AGENCY_CREATED",entity:"agency",id:agencyId,metadata:{source:"agency_registration",registrationId} },
+      { action:"USER_CREATED",entity:"user",id:adminUserId,metadata:{role:"AGENCY_ADMIN",source:"agency_registration",registrationId} },
     ]) {
       await client.query(`insert into ${q("audit_logs")} (actor_id,actor_email,actor_role,agency_id,action,entity,entity_id,metadata,ip_address) values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)`,[actor.id,actor.email,actor.role,agencyId,event.action,event.entity,event.id,JSON.stringify(event.metadata),params.ipAddress??null]);
     }
@@ -869,14 +924,14 @@ export async function approveRegistration(params: {
     body: "Your agency workspace is ready. Activate your account with the secure link provided by ESSAFARIA to access your portal.",
     link: "/portal",
     agencyId: result.agencyId,
-  }).catch((err) => console.error("[registrations] onboarding notification failed", err));
+  }).catch((err) => console.error("[registrations] onboarding notification failed", safeErrorCode(err) ?? "unknown"));
   const staff = await staffUserIds([...REGISTRATION_DECIDE_ROLES]).catch(() => [] as string[]);
   await notifyUsers(staff, {
     type: "REGISTRATION_APPROVED",
     title: `Registration approved — ${result.legalName}`,
     body: `${result.legalName} was approved by ${actor.name}. The agency and its Agency Admin were created.`,
     link: `/admin/registrations/${registrationId}`,
-  }).catch((err) => console.error("[registrations] staff notification failed", err));
+  }).catch((err) => console.error("[registrations] staff notification failed", safeErrorCode(err) ?? "unknown"));
 
   return result;
 }
@@ -918,7 +973,7 @@ export async function createActivationTokenForRegistration(
       createdBy: current.id,
     });
     await recordIdentityAudit(tx, { actor: current, action: "ACTIVATION_LINK_CREATED", entity: "user", entityId: reg.adminUserId,
-      agencyId: reg.agencyId, metadata: { registrationId, email: reg.email, expiresAt: expiresAt.toISOString() } });
+      agencyId: reg.agencyId, metadata: { registrationId, expiresAt: expiresAt.toISOString() } });
     return reg;
   });
   return { token, expiresAt, email: reg.email };

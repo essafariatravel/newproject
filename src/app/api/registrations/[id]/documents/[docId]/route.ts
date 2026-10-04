@@ -7,6 +7,7 @@ import { AppError } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { currentOperationActor } from "@/lib/operation-identity";
+import { assertStoredFileIntegrity } from "@/lib/file-integrity";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,8 @@ export async function GET(
     if (!doc) {
       return NextResponse.json({ error: "Not found." }, { status: 404 });
     }
-    const { data, mimeType } = await storageProvider().get(doc.storageKey);
+    const { data } = await storageProvider().get(doc.storageKey);
+    assertStoredFileIntegrity({ data, expectedSizeBytes: doc.sizeBytes, expectedSha256: doc.sha256 });
     await db.transaction(async tx => {
       const actor = await currentOperationActor(tx, user);
       await recordAudit({
@@ -43,14 +45,14 @@ export async function GET(
         action: "REGISTRATION_DOCUMENT_DOWNLOADED",
         entity: "agency_registration_document",
         entityId: doc.id,
-        metadata: { registrationId: id, filename: doc.originalFilename },
+        metadata: { registrationId: id },
       }, tx);
     });
     const safeName = doc.originalFilename.replace(/["\\\r\n]/g, "_");
     return new NextResponse(new Uint8Array(data), {
       status: 200,
       headers: {
-        "Content-Type": mimeType,
+        "Content-Type": doc.mimeType,
         "Content-Length": String(data.length),
         "Content-Disposition": `attachment; filename="${safeName}"`,
         "Cache-Control": "private, no-store",

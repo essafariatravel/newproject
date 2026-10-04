@@ -24,8 +24,10 @@ unapproved programme unpublished. Run the same read-only readiness inventory
 again and accept only the owner-reviewed launch set. A clean inventory is
 technical evidence; the owner must still approve the commercial facts.
 
-The hosted migration ledger currently includes
-0025_legal_privacy_readiness.sql and 0026_function_privilege_hardening.sql.
-These differ from this candidate's additive reconciliation migrations. Compare
-the actual definitions and dependency order, obtain a fresh verified restore,
-and approve an isolated Preview application before any hosted migration.
+The read-only hosted check on 2026-10-04 confirms the migration ledger through
+0028_file_identity_hardening.sql, including legal/privacy, function privileges
+and permanent file identity. This continuation appends reconciliation as
+0029_legacy_reconciliation.sql, 0030_reconciliation_api_lockdown.sql and
+0031_reconciliation_event_sequence_repair.sql. It preserves the already-applied
+migration names and bytes. Obtain a fresh verified backup/isolated restore and
+approve the exact isolated Preview target before applying the new migrations.

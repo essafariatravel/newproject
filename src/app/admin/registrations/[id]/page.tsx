@@ -16,13 +16,29 @@ import { Card,CardHeader,Flash,KeyValue,PageHeader } from "@/components/ui";
 import { AccessLinkForm } from "@/components/access-link-form";
 import { RegistrationReviewForm } from "@/components/registration-review-form";
 export const dynamic = "force-dynamic";
+
+type ConsentVersion =
+  | number
+  | { id?: string; version?: number; effectiveAt?: string };
+
+function consentEvidence(
+  value: ConsentVersion | undefined,
+  locale: string | undefined,
+): string {
+  if (typeof value === "number") return `v${value}${locale ? ` (${locale})` : ""}`;
+  if (!value) return "";
+  const version = value.version ? `v${value.version}` : "version recorded";
+  const id = value.id ? ` · ${value.id}` : "";
+  const effective = value.effectiveAt ? ` · effective ${value.effectiveAt.slice(0, 10)}` : "";
+  return `${version}${locale ? ` (${locale})` : ""}${effective}${id}`;
+}
 export default async function AdminRegistrationDetailPage({params,searchParams}: {params:Promise<{id:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}) {
   const {id}=await params;const sp=await searchParams;const staff=await pageUser();
   if(!hasPermission(staff,"registrations.view")) notFound();
   const detail=await getRegistrationDetail(id);if(!detail) notFound();
   const locale=await getUiLocale();const copy=registrationReviewCopy(locale);const publicCopy=registrationCopy(locale);
   const {registration:reg,documents,history,agency,adminUser}=detail;
-  const consentVersions=reg.legalConsentVersions as {terms?:number;privacy?:number;locale?:string};
+  const consentVersions=reg.legalConsentVersions as {terms?:ConsentVersion;privacy?:ConsentVersion;locale?:string};
   const [duplicates,requests]=await Promise.all([getRegistrationDuplicateCandidates(id,staff),db.select().from(agencyRegistrationRequests).where(eq(agencyRegistrationRequests.registrationId,id))]);
   const canDecide=hasPermission(staff,"registrations.manage");const isOpen=["PENDING","UNDER_REVIEW","MORE_INFORMATION_REQUIRED"].includes(reg.status);
   const labels:Record<string,string>={PENDING:copy.pending,UNDER_REVIEW:copy.review,MORE_INFORMATION_REQUIRED:copy.requested,APPROVED:copy.approved,REJECTED:copy.rejected};
@@ -35,7 +51,7 @@ export default async function AdminRegistrationDetailPage({params,searchParams}:
       <div className="space-y-4">
         <Card><CardHeader title={copy.company}/><KeyValue items={[{label:publicCopy.fields.legalName!.label,value:reg.legalName},{label:copy.contact,value:`${reg.contactFirstName} ${reg.contactLastName}`.trim()},{label:copy.email,value:<bdi>{reg.email}</bdi>},{label:copy.phone,value:<bdi>{reg.phone}</bdi>},...(reg.city?[{label:copy.city,value:reg.city}]:[]),...(reg.addressLine?[{label:copy.address,value:reg.addressLine}]:[])]}/></Card>
         <Card><CardHeader title={copy.documents}/>{documents.length ? <ul className="divide-y divide-line px-4">{documents.map((doc)=><li key={doc.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><p className="text-sm font-medium text-navy-900">{requests.find((request)=>request.documentId===doc.id)?.label ?? publicCopy.docCategories[doc.category]?.label}</p><p className="mt-1 text-xs text-slate-500"><bdi>{doc.originalFilename}</bdi> · {bytes(doc.sizeBytes)} · {formatDateTime(doc.createdAt,locale)}</p></div><a href={`/api/registrations/${id}/documents/${doc.id}`} className="btn-secondary btn-sm">{copy.view}</a></li>)}</ul> : <p className="px-4 pb-4 text-sm text-slate-500">{copy.noDocs}</p>}{requests.some((request)=>request.status==="OPEN") ? <ul className="border-t border-line p-4 text-xs text-slate-600">{requests.filter((request)=>request.status==="OPEN").map((request)=><li key={request.id}>{copy.requested}: {request.label}</li>)}</ul> : null}</Card>
-        <details className="border-t border-line pt-4"><summary className="cursor-pointer text-sm font-semibold text-navy-900">{copy.consent}</summary><KeyValue items={[{label:copy.submitted,value:formatDateTime(reg.consentedAt,locale)},{label:publicCopy.termsLink,value:reg.termsAccepted ? `✓${consentVersions.terms ? ` · v${consentVersions.terms} (${consentVersions.locale})` : ""}` : "—"},{label:publicCopy.privacyLink,value:reg.privacyAcknowledged ? `✓${consentVersions.privacy ? ` · v${consentVersions.privacy} (${consentVersions.locale})` : ""}` : "—"}]}/></details>
+        <details className="border-t border-line pt-4"><summary className="cursor-pointer text-sm font-semibold text-navy-900">{copy.consent}</summary><KeyValue items={[{label:copy.submitted,value:formatDateTime(reg.consentedAt,locale)},{label:publicCopy.termsLink,value:reg.termsAccepted ? `✓${consentEvidence(consentVersions.terms,consentVersions.locale) ? ` · ${consentEvidence(consentVersions.terms,consentVersions.locale)}` : ""}` : "—"},{label:publicCopy.privacyLink,value:reg.privacyAcknowledged ? `✓${consentEvidence(consentVersions.privacy,consentVersions.locale) ? ` · ${consentEvidence(consentVersions.privacy,consentVersions.locale)}` : ""}` : "—"}]}/></details>
         {(reg.commercialRegistrationNumber || reg.taxId || reg.licenceNumber || reg.website || reg.message) ? <details className="border-t border-line pt-4"><summary className="cursor-pointer text-sm font-semibold text-navy-900">{copy.company}</summary><KeyValue items={[{label:publicCopy.fields.commercialRegistrationNumber!.label,value:reg.commercialRegistrationNumber},{label:publicCopy.fields.taxId!.label,value:reg.taxId},{label:publicCopy.fields.licenceNumber!.label,value:reg.licenceNumber},{label:publicCopy.fields.website!.label,value:reg.website},{label:publicCopy.fields.message!.label,value:reg.message}]}/></details> : null}
         <section className="border-t border-line pt-4"><h2 className="text-sm font-semibold text-navy-900">{copy.history}</h2><ol className="mt-4 space-y-4">{history.map((entry)=><li key={entry.id} className="border-s border-line ps-4"><p className="text-xs font-medium text-navy-900">{entry.kind==="NOTE" ? copy.note : labels[entry.toStatus??""]??copy.review}</p><p className="text-xs text-slate-500">{formatDateTime(entry.createdAt,locale)}{entry.actorName?` · ${entry.actorName}`:""}</p>{entry.note ? <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-slate-600">{entry.note.startsWith("Administrative document received: ") ? copy.received : entry.note}</p> : null}</li>)}</ol></section>
       </div>

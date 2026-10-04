@@ -30,6 +30,7 @@ import {
 import { AppError, OVERRIDE_ROLES, type AuthUser, MAX_UPLOAD_BYTES, isStaffRole, isAgencyRole } from "@/lib/types";
 import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 import { validateDocumentFormat } from "@/lib/upload-validation";
+import { sha256Hex } from "@/lib/file-integrity";
 import { chargeApplicationSubmission } from "@/lib/wallet";
 import { recordAudit } from "@/lib/audit";
 import { getEmbassyApplicability } from "@/lib/queries";
@@ -665,6 +666,7 @@ export async function recordApplicationDecision(params: DecisionInput): Promise<
   }
   const app = (await getApplicationForUser(params.applicationId, actor)).app;
   const documentId = crypto.randomUUID();
+  const sha256 = sha256Hex(f.data);
   const storageKey = buildStorageKey(app.id, documentId);
   await storageProvider().put(storageKey, f.data, f.type);
   try {
@@ -690,7 +692,7 @@ export async function recordApplicationDecision(params: DecisionInput): Promise<
         const [dt] = await tx.select().from(documentTypes).where(and(eq(documentTypes.code, documentTypeForOutcome(params.outcome)), eq(documentTypes.active, true)));
         if (!dt) throw new AppError("CONFIG_ERROR", "Decision document type is not available.");
         await tx.insert(documents).values({ id: documentId, applicationId: app.id, documentTypeId: dt.id,
-          originalFilename: f.name, mimeType: f.type, sizeBytes: f.data.length, storageKey, status: "ACCEPTED",
+          originalFilename: f.name, mimeType: f.type, sizeBytes: f.data.length, sha256, storageKey, status: "ACCEPTED",
           uploadedBy: actor.id, version: 1, reviewedBy: actor.id, reviewedAt: now,
           reviewNotes: "Official decision document",
         });

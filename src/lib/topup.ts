@@ -34,6 +34,7 @@ import { randomUUID } from "node:crypto";
 import { storageProvider } from "@/lib/storage";
 import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 import { validateDocumentFormat } from "@/lib/upload-validation";
+import { assertStoredFileIntegrity, sha256Hex } from "@/lib/file-integrity";
 import { applyWalletMutation, getBalance } from "@/lib/wallet";
 import { recordAuditPg } from "@/lib/audit";
 import { agencyUserIds, notifyUsers } from "@/lib/notifications";
@@ -84,6 +85,7 @@ interface ReceiptSnapshot {
   filename: string | null;
   mimeType: string | null;
   sizeBytes: number | null;
+  sha256: string | null;
 }
 
 function invalidStoredReceipt(): AppError {
@@ -95,6 +97,7 @@ function assertStoredReceipt(proof: ReceiptSnapshot, stored: { data: Buffer; mim
   if (!proof.filename || !proof.mimeType || !proof.sizeBytes || proof.sizeBytes !== stored.data.length ||
       stored.mimeType.split(";")[0]?.trim().toLowerCase() !== proof.mimeType) throw invalidStoredReceipt();
   try {
+    assertStoredFileIntegrity({ data: stored.data, expectedSizeBytes: proof.sizeBytes, expectedSha256: proof.sha256 });
     validateTopupProof({ name: proof.filename, type: proof.mimeType, size: proof.sizeBytes, data: stored.data });
   } catch {
     throw invalidStoredReceipt();
@@ -123,11 +126,16 @@ export async function createTopupRequest(params: {
   if ((params.note?.trim().length ?? 0) > 500) throw new AppError("VALIDATION", "The note is too long.");
 
   if (params.idempotencyKey) {
-    const [existing] = await db.select().from(walletTopupRequests).where(and(eq(walletTopupRequests.agencyId, params.agencyId), eq(walletTopupRequests.idempotencyKey, params.idempotencyKey)));
+    const existing = await db.transaction(async tx => {
+      await currentOperationActor(tx, params.actor);
+      const [row] = await tx.select().from(walletTopupRequests).where(and(eq(walletTopupRequests.agencyId, params.agencyId), eq(walletTopupRequests.idempotencyKey, params.idempotencyKey!)));
+      return row;
+    });
     if (existing) return { id: existing.id, reference: existing.reference, amount: existing.amount };
   }
   validateTopupProof(params.proof);
   const proof = params.proof;
+  const proofSha256 = sha256Hex(proof.data);
 
   const requestId = randomUUID();
   const key = `topup-proofs/${params.agencyId}/${requestId}/${randomUUID()}`;
@@ -145,11 +153,10 @@ export async function createTopupRequest(params: {
       if (pending) throw new AppError("TOPUP_PENDING", "You already have a pending top-up request.");
       const [row] = await tx.insert(walletTopupRequests).values({ id: requestId, agencyId: params.agencyId, amount: amountAbs, currency: "DZD", note: params.note?.trim() || null,
         requestedBy: actor.id, status: "PENDING", proofStorageKey: key, proofFilename: proof.name, proofMimeType: proof.type,
-        proofSizeBytes: proof.data.length, idempotencyKey: params.idempotencyKey ?? null }).returning();
+        proofSizeBytes: proof.data.length, proofSha256, idempotencyKey: params.idempotencyKey ?? null }).returning();
       await tx.insert(auditLogs).values({ actorId: actor.id, actorEmail: actor.email, actorRole: actor.role,
         action: "WALLET_TOPUP_REQUESTED", entity: "wallet_topup_request", entityId: row!.id, agencyId: params.agencyId,
-        metadata: { reference: row!.reference, amount: amountAbs, currency: "DZD", proofFilename: proof.name,
-          actorName: actor.name, actorUsername: actor.username } });
+        metadata: { reference: row!.reference, amount: amountAbs, currency: "DZD", proofSha256 } });
       const staff = await tx.select({ id: users.id }).from(users).where(sql`${users.agencyId} is null and ${users.status} = 'ACTIVE' and ${users.role} in ('SUPER_ADMIN','ADMIN','VISA_AGENT','ACCOUNTING')`);
       if (staff.length) await tx.insert(notifications).values(staff.map((u) => ({ userId: u.id, type: "TOPUP_REQUESTED", title: `Wallet top-up request ${row!.reference}`,
         body: `${actor.agencyName ?? "Agency"} requested ${amountAbs} DZD.`, link: `/admin/billing#topup-${row!.id}`, topupRequestId: row!.id, agencyId: params.agencyId })));
@@ -280,13 +287,14 @@ export async function processTopupRequest(params: {
       proofFilename: walletTopupRequests.proofFilename,
       proofMimeType: walletTopupRequests.proofMimeType,
       proofSizeBytes: walletTopupRequests.proofSizeBytes,
+      proofSha256: walletTopupRequests.proofSha256,
     }).from(walletTopupRequests).where(eq(walletTopupRequests.id, params.requestId)).limit(1);
     if (!request) throw new AppError("NOT_FOUND", "Top-up request not found.");
     if (request.status !== "PENDING") {
       throw new AppError("TOPUP_ALREADY_PROCESSED", `Top-up request ${request.reference} was already ${request.status.toLowerCase()}.`);
     }
     verifiedProof = { key: request.proofStorageKey, filename: request.proofFilename,
-      mimeType: request.proofMimeType, sizeBytes: request.proofSizeBytes };
+      mimeType: request.proofMimeType, sizeBytes: request.proofSizeBytes, sha256: request.proofSha256 };
     if (verifiedProof.key) {
       try {
         const stored = await storageProvider().get(verifiedProof.key);
@@ -324,9 +332,10 @@ export async function processTopupRequest(params: {
       proof_filename: string | null;
       proof_mime_type: string | null;
       proof_size_bytes: number | null;
+      proof_sha256: string | null;
     }>(
       `select id, reference, agency_id, amount::text as amount, status, note, proof_storage_key,
-              proof_filename, proof_mime_type, proof_size_bytes
+              proof_filename, proof_mime_type, proof_size_bytes, proof_sha256
          from ${qualifiedTable("wallet_topup_requests")}
         where id = $1
         for update`,
@@ -367,7 +376,7 @@ export async function processTopupRequest(params: {
     } else {
       if (!req.proof_storage_key) throw new AppError("PROOF_REQUIRED", "A bank transfer receipt is required before crediting this request.");
       if (!verifiedProof || req.proof_storage_key !== verifiedProof.key || req.proof_filename !== verifiedProof.filename ||
-          req.proof_mime_type !== verifiedProof.mimeType || req.proof_size_bytes !== verifiedProof.sizeBytes) {
+          req.proof_mime_type !== verifiedProof.mimeType || req.proof_size_bytes !== verifiedProof.sizeBytes || req.proof_sha256 !== verifiedProof.sha256) {
         throw new AppError("PROOF_CHANGED", "The bank transfer receipt changed. Review the request again before crediting it.");
       }
       if (proofVerificationFailure) throw proofVerificationFailure.error;
@@ -439,8 +448,6 @@ export async function processTopupRequest(params: {
             walletReference: mutation.reference,
             balanceBefore: mutation.balanceBefore,
             balanceAfter: mutation.balanceAfter,
-            actorName: actor.name,
-            actorUsername: actor.username,
           }),
           params.ipAddress ?? null,
         ],

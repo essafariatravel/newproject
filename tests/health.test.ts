@@ -8,6 +8,7 @@ import { testConnectionString } from "./helpers/pg";
 import { request } from "./helpers/request";
 import { userByEmail } from "./helpers/fixtures";
 import { createSession } from "@/lib/auth";
+import { applyMigrations } from "../scripts/lib/migrations";
 
 suiteSetup();
 beforeEach(async()=>{request.cookie=(await createSession((await userByEmail("admin@test.example")).id)).token;});
@@ -21,6 +22,30 @@ const MIGRATION_FILES = readdirSync(path.join(__dirname, "..", "migrations"))
 import { GET as healthGET } from "../src/app/api/health/route";
 
 describe("GET /api/health (deployment diagnostics, never a 500, never secrets)", () => {
+  it.each([
+    "0029_legacy_reconciliation.sql",
+    "0030_reconciliation_api_lockdown.sql",
+    "0031_reconciliation_event_sequence_repair.sql",
+  ])("refuses full candidate readiness when %s is absent", async (migration) => {
+    const fixture = new Pool({ connectionString: testConnectionString() });
+    const schema = `health_reconciliation_${randomBytes(6).toString("hex")}`;
+    const previous = process.env.DATABASE_SCHEMA;
+    try {
+      await applyMigrations(fixture, path.resolve("migrations"), schema);
+      process.env.DATABASE_SCHEMA = schema;
+      expect((await (await healthGET()).json()).ok).toBe(true);
+      await fixture.query(`delete from "${schema}".schema_migrations where name=$1`, [migration]);
+      const body = await (await healthGET()).json();
+      expect(body.schema.columnsValid).toBe(true);
+      expect(body.schema.migrationLedger).not.toContain(migration);
+      expect(body.ok).toBe(false);
+    } finally {
+      if (previous === undefined) delete process.env.DATABASE_SCHEMA;
+      else process.env.DATABASE_SCHEMA = previous;
+      await fixture.query(`drop schema if exists "${schema}" cascade`);
+      await fixture.end();
+    }
+  });
   it("public and Agency monitoring expose readiness without catalogue, account or infrastructure details",async()=>{
     request.cookie="";
     const publicResponse=await (await healthGET()).json();
@@ -28,6 +53,27 @@ describe("GET /api/health (deployment diagnostics, never a 500, never secrets)",
     expect(Object.keys(publicResponse).sort()).toEqual(["deployment","ok","service"]);
     request.cookie=(await createSession((await userByEmail("a-admin@test.example")).id)).token;
     expect(Object.keys(await (await healthGET()).json()).sort()).toEqual(["deployment","ok","service"]);
+  });
+  it("rejects missing native reconciliation columns even with every migration recorded", async () => {
+    const fixture = new Pool({ connectionString: testConnectionString() });
+    const schema = `health_native_${randomBytes(6).toString("hex")}`;
+    const previous = process.env.DATABASE_SCHEMA;
+    try {
+      await applyMigrations(fixture, path.resolve("migrations"), schema);
+      process.env.DATABASE_SCHEMA = schema;
+      expect((await (await healthGET()).json()).ok).toBe(true);
+      await fixture.query(`alter table "${schema}".legacy_reconciliation_events drop column event_sequence cascade`);
+      const body = await (await healthGET()).json();
+      expect(body.schema.migrationLedger).toEqual(MIGRATION_FILES);
+      expect(body.schema.columnsValid).toBe(false);
+      expect(body.database.error.code).toBe("42703");
+      expect(body.ok).toBe(false);
+    } finally {
+      if (previous === undefined) delete process.env.DATABASE_SCHEMA;
+      else process.env.DATABASE_SCHEMA = previous;
+      await fixture.query(`drop schema if exists "${schema}" cascade`);
+      await fixture.end();
+    }
   });
   it("does not report healthy when table names exist but columns are incompatible", async () => {
     const pool = new Pool({ connectionString: testConnectionString() });

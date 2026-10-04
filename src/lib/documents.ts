@@ -1,4 +1,5 @@
 import { validateDocumentFormat } from "@/lib/upload-validation";
+import { sha256Hex } from "@/lib/file-integrity";
 import { qualifiedTable } from "./database-schema";
 import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 /**
@@ -199,6 +200,7 @@ export async function uploadDocument(input: UploadDocumentInput, resubmittedDocu
   if (problem) throw new AppError("INVALID_FILENAME", fileNameErrorMessage(problem));
 
   validateDocumentFormat(input.file);
+  const sha256 = sha256Hex(input.file.data);
   const dtRows = await db
     .select({ id: documentTypes.id, code: documentTypes.code, name: documentTypes.name, active: documentTypes.active, agencyUploadable: documentTypes.agencyUploadable })
     .from(documentTypes)
@@ -261,7 +263,7 @@ export async function uploadDocument(input: UploadDocumentInput, resubmittedDocu
       const [created] = await tx.insert(documents).values({
         id: documentId, applicationId: input.applicationId, applicantId: input.applicantId ?? null,
         checklistItemId: checklistItem?.id ?? null, documentTypeId,
-        originalFilename: name, mimeType: input.file.type, sizeBytes: input.file.data.length,
+        originalFilename: name, mimeType: input.file.type, sizeBytes: input.file.data.length, sha256,
         storageKey, status: "UPLOADED", uploadedBy: input.actor.id, version,
       }).returning();
       if (request) {
@@ -279,11 +281,11 @@ export async function uploadDocument(input: UploadDocumentInput, resubmittedDocu
       }
       await tx.insert(auditLogs).values({ actorId: input.actor.id, actorEmail: input.actor.email,
         actorRole: input.actor.role, agencyId: access.agencyId, action: "DOCUMENT_UPLOADED", entity: "document",
-        entityId: created!.id, metadata: { actorName: input.actor.name, actorUsername: input.actor.username, filename: name, sizeBytes: input.file.data.length, version, checklistItemId: checklistItem?.id ?? null },
+        entityId: created!.id, metadata: { sizeBytes: input.file.data.length, sha256, version, checklistItemId: checklistItem?.id ?? null },
         ipAddress: input.ipAddress ?? null,
       });
       if (resubmittedDocumentId) await recordAudit({ actor: input.actor, action: "DOCUMENT_RESUBMITTED", entity: "document",
-        entityId: created!.id, agencyId: access.agencyId, metadata: { replaces: resubmittedDocumentId, filename: name, applicationId: input.applicationId },
+        entityId: created!.id, agencyId: access.agencyId, metadata: { replaces: resubmittedDocumentId, applicationId: input.applicationId },
         ipAddress: input.ipAddress ?? null }, tx);
       return created!;
     });
@@ -381,7 +383,6 @@ export async function reviewDocument(input: ReviewInput) {
     entityId: input.documentId,
     agencyId: row.appAgencyId,
     metadata: {
-      filename: row.doc.originalFilename,
       reason: requiresReason ? reason : null,
       notes: input.reviewNotes ?? null,
     },
@@ -438,7 +439,6 @@ export async function deleteDocument(documentId: string, actor: AuthUser, ipAddr
     entity: "document",
     entityId: documentId,
     agencyId: row.appAgencyId,
-    metadata: { filename: row.doc.originalFilename },
     ipAddress: ipAddress ?? null,
   }, tx);
   });

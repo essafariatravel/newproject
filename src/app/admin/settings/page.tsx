@@ -14,7 +14,7 @@ import { BrandStudio } from "@/components/brand-studio";
 import { Card, CardHeader, EmptyState, Flash, PageHeader } from "@/components/ui";
 import { contentT } from "@/lib/i18n-content";
 import { getUiLocale } from "@/lib/ui-i18n";
-import { readPublishedLegal } from "@/lib/legal";
+import { readLatestLegal, readPublishedLegal } from "@/lib/legal";
 import { db } from "@/lib/db";
 import { countries, visaTypes, visaCategories } from "@/db/schema";
 import { launchContentReadiness } from "@/lib/launch-readiness";
@@ -36,10 +36,12 @@ export default async function AdminSettingsPage({
   const flash = flashFrom(sp);
   const settings = await getSiteSettings();
   const canManage = hasPermission(staff, "cms.manage");
+  const canPublishLegal = canManage && staff.role === "SUPER_ADMIN";
   const social = settingObject(settings, "site.social");
   const branding = await readBranding();
   const logoUrl = brandLogoUrl(branding);
   const publishedLegal = Object.fromEntries(await Promise.all((["en","fr","ar"] as const).flatMap(locale => (["terms","privacy"] as const).map(async kind => [`legal.${kind}.${locale}`,await readPublishedLegal(kind,locale)] as const))));
+  const latestLegal = Object.fromEntries(await Promise.all((["en","fr","ar"] as const).flatMap(locale => (["terms","privacy"] as const).map(async kind => [`legal.${kind}.${locale}`,await readLatestLegal(kind,locale)] as const))));
   const [countryRows, programmeRows, categoryRows] = await Promise.all([db.select().from(countries),db.select().from(visaTypes),db.select().from(visaCategories)]);
   const readiness = launchContentReadiness(settings, publishedLegal, countryRows, programmeRows, categoryRows);
 
@@ -117,11 +119,10 @@ export default async function AdminSettingsPage({
               copy can never publish half-finished legal text (and vice versa).
               Each language is a separate field: EN/FR/AR are preserved side by
               side and the public page picks the current interface language. */}
-          <form action={updateSiteSettingsAction} className="mt-4 space-y-4">
+          {canPublishLegal ? <form action={updateSiteSettingsAction} className="mt-4 space-y-4">
             <input type="hidden" name="section" value="legal" />
-            <label className="label" htmlFor="legal-published-at">{ct("Actual publication date")}</label>
-            <input id="legal-published-at" name="legal.publishedAt" type="date" required className="input max-w-xs" max={new Date().toISOString().slice(0,10)}/>
             <p className="text-sm text-slate-600">{ct("Publish owner-approved text only. Each change creates an immutable legal version.")}</p>
+            <p className="text-sm text-slate-600">{ct("The system records the actual publication timestamp automatically.")}</p>
             <Card>
               <CardHeader title={ct("Legal content")} subtitle={ct("Rendered on the public Privacy and Terms pages in the selected language.")} />
               <div className="space-y-5 px-5 py-5">
@@ -132,36 +133,24 @@ export default async function AdminSettingsPage({
                 ] as const).map(([code, label]) => (
                   <div key={code} className="rounded-lg border border-ivory-200 p-4">
                     <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="label" htmlFor={`legal.privacy.${code}`}>{ct("Privacy notice")}</label>
-                        <textarea
-                          id={`legal.privacy.${code}`}
-                          name={`legal.privacy.${code}`}
-                          rows={4}
-                          dir={code === "ar" ? "rtl" : undefined}
-                          defaultValue={publishedLegal[`legal.privacy.${code}`]?.body ?? ""}
-                          className="input"
-                        />
-                      </div>
-                      <div>
-                        <label className="label" htmlFor={`legal.terms.${code}`}>{ct("Terms of service")}</label>
-                        <textarea
-                          id={`legal.terms.${code}`}
-                          name={`legal.terms.${code}`}
-                          rows={4}
-                          dir={code === "ar" ? "rtl" : undefined}
-                          defaultValue={publishedLegal[`legal.terms.${code}`]?.body ?? ""}
-                          className="input"
-                        />
-                      </div>
+                    <div className="grid gap-5 xl:grid-cols-2">
+                      {(["privacy","terms"] as const).map(kind => {
+                        const legal = latestLegal[`legal.${kind}.${code}`];
+                        return <div key={kind} className="space-y-3">
+                          <label className="label" htmlFor={`legal.${kind}.${code}`}>{ct(kind === "privacy" ? "Privacy notice" : "Terms of service")}</label>
+                          {legal ? <p className="text-xs text-slate-600"><bdi dir="ltr">v{legal.version} · {legal.effectiveAt.toISOString().slice(0,10)}</bdi></p> : <p className="text-xs text-slate-600">{ct("Not published")}</p>}
+                          <textarea id={`legal.${kind}.${code}`} name={`legal.${kind}.${code}`} rows={6} maxLength={50_000} dir={code === "ar" ? "rtl" : "ltr"} defaultValue={legal?.body ?? ""} className="input" />
+                          <label className="label" htmlFor={`legal.${kind}.${code}.effectiveAt`}>{ct("Approved effective date")}</label>
+                          <input id={`legal.${kind}.${code}.effectiveAt`} name={`legal.${kind}.${code}.effectiveAt`} type="date" defaultValue={legal?.effectiveAt.toISOString().slice(0,10) ?? ""} className="input" />
+                        </div>;
+                      })}
                     </div>
                   </div>
                 ))}
               </div>
             </Card>
             <SubmitButton className="btn-primary" pendingLabel={ct("Saving.")}>{ct("Save legal content")}</SubmitButton>
-          </form>
+          </form> : <Card><CardHeader title={ct("Legal content")} subtitle={ct("Only SUPER_ADMIN can publish approved legal content.")} /></Card>}
         </div>
       ) : (
         <Card>

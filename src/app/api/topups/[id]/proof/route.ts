@@ -6,6 +6,7 @@ import { recordAudit } from "@/lib/audit";
 import { AppError } from "@/lib/types";
 import { db } from "@/lib/db";
 import { currentOperationActor } from "@/lib/operation-identity";
+import { assertStoredFileIntegrity } from "@/lib/file-integrity";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const row = await topupRequestById(id, user);
     if (!row?.proofStorageKey || !row.proofFilename || !row.proofMimeType) throw new AppError("NOT_FOUND", "Receipt not found.");
     const stored = await storageProvider().get(row.proofStorageKey);
+    if (row.proofSizeBytes == null) throw new AppError("NOT_FOUND", "Receipt integrity metadata is missing.");
+    assertStoredFileIntegrity({ data: stored.data, expectedSizeBytes: row.proofSizeBytes, expectedSha256: row.proofSha256 });
     await db.transaction(async tx => {
       const actor = await currentOperationActor(tx, user);
       await recordAudit({ actor, action: "TOPUP_RECEIPT_DOWNLOADED", entity: "wallet_topup_request", entityId: id, agencyId: row.agencyId }, tx);

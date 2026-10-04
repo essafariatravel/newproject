@@ -38,7 +38,8 @@ import type { AuthUser } from "@/lib/types";
 import { AppError, ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES, isAgencyRole } from "@/lib/types";
 import { buildStorageKey, storageProvider } from "@/lib/storage";
 import { isValidNationality } from "@/lib/nationalities";
-import { currentOperationActorPg } from "@/lib/operation-identity";
+import { currentOperationActor, currentOperationActorPg } from "@/lib/operation-identity";
+import { sha256Hex } from "@/lib/file-integrity";
 
 /**
  * Phase 2-Final: exactly ONE applicant per request — the portal collects
@@ -273,11 +274,14 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
   if (!agencyId || !isAgencyRole(input.actor.role) || input.actor.mustChangePassword) throw new AppError("FORBIDDEN", "Only agency users can submit requests.");
 
   // Idempotent retry? — return the existing application without charging again.
-  const pre = await db
-    .select({ id: applications.id, reference: applications.reference })
-    .from(applications)
-    .where(and(eq(applications.idempotencyKey, input.idempotencyKey), eq(applications.agencyId, agencyId)))
-    .limit(1);
+  const pre = await db.transaction(async tx => {
+    await currentOperationActor(tx, input.actor);
+    return tx
+      .select({ id: applications.id, reference: applications.reference })
+      .from(applications)
+      .where(and(eq(applications.idempotencyKey, input.idempotencyKey), eq(applications.agencyId, agencyId)))
+      .limit(1);
+  });
   if (pre[0]) {
     return {
       applicationId: pre[0].id,
@@ -330,7 +334,7 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
 
   // Pre-generate IDs so storage keys can be written before the transaction.
   const applicationId = randomUUID();
-  const docRows = docs.map((d) => ({ ...d, id: randomUUID() }));
+  const docRows = docs.map((d) => ({ ...d, id: randomUUID(), sha256: sha256Hex(d.file.data) }));
   const writtenKeys: string[] = [];
   try {
     for (const d of docRows) {
@@ -486,11 +490,11 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
         await client.query(
           `insert into ${qualifiedTable("documents")}
              (id, application_id, checklist_item_id, document_type_id, original_filename,
-              mime_type, size_bytes, storage_key, status, uploaded_by)
-           values ($1,$2,$3,$4,$5,$6,$7,$8,'UPLOADED',$9)`,
+              mime_type, size_bytes, sha256, storage_key, status, uploaded_by)
+           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'UPLOADED',$10)`,
           [
             d.id, applicationId, itemByType.get(d.documentTypeId) ?? null, d.documentTypeId,
-            d.file.name.slice(0, 200), d.file.type, d.file.data.length,
+            d.file.name.slice(0, 200), d.file.type, d.file.data.length, d.sha256,
             buildStorageKey(applicationId, d.id), actor.id,
           ],
         );

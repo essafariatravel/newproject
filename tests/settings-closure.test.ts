@@ -12,6 +12,7 @@ import { saveBrandingAction, uploadBrandLogoAction, removeBrandLogoAction } from
 import { readBranding, setBrandLogo } from "@/lib/branding";
 import { storageProvider } from "@/lib/storage";
 import { updateSiteSettingsAction } from "@/app/actions/admin";
+import { publishLegalContent, readPublishedLegal } from "@/lib/legal";
 import SettingsPage from "@/app/admin/settings/page";
 import AboutPage from "@/app/(public)/about/page";
 import VisaTypePage from "@/app/admin/config/visa-types/[id]/page";
@@ -107,9 +108,29 @@ describe("honest connected settings", () => {
     await staff();
     await db.execute(sql`create function settings_audit_failure() returns trigger language plpgsql as $$ begin if new.action='LEGAL_PUBLISHED' and new.metadata->>'kind'='privacy' then raise exception 'Audit unavailable'; end if; return new; end $$`);
     await db.execute(sql`create trigger settings_audit_failure before insert on audit_logs for each row execute function settings_audit_failure()`);
-    const form = new FormData(); form.set("section","legal"); form.set("legal.publishedAt","2026-09-30"); form.set("legal.terms.fr","TEST ONLY terms awaiting atomic commit"); form.set("legal.privacy.fr","TEST ONLY privacy awaiting atomic commit");
+    const form = new FormData(); form.set("section","legal"); form.set("legal.terms.fr.effectiveAt","2026-09-30"); form.set("legal.privacy.fr.effectiveAt","2026-09-30"); form.set("legal.terms.fr","TEST ONLY terms awaiting atomic commit"); form.set("legal.privacy.fr","TEST ONLY privacy awaiting atomic commit");
     expect(await actionResult(updateSiteSettingsAction,form)).toContain("error=");
     const versions = await db.execute(sql`select body from legal_versions where body like 'TEST ONLY % awaiting atomic commit'`);
     expect(versions.rows).toHaveLength(0);
+  });
+  it("shows scheduled legal content in the editor without counting it as currently effective", async () => {
+    await staff();
+    await publishLegalContent({ kind:"privacy", locale:"ar", body:"TEST ONLY scheduled owner-approved notice",
+      effectiveAt:new Date("2099-01-01"), actor:await userByEmail("superadmin@test.example") });
+    const html=renderToStaticMarkup(await SettingsPage({searchParams:Promise.resolve({})}));
+    expect(html).toContain("TEST ONLY scheduled owner-approved notice");
+    expect(html).toContain('name="legal.privacy.ar.effectiveAt"');
+    expect(html).toContain('value="2099-01-01"');
+    expect(html).not.toContain('name="legal.publishedAt"');
+    expect(await readPublishedLegal("privacy","ar")).toBeNull();
+    expect(html).toContain("PRIVACY / AR");
+  });
+  it("offers ordinary Admin content controls while hiding SUPER_ADMIN publication controls", async () => {
+    request.cookie=(await createSession((await userByEmail("admin@test.example")).id)).token;
+    const html=renderToStaticMarkup(await SettingsPage({searchParams:Promise.resolve({})}));
+    expect(html).toContain('name="section" value="content"');
+    expect(html).not.toContain('name="section" value="legal"');
+    expect(html).not.toContain('name="legal.terms.en.effectiveAt"');
+    expect(html).toContain("Only SUPER_ADMIN can publish approved legal content.");
   });
 });

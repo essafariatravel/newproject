@@ -24,3 +24,22 @@ create trigger legacy_reconciliation_issues_immutable before update or delete on
   for each row execute function immutable_legacy_reconciliation();
 create trigger legacy_reconciliation_events_immutable before update or delete on legacy_reconciliation_events
   for each row execute function immutable_legacy_reconciliation();
+
+-- Preserve the function access/search_path contract established by 0026/0028.
+-- This function is newly created after those migrations and needs its own pin.
+do $$
+declare
+  selected_schema text := current_schema();
+  role_name text;
+begin
+  if selected_schema is null then
+    raise exception 'Select an application schema before applying reconciliation';
+  end if;
+  execute format('alter function %I.immutable_legacy_reconciliation() set search_path to pg_catalog, %I', selected_schema, selected_schema);
+  execute format('revoke all on function %I.immutable_legacy_reconciliation() from public', selected_schema);
+  foreach role_name in array array['anon','authenticated'] loop
+    if exists(select 1 from pg_roles where rolname=role_name) then
+      execute format('revoke all on function %I.immutable_legacy_reconciliation() from %I', selected_schema, role_name);
+    end if;
+  end loop;
+end $$;

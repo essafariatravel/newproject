@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { mkdtemp, readdir, copyFile, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -21,7 +21,7 @@ const service = createLegacyReconciliationService(pool, schema);
 let migrationDirectory: string;
 
 describe("additive auditable legacy document reconciliation", () => {
-  it("repairs an early event-sequence checkpoint without rewriting immutable history",async()=>{
+  it("repairs an early event-sequence checkpoint idempotently without rewriting immutable history",async()=>{
     const fixture=`event_repair_${randomBytes(4).toString("hex")}`;
     const client=await pool.connect();
     try {
@@ -32,9 +32,12 @@ describe("additive auditable legacy document reconciliation", () => {
       await client.query(`create trigger immutable_event before update or delete on "${fixture}".legacy_reconciliation_events for each row execute function "${fixture}".immutable_event()`);
       const before=(await client.query(`select id,note,created_at from "${fixture}".legacy_reconciliation_events order by id`)).rows;
       await client.query("begin");await client.query(`set local search_path to "${fixture}"`);
-      await client.query(await readFile("migrations/0027_reconciliation_event_sequence_repair.sql","utf8"));await client.query("commit");
+      await client.query(await readFile("migrations/0031_reconciliation_event_sequence_repair.sql","utf8"));await client.query("commit");
+      await client.query("begin");await client.query(`set local search_path to "${fixture}"`);
+      await client.query(await readFile("migrations/0031_reconciliation_event_sequence_repair.sql","utf8"));await client.query("commit");
       expect((await client.query(`select id,note,created_at from "${fixture}".legacy_reconciliation_events order by id`)).rows).toEqual(before);
       expect((await client.query(`select count(distinct event_sequence)::int n from "${fixture}".legacy_reconciliation_events`)).rows[0].n).toBe(2);
+      expect((await client.query("select count(*)::int n from pg_sequences where schemaname=$1", [fixture])).rows[0].n).toBe(1);
       await expect(client.query(`update "${fixture}".legacy_reconciliation_events set note='Edited' where id=1`)).rejects.toThrow(/Immutable/);
       await expect(client.query(`delete from "${fixture}".legacy_reconciliation_events where id=1`)).rejects.toThrow(/Immutable/);
     }finally{await client.query("rollback");await client.query(`drop schema if exists "${fixture}" cascade`);client.release();}
@@ -59,6 +62,10 @@ describe("additive auditable legacy document reconciliation", () => {
     await pool.query(`insert into "${schema}".documents(id,application_id,document_type_id,original_filename,mime_type,size_bytes,storage_key,status,uploaded_by)
       select $1,$2,id,'genuine-original-not-available.pdf','application/pdf',3,'legacy/missing-original.pdf','ACCEPTED',$3
       from "${schema}".document_types where code='PASSPORT' limit 1`, [missingDocumentId, appId, adminId]);
+    // Attach historical digest evidence before permanent identity guards exist.
+    for (const name of names.filter(f => f > "0020_identity_security.sql" && f <= "0027_document_integrity.sql")) await copyFile(path.join("migrations", name), path.join(migrationDirectory, name));
+    await applyMigrations(pool, migrationDirectory, schema);
+    await pool.query(`update "${schema}".documents set sha256=$1 where id=$2`, [createHash("sha256").update("abc").digest("hex"), missingDocumentId]);
     // Migration-based legacy fixture, never disable a canonical decision or immutable trigger.
     await applyMigrations(pool, path.join(process.cwd(), "migrations"), schema);
   });
@@ -150,5 +157,15 @@ describe("additive auditable legacy document reconciliation", () => {
     const captured={...actor,credentialVersion:version};
     await pool.query(`update "${schema}".users set credential_version=credential_version+1 where id=$1`,[adminId]);
     await expect(service.scan(captured)).rejects.toMatchObject({code:"FORBIDDEN"});
+  });
+
+  it("refuses equal-length blob corruption as restoration of a fingerprinted historical original", async () => {
+    const issue = (await service.list(actor)).find(row => row.kind === "MISSING_STORAGE_OBJECT")!;
+    await pool.query(`insert into "${schema}".document_blobs(key,mime_type,size_bytes,data) values('legacy/missing-original.pdf','application/pdf',3,$1)`, [Buffer.from("abd")]);
+    try {
+      await expect(service.disposition(actor, { issueId: issue.id, outcome: "RESTORED", note: "Synthetic original has equal size but its bytes disagree with the independent fingerprint." })).rejects.toMatchObject({ code: "RECONCILIATION_UNRESOLVED" });
+      await service.scan(actor);
+      expect((await service.list(actor)).find(row => row.id === issue.id)).toMatchObject({ status: "OPEN" });
+    } finally { await pool.query(`delete from "${schema}".document_blobs where key='legacy/missing-original.pdf'`); }
   });
 });

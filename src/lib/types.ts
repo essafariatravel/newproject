@@ -66,7 +66,6 @@ export const REGISTRATION_MAX_UPLOAD_BYTES = MAX_UPLOAD_BYTES; // 2 MB
 export const REGISTRATION_MAX_DOCUMENTS = 4;
 
 export const SESSION_COOKIE = "evos_session";
-export const SESSION_TTL_DAYS = 7;
 
 /** Authenticated user resolved server-side on every request. */
 export interface AuthUser {

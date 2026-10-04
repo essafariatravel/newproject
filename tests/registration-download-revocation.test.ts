@@ -9,6 +9,7 @@ import { agencyRegistrationDocuments, agencyRegistrations, auditLogs } from "@/d
 import { createSession } from "@/lib/auth";
 import { updateAccount } from "@/lib/account-security";
 import { storageProvider } from "@/lib/storage";
+import { sha256Hex } from "@/lib/file-integrity";
 import { GET as downloadRegistration } from "@/app/api/registrations/[id]/documents/[docId]/route";
 
 suiteSetup();
@@ -27,7 +28,7 @@ async function privateRegistrationDocument() {
   await storageProvider().put(key, data, "application/pdf");
   const [document] = await db.insert(agencyRegistrationDocuments).values({ registrationId: registration!.id,
     category: "COMMERCIAL_REGISTRATION", originalFilename: "private-registration.pdf", mimeType: "application/pdf",
-    sizeBytes: data.length, storageKey: key }).returning();
+    sizeBytes: data.length, sha256: sha256Hex(data), storageKey: key }).returning();
   const staff = await userByEmail("admin@test.example");
   request.cookie = (await createSession(staff.id)).token;
   return { staff, id: registration!.id, docId: document!.id, data };

@@ -209,7 +209,7 @@ export async function seedFixtures(): Promise<void> {
   // Synthetic acceptance text only for disposable tests. Never shipped as legal content.
   for (const locale of ["en", "fr", "ar"]) {
     for (const kind of ["terms", "privacy"]) {
-      await pool.query(`insert into ${qualifiedTable("legal_versions")} (kind,locale,version,body,published_at,author_id) select $1,$2,1,'TEST ONLY - synthetic legal fixture',now(),id from ${qualifiedTable("users")} where email='superadmin@test.example' on conflict do nothing`, [kind,locale]);
+      await pool.query(`insert into ${qualifiedTable("legal_versions")} (kind,locale,version,body,effective_at,published_at,author_id) select $1,$2,1,'TEST ONLY - synthetic legal fixture',now(),now(),id from ${qualifiedTable("users")} where email='superadmin@test.example' on conflict do nothing`, [kind,locale]);
     }
   }
 }

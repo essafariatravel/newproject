@@ -11,6 +11,7 @@ import type { ActionState } from "@/components/forms";
 import { runAction } from "@/lib/action-helpers";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { localizeError } from "@/lib/i18n-content";
+import { safeErrorCode } from "@/lib/safe-error";
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const locale = await getUiLocale();
@@ -32,7 +33,7 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
     if (err instanceof AppError) {
       return fail(err.message);
     }
-    console.error("[auth] Authentication unavailable.");
+    console.error("[auth] Authentication unavailable.", safeErrorCode(err) ?? "unknown");
     return fail("Service temporarily unavailable. Please try again.");
   }
   let token: string;
@@ -42,8 +43,8 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
     token = session.token;
     expiresAt = session.expiresAt;
     await setSessionCookie(token, expiresAt);
-  } catch {
-    console.error("[auth] Session creation unavailable.");
+  } catch (err) {
+    console.error("[auth] Session creation unavailable.", safeErrorCode(err) ?? "unknown");
     return fail("Service temporarily unavailable. Please try again.");
   }
   // Phase 2.2 §11 — forced first password change before any shell page

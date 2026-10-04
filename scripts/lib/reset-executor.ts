@@ -28,7 +28,10 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const operational = new Set(["agencies","users","sessions","session_presence","account_access_tokens","account_activation_tokens","account_recovery_requests","auth_rate_limits","applications","applicants","checklist_items","documents","document_requests","document_blobs","application_status_history","communications","notifications","wallet_transactions","wallet_topup_requests","application_price_adjustments","agency_registrations","agency_registration_documents","agency_registration_history","agency_registration_requests","agency_registration_followup_tokens","audit_logs","legacy_reconciliation_issues","legacy_reconciliation_events"]);
 const configuration = new Set(["schema_migrations","site_settings","legal_versions","statuses","status_transitions","document_types","priorities","currencies","countries","visa_categories","visa_types","visa_requirements"]);
 const selectableCatalogue = new Set(["countries", "visa_categories", "visa_types", "visa_requirements"]);
-const normalize = (text: string, schema: string) => text.replaceAll('"'+schema+'".','').replaceAll(schema+'.','').replaceAll('"'+schema+'"','APP_SCHEMA');
+const normalize = (text: string, schema: string) => text.replaceAll('"'+schema+'".','').replaceAll(schema+'.','').replaceAll('"'+schema+'"','APP_SCHEMA')
+  // pg_get_functiondef prints namespace entries as single-quoted search_path
+  // values. Normalize only this configuration line, never business literals.
+  .replace(/^ SET search_path TO .*$/gm, line => line.replaceAll("'"+schema+"'", "'APP_SCHEMA'"));
 
 /** Role names and effective ACL entries are portable across isolated restores;
  * PostgreSQL object OIDs and namespace names are deliberately not fingerprints. */

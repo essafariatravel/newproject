@@ -126,15 +126,15 @@ const en: RegistrationCopy = {
   noticeBody:
     "Submitting this form does not create an account and does not guarantee access. Every application is reviewed individually by ESSAFARIA TRAVEL, and portal access is activated only after approval.",
   reviewNote:
-    "Our partnerships team typically reviews complete applications within 1–2 business days. Company documents accelerate verification.",
+    "Our partnerships team reviews your partnership request first. If specific administrative evidence is needed, ESSAFARIA will request it later through a secure link.",
   languageLabel: "Language",
   sections: {
     company: { title: "Company", hint: "Legal information about your business, as registered." },
     contact: { title: "Primary contact", hint: "The person authorized to represent this agency." },
-    business: { title: "Business profile", hint: "Help us understand your activity and volumes." },
+    business: { title: "Your request", hint: "Share only what is useful for reviewing the B2B partnership request." },
     documents: {
-      title: "Company documents",
-      hint: "Optional at this stage, but strongly recommended. Files are stored privately and reviewed only by authorized ESSAFARIA staff.",
+      title: "Administrative documents",
+      hint: "Not collected during first contact. ESSAFARIA requests specific evidence later, securely, only when needed.",
     },
     consent: { title: "Consent", hint: "Please confirm each statement to submit your application." },
   },
@@ -221,8 +221,8 @@ const en: RegistrationCopy = {
     noReference: "Your application has been received.",
     nextTitle: "What happens next",
     nextSteps: [
-      "Our partnerships team reviews your company information and documents.",
-      "We may contact your primary contact if additional information is required.",
+      "Our partnerships team reviews your partnership request.",
+      "If specific administrative evidence is needed, ESSAFARIA sends a secure request for only those documents.",
       "If approved, your agency workspace is created and your administrator receives a secure activation link.",
     ],
     backHome: "Back to the homepage",
@@ -258,15 +258,15 @@ const fr: RegistrationCopy = {
   noticeBody:
     "L'envoi de ce formulaire ne crée pas de compte et ne garantit pas l'accès. Chaque demande est examinée individuellement par ESSAFARIA TRAVEL et l'accès au portail n'est activé qu'après approbation.",
   reviewNote:
-    "Notre équipe partenariats examine généralement les dossiers complets sous 1 à 2 jours ouvrés. Les documents de l'entreprise accélèrent la vérification.",
+    "Notre équipe partenariats examine d’abord votre demande. Si un justificatif administratif précis est nécessaire, ESSAFARIA le demandera ensuite via un lien sécurisé.",
   languageLabel: "Langue",
   sections: {
     company: { title: "Entreprise", hint: "Informations légales de votre société, telles qu'enregistrées." },
     contact: { title: "Contact principal", hint: "La personne habilitée à représenter cette agence." },
-    business: { title: "Profil d'activité", hint: "Aidez-nous à comprendre votre activité et vos volumes." },
+    business: { title: "Votre demande", hint: "Partagez uniquement les informations utiles à l’examen de la demande de partenariat B2B." },
     documents: {
-      title: "Documents de l'entreprise",
-      hint: "Facultatif à cette étape, mais fortement recommandé. Les fichiers sont conservés en espace privé et consultés uniquement par le personnel ESSAFARIA autorisé.",
+      title: "Documents administratifs",
+      hint: "Non collectés lors du premier contact. ESSAFARIA demande ensuite, de manière sécurisée, uniquement les justificatifs précis nécessaires.",
     },
     consent: { title: "Consentement", hint: "Veuillez confirmer chaque déclaration pour envoyer votre demande." },
   },
@@ -353,8 +353,8 @@ const fr: RegistrationCopy = {
     noReference: "Votre demande a bien été reçue.",
     nextTitle: "Prochaines étapes",
     nextSteps: [
-      "Notre équipe partenariats examine les informations et documents de votre société.",
-      "Nous pouvons contacter votre contact principal si des informations complémentaires sont nécessaires.",
+      "Notre équipe partenariats examine votre demande de partenariat.",
+      "Si un justificatif administratif précis est nécessaire, ESSAFARIA envoie une demande sécurisée limitée aux documents requis.",
       "En cas d'approbation, l'espace de votre agence est créé et votre administrateur reçoit un lien d'activation sécurisé.",
     ],
     backHome: "Retour à l'accueil",
@@ -390,15 +390,15 @@ const ar: RegistrationCopy = {
   noticeBody:
     "إرسال هذا النموذج لا يؤدي إلى إنشاء حساب ولا يضمن الحصول على الوصول. تتم مراجعة كل طلب على حدة من طرف ESSAFARIA TRAVEL، ولا يتم تفعيل الدخول إلى البوابة إلا بعد الموافقة.",
   reviewNote:
-    "يراجع فريق الشراكات الطلبات المكتملة عادةً خلال يوم إلى يومي عمل. إرفاق وثائق الشركة يُسرّع عملية التحقق.",
+    "يراجع فريق الشراكات طلب الشراكة أولاً. وإذا لزم مستند إداري محدد، ستطلبه ESSAFARIA لاحقاً عبر رابط آمن.",
   languageLabel: "اللغة",
   sections: {
     company: { title: "الشركة", hint: "البيانات القانونية لشركتكم كما هي مسجلة رسمياً." },
     contact: { title: "جهة الاتصال الرئيسية", hint: "الشخص المخوّل بتمثيل هذه الوكالة." },
-    business: { title: "الملف التجاري", hint: "ساعدونا على فهم نشاطكم وحجم أعمالكم." },
+    business: { title: "طلبكم", hint: "شاركوا فقط المعلومات المفيدة لمراجعة طلب الشراكة بين الشركات." },
     documents: {
-      title: "وثائق الشركة",
-      hint: "اختياري في هذه المرحلة لكنه موصى به بشدة. تُحفظ الملفات بشكل خاص وآمن ولا يطّلع عليها إلا موظفو ESSAFARIA المخوّلون.",
+      title: "الوثائق الإدارية",
+      hint: "لا يتم جمعها عند الاتصال الأول. ستطلب ESSAFARIA لاحقاً وبطريقة آمنة فقط المستندات المحددة المطلوبة.",
     },
     consent: { title: "الموافقة والإقرار", hint: "يرجى تأكيد كل بيان لإرسال طلبكم." },
   },
@@ -484,8 +484,8 @@ const ar: RegistrationCopy = {
     noReference: "تم استلام طلبكم.",
     nextTitle: "الخطوات التالية",
     nextSteps: [
-      "يراجع فريق الشراكات بيانات شركتكم والوثائق المرفقة.",
-      "قد نتواصل مع جهة الاتصال الرئيسية إذا لزمت معلومات إضافية.",
+      "يراجع فريق الشراكات طلب الشراكة الخاص بكم.",
+      "إذا لزم مستند إداري محدد، ترسل ESSAFARIA طلباً آمناً يقتصر على الوثائق المطلوبة.",
       "عند الموافقة، يتم إنشاء مساحة عمل وكالتكم ويتلقى المسؤول رابط تفعيل آمن.",
     ],
     backHome: "العودة إلى الصفحة الرئيسية",

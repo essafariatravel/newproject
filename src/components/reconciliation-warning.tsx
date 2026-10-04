@@ -3,7 +3,7 @@ import { qualifiedTable } from "@/lib/database-schema";
 import { assertApplicationAccess } from "@/lib/documents";
 import type { AuthUser } from "@/lib/types";
 import Link from "next/link";
-import { officialDocumentIntegritySql } from "@/lib/decision-integrity";
+import { officialDocumentIntegritySql, storedDocumentIntegritySql } from "@/lib/decision-integrity";
 
 const copy = {
   en: "This historical file requires reconciliation. Missing original documents cannot prove a complete valid dossier. Contact ESSAFARIA to recover the genuine originals.",
@@ -19,7 +19,7 @@ export async function ReconciliationWarning({ applicationId, user, locale }: { a
   const t=qualifiedTable;
   const result=(await pool.query<{ unhealthy:boolean }>(`select
     exists(select 1 from ${t("documents")} d left join ${t("document_blobs")} b on b.key=d.storage_key
-      where d.application_id=$1 and (b.key is null or b.size_bytes<>d.size_bytes or octet_length(b.data)<>d.size_bytes or b.mime_type<>d.mime_type))
+      where d.application_id=$1 and (b.key is null or not (${storedDocumentIntegritySql("d", "b")})))
     or exists(select 1 from ${t("applications")} a join ${t("statuses")} s on s.id=a.status_id where a.id=$1 and s.code in ('APPROVED','REJECTED')
       and (a.decision_at is null or not exists(select 1 from ${t("documents")} d join ${t("document_types")} dt on dt.id=d.document_type_id
         join ${t("document_blobs")} b on b.key=d.storage_key where d.application_id=a.id and dt.code=case when s.code='APPROVED' then 'DECISION_VISA_APPROVAL' else 'DECISION_REFUSAL_LETTER' end

@@ -6,6 +6,7 @@ import { AppError } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { currentOperationActor } from "@/lib/operation-identity";
+import { assertStoredFileIntegrity } from "@/lib/file-integrity";
 
 export const dynamic = "force-dynamic";
 
@@ -30,15 +31,16 @@ export async function GET(
   }
   try {
     const row = await getDocumentForUser(id, user);
-    const { data, mimeType } = await storageProvider().get(row.doc.storageKey);
+    const { data } = await storageProvider().get(row.doc.storageKey);
+    assertStoredFileIntegrity({ data, expectedSizeBytes: row.doc.sizeBytes, expectedSha256: row.doc.sha256 });
     await db.transaction(async tx => {
       const actor = await currentOperationActor(tx, user);
       await recordAudit({
-      actor,
-      action: "DOCUMENT_DOWNLOADED",
-      entity: "document",
-      entityId: id,
-      agencyId: row.appAgencyId,
+        actor,
+        action: "DOCUMENT_DOWNLOADED",
+        entity: "document",
+        entityId: id,
+        agencyId: row.appAgencyId,
       }, tx);
     });
     // Content-Disposition attachment prevents inline script execution for HTML-like uploads
@@ -46,7 +48,7 @@ export async function GET(
     return new NextResponse(new Uint8Array(data), {
       status: 200,
       headers: {
-        "Content-Type": mimeType,
+        "Content-Type": row.doc.mimeType,
         "Content-Length": String(data.length),
         "Content-Disposition": `attachment; filename="${safeName}"`,
         "Cache-Control": "private, no-store",
