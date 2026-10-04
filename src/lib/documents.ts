@@ -232,7 +232,6 @@ export async function uploadDocument(input: UploadDocumentInput) {
 
   const documentId = randomUUID();
   const storageKey = buildStorageKey(input.applicationId, documentId);
-  const sha256 = sha256Hex(input.file.data);
   await storageProvider().put(storageKey, input.file.data, input.file.type);
   let doc: typeof documents.$inferSelect;
   let fulfilledRequest = false;
