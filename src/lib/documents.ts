@@ -364,29 +364,33 @@ export async function reviewDocument(input: ReviewInput) {
     );
   }
 
-  await db
-    .update(documents)
-    .set({
-      status: input.status,
-      reviewNotes: input.reviewNotes?.trim() || null,
-      rejectionReason: requiresReason ? reason : input.status === "ACCEPTED" ? null : row.doc.rejectionReason,
-      reviewedBy: input.actor.id,
-      reviewedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(eq(documents.id, input.documentId));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(documents)
+      .set({
+        status: input.status,
+        reviewNotes: input.reviewNotes?.trim() || null,
+        rejectionReason: requiresReason ? reason : input.status === "ACCEPTED" ? null : row.doc.rejectionReason,
+        reviewedBy: input.actor.id,
+        reviewedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(documents.id, input.documentId));
 
-  await recordAudit({
-    actor: input.actor,
-    action: `DOCUMENT_${input.status}`,
-    entity: "document",
-    entityId: input.documentId,
-    agencyId: row.appAgencyId,
-    metadata: {
-      reason: requiresReason ? reason : null,
-      notes: input.reviewNotes ?? null,
-    },
-    ipAddress: input.ipAddress ?? null,
+    await tx.insert(auditLogs).values({
+      actorId: input.actor.id,
+      actorEmail: input.actor.email,
+      actorRole: input.actor.role,
+      agencyId: row.appAgencyId,
+      action: `DOCUMENT_${input.status}`,
+      entity: "document",
+      entityId: input.documentId,
+      metadata: {
+        reason: requiresReason ? reason : null,
+        notes: input.reviewNotes ?? null,
+      },
+      ipAddress: input.ipAddress ?? null,
+    });
   });
 
   const aIds = await agencyUserIds(row.appAgencyId);
@@ -427,16 +431,20 @@ export async function deleteDocument(documentId: string, actor: AuthUser, ipAddr
   if (appRows[0]?.statusId !== draft.id) {
     throw new AppError("DELETE_NOT_ALLOWED", "Documents can only be removed while the application is a draft.");
   }
-  await db.delete(documents).where(eq(documents.id, documentId));
-  await storageProvider().delete(row.doc.storageKey).catch(() => {});
-  await recordAudit({
-    actor,
-    action: "DOCUMENT_DELETED",
-    entity: "document",
-    entityId: documentId,
-    agencyId: row.appAgencyId,
-    ipAddress: ipAddress ?? null,
+  await db.transaction(async (tx) => {
+    await tx.delete(documents).where(eq(documents.id, documentId));
+    await tx.insert(auditLogs).values({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      actorRole: actor.role,
+      agencyId: row.appAgencyId,
+      action: "DOCUMENT_DELETED",
+      entity: "document",
+      entityId: documentId,
+      ipAddress: ipAddress ?? null,
+    });
   });
+  await storageProvider().delete(row.doc.storageKey).catch(() => {});
 }
 
 export async function listApplicantsForApplication(applicationId: string) {
