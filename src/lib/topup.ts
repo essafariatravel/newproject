@@ -36,8 +36,8 @@ import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 import { validateDocumentFormat } from "@/lib/upload-validation";
 import { assertStoredFileIntegrity, sha256Hex } from "@/lib/file-integrity";
 import { applyWalletMutation, getBalance } from "@/lib/wallet";
-import { recordAudit } from "@/lib/audit";
 import { agencyUserIds, notifyUsers } from "@/lib/notifications";
+import { assertStoredFileIntegrity, sha256Hex } from "@/lib/file-integrity";
 
 /** Roles allowed to move money (crediting a processed top-up). */
 export const TOPUP_PROCESSING_ROLES = STAFF_ROLES;
@@ -126,7 +126,7 @@ export async function createTopupRequest(params: {
         proofSizeBytes: proof.data.length, proofSha256, idempotencyKey: params.idempotencyKey ?? null }).returning();
       await tx.insert(auditLogs).values({ actorId: params.actor.id, actorEmail: params.actor.email, actorRole: params.actor.role,
         action: "WALLET_TOPUP_REQUESTED", entity: "wallet_topup_request", entityId: row!.id, agencyId: params.agencyId,
-        metadata: { reference: row!.reference, amount: amountAbs, currency: "DZD", proofSha256 } });
+        metadata: { reference: row!.reference, amount: amountAbs, currency: "DZD", proofFilename: proof.name, proofSha256 } });
       const staff = await tx.select({ id: users.id }).from(users).where(sql`${users.agencyId} is null and ${users.status} = 'ACTIVE' and ${users.role} in ('SUPER_ADMIN','ADMIN','VISA_AGENT','ACCOUNTING')`);
       if (staff.length) await tx.insert(notifications).values(staff.map((u) => ({ userId: u.id, type: "TOPUP_REQUESTED", title: `Wallet top-up request ${row!.reference}`,
         body: `${params.actor.agencyName ?? "Agency"} requested ${amountAbs} DZD.`, link: `/admin/billing#topup-${row!.id}`, topupRequestId: row!.id, agencyId: params.agencyId })));
@@ -331,12 +331,33 @@ export async function processTopupRequest(params: {
     }
 
     if (params.decision === "REJECT") {
-      await client.query(
+      const rejected = await client.query<{ id: string }>(
         `update ${qualifiedTable("wallet_topup_requests")}
             set status = 'REJECTED', decision_note = $2, processed_by = $3,
                 processed_at = now(), updated_at = now()
-          where id = $1 and status = 'PENDING'`,
+          where id = $1 and status = 'PENDING'
+          returning id`,
         [req.id, note, params.actor.id],
+      );
+      if (!rejected.rows[0]) {
+        await client.query("rollback");
+        throw new AppError("TOPUP_ALREADY_PROCESSED", `Top-up request ${req.reference} was already processed.`);
+      }
+      // Financial decisions and their audit evidence are one atomic write.
+      // If the audit row cannot be persisted, the rejection is rolled back.
+      await client.query(
+        `insert into ${qualifiedTable("audit_logs")}
+           (actor_id, actor_email, actor_role, agency_id, action, entity, entity_id, metadata, ip_address)
+         values ($1, $2, $3, $4, 'WALLET_TOPUP_REJECTED', 'wallet_topup_request', $5, $6::jsonb, $7)`,
+        [
+          params.actor.id,
+          params.actor.email,
+          params.actor.role,
+          req.agency_id,
+          req.id,
+          JSON.stringify({ reference: req.reference, reason: note }),
+          params.ipAddress ?? null,
+        ],
       );
       await client.query("commit");
       outcome = {
@@ -417,6 +438,8 @@ export async function processTopupRequest(params: {
             walletReference: mutation.reference,
             balanceBefore: mutation.balanceBefore,
             balanceAfter: mutation.balanceAfter,
+            receiptSha256: req.proof_sha256,
+            receiptSizeBytes: req.proof_size_bytes,
           }),
           params.ipAddress ?? null,
         ],
@@ -438,19 +461,8 @@ export async function processTopupRequest(params: {
     client.release();
   }
 
-  // Notifications + audit are best-effort post-commit side effects.
-  if (params.decision === "REJECT") {
-    await recordAudit({
-      actor: params.actor,
-      action: "WALLET_TOPUP_REJECTED",
-      entity: "wallet_topup_request",
-      entityId: params.requestId,
-      agencyId: outcome.agencyId,
-      metadata: { reference: outcome.reference, reason: note },
-      ipAddress: params.ipAddress ?? null,
-    });
-  }
-
+  // Notifications are best-effort post-commit side effects. Financial audit
+  // evidence is already committed atomically above.
   const recipients = await agencyUserIds(outcome.agencyId);
   const money = (value: string | number | null | undefined) => {
     const n = typeof value === "string" ? Number(value) : value;
