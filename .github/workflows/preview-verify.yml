@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
       PREVIEW_VERIFY_STAFF_EMAIL: ${{ secrets.PREVIEW_VERIFY_STAFF_EMAIL }}
       PREVIEW_VERIFY_STAFF_PASSWORD: ${{ secrets.PREVIEW_VERIFY_STAFF_PASSWORD }}
     steps:
