@@ -13,6 +13,8 @@ on:
       - arena/01a0c3b8-newproject
       - arena/01a0ce58-newproject
       - preprod/essafaria-final-hardening
+      - security/pre-codex-gate-2026-10-03
+      - rc/final-hardening-security-consolidation
     paths:
       - .github/workflows/preview-verify.yml
       - scripts/hosted-verify.sh
@@ -25,7 +27,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write # post the gate verdict as a commit comment
+  contents: read
   deployments: read
 
 jobs:
@@ -39,7 +41,7 @@ jobs:
       PREVIEW_VERIFY_STAFF_PASSWORD: ${{ secrets.PREVIEW_VERIFY_STAFF_PASSWORD }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -184,26 +186,25 @@ jobs:
           { [ -f /tmp/gate.prefix ] && cat /tmp/gate.prefix || true; cat /tmp/gate.runtime; } > /tmp/gate.out
           exit "$RC"
 
-      - name: Publish the gate verdict as a commit comment
+      - name: Publish the gate verdict to Actions summary
         if: always()
         env:
-          WF_REPO: ${{ github.repository }}
-          WF_SHA: ${{ github.sha }}
-          WF_CONCLUSION: ${{ job.status }}
           PREVIEW_STALE: ${{ env.PREVIEW_STALE }}
           PREVIEW_DEPLOYED_SHA: ${{ env.PREVIEW_DEPLOYED_SHA }}
         run: |
           OUT_FILE=/tmp/gate.out
           [ -f "$OUT_FILE" ] || echo "(gate output unavailable — resolve/wait step failed before the harness ran)" > "$OUT_FILE"
-          grep -E "^(PASS|FAIL|SKIP|== Summary|Target|Resolved)" "$OUT_FILE" | tail -220 > /tmp/gate.tail || true
-          python3 -c '
-          import subprocess, sys, os
-          repo = os.environ["WF_REPO"]; sha = os.environ["WF_SHA"]; conclusion = os.environ["WF_CONCLUSION"]
-          tail = open("/tmp/gate.tail", encoding="utf-8", errors="replace").read() or "(no PASS/FAIL lines captured)"
-          stale = os.environ.get("PREVIEW_STALE") == "true"
-          deployed = os.environ.get("PREVIEW_DEPLOYED_SHA", "")
-          mode = ("STALE SAME-BRANCH DIAGNOSTIC (deployed %s)" % deployed[:12]) if stale else "CURRENT SHA"
-          body = "### Hosted Preview verification — %s — %s\n\n```\n%s\n```" % (conclusion.upper(), mode, tail)
-          r = subprocess.run(["gh", "api", "repos/%s/commits/%s/comments" % (repo, sha), "-f", "body=" + body], capture_output=True, text=True)
-          print(r.stdout[-300:]); print(r.stderr[-300:], file=sys.stderr)
-          '
+          {
+            echo "### Hosted Preview verification — ${{ job.status }}"
+            if [ "${PREVIEW_STALE:-false}" = "true" ]; then
+              echo
+              echo "Mode: STALE SAME-BRANCH DIAGNOSTIC (deployed ${PREVIEW_DEPLOYED_SHA:-unknown})"
+            else
+              echo
+              echo "Mode: CURRENT SHA"
+            fi
+            echo
+            echo '\`\`\`'
+            grep -E "^(PASS|FAIL|SKIP|== Summary|Target|Resolved)" "$OUT_FILE" | tail -220 || true
+            echo '\`\`\`'
+          } >> "$GITHUB_STEP_SUMMARY"
