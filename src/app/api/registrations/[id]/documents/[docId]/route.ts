@@ -4,7 +4,7 @@ import { hasPermission } from "@/lib/rbac";
 import { getRegistrationDocument } from "@/lib/registrations";
 import { storageProvider } from "@/lib/storage";
 import { AppError } from "@/lib/types";
-import { recordAudit } from "@/lib/audit";
+import { recordAuditStrict } from "@/lib/audit";
 import { assertStoredFileIntegrity } from "@/lib/file-integrity";
 
 export const dynamic = "force-dynamic";
@@ -35,13 +35,17 @@ export async function GET(
       return NextResponse.json({ error: "Not found." }, { status: 404 });
     }
     const { data } = await storageProvider().get(doc.storageKey);
-    assertStoredFileIntegrity({ data, expectedSizeBytes: doc.sizeBytes, expectedSha256: doc.sha256 });
-    await recordAudit({
+    assertStoredFileIntegrity({
+      data,
+      expectedSizeBytes: doc.sizeBytes,
+      expectedSha256: doc.sha256,
+    });
+    await recordAuditStrict({
       actor: user,
       action: "REGISTRATION_DOCUMENT_DOWNLOADED",
       entity: "agency_registration_document",
       entityId: doc.id,
-      metadata: { registrationId: id },
+      metadata: { registrationId: id, filename: doc.originalFilename, sizeBytes: doc.sizeBytes, sha256: doc.sha256 },
     });
     const safeName = doc.originalFilename.replace(/["\\\r\n]/g, "_");
     return new NextResponse(new Uint8Array(data), {
@@ -56,6 +60,9 @@ export async function GET(
     });
   } catch (err) {
     if (err instanceof AppError) {
+      if (err.code === "AUDIT_FAILED") {
+        return NextResponse.json({ error: "Service temporarily unavailable." }, { status: 503 });
+      }
       return NextResponse.json({ error: "Not found." }, { status: err.code === "NOT_FOUND" ? 404 : 400 });
     }
     console.error("registration-document-download-failed");
