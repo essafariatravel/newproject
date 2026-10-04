@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { agencies, sessions, users } from "@/db/schema";
 import {
   AppError,
+  PRODUCTION_SESSION_COOKIE,
   SESSION_COOKIE,
   type AuthUser,
   type Role,
@@ -13,7 +14,19 @@ import { generateSessionToken, hashToken } from "@/lib/crypto";
 import type { User } from "@/db/schema";
 import { normalizeAgencyUsername, sessionPolicy } from "@/lib/identity-policy";
 import { lockIdentityState } from "@/lib/account-security";
-import { safeErrorCode } from "@/lib/safe-error";
+import { safeErrorCode, safeErrorText } from "@/lib/safe-error";
+
+function preferredSessionCookieName(): string {
+  return process.env.NODE_ENV === "production" ? PRODUCTION_SESSION_COOKIE : SESSION_COOKIE;
+}
+
+async function readSessionToken(): Promise<string | undefined> {
+  const jar = await cookies();
+  const preferred = preferredSessionCookieName();
+  return jar.get(preferred)?.value ??
+    (preferred !== SESSION_COOKIE ? jar.get(SESSION_COOKIE)?.value : undefined);
+}
+
 
 /** Create a session and return the opaque cookie token. */
 export async function createSession(
@@ -51,8 +64,7 @@ export async function createSession(
 export async function getSessionUser(): Promise<AuthUser | null> {
   let token: string | undefined;
   try {
-    const jar = await cookies();
-    token = jar.get(SESSION_COOKIE)?.value;
+    token = await readSessionToken();
   } catch {
     return null;
   }
@@ -90,7 +102,7 @@ export async function getSessionUser(): Promise<AuthUser | null> {
     };
   } catch (err) {
     // Database temporarily unavailable (e.g. missing migrations on Preview) must not become a 500.
-    console.error("[auth] getSessionUser failed", safeErrorCode(err) ?? "unknown");
+    console.error("[auth] getSessionUser failed", { code: safeErrorCode(err), error: safeErrorText(err) });
     return null;
   }
 }
@@ -136,24 +148,27 @@ export async function requireAgencyUser(): Promise<AuthUser & { agencyId: string
 /** Set the session cookie (must be called in a server action / route handler). */
 export async function setSessionCookie(token: string, expiresAt: Date): Promise<void> {
   const jar = await cookies();
-  jar.set(SESSION_COOKIE, token, {
+  const name = preferredSessionCookieName();
+  jar.set(name, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     expires: expiresAt,
     path: "/",
   });
+  if (name !== SESSION_COOKIE) jar.delete(SESSION_COOKIE);
 }
 
 export async function clearSessionCookie(): Promise<void> {
   const jar = await cookies();
-  jar.delete(SESSION_COOKIE);
+  const preferred = preferredSessionCookieName();
+  jar.delete(preferred);
+  if (preferred !== SESSION_COOKIE) jar.delete(SESSION_COOKIE);
 }
 
 /** Destroy the current session server-side. */
 export async function destroySession(): Promise<void> {
-  const jar = await cookies();
-  const token = jar.get(SESSION_COOKIE)?.value;
+  const token = await readSessionToken();
   if (token) {
     try {
       await db.delete(sessions).where(eq(sessions.tokenHash, hashToken(token)));
@@ -165,6 +180,9 @@ export async function destroySession(): Promise<void> {
 
 /** Agency username or unique Staff professional email; mailbox is never an agency login key. */
 export async function authenticate(identifier: string, password: string): Promise<User> {
+  if (password.length === 0 || password.length > 200) {
+    throw new AppError("INVALID_CREDENTIALS", "Invalid username, email or password.");
+  }
   const { verifyPassword } = await import("@/lib/crypto");
   let user: User | undefined;
   try {
@@ -183,7 +201,7 @@ export async function authenticate(identifier: string, password: string): Promis
     user = rows[0] as User | undefined;
   } catch (err) {
     // Hide raw database errors (e.g. missing table / connection failure) from the user.
-    console.error("[auth] authenticate query failed", safeErrorCode(err) ?? "unknown");
+    console.error("[auth] authenticate query failed", { code: safeErrorCode(err), error: safeErrorText(err) });
     throw new AppError("SERVICE_UNAVAILABLE", "Service temporarily unavailable. Please try again.");
   }
   if (!user) {
@@ -207,7 +225,7 @@ export async function authenticate(identifier: string, password: string): Promis
       }
     } catch (err) {
       if (err instanceof AppError) throw err;
-      console.error("[auth] authenticate agency lookup failed", safeErrorCode(err) ?? "unknown");
+      console.error("[auth] authenticate agency lookup failed", { code: safeErrorCode(err), error: safeErrorText(err) });
       throw new AppError("SERVICE_UNAVAILABLE", "Service temporarily unavailable. Please try again.");
     }
   }
@@ -218,7 +236,7 @@ export async function authenticate(identifier: string, password: string): Promis
 export async function touchCurrentSession(): Promise<boolean> {
   const user = await getSessionUser();
   if (!user) return false;
-  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  const token = await readSessionToken();
   if (!token) return false;
   const updated = await db.update(sessions).set({ lastActivityAt: new Date() })
     .where(and(eq(sessions.tokenHash, hashToken(token)), gt(sessions.expiresAt, new Date()),
