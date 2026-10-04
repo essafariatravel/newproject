@@ -3,7 +3,7 @@ import { getSessionUser } from "@/lib/auth";
 import { getDocumentForUser } from "@/lib/documents";
 import { storageProvider } from "@/lib/storage";
 import { AppError } from "@/lib/types";
-import { recordAudit } from "@/lib/audit";
+import { recordAuditStrict } from "@/lib/audit";
 import { assertStoredFileIntegrity } from "@/lib/file-integrity";
 
 export const dynamic = "force-dynamic";
@@ -30,13 +30,22 @@ export async function GET(
   try {
     const row = await getDocumentForUser(id, user);
     const { data } = await storageProvider().get(row.doc.storageKey);
-    assertStoredFileIntegrity({ data, expectedSizeBytes: row.doc.sizeBytes, expectedSha256: row.doc.sha256 });
-    await recordAudit({
+    assertStoredFileIntegrity({
+      data,
+      expectedSizeBytes: row.doc.sizeBytes,
+      expectedSha256: row.doc.sha256,
+    });
+    await recordAuditStrict({
       actor: user,
       action: "DOCUMENT_DOWNLOADED",
       entity: "document",
       entityId: id,
       agencyId: row.appAgencyId,
+      metadata: {
+        filename: row.doc.originalFilename,
+        sizeBytes: row.doc.sizeBytes,
+        sha256: row.doc.sha256,
+      },
     });
     // Content-Disposition attachment prevents inline script execution for HTML-like uploads
     const safeName = row.doc.originalFilename.replace(/["\\\r\n]/g, "_");
@@ -52,6 +61,9 @@ export async function GET(
     });
   } catch (err) {
     if (err instanceof AppError) {
+      if (err.code === "AUDIT_FAILED") {
+        return NextResponse.json({ error: "Service temporarily unavailable." }, { status: 503 });
+      }
       return NextResponse.json({ error: "Not found." }, { status: err.code === "NOT_FOUND" ? 404 : 400 });
     }
     console.error("document-download-failed");
