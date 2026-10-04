@@ -5,6 +5,8 @@ on:
     branches:
       - release/essafaria-rc-2026-09
       - preprod/essafaria-final-hardening
+      - security/pre-codex-gate-2026-10-03
+      - rc/final-hardening-security-consolidation
   workflow_dispatch:
 
 concurrency:
@@ -19,7 +21,7 @@ permissions:
 jobs:
   verify:
     name: Typecheck, lint, tests, build
-    if: github.ref == 'refs/heads/release/essafaria-rc-2026-09' || github.ref == 'refs/heads/preprod/essafaria-final-hardening'
+    if: github.ref == 'refs/heads/release/essafaria-rc-2026-09' || github.ref == 'refs/heads/preprod/essafaria-final-hardening' || github.ref == 'refs/heads/security/pre-codex-gate-2026-10-03' || github.ref == 'refs/heads/rc/final-hardening-security-consolidation'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -33,10 +35,11 @@ jobs:
 
     steps:
       - name: Checkout exact commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Verify checkout
         shell: bash
@@ -45,13 +48,28 @@ jobs:
           echo "Verified commit: $GITHUB_SHA"
 
       - name: Setup Node 22 with npm cache
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
           node-version: 22
           cache: npm
 
       - name: Install dependencies from package-lock
         run: npm ci --no-audit --no-fund
+
+      - name: Tracked secret and credential artifact gate
+        run: npx tsx scripts/security-static-gate.ts
+
+      - name: Historical secret and credential gate
+        run: npx tsx scripts/security-history-gate.ts
+
+      - name: Immutable third-party GitHub Actions gate
+        run: npx tsx scripts/security-actions-gate.ts
+
+      - name: Dangerous source construct gate
+        run: npx tsx scripts/security-source-gate.ts
+
+      - name: Production dependency vulnerability gate
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Typecheck
         run: npm run typecheck
