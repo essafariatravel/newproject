@@ -278,18 +278,10 @@ export async function assertRegistrationRateLimit(ipAddress: string | null): Pro
   try {
     // Persist only a one-way hash of the rate-limit subject in auth_rate_limits.
     // The public partnership record itself does not need a durable raw IP copy.
-    const hourAllowed = await consumeAuthRateLimit(
-      "agency-registration-hour",
-      key,
-      RATE_LIMIT_PER_IP_HOUR,
-      60 * 60_000,
-    );
-    const dayAllowed = await consumeAuthRateLimit(
-      "agency-registration-day",
-      key,
-      RATE_LIMIT_PER_IP_DAY,
-      24 * 60 * 60_000,
-    );
+    const [hourAllowed, dayAllowed] = await Promise.all([
+      consumeAuthRateLimit("agency-registration-hour", key, RATE_LIMIT_PER_IP_HOUR, 60 * 60_000),
+      consumeAuthRateLimit("agency-registration-day", key, RATE_LIMIT_PER_IP_DAY, 24 * 60 * 60_000),
+    ]);
     if (!hourAllowed || !dayAllowed) {
       throw new AppError("RATE_LIMITED", "Too many attempts. Please wait before submitting again.");
     }
@@ -371,18 +363,8 @@ export async function submitAgencyRegistration(params: {
   // 2. Database, one transaction (registration + documents + history).
   try {
     const reference = await persistRegistration(id, data, stored);
-    // 3. Side effects (non-critical, individually guarded).
-    await recordAudit({
-      actor: null,
-      action: "AGENCY_REGISTRATION_SUBMITTED",
-      entity: "agency_registration",
-      entityId: id,
-      metadata: {
-        reference,
-        documents: stored.length,
-        locale: data.locale,
-      },
-    });
+    // 3. Notifications are non-critical post-commit side effects. Submission
+    // audit evidence is committed atomically inside persistRegistration().
     const staff = await staffUserIds([...REGISTRATION_DECIDE_ROLES]).catch(() => [] as string[]);
     await notifyUsers(staff, {
       type: "REGISTRATION_SUBMITTED",
@@ -460,6 +442,19 @@ async function persistRegistration(
           toStatus: "PENDING",
           actorId: null,
           note: "Application submitted from the public website.",
+        });
+        await tx.insert(auditLogs).values({
+          actorId: null,
+          actorEmail: null,
+          actorRole: null,
+          agencyId: null,
+          action: "AGENCY_REGISTRATION_SUBMITTED",
+          entity: "agency_registration",
+          entityId: id,
+          metadata: { reference, documents: stored.length, locale: data.locale },
+          // Raw public IP is intentionally not persisted in the partnership
+          // record or its durable audit. Rate-limit subjects are one-way hashed.
+          ipAddress: null,
         });
         return reference;
       });
@@ -990,8 +985,8 @@ export async function activateAccount(
   if (!/^[A-Za-z0-9_-]{20,90}$/.test(token)) {
     throw new AppError("INVALID_TOKEN", "This activation link is invalid or has expired.");
   }
-  if (password.length < 10 || password.length > 200) {
-    throw new AppError("PASSWORD_POLICY", "Password must be at least 10 characters.");
+  if (password.length < 10 || password.length > 200 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+    throw new AppError("PASSWORD_POLICY", "Password must be 10–200 characters and include letters and numbers.");
   }
   const passwordHash = await hashPassword(password);
   const { row, credentialVersion } = await db.transaction(async (tx) => {
