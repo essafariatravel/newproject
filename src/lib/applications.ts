@@ -241,16 +241,18 @@ export async function createDraftApplication(input: CreateApplicationInput) {
       agencyNotes: input.agencyNotes ?? null, createdBy: input.createdBy.id,
     }).returning();
     await generateChecklist(created!.id, created!.visaTypeId, tx);
+    await tx.insert(auditLogs).values({
+      actorId: input.createdBy.id,
+      actorEmail: input.createdBy.email,
+      actorRole: input.createdBy.role,
+      agencyId: input.agencyId,
+      action: "APPLICATION_CREATED",
+      entity: "application",
+      entityId: created!.id,
+      metadata: { reference, visaTypeCode: created!.visaTypeCode, fee: created!.fee, currency: created!.currency },
+      ipAddress: input.ipAddress ?? null,
+    });
     return created!;
-  });
-  await recordAudit({
-    actor: input.createdBy,
-    action: "APPLICATION_CREATED",
-    entity: "application",
-    entityId: app.id,
-    agencyId: input.agencyId,
-    metadata: { reference, visaTypeCode: app.visaTypeCode, fee: app.fee, currency: app.currency },
-    ipAddress: input.ipAddress ?? null,
   });
   return app;
 }
@@ -537,16 +539,17 @@ export async function changeApplicationStatus(params: {
     });
     if (to.isTerminal) await tx.update(documentRequests).set({ status: "CANCELLED", updatedAt: new Date() })
       .where(and(eq(documentRequests.applicationId, app.id), eq(documentRequests.status, "OPEN")));
-  });
-
-  await recordAudit({
-    actor,
-    action: "STATUS_CHANGED",
-    entity: "application",
-    entityId: app.id,
-    agencyId: app.agencyId,
-    metadata: { from: from.code, to: to.code, reason: params.reason ?? null },
-    ipAddress: params.ipAddress ?? null,
+    await tx.insert(auditLogs).values({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      actorRole: actor.role,
+      agencyId: app.agencyId,
+      action: "STATUS_CHANGED",
+      entity: "application",
+      entityId: app.id,
+      metadata: { from: from.code, to: to.code, reason: params.reason ?? null },
+      ipAddress: params.ipAddress ?? null,
+    });
   });
 
   const aIds = await agencyUserIds(app.agencyId);

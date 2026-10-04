@@ -10,6 +10,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import {
   applicationStatusHistory,
+  auditLogs,
   applications,
   checklistItems,
   countries,
@@ -209,23 +210,31 @@ const visaTypeSchema = z.object({
   path: ["processingMinDays"],
 });
 
+
 export async function createVisaTypeAction(formData: FormData): Promise<void> {
   await runAction("/admin/config/visa-types", async () => {
     const staff = await requireStaff();
     requirePermission(staff, "config.manage");
     const data = visaTypeSchema.parse(Object.fromEntries(formData));
-    const inserted = await db
-      .insert(visaTypes)
-      .values({ ...data, fee: data.fee.toFixed(2), currency: "DZD", active: false })
-      .onConflictDoNothing()
-      .returning();
-    if (!inserted[0]) throw new AppError("DUPLICATE", `Visa type code ${data.code} already exists.`);
-    await recordAudit({ actor: staff, action: "CONFIG_VISA_TYPE_CREATED", entity: "visa_type", entityId: inserted[0].id, metadata: { code: data.code, fee: data.fee } });
+    await db.transaction(async (tx) => {
+      const inserted = await tx
+        .insert(visaTypes)
+        .values({ ...data, fee: data.fee.toFixed(2), currency: "DZD", active: false })
+        .onConflictDoNothing()
+        .returning();
+      if (!inserted[0]) throw new AppError("DUPLICATE", `Visa type code ${data.code} already exists.`);
+      await tx.insert(auditLogs).values({
+        actorId: staff.id, actorEmail: staff.email, actorRole: staff.role, agencyId: staff.agencyId,
+        action: "CONFIG_VISA_TYPE_CREATED", entity: "visa_type", entityId: inserted[0].id,
+        metadata: { code: data.code, fee: data.fee },
+      });
+    });
     revalidatePath("/admin/config/visa-types");
     revalidatePath("/visas");
     return `Visa type "${data.name}" created.`;
   });
 }
+
 
 export async function updateVisaTypeAction(formData: FormData): Promise<void> {
   const id = idSchema.parse(formData.get("id"));
@@ -234,35 +243,82 @@ export async function updateVisaTypeAction(formData: FormData): Promise<void> {
     const staff = await requireStaff();
     requirePermission(staff, "config.manage");
     if (formData.get("toggle")) {
-      await db.transaction(async tx => {
-        const existing = (await tx.select().from(visaTypes).where(eq(visaTypes.id,id)).for("update"))[0];
+      await db.transaction(async (tx) => {
+        const existing = (await tx.select().from(visaTypes).where(eq(visaTypes.id, id)).for("update"))[0];
         if (!existing) throw new AppError("NOT_FOUND", "Visa type not found.");
         if (!existing.active) {
           const country = (await tx.select().from(countries).where(eq(countries.id, existing.countryId)))[0];
           const category = (await tx.select().from(visaCategories).where(eq(visaCategories.id, existing.categoryId)))[0];
-          const requirements = await tx.select({id:visaRequirements.id}).from(visaRequirements).innerJoin(documentTypes,eq(visaRequirements.documentTypeId,documentTypes.id)).where(and(eq(visaRequirements.visaTypeId,id),eq(visaRequirements.active,true),eq(documentTypes.active,true),eq(documentTypes.agencyUploadable,true)));
-          validateVisaActivation({countryActive:country?.active??false,categoryActive:category?.active??false,name:existing.name,nameFr:existing.nameFr,nameAr:existing.nameAr,fee:existing.fee,minDays:existing.processingMinDays,maxDays:existing.processingMaxDays,agencyRequirements:requirements.length});
+          const requirements = await tx
+            .select({ id: visaRequirements.id })
+            .from(visaRequirements)
+            .innerJoin(documentTypes, eq(visaRequirements.documentTypeId, documentTypes.id))
+            .where(and(
+              eq(visaRequirements.visaTypeId, id),
+              eq(visaRequirements.active, true),
+              eq(documentTypes.active, true),
+              eq(documentTypes.agencyUploadable, true),
+            ));
+          validateVisaActivation({
+            countryActive: country?.active ?? false,
+            categoryActive: category?.active ?? false,
+            name: existing.name,
+            nameFr: existing.nameFr,
+            nameAr: existing.nameAr,
+            fee: existing.fee,
+            minDays: existing.processingMinDays,
+            maxDays: existing.processingMaxDays,
+            agencyRequirements: requirements.length,
+          });
         }
-        await tx.update(visaTypes).set({active:!existing.active,updatedAt:new Date()}).where(eq(visaTypes.id,id));
+        await tx.update(visaTypes).set({ active: !existing.active, updatedAt: new Date() }).where(eq(visaTypes.id, id));
+        await tx.insert(auditLogs).values({
+          actorId: staff.id, actorEmail: staff.email, actorRole: staff.role, agencyId: staff.agencyId,
+          action: "CONFIG_VISA_TYPE_TOGGLED", entity: "visa_type", entityId: id,
+          metadata: { active: !existing.active },
+        });
       });
-      await recordAudit({ actor: staff, action: "CONFIG_VISA_TYPE_TOGGLED", entity: "visa_type", entityId: id });
     } else {
-      const existing = (await db.select().from(visaTypes).where(eq(visaTypes.id, id)).limit(1))[0];
-      if (!existing) throw new AppError("NOT_FOUND", "Visa type not found.");
-      const data = visaTypeSchema.parse({ ...Object.fromEntries(formData), code: existing.code });
-      if (existing.active) {
-        const country = (await db.select().from(countries).where(eq(countries.id,data.countryId)))[0];
-        const category = (await db.select().from(visaCategories).where(eq(visaCategories.id,data.categoryId)))[0];
-        const requirements = await db.select({id:visaRequirements.id}).from(visaRequirements).innerJoin(documentTypes,eq(visaRequirements.documentTypeId,documentTypes.id)).where(and(eq(visaRequirements.visaTypeId,id),eq(visaRequirements.active,true),eq(documentTypes.active,true),eq(documentTypes.agencyUploadable,true)));
-        validateVisaActivation({countryActive:country?.active??false,categoryActive:category?.active??false,name:data.name,nameFr:data.nameFr??null,nameAr:data.nameAr??null,fee:String(data.fee),minDays:data.processingMinDays,maxDays:data.processingMaxDays,agencyRequirements:requirements.length});
-      }
-      await db.update(visaTypes).set({ ...data, fee: data.fee.toFixed(2), currency: "DZD", updatedAt: new Date() }).where(eq(visaTypes.id, id));
-      await recordAudit({
-        actor: staff,
-        action: "CONFIG_VISA_TYPE_UPDATED",
-        entity: "visa_type",
-        entityId: id,
-        metadata: { fee: data.fee, embassyApplicability: data.embassyApplicability },
+      await db.transaction(async (tx) => {
+        const existing = (await tx.select().from(visaTypes).where(eq(visaTypes.id, id)).for("update"))[0];
+        if (!existing) throw new AppError("NOT_FOUND", "Visa type not found.");
+        const data = visaTypeSchema.parse({ ...Object.fromEntries(formData), code: existing.code });
+        if (existing.active) {
+          const country = (await tx.select().from(countries).where(eq(countries.id, data.countryId)))[0];
+          const category = (await tx.select().from(visaCategories).where(eq(visaCategories.id, data.categoryId)))[0];
+          const requirements = await tx
+            .select({ id: visaRequirements.id })
+            .from(visaRequirements)
+            .innerJoin(documentTypes, eq(visaRequirements.documentTypeId, documentTypes.id))
+            .where(and(
+              eq(visaRequirements.visaTypeId, id),
+              eq(visaRequirements.active, true),
+              eq(documentTypes.active, true),
+              eq(documentTypes.agencyUploadable, true),
+            ));
+          validateVisaActivation({
+            countryActive: country?.active ?? false,
+            categoryActive: category?.active ?? false,
+            name: data.name,
+            nameFr: data.nameFr ?? null,
+            nameAr: data.nameAr ?? null,
+            fee: String(data.fee),
+            minDays: data.processingMinDays,
+            maxDays: data.processingMaxDays,
+            agencyRequirements: requirements.length,
+          });
+        }
+        await tx.update(visaTypes).set({
+          ...data,
+          fee: data.fee.toFixed(2),
+          currency: "DZD",
+          updatedAt: new Date(),
+        }).where(eq(visaTypes.id, id));
+        await tx.insert(auditLogs).values({
+          actorId: staff.id, actorEmail: staff.email, actorRole: staff.role, agencyId: staff.agencyId,
+          action: "CONFIG_VISA_TYPE_UPDATED", entity: "visa_type", entityId: id,
+          metadata: { fee: data.fee, embassyApplicability: data.embassyApplicability },
+        });
       });
     }
     revalidatePath("/admin/config/visa-types");
@@ -274,6 +330,7 @@ export async function updateVisaTypeAction(formData: FormData): Promise<void> {
 
 /* ----------------------------- requirements ---------------------------- */
 
+
 export async function deleteVisaTypeAction(formData: FormData): Promise<void> {
   await runAction("/admin/config/visa-types", async () => {
     const staff = await requireStaff();
@@ -284,12 +341,17 @@ export async function deleteVisaTypeAction(formData: FormData): Promise<void> {
       if (!row) throw new AppError("NOT_FOUND", "Visa type not found.");
       const applicationRefs = await tx.select({ id: applications.id }).from(applications).where(eq(applications.visaTypeId, id)).limit(1);
       const requirementRefs = await tx.select({ id: visaRequirements.id }).from(visaRequirements).where(eq(visaRequirements.visaTypeId, id)).limit(1);
-      // Explicitly block the schema's requirement cascade: deletion never removes related configuration.
-      if (applicationRefs.length || requirementRefs.length) throw new AppError("REFERENCED", "This visa type has applications or document requirements. Deactivate it instead.");
+      if (applicationRefs.length || requirementRefs.length) {
+        throw new AppError("REFERENCED", "This visa type has applications or document requirements. Deactivate it instead.");
+      }
       await tx.delete(visaTypes).where(eq(visaTypes.id, id));
+      await tx.insert(auditLogs).values({
+        actorId: staff.id, actorEmail: staff.email, actorRole: staff.role, agencyId: staff.agencyId,
+        action: "CONFIG_VISA_TYPE_DELETED", entity: "visa_type", entityId: id,
+        metadata: { code: row.code, mode: "hard" },
+      });
       return row;
     });
-    await recordAudit({ actor: staff, action: "CONFIG_VISA_TYPE_DELETED", entity: "visa_type", entityId: id, metadata: { code: visaType.code, mode: "hard" } });
     revalidatePath("/admin/config/visa-types");
     revalidatePath("/visas");
     return `Visa type "${visaType.name}" deleted.`;
@@ -537,6 +599,7 @@ export async function updateCurrencyAction(formData: FormData): Promise<void> {
 
 /* ------------------------------- statuses ------------------------------ */
 
+
 export async function createStatusAction(formData: FormData): Promise<void> {
   await runAction("/admin/config/statuses", async () => {
     const staff = await requireStaff();
@@ -563,13 +626,25 @@ export async function createStatusAction(formData: FormData): Promise<void> {
         isDraft: formData.get("isDraft") === "on",
       });
     assertWorkflowCode(data.code);
-    const inserted = await db.insert(statuses).values(data).onConflictDoNothing().returning();
-    if (!inserted[0]) throw new AppError("DUPLICATE", `Status ${data.code} already exists.`);
-    await recordAudit({ actor: staff, action: "CONFIG_STATUS_CREATED", entity: "status", entityId: inserted[0].id, metadata: { code: data.code } });
+    await db.transaction(async (tx) => {
+      const inserted = await tx.insert(statuses).values(data).onConflictDoNothing().returning();
+      if (!inserted[0]) throw new AppError("DUPLICATE", `Status ${data.code} already exists.`);
+      await tx.insert(auditLogs).values({
+        actorId: staff.id,
+        actorEmail: staff.email,
+        actorRole: staff.role,
+        agencyId: staff.agencyId,
+        action: "CONFIG_STATUS_CREATED",
+        entity: "status",
+        entityId: inserted[0].id,
+        metadata: { code: data.code },
+      });
+    });
     revalidatePath("/admin/config/statuses");
     return `Status "${data.name}" created. Configure its transitions below.`;
   });
 }
+
 
 export async function updateStatusAction(formData: FormData): Promise<void> {
   await runAction("/admin/config/statuses", async () => {
@@ -577,13 +652,17 @@ export async function updateStatusAction(formData: FormData): Promise<void> {
     requirePermission(staff, "config.manage");
     const id = idSchema.parse(formData.get("id"));
     if (formData.get("toggle")) {
-      const st = (await db.select().from(statuses).where(eq(statuses.id, id)))[0];
-      if (!st) throw new AppError("NOT_FOUND", "Status not found");
-      assertMutableWorkflowState(st.code);
-      // Q12 — terminal statuses are locked and cannot be deactivated
-      if (st.isTerminal && st.active) throw new AppError("FORBIDDEN", "Terminal statuses (APPROVED / REJECTED / CANCELLED) cannot be deactivated.");
-      await db.update(statuses).set({ active: sql`not ${statuses.active}`, updatedAt: new Date() }).where(eq(statuses.id, id));
-      await recordAudit({ actor: staff, action: "CONFIG_STATUS_TOGGLED", entity: "status", entityId: id });
+      await db.transaction(async (tx) => {
+        const [st] = await tx.select().from(statuses).where(eq(statuses.id, id)).for("update");
+        if (!st) throw new AppError("NOT_FOUND", "Status not found");
+        assertMutableWorkflowState(st.code);
+        if (st.isTerminal && st.active) throw new AppError("FORBIDDEN", "Terminal statuses (APPROVED / REJECTED / CANCELLED) cannot be deactivated.");
+        await tx.update(statuses).set({ active: sql`not ${statuses.active}`, updatedAt: new Date() }).where(eq(statuses.id, id));
+        await tx.insert(auditLogs).values({
+          actorId: staff.id, actorEmail: staff.email, actorRole: staff.role, agencyId: staff.agencyId,
+          action: "CONFIG_STATUS_TOGGLED", entity: "status", entityId: id,
+        });
+      });
       revalidatePath("/admin/config/statuses");
       return "Status toggled.";
     }
@@ -592,20 +671,31 @@ export async function updateStatusAction(formData: FormData): Promise<void> {
       const toStatusId = id;
       const scope = z.enum(["STAFF", "AGENCY", "BOTH"]).parse(formData.get("transitionScope"));
       if (formData.get("remove") === "true") {
-        await db.delete(statusTransitions).where(and(eq(statusTransitions.fromStatusId, fromStatusId), eq(statusTransitions.toStatusId, toStatusId)));
-        await recordAudit({ actor: staff, action: "CONFIG_TRANSITION_REMOVED", entity: "status_transition", entityId: `${fromStatusId}->${toStatusId}` });
+        await db.transaction(async (tx) => {
+          await tx.delete(statusTransitions).where(and(eq(statusTransitions.fromStatusId, fromStatusId), eq(statusTransitions.toStatusId, toStatusId)));
+          await tx.insert(auditLogs).values({
+            actorId: staff.id, actorEmail: staff.email, actorRole: staff.role, agencyId: staff.agencyId,
+            action: "CONFIG_TRANSITION_REMOVED", entity: "status_transition", entityId: `${fromStatusId}->${toStatusId}`,
+          });
+        });
         revalidatePath("/admin/config/statuses");
         return "Transition removed.";
       }
-      const [from] = await db.select().from(statuses).where(eq(statuses.id, fromStatusId));
-      const [to] = await db.select().from(statuses).where(eq(statuses.id, toStatusId));
-      if (!from || !to) throw new AppError("NOT_FOUND", "Status not found.");
-      assertWorkflowTransition(from.code, to.code, scope);
-      await db
-        .insert(statusTransitions)
-        .values({ fromStatusId, toStatusId, scope })
-        .onConflictDoUpdate({ target: [statusTransitions.fromStatusId, statusTransitions.toStatusId], set: { scope, updatedAt: new Date() } });
-      await recordAudit({ actor: staff, action: "CONFIG_TRANSITION_SAVED", entity: "status_transition", entityId: `${fromStatusId}->${toStatusId}`, metadata: { scope } });
+      await db.transaction(async (tx) => {
+        const [from] = await tx.select().from(statuses).where(eq(statuses.id, fromStatusId)).for("share");
+        const [to] = await tx.select().from(statuses).where(eq(statuses.id, toStatusId)).for("share");
+        if (!from || !to) throw new AppError("NOT_FOUND", "Status not found.");
+        assertWorkflowTransition(from.code, to.code, scope);
+        await tx
+          .insert(statusTransitions)
+          .values({ fromStatusId, toStatusId, scope })
+          .onConflictDoUpdate({ target: [statusTransitions.fromStatusId, statusTransitions.toStatusId], set: { scope, updatedAt: new Date() } });
+        await tx.insert(auditLogs).values({
+          actorId: staff.id, actorEmail: staff.email, actorRole: staff.role, agencyId: staff.agencyId,
+          action: "CONFIG_TRANSITION_SAVED", entity: "status_transition", entityId: `${fromStatusId}->${toStatusId}`,
+          metadata: { scope },
+        });
+      });
       revalidatePath("/admin/config/statuses");
       return "Transition saved.";
     }
@@ -624,8 +714,15 @@ export async function updateStatusAction(formData: FormData): Promise<void> {
         description: formData.get("description") || null,
         sortOrder: formData.get("sortOrder"),
       });
-    await db.update(statuses).set({ ...data, updatedAt: new Date() }).where(eq(statuses.id, id));
-    await recordAudit({ actor: staff, action: "CONFIG_STATUS_UPDATED", entity: "status", entityId: id });
+    await db.transaction(async (tx) => {
+      const [existing] = await tx.select({ id: statuses.id }).from(statuses).where(eq(statuses.id, id)).for("update");
+      if (!existing) throw new AppError("NOT_FOUND", "Status not found.");
+      await tx.update(statuses).set({ ...data, updatedAt: new Date() }).where(eq(statuses.id, id));
+      await tx.insert(auditLogs).values({
+        actorId: staff.id, actorEmail: staff.email, actorRole: staff.role, agencyId: staff.agencyId,
+        action: "CONFIG_STATUS_UPDATED", entity: "status", entityId: id,
+      });
+    });
     revalidatePath("/admin/config/statuses");
     return "Status saved.";
   });
@@ -639,43 +736,45 @@ export async function updateStatusAction(formData: FormData): Promise<void> {
  *    transition edges so it can no longer be selected; the row, label and
  *    historical meaning stay intact.
  */
+
+
 export async function deleteStatusAction(formData: FormData): Promise<void> {
   await runAction("/admin/config/statuses", async () => {
     const staff = await requireStaff();
     requirePermission(staff, "config.manage");
     const id = idSchema.parse(formData.get("id"));
-    const rows = await db.select().from(statuses).where(eq(statuses.id, id)).limit(1);
-    const status = rows[0];
-    if (!status) throw new AppError("NOT_FOUND", "Status not found.");
-    assertMutableWorkflowState(status.code);
+    const result = await db.transaction(async (tx) => {
+      const [status] = await tx.select().from(statuses).where(eq(statuses.id, id)).for("update");
+      if (!status) throw new AppError("NOT_FOUND", "Status not found.");
+      assertMutableWorkflowState(status.code);
 
-    const appRef = await db.select({ id: applications.id }).from(applications).where(eq(applications.statusId, id)).limit(1);
-    const histRef = await db
-      .select({ id: applicationStatusHistory.id })
-      .from(applicationStatusHistory)
-      .where(or(eq(applicationStatusHistory.fromStatusId, id), eq(applicationStatusHistory.toStatusId, id)))
-      .limit(1);
-    const referenced = appRef.length > 0 || histRef.length > 0;
+      const appRef = await tx.select({ id: applications.id }).from(applications).where(eq(applications.statusId, id)).limit(1);
+      const histRef = await tx
+        .select({ id: applicationStatusHistory.id })
+        .from(applicationStatusHistory)
+        .where(or(eq(applicationStatusHistory.fromStatusId, id), eq(applicationStatusHistory.toStatusId, id)))
+        .limit(1);
+      const referenced = appRef.length > 0 || histRef.length > 0;
 
-    // transition edges are always stripped — an inactive/deleted status must
-    // never stay selectable.
-    await db
-      .delete(statusTransitions)
-      .where(or(eq(statusTransitions.fromStatusId, id), eq(statusTransitions.toStatusId, id)));
+      await tx.delete(statusTransitions).where(or(eq(statusTransitions.fromStatusId, id), eq(statusTransitions.toStatusId, id)));
+      if (!referenced) await tx.delete(statuses).where(eq(statuses.id, id));
+      else await tx.update(statuses).set({ active: false, updatedAt: new Date() }).where(eq(statuses.id, id));
 
-    if (!referenced) {
-      await db.delete(statuses).where(eq(statuses.id, id));
-      await recordAudit({ actor: staff, action: "CONFIG_STATUS_DELETED", entity: "status", entityId: id, metadata: { code: status.code, mode: "hard" } });
-      revalidatePath("/admin/config/statuses");
-      return `Status "${status.name}" deleted (it was never referenced).`;
-    }
+      await tx.insert(auditLogs).values({
+        actorId: staff.id, actorEmail: staff.email, actorRole: staff.role, agencyId: staff.agencyId,
+        action: "CONFIG_STATUS_DELETED", entity: "status", entityId: id,
+        metadata: { code: status.code, mode: referenced ? "deactivated-referenced" : "hard" },
+      });
+      return { status, referenced };
+    });
 
-    await db.update(statuses).set({ active: false, updatedAt: new Date() }).where(eq(statuses.id, id));
-    await recordAudit({ actor: staff, action: "CONFIG_STATUS_DELETED", entity: "status", entityId: id, metadata: { code: status.code, mode: "deactivated-referenced" } });
     revalidatePath("/admin/config/statuses");
-    return `Status "${status.name}" is referenced by historical records — deactivated instead of deleted so history stays interpretable.`;
+    return result.referenced
+      ? `Status "${result.status.name}" is referenced by historical records — deactivated instead of deleted so history stays interpretable.`
+      : `Status "${result.status.name}" deleted (it was never referenced).`;
   });
 }
+
 
 export async function addTransitionAction(formData: FormData): Promise<void> {
   await runAction("/admin/config/statuses", async () => {
@@ -685,21 +784,22 @@ export async function addTransitionAction(formData: FormData): Promise<void> {
     const toStatusId = idSchema.parse(formData.get("toStatusId"));
     const scope = z.enum(["STAFF", "AGENCY", "BOTH"]).parse(formData.get("scope") ?? "STAFF");
     if (fromStatusId === toStatusId) throw new AppError("VALIDATION", "A status cannot transition to itself.");
-    const [from] = await db.select().from(statuses).where(eq(statuses.id, fromStatusId));
-    const [to] = await db.select().from(statuses).where(eq(statuses.id, toStatusId));
-    if (!from || !to) throw new AppError("NOT_FOUND", "Status not found.");
-    assertWorkflowTransition(from.code, to.code, scope);
-    await db
-      .insert(statusTransitions)
-      .values({ fromStatusId, toStatusId, scope })
-      .onConflictDoNothing();
-    await recordAudit({ actor: staff, action: "CONFIG_TRANSITION_ADDED", entity: "status_transition", entityId: `${fromStatusId}->${toStatusId}`, metadata: { scope } });
+    await db.transaction(async (tx) => {
+      const [from] = await tx.select().from(statuses).where(eq(statuses.id, fromStatusId)).for("share");
+      const [to] = await tx.select().from(statuses).where(eq(statuses.id, toStatusId)).for("share");
+      if (!from || !to) throw new AppError("NOT_FOUND", "Status not found.");
+      assertWorkflowTransition(from.code, to.code, scope);
+      await tx.insert(statusTransitions).values({ fromStatusId, toStatusId, scope }).onConflictDoNothing();
+      await tx.insert(auditLogs).values({
+        actorId: staff.id, actorEmail: staff.email, actorRole: staff.role, agencyId: staff.agencyId,
+        action: "CONFIG_TRANSITION_ADDED", entity: "status_transition", entityId: `${fromStatusId}->${toStatusId}`,
+        metadata: { scope },
+      });
+    });
     revalidatePath("/admin/config/statuses");
     return "Transition added.";
   });
 }
-
-/* ------------------------------ priorities ----------------------------- */
 
 export async function createPriorityAction(formData: FormData): Promise<void> {
   await runAction("/admin/config/priorities", async () => {

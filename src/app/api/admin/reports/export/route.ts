@@ -5,8 +5,9 @@ import { getSessionUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/rbac";
 import { reportData } from "@/lib/queries";
 import { parseReportFilters } from "@/lib/report-filters";
-import { recordAudit } from "@/lib/audit";
+import { recordAuditStrict } from "@/lib/audit";
 import { toCsv, toXlsx, XLSX_CONTENT_TYPE, type Column, type Row } from "@/lib/tabular-export";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 
 /**
  * Reports export (DZD only) — CSV or XLSX.
@@ -33,6 +34,10 @@ export async function GET(request: Request) {
   }
   if (!hasPermission(user, "reports.view")) {
     return NextResponse.json({ error: "FORBIDDEN", message: "Your role cannot export reports." }, { status: 403 });
+  }
+
+  if (!await consumeAuthRateLimit("export-reports-user-minute", user.id, 10, 60_000)) {
+    return NextResponse.json({ error: "RATE_LIMITED" }, { status: 429, headers: { "Retry-After": "60" } });
   }
 
   const url = new URL(request.url);
@@ -92,7 +97,7 @@ export async function GET(request: Request) {
     value: processing.slowestDays === null ? null : Number(Number(processing.slowestDays).toFixed(2)),
   });
 
-  await recordAudit({ actor: user, action: "REPORTS_EXPORTED", entity: "report", metadata: { format, rows: rows.length, filters } });
+  await recordAuditStrict({ actor: user, action: "REPORTS_EXPORTED", entity: "report", metadata: { format, rows: rows.length, filters } });
 
   const stamp = new Date().toISOString().slice(0, 10);
   const headers = { "Cache-Control": "no-store" };

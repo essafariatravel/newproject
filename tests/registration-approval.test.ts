@@ -4,7 +4,8 @@ import { suiteSetup } from "./helpers/global-state";
 suiteSetup();
 afterEach(() => vi.restoreAllMocks());
 
-import { db } from "@/lib/db";
+import { db, pool } from "@/lib/db";
+import { qualifiedTable } from "@/lib/database-schema";
 import {
   accountActivationTokens,
   agencies,
@@ -174,6 +175,43 @@ describe("registration approval — provisioning", () => {
   });
 });
 
+describe("registration submission — audit atomicity", () => {
+  it("rolls back the public registration when its audit row cannot be persisted", async () => {
+    const fn = qualifiedTable("test_fail_registration_submission_audit");
+    const audit = qualifiedTable("audit_logs");
+    await pool.query(`create or replace function ${fn}() returns trigger language plpgsql as $audit$
+      begin
+        if new.action = 'AGENCY_REGISTRATION_SUBMITTED' then
+          raise exception 'synthetic registration audit failure';
+        end if;
+        return new;
+      end
+    $audit$`);
+    await pool.query(`drop trigger if exists test_fail_registration_submission_audit on ${audit}`);
+    await pool.query(`create trigger test_fail_registration_submission_audit before insert on ${audit}
+      for each row execute function ${fn}()`);
+    const data = registrationData({
+      legalName: `Audit Rollback Travel ${randomUUID()}`,
+      email: `audit-rollback-${randomUUID()}@example.test`,
+      contactEmail: `audit-rollback-${randomUUID()}@example.test`,
+    });
+    const auditBefore = await db.select({ id: auditLogs.id }).from(auditLogs)
+      .where(eq(auditLogs.action, "AGENCY_REGISTRATION_SUBMITTED"));
+    try {
+      await expect(submitAgencyRegistration({ data, files: [], ipAddress: nextIp() }))
+        .rejects.toThrow();
+      const rows = await db.select().from(agencyRegistrations).where(eq(agencyRegistrations.email, data.email));
+      expect(rows).toHaveLength(0);
+      const auditAfter = await db.select({ id: auditLogs.id }).from(auditLogs)
+        .where(eq(auditLogs.action, "AGENCY_REGISTRATION_SUBMITTED"));
+      expect(auditAfter).toHaveLength(auditBefore.length);
+    } finally {
+      await pool.query(`drop trigger if exists test_fail_registration_submission_audit on ${audit}`);
+      await pool.query(`drop function if exists ${fn}()`);
+    }
+  });
+});
+
 describe("registration approval — failure safety", () => {
   it("permits a shared mailbox across independent username identities", async () => {
     const {id,data}=await submitOne();
@@ -274,6 +312,8 @@ describe("account activation — secure set-password flow", () => {
     expect(info?.locale).toBe("ar"); // registration locale drives status communication
 
     await expect(activateAccount(issued.token, "short")).rejects.toMatchObject({ code: "PASSWORD_POLICY" });
+    await expect(activateAccount(issued.token, "lettersOnlyPassword")).rejects.toMatchObject({ code: "PASSWORD_POLICY" });
+    await expect(activateAccount(issued.token, "12345678901")).rejects.toMatchObject({ code: "PASSWORD_POLICY" });
     const activated = await activateAccount(issued.token, "NewSecure!2345", "10.5.0.1");
     expect(activated.role).toBe("AGENCY_ADMIN");
     expect(activated.agencyId).toBe(approved.agencyId);

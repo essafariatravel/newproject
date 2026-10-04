@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/rbac";
 import { exportApplications, EXPORT_ROW_LIMIT, type ApplicationFilters } from "@/lib/queries";
-import { recordAudit } from "@/lib/audit";
+import { recordAuditStrict } from "@/lib/audit";
 import { pickUiLocale } from "@/lib/ui-i18n";
 import { countryName } from "@/lib/country-names";
 import { toCsv, toXlsx, XLSX_CONTENT_TYPE, type Column } from "@/lib/tabular-export";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 
 /**
  * Staff export of the applications list — CSV or XLSX.
@@ -63,6 +64,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "FORBIDDEN", message: "Your role cannot export applications." }, { status: 403 });
   }
 
+  if (!await consumeAuthRateLimit("export-applications-user-minute", user.id, 10, 60_000)) {
+    return NextResponse.json({ error: "RATE_LIMITED" }, { status: 429, headers: { "Retry-After": "60" } });
+  }
+
   const url = new URL(request.url);
   const format = url.searchParams.get("format") === "xlsx" ? "xlsx" : "csv";
   const locale = pickUiLocale(url.searchParams.get("lang")) ?? "en";
@@ -101,7 +106,7 @@ export async function GET(request: Request) {
     updated: new Date(r.app.updatedAt).toISOString().slice(0, 10),
   }));
 
-  await recordAudit({
+  await recordAuditStrict({
     actor: user,
     action: "APPLICATIONS_EXPORTED",
     entity: "application",

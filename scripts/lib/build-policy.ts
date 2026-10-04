@@ -7,6 +7,7 @@
  */
 export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
   "preprod/essafaria-final-hardening",
+  "security/pre-codex-gate-2026-10-03",
   "design/essafaria-northstar",
   "codex/essafaria-premium-redesign",
   "codex/essafaria-product-excellence",

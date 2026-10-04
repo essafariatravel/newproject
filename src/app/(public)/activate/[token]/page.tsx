@@ -6,7 +6,7 @@ import { registrationCopy, resolveLocale } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Activate your account" };
+export const metadata: Metadata = { title: "Activate your account", robots: { index: false, follow: false }, referrer: "no-referrer" };
 
 export default async function ActivateAccountPage({
   params,
