@@ -25,7 +25,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write # post the gate verdict as a commit comment
+  contents: read
   deployments: read
 
 jobs:
@@ -34,12 +34,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PREVIEW_VERIFY_STAFF_EMAIL: ${{ secrets.PREVIEW_VERIFY_STAFF_EMAIL }}
       PREVIEW_VERIFY_STAFF_PASSWORD: ${{ secrets.PREVIEW_VERIFY_STAFF_PASSWORD }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -184,7 +183,7 @@ jobs:
           { [ -f /tmp/gate.prefix ] && cat /tmp/gate.prefix || true; cat /tmp/gate.runtime; } > /tmp/gate.out
           exit "$RC"
 
-      - name: Publish the gate verdict as a commit comment
+      - name: Publish the gate verdict to Actions summary
         if: always()
         env:
           WF_REPO: ${{ github.repository }}
