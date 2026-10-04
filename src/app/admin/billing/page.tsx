@@ -51,7 +51,7 @@ export default async function AdminBillingPage({
       <PageHeader title={ct("Wallets & Billing")} subtitle={ct("Prepaid agency wallets. No online gateway — balances are funded manually and every movement is a ledger entry. DZD only.")} />
       <Flash {...flash} />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label={ct("Agencies")} value={agencies.length} href="/admin/agencies" />
         <StatCard label={ct("Combined balances")} value={formatAmount(totalBalance.toFixed(2), "DZD", uiLocale)} tone="gold" />
         <StatCard label={ct("Ledger entries")} value={txs.total} />
@@ -60,7 +60,7 @@ export default async function AdminBillingPage({
 
       <div className="mt-8">
         <h2 className="mb-1 font-serif text-xl text-navy-900">{ct("Pending top-up requests")}</h2>
-        <p className="mb-3 max-w-3xl text-sm text-slate-500">
+        <p className="mb-4 max-w-3xl text-sm text-slate-500">
           {ct("The ledger entry is created by the normal wallet credit: no money is invented here.")}
         </p>
         {topups.length === 0 ? (
@@ -68,7 +68,7 @@ export default async function AdminBillingPage({
             <EmptyState title={ct("No pending top-up requests.")} />
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {topups.map((t) => (
               <div key={t.id} id={`topup-${t.id}`} className="card p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -80,13 +80,13 @@ export default async function AdminBillingPage({
                       </Link>{" "}
                       · <bdi dir="ltr">{formatAmount(t.amount, "DZD", uiLocale)}</bdi>
                     </p>
-                    {t.note ? <p className="mt-0.5 text-xs text-slate-500">{t.note}</p> : null}
+                    {t.note ? <p className="mt-1 text-xs text-slate-500">{t.note}</p> : null}
                     {t.proofFilename ? <Link className="text-sm underline" href={`/api/topups/${t.id}/proof`}>{ct("Open bank transfer receipt")}</Link> : <p className="text-sm text-red-700">{ct("A receipt is required before approval. Reject this request with instructions to send a new request and receipt.")}</p>}
                   </div>
                   <p className="text-xs text-slate-400">{formatDateTime(t.createdAt, uiLocale)}</p>
                 </div>
                 {canAdjust ? (
-                  <div className="mt-3 max-w-2xl">
+                  <div className="mt-4 max-w-2xl">
                     <TopupProcessForm
                       action={processTopupAction}
                       back="/admin/billing"
@@ -200,7 +200,7 @@ export default async function AdminBillingPage({
 
       {canAdjust ? (
         <div className="mt-8">
-          <h2 className="mb-3 font-serif text-xl text-navy-900">{ct("Manual wallet adjustment")}</h2>
+          <h2 className="mb-4 font-serif text-xl text-navy-900">{ct("Manual wallet adjustment")}</h2>
           <WalletAdjustmentForm agencies={agencies.map(({agency})=>({id:agency.id,name:agency.tradingName??agency.legalName,balance:agency.balance}))} back="/admin/billing" locale={uiLocale}/>
         </div>
       ) : null}

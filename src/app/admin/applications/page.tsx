@@ -102,12 +102,12 @@ export default async function AdminApplicationsPage({
       <Flash {...flash} />
 
       {/* §27 — saved views */}
-      <div className="mb-4 flex flex-wrap items-center gap-1.5" data-testid="saved-views">
+      <div className="mb-4 flex flex-wrap items-center gap-2" data-testid="saved-views">
         {savedViews.map((v) => (
           <Link
             key={v.id}
             href={`/admin/applications?view=${v.id}&${v.query}`}
-            className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`inline-flex min-h-11 items-center justify-center rounded-md border px-4 py-2 text-base font-medium transition-colors ${
               activeView === v.id
                 ? "border-iris-300 bg-iris-50 text-iris-700"
                 : "border-slate-200 bg-white text-slate-500 hover:border-iris-200 hover:text-navy-900"
@@ -117,7 +117,7 @@ export default async function AdminApplicationsPage({
           </Link>
         ))}
         {activeView ? (
-          <Link href="/admin/applications" className="px-2 text-xs text-slate-400 underline">
+          <Link href="/admin/applications" className="inline-flex min-h-11 items-center px-2 text-base text-slate-600 underline">
             {ct("Clear view")}
           </Link>
         ) : null}
@@ -151,12 +151,12 @@ export default async function AdminApplicationsPage({
       {/* §exports — same filters, same rows: the export links carry the ACTIVE
           filter so what leaves the platform is what the user is looking at. */}
       {result.rows.length > 0 ? (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2" data-testid="export-bar">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2" data-testid="export-bar">
           <p className="text-xs text-slate-500">
             {ct("Showing")} {result.rows.length} / {result.total} {ct("applications")}
             {result.pageCount > 1 ? ` · ${ct("page")} ${result.page}/${result.pageCount}` : ""}
           </p>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <span className="text-xs text-slate-400">{ct("Export this view")}:</span>
             <a href={`/api/admin/applications/export?${exportQuery.toString()}`} className="btn-secondary btn-sm" data-testid="export-csv">
               {ct("CSV")}
@@ -177,7 +177,7 @@ export default async function AdminApplicationsPage({
           {/* §safe bulk — assign / priority only. No bulk approve, reject, debit
               or delete exists anywhere in the product. */}
           {canBulk ? (
-            <form id="bulk-form" action={bulkAssignAction} className="card mb-3 flex flex-wrap items-end gap-3 p-3" data-testid="bulk-bar">
+            <form id="bulk-form" action={bulkAssignAction} className="card mb-4 flex flex-wrap items-end gap-4 p-4" data-testid="bulk-bar">
               {canAssign ? (
                 <div className="min-w-[200px]">
                   <label className="label" htmlFor="bulk-assignedTo">{ct("Assign selected to")}</label>
@@ -211,7 +211,7 @@ export default async function AdminApplicationsPage({
             </form>
           ) : null}
 
-          <TableWrap>
+          <TableWrap ariaLabel={ct("Applications")}>
             <thead className="border-b border-slate-100 bg-ivory-50/60">
               <tr>
                 {canBulk ? <th className="th w-8">{ct("Select")}</th> : null}
@@ -231,18 +231,20 @@ export default async function AdminApplicationsPage({
                 <NavigableTableRow key={r.app.id} href={`/admin/applications/${r.app.id}`} className="tr-hover">
                   {canBulk ? (
                     <td className="td">
-                      <input
-                        type="checkbox"
-                        name="ids"
-                        value={r.app.id}
-                        form="bulk-form"
-                        aria-label={`${ct("Select")} ${r.app.reference}`}
-                        className="h-4 w-4 rounded border-slate-300"
-                      />
+                      <label className="inline-grid min-h-11 min-w-11 cursor-pointer place-items-center">
+                        <input
+                          type="checkbox"
+                          name="ids"
+                          value={r.app.id}
+                          form="bulk-form"
+                          aria-label={`${ct("Select")} ${r.app.reference}`}
+                          className="h-5 w-5 rounded border-slate-300"
+                        />
+                      </label>
                     </td>
                   ) : null}
                   <td className="td">
-                    <Link href={`/admin/applications/${r.app.id}`} className="block max-w-[200px] truncate font-semibold text-navy-900 hover:underline" title={r.applicantSummary ?? r.app.reference}>
+                    <Link href={`/admin/applications/${r.app.id}`} className="inline-flex min-h-11 max-w-[200px] items-center truncate font-semibold text-navy-900 hover:underline" title={r.applicantSummary ?? r.app.reference}>
                       {r.applicantSummary ?? r.app.reference}
                     </Link>
                     {r.applicantSummary ? <span className="block text-xs text-slate-500">{r.app.reference}</span> : null}

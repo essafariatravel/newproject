@@ -31,7 +31,7 @@ export default async function AdminDashboardPage() {
         subtitle={ct("Operational overview of the ESSAFARIA visa desk — work queue.")}
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard label={ct("New applications")} value={totals.newApps} hint={ct("Submitted, awaiting intake")} href="/admin/applications?status=SUBMITTED" tone="navy" />
         <StatCard label={ct("Documents to verify")} value={totals.docsChecking} hint={ct("Documents checking")} href="/admin/applications?status=DOCUMENTS_CHECKING" tone="gold" />
         <StatCard label={ct("Action required")} value={totals.docsRequested} hint={ct("Agency action / documents requested")} href="/admin/applications?documents=requested" />
@@ -45,7 +45,7 @@ export default async function AdminDashboardPage() {
         {data.workQueue.length === 0 ? (
           <EmptyState title={ct("No applications yet")} body={ct("Applications submitted by partner agencies will appear here.")} />
         ) : (
-          <TableWrap>
+          <TableWrap ariaLabel={ct("Work queue")}>
             <thead className="border-b border-line bg-ivory-50">
               <tr>
                 <th className="th">{ct("Applicant")}</th>
@@ -60,7 +60,7 @@ export default async function AdminDashboardPage() {
             <tbody className="divide-y divide-line">
               {data.workQueue.map((r) => (
                 <NavigableTableRow key={r.app.id} href={`/admin/applications/${r.app.id}`} className="tr-hover">
-                  <td className="td"><Link href={`/admin/applications/${r.app.id}`} className="font-semibold text-navy-900 hover:underline">{r.applicantSummary}</Link><span className="block text-xs text-slate-500">{r.app.reference}</span></td>
+                  <td className="td"><Link href={`/admin/applications/${r.app.id}`} className="inline-flex min-h-11 items-center font-semibold text-navy-900 hover:underline">{r.applicantSummary}</Link><span className="block text-xs text-slate-500">{r.app.reference}</span></td>
                   <td className="td">{r.agencyName}</td>
                   <td className="td">{countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}<span className="block text-xs text-slate-500">{configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}</span></td>
                   <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
@@ -81,19 +81,19 @@ export default async function AdminDashboardPage() {
               <CardHeader title={ct("Wallet activity")} actions={<Link href="/admin/billing" className="btn-secondary btn-sm">{ct("Ledger")} →</Link>} />
               <div className="grid grid-cols-3 divide-x divide-slate-100 px-4 py-4 text-center">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{ct("Credited")}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Credited")}</p>
                   <p className="mt-1 text-sm font-semibold tabular-nums text-emerald-700">
                     {formatAmount(data.walletAgg.credits, "DZD", uiLocale)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{ct("Charged")}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Charged")}</p>
                   <p className="mt-1 text-sm font-semibold tabular-nums text-navy-900">
                     {formatAmount(data.walletAgg.charges, "DZD", uiLocale)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{ct("Balances")}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Balances")}</p>
                   <p className="mt-1 text-sm font-semibold tabular-nums text-teal-700">
                     {formatAmount(data.agencyAgg.walletTotal, "DZD", uiLocale)}
                   </p>
@@ -112,7 +112,7 @@ export default async function AdminDashboardPage() {
                   <Link
                     key={s.code}
                     href={`/admin/applications?status=${s.code}`}
-                    className="flex items-center justify-between gap-2 text-sm"
+                    className="flex min-h-11 items-center justify-between gap-2 text-sm"
                   >
                     <StatusBadge code={s.code} name={s.name} />
                     <span className="font-medium tabular-nums text-slate-700">{Number(s.total)}</span>
@@ -127,14 +127,14 @@ export default async function AdminDashboardPage() {
               <CardHeader title={ct("Recent activity")} actions={<Link href="/admin/audit" className="btn-secondary btn-sm">{ct("Audit log")} →</Link>} />
               <ul className="divide-y divide-slate-100 px-4">
                 {data.recentAudit.map((a) => (
-                  <li key={a.id} className="flex items-start justify-between gap-3 py-2.5">
+                  <li key={a.id} className="flex items-start justify-between gap-4 py-2">
                     <div className="min-w-0">
                       <p className="truncate text-xs font-medium text-navy-900">{businessLabel(a.action, uiLocale)}</p>
-                      <p className="truncate text-[11px] text-slate-400">
+                      <p className="truncate text-xs text-slate-400">
                         {a.actorEmail ?? ct("System")}
                       </p>
                     </div>
-                    <span className="whitespace-nowrap text-[11px] text-slate-400">{formatDateTime(a.createdAt, uiLocale)}</span>
+                    <span className="whitespace-nowrap text-xs text-slate-400">{formatDateTime(a.createdAt, uiLocale)}</span>
                   </li>
                 ))}
               </ul>

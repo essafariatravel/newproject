@@ -66,7 +66,8 @@ describe("Task 4 — registration success readability tokens", () => {
     const s = readFileSync("src/app/(public)/agency/register/success/page.tsx", "utf8");
     expect(s).toContain("text-white");
     expect(s).toContain("text-shadow");
-    expect(s).toContain("text-gold-200");
+    expect(s).toContain("text-gold-400");
+    expect(s).not.toMatch(/text-gold-(200|300|800|900)\b/);
     expect(s).toContain("registrationCopy(locale)");
   });
 });

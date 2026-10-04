@@ -65,10 +65,10 @@ export function TopupRequestForm({
   const after = valid ? Number(currentBalance) + numeric : null;
 
   return (
-    <form action={action} className="space-y-3" id="topup">
+    <form action={action} className="space-y-4" id="topup">
       <input type="hidden" name="back" value={back} />
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} suppressHydrationWarning />
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="topup-amount">
             {copy.amountLabel} *
@@ -108,7 +108,7 @@ export function TopupRequestForm({
         {proofError ? <p role="alert" className="mt-1 text-xs text-red-700">{proofError}</p> : null}
       </div>
 
-      <dl className="grid grid-cols-1 gap-2 rounded-xl border border-line/70 bg-ivory-50/60 p-3 text-sm sm:grid-cols-2">
+      <dl className="grid grid-cols-1 gap-2 rounded-xl border border-line/70 bg-ivory-50/60 p-4 text-sm sm:grid-cols-2">
         <div className="flex items-center justify-between gap-2">
           <dt className="text-slate-500">{copy.currentBalance}</dt>
           <dd className="font-medium tabular-nums text-navy-900">
@@ -124,7 +124,7 @@ export function TopupRequestForm({
       </dl>
 
       {disabled ? (
-        <p className="rounded-xl border border-gold-200 bg-gold-50 px-3 py-2 text-xs text-gold-800">{disabledReason}</p>
+        <p className="rounded-xl border border-gold-100 bg-gold-50 px-4 py-2 text-xs text-gold-700">{disabledReason}</p>
       ) : null}
 
       <SubmitButton className="btn-primary" pendingLabel={copy.sending} disabled={disabled || Boolean(proofError)}>
@@ -161,7 +161,7 @@ export function TopupProcessForm({
   const after = valid ? Number(agencyBalance) + numeric : null;
 
   return (
-    <form action={action} className="space-y-3">
+    <form action={action} className="space-y-4">
       <input type="hidden" name="back" value={back} />
       <input type="hidden" name="requestId" value={requestId} />
       <input type="hidden" name="decision" value={decision} />
@@ -189,7 +189,7 @@ export function TopupProcessForm({
 
       {decision === "CREDIT" ? (
         <>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor={`amount-${requestId}`}>
                 {copy.creditedAmount} *
@@ -214,7 +214,7 @@ export function TopupProcessForm({
               <input id={`note-${requestId}`} name="decisionNote" maxLength={500} className="input" placeholder={copy.notePlaceholder} />
             </div>
           </div>
-          <dl className="grid grid-cols-1 gap-2 rounded-xl border border-line/70 bg-ivory-50/60 p-3 text-sm sm:grid-cols-3">
+          <dl className="grid grid-cols-1 gap-2 rounded-xl border border-line/70 bg-ivory-50/60 p-4 text-sm sm:grid-cols-3">
             <div className="flex items-center justify-between gap-2">
               <dt className="text-slate-500">{copy.requestedAmount}</dt>
               <dd className="font-medium tabular-nums text-navy-900">{formatAmount(requestedAmount, "DZD", locale)}</dd>

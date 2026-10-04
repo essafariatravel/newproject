@@ -90,11 +90,11 @@ export default async function VisaTypesConfigPage({
         }
       />
       <Flash {...flash} />
-      <div className="mb-5">
+      <div className="mb-6">
       {canManage ? (
         <ConfigDialog title={ct("Add visa type (DZD only)")} closeLabel={ct("Close")}>
 
-          <form action={createVisaTypeAction} className="card grid grid-cols-1 gap-4 p-5 sm:grid-cols-3">
+          <form action={createVisaTypeAction} className="card grid grid-cols-1 gap-4 p-6 sm:grid-cols-3">
             <div className="sm:col-span-2">
               <label className="label" htmlFor="new-visa-name">{ct("Name *")} · EN</label>
               <input id="new-visa-name" name="name" required minLength={2} maxLength={120} dir="ltr" className="input" placeholder="Portugal Schengen Tourist Visa" />
@@ -193,9 +193,9 @@ export default async function VisaTypesConfigPage({
       </TableWrap>
 
       {pageCount > 1 ? (
-        <div className="mt-3 flex items-center justify-between text-xs">
+        <div className="mt-4 flex items-center justify-between text-xs">
           <span className="text-slate-500">{ct("Page")} {page} / {pageCount} — {total} {ct("total")}</span>
-          <span className="flex gap-1.5">
+          <span className="flex gap-2">
             {page > 1 ? <Link href={`/admin/config/visa-types?${new URLSearchParams({ ...filterQuery, ...(per !== 20 ? { per: String(per) } : {}), page: String(page - 1) }).toString()}`} className="btn-secondary btn-sm">{ct("← Prev")}</Link> : null}
             {page < pageCount ? <Link href={`/admin/config/visa-types?${new URLSearchParams({ ...filterQuery, ...(per !== 20 ? { per: String(per) } : {}), page: String(page + 1) }).toString()}`} className="btn-secondary btn-sm">{ct("Next →")}</Link> : null}
           </span>

@@ -13,6 +13,9 @@ export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
   "codex/essafaria-premium-redesign",
   "codex/essafaria-product-excellence",
   "release/essafaria-rc-2026-09",
+  // Release assembly is intentionally migration-free until explicitly approved.
+  "arena/01a107e1-newproject",
+  "release/final-assembly-2026-10-04",
 ] as const;
 
 export function automaticDatabaseChangesForbidden(branch: string | null | undefined): boolean {

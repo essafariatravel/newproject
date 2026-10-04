@@ -40,12 +40,12 @@ export function PasswordField(props: {
           minLength={props.required ? minLength : undefined}
           autoComplete={props.autoComplete ?? "new-password"}
           defaultValue={props.defaultValue}
-          className="input pe-16"
+          className="input pe-8"
         />
         <button
           type="button"
           onClick={() => setVisible((v) => !v)}
-          className="absolute end-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 hover:text-navy-900"
+          className="absolute end-2 top-1/2 -translate-y-1/2 min-h-11 min-w-11 px-2 text-base font-medium text-slate-600 hover:text-navy-900"
           aria-pressed={visible}
           data-testid={`${props.id}-toggle`}
         >

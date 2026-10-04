@@ -32,7 +32,7 @@ export default async function PrivacyPage() {
     <section
       dir={locale === "ar" ? "rtl" : "ltr"}
       lang={locale}
-      className="ess-container max-w-3xl py-14"
+      className="ess-container max-w-3xl py-8"
     >
       <h1 className="font-serif text-3xl text-navy-900">{ct("Privacy Notice")}</h1>
       {legal ? (

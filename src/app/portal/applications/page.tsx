@@ -82,7 +82,7 @@ export default async function PortalApplicationsPage({
           {/* §"mobile cards" — on a phone a seven-column table is unusable, so the
               same rows are rendered as cards (same data, same links, same order).
               The table stays for pointer/desktop viewports. */}
-          <div className="space-y-3 md:hidden" data-testid="applications-cards">
+          <div className="space-y-4 md:hidden" data-testid="applications-cards">
             {result.rows.map((r) => {
               const p = progressById.get(r.app.id);
               return (
@@ -91,29 +91,29 @@ export default async function PortalApplicationsPage({
                   href={`/portal/applications/${r.app.id}`}
                   className="card block p-4"
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start justify-between gap-4">
                     <span className="font-semibold text-navy-900">{r.applicantSummary ?? "—"}</span>
                     <StatusBadge code={r.statusCode} name={r.statusName} />
                   </div>
                   <p className="mt-1 text-xs text-slate-500">{r.app.reference}</p>
-                  <p className="mt-0.5 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-slate-500">
                     {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)} · {configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}
                   </p>
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
                     <span className="tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</span>
                     <span className="flex items-center gap-2">
                       {p ? <Progress done={p.done} total={p.total} /> : null}
                       <span>{formatDateTime(r.app.updatedAt, uiLocale)}</span>
                     </span>
                   </div>
-                  <p className="mt-3 text-xs font-medium text-navy-800">{ct("Next action")}: {ct(r.agencyNextAction)}</p>
+                  <p className="mt-4 text-xs font-medium text-navy-800">{ct("Next action")}: {ct(r.agencyNextAction)}</p>
                 </Link>
               );
             })}
           </div>
 
           <div className="hidden md:block">
-          <TableWrap>
+          <TableWrap ariaLabel={ct("Applications")}>
             <thead className="border-b border-slate-100 bg-ivory-50/60">
               <tr>
                 <th className="th">{ct("Applicant")}</th>
@@ -131,7 +131,7 @@ export default async function PortalApplicationsPage({
                 return (
                   <NavigableTableRow key={r.app.id} href={`/portal/applications/${r.app.id}`} className="tr-hover">
                     <td className="td">
-                      <Link href={`/portal/applications/${r.app.id}`} className="font-semibold text-navy-900 hover:underline">{r.applicantSummary ?? "—"}</Link>
+                      <Link href={`/portal/applications/${r.app.id}`} className="inline-flex min-h-11 items-center font-semibold text-navy-900 hover:underline">{r.applicantSummary ?? "—"}</Link>
                       <span className="block text-xs text-slate-500">{r.app.reference}</span>
                     </td>
                     <td className="td">

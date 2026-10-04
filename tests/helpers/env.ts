@@ -7,6 +7,10 @@ process.env.STORAGE_PROVIDER = "db";
 process.env.SEED_ADMIN_PASSWORD = "Test-Admin-123";
 process.env.SEED_AGENCY_PASSWORD = "Test-Agency-123";
 
+// Keep Next cache invalidation inert in every suite before shared action modules load.
+// Per-file mocks are too late when `isolate: false` has already cached next/cache.
+vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
+
 // Shared request mock must load before the shared auth module registry.
 vi.mock("next/headers", async () => {
   const { request } = await import("./request");

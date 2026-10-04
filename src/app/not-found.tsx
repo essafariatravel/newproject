@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
+import type { Metadata } from "next";
+import { buildNoIndexMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildNoIndexMetadata("Page not found");
 
 export default async function NotFound() {
   const locale = await getUiLocale(), ct = contentT(locale);

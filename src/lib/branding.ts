@@ -92,21 +92,9 @@ export function brandingCssOverride(_branding: Branding): string {
   const radiusCard =
     b.radius === "crisp" ? "0.55rem" : b.radius === "balanced" ? "0.9rem" : "1rem";
   const radiusBtn = b.radius === "crisp" ? "0.55rem" : b.radius === "balanced" ? "0.75rem" : "1rem";
-  const fontStacks: Record<FontPreset, [string, string]> = {
-    aurora: [
-      `"Manrope", "Nunito Sans", ui-rounded, "SF Pro Rounded", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`,
-      `"Fraunces", "Playfair Display", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif`,
-    ],
-    modern: [
-      `ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`,
-      `ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`,
-    ],
-    classic: [
-      `Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif`,
-      `Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif`,
-    ],
-  };
-  const [sans, serif] = fontStacks[b.fonts];
+  // The RC's approved single family is Barlow. Persisted legacy font presets
+  // remain readable for compatibility, but presentation cannot override it.
+  const fontStack = `"Barlow", "Segoe UI", ui-sans-serif, system-ui, Arial, sans-serif`;
   return `
 :root {
   --color-iris-700: ${tint(b.primary, -14)};
@@ -116,12 +104,13 @@ export function brandingCssOverride(_branding: Branding): string {
   --color-iris-200: ${tint(b.primary, 68)};
   --color-iris-100: ${tint(b.primary, 82)};
   --color-iris-50: ${tint(b.primary, 92)};
-  --color-gold-700: ${tint(b.accent, -22)};
-  --color-gold-600: ${tint(b.accent, -10)};
-  --color-gold-500: ${b.accent};
-  --color-gold-400: ${tint(b.accent, 16)};
-  --color-gold-100: ${tint(b.accent, 76)};
-  --color-gold-50: ${tint(b.accent, 88)};
+  /* Keep the gold palette aligned with globals.css, including its contrast-safe text shade. */
+  --color-gold-700: #8a6419;
+  --color-gold-600: #a77c23;
+  --color-gold-500: #c99a32;
+  --color-gold-400: #dab66b;
+  --color-gold-100: #f7ecd0;
+  --color-gold-50: #fcf7e9;
   --color-navy-950: ${tint(b.ink, -12)};
   --color-navy-900: ${b.ink};
   --color-navy-800: ${tint(b.ink, 10)};
@@ -133,8 +122,9 @@ export function brandingCssOverride(_branding: Branding): string {
   --radius-card: ${radiusCard};
   --radius-btn: ${radiusBtn};
   --radius-input: ${b.radius === "crisp" ? "0.5rem" : b.radius === "balanced" ? "0.75rem" : "0.75rem"};
-  --font-sans: ${sans};
-  --font-serif: ${serif};
+  --font-sans: ${fontStack};
+  --font-serif: var(--font-sans);
+  --font-mono: var(--font-sans);
 }
 `.trim();
 }

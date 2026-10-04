@@ -75,15 +75,15 @@ export default async function AdminAgencyDetailPage({
       />
       <Flash {...flash} />
       <div className="my-4 grid gap-4 lg:grid-cols-2">
-        <Card><CardHeader title={ct("Verification documents")}/><div className="space-y-3 p-5">
-          {verificationDocuments.length?verificationDocuments.map(({document,registrationId})=><div key={document.id}><Link href={`/api/registrations/${registrationId}/documents/${document.id}`} className="block underline">{document.originalFilename}</Link><Link href={`/admin/registrations/${registrationId}`} className="text-xs underline">{ct("View registration")}</Link></div>):<p className="text-sm text-slate-500">{ct("No verification documents are linked to this agency.")}</p>}
+        <Card><CardHeader title={ct("Verification documents")}/><div className="space-y-4 p-6">
+          {verificationDocuments.length?verificationDocuments.map(({document,registrationId})=><div key={document.id}><Link href={`/api/registrations/${registrationId}/documents/${document.id}`} className="block underline">{document.originalFilename}</Link><Link href={`/admin/registrations/${registrationId}`} className="inline-flex min-h-11 items-center text-base underline">{ct("View registration")}</Link></div>):<p className="text-sm text-slate-500">{ct("No verification documents are linked to this agency.")}</p>}
         </div></Card>
-        {activity?<Card><CardHeader title={ct("Agency activity")} actions={<Link href={`/admin/audit?agency=${id}`} className="btn-secondary btn-sm">{ct("View all")}</Link>}/><ul className="divide-y px-5">
-          {activity.rows.length?activity.rows.slice(0,6).map(({log,actorName,actorUsername})=><li key={log.id} className="py-3 text-xs"><p className="font-medium">{businessLabel(log.action,uiLocale)}</p><p>{String(log.metadata?.actorName??actorName??log.actorEmail??ct("System"))} · <bdi dir="ltr">{String(log.metadata?.actorUsername??actorUsername??log.actorId??"")}</bdi></p><AuditTime iso={log.createdAt.toISOString()} locale={uiLocale}/></li>):<li className="py-5 text-sm text-slate-500">{ct("No agency activity yet.")}</li>}
+        {activity?<Card><CardHeader title={ct("Agency activity")} actions={<Link href={`/admin/audit?agency=${id}`} className="btn-secondary btn-sm">{ct("View all")}</Link>}/><ul className="divide-y px-6">
+          {activity.rows.length?activity.rows.slice(0,6).map(({log,actorName,actorUsername})=><li key={log.id} className="py-4 text-xs"><p className="font-medium">{businessLabel(log.action,uiLocale)}</p><p>{String(log.metadata?.actorName??actorName??log.actorEmail??ct("System"))} · <bdi dir="ltr">{String(log.metadata?.actorUsername??actorUsername??log.actorId??"")}</bdi></p><AuditTime iso={log.createdAt.toISOString()} locale={uiLocale}/></li>):<li className="py-6 text-sm text-slate-500">{ct("No agency activity yet.")}</li>}
         </ul></Card>:null}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label={ct("Wallet balance")} value={formatAmount(balance.balance, "DZD", uiLocale)} tone="gold" />
         <StatCard label={ct("Users")} value={agencyUsers.length} />
         <StatCard label={ct("Applications")} value={apps.total} href="/admin/applications" />
@@ -94,7 +94,7 @@ export default async function AdminAgencyDetailPage({
         <div className="space-y-4 xl:col-span-2">
           <Card>
             <CardHeader title={ct("Agency logo")} subtitle={ct("Shown across the agency portal and partner surfaces.")} />
-            <div className="flex flex-wrap items-center gap-4 px-5 py-5">
+            <div className="flex flex-wrap items-center gap-4 px-6 py-6">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-ivory-200 bg-ivory-50">
                 <BrandMark className="h-11 w-11" src={agencyLogoUrl(agency)} alt={agencyLabel} />
               </div>
@@ -113,7 +113,7 @@ export default async function AdminAgencyDetailPage({
                       name="logo"
                       accept="image/png,image/jpeg,image/webp"
                       required
-                      className="max-w-full text-xs file:mr-2 file:cursor-pointer file:rounded-full file:border-0 file:bg-iris-600 file:px-3.5 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+                      className="max-w-full text-xs file:me-2 file:cursor-pointer file:rounded-full file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white"
                     />
                     <SubmitButton className="btn-secondary btn-sm" pendingLabel={ct("Uploading…")}>
                       {agency.logoKey ? ct("Replace logo") : ct("Upload logo")}
@@ -161,7 +161,7 @@ export default async function AdminAgencyDetailPage({
                   <label className="label" htmlFor="addressLine">{ct("Address")}</label>
                   <input id="addressLine" name="addressLine" defaultValue={agency.addressLine ?? ""} className="input" />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="label" htmlFor="city">{ct("City")}</label>
                     <input id="city" name="city" defaultValue={agency.city ?? ""} className="input" />
@@ -253,7 +253,7 @@ export default async function AdminAgencyDetailPage({
           {canUsers ? (
             <Card>
               <CardHeader title={ct("Add agency user")} subtitle={ct("Agency Admin chooses password directly.")} />
-              <form action={createUserAction} className="space-y-3 px-4 py-4">
+              <form action={createUserAction} className="space-y-4 px-4 py-4">
                 <input type="hidden" name="back" value={`/admin/agencies/${id}`} />
                 <input type="hidden" name="agencyId" value={id} />
                 <div>
@@ -289,14 +289,14 @@ export default async function AdminAgencyDetailPage({
             <CardHeader title={ct("Agency users")} />
             <ul className="divide-y divide-slate-100 px-4">
               {agencyUsers.map((u) => (
-                <li key={u.id} className="flex items-center justify-between gap-2 py-2.5">
+                <li key={u.id} className="flex items-center justify-between gap-2 py-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-navy-900">{u.name}</p>
                     <p className="truncate text-xs text-slate-400" dir="ltr">{u.username}</p>
                   </div>
                   <div className="text-right">
                     <span className="badge bg-navy-900/5 text-navy-800">{businessLabel(u.role, uiLocale)}</span>
-                    <span className={`mt-1 block text-[11px] ${u.status === "ACTIVE" ? "text-emerald-600" : "text-red-500"}`}>{u.status}</span>
+                    <span className={`mt-1 block text-xs ${u.status === "ACTIVE" ? "text-emerald-600" : "text-red-500"}`}>{u.status}</span>
                   </div>
                 </li>
               ))}

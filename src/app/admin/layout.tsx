@@ -11,7 +11,10 @@ import { readBranding, brandLogoUrl } from "@/lib/branding";
 import { chromeT, getUiLocale } from "@/lib/ui-i18n";
 import { UiLanguageSwitcher } from "@/components/ui-language-switcher";
 import { StaffSearch } from "@/components/staff-search";
+import type { Metadata } from "next";
+import { buildNoIndexMetadata } from "@/lib/seo";
 
+export const metadata: Metadata = buildNoIndexMetadata("Staff workspace");
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {

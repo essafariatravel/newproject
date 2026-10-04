@@ -58,7 +58,7 @@ function readableMetadata(metadata: unknown): React.ReactNode {
   const entries = Object.entries(metadata as Record<string, unknown>).filter(([k, v]) => !/password|token|secret|credential/i.test(k) && v !== null && v !== undefined && v !== "");
   if (entries.length === 0) return <span className="text-xs text-slate-400">—</span>;
   return (
-    <span className="block text-[11px] leading-relaxed text-slate-500">
+    <span className="block text-xs leading-relaxed text-slate-500">
       {entries.map(([key, value]) => (
         <span key={key} className="me-2 inline-block whitespace-nowrap">
           <span className="text-slate-400">{key.replaceAll("_", " ")}</span> {fmtValue(value)}
@@ -142,7 +142,7 @@ export default async function AdminAuditPage({
                   <td className="td max-w-[200px] text-xs">
                     <p className="font-medium">{String(log.metadata?.actorName ?? actorName ?? log.actorEmail ?? ct("System"))}</p>
                     <p dir="ltr">{String(log.metadata?.actorUsername ?? actorUsername ?? log.actorId ?? "")}</p>
-                    {log.actorId ? <span className="block font-mono text-[10px]" dir="ltr">{log.actorId}</span> : null}
+                    {log.actorId ? <span className="block font-mono text-xs" dir="ltr">{log.actorId}</span> : null}
                   </td>
                   <td className="td text-xs">{log.actorRole ? businessLabel(log.actorRole, uiLocale) : "—"}</td>
                   <td className="td max-w-[140px] truncate text-xs">{agencyName ?? "—"}</td>

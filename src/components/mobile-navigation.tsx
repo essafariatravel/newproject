@@ -18,7 +18,7 @@ export function MobileNavigation({ children, openLabel, closeLabel }: {
       <div className="flex h-full flex-col" onClick={(event) => {
         if ((event.target as HTMLElement).closest("a")) dialog.current?.close();
       }}>
-        <button type="button" className="m-3 self-end rounded-lg border border-white/20 px-3 py-2 text-sm text-white"
+        <button type="button" className="m-4 self-end rounded-lg border border-white/20 px-4 py-2 text-sm text-white"
           onClick={() => dialog.current?.close()}>{closeLabel} ×</button>
         {children}
       </div>

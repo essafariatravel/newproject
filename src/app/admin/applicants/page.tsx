@@ -63,7 +63,7 @@ export default async function AdminApplicantsPage({
                   <td className="td"><Link href={`/admin/applications/${applicationId}`} className="font-medium text-navy-900 hover:underline">{personName(applicant)}</Link></td>
                   <td className="td tabular-nums">
                     {applicant.passportNumber}
-                    <span className="block text-[11px] text-slate-400">exp. {formatDate(applicant.passportExpiryDate, uiLocale)}</span>
+                    <span className="block text-xs text-slate-400">exp. {formatDate(applicant.passportExpiryDate, uiLocale)}</span>
                   </td>
                   <td className="td">{applicant.nationality}</td>
                   <td className="td whitespace-nowrap">{formatDate(applicant.dateOfBirth, uiLocale)}</td>

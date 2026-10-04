@@ -32,22 +32,22 @@ export function NavList({ sections }: { sections: NavSection[] }) {
     <>
       {sections.map((section) => (
         <div key={section.title}>
-          <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">
+          <p className="px-4 pb-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/70">
             {section.title}
           </p>
-          <div className="space-y-0.5">
+          <div className="space-y-2">
             {section.items.map((source) => { const item = source.href.endsWith("/notifications") ? { ...source, badge: unread } : source; return (
               <Link
                 key={item.href}
                 href={item.href}
                 aria-current={activeHref === item.href ? "page" : undefined}
-                className={`workspace-nav-link flex items-center justify-between rounded-md px-3 py-2 text-sm ${
+                className={`workspace-nav-link flex items-center justify-between rounded-md px-4 py-2 text-sm ${
                   activeHref === item.href
                     ? "font-semibold text-white"
                     : "text-white/70 hover:bg-white/8 hover:text-white"
                 }`}
               >
-                <span className="flex items-center gap-2.5"><NavIcon href={item.href} /><span>{item.label}</span></span>
+                <span className="flex items-center gap-4"><NavIcon href={item.href} /><span>{item.label}</span></span>
                 {item.badge ? (
                   <span
                     className={`badge tabular-nums ${

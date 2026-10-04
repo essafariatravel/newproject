@@ -10,7 +10,7 @@ describe("premium ESSAFARIA interaction system", () => {
     expect(css).toContain("--motion-micro: 120ms");
     expect(css).toContain("--motion-standard: 200ms");
     expect(css).toContain("--motion-overlay: 220ms");
-    expect(css).toContain("--motion-spatial: 300ms");
+    expect(css).toContain("--motion-spatial: 240ms");
   });
 
   it("anchors navigable rows with logical-edge emphasis without lift or scale", () => {

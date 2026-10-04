@@ -8,7 +8,7 @@ describe("ESSAFARIA shared motion system", () => {
     const css = read("src/app/globals.css");
     expect(css).toContain("--motion-micro: 120ms");
     expect(css).toContain("--motion-standard: 200ms");
-    expect(css).toContain("--motion-spatial: 300ms");
+    expect(css).toContain("--motion-spatial: 240ms");
     expect(css).toContain("--motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1)");
   });
 

@@ -22,7 +22,7 @@ export function WizardSteps(props: {
   current: number;
 }) {
   return (
-    <nav aria-label="Application request wizard" className="mb-5">
+    <nav aria-label="Application request wizard" className="mb-6">
       <ol className="flex flex-wrap items-stretch gap-2">
         {props.steps.map((s) => {
           const done = s.id < props.current;
@@ -53,11 +53,11 @@ export function WizardSteps(props: {
               >
                 {s.label}
               </span>
-              {s.hint ? <span className="block truncate text-[11px] text-slate-400">{s.hint}</span> : null}
+              {s.hint ? <span className="block truncate text-xs text-slate-400">{s.hint}</span> : null}
             </span>
           );
           const cls =
-            "flex flex-1 min-w-[180px] items-center gap-2.5 rounded-2xl border px-3 py-2.5 transition-colors " +
+            "flex flex-1 min-w-[180px] items-center gap-4 rounded-2xl border px-4 py-2 transition-colors " +
             (current
               ? "border-iris-300 bg-iris-50/60"
               : done

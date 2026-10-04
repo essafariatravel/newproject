@@ -18,7 +18,9 @@ describe("approved product identity", () => {
     expect(css).toContain("--color-gold-500: #c99a32");
     expect(css).toContain("--radius-card: 0.9rem");
     expect(css).toContain("--radius-btn: 0.75rem");
-    expect(css).toContain("--font-sans: ui-sans-serif");
+    expect(css).toContain('--font-sans: "Barlow",');
+    expect(css).toContain("--font-serif: var(--font-sans)");
+    expect(css).toContain("--font-mono: var(--font-sans)");
   });
   it("allows identity updates while exposing no global visual controls", () => {
     const noop = async () => {};

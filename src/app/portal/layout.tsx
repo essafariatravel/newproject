@@ -12,7 +12,10 @@ import { agencies } from "@/db/schema";
 import { agencyLogoUrl, brandLogoUrl, readBranding } from "@/lib/branding";
 import { chromeT, getUiLocale } from "@/lib/ui-i18n";
 import { UiLanguageSwitcher } from "@/components/ui-language-switcher";
+import type { Metadata } from "next";
+import { buildNoIndexMetadata } from "@/lib/seo";
 
+export const metadata: Metadata = buildNoIndexMetadata("Agency workspace");
 export const dynamic = "force-dynamic";
 
 export default async function PortalLayout({ children }: { children: ReactNode }) {

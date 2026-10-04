@@ -16,7 +16,7 @@ export function BrandStudio(props: {
 }) {
   const ct = contentT(props.locale ?? "en");
   return <div className="space-y-4">
-    <form action={props.saveAction} className="card p-5">
+    <form action={props.saveAction} className="card p-6">
       <h2 className="text-sm font-bold text-navy-900">{ct("Brand identity")}</h2>
       <p className="mt-1 text-sm text-slate-500">{ct("The approved palette, typography and spacing are locked for consistent, accessible screens.")}</p>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -25,7 +25,7 @@ export function BrandStudio(props: {
       </div>
       <SubmitButton className="btn-primary mt-4" pendingLabel={ct("Saving.")}>{ct("Save branding")}</SubmitButton>
     </form>
-    <div className="card p-5">
+    <div className="card p-6">
       <h2 className="text-sm font-bold text-navy-900">{ct("Platform logo")}</h2>
       <p className="mt-1 text-sm text-slate-500">{ct("PNG, JPEG or WebP up to 2 MB. Shown in the website header, portals and sign-in.")}</p>
       <div className="mt-4 flex flex-wrap items-center gap-4">

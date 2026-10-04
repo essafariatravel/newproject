@@ -38,7 +38,7 @@ export function WalletStatementForm({
       <form
         method="get"
         action="/api/agency/wallet/statement"
-        className="mt-3 flex flex-wrap items-end gap-3"
+        className="mt-4 flex flex-wrap items-end gap-4"
         onSubmit={(e) => {
           const fd = new FormData(e.currentTarget);
           const from = String(fd.get("from") ?? "");

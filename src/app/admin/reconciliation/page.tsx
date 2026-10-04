@@ -18,11 +18,11 @@ export default async function ReconciliationPage({searchParams}:{searchParams:Pr
   const issues=supported?await createLegacyReconciliationService(pool).list(user):[];
   return <><PageHeader title={w.title} subtitle={w.intro}/><Flash {...flashFrom(sp)}/>
     {supported?<form action={scanReconciliationAction}><SubmitButton className="btn-secondary">{w.scan}</SubmitButton></form>:<p role="alert">{w.provider}</p>}
-    <div className="mt-5 space-y-4">{supported&&!issues.length?<p className="card p-5">{w.empty}</p>:null}
-    {issues.map(i=><section key={i.id} className="card p-5"><div className="flex flex-wrap justify-between gap-3"><h2 className="font-medium">{i.kind==="MISSING_OFFICIAL_DECISION"?w.decision:w.storage}</h2><span>{i.status==="OPEN"?w.open:w.restored}</span></div>
+    <div className="mt-6 space-y-4">{supported&&!issues.length?<p className="card p-6">{w.empty}</p>:null}
+    {issues.map(i=><section key={i.id} className="card p-6"><div className="flex flex-wrap justify-between gap-4"><h2 className="font-medium">{i.kind==="MISSING_OFFICIAL_DECISION"?w.decision:w.storage}</h2><span>{i.status==="OPEN"?w.open:w.restored}</span></div>
       <Link href={`/admin/applications/${i.applicationId}`} className="my-2 block underline"><bdi dir="ltr">{i.reference}</bdi> · {w.dossier}</Link>
-      <AuditTime iso={i.detectedAt.toISOString()} locale={locale}/>{i.storageKey?<p className="mt-2 break-all font-mono text-xs" dir="ltr">{i.storageKey}</p>:null}<p className="my-3 break-words text-sm">{i.note}</p>
-      <form action={recordReconciliationAction} className="space-y-3"><input type="hidden" name="issueId" value={i.id}/><label htmlFor={`note-${i.id}`} className="label">{w.note}</label><textarea id={`note-${i.id}`} name="note" required minLength={10} maxLength={2000} className="input"/>
+      <AuditTime iso={i.detectedAt.toISOString()} locale={locale}/>{i.storageKey?<p className="mt-2 break-all font-mono text-xs" dir="ltr">{i.storageKey}</p>:null}<p className="my-4 break-words text-sm">{i.note}</p>
+      <form action={recordReconciliationAction} className="space-y-4"><input type="hidden" name="issueId" value={i.id}/><label htmlFor={`note-${i.id}`} className="label">{w.note}</label><textarea id={`note-${i.id}`} name="note" required minLength={10} maxLength={2000} className="input"/>
         <div className="flex flex-wrap gap-2"><button name="outcome" value="OWNER_DISPOSITION" className="btn-secondary">{w.record}</button><button name="outcome" value="RESTORED" className="btn-secondary">{w.verify}</button></div></form>
     </section>)}</div></>;
 }

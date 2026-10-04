@@ -32,7 +32,17 @@ describe("Preview build database-change guard", () => {
     }
   });
 
-  it("leaves normal Arena Preview branch behavior unchanged", () => {
+  it("protects the release-assembly session and intended release branch from automatic DB changes", () => {
+    for (const branch of [
+      "arena/01a107e1-newproject",
+      "release/final-assembly-2026-10-04",
+    ]) {
+      expect(AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES).toContain(branch);
+      expect(automaticDatabaseChangesForbidden(branch)).toBe(true);
+    }
+  });
+
+  it("leaves other Arena Preview branch behavior unchanged", () => {
     expect(automaticDatabaseChangesForbidden("arena/01a0ce58-newproject")).toBe(false);
     expect(automaticDatabaseChangesForbidden("arena/01a0c3b8-newproject")).toBe(false);
     expect(automaticDatabaseChangesForbidden(undefined)).toBe(false);

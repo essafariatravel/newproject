@@ -66,7 +66,7 @@ export default async function PortalProfilePage({
                   : ct("Only the agency administrator can change the logo.")
               }
             />
-            <div className="flex flex-wrap items-center gap-4 px-5 py-5">
+            <div className="flex flex-wrap items-center gap-4 px-6 py-6">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-ivory-200 bg-ivory-50">
                 <BrandMark className="h-11 w-11" src={agencyLogoUrl(agency)} alt={agency.tradingName ?? agency.legalName} />
               </div>
@@ -83,7 +83,7 @@ export default async function PortalProfilePage({
                       name="logo"
                       accept="image/png,image/jpeg,image/webp"
                       required
-                      className="max-w-full text-xs file:me-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-iris-600 file:px-3.5 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+                      className="max-w-full text-xs file:me-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white"
                     />
                     <SubmitButton className="btn-secondary btn-sm" pendingLabel={ct("Uploading…")}>
                       {agency.logoKey ? ct("Replace logo") : ct("Upload logo")}
@@ -110,7 +110,7 @@ export default async function PortalProfilePage({
                 { label: ct("Partner since"), value: formatDateTime(agency.createdAt, uiLocale) },
               ]}
             />
-            {canManageUsers ? <form action={updateOwnAgencyContactAction} className="grid gap-3 border-t border-slate-100 p-5 sm:grid-cols-3">
+            {canManageUsers ? <form action={updateOwnAgencyContactAction} className="grid gap-4 border-t border-slate-100 p-6 sm:grid-cols-3">
               <div><label htmlFor="profile-phone" className="label">{ct("Phone")}</label><input id="profile-phone" name="phone" defaultValue={agency.phone ?? ""} className="input" maxLength={40} /></div>
               <div><label htmlFor="profile-city" className="label">{ct("City")}</label><input id="profile-city" name="city" defaultValue={agency.city ?? ""} className="input" maxLength={80} /></div>
               <div><label htmlFor="profile-address" className="label">{ct("Address")}</label><input id="profile-address" name="addressLine" defaultValue={agency.addressLine ?? ""} className="input" maxLength={300} /></div>
@@ -174,7 +174,7 @@ export default async function PortalProfilePage({
           {canManageUsers ? (
             <Card>
               <CardHeader title={ct("Add team member")} subtitle={ct("New members are always created as Agency User with the temporary password you set.")} />
-              <form action={createUserAction} className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+              <form action={createUserAction} className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
                 <input type="hidden" name="back" value="/portal/profile" />
                 <div>
                   <label className="label" htmlFor="p-name">{ct("Full name")} *</label>
@@ -218,9 +218,9 @@ export default async function PortalProfilePage({
             <div className="px-4 py-4 text-sm text-slate-700">
               <p>{user.name}</p>
               <p className="text-xs text-slate-400" dir="ltr">{user.username}</p>
-              <Link href="/change-password" className="mt-3 inline-block text-xs text-iris-700 underline">{it("Change password")}</Link>
+              <Link href="/change-password" className="mt-4 inline-flex min-h-11 items-center text-base text-iris-700 underline">{it("Change password")}</Link>
               <p className="mt-2 text-xs">
-                {ct("Role")}: <span className="badge bg-gold-100 text-gold-600">{businessLabel(user.role, uiLocale)}</span>
+                {ct("Role")}: <span className="badge bg-gold-100 text-gold-700">{businessLabel(user.role, uiLocale)}</span>
               </p>
             </div>
           </Card>

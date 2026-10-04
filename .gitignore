@@ -43,3 +43,20 @@ pnpm-workspace.yaml
 
 # Disposable local verification database and logs
 tmp-final-verify/
+
+# Disaster-recovery artifacts — sensitive, never commit real backups/manifests
+*.dump
+*.dump.enc
+*.backup
+.pgpass
+work/*backup-manifest*.json
+work/*storage-manifest*.json
+work/*.sha256
+*.restore-evidence.json
+*.verified.manifest.json
+*.offsite-evidence.json
+*.application-evidence.json
+*.tenant-evidence.json
+ESSAFARIA-PROD-*.manifest.json
+ESSAFARIA-SYNTHETIC-*.manifest.json
+*.dr-key

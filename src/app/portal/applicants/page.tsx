@@ -52,7 +52,7 @@ export default async function PortalApplicantsPage({
                   <td className="td"><Link href={`/portal/applications/${applicationId}`} className="font-medium text-navy-900 hover:underline">{personName(applicant)}</Link></td>
                   <td className="td tabular-nums">
                     {applicant.passportNumber}
-                    <span className="block text-[11px] text-slate-400">exp. {formatDate(applicant.passportExpiryDate)}</span>
+                    <span className="block text-xs text-slate-400">exp. {formatDate(applicant.passportExpiryDate)}</span>
                   </td>
                   <td className="td">{applicant.nationality}</td>
                   <td className="td">

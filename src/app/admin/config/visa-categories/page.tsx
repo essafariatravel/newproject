@@ -68,7 +68,7 @@ export default async function VisaCategoriesConfigPage({ searchParams }: {
   return <>
     <PageHeader title={ct("Visa categories")} subtitle={ct("Top-level visa families: tourist, business, student…")} />
     <Flash {...flashFrom(sp)} />
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
       <form className="flex flex-wrap items-center gap-2">
         <input name="q" defaultValue={q} placeholder={ct("Search categories…")} aria-label={ct("Search categories…")} className="input w-64 text-sm" />
         <select name="status" defaultValue={status} aria-label={ct("Status")} className="input w-auto text-sm">
@@ -109,7 +109,7 @@ export default async function VisaCategoriesConfigPage({ searchParams }: {
         {!paged.length ? <tr><td colSpan={canManage ? 6 : 5} className="td py-8 text-center text-slate-500">{ct("No categories configured.")}</td></tr> : null}
       </tbody>
     </TableWrap>
-    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-4 text-xs">
       <span className="text-slate-500">{ct("Page")} {page} / {pageCount} — {rows.length} {ct("total")}</span>
       <div className="flex gap-2">{page > 1 ? <Link href={pageHref(page - 1)} className="btn-secondary btn-sm">{ct("← Prev")}</Link> : null}{page < pageCount ? <Link href={pageHref(page + 1)} className="btn-secondary btn-sm">{ct("Next →")}</Link> : null}</div>
       <PageSizeSelector pageSize={per} basePath="/admin/config/visa-categories" query={{ q, status }} />
