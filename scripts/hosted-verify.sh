@@ -32,6 +32,28 @@ status_of()  { curl -s -o "$2" -w "%{http_code}" --max-time 30 "$1"; }
 statusb_of() { curl -s -b "$3" -c "$3" -o "$2" -w "%{http_code}" --max-time 30 "$1"; }
 statusbl_of() { curl -s -b "$3" -c "$3" -b "evos_ui_locale=$4" -o "$2" -w "%{http_code}" --max-time 30 "$1"; }
 
+# Hard safety boundary: this harness may mutate ONLY local development or an
+# isolated Vercel Preview. Production and arbitrary hosts are rejected before
+# any HTTP probe is sent.
+TARGET_HOST=$(python3 - "$BASE_URL" <<'PY'
+from urllib.parse import urlparse
+import sys
+print((urlparse(sys.argv[1]).hostname or "").lower())
+PY
+)
+case "$TARGET_HOST" in
+  localhost|127.0.0.1) ;;
+  *.vercel.app) ;;
+  visa.essafariavoyages.com|essafariavoyages.com|www.essafariavoyages.com)
+    log "FAIL  SAFETY: hosted verification refuses the Production domain"
+    exit 2
+    ;;
+  *)
+    log "FAIL  SAFETY: hosted verification target must be localhost or *.vercel.app (got: ${TARGET_HOST:-unknown})"
+    exit 2
+    ;;
+esac
+
 # Submit the <form> identified by `marker` (a string inside it, e.g. the submit
 # button label) from the given fetched HTML file to `pageurl`, exactly like a
 # no-JS browser would: every hidden input is carried; extra fields come from an
@@ -76,35 +98,6 @@ printf '%%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%%%E
 log "== Phase 2 hosted verification =="
 log "Target: $BASE_URL"
 log ""
-
-# -------------------------------------------------------------------------- #
-# P0 PROD DIAG (read-only): the custom production domain is being promoted
-# from branch deployments; verify what its own diagnostics endpoint reports.
-# GET /api/health is the app's purpose-built, credential-free, redacted
-# diagnostics route (SELECT to_regclass / limit-0 column probes / ledger read).
-log "-- [0a] PROD public readiness (read-only): https://visa.essafariavoyages.com/api/health"
-CODE_PROD=$(status_of "https://visa.essafariavoyages.com/api/health" "$WORK/prod-health.json")
-if [ "$CODE_PROD" = "200" ]; then
-  if python3 -c "
-import json,sys
-d=json.load(open('$WORK/prod-health.json'))
-sys.exit(0 if any(k in d for k in ('database','schema')) else 1)
-" 2>/dev/null; then
-    skp "PROD health still exposes legacy infrastructure diagnostics; preprod redaction is implemented but Production is intentionally untouched"
-  elif python3 -c "
-import json,sys
-d=json.load(open('$WORK/prod-health.json'))
-sys.exit(0 if d.get('ok') is True else 1)
-" 2>/dev/null; then
-    ok "PROD public health uses the redacted readiness contract"
-  else
-    bad "PROD public health returned 200 with an unexpected readiness payload"
-  fi
-else
-  skp "PROD health returned http $CODE_PROD"
-fi
-CODE_PROD_LOGIN=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://visa.essafariavoyages.com/login")
-{ [ "$CODE_PROD_LOGIN" = "200" ] && ok "PROD /login page renders (http 200)" || skp "PROD /login render returned http $CODE_PROD_LOGIN"; }
 
 # -------------------------------------------------------------------------- #
 log "-- [0] Health check"
@@ -357,10 +350,33 @@ else
   printf 'email=%s\npassword=%s\n' "$STAFF_EMAIL" "$STAFF_PASS" > "$WORK/loginfields.txt"
   CODE=$(submit_form "$WORK/login.html" "$BASE_URL/login" "Sign in" "$WORK/staff.txt" "$WORK/loginfields.txt")
   LOC_L=$(loc_header)
-  if grep -qi 'set-cookie:.*evos_session=' "$WORK/headers.txt" && echo "$LOC_L" | grep -qE "/admin|/portal"; then
+  if grep -Eqi 'set-cookie:.*(__Host-)?evos_session=' "$WORK/headers.txt" && echo "$LOC_L" | grep -qE "/admin|/portal"; then
     STAFF_SESSION=1
-    ok "staff login → evos_session + redirect ${LOC_L}"
-    SESSION_COOKIE_LINE=$(grep -i '^set-cookie:.*evos_session=' "$WORK/headers.txt" | head -1 | tr -d '\r')
+    ok "staff login → hardened session cookie + redirect ${LOC_L}"
+
+    # Before any privileged mutation against a hosted target, prove that this is
+    # the isolated ESSAFARIA Preview schema/project with the complete legal +
+    # security migration ledger. Local development is permitted separately.
+    if [[ "$TARGET_HOST" == *.vercel.app ]]; then
+      CODE_SH=$(statusb_of "$BASE_URL/api/health" "$WORK/staff-health.json" "$WORK/staff.txt")
+      if [ "$CODE_SH" = "200" ] && python3 -c "
+import json,sys
+d=json.load(open('$WORK/staff-health.json'))
+db=d.get('database') or {}; s=d.get('schema') or {}
+led=s.get('migrationLedger') or []
+required=['0025_legal_privacy_readiness.sql','0026_function_privilege_hardening.sql','0027_document_integrity.sql','0028_file_identity_hardening.sql']
+valid=(d.get('ok') is True and db.get('connected') is True and db.get('intendedSupabaseProject') is True
+       and s.get('name') == 'visa_os_preview' and s.get('columnsValid') is True
+       and all(x in led for x in required))
+sys.exit(0 if valid else 1)
+" 2>/dev/null; then
+        ok "SAFETY: authenticated health confirms visa_os_preview + intended project + migrations 0025–0028"
+      else
+        bad "SAFETY: authenticated Preview DB boundary verification failed — STOP"
+        exit 2
+      fi
+    fi
+    SESSION_COOKIE_LINE=$(grep -Ei '^set-cookie:.*(__Host-)?evos_session=' "$WORK/headers.txt" | head -1 | tr -d '\r')
     if printf '%s' "$SESSION_COOKIE_LINE" | grep -qi 'HttpOnly' \
       && printf '%s' "$SESSION_COOKIE_LINE" | grep -qi 'Secure' \
       && printf '%s' "$SESSION_COOKIE_LINE" | grep -qi 'SameSite=Lax' \
@@ -975,39 +991,6 @@ sys.exit(0 if d.get('ok') is True else 1)
 " 2>/dev/null && ok "final health check ok ($CODE_H2)" || bad "final health check ($CODE_H2)"
 
 # -------------------------------------------------------------------------- #
-log "-- [13] PROD post-alignment auth smoke (visa.essafariavoyages.com — read-only + MAX one real login/session row)"
-CODE_PROD_L=$(status_of "https://visa.essafariavoyages.com/login" "$WORK/prod-login.html")
-printf 'email=%s\npassword=%s\n' "no-such-user-$STAMP@verify.invalid" "Wr0ng!Probe$STAMP" > "$WORK/prodloginfields-bogus.txt"
-CODE_P0P=$(submit_form "$WORK/prod-login.html" "https://visa.essafariavoyages.com/login" "Sign in" "$WORK/prodjarb.txt" "$WORK/prodloginfields-bogus.txt")
-P0P_TEXT=$(tr -d '\r' < "$WORK/body.html" | LC_ALL=C sed 's/<[^>]*>//g' | tr -s ' \n' ' ' 2>/dev/null)
-case "$P0P_TEXT" in *"Service temporarily unavailable"*) bad "PROD P0 repro: bogus login produced service-failure on production domain";; esac
-echo "$P0P_TEXT" | grep -Eqi "Invalid (username, email|email) or password" \
-  && ok "PROD bogus login → normal invalid-credentials (auth + users query healthy on visa_os, http $CODE_P0P)" \
-  || skp "PROD bogus-login probe inconclusive (http $CODE_P0P; login page http $CODE_PROD_L)"
-# Production is READ-ONLY for this harness: a real production login is only
-# attempted with credentials that were explicitly issued for production, never
-# with Preview/staff credentials (those must not be tried against visa_os).
-PROD_EMAIL="${PROD_VERIFY_EMAIL:-}"
-PROD_PASS="${PROD_VERIFY_PASSWORD:-}"
-if [ -n "$PROD_EMAIL" ] && [ -n "$PROD_PASS" ]; then
-  CODE_PROD_L2=$(status_of "https://visa.essafariavoyages.com/login" "$WORK/prod-login2.html")
-  printf 'email=%s\npassword=%s\n' "$PROD_EMAIL" "$PROD_PASS" > "$WORK/prodloginfields.txt"
-  CODE_RP=$(submit_form "$WORK/prod-login2.html" "https://visa.essafariavoyages.com/login" "Sign in" "$WORK/prodjar.txt" "$WORK/prodloginfields.txt")
-  LOC_RP=$(loc_header)
-  if grep -qi 'set-cookie:.*evos_session=' "$WORK/headers.txt" && echo "$LOC_RP" | grep -qE "/admin|/portal|/change-password"; then
-    ok "PROD real login → evos_session + redirect ${LOC_RP} (authentication operational on production domain)"
-  else
-    RP_TEXT=$(tr -d '\r' < "$WORK/body.html" | LC_ALL=C sed 's/<[^>]*>//g' | tr -s ' \n' ' ' 2>/dev/null)
-    RP_CLASS="other"
-    case "$RP_TEXT" in *"Service temporarily unavailable"*) RP_CLASS="SERVICE-UNAVAILABLE";; esac
-    case "$RP_TEXT" in *"Invalid email or password"*) RP_CLASS="invalid-credentials";; esac
-    case "$RP_TEXT" in *"suspended"*|*"Suspended"*) RP_CLASS="suspended";; esac
-    bad "PROD real login failed (http $CODE_RP, ${LOC_RP:-no redirect}; login page http $CODE_PROD_L2; server-action outcome class=$RP_CLASS)"
-  fi
-else
-  skp "PROD real login smoke (needs dedicated PROD_VERIFY_EMAIL/PROD_VERIFY_PASSWORD — production stays read-only)"
-fi
-
 log ""
 log "== Summary =="
 log "PASS: $PASS  FAIL: $FAIL  SKIP: $SKIP"
