@@ -19,7 +19,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     if (!row?.proofStorageKey || !row.proofFilename || !row.proofMimeType || row.proofSizeBytes == null) {
       throw new AppError("NOT_FOUND", "Receipt not found.");
     }
-    const stored = await storageProvider().get(row.proofStorageKey);\n    if (row.proofSizeBytes == null) throw new AppError("NOT_FOUND", "Receipt integrity metadata is missing.");
+    const stored = await storageProvider().get(row.proofStorageKey);
+    if (row.proofSizeBytes == null) throw new AppError("NOT_FOUND", "Receipt integrity metadata is missing.");
     assertStoredFileIntegrity({
       data: stored.data,
       expectedSizeBytes: row.proofSizeBytes,
