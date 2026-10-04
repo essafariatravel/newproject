@@ -56,7 +56,6 @@ import {
 } from "@/lib/types";
 import { storageProvider } from "@/lib/storage";
 import { sha256Hex } from "@/lib/file-integrity";
-import { recordAudit } from "@/lib/audit";
 import { notifyUsers, staffUserIds } from "@/lib/notifications";
 import { generateSessionToken, hashPassword, hashToken } from "@/lib/crypto";
 import type { RegistrationCopy, RegistrationLocale } from "@/lib/i18n";
