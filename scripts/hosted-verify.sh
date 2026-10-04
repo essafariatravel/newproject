@@ -78,73 +78,17 @@ log "Target: $BASE_URL"
 log ""
 
 # -------------------------------------------------------------------------- #
-# P0 PROD DIAG (read-only): the custom production domain is being promoted
-# from branch deployments; verify what its own diagnostics endpoint reports.
-# GET /api/health is the app's purpose-built, credential-free, redacted
-# diagnostics route (SELECT to_regclass / limit-0 column probes / ledger read).
-log "-- [0a] PROD public readiness (read-only): https://visa.essafariavoyages.com/api/health"
-CODE_PROD=$(status_of "https://visa.essafariavoyages.com/api/health" "$WORK/prod-health.json")
-if [ "$CODE_PROD" = "200" ]; then
-  if python3 -c "
-import json,sys
-d=json.load(open('$WORK/prod-health.json'))
-sys.exit(0 if any(k in d for k in ('database','schema')) else 1)
-" 2>/dev/null; then
-    skp "PROD health still exposes legacy infrastructure diagnostics; preprod redaction is implemented but Production is intentionally untouched"
-  elif python3 -c "
-import json,sys
-d=json.load(open('$WORK/prod-health.json'))
-sys.exit(0 if d.get('ok') is True else 1)
-" 2>/dev/null; then
-    ok "PROD public health uses the redacted readiness contract"
-  else
-    bad "PROD public health returned 200 with an unexpected readiness payload"
-  fi
-else
-  skp "PROD health returned http $CODE_PROD"
-fi
-CODE_PROD_LOGIN=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://visa.essafariavoyages.com/login")
-{ [ "$CODE_PROD_LOGIN" = "200" ] && ok "PROD /login page renders (http 200)" || skp "PROD /login render returned http $CODE_PROD_LOGIN"; }
-
-# -------------------------------------------------------------------------- #
-log "-- [0] Health check"
+log "-- [0] Public readiness + deployment-boundary check"
 CODE=$(status_of "$BASE_URL/api/health" "$WORK/health.json")
 if [ "$CODE" = "200" ] && python3 -c "
 import json,sys
 d=json.load(open('$WORK/health.json'))
-sys.exit(0 if d.get('ok') is True else 1)
-"; then
-  ok "health: public readiness ok=true ($CODE)"
-
-  PREVIEW_SCHEMA=$(python3 -c "
-import json
-print((json.load(open('$WORK/health.json')).get('schema') or {}).get('name') or '')" 2>/dev/null || true)
-
-  if [ -n "$PREVIEW_SCHEMA" ]; then
-    if [ "$PREVIEW_SCHEMA" = "visa_os_preview" ]; then
-      ok "health: authenticated diagnostics report visa_os_preview"
-    elif [ "$PREVIEW_SCHEMA" = "visa_os" ]; then
-      bad "health: Preview deployment is pointing at PRODUCTION schema visa_os — STOP"
-    else
-      bad "health: unexpected Preview schema '$PREVIEW_SCHEMA'"
-    fi
-
-    if python3 -c "
-import json
-s=json.load(open('$WORK/health.json')).get('schema') or {}
-led=s.get('migrationLedger') or []
-required=['0020_identity_security.sql','0021_business_invariants.sql','0022_registration_review.sql','0023_operations_legal.sql','0024_preview_api_lockdown.sql','0025_legal_privacy_readiness.sql','0026_function_privilege_hardening.sql']
-raise SystemExit(0 if s.get('columnsValid') is True and all(m in led for m in required) else 1)
-"; then
-      ok "health: authenticated diagnostics carry columnsValid + migrations 0020–0026"
-    else
-      bad "health: authenticated schema diagnostics incomplete"
-    fi
-  else
-    ok "health: sensitive DB/schema diagnostics are redacted for anonymous callers"
-  fi
+sys.exit(0 if d.get('ok') is True and d.get('service') == 'essafaria-visa-os' else 1)
+" 2>/dev/null; then
+  ok "public health: configured deployment boundary accepted ($CODE)"
 else
-  bad "health endpoint readiness ($CODE)"
+  bad "SAFETY: Preview public health/boundary check failed ($CODE)"
+  exit 2
 fi
 
 # -------------------------------------------------------------------------- #
@@ -152,8 +96,8 @@ log "-- [1] Trilingual registration page"
 CODE_EN=$(status_of "$BASE_URL/agency/register?lang=en" "$WORK/reg-en.html")
 CODE_FR=$(status_of "$BASE_URL/agency/register?lang=fr" "$WORK/reg-fr.html")
 CODE_AR=$(status_of "$BASE_URL/agency/register?lang=ar" "$WORK/reg-ar.html")
-[ "$CODE_EN" = "200" ] && grep -q "Register your Agency" "$WORK/reg-en.html" \
-  && ok "EN registration page renders ($CODE_EN)" || bad "EN registration page ($CODE_EN)"
+[ "$CODE_EN" = "200" ] && grep -q "Register your Agency" "$WORK/reg-en.html" && grep -qi "application for partnership" "$WORK/reg-en.html" \
+  && ok "EN registration page (CTA + partnership disclaimer, $CODE_EN)" || bad "EN registration page ($CODE_EN)"
 [ "$CODE_FR" = "200" ] && grep -q "Inscrire votre agence" "$WORK/reg-fr.html" && grep -qi "demande de partenariat" "$WORK/reg-fr.html" \
   && ok "FR registration page ($CODE_FR)" || bad "FR registration page ($CODE_FR)"
 [ "$CODE_AR" = "200" ] && grep -q 'dir="rtl"' "$WORK/reg-ar.html" && grep -q "سجّل وكالتك" "$WORK/reg-ar.html" \
@@ -357,10 +301,29 @@ else
   printf 'email=%s\npassword=%s\n' "$STAFF_EMAIL" "$STAFF_PASS" > "$WORK/loginfields.txt"
   CODE=$(submit_form "$WORK/login.html" "$BASE_URL/login" "Sign in" "$WORK/staff.txt" "$WORK/loginfields.txt")
   LOC_L=$(loc_header)
-  if grep -qi 'set-cookie:.*evos_session=' "$WORK/headers.txt" && echo "$LOC_L" | grep -qE "/admin|/portal"; then
+  if grep -Eqi 'set-cookie:.*(__Host-)?evos_session=' "$WORK/headers.txt" && echo "$LOC_L" | grep -qE "/admin|/portal"; then
+    # Before any privileged hosted mutation, obtain the authenticated health
+    # report and hard-stop unless this deployment is the isolated Preview
+    # schema on the intended Supabase project with the security migrations.
+    CODE_SH=$(statusb_of "$BASE_URL/api/health" "$WORK/staff-health.json" "$WORK/staff.txt")
+    if [ "$CODE_SH" = "200" ] && python3 -c "
+import json,sys
+d=json.load(open('$WORK/staff-health.json'))
+db=d.get('database') or {}; s=d.get('schema') or {}
+led=s.get('migrationLedger') or []
+required=['0026_function_privilege_hardening.sql','0027_document_integrity.sql','0028_file_identity_hardening.sql']
+ok=(d.get('ok') is True and db.get('connected') is True and db.get('intendedSupabaseProject') is True
+    and s.get('name') == 'visa_os_preview' and all(x in led for x in required))
+sys.exit(0 if ok else 1)
+" 2>/dev/null; then
+      ok "SAFETY: authenticated health confirms visa_os_preview + intended project + security ledger"
+    else
+      bad "SAFETY: authenticated Preview DB boundary verification failed — STOP"
+      exit 2
+    fi
     STAFF_SESSION=1
     ok "staff login → evos_session + redirect ${LOC_L}"
-    SESSION_COOKIE_LINE=$(grep -i '^set-cookie:.*evos_session=' "$WORK/headers.txt" | head -1 | tr -d '\r')
+    SESSION_COOKIE_LINE=$(grep -Ei '^set-cookie:.*(__Host-)?evos_session=' "$WORK/headers.txt" | head -1 | tr -d '\r')
     if printf '%s' "$SESSION_COOKIE_LINE" | grep -qi 'HttpOnly' \
       && printf '%s' "$SESSION_COOKIE_LINE" | grep -qi 'Secure' \
       && printf '%s' "$SESSION_COOKIE_LINE" | grep -qi 'SameSite=Lax' \
@@ -476,7 +439,7 @@ print(m.group(1) if m else '')" | tr -d '\r')
         CACT=$(submit_form "$WORK/activate.html" "$BASE_URL/activate/$TOKEN" "Set password" "$WORK/agency.txt" "$WORK/activatefields.txt")
       fi
       LOC_A=$(loc_header)
-      if echo "$LOC_A" | grep -q "/portal" && grep -qi 'set-cookie:.*evos_session=' "$WORK/headers.txt"; then
+      if echo "$LOC_A" | grep -q "/portal" && grep -qi 'set-cookie:.*(__Host-)?evos_session=' "$WORK/headers.txt"; then
         ok "activation sets password → session issued → /portal"
       else bad "activation post ($CACT → ${LOC_A:-none})"; fi
     else
@@ -521,7 +484,7 @@ print(m.group(1) if m else '')" | tr -d '\r')
       printf 'email=%s\npassword=%s\n' "$EMAIL_XX" "Verify-H0sted!$((STAMP % 900))" > "$WORK/loginfields2.txt"
       submit_form "$WORK/login2.html" "$BASE_URL/login" "Sign in" "$WORK/xrej.txt" "$WORK/loginfields2.txt" >/dev/null
       LOC_R=$(loc_header)
-      if ! grep -qi 'set-cookie:.*evos_session=' "$WORK/headers.txt" && ! echo "$LOC_R" | grep -q "/portal"; then
+      if ! grep -qi 'set-cookie:.*(__Host-)?evos_session=' "$WORK/headers.txt" && ! echo "$LOC_R" | grep -q "/portal"; then
         ok "rejected applicant has NO account / NO portal access"
       else bad "rejected applicant could sign in"; fi
     else skp "rejection path (no second registration)"; fi
@@ -994,7 +957,7 @@ if [ -n "$PROD_EMAIL" ] && [ -n "$PROD_PASS" ]; then
   printf 'email=%s\npassword=%s\n' "$PROD_EMAIL" "$PROD_PASS" > "$WORK/prodloginfields.txt"
   CODE_RP=$(submit_form "$WORK/prod-login2.html" "https://visa.essafariavoyages.com/login" "Sign in" "$WORK/prodjar.txt" "$WORK/prodloginfields.txt")
   LOC_RP=$(loc_header)
-  if grep -qi 'set-cookie:.*evos_session=' "$WORK/headers.txt" && echo "$LOC_RP" | grep -qE "/admin|/portal|/change-password"; then
+  if grep -qi 'set-cookie:.*(__Host-)?evos_session=' "$WORK/headers.txt" && echo "$LOC_RP" | grep -qE "/admin|/portal|/change-password"; then
     ok "PROD real login → evos_session + redirect ${LOC_RP} (authentication operational on production domain)"
   else
     RP_TEXT=$(tr -d '\r' < "$WORK/body.html" | LC_ALL=C sed 's/<[^>]*>//g' | tr -s ' \n' ' ' 2>/dev/null)

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { topupRequestById } from "@/lib/topup";
 import { storageProvider } from "@/lib/storage";
-import { recordAudit } from "@/lib/audit";
+import { recordAuditStrict } from "@/lib/audit";
 import { AppError } from "@/lib/types";
 import { db } from "@/lib/db";
 import { currentOperationActor } from "@/lib/operation-identity";
@@ -24,7 +24,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     assertStoredFileIntegrity({ data: stored.data, expectedSizeBytes: row.proofSizeBytes, expectedSha256: row.proofSha256 });
     await db.transaction(async tx => {
       const actor = await currentOperationActor(tx, user);
-      await recordAudit({ actor, action: "TOPUP_RECEIPT_DOWNLOADED", entity: "wallet_topup_request", entityId: id, agencyId: row.agencyId }, tx);
+      await recordAuditStrict({ actor, action: "TOPUP_RECEIPT_DOWNLOADED", entity: "wallet_topup_request", entityId: id, agencyId: row.agencyId, metadata: { filename: row.proofFilename, sizeBytes: row.proofSizeBytes, sha256: row.proofSha256 } }, tx);
     });
     const fallback = row.proofFilename.replace(/[^\x20-\x7e]|["\\]/g, "_");
     const encoded = encodeURIComponent(row.proofFilename).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
@@ -36,6 +36,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       "X-Content-Type-Options": "nosniff",
     } });
   } catch (error) {
+    if (error instanceof AppError && error.code === "AUDIT_FAILED") return NextResponse.json({ error: "SERVICE_UNAVAILABLE" }, { status: 503 });
     if (error instanceof AppError && error.code === "UNAUTHENTICATED") return NextResponse.json({error:"UNAUTHENTICATED"},{status:401});
     if (error instanceof AppError) return NextResponse.json({ error: error.code === "FORBIDDEN" ? "FORBIDDEN" : "NOT_FOUND" }, { status: error.code === "FORBIDDEN" ? 403 : 404 });
     console.error("topup-receipt-download-failed");

@@ -21,6 +21,9 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   if (!email || !password) {
     return fail("Enter your username or staff email and password.");
   }
+  if (password.length > 200) {
+    return fail("Invalid username, email or password.");
+  }
   let user;
   try {
     const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";

@@ -156,7 +156,7 @@ export async function createTopupRequest(params: {
         proofSizeBytes: proof.data.length, proofSha256, idempotencyKey: params.idempotencyKey ?? null }).returning();
       await tx.insert(auditLogs).values({ actorId: actor.id, actorEmail: actor.email, actorRole: actor.role,
         action: "WALLET_TOPUP_REQUESTED", entity: "wallet_topup_request", entityId: row!.id, agencyId: params.agencyId,
-        metadata: { reference: row!.reference, amount: amountAbs, currency: "DZD", proofSha256 } });
+        metadata: { reference: row!.reference, amount: amountAbs, currency: "DZD", proofFilename: proof.name, proofSha256 } });
       const staff = await tx.select({ id: users.id }).from(users).where(sql`${users.agencyId} is null and ${users.status} = 'ACTIVE' and ${users.role} in ('SUPER_ADMIN','ADMIN','VISA_AGENT','ACCOUNTING')`);
       if (staff.length) await tx.insert(notifications).values(staff.map((u) => ({ userId: u.id, type: "TOPUP_REQUESTED", title: `Wallet top-up request ${row!.reference}`,
         body: `${actor.agencyName ?? "Agency"} requested ${amountAbs} DZD.`, link: `/admin/billing#topup-${row!.id}`, topupRequestId: row!.id, agencyId: params.agencyId })));
@@ -448,6 +448,8 @@ export async function processTopupRequest(params: {
             walletReference: mutation.reference,
             balanceBefore: mutation.balanceBefore,
             balanceAfter: mutation.balanceAfter,
+            receiptSha256: req.proof_sha256,
+            receiptSizeBytes: req.proof_size_bytes,
           }),
           params.ipAddress ?? null,
         ],

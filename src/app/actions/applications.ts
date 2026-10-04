@@ -198,6 +198,7 @@ export async function assignOfficerAction(formData: FormData): Promise<void> {
   await runAction(back, async () => {
     const user = await requireStaff();
     requirePermission(user, "applications.assign");
+    if (user.agencyId) throw new AppError("FORBIDDEN", "Staff access required.");
     const assignedToRaw = formData.get("assignedTo");
     const assignedTo = assignedToRaw && assignedToRaw !== "" ? idSchema.parse(assignedToRaw) : null;
     await db.transaction(async (tx) => {
@@ -263,9 +264,7 @@ export async function bulkAssignAction(formData: FormData): Promise<void> {
       return rows;
     });
     revalidatePath("/admin/applications");
-    return assignedTo
-      ? `${rows.length} dossier(s) assigned to the selected officer.`
-      : `Assignment cleared on ${rows.length} dossier(s).`;
+    return assignedTo ? `${rows.length} dossier(s) assigned to the selected officer.` : `Assignment cleared on ${rows.length} dossier(s).`;
   });
 }
 
@@ -302,6 +301,7 @@ export async function updateInternalNotesAction(formData: FormData): Promise<voi
   await runAction(back, async () => {
     const user = await requireStaff();
     requirePermission(user, "applications.review");
+    if (user.agencyId) throw new AppError("FORBIDDEN", "Staff access required.");
     const notes = z.string().trim().max(5000).parse(formData.get("internalNotes") ?? "");
     await db.transaction(async (tx) => {
       await currentOperationActor(tx,user);

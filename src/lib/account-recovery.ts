@@ -17,9 +17,11 @@ export async function requestAccountRecovery(identifier: string, ipAddress: stri
   // Apply the same identity normalization before selecting a distributed limit bucket.
   const raw = identifier.trim().normalize("NFKC").slice(0, 254).toLowerCase();
   try {
+    if (!raw) return RECOVERY_ACKNOWLEDGEMENT;
     const ipAllowed = await consumeAuthRateLimit("recovery-ip", ipAddress ?? "unknown", 20, 60 * 60_000);
+    if (!ipAllowed) return RECOVERY_ACKNOWLEDGEMENT;
     const identifierAllowed = await consumeAuthRateLimit("recovery-identity", raw, 3, 60 * 60_000);
-    if (!ipAllowed || !identifierAllowed || !raw) return RECOVERY_ACKNOWLEDGEMENT;
+    if (!identifierAllowed) return RECOVERY_ACKNOWLEDGEMENT;
     let normalized = raw;
     if (!raw.includes("@")) {
       try { normalized = normalizeAgencyUsername(raw); } catch { return RECOVERY_ACKNOWLEDGEMENT; }
@@ -31,7 +33,10 @@ export async function requestAccountRecovery(identifier: string, ipAddress: stri
       if (duplicate) return;
       const [user] = await tx.select({ id: users.id }).from(users).where(raw.includes("@") ?
         and(isNull(users.agencyId), sql`lower(btrim(${users.email}))=${normalized}`) : eq(users.username, normalized)).limit(1);
-      await tx.insert(accountRecoveryRequests).values({ identifier: normalized, userId: user?.id ?? null });
+      // Keep the public response indistinguishable, but do not persist attacker-
+      // controlled unknown identifiers into the privileged recovery queue.
+      if (!user) return;
+      await tx.insert(accountRecoveryRequests).values({ identifier: normalized, userId: user.id });
     });
   } catch (err) {
     console.error("[recovery] request could not be queued", err instanceof Error ? err.name : "unknown");

@@ -18,6 +18,7 @@ import {
   listTopupRequests,
   listTopupRequestsForAgency,
   processTopupRequest,
+  topupRequestById,
 } from "@/lib/topup";
 import { AppError } from "@/lib/types";
 import { agencyByEmail, authUser, userByEmail } from "./helpers/fixtures";
@@ -145,6 +146,20 @@ describe("§10 — tenant isolation on requests", () => {
     expect(action).not.toContain('formData.get("agencyId")');
   });
 });
+
+  it("cross-tenant receipt lookup is indistinguishable from not found", async () => {
+    const { aAdmin, agencyB } = await actors();
+    await clearPending(agencyB.id);
+    const bAdmin = await userByEmail("b-admin@test.example");
+    const created = await createTopupRequest({ agencyId: agencyB.id, amount: 23456, actor: bAdmin });
+
+    await expect(topupRequestById(created.id, aAdmin)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(await topupRequestById(crypto.randomUUID(), aAdmin)).toBeNull();
+
+    const agencyUser = await userByEmail("a-user@test.example");
+    await expect(topupRequestById(created.id, agencyUser)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(topupRequestById(crypto.randomUUID(), agencyUser)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
 
 describe("§10 — only authorized staff can move the money", () => {
   it("agency roles can never process a request — not even their own", async () => {

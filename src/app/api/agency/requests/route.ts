@@ -10,6 +10,7 @@ import { submitVisaRequest } from "@/lib/requests";
 import { stageRequestUpload, resolveRequestUploads, clearRequestUploads } from "@/lib/request-uploads";
 import { requestErrorMessage } from "@/lib/request-feedback";
 import { getUiLocale } from "@/lib/ui-i18n";
+import { readRequestBodyLimited } from "@/lib/http-body";
 
 export const runtime = "nodejs";
 const submission = z.object({ attempt: z.string().uuid(), visaTypeId: z.string().uuid(), countryId: z.string().uuid(),
@@ -20,16 +21,27 @@ export async function POST(request: Request) {
     // Session cookies alone do not authorize a cross-site mutation.
     if (request.headers.get("origin") !== new URL(request.url).origin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     const actor = await requireAgencyUser();
-    if (Number(request.headers.get("content-length") ?? 0) > 3 * 1024 * 1024) throw new AppError("FILE_TOO_LARGE", "Files must be 2 MB or smaller.");
+    const maxBodyBytes = 3 * 1024 * 1024;
+    if (Number(request.headers.get("content-length") ?? 0) > maxBodyBytes) throw new AppError("FILE_TOO_LARGE", "Files must be 2 MB or smaller.");
+    // Content-Length is only an early reject. The streamed cap remains authoritative
+    // for chunked or forged-length requests.
+    const rawBody = await readRequestBodyLimited(request, maxBodyBytes);
+    const replay = new Request(request.url, { method: "POST", headers: request.headers, body: new Uint8Array(rawBody) });
     if (request.headers.get("content-type")?.startsWith("multipart/form-data")) {
-      const form = await request.formData(), file = form.get("file");
+      const form = await replay.formData(), file = form.get("file");
       if (!(file instanceof File)) throw new AppError("EMPTY_FILE", "Choose a file.");
       const token = await stageRequestUpload({ actor, attempt: String(form.get("attempt")), visaTypeId: String(form.get("visaTypeId")),
         documentTypeId: String(form.get("documentTypeId")), slot: Number(form.get("slot")),
         file: { name: file.name, type: file.type, size: file.size, data: Buffer.from(await file.arrayBuffer()) } });
       return NextResponse.json({ token }, { headers: { "Cache-Control": "no-store" } });
     }
-    const input = submission.parse(await request.json());
+    let json: unknown;
+    try {
+      json = JSON.parse(rawBody.toString("utf8"));
+    } catch {
+      throw new AppError("VALIDATION", "Invalid request.");
+    }
+    const input = submission.parse(json);
     // A retry after a lost response works even after temporary files are removed.
     const [existing] = await db.select({ id: applications.id }).from(applications)
       .where(and(eq(applications.idempotencyKey, input.attempt), eq(applications.agencyId, actor.agencyId)));

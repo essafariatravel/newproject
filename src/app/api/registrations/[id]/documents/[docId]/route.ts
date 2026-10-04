@@ -4,7 +4,7 @@ import { hasPermission } from "@/lib/rbac";
 import { getRegistrationDocument } from "@/lib/registrations";
 import { storageProvider } from "@/lib/storage";
 import { AppError } from "@/lib/types";
-import { recordAudit } from "@/lib/audit";
+import { recordAuditStrict } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { currentOperationActor } from "@/lib/operation-identity";
 import { assertStoredFileIntegrity } from "@/lib/file-integrity";
@@ -40,12 +40,12 @@ export async function GET(
     assertStoredFileIntegrity({ data, expectedSizeBytes: doc.sizeBytes, expectedSha256: doc.sha256 });
     await db.transaction(async tx => {
       const actor = await currentOperationActor(tx, user);
-      await recordAudit({
+      await recordAuditStrict({
         actor,
         action: "REGISTRATION_DOCUMENT_DOWNLOADED",
         entity: "agency_registration_document",
         entityId: doc.id,
-        metadata: { registrationId: id },
+        metadata: { registrationId: id, filename: doc.originalFilename, sizeBytes: doc.sizeBytes, sha256: doc.sha256 },
       }, tx);
     });
     const safeName = doc.originalFilename.replace(/["\\\r\n]/g, "_");
@@ -61,6 +61,7 @@ export async function GET(
     });
   } catch (err) {
     if (err instanceof AppError) {
+      if (err.code === "AUDIT_FAILED") return NextResponse.json({ error: "Service temporarily unavailable." }, { status: 503 });
       if (err.code === "UNAUTHENTICATED") return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
       return NextResponse.json({ error: "Not found." }, { status: err.code === "NOT_FOUND" ? 404 : 400 });
     }

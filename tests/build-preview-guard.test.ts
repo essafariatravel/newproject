@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import {
   AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES,
   automaticDatabaseChangesForbidden,
@@ -7,7 +9,12 @@ import {
 describe("Preview build database-change guard", () => {
   it("forbids automatic writes on the preproduction hardening branch before identity and backup verification", () => {
     expect(automaticDatabaseChangesForbidden("preprod/essafaria-final-hardening")).toBe(true);
+    expect(automaticDatabaseChangesForbidden("security/pre-codex-gate-2026-10-03")).toBe(true);
   });
+  it("forbids automatic database changes on the isolated pre-Codex security branch", () => {
+    expect(automaticDatabaseChangesForbidden("security/pre-codex-gate-2026-10-03")).toBe(true);
+  });
+
   it("forbids automatic database changes during North Star design Preview builds", () => {
     expect(automaticDatabaseChangesForbidden("design/essafaria-northstar")).toBe(true);
   });
@@ -29,5 +36,10 @@ describe("Preview build database-change guard", () => {
     expect(automaticDatabaseChangesForbidden("arena/01a0ce58-newproject")).toBe(false);
     expect(automaticDatabaseChangesForbidden("arena/01a0c3b8-newproject")).toBe(false);
     expect(automaticDatabaseChangesForbidden(undefined)).toBe(false);
+  });
+
+  it("disables automatic Vercel deployments for the security audit branch", () => {
+    const config = JSON.parse(readFileSync(path.join(process.cwd(), "vercel.json"), "utf8"));
+    expect(config.git?.deploymentEnabled?.["security/pre-codex-gate-2026-10-03"]).toBe(false);
   });
 });

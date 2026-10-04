@@ -65,6 +65,8 @@ export const REGISTRATION_MIME_TYPES: readonly string[] = [
 export const REGISTRATION_MAX_UPLOAD_BYTES = MAX_UPLOAD_BYTES; // 2 MB
 export const REGISTRATION_MAX_DOCUMENTS = 4;
 
+/** __Host- requires Secure and Path=/ without a Domain attribute. */
+export const PRODUCTION_SESSION_COOKIE = "__Host-evos_session";
 export const SESSION_COOKIE = "evos_session";
 
 /** Authenticated user resolved server-side on every request. */

@@ -29,7 +29,31 @@ export const dynamic = "force-dynamic";
 const EXPECTED_SUPABASE_PROJECT = "xgetzgixalrsmuvfthpf";
 const REQUIRED_TABLES = ["users", "site_settings", "visa_types", "countries", "schema_migrations"] as const;
 
+function publicReadiness(): boolean {
+  // Anonymous health checks must not consume PostgreSQL connections. They
+  // only confirm that a DB binding exists AND passes the deployment project /
+  // schema boundary guards; authenticated Staff receive live diagnostics.
+  if (!process.env.DATABASE_URL) return false;
+  try {
+    databaseUrl();
+    databaseSchema();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function GET() {
+  // Anonymous and Agency monitoring must remain cheap and non-enumerating.
+  // Only operational Staff need schema/ledger diagnostics.
+  const user = await getSessionUser().catch(() => null);
+  const staff = Boolean(user && isStaffRole(user.role) && !user.mustChangePassword);
+  if (!staff) {
+    return NextResponse.json(
+      { ok: publicReadiness(), service: "essafaria-visa-os", deployment: { environment: process.env.VERCEL_ENV ?? null, region: process.env.VERCEL_REGION ?? null } },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const report = {
     ok: false,
     service: "essafaria-visa-os",
@@ -170,9 +194,5 @@ export async function GET() {
     );
   }
 
-  const user = await getSessionUser().catch(()=>null);
-  const staff = user && isStaffRole(user.role) && !user.mustChangePassword;
-  // Public monitoring reports readiness only. Catalogue/account population and
-  // infrastructure diagnostics are restricted to authenticated operational staff.
-  return NextResponse.json(staff ? report : {ok:report.ok,service:report.service,deployment:report.deployment}, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json(report, { headers: { "Cache-Control": "no-store" } });
 }

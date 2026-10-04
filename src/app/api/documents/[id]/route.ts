@@ -3,7 +3,7 @@ import { getSessionUser } from "@/lib/auth";
 import { getDocumentForUser } from "@/lib/documents";
 import { storageProvider } from "@/lib/storage";
 import { AppError } from "@/lib/types";
-import { recordAudit } from "@/lib/audit";
+import { recordAuditStrict } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { currentOperationActor } from "@/lib/operation-identity";
 import { assertStoredFileIntegrity } from "@/lib/file-integrity";
@@ -35,12 +35,13 @@ export async function GET(
     assertStoredFileIntegrity({ data, expectedSizeBytes: row.doc.sizeBytes, expectedSha256: row.doc.sha256 });
     await db.transaction(async tx => {
       const actor = await currentOperationActor(tx, user);
-      await recordAudit({
+      await recordAuditStrict({
         actor,
         action: "DOCUMENT_DOWNLOADED",
         entity: "document",
         entityId: id,
         agencyId: row.appAgencyId,
+        metadata: { filename: row.doc.originalFilename, sizeBytes: row.doc.sizeBytes, sha256: row.doc.sha256 },
       }, tx);
     });
     // Content-Disposition attachment prevents inline script execution for HTML-like uploads
@@ -57,6 +58,7 @@ export async function GET(
     });
   } catch (err) {
     if (err instanceof AppError) {
+      if (err.code === "AUDIT_FAILED") return NextResponse.json({ error: "Service temporarily unavailable." }, { status: 503 });
       if (err.code === "UNAUTHENTICATED") return NextResponse.json({error:"UNAUTHENTICATED"},{status:401});
       return NextResponse.json({ error: "Not found." }, { status: err.code === "NOT_FOUND" ? 404 : 400 });
     }

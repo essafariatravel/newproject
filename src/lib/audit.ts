@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import type { PoolClient } from "pg";
 import { qualifiedTable } from "@/lib/database-schema";
 import { auditLogs } from "@/db/schema";
-import type { AuthUser } from "@/lib/types";
+import { AppError, type AuthUser } from "@/lib/types";
 
 export interface AuditInput {
   actor: AuthUser | null;
@@ -39,4 +39,10 @@ export async function recordAuditPg(client: PoolClient, input: AuditInput): Prom
     input.actor?.role ?? null, input.agencyId ?? input.actor?.agencyId ?? null, input.action, input.entity,
     input.entityId ?? null, input.actor ? JSON.stringify({ ...input.metadata, actorName: input.actor.name, actorUsername: input.actor.username })
       : input.metadata ? JSON.stringify(input.metadata) : null, input.ipAddress ?? null]);
+}
+
+/** Fail closed on private disclosure while preserving transactional actor checks. */
+export async function recordAuditStrict(input: AuditInput, executor: Pick<typeof db, "insert"> = db): Promise<void> {
+  try { await recordAudit(input, executor); }
+  catch { throw new AppError("AUDIT_FAILED", "Security audit is temporarily unavailable."); }
 }
