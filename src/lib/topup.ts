@@ -37,7 +37,6 @@ import { validateDocumentFormat } from "@/lib/upload-validation";
 import { assertStoredFileIntegrity, sha256Hex } from "@/lib/file-integrity";
 import { applyWalletMutation, getBalance } from "@/lib/wallet";
 import { agencyUserIds, notifyUsers } from "@/lib/notifications";
-import { assertStoredFileIntegrity, sha256Hex } from "@/lib/file-integrity";
 
 /** Roles allowed to move money (crediting a processed top-up). */
 export const TOPUP_PROCESSING_ROLES = STAFF_ROLES;
