@@ -31,7 +31,7 @@ export function WizardSteps(props: {
             <span
               aria-hidden="true"
               className={[
-                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-semibold",
                 current
                   ? "bg-iris-600 text-white shadow-[0_8px_16px_-8px_rgb(74_91_208/0.8)]"
                   : done
@@ -46,7 +46,7 @@ export function WizardSteps(props: {
             <span className="min-w-0">
               <span
                 className={[
-                  "block truncate text-sm font-semibold",
+                  "block truncate text-base font-semibold",
                   current ? "text-navy-900" : done ? "text-emerald-700" : "text-slate-400",
                 ].join(" ")}
                 aria-current={current ? "step" : undefined}
@@ -57,7 +57,7 @@ export function WizardSteps(props: {
             </span>
           );
           const cls =
-            "flex flex-1 min-w-[180px] items-center gap-4 rounded-2xl border px-4 py-2 transition-colors " +
+            "flex min-h-11 flex-1 min-w-[180px] items-center gap-2 rounded-lg border px-4 py-2 transition-colors " +
             (current
               ? "border-iris-300 bg-iris-50/60"
               : done

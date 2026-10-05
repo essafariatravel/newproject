@@ -26,11 +26,11 @@ export function AccessLinkForm({ userId, requestId, locale = "en", purpose = "PA
       <code className="block break-all text-xs" dir="ltr">{state.link}</code>
       <p className="text-xs text-slate-500">{t("Expires")}: {new Date(state.expiresAt!).toLocaleString(locale)}</p>
       <div className="flex gap-4">
-        <button type="button" className="min-h-11 text-base font-medium text-iris-700 underline" onClick={async () => {
+        <button type="button" className="text-xs font-semibold text-iris-700 underline" onClick={async () => {
           try { await navigator.clipboard.writeText(new URL(state.link!, window.location.origin).href); setCopied(true); }
           catch { setCopied(false); }
         }}>{t(copied ? "Copied" : "Copy link")}</button>
-        <button type="button" className="min-h-11 text-base text-slate-600 underline" onClick={() => setVisible(false)}>{t("Hide link")}</button>
+        <button type="button" className="text-xs text-slate-600 underline" onClick={() => setVisible(false)}>{t("Hide link")}</button>
       </div>
     </div> : null}
   </div>;

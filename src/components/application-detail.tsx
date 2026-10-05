@@ -48,7 +48,7 @@ export function ChecklistTable(props: {
     <div className="space-y-4">
       <div className="document-summary flex flex-wrap items-center justify-between gap-4 px-1">
         <div>
-          <p className="text-sm font-medium text-navy-900">
+          <p className="text-base font-semibold text-navy-900">
             {t("Required documents")}: {requiredDone} / {requiredItems.length} {t("complete")}
           </p>
           <p className="text-xs text-slate-500">
@@ -60,7 +60,7 @@ export function ChecklistTable(props: {
 
       <div className="card divide-y divide-slate-100">
         {props.items.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-slate-500">{t("No checklist configured for this visa type.")}</p>
+          <p className="px-4 py-6 text-base text-slate-500">{t("No checklist configured for this visa type.")}</p>
         ) : (
           props.items.map((item) => {
             const docs = props.documents.filter((d) => d.doc.checklistItemId === item.id);
@@ -70,7 +70,7 @@ export function ChecklistTable(props: {
               <div key={item.id} className={`px-4 py-4 ${item.active ? "" : "opacity-50"}`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm font-medium text-navy-900">
+                    <p className="text-base font-semibold text-navy-900">
                       {localizedDocTypeName(item.documentTypeCode, item.documentTypeName, props.locale ?? "en")}{" "}
                       {item.required ? (
                         <span className="badge bg-red-100 text-red-700">{t("Required")}</span>
@@ -90,7 +90,7 @@ export function ChecklistTable(props: {
                     {docs.map((d) => (
                       <li key={d.doc.id} className="document-file-settle flex flex-wrap items-center justify-between gap-2 rounded-md bg-ivory-50 px-4 py-2 text-xs">
                         <span className="flex min-w-0 flex-wrap items-center gap-2">
-                          <a href={`/api/documents/${d.doc.id}`} target="_blank" rel="noopener noreferrer" className="font-medium text-navy-800 underline-offset-2 hover:underline">
+                          <a href={`/api/documents/${d.doc.id}`} target="_blank" rel="noopener noreferrer" className="font-semibold text-navy-800 underline-offset-2 hover:underline">
                             {d.doc.originalFilename}
                           </a>
                           <span className="text-slate-400">v{d.doc.version} · {bytes(d.doc.sizeBytes)}</span>
@@ -139,10 +139,10 @@ function UploadFormInline(props: {
         required
         accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
         aria-label={t("Upload document")}
-        className="max-w-full text-xs file:me-2 file:rounded-md file:border-0 file:bg-iris-600 file:px-2 file:py-2 file:text-xs file:text-white"
+        className="min-h-11 max-w-full text-base file:me-2 file:min-h-11 file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-base file:text-white"
       />
       {props.applicants.length > 1 ? (
-        <select name="applicantId" aria-label={t("Applicant…")} className="input max-w-[180px] py-2 text-xs">
+        <select name="applicantId" aria-label={t("Applicant…")} className="input max-w-[180px]">
           <option value="">{t("Applicant…")}</option>
           {props.applicants.map((a) => (
             <option key={a.id} value={a.id}>
@@ -174,7 +174,7 @@ export function DocumentList(props: {
   const t = contentT(props.locale ?? "en");
   if (props.documents.length === 0) {
     return (
-      <div className="document-list px-1 py-6 text-sm text-slate-500">
+      <div className="document-list px-1 py-6 text-base text-slate-500">
         {t("No documents uploaded yet.")}
       </div>
     );
@@ -185,7 +185,7 @@ export function DocumentList(props: {
         <article key={doc.id} className="document-state document-file-settle px-1 py-4 sm:px-2">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-navy-900">
+              <p className="flex flex-wrap items-center gap-2 text-base font-semibold text-navy-900">
                 <a href={`/api/documents/${doc.id}`} target="_blank" rel="noopener noreferrer" className="underline-offset-2 hover:underline">
                   {doc.originalFilename}
                 </a>
@@ -276,12 +276,12 @@ export function CommunicationsPanel(props: {
     <div className="space-y-4">
       <div className="card divide-y divide-slate-100">
         {props.messages.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-slate-500">{t("No messages on this application yet.")}</p>
+          <p className="px-4 py-8 text-center text-base text-slate-500">{t("No messages on this application yet.")}</p>
         ) : (
           props.messages.map(({ message, authorName, authorRole }) => (
             <div key={message.id} className="px-4 py-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-medium text-navy-900">
+                <p className="text-xs font-semibold text-navy-900">
                   {isStaff ? authorName : ["ESSAFARIA_TEAM", "SUPER_ADMIN", "ADMIN", "VISA_AGENT", "ACCOUNTING"].includes(authorRole) ? t("ESSAFARIA Team") : authorName}
                   {isStaff ? <span className="font-normal text-slate-400"> · {businessLabel(authorRole, props.locale ?? "en")}</span> : null}
                   {isStaff ? (
@@ -292,7 +292,7 @@ export function CommunicationsPanel(props: {
                 </p>
                 <span className="text-xs text-slate-400">{formatDateTime(message.createdAt, props.locale ?? "en")}</span>
               </div>
-              <p className="mt-2 whitespace-pre-line text-sm text-slate-700">{message.body}</p>
+              <p className="mt-2 whitespace-pre-line text-base text-slate-700">{message.body}</p>
             </div>
           ))
         )}
@@ -307,7 +307,7 @@ export function CommunicationsPanel(props: {
           {isStaff ? (
             <label className="flex min-h-11 items-center gap-2 text-base text-slate-600">
               <input type="checkbox" name="visibility" value="INTERNAL" className="h-5 w-5" />
-              {t("Internal note (not visible to the agency)")}
+              <span>{t("Internal note (not visible to the agency)")}</span>
             </label>
           ) : (
             <p className="text-xs text-slate-400">{t("Messages are visible to both your agency and ESSAFARIA staff.")}</p>
@@ -331,12 +331,12 @@ export function BillingSummary(props: {
   return (
     <div className="card">
       <div className="border-b border-slate-100 px-4 py-4">
-        <h2 className="text-sm font-semibold text-navy-900">{t("Billing")}</h2>
+        <h2 className="text-lg font-semibold text-navy-900">{t("Billing")}</h2>
       </div>
-      <div className="space-y-2 px-4 py-4 text-sm">
+      <div className="space-y-2 px-4 py-4 text-base">
         <div className="flex items-center justify-between">
           <span className="text-slate-500">{t("Application fee (snapshot)")}</span>
-          <span className="font-medium tabular-nums">{formatAmount(app.fee, "DZD", props.locale ?? "en")}</span>
+          <span className="font-semibold tabular-nums">{formatAmount(app.fee, "DZD", props.locale ?? "en")}</span>
         </div>
         {props.charge ? (
           <>
@@ -374,16 +374,16 @@ export function ActivityTimeline(props: {
   const t = contentT(props.locale ?? "en");
   if (props.history.length === 0) {
     return (
-      <div className="card px-4 py-8 text-center text-sm text-slate-500">{t("No status history recorded yet.")}</div>
+      <div className="card px-4 py-8 text-center text-base text-slate-500">{t("No status history recorded yet.")}</div>
     );
   }
   return (
     <div className="card px-4 py-4">
-      <ol className="relative space-y-6 border-s border-slate-200 ps-6">
+      <ol className="relative space-y-4 border-s border-slate-200 ps-6">
         {props.history.map((h) => (
           <li key={h.history.id} className="relative">
             <span className="absolute -start-[26.5px] top-1 flex h-3 w-3 items-center justify-center rounded-full border-2 border-white bg-gold-400" />
-            <p className="text-sm text-navy-900">
+            <p className="text-base text-navy-900">
               → <StatusBadge code={h.toStatus.code} name={h.toStatus.name} />
             </p>
             {h.history.reason ? <p className="mt-1 text-xs text-slate-500">{t("Reason")}: {h.toStatus.code === "SUBMITTED" && h.history.reason === "Request submitted" ? t("Request submitted") : h.history.reason}</p> : null}
@@ -416,12 +416,12 @@ export function PriceAdjustmentHistory(props: {
   return (
     <div className="card">
       <div className="border-b border-slate-100 px-4 py-4">
-        <h2 className="text-sm font-semibold text-navy-900">{t("Price snapshot & adjustments")}</h2>
+        <h2 className="text-lg font-semibold text-navy-900">{t("Price snapshot & adjustments")}</h2>
       </div>
-      <div className="space-y-2 px-4 py-4 text-sm">
+      <div className="space-y-2 px-4 py-4 text-base">
         <div className="flex items-center justify-between">
           <span className="text-slate-500">{t("Original submitted price")}</span>
-          <span className="font-medium tabular-nums">{formatAmount(p.submittedPrice, "DZD", props.locale ?? "en")}</span>
+          <span className="font-semibold tabular-nums">{formatAmount(p.submittedPrice, "DZD", props.locale ?? "en")}</span>
         </div>
         {p.adjustments.length === 0 ? (
           <p className="rounded-md bg-ivory-100 px-4 py-2 text-xs text-slate-500">

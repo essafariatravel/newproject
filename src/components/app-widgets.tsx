@@ -60,7 +60,7 @@ export function FilterBar(props: {
         </div>
       ))}
       <div className="flex gap-2">
-        <button type="submit" className="btn-primary btn-sm px-4 py-2">{ct("Filter")}</button>
+        <button type="submit" className="btn-primary btn-sm">{ct("Filter")}</button>
         <Link href={props.action} className="filter-reset">{ct("Reset")}</Link>
       </div>
     </form>
@@ -89,7 +89,7 @@ export function PageSizeSelector(props: {
     return `${props.basePath}${qs ? `?${qs}` : ""}`;
   };
   return (
-    <div className="flex items-center gap-2 text-xs text-slate-500" data-testid="page-size">
+    <div className="flex items-center gap-2 text-base text-slate-500" data-testid="page-size">
       <span>{ct("Rows per page")}:</span>
       {[20, 50, 100].map((size) => (
         <Link
@@ -126,7 +126,7 @@ export function Pagination(props: {
     return `${props.basePath}${qs ? `?${qs}` : ""}`;
   };
   return (
-    <div className="flex items-center justify-between gap-4 px-1 py-4 text-sm">
+    <div className="flex items-center justify-between gap-4 px-1 py-2 text-base">
       <p className="text-xs text-slate-500">
         {props.total} {ct(props.total === 1 ? "result" : "results")} · {ct("page")} {page} {ct("of")} {pageCount}
       </p>
