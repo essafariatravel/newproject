@@ -104,10 +104,14 @@ export async function databaseObservabilitySnapshot(): Promise<DatabaseObservabi
       [databaseSchema()],
     );
 
-    const ext = await pool.query<{ enabled: boolean }>(
-      "select exists(select 1 from pg_extension where extname='pg_stat_statements') as enabled",
+    const ext = await pool.query<{ namespace: string }>(
+      `select n.nspname as namespace
+         from pg_catalog.pg_extension e
+         join pg_catalog.pg_namespace n on n.oid=e.extnamespace
+        where e.extname='pg_stat_statements'`,
     );
-    const enabled = Boolean(ext.rows[0]?.enabled);
+    const extension = ext.rows[0];
+    const enabled = Boolean(extension);
 
     let statementStats: {
       mean_over_500ms: number | string;
@@ -117,7 +121,10 @@ export async function databaseObservabilitySnapshot(): Promise<DatabaseObservabi
       application_max_mean_exec_ms: number | string;
       application_max_single_exec_ms: number | string;
     } | null = null;
-    if (enabled) {
+    if (extension) {
+      // Extension objects may live outside the application search path.
+      // Quote the catalog-derived identifier without changing that safety boundary.
+      const statementView = `"${extension.namespace.replaceAll('"', '""')}"."pg_stat_statements"`;
       const stmt = await pool.query<{
         mean_over_500ms: number | string;
         max_mean_exec_ms: number | string;
@@ -161,7 +168,7 @@ export async function databaseObservabilitySnapshot(): Promise<DatabaseObservabi
               and query not ilike '%pg_catalog%'
               and query not ilike '%pg_tables%'
           ),0)::numeric(12,2) as application_max_single_exec_ms
-        from pg_stat_statements
+        from ${statementView}
       `, [
         `%${databaseSchema()}%`,
         `%${databaseSchema()}_backup_%`,
