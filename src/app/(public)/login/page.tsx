@@ -46,15 +46,16 @@ export default async function LoginPage({searchParams}: {searchParams: Promise<R
         <div aria-hidden className="pointer-events-none absolute inset-0 bg-navy-950/65" />
         <img className="relative h-20 w-28 rounded bg-white p-2 object-contain" src={logoUrl ?? "/images/essafaria-logo.png"} alt={branding.name} width="112" height="80" />
         <div className="relative">
-          <h2 className="font-serif text-4xl leading-snug text-white">
-            {ct("Your travellers. Our shared ambition.")}
+          <h2 className="font-serif text-[32px] leading-snug text-white">
+            {ct("One platform for your entire")}
+            <span className="italic text-gold-600"> {ct("visa operation")}</span>
           </h2>
-          <p className="mt-4 max-w-md text-sm leading-relaxed text-white/80">
-            {ct("A dedicated space for ESSAFARIA agency partners.")}
+          <p className="mt-4 max-w-md text-base leading-relaxed text-white/80">
+            {ct("Agency partners manage applications, documents and wallets. Staff process files from the central Back Office.")}
           </p>
         </div>
         <p className="relative text-xs text-white/65">
-          {ct("Partner access")}
+          {ct("Access is restricted to authorized users. All activity is logged and audited.")}
         </p>
       </div>
       <div className="flex items-center justify-center p-6">
@@ -63,9 +64,9 @@ export default async function LoginPage({searchParams}: {searchParams: Promise<R
             <img className="h-20 w-28 object-contain" src={logoUrl ?? "/images/essafaria-logo.png"} alt={branding.name} width="112" height="80" />
           </div>
           <h1 className="font-serif text-2xl text-navy-900">{ct("Sign in")}</h1>
-          <p className="mt-1 text-sm text-slate-500">{ct("Partner access")}</p>
-          {sp.reason === "session-expired" ? <p role="status" className="mt-4 border-s-2 border-gold-500 ps-4 text-sm text-slate-600">{ct("Your session has expired. Sign in again to continue.")}</p> : null}
-          {sp.reset === "complete" ? <p role="status" className="mt-4 border-s-2 border-emerald-600 ps-4 text-sm text-slate-600">{ct("Your password has been updated. Sign in with your new password.")}</p> : null}
+          <p className="mt-1 text-base text-slate-500">{ct("Partner access")}</p>
+          {sp.reason === "session-expired" ? <p role="status" className="mt-4 border-s-2 border-gold-500 ps-4 text-base text-slate-600">{ct("Your session has expired. Sign in again to continue.")}</p> : null}
+          {sp.reset === "complete" ? <p role="status" className="mt-4 border-s-2 border-emerald-600 ps-4 text-base text-slate-600">{ct("Your password has been updated. Sign in with your new password.")}</p> : null}
           <LoginForm
         copy={{
           email: it("Username or staff email"),
