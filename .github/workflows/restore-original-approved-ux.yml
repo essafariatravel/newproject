@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   validate:
-    if: github.event.head_commit.message == 'Run final authoritative UX restoration validation attempt 2'
+    if: github.event.head_commit.message == 'Run final authoritative UX restoration validation attempt 3'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -86,10 +86,11 @@ jobs:
           STORAGE_PROVIDER: db
           BASE_URL: http://127.0.0.1:3011
           PORT: "3011"
-          SEED_ADMIN_PASSWORD: Admin!2345
-          SEED_AGENCY_PASSWORD: Agency!2345
         run: |
           set -euo pipefail
+
+          export SEED_ADMIN_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"
+          export SEED_AGENCY_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"
 
           npm run db:up > /tmp/ux-pg.log 2>&1 &
           PG_PID=$!
@@ -97,7 +98,7 @@ jobs:
           cleanup() {
             if [ -n "$APP_PID" ]; then kill "$APP_PID" 2>/dev/null || true; fi
             kill "$PG_PID" 2>/dev/null || true
-            rm -f scripts/_ux-restoration-browser.mjs
+            rm -f scripts/_ux-restoration-browser.cjs
           }
           trap cleanup EXIT
 
@@ -121,96 +122,96 @@ jobs:
           npm install --no-save --no-package-lock playwright@1.56.1
           npx playwright install --with-deps chromium
 
-          cat > scripts/_ux-restoration-browser.mjs <<'JS'
-          import { chromium } from "playwright";
+          cat > scripts/_ux-restoration-browser.cjs <<'JS'
+          const { chromium } = require("playwright");
 
-          const base = process.env.BASE_URL;
-          const widths = [320, 390, 768, 1440];
-          const browser = await chromium.launch({ headless: true });
-          const failures = [];
+          (async () => {
+            const base = process.env.BASE_URL;
+            const widths = [320, 390, 768, 1440];
+            const browser = await chromium.launch({ headless: true });
+            const failures = [];
 
-          const assert = (condition, message) => {
-            if (!condition) failures.push(message);
-          };
+            const assert = (condition, message) => {
+              if (!condition) failures.push(message);
+            };
 
-          async function assertPage(page, route, width, label) {
-            await page.setViewportSize({ width, height: width <= 390 ? 844 : 1000 });
-            const response = await page.goto(base + route, { waitUntil: "networkidle" });
-            assert(response && response.ok(), `${label} ${route} ${width}px HTTP ${response?.status()}`);
-            const metrics = await page.evaluate(() => ({
-              scrollWidth: document.documentElement.scrollWidth,
-              clientWidth: document.documentElement.clientWidth,
-              dir: document.documentElement.getAttribute("dir"),
-              lang: document.documentElement.getAttribute("lang"),
-              bodyText: document.body.innerText.slice(0, 2000),
-            }));
-            assert(metrics.scrollWidth <= metrics.clientWidth + 1,
-              `${label} ${route} ${width}px horizontal overflow: ${metrics.scrollWidth} > ${metrics.clientWidth}`);
-            assert(!metrics.bodyText.includes("Application error"),
-              `${label} ${route} ${width}px rendered application error`);
-            console.log(`PASS ${label} ${route} ${width}px dir=${metrics.dir} lang=${metrics.lang} width=${metrics.scrollWidth}/${metrics.clientWidth}`);
-          }
-
-          async function login(context, identifier, password) {
-            const page = await context.newPage();
-            await page.goto(base + "/login", { waitUntil: "networkidle" });
-            await page.locator('input[name="identifier"]').fill(identifier);
-            await page.locator('input[name="password"]').fill(password);
-            await Promise.all([
-              page.waitForURL(url => !url.pathname.endsWith("/login"), { timeout: 20000 }),
-              page.locator('button[type="submit"]').click(),
-            ]);
-            return page;
-          }
-
-          // Public/Auth at all requested widths.
-          {
-            const context = await browser.newContext();
-            const page = await context.newPage();
-            for (const width of widths) {
-              await assertPage(page, "/", width, "PUBLIC");
-              await assertPage(page, "/login", width, "AUTH");
+            async function assertPage(page, route, width, label) {
+              await page.setViewportSize({ width, height: width <= 390 ? 844 : 1000 });
+              const response = await page.goto(base + route, { waitUntil: "networkidle" });
+              assert(response && response.ok(), `${label} ${route} ${width}px HTTP ${response && response.status()}`);
+              const metrics = await page.evaluate(() => ({
+                scrollWidth: document.documentElement.scrollWidth,
+                clientWidth: document.documentElement.clientWidth,
+                dir: document.documentElement.getAttribute("dir"),
+                lang: document.documentElement.getAttribute("lang"),
+                bodyText: document.body.innerText.slice(0, 2500),
+              }));
+              assert(metrics.scrollWidth <= metrics.clientWidth + 1,
+                `${label} ${route} ${width}px horizontal overflow: ${metrics.scrollWidth} > ${metrics.clientWidth}`);
+              assert(!metrics.bodyText.includes("Application error"),
+                `${label} ${route} ${width}px rendered application error`);
+              console.log(`PASS ${label} ${route} ${width}px dir=${metrics.dir} lang=${metrics.lang} width=${metrics.scrollWidth}/${metrics.clientWidth}`);
             }
-            await context.close();
-          }
 
-          // Agency portal.
-          {
-            const context = await browser.newContext();
-            const page = await login(context, "admin@horizonvoyages.example", "Agency!2345");
-            for (const width of widths) {
-              await assertPage(page, "/portal", width, "AGENCY");
-              await assertPage(page, "/portal/applications", width, "AGENCY");
+            async function login(context, identifier, password) {
+              const page = await context.newPage();
+              await page.goto(base + "/login", { waitUntil: "networkidle" });
+              await page.locator('input[name="identifier"]').fill(identifier);
+              await page.locator('input[name="password"]').fill(password);
+              await Promise.all([
+                page.waitForURL(url => !url.pathname.endsWith("/login"), { timeout: 20000 }),
+                page.locator('button[type="submit"]').click(),
+              ]);
+              return page;
             }
-            await context.addCookies([{ name: "evos_ui_locale", value: "ar", url: base }]);
-            await assertPage(page, "/portal", 390, "AGENCY-AR");
-            const agencyDir = await page.evaluate(() => document.documentElement.dir);
-            assert(agencyDir === "rtl", `Agency Arabic dir expected rtl, got ${agencyDir}`);
-            await context.close();
-          }
 
-          // Staff/back office.
-          {
-            const context = await browser.newContext();
-            const page = await login(context, "superadmin@essafaria.example", "Admin!2345");
-            for (const width of widths) {
-              await assertPage(page, "/admin", width, "STAFF");
-              await assertPage(page, "/admin/applications", width, "STAFF");
+            {
+              const context = await browser.newContext();
+              const page = await context.newPage();
+              for (const width of widths) {
+                await assertPage(page, "/", width, "PUBLIC");
+                await assertPage(page, "/login", width, "AUTH");
+              }
+              await context.close();
             }
-            await context.addCookies([{ name: "evos_ui_locale", value: "ar", url: base }]);
-            await assertPage(page, "/admin", 1440, "STAFF-AR");
-            const staffDir = await page.evaluate(() => document.documentElement.dir);
-            assert(staffDir === "rtl", `Staff Arabic dir expected rtl, got ${staffDir}`);
-            await context.close();
-          }
 
-          await browser.close();
-          if (failures.length) {
-            console.error("\nUX validation failures:");
-            for (const failure of failures) console.error("- " + failure);
+            {
+              const context = await browser.newContext();
+              const page = await login(context, "admin@horizonvoyages.example", process.env.SEED_AGENCY_PASSWORD);
+              for (const width of widths) {
+                await assertPage(page, "/portal", width, "AGENCY");
+                await assertPage(page, "/portal/applications", width, "AGENCY");
+              }
+              await context.addCookies([{ name: "evos_ui_locale", value: "ar", url: base }]);
+              await assertPage(page, "/portal", 390, "AGENCY-AR");
+              assert(await page.evaluate(() => document.documentElement.dir) === "rtl", "Agency Arabic dir is not rtl");
+              await context.close();
+            }
+
+            {
+              const context = await browser.newContext();
+              const page = await login(context, "superadmin@essafaria.example", process.env.SEED_ADMIN_PASSWORD);
+              for (const width of widths) {
+                await assertPage(page, "/admin", width, "STAFF");
+                await assertPage(page, "/admin/applications", width, "STAFF");
+              }
+              await context.addCookies([{ name: "evos_ui_locale", value: "ar", url: base }]);
+              await assertPage(page, "/admin", 1440, "STAFF-AR");
+              assert(await page.evaluate(() => document.documentElement.dir) === "rtl", "Staff Arabic dir is not rtl");
+              await context.close();
+            }
+
+            await browser.close();
+            if (failures.length) {
+              console.error("UX validation failures:");
+              failures.forEach(f => console.error("- " + f));
+              process.exit(1);
+            }
+            console.log("Responsive/RTL browser verification PASS");
+          })().catch(err => {
+            console.error(err);
             process.exit(1);
-          }
-          console.log("Responsive/RTL browser verification PASS");
+          });
           JS
 
-          node scripts/_ux-restoration-browser.mjs
+          node scripts/_ux-restoration-browser.cjs
