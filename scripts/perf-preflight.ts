@@ -4,8 +4,8 @@ import { databasePoolConfig } from "../src/lib/database-config";
 import { assertSafePerfTarget, perfTable, safeTargetSummary } from "./perf-safety";
 
 type HealthResponse = {
-  ok?: boolean;
-  deployment?: { environment?: string | null };
+  status?: string;
+  service?: string;
 };
 
 async function main() {
@@ -20,10 +20,7 @@ async function main() {
     throw new Error(`Preview health endpoint returned HTTP ${healthResponse.status}.`);
   }
   const health = (await healthResponse.json()) as HealthResponse;
-  if (health.deployment?.environment === "production") {
-    throw new Error("Health endpoint identifies the deployment as Production.");
-  }
-  if (health.ok !== true) {
+  if (health?.status !== "healthy" || health?.service !== "essafaria-visa-os") {
     throw new Error("Preview health endpoint is not ready.");
   }
 
@@ -64,7 +61,6 @@ async function main() {
         target: safeTargetSummary(target),
         health: {
           status: healthResponse.status,
-          deploymentEnvironment: health.deployment?.environment ?? null,
         },
         counts: counts.rows[0] ?? {},
         pgStatStatementsAvailable: extensions.rowCount === 1,
