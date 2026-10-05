@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   validate:
-    if: github.event.head_commit.message == 'Run final authoritative UX restoration validation attempt 5'
+    if: github.event.head_commit.message == 'Run final authoritative UX restoration validation attempt 6'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -70,7 +70,7 @@ jobs:
         run: npm run lint
 
       - name: Targeted UX invariants
-        run: npm test -- tests/phase2-final.test.ts tests/public-mobile-50.test.ts
+        run: npm test -- tests/phase2-final.test.ts tests/public-mobile-50.test.ts tests/phase2_2-nav-ui.test.ts tests/product-craft-motion.test.ts tests/product-craft-premium.test.ts
 
       - name: Full test suite — single authoritative run
         run: npm test
