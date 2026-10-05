@@ -34,7 +34,7 @@ export default async function PortalWalletPage({
   const user = await portalPageUser();
   if (!hasPermission(user,"transactions.view.own")) {
     const balance = await getBalance(user.agencyId);
-    return <><PageHeader title={ct("Available balance")}/><div className="card p-6"><p className="font-serif text-4xl tabular-nums">{formatAmount(balance.balance)}</p><p className="mt-4 text-sm text-slate-500">{ct("Your Agency Admin manages wallet funding and transactions.")}</p></div></>;
+    return <><PageHeader title={ct("Available balance")}/><div className="card p-6"><p className="font-serif text-[32px] font-semibold tabular-nums">{formatAmount(balance.balance)}</p><p className="mt-4 text-base text-slate-500">{ct("Your Agency Admin manages wallet funding and transactions.")}</p></div></>;
   }
   const flash = flashFrom(sp);
   const page = Number(sp.page ?? "1") || 1;
@@ -79,17 +79,17 @@ export default async function PortalWalletPage({
       <div className="card flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{ct("Available balance")}</p>
-          <p className="mt-1 font-serif text-4xl text-navy-900 tabular-nums">
+          <p className="mt-1 font-serif text-[32px] text-navy-900 tabular-nums">
             {formatAmount(balance.balance, "DZD", uiLocale)}
           </p>
           <p className="mt-1 text-xs text-slate-400">{ct("Currency")}: DZD — {ct("Algerian Dinar")}</p>
         </div>
         <div className="max-w-md space-y-2">
-          <p className="text-sm text-slate-500">
+          <p className="text-base text-slate-500">
             {ct("Your wallet stays prepaid — each confirmed visa request is debited automatically and shown in the ledger below. All amounts in DZD.")}
           </p>
           {lowBalance ? (
-            <p className="rounded-xl border border-gold-100 bg-gold-50 px-4 py-2 text-xs text-gold-700">
+            <p className="rounded-lg border border-gold-200 bg-gold-50 px-4 py-2 text-xs text-gold-800">
               {ct("Your wallet balance may be insufficient for a new application.")}{" "}
               <a href="#topup" className="font-semibold underline">
                 {ct("Request wallet top-up")}
@@ -101,8 +101,8 @@ export default async function PortalWalletPage({
 
       {/* Immutable-ledger explainer: what the agency is looking at, in plain words */}
       <div className="card mt-4 px-6 py-4">
-        <h3 className="text-sm font-semibold text-navy-800">{ct("About your wallet")}</h3>
-        <p className="mt-1 text-sm leading-relaxed text-slate-500">
+        <h3 className="text-lg font-semibold text-navy-800">{ct("About your wallet")}</h3>
+        <p className="mt-1 text-base leading-relaxed text-slate-500">
           {ct(
             "Your wallet is prepaid and denominated in Algerian dinars (DZD) only. Every movement is written to an immutable ledger with a numbered reference, a before/after balance and a reason — nothing can be edited or deleted, corrections are made with compensating entries.",
           )}
@@ -128,7 +128,7 @@ export default async function PortalWalletPage({
           />
         ) : null}
         <Card className="p-4">
-          <h3 className="text-sm font-semibold text-navy-800">{ct("Statement period")}</h3>
+          <h3 className="text-lg font-semibold text-navy-800">{ct("Statement period")}</h3>
           <p className="mt-1 text-xs text-slate-400">{ct("Filter the ledger by period, then export exactly what you see.")}</p>
           <div className="mt-4 flex flex-wrap gap-2" data-testid="wallet-periods">
             {([
@@ -229,7 +229,7 @@ export default async function PortalWalletPage({
                           {typeLabel}
                         </span>
                       </td>
-                      <td className={`td whitespace-nowrap font-medium tabular-nums ${creditEffect ? "text-emerald-700" : "text-red-700"}`}>
+                      <td className={`td whitespace-nowrap font-semibold tabular-nums ${creditEffect ? "text-emerald-700" : "text-red-700"}`}>
                         {creditEffect ? "+" : "−"}
                         {formatAmount(tx.amount, "DZD", uiLocale)}
                       </td>
@@ -268,8 +268,8 @@ export default async function PortalWalletPage({
       {/* Top-up request */}
       <Card className="mt-8 scroll-mt-24 p-6" >
         <div id="topup" />
-        <h2 className="font-serif text-xl text-navy-900">{ct("Request wallet top-up")}</h2>
-        <p className="mt-1 max-w-2xl text-sm text-slate-500">
+        <h2 className="font-serif text-lg text-navy-900">{ct("Request wallet top-up")}</h2>
+        <p className="mt-1 max-w-2xl text-base text-slate-500">
           {ct("Tell ESSAFARIA how much you need in your wallet. Your balance is credited once the funds are confirmed — no online payment is taken here.")}
         </p>
         <div className="mt-4 max-w-3xl">
@@ -303,9 +303,9 @@ export default async function PortalWalletPage({
           />
         </div>
 
-        <h3 className="mt-6 text-sm font-semibold text-navy-800">{ct("Top-up requests")}</h3>
+        <h3 className="mt-6 text-lg font-semibold text-navy-800">{ct("Top-up requests")}</h3>
         {topups.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-2 text-base text-slate-500">
             {ct("Top-up requests you send to ESSAFARIA appear here with their status.")}
           </p>
         ) : (
@@ -323,7 +323,7 @@ export default async function PortalWalletPage({
               <tbody className="divide-y divide-slate-100">
                 {topups.map((t) => (
                   <tr key={t.id} className="tr-hover">
-                    <td className="td whitespace-nowrap font-mono text-xs">{t.reference}{t.proofFilename?<Link href={`/api/topups/${t.id}/proof`} className="ms-2 text-sm underline">{ct("Open bank transfer receipt")}</Link>:null}</td>
+                    <td className="td whitespace-nowrap font-mono text-xs">{t.reference}{t.proofFilename?<Link href={`/api/topups/${t.id}/proof`} className="ms-2 text-base underline">{ct("Open bank transfer receipt")}</Link>:null}</td>
                     <td className="td whitespace-nowrap text-xs">{formatDateTime(t.createdAt, uiLocale)}</td>
                     <td className="td whitespace-nowrap tabular-nums">{formatAmount(t.amount, "DZD", uiLocale)}</td>
                     <td className="td">

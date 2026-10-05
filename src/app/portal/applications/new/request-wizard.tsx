@@ -336,10 +336,10 @@ export function RequestWizard(props: Props) {
       </ol>
 
       {props.serverError ? (
-        <p className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{props.serverError}</p>
+        <p className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700">{props.serverError}</p>
       ) : null}
       {clientError ? (
-        <div role="alert" className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700"><p>{clientError}</p>{catalogueRecovery ? <button type="button" className="btn-secondary mt-4" onClick={() => window.location.reload()}>{contentT(props.locale)("Refresh catalogue and choose again")}</button> : null}{sessionRecovery ? <a className="btn-secondary mt-4" href="/login?reason=session-expired">{contentT(props.locale)("Sign in")}</a> : null}</div>
+        <div role="alert" className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700"><p>{clientError}</p>{catalogueRecovery ? <button type="button" className="btn-secondary mt-4" onClick={() => window.location.reload()}>{contentT(props.locale)("Refresh catalogue and choose again")}</button> : null}{sessionRecovery ? <a className="btn-secondary mt-4" href="/login?reason=session-expired">{contentT(props.locale)("Sign in")}</a> : null}</div>
       ) : null}
 
       {/* STEP 1 — destination search, then programmes, then applicant */}
@@ -578,7 +578,7 @@ export function RequestWizard(props: Props) {
                       </label>
                     </div>
                     {picked.length > 0 ? (
-                      <ul className="mt-2 space-y-2 text-xs text-slate-600">
+                      <ul className="mt-2 space-y-1 text-xs text-slate-600">
                         {picked.map((f, idx) => (
                           <li key={idx} className="wizard-file-settle flex flex-wrap items-center gap-2">
                             <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -707,8 +707,8 @@ export function RequestWizard(props: Props) {
                   <dd className="font-semibold tabular-nums text-gold-900">{formatDZD(balanceNumber)}</dd>
                 </div>
                 <div className="flex justify-between gap-2">
-                  <dt className="text-gold-700">{t.missingAmount}</dt>
-                  <dd className="font-semibold tabular-nums text-gold-700">{formatDZD(missing)}</dd>
+                  <dt className="text-navy-700">{t.missingAmount}</dt>
+                  <dd className="font-semibold tabular-nums text-navy-700">{formatDZD(missing)}</dd>
                 </div>
               </dl>
               <a href={topupHref} className="btn-primary inline-flex w-full sm:w-auto" data-testid="wizard-topup-cta">
