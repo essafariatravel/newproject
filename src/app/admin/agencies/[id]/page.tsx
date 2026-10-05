@@ -76,10 +76,10 @@ export default async function AdminAgencyDetailPage({
       <Flash {...flash} />
       <div className="my-4 grid gap-4 lg:grid-cols-2">
         <Card><CardHeader title={ct("Verification documents")}/><div className="space-y-4 p-6">
-          {verificationDocuments.length?verificationDocuments.map(({document,registrationId})=><div key={document.id}><Link href={`/api/registrations/${registrationId}/documents/${document.id}`} className="block underline">{document.originalFilename}</Link><Link href={`/admin/registrations/${registrationId}`} className="inline-flex min-h-11 items-center text-base underline">{ct("View registration")}</Link></div>):<p className="text-sm text-slate-500">{ct("No verification documents are linked to this agency.")}</p>}
+          {verificationDocuments.length?verificationDocuments.map(({document,registrationId})=><div key={document.id}><Link href={`/api/registrations/${registrationId}/documents/${document.id}`} className="block underline">{document.originalFilename}</Link><Link href={`/admin/registrations/${registrationId}`} className="inline-flex min-h-11 items-center text-base underline">{ct("View registration")}</Link></div>):<p className="text-base text-slate-500">{ct("No verification documents are linked to this agency.")}</p>}
         </div></Card>
         {activity?<Card><CardHeader title={ct("Agency activity")} actions={<Link href={`/admin/audit?agency=${id}`} className="btn-secondary btn-sm">{ct("View all")}</Link>}/><ul className="divide-y px-6">
-          {activity.rows.length?activity.rows.slice(0,6).map(({log,actorName,actorUsername})=><li key={log.id} className="py-4 text-xs"><p className="font-medium">{businessLabel(log.action,uiLocale)}</p><p>{String(log.metadata?.actorName??actorName??log.actorEmail??ct("System"))} · <bdi dir="ltr">{String(log.metadata?.actorUsername??actorUsername??log.actorId??"")}</bdi></p><AuditTime iso={log.createdAt.toISOString()} locale={uiLocale}/></li>):<li className="py-6 text-sm text-slate-500">{ct("No agency activity yet.")}</li>}
+          {activity.rows.length?activity.rows.slice(0,6).map(({log,actorName,actorUsername})=><li key={log.id} className="py-4 text-xs"><p className="font-semibold">{businessLabel(log.action,uiLocale)}</p><p>{String(log.metadata?.actorName??actorName??log.actorEmail??ct("System"))} · <bdi dir="ltr">{String(log.metadata?.actorUsername??actorUsername??log.actorId??"")}</bdi></p><AuditTime iso={log.createdAt.toISOString()} locale={uiLocale}/></li>):<li className="py-6 text-base text-slate-500">{ct("No agency activity yet.")}</li>}
         </ul></Card>:null}
       </div>
 
@@ -113,7 +113,7 @@ export default async function AdminAgencyDetailPage({
                       name="logo"
                       accept="image/png,image/jpeg,image/webp"
                       required
-                      className="max-w-full text-xs file:me-2 file:cursor-pointer file:rounded-full file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white"
+                      className="min-h-11 max-w-full text-base file:me-2 file:min-h-11 file:cursor-pointer file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-base file:font-semibold file:text-white"
                     />
                     <SubmitButton className="btn-secondary btn-sm" pendingLabel={ct("Uploading…")}>
                       {agency.logoKey ? ct("Replace logo") : ct("Upload logo")}
@@ -210,7 +210,7 @@ export default async function AdminAgencyDetailPage({
           <Card>
             <CardHeader title={ct("Recent applications")} actions={<Link href={`/admin/applications?agency=${id}`} className="btn-secondary btn-sm">All →</Link>} />
             {apps.rows.length === 0 ? (
-              <p className="px-4 py-8 text-center text-sm text-slate-500">{ct("No applications yet.")}</p>
+              <p className="px-4 py-8 text-center text-base text-slate-500">{ct("No applications yet.")}</p>
             ) : (
               <TableWrap>
                 <thead className="border-b border-slate-100 bg-ivory-50/60">
@@ -226,7 +226,7 @@ export default async function AdminAgencyDetailPage({
                   {apps.rows.slice(0, 8).map((r) => (
                     <tr key={r.app.id} className="tr-hover">
                       <td className="td">
-                        <Link href={`/admin/applications/${r.app.id}`} className="font-medium text-navy-900 hover:underline">
+                        <Link href={`/admin/applications/${r.app.id}`} className="font-semibold text-navy-900 hover:underline">
                           {r.app.reference}
                         </Link>
                       </td>
@@ -291,7 +291,7 @@ export default async function AdminAgencyDetailPage({
               {agencyUsers.map((u) => (
                 <li key={u.id} className="flex items-center justify-between gap-2 py-2">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-navy-900">{u.name}</p>
+                    <p className="truncate text-base font-semibold text-navy-900">{u.name}</p>
                     <p className="truncate text-xs text-slate-400" dir="ltr">{u.username}</p>
                   </div>
                   <div className="text-right">
@@ -300,7 +300,7 @@ export default async function AdminAgencyDetailPage({
                   </div>
                 </li>
               ))}
-              {agencyUsers.length === 0 ? <li className="py-6 text-center text-sm text-slate-500">{ct("No users yet.")}</li> : null}
+              {agencyUsers.length === 0 ? <li className="py-6 text-center text-base text-slate-500">{ct("No users yet.")}</li> : null}
             </ul>
           </Card>
         </div>
@@ -334,7 +334,7 @@ export default async function AdminAgencyDetailPage({
                         {businessLabel(tx.type, uiLocale)}
                       </span>
                     </td>
-                    <td className={`td whitespace-nowrap tabular-nums font-medium ${Number(tx.balanceAfter) >= Number(tx.balanceBefore) ? "text-emerald-700" : "text-red-700"}`}>
+                    <td className={`td whitespace-nowrap tabular-nums font-semibold ${Number(tx.balanceAfter) >= Number(tx.balanceBefore) ? "text-emerald-700" : "text-red-700"}`}>
                       {Number(tx.balanceAfter) >= Number(tx.balanceBefore) ? "+" : "-"}{formatAmount(tx.amount, "DZD", uiLocale)}
                     </td>
                     <td className="td whitespace-nowrap tabular-nums text-xs">

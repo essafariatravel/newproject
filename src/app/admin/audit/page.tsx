@@ -139,8 +139,8 @@ export default async function AdminAuditPage({
               {result.rows.map(({ log, agencyName, actorName, actorUsername }) => (
                 <tr key={log.id} className="tr-hover">
                   <td className="td whitespace-nowrap text-xs text-slate-500"><AuditTime iso={log.createdAt.toISOString()} locale={uiLocale} /></td>
-                  <td className="td max-w-[200px] text-xs">
-                    <p className="font-medium">{String(log.metadata?.actorName ?? actorName ?? log.actorEmail ?? ct("System"))}</p>
+                  <td className="td max-w-[160px] truncate text-xs">
+                    <p className="font-semibold">{String(log.metadata?.actorName ?? actorName ?? log.actorEmail ?? ct("System"))}</p>
                     <p dir="ltr">{String(log.metadata?.actorUsername ?? actorUsername ?? log.actorId ?? "")}</p>
                     {log.actorId ? <span className="block font-mono text-xs" dir="ltr">{log.actorId}</span> : null}
                   </td>
@@ -151,7 +151,7 @@ export default async function AdminAuditPage({
                   </td>
                   <td className="td text-xs text-slate-500">{auditTarget(log.entity, log.entityId, log.metadata) ? <Link href={auditTarget(log.entity, log.entityId, log.metadata)!} className="text-navy-800 underline">{entityLabel(log.entity)}</Link> : entityLabel(log.entity)}</td>
                   <td className="td max-w-[260px]">
-                    <details><summary className="cursor-pointer font-medium text-navy-800">{ct("Details")}</summary><p className="my-2 text-xs">{log.action} · {log.entityId}</p>{readableMetadata(log.metadata)}</details>
+                    <details><summary className="cursor-pointer font-semibold text-navy-800">{ct("Details")}</summary><p className="my-2 text-xs">{log.action} · {log.entityId}</p>{readableMetadata(log.metadata)}</details>
                   </td>
                 </tr>
               ))}
