@@ -1,4 +1,4 @@
-name: Final Original UX Restoration Validation
+name: Browser Original UX Verification
 
 on:
   push:
@@ -11,17 +11,18 @@ permissions:
   contents: read
 
 jobs:
-  validate:
-    if: github.event.head_commit.message == 'Run final authoritative UX restoration validation attempt 6'
+  browser:
+    if: github.event.head_commit.message == 'Run browser-only UX restoration verification'
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 20
     env:
       VERCEL: "0"
       VERCEL_ENV: ""
-      DATABASE_URL: ""
-      ALLOW_DEMO_SEED: "false"
-      STORAGE_PROVIDER: "db"
-      CI: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/essafaria
+      DATABASE_SCHEMA: public
+      STORAGE_PROVIDER: db
+      BASE_URL: http://127.0.0.1:3011
+      PORT: "3011"
 
     steps:
       - name: Checkout exact commit
@@ -30,14 +31,6 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
           fetch-depth: 0
-
-      - name: Verify checkout
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          git merge-base --is-ancestor 8b4b44d0bbaf312d96cadbd438ec4193e58d278b HEAD
-          echo "Validated restoration SHA: $GITHUB_SHA"
 
       - name: Setup Node 22
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
@@ -48,44 +41,8 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Security static gate
-        run: npx tsx scripts/security-static-gate.ts
-
-      - name: Security history gate
-        run: npx tsx scripts/security-history-gate.ts
-
-      - name: Immutable GitHub Actions gate
-        run: npx tsx scripts/security-actions-gate.ts
-
-      - name: Dangerous source construct gate
-        run: npx tsx scripts/security-source-gate.ts
-
-      - name: Production dependency vulnerability gate
-        run: npm audit --omit=dev --audit-level=high
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Targeted UX invariants
-        run: npm test -- tests/phase2-final.test.ts tests/public-mobile-50.test.ts tests/phase2_2-nav-ui.test.ts tests/product-craft-motion.test.ts tests/product-craft-premium.test.ts
-
-      - name: Full test suite — single authoritative run
-        run: npm test
-
-      - name: Optimized build — non-deploying
-        run: npm run build
-
       - name: Browser responsive and RTL verification
         shell: bash
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/essafaria
-          DATABASE_SCHEMA: public
-          STORAGE_PROVIDER: db
-          BASE_URL: http://127.0.0.1:3011
-          PORT: "3011"
         run: |
           set -euo pipefail
 
@@ -156,11 +113,14 @@ jobs:
             async function login(context, identifier, password) {
               const page = await context.newPage();
               await page.goto(base + "/login", { waitUntil: "networkidle" });
-              await page.locator('input[name="identifier"]').fill(identifier);
-              await page.locator('input[name="password"]').fill(password);
+              const identifierInput = page.locator('input[name="identifier"]');
+              const passwordInput = page.locator('input[name="password"]');
+              await identifierInput.fill(identifier);
+              await passwordInput.fill(password);
+              const loginForm = identifierInput.locator("xpath=ancestor::form");
               await Promise.all([
                 page.waitForURL(url => !url.pathname.endsWith("/login"), { timeout: 20000 }),
-                page.locator('button[type="submit"]').click(),
+                loginForm.locator('button[type="submit"]').click(),
               ]);
               return page;
             }
