@@ -145,7 +145,7 @@ export default async function PortalApplicationsPage({
                     </td>
                     <td className="td">
                       <Link href={`/portal/applications/${r.app.id}`} className="font-semibold text-navy-900 hover:underline">{r.applicantSummary ?? "—"}</Link>
-                      <span className="block text-xs text-slate-500"><bdi>{r.app.reference}</bdi></span>
+                      <span dir="ltr" className="block text-xs text-slate-500">{r.app.reference}</span>
                     </td>
                     <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
                     <td className="td">{p ? <Progress done={p.done} total={p.total} /> : "—"}</td>
