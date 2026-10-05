@@ -303,7 +303,7 @@ export default async function PortalWalletPage({
           />
         </div>
 
-        <h3 className="mt-6 text-lg font-semibold text-navy-800">{ct("Top-up requests")}</h3>
+        <h3 className="mt-6 text-base font-semibold text-navy-800">{ct("Top-up requests")}</h3>
         {topups.length === 0 ? (
           <p className="mt-2 text-base text-slate-500">
             {ct("Top-up requests you send to ESSAFARIA appear here with their status.")}
