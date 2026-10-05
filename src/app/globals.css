@@ -53,7 +53,7 @@
   --motion-micro: 120ms;
   --motion-standard: 200ms;
   --motion-overlay: 220ms;
-  --motion-spatial: 300ms;
+  --motion-spatial: 240ms;
   --motion-editorial: 300ms;
   --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --motion-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
