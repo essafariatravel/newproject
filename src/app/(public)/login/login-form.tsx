@@ -58,7 +58,7 @@ export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
           {copy.signIn}
         </SubmitButton>
       </form>
-      <Link href="/forgot-password" className="mt-4 flex min-h-11 items-center justify-center text-base text-iris-700 underline">{copy.forgotPassword}</Link>
+      <Link href="/forgot-password" className="mt-4 block text-center text-base text-iris-700 underline">{copy.forgotPassword}</Link>
       <p className="mt-6 text-center text-xs text-slate-500">
         {copy.footer}
       </p>

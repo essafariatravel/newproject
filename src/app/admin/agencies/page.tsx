@@ -67,7 +67,7 @@ export default async function AdminAgenciesPage({
             {rows.map(({ agency, userCount, applicationCount }) => (
               <NavigableTableRow key={agency.id} href={`/admin/agencies/${agency.id}`} className="tr-hover">
                 <td className="td">
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
                     <BrandMark className="h-8 w-8 shrink-0" src={agencyLogoUrl(agency)} alt={agencyPrimaryLabel(agency)} />
                     <AgencyListIdentity
                       id={agency.id}
@@ -81,7 +81,7 @@ export default async function AdminAgenciesPage({
                 <td className="td"><ActiveBadge active={agency.status === "ACTIVE"} /></td>
                 <td className="td tabular-nums">{userCount}</td>
                 <td className="td tabular-nums">{applicationCount}</td>
-                <td className="td whitespace-nowrap font-medium tabular-nums">{formatAmount(agency.balance, "DZD", uiLocale)}</td>
+                <td className="td whitespace-nowrap font-semibold tabular-nums">{formatAmount(agency.balance, "DZD", uiLocale)}</td>
               </NavigableTableRow>
             ))}
           </tbody>

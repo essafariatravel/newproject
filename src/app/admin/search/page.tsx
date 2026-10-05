@@ -80,8 +80,8 @@ export default async function AdminSearchPage({
               <ul className="divide-y divide-slate-100">
                 {group.items.map((item) => (
                   <li key={`${group.key}-${item.href}`}>
-                    <Link href={item.href} className="flex flex-col gap-2 px-4 py-4 transition-colors hover:bg-ivory-50/70">
-                      <span className="text-sm font-medium text-navy-900">{item.label}</span>
+                    <Link href={item.href} className="flex flex-col gap-1 px-4 py-4 transition-colors hover:bg-ivory-50/70">
+                      <span className="text-base font-semibold text-navy-900">{item.label}</span>
                       {item.hint ? <span className="text-xs text-slate-400">{item.hint}</span> : null}
                     </Link>
                   </li>

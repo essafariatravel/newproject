@@ -32,8 +32,8 @@ export default async function ChangePasswordPage({
 
   return (
     <div className="mx-auto max-w-md px-4 py-8">
-      <h1 className="font-serif text-3xl text-navy-900">{user.mustChangePassword ? ct("Set your password") : it("Change password")}</h1>
-      <p className="mt-2 text-sm text-slate-500">
+      <h1 className="font-serif text-[32px] text-navy-900">{user.mustChangePassword ? ct("Set your password") : it("Change password")}</h1>
+      <p className="mt-2 text-base text-slate-500">
         {user.mustChangePassword ? ct("For security, you must choose a new password before you can continue.") : it("Keep your account secure with a password you do not use elsewhere.")}
       </p>
       <div className="mt-6">
@@ -80,7 +80,7 @@ export default async function ChangePasswordPage({
           <button className="text-iris-600 hover:underline">{cc("Sign out")}</button>
         </form>
       </div>
-      {!user.mustChangePassword ? <Link href={user.agencyId ? "/portal/profile" : "/admin"} className="mt-4 flex min-h-11 items-center text-base text-iris-700 underline">{ct("Back")}</Link> : null}
+      {!user.mustChangePassword ? <Link href={user.agencyId ? "/portal/profile" : "/admin"} className="mt-4 block text-base text-iris-700 underline">{ct("Back")}</Link> : null}
     </div>
   );
 }

@@ -316,7 +316,7 @@ export function RequestWizard(props: Props) {
       <input type="hidden" name="locale" value={props.locale} />
 
       {/* Step rail */}
-      <ol className="grid grid-cols-3 gap-2 text-sm" data-testid="wizard-steps">
+      <ol className="grid grid-cols-3 gap-2 text-base" data-testid="wizard-steps">
         {[
           { n: 1, label: t.stepChoose },
           { n: 2, label: t.stepUpload },
@@ -352,7 +352,7 @@ export function RequestWizard(props: Props) {
 
           {country ? (
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-iris-200 bg-iris-50/50 px-4 py-4">
-              <p className="text-sm">
+              <p className="text-base">
                 <span className="text-slate-500">{t.destination}: </span>
                 <span className="font-semibold text-navy-900" data-testid="wizard-destination-selected">
                   {country.name}
@@ -393,7 +393,7 @@ export function RequestWizard(props: Props) {
               </p>
 
               {suggestions.length === 0 ? (
-                <p className="rounded-lg bg-ivory-50 px-4 py-2 text-sm text-slate-500">{t.noDestinationMatch}</p>
+                <p className="rounded-lg bg-ivory-50 px-4 py-2 text-base text-slate-500">{t.noDestinationMatch}</p>
               ) : (
                 <div id="destination-suggestions" role="listbox" aria-label={t.searchDestination}>
                   {!countrySearch ? (
@@ -418,7 +418,7 @@ export function RequestWizard(props: Props) {
                           setCountrySearch("");
                           if (c.visaTypes.length !== 1) setVisaTypeId("");
                         }}
-                        className="wizard-choice inline-flex min-h-11 items-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-navy-900 hover:bg-iris-50"
+                        className="wizard-choice inline-flex min-h-11 items-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-base font-semibold text-navy-900 hover:bg-iris-50"
                       >
                         {c.name}
                         <span className="ms-2 text-xs text-slate-400">{c.visaTypes.length}</span>
@@ -433,7 +433,7 @@ export function RequestWizard(props: Props) {
           {/* Programmes for the chosen destination only */}
           {country ? (
             <div className="space-y-4 border-t border-slate-100 pt-4">
-              <h3 className="text-sm font-semibold text-navy-900">
+              <h3 className="text-base font-semibold text-navy-900">
                 {t.availableProgrammes}
               </h3>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -454,7 +454,7 @@ export function RequestWizard(props: Props) {
                     />
                     <span className="block font-semibold text-navy-900">{v.name}</span>
                     <span className="mt-1 block text-xs text-slate-500">{v.categoryName}</span>
-                    <span className="mt-2 block text-sm font-medium text-navy-800 tabular-nums">
+                    <span className="mt-2 block text-base font-semibold text-navy-800 tabular-nums">
                       {formatDZD(v.fee)} <span className="text-xs text-slate-400">· {t.processing} {processingLabel(v)}</span>
                     </span>
                     {v.description ? <span className="mt-1 block text-xs text-slate-500">{v.description}</span> : null}
@@ -518,22 +518,22 @@ export function RequestWizard(props: Props) {
       {/* STEP 2 — documents */}
       <section data-wizard-section="2" hidden={step !== 2} className="wizard-panel space-y-4" data-direction={wizardDirection}>
         <div className="card p-6">
-          <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-4">
-            <div className="flex flex-col gap-2">
+          <dl className="grid grid-cols-1 gap-2 text-base sm:grid-cols-4">
+            <div className="flex flex-col gap-1">
               <dt className="text-xs text-slate-400">{t.destination}</dt>
-              <dd className="font-medium text-navy-900">{country?.name ?? "—"}</dd>
+              <dd className="font-semibold text-navy-900">{country?.name ?? "—"}</dd>
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
               <dt className="text-xs text-slate-400">{t.stepChoose}</dt>
-              <dd className="font-medium text-navy-900">{visa?.name ?? "—"}</dd>
+              <dd className="font-semibold text-navy-900">{visa?.name ?? "—"}</dd>
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
               <dt className="text-xs text-slate-400">{t.fee}</dt>
-              <dd className="font-medium tabular-nums text-navy-900">{visa ? formatDZD(visa.fee) : "—"}</dd>
+              <dd className="font-semibold tabular-nums text-navy-900">{visa ? formatDZD(visa.fee) : "—"}</dd>
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
               <dt className="text-xs text-slate-400">{t.processing}</dt>
-              <dd className="font-medium text-navy-900">{visa ? processingLabel(visa) : "—"}</dd>
+              <dd className="font-semibold text-navy-900">{visa ? processingLabel(visa) : "—"}</dd>
             </div>
           </dl>
         </div>
@@ -541,12 +541,12 @@ export function RequestWizard(props: Props) {
         <div className="card space-y-4 p-6">
           <h2 className="font-serif text-lg text-navy-900">{t.documents}</h2>
           {fileError ? (
-            <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700" data-testid="wizard-file-error">
+            <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700" data-testid="wizard-file-error">
               {fileError}
             </p>
           ) : null}
           {requirements.length === 0 ? (
-            <p className="text-sm text-slate-500">{t.noDocumentsRequired}</p>
+            <p className="text-base text-slate-500">{t.noDocumentsRequired}</p>
           ) : (
             <ul className="border-y border-line">
               {requirements.map((r) => {
@@ -582,13 +582,13 @@ export function RequestWizard(props: Props) {
                         {picked.map((f, idx) => (
                           <li key={idx} className="wizard-file-settle flex flex-wrap items-center gap-2">
                             <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                            <span className="font-medium text-navy-800">{f.name}</span>
+                            <span className="font-semibold text-navy-800">{f.name}</span>
                             <span className="text-slate-400">{(f.size / 1024).toFixed(0)} KB</span>
                             <span className="badge bg-emerald-100 text-emerald-800">{t.uploaded}</span>
                             <button
                               type="button"
                               onClick={() => removeFile(r.documentTypeId, idx)}
-                              className="min-h-11 px-2 text-base font-semibold text-rose-700 underline"
+                              className="inline-flex min-h-11 items-center px-2 text-xs font-semibold text-rose-700 underline"
                             >
                               {t.remove}
                             </button>
@@ -609,24 +609,24 @@ export function RequestWizard(props: Props) {
         <div className="card space-y-6 p-6">
           <div>
             <h2 className="font-serif text-lg text-navy-900">{t.reviewTitle}</h2>
-            <p className="mt-1 text-sm text-slate-500">{t.reviewSubtitle}</p>
+            <p className="mt-1 text-base text-slate-500">{t.reviewSubtitle}</p>
           </div>
 
           {/* VISA */}
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{t.sectionVisa}</h3>
-            <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
+            <dl className="grid grid-cols-1 gap-2 text-base sm:grid-cols-3">
               <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
                 <dt className="text-slate-500">{t.destination}</dt>
-                <dd className="font-medium text-navy-900">{country?.name ?? "—"}</dd>
+                <dd className="font-semibold text-navy-900">{country?.name ?? "—"}</dd>
               </div>
               <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
                 <dt className="text-slate-500">{t.programme}</dt>
-                <dd className="font-medium text-navy-900">{visa?.name ?? "—"}</dd>
+                <dd className="font-semibold text-navy-900">{visa?.name ?? "—"}</dd>
               </div>
               <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
                 <dt className="text-slate-500">{t.processing}</dt>
-                <dd className="font-medium text-navy-900">{visa ? processingLabel(visa) : "—"}</dd>
+                <dd className="font-semibold text-navy-900">{visa ? processingLabel(visa) : "—"}</dd>
               </div>
             </dl>
           </div>
@@ -634,10 +634,10 @@ export function RequestWizard(props: Props) {
           {/* APPLICANT */}
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{t.sectionApplicant}</h3>
-            <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+            <dl className="grid grid-cols-1 gap-2 text-base sm:grid-cols-2">
               <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2 sm:col-span-2">
                 <dt className="text-slate-500">{t.summaryApplicant}</dt>
-                <dd className="font-medium text-navy-900" data-testid="wizard-applicant-summary">{applicantSummary()}</dd>
+                <dd className="font-semibold text-navy-900" data-testid="wizard-applicant-summary">{applicantSummary()}</dd>
               </div>
             </dl>
           </div>
@@ -645,14 +645,14 @@ export function RequestWizard(props: Props) {
           {/* DOCUMENTS */}
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{t.summaryDocuments}</h3>
-            <ul className="space-y-2 text-sm">
+            <ul className="space-y-1 text-base">
               {requirements.map((r) => {
                 const count = (files[r.documentTypeId] ?? []).length;
                 const missingHere = r.required && count === 0;
                 return (
                   <li key={r.documentTypeId} className="flex items-center justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
                     <span className="text-slate-600">{r.name}</span>
-                    <span className={missingHere ? "font-semibold text-rose-600" : "font-medium text-emerald-700"}>
+                    <span className={missingHere ? "font-semibold text-rose-600" : "font-semibold text-emerald-700"}>
                       {missingHere ? t.missingPrefix : `${count} × ${t.uploaded}`}
                     </span>
                   </li>
@@ -665,25 +665,25 @@ export function RequestWizard(props: Props) {
           {/* PAYMENT */}
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{t.sectionPayment}</h3>
-            <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
+            <dl className="grid grid-cols-1 gap-2 text-base sm:grid-cols-3">
               <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
                 <dt className="text-slate-500">{t.fee}</dt>
-                <dd className="font-medium tabular-nums text-navy-900">{visa ? formatDZD(visa.fee) : "—"}</dd>
+                <dd className="font-semibold tabular-nums text-navy-900">{visa ? formatDZD(visa.fee) : "—"}</dd>
               </div>
               <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
                 <dt className="text-slate-500">{t.currentBalance}</dt>
-                <dd className="font-medium tabular-nums text-navy-900">{formatDZD(props.walletBalance)}</dd>
+                <dd className="font-semibold tabular-nums text-navy-900">{formatDZD(props.walletBalance)}</dd>
               </div>
-              <div className={`flex justify-between gap-4 rounded-xl px-4 py-2 ${canAfford ? "bg-emerald-50" : "bg-gold-50"}`}>
-                <dt className={canAfford ? "text-emerald-700" : "text-gold-700"}>{t.balanceAfter}</dt>
-                <dd className={`font-medium tabular-nums ${canAfford ? "text-emerald-800" : "text-gold-700"}`}>
+              <div className={`flex justify-between gap-4 rounded-lg px-4 py-2 ${canAfford ? "bg-emerald-50" : "bg-gold-50"}`}>
+                <dt className={canAfford ? "text-emerald-700" : "text-gold-800"}>{t.balanceAfter}</dt>
+                <dd className={`font-semibold tabular-nums ${canAfford ? "text-emerald-800" : "text-gold-800"}`}>
                   {canAfford && visa ? formatDZD(afterNum) : "—"}
                 </dd>
               </div>
             </dl>
           </div>
 
-          <p className="rounded-xl bg-iris-50 px-4 py-2 text-xs text-iris-800">{t.chargeNote}</p>
+          <p className="rounded-lg bg-iris-50 px-4 py-2 text-xs text-iris-800">{t.chargeNote}</p>
 
           {canAfford ? (
             <button
@@ -695,16 +695,16 @@ export function RequestWizard(props: Props) {
               {pending ? t.submitting : <>{t.submitApplication} — <bdi dir="ltr">{visa ? formatDZD(visa.fee) : "—"}</bdi></>}
             </button>
           ) : (
-            <div className="space-y-4 rounded-2xl border border-gold-100 bg-gold-50 p-4">
-              <p className="font-semibold text-gold-700">{t.insufficientTitle}</p>
-              <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
+            <div className="space-y-4 rounded-lg border border-gold-200 bg-gold-50 p-4">
+              <p className="font-semibold text-gold-900">{t.insufficientTitle}</p>
+              <dl className="grid grid-cols-1 gap-1 text-base sm:grid-cols-3">
                 <div className="flex justify-between gap-2">
-                  <dt className="text-gold-700">{t.requiredAmount}</dt>
-                  <dd className="font-medium tabular-nums text-gold-700">{formatDZD(feeNumber)}</dd>
+                  <dt className="text-gold-800">{t.requiredAmount}</dt>
+                  <dd className="font-semibold tabular-nums text-gold-900">{formatDZD(feeNumber)}</dd>
                 </div>
                 <div className="flex justify-between gap-2">
-                  <dt className="text-gold-700">{t.currentBalance}</dt>
-                  <dd className="font-medium tabular-nums text-gold-700">{formatDZD(balanceNumber)}</dd>
+                  <dt className="text-gold-800">{t.currentBalance}</dt>
+                  <dd className="font-semibold tabular-nums text-gold-900">{formatDZD(balanceNumber)}</dd>
                 </div>
                 <div className="flex justify-between gap-2">
                   <dt className="text-gold-700">{t.missingAmount}</dt>

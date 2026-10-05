@@ -45,7 +45,7 @@ export default async function CurrenciesConfigPage({
           {rows.map((c) => (
             <tr key={c.id} className="tr-hover">
               <td className="td"><span className="badge bg-navy-900/5 text-navy-800">{c.code}</span></td>
-              <td className="td font-medium text-navy-900">{c.name}</td>
+              <td className="td font-semibold text-navy-900">{c.name}</td>
               <td className="td">{c.symbol}</td>
               <td className="td"><ActiveBadge active={c.active} locale={locale} /></td>
               {canManage ? (
@@ -73,7 +73,7 @@ export default async function CurrenciesConfigPage({
 
       {canManage ? (
         <div className="mt-8">
-          <h2 className="mb-4 font-serif text-xl text-navy-900">{ct("Add currency")}</h2>
+          <h2 className="mb-4 font-serif text-lg text-navy-900">{ct("Add currency")}</h2>
           <form action={createCurrencyAction} className="card grid grid-cols-1 gap-4 p-6 sm:grid-cols-4">
             <div>
               <label className="label" htmlFor="code">{ct("Code (ISO-4217) *")}</label>

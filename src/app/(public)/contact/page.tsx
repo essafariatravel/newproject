@@ -20,9 +20,9 @@ export default async function ContactPage() {
 
   return (
     <div className="ess-container max-w-4xl py-8">
-      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gold-700">{ct("Get in touch")}</p>
-      <h1 className="mt-2 font-serif text-3xl text-navy-900">{ct("Contact ESSAFARIA")}</h1>
-      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
+      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gold-600">{ct("Get in touch")}</p>
+      <h1 className="mt-2 font-serif text-[32px] text-navy-900">{ct("Contact ESSAFARIA")}</h1>
+      <p className="mt-2 max-w-2xl text-base leading-relaxed text-slate-600">
         {ct(hasDetails
           ? "Partner agencies can reach case officers through the portal. For partnership enquiries, use the contact details below."
           : "Partner agencies can reach case officers through the portal. New agencies can apply for partnership online.")}
@@ -31,14 +31,14 @@ export default async function ContactPage() {
       {hasDetails ? <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {email ? <div className="card p-6">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Email")}</h2>
-          <a href={`mailto:${email}`} className="mt-1 flex min-h-11 items-center font-serif text-lg text-navy-900 hover:text-navy-700">
+          <a href={`mailto:${email}`} className="mt-1 block font-serif text-lg text-navy-900 hover:text-navy-700">
             {email}
           </a>
           <p className="mt-2 text-xs text-slate-500">{ct("Partnership, operations and billing enquiries.")}</p>
         </div> : null}
         {phone ? <div className="card p-6">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Phone")}</h2>
-          <a href={`tel:${phone.replace(/\s/g, "")}`} className="mt-1 flex min-h-11 items-center font-serif text-lg text-navy-900 hover:text-navy-700">
+          <a href={`tel:${phone.replace(/\s/g, "")}`} className="mt-1 block font-serif text-lg text-navy-900 hover:text-navy-700">
             {phone}
           </a>
           {officeHours ? <p className="mt-2 text-xs text-slate-500">{officeHours}</p> : null}
@@ -53,7 +53,7 @@ export default async function ContactPage() {
       </div>}
 
       {Object.entries(social).filter(([, url]) => url).length > 0 ? (
-        <div className="mt-8 flex gap-4 text-sm">
+        <div className="mt-8 flex gap-4 text-base">
           {Object.entries(social)
             .filter(([, url]) => url)
             .map(([name, url]) => (

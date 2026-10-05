@@ -25,8 +25,8 @@ export default async function HomePage() {
       <figure className="travel-public-photo"><img src="/images/departure-atelier.webp" alt="" width="1536" height="1024" fetchPriority="high" /><figcaption>{copy.illustration}</figcaption></figure>
     </section>
     <section className="ess-container grid gap-8 py-8 sm:py-8 md:grid-cols-[1fr_.7fr]" aria-labelledby="partner-title">
-      <div><p className="travel-eyebrow text-gold-700">ESSAFARIA</p><h2 id="partner-title" className="mt-4 max-w-xl font-serif text-3xl text-navy-900 sm:text-4xl">{copy.agenciesTitle}</h2><p className="mt-6 max-w-xl text-base leading-relaxed text-slate-600">{copy.agenciesBody}</p></div>
-      <div className="border-s border-line ps-6 md:self-center"><p className="max-w-sm text-sm leading-relaxed text-slate-600">{copy.applyBody}</p><Link href="/b2b" className="mt-6 inline-flex min-h-11 items-center text-base font-semibold text-navy-900 underline underline-offset-8">{copy.partner} <span className="directional-arrow" aria-hidden> →</span></Link></div>
+      <div><p className="travel-eyebrow text-navy-700">ESSAFARIA</p><h2 id="partner-title" className="mt-4 max-w-xl font-serif text-[32px] text-navy-900 sm:text-[32px]">{copy.agenciesTitle}</h2><p className="mt-6 max-w-xl text-base leading-relaxed text-slate-600">{copy.agenciesBody}</p></div>
+      <div className="border-s border-line ps-6 md:self-center"><p className="max-w-sm text-base leading-relaxed text-slate-600">{copy.applyBody}</p><Link href="/b2b" className="mt-6 inline-flex text-base font-semibold text-navy-900 underline underline-offset-8">{copy.partner} <span className="directional-arrow" aria-hidden> →</span></Link></div>
     </section>
   </>;
 }

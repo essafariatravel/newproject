@@ -73,7 +73,7 @@ export default async function PrioritiesConfigPage({
 
       {canManage ? (
         <div className="mt-8">
-          <h2 className="mb-4 font-serif text-xl text-navy-900">{ct("Add priority")}</h2>
+          <h2 className="mb-4 font-serif text-lg text-navy-900">{ct("Add priority")}</h2>
           <form action={createPriorityAction} className="card grid grid-cols-1 gap-4 p-6 sm:grid-cols-4">
             <div>
               <label className="label" htmlFor="name">{ct("Name *")}</label>

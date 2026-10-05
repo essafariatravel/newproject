@@ -39,7 +39,7 @@ export default async function RegistrationSuccessPage({
             <p className="mt-6 rounded-full bg-white/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.24em] text-gold-400 ring-1 ring-white/20">
               {copy.success.kicker}
             </p>
-            <h1 className="mx-auto mt-4 max-w-lg font-serif text-2xl font-semibold leading-snug text-white [text-shadow:0_2px_14px_rgb(0_0_0/0.45)] sm:text-3xl">
+            <h1 className="mx-auto mt-4 max-w-lg font-serif text-2xl font-semibold leading-snug text-white [text-shadow:0_2px_14px_rgb(0_0_0/0.45)] sm:text-[32px]">
               {copy.success.title}
             </h1>
           </div>
@@ -53,10 +53,10 @@ export default async function RegistrationSuccessPage({
               <span className="text-xs font-semibold uppercase tracking-[0.1em] text-gold-700">
                 {copy.success.referenceLabel}
               </span>
-              <span className="font-mono text-sm font-bold tracking-[0.08em] text-navy-900">{reference}</span>
+              <span className="font-mono text-base font-semibold tracking-[0.08em] text-navy-900">{reference}</span>
             </div>
           ) : (
-            <p className="mt-6 rounded-2xl border border-line bg-ivory-50 px-6 py-4 text-sm text-slate-600">
+            <p className="mt-6 rounded-lg border border-line bg-ivory-50 px-6 py-4 text-base text-slate-600">
               {copy.success.noReference}
             </p>
           )}
@@ -67,10 +67,10 @@ export default async function RegistrationSuccessPage({
           <ol className="mt-4 space-y-4">
             {copy.success.nextSteps.map((step, i) => (
               <li key={step} className="flex gap-4">
-                <span className="font-serif text-base italic leading-snug text-gold-700">
+                <span className="font-serif text-base italic leading-snug text-gold-500">
                   {String(i + 1).padStart(2, "0")}
                 </span>
-                <p className="text-sm leading-relaxed text-slate-600">{step}</p>
+                <p className="text-base leading-relaxed text-slate-600">{step}</p>
               </li>
             ))}
           </ol>
@@ -79,7 +79,7 @@ export default async function RegistrationSuccessPage({
             <Link href="/" className="btn-primary px-6 py-2">
               {copy.success.backHome}
             </Link>
-            <Link href={`/agency/register?lang=${locale}`} className="inline-flex min-h-11 items-center text-base font-medium text-slate-500 hover:text-navy-900">
+            <Link href={`/agency/register?lang=${locale}`} className="inline-flex min-h-11 items-center text-base font-semibold text-slate-500 hover:text-navy-900">
               {copy.title}
             </Link>
           </div>
