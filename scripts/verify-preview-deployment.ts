@@ -5,11 +5,11 @@ import { assertApprovedPreviewRedirect, validatePreviewOrigin } from "./lib/prev
  *
  * Required:
  *   PREVIEW_BASE_URL=https://...vercel.app
+ *   HEALTHCHECK_TOKEN                - verifies protected operator endpoints
+ *   EXPECTED_RELEASE_SHA             - verifies deep-health release metadata
  *
  * Optional:
  *   VERCEL_AUTOMATION_BYPASS_SECRET - for Vercel Deployment Protection
- *   HEALTHCHECK_TOKEN                - verifies protected operator endpoints
- *   EXPECTED_RELEASE_SHA             - verifies deep-health release metadata
  */
 const baseUrl = process.env.PREVIEW_BASE_URL?.trim();
 if (!baseUrl) {
@@ -109,28 +109,13 @@ async function verifyPublic(path: string) {
   }
 
   const payload = json as Record<string, unknown>;
-  if (path === "/api/health") {
-    // The authoritative RC keeps the existing compatibility endpoint's
-    // { ok, service, deployment } contract and never exposes staff diagnostics
-    // to anonymous callers. Do not replace that richer route for this gate.
-    const deployment = payload.deployment as { environment?: unknown } | undefined;
-    if (
-      payload.ok !== true ||
-      payload.service !== "essafaria-visa-os" ||
-      deployment?.environment === "production"
-    ) {
-      throw new Error(`${path} did not report a healthy non-Production deployment.`);
-    }
-    if (JSON.stringify(Object.keys(payload).sort()) !== JSON.stringify(["deployment", "ok", "service"])) {
-      throw new Error(`${path} anonymous payload no longer matches the RC health contract.`);
-    }
-  } else {
-    if (payload.status !== "healthy" || payload.service !== "essafaria-visa-os") {
-      throw new Error(`${path} returned an unexpected health payload.`);
-    }
-    if (JSON.stringify(Object.keys(payload).sort()) !== JSON.stringify(["service", "status"])) {
-      throw new Error(`${path} public health payload is no longer minimal.`);
-    }
+  // Preview safety comes from the validated origin and same-host redirect rules.
+  // Release identity is checked only through protected deep health.
+  if (payload.status !== "healthy" || payload.service !== "essafaria-visa-os") {
+    throw new Error(`${path} returned an unexpected health payload.`);
+  }
+  if (JSON.stringify(Object.keys(payload).sort()) !== JSON.stringify(["service", "status"])) {
+    throw new Error(`${path} public health payload is no longer minimal.`);
   }
 
   if (!response.headers.get("cache-control")?.toLowerCase().includes("no-store")) {
@@ -141,23 +126,14 @@ async function verifyPublic(path: string) {
 }
 
 async function verifyInternal(path: string) {
-  const unauthenticated = await request(path);
-
   if (!healthToken) {
-    if (unauthenticated.response.status === 404) {
-      return { path, status: 404, result: "disabled" };
-    }
-    if (unauthenticated.response.status === 401) {
-      return { path, status: 401, result: "configured_unverified" };
-    }
-    throw new Error(
-      `${path} must be disabled (404) or protected (401) without an operator token; received ${unauthenticated.response.status}.`,
-    );
+    throw new Error("HEALTHCHECK_TOKEN is required for protected Preview runtime verification.");
   }
 
   if (Buffer.byteLength(healthToken, "utf8") < 32) {
     throw new Error("HEALTHCHECK_TOKEN supplied to verification is weaker than 32 bytes.");
   }
+  const unauthenticated = await request(path);
   if (unauthenticated.response.status !== 401) {
     throw new Error(
       `${path} must reject missing operator authorization with 401; received ${unauthenticated.response.status}.`,
@@ -167,17 +143,17 @@ async function verifyInternal(path: string) {
   const authorized = await request(path, {
     authorization: `Bearer ${healthToken}`,
   });
-  if (![200, 503].includes(authorized.response.status)) {
+  if (authorized.response.status !== 200) {
     throw new Error(`${path} authorized request returned HTTP ${authorized.response.status}.`);
   }
   assertNoSensitiveDiagnostics(authorized.json, path);
 
-  if (path.endsWith("/deep") && authorized.response.status === 200) {
+  if (path.endsWith("/deep")) {
     const body = authorized.json as {
       releaseSha?: string | null;
       releaseProtections?: { status?: string };
     };
-    if (expectedReleaseSha && body.releaseSha !== expectedReleaseSha) {
+    if (body.releaseSha !== expectedReleaseSha) {
       throw new Error("Deep health release SHA does not match EXPECTED_RELEASE_SHA.");
     }
     if (body.releaseProtections?.status !== "healthy") {
@@ -201,7 +177,8 @@ async function verifyInternal(path: string) {
   return {
     path,
     status: authorized.response.status,
-    result: authorized.response.status === 200 ? "pass" : "degraded",
+    result: "pass",
+    ...(path.endsWith("/deep") ? { releaseSha: (authorized.json as { releaseSha: string }).releaseSha } : {}),
   };
 }
 
@@ -209,6 +186,13 @@ async function main() {
   const publicResults = [];
   for (const path of ["/api/health/live", "/api/health/ready", "/api/health"]) {
     publicResults.push(await verifyPublic(path));
+  }
+
+  if (!healthToken) {
+    throw new Error("HEALTHCHECK_TOKEN is required for protected Preview runtime verification.");
+  }
+  if (!expectedReleaseSha) {
+    throw new Error("EXPECTED_RELEASE_SHA is required for protected release verification.");
   }
 
   const internalResults = [];
@@ -220,18 +204,15 @@ async function main() {
     internalResults.push(await verifyInternal(path));
   }
 
-  const operatorUnverified = internalResults.some(
-    (item) => item.result === "configured_unverified",
-  );
-
   process.stdout.write(
     `${JSON.stringify({
       gate: "preview-runtime-verification",
-      status: operatorUnverified ? "pass_with_operator_unverified" : "pass",
+      status: "pass",
       host: parsed.hostname,
       public: publicResults,
       internal: internalResults,
-      releaseVerified: Boolean(expectedReleaseSha && healthToken),
+      releaseVerified: true,
+      releaseSha: internalResults.find((item) => item.path.endsWith("/deep"))?.releaseSha,
       generatedAt: new Date().toISOString(),
     })}\n`,
   );
