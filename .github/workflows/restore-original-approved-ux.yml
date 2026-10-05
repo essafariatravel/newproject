@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   browser:
-    if: github.event.head_commit.message == 'Finalize restored UX browser verification with agency username'
+    if: github.event.head_commit.message == 'Finalize restored UX browser verification with seeded username'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -72,20 +72,20 @@ jobs:
           npm run db:seed
 
           export AGENCY_LOGIN="$(node <<'NODE'
-const { Client } = require("pg");
-(async () => {
-  const client = new Client({ connectionString: process.env.DATABASE_URL });
-  await client.connect();
-  const result = await client.query(
-    "select username from users where lower(email)=lower($1) and agency_id is not null limit 1",
-    ["admin@horizonvoyages.example"]
-  );
-  await client.end();
-  if (!result.rows[0]?.username) process.exit(2);
-  process.stdout.write(result.rows[0].username);
-})().catch(() => process.exit(3));
-NODE
-)"
+          const { Client } = require("pg");
+          (async () => {
+            const client = new Client({ connectionString: process.env.DATABASE_URL });
+            await client.connect();
+            const result = await client.query(
+              "select username from users where lower(email)=lower($1) and agency_id is not null limit 1",
+              ["admin@horizonvoyages.example"]
+            );
+            await client.end();
+            if (!result.rows[0]?.username) process.exit(2);
+            process.stdout.write(result.rows[0].username);
+          })().catch(() => process.exit(3));
+          NODE
+          )"
           test -n "$AGENCY_LOGIN"
 
           npm start > /tmp/ux-next.log 2>&1 &
