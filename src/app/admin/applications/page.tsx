@@ -38,6 +38,10 @@ export default async function AdminApplicationsPage({
   for (const [k, v] of Object.entries(raw)) sp[k] = typeof v === "string" ? v : undefined;
   const user = await pageUser();
   const flash = flashFrom(sp);
+  const hasActiveFilters = Boolean(
+    sp.q || sp.agency || sp.visa || sp.status || sp.priority || sp.from || sp.to ||
+    sp.assigned || sp.documents || sp.aging || sp.view
+  );
 
   // §27 — saved operational views. Each one is a plain, shareable URL that
   // applies the same server-side filters as doing it by hand.
@@ -107,7 +111,7 @@ export default async function AdminApplicationsPage({
           <Link
             key={v.id}
             href={`/admin/applications?view=${v.id}&${v.query}`}
-            className={`inline-flex min-h-11 items-center justify-center rounded-md border px-4 py-2 text-base font-medium transition-colors ${
+            className={`inline-flex min-h-11 items-center rounded-md border px-4 text-base font-semibold transition-colors ${
               activeView === v.id
                 ? "border-iris-300 bg-iris-50 text-iris-700"
                 : "border-slate-200 bg-white text-slate-500 hover:border-iris-200 hover:text-navy-900"
@@ -117,7 +121,7 @@ export default async function AdminApplicationsPage({
           </Link>
         ))}
         {activeView ? (
-          <Link href="/admin/applications" className="inline-flex min-h-11 items-center px-2 text-base text-slate-600 underline">
+          <Link href="/admin/applications" className="inline-flex min-h-11 items-center px-2 text-base text-slate-500 underline">
             {ct("Clear view")}
           </Link>
         ) : null}
@@ -169,15 +173,19 @@ export default async function AdminApplicationsPage({
       ) : null}
 
       {result.rows.length === 0 ? (
-        <div className="card">
-          <EmptyState title={ct("No applications found")} body={ct("Try adjusting the filters, or wait for agencies to submit applications.")} />
+        <div className="border-y border-line">
+          <EmptyState
+            title={ct(hasActiveFilters ? "No applications match these filters." : "No applications yet")}
+            body={ct(hasActiveFilters ? "Try adjusting the filters, or wait for agencies to submit applications." : "Applications submitted by partner agencies will appear here.")}
+            action={hasActiveFilters ? <Link href="/admin/applications" className="btn-secondary btn-sm">{ct("Clear filters")}</Link> : undefined}
+          />
         </div>
       ) : (
         <>
           {/* §safe bulk — assign / priority only. No bulk approve, reject, debit
               or delete exists anywhere in the product. */}
           {canBulk ? (
-            <form id="bulk-form" action={bulkAssignAction} className="card mb-4 flex flex-wrap items-end gap-4 p-4" data-testid="bulk-bar">
+            <form id="bulk-form" action={bulkAssignAction} className="filter-bar mb-4 flex flex-wrap items-end gap-4" data-testid="bulk-bar">
               {canAssign ? (
                 <div className="min-w-[200px]">
                   <label className="label" htmlFor="bulk-assignedTo">{ct("Assign selected to")}</label>
@@ -193,37 +201,33 @@ export default async function AdminApplicationsPage({
                 <label className="label" htmlFor="bulk-priority">{ct("Set priority to")}</label>
                 <select id="bulk-priority" name="priorityId" className="input">
                   <option value="">{ct("Leave unchanged")}</option>
-                  {priorities.filter((p) => p.active && p.code !== "EXPRESS").map((p) => (
+                  {priorities.map((p) => (
                     <option key={p.id} value={p.id}>{localizedPriority(p.code, p.name, uiLocale)}</option>
                   ))}
                 </select>
-              </div>
-              <div className="min-w-[240px] flex-1">
-                <label className="label" htmlFor="bulk-priority-reason">{ct("Priority change reason")}</label>
-                <input id="bulk-priority-reason" name="reason" className="input" minLength={10} maxLength={1000} aria-describedby="bulk-priority-reason-help" />
-                <p id="bulk-priority-reason-help" className="mt-1 text-xs text-slate-500">{ct("Required for priority changes (at least 10 characters).")}</p>
               </div>
               {canAssign ? (
                 <button type="submit" className="btn-primary btn-sm" formAction={bulkAssignAction}>{ct("Apply to selected")}</button>
               ) : null}
               <button type="submit" className="btn-secondary btn-sm" formAction={bulkPriorityAction} formNoValidate>{ct("Apply priority")}</button>
-              <p className="w-full text-xs text-slate-400">{ct("Finished dossiers (approved, rejected, cancelled) are skipped — outcomes are never changed in bulk.")}</p>
+              <p className="w-full text-base text-slate-600">{ct("Finished dossiers (approved, rejected, cancelled) are skipped — outcomes are never changed in bulk.")}</p>
             </form>
           ) : null}
 
-          <TableWrap ariaLabel={ct("Applications")}>
+          <TableWrap>
             <thead className="border-b border-slate-100 bg-ivory-50/60">
               <tr>
-                {canBulk ? <th className="th w-8">{ct("Select")}</th> : null}
-                <th className="th">{ct("Applicants")}</th>
+                {canBulk ? <th className="th w-12">{ct("Select")}</th> : null}
+                <th className="th">{ct("Destination")}</th>
+                <th className="th">{ct("Applicant")}</th>
                 <th className="th">{ct("Agency")}</th>
-                <th className="th">{ct("Visa / Country")}</th>
-                <th className="th">{ct("Fee")}</th>
-                <th className="th">{ct("Priority")}</th>
                 <th className="th">{ct("Status")}</th>
-                <th className="th">{ct("Owner")}</th>
                 <th className="th">{ct("Waiting")}</th>
+                <th className="th">{ct("Owner")}</th>
+                <th className="th">{ct("Priority")}</th>
+                <th className="th">{ct("Fee")}</th>
                 <th className="th">{ct("Submitted")}</th>
+                <th className="th">{ct("Next action")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -231,7 +235,7 @@ export default async function AdminApplicationsPage({
                 <NavigableTableRow key={r.app.id} href={`/admin/applications/${r.app.id}`} className="tr-hover">
                   {canBulk ? (
                     <td className="td">
-                      <label className="inline-grid min-h-11 min-w-11 cursor-pointer place-items-center">
+                      <label className="inline-flex h-11 w-11 items-center justify-center">
                         <input
                           type="checkbox"
                           name="ids"
@@ -244,39 +248,34 @@ export default async function AdminApplicationsPage({
                     </td>
                   ) : null}
                   <td className="td">
-                    <Link href={`/admin/applications/${r.app.id}`} className="inline-flex min-h-11 max-w-[200px] items-center truncate font-semibold text-navy-900 hover:underline" title={r.applicantSummary ?? r.app.reference}>
+                    <span className="block font-semibold text-navy-900">{countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}</span>
+                    <span className="block text-xs text-slate-500">{configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}</span>
+                  </td>
+                  <td className="td">
+                    <Link href={`/admin/applications/${r.app.id}`} className="block max-w-[200px] truncate font-semibold text-navy-900 hover:underline" title={r.applicantSummary ?? r.app.reference}>
                       {r.applicantSummary ?? r.app.reference}
                     </Link>
-                    {r.applicantSummary ? <span className="block text-xs text-slate-500">{r.app.reference}</span> : null}
+                    {r.applicantSummary ? <span className="block text-xs text-slate-500"><bdi>{r.app.reference}</bdi></span> : null}
                   </td>
                   <td className="td max-w-[160px] truncate">{r.agencyName}</td>
-                  <td className="td">
-                    <span className="block">{countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}</span>
-                    <span className="block text-xs text-slate-400">{configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}</span>
-                  </td>
-                  <td className="td whitespace-nowrap tabular-nums">
-                    {formatAmount(r.app.fee, "DZD", uiLocale)}
-                  </td>
-                  <td className="td">
-                    <PriorityBadge name={r.priorityName} weight={r.priorityWeight} />
-                  </td>
-                  <td className="td">
-                    <StatusBadge code={r.statusCode} name={r.statusName} />
-                  </td>
-                  <td className="td whitespace-nowrap text-xs">
-                    {r.ownerName ? (
-                      <span className="text-navy-800">{r.ownerName}</span>
-                    ) : (
-                      <span className="text-slate-400">{ct("Unassigned")}</span>
-                    )}
-                  </td>
-                  <td className="td whitespace-nowrap text-xs" data-testid="waiting-cell">
+                  <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
+                  <td className="td whitespace-nowrap" data-testid="waiting-cell">
                     <span className={waitingClass(waitingBand(elapsedDays(new Date(r.statusSince))))}>
                       {elapsedLabel(new Date(r.statusSince), uiLocale)}
                     </span>
                   </td>
+                  <td className="td whitespace-nowrap">
+                    {r.ownerName ? <span className="text-navy-800">{r.ownerName}</span> : <span className="text-slate-500">{ct("Unassigned")}</span>}
+                  </td>
+                  <td className="td"><PriorityBadge name={r.priorityName} weight={r.priorityWeight} /></td>
+                  <td className="td whitespace-nowrap tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</td>
                   <td className="td whitespace-nowrap text-xs text-slate-500">
-                    {r.app.submittedAt ? formatDate(r.app.submittedAt, uiLocale) : "— (draft)"}
+                    {r.app.submittedAt ? formatDate(r.app.submittedAt, uiLocale) : "—"}
+                  </td>
+                  <td className="td">
+                    <Link href={`/admin/applications/${r.app.id}`} className="inline-flex min-h-11 items-center gap-2 font-semibold text-navy-900 hover:underline">
+                      {ct("Open dossier")} <span aria-hidden="true" className="directional-arrow">→</span>
+                    </Link>
                   </td>
                 </NavigableTableRow>
               ))}
