@@ -1,0 +1,78 @@
+name: Restore Original Approved UX UI
+
+on:
+  push:
+    branches:
+      - restore/original-approved-ux-ui
+    paths:
+      - .github/workflows/restore-original-approved-ux.yml
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    if: github.event.head_commit.message == 'Add temporary original UX restore runner'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout frozen RC restoration branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify exact frozen parent
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "8b4b44d0bbaf312d96cadbd438ec4193e58d278b"
+
+      - name: Build frontend-only patch from approved polish
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="1698562a05f8bd5c36027651d987a06bb60510f9"
+          APPROVED="a774203ec525f543e75a076cf867024a2a1af506"
+          git cat-file -e "$BASE^{commit}"
+          git cat-file -e "$APPROVED^{commit}"
+          git diff --binary --full-index "$BASE" "$APPROVED" --             ':(glob)src/app/**/*.tsx'             'src/app/globals.css'             'src/app/travel-platform.css'             ':(glob)src/components/**/*.tsx'             'src/lib/i18n-content.ts'             > /tmp/original-approved-ui.patch
+          test -s /tmp/original-approved-ui.patch
+          echo "Approved frontend patch lines: $(wc -l < /tmp/original-approved-ui.patch)"
+
+      - name: Three-way apply approved presentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git apply --3way --index --whitespace=nowarn /tmp/original-approved-ui.patch; then
+            echo "::error::Three-way frontend restoration has conflicts."
+            git status --short
+            git diff --name-only --diff-filter=U
+            exit 1
+          fi
+
+      - name: Enforce visual-only scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --cached --name-only)"
+          printf '%s\n' "$changed"
+          test -n "$changed"
+          bad="$(printf '%s\n' "$changed" | grep -Ev '^(src/app/.*\.tsx|src/app/(globals|travel-platform)\.css|src/components/.*\.tsx|src/lib/i18n-content\.ts)$' || true)"
+          if [ -n "$bad" ]; then
+            echo "::error::Restoration escaped frontend-only scope:"
+            printf '%s\n' "$bad"
+            exit 1
+          fi
+          if printf '%s\n' "$changed" | grep -Eq '^(src/app/api/|src/app/actions/|src/db/|migrations/|src/lib/(auth|wallet|storage|rbac|security))'; then
+            echo "::error::Protected backend/security path touched."
+            exit 1
+          fi
+
+      - name: Commit restored visual delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Restore original approved UX UI presentation"
+          git push origin HEAD:restore/original-approved-ux-ui
