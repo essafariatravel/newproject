@@ -67,7 +67,7 @@ export default async function PortalProfilePage({
               }
             />
             <div className="flex flex-wrap items-center gap-4 px-6 py-6">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-ivory-200 bg-ivory-50">
+              <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-ivory-200 bg-ivory-50">
                 <BrandMark className="h-11 w-11" src={agencyLogoUrl(agency)} alt={agency.tradingName ?? agency.legalName} />
               </div>
               {user.role === "AGENCY_ADMIN" ? (
@@ -78,12 +78,14 @@ export default async function PortalProfilePage({
                     </form>
                   ) : null}
                   <form action={uploadOwnAgencyLogoAction} encType="multipart/form-data" className="flex flex-wrap items-center gap-2">
+                    <label htmlFor="agency-logo-upload" className="sr-only">{ct("Agency logo")}</label>
                     <input
+                      id="agency-logo-upload"
                       type="file"
                       name="logo"
                       accept="image/png,image/jpeg,image/webp"
                       required
-                      className="max-w-full text-xs file:me-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white"
+                      className="min-h-11 max-w-full text-base file:me-2 file:min-h-11 file:cursor-pointer file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-base file:font-semibold file:text-white"
                     />
                     <SubmitButton className="btn-secondary btn-sm" pendingLabel={ct("Uploading…")}>
                       {agency.logoKey ? ct("Replace logo") : ct("Upload logo")}
@@ -134,7 +136,7 @@ export default async function PortalProfilePage({
                 {team.map((u) => (
                   <tr key={u.id} className="tr-hover">
                     <td className="td">
-                      <span className="block font-medium text-navy-900">{u.name}</span>
+                      <span className="block font-semibold text-navy-900">{u.name}</span>
                       <span className="block text-xs text-slate-400" dir="ltr">{u.username}</span>
                     </td>
                     <td className="td"><span className="badge bg-navy-900/5 text-navy-800">{businessLabel(u.role, uiLocale)}</span></td>
@@ -215,12 +217,12 @@ export default async function PortalProfilePage({
           </Card>
           <Card>
             <CardHeader title={ct("Your account")} />
-            <div className="px-4 py-4 text-sm text-slate-700">
+            <div className="px-4 py-4 text-base text-slate-700">
               <p>{user.name}</p>
               <p className="text-xs text-slate-400" dir="ltr">{user.username}</p>
-              <Link href="/change-password" className="mt-4 inline-flex min-h-11 items-center text-base text-iris-700 underline">{it("Change password")}</Link>
+              <Link href="/change-password" className="mt-4 inline-flex min-h-11 items-center text-base font-semibold text-iris-700 underline">{it("Change password")}</Link>
               <p className="mt-2 text-xs">
-                {ct("Role")}: <span className="badge bg-gold-100 text-gold-700">{businessLabel(user.role, uiLocale)}</span>
+                {ct("Role")}: <span className="badge bg-gold-100 text-navy-900">{businessLabel(user.role, uiLocale)}</span>
               </p>
             </div>
           </Card>
