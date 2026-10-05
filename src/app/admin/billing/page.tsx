@@ -59,8 +59,8 @@ export default async function AdminBillingPage({
       </div>
 
       <div className="mt-8">
-        <h2 className="mb-1 font-serif text-xl text-navy-900">{ct("Pending top-up requests")}</h2>
-        <p className="mb-4 max-w-3xl text-sm text-slate-500">
+        <h2 className="mb-1 font-serif text-lg text-navy-900">{ct("Pending top-up requests")}</h2>
+        <p className="mb-4 max-w-3xl text-base text-slate-500">
           {ct("The ledger entry is created by the normal wallet credit: no money is invented here.")}
         </p>
         {topups.length === 0 ? (
@@ -74,14 +74,14 @@ export default async function AdminBillingPage({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="font-mono text-xs text-slate-500">{t.reference}</p>
-                    <p className="text-sm font-semibold text-navy-900">
+                    <p className="text-base font-semibold text-navy-900">
                       <Link href={`/admin/agencies/${t.agencyId}`} className="hover:underline">
                         {t.agencyName}
                       </Link>{" "}
                       · <bdi dir="ltr">{formatAmount(t.amount, "DZD", uiLocale)}</bdi>
                     </p>
                     {t.note ? <p className="mt-1 text-xs text-slate-500">{t.note}</p> : null}
-                    {t.proofFilename ? <Link className="text-sm underline" href={`/api/topups/${t.id}/proof`}>{ct("Open bank transfer receipt")}</Link> : <p className="text-sm text-red-700">{ct("A receipt is required before approval. Reject this request with instructions to send a new request and receipt.")}</p>}
+                    {t.proofFilename ? <Link className="text-base underline" href={`/api/topups/${t.id}/proof`}>{ct("Open bank transfer receipt")}</Link> : <p className="text-base text-red-700">{ct("A receipt is required before approval. Reject this request with instructions to send a new request and receipt.")}</p>}
                   </div>
                   <p className="text-xs text-slate-400">{formatDateTime(t.createdAt, uiLocale)}</p>
                 </div>
@@ -173,7 +173,7 @@ export default async function AdminBillingPage({
                         {businessLabel(tx.type, uiLocale)}
                       </span>
                     </td>
-                    <td className={`td whitespace-nowrap font-medium tabular-nums ${tx.type === "CREDIT" || tx.type === "COMMERCIAL_DISCOUNT" ? "text-emerald-700" : "text-red-700"}`}>
+                    <td className={`td whitespace-nowrap font-semibold tabular-nums ${tx.type === "CREDIT" || tx.type === "COMMERCIAL_DISCOUNT" ? "text-emerald-700" : "text-red-700"}`}>
                       {tx.type === "CREDIT" || tx.type === "COMMERCIAL_DISCOUNT" ? "+" : "−"}{formatAmount(tx.amount, "DZD", uiLocale)}
                     </td>
                     <td className="td whitespace-nowrap tabular-nums text-xs">
@@ -200,7 +200,7 @@ export default async function AdminBillingPage({
 
       {canAdjust ? (
         <div className="mt-8">
-          <h2 className="mb-4 font-serif text-xl text-navy-900">{ct("Manual wallet adjustment")}</h2>
+          <h2 className="mb-4 font-serif text-lg text-navy-900">{ct("Manual wallet adjustment")}</h2>
           <WalletAdjustmentForm agencies={agencies.map(({agency})=>({id:agency.id,name:agency.tradingName??agency.legalName,balance:agency.balance}))} back="/admin/billing" locale={uiLocale}/>
         </div>
       ) : null}

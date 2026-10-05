@@ -54,14 +54,14 @@ export default async function AdminSettingsPage({
       <Flash {...flash} />
       <section className="mb-6 border-y border-line py-6" aria-labelledby="launch-readiness-title">
         <h2 id="launch-readiness-title" className="text-lg font-semibold text-navy-900">{ct("Launch content readiness")}</h2>
-        <p className="mt-1 text-sm text-slate-600">{ct("Technical checks do not approve company facts, the launch catalogue or legal text.")}</p>
-        <dl className="mt-4 space-y-4 text-sm">
+        <p className="mt-1 text-base text-slate-600">{ct("Technical checks do not approve company facts, the launch catalogue or legal text.")}</p>
+        <dl className="mt-4 space-y-4 text-base">
           <div><dt className="font-semibold">{ct("Missing public contact details")}</dt><dd>{readiness.missingContact.length ? readiness.missingContact.map(key => ct({email:"Contact email",phone:"Contact phone",address:"Office address",officeHours:"Office hours"}[key])).join(" · ") : ct("None")}</dd></div>
           <div><dt className="font-semibold">{ct("Missing approved legal versions")}</dt><dd><bdi dir="ltr">{readiness.missingLegal.join(" · ") || ct("None")}</bdi></dd></div>
         </dl>
-        {readiness.missingLegal.length ? <p role="status" className="mt-4 text-sm font-medium text-red-700">{ct("Registration is blocked in each language until its approved Terms and Privacy versions are published.")}</p> : null}
-        <details className="mt-4"><summary className="cursor-pointer font-semibold">{ct("Catalogue review issues")} ({readiness.issues.length})</summary><ul className="mt-4 divide-y divide-line">{readiness.issues.map(issue => <li key={issue.id} className="py-2 text-sm"><span className="font-medium">{issue.name}</span><p className="text-slate-600">{issue.reasons.map(ct).join(" · ")}</p></li>)}</ul></details>
-        <details className="mt-4"><summary className="cursor-pointer font-semibold">{ct("Owner launch checklist")}</summary><ul className="mt-4 list-disc space-y-2 ps-6 text-sm text-slate-600"><li>{ct("Confirm the registered company identity, real contact details, office address and office hours before launch.")}</li><li>{ct("Confirm the launch destinations, visa classifications, prices, processing times and document requirements.")}</li></ul></details>
+        {readiness.missingLegal.length ? <p role="status" className="mt-4 text-base font-semibold text-red-700">{ct("Registration is blocked in each language until its approved Terms and Privacy versions are published.")}</p> : null}
+        <details className="mt-4"><summary className="cursor-pointer font-semibold">{ct("Catalogue review issues")} ({readiness.issues.length})</summary><ul className="mt-4 divide-y divide-line">{readiness.issues.map(issue => <li key={issue.id} className="py-2 text-base"><span className="font-semibold">{issue.name}</span><p className="text-slate-600">{issue.reasons.map(ct).join(" · ")}</p></li>)}</ul></details>
+        <details className="mt-4"><summary className="cursor-pointer font-semibold">{ct("Owner launch checklist")}</summary><ul className="mt-4 list-disc space-y-2 ps-6 text-base text-slate-600"><li>{ct("Confirm the registered company identity, real contact details, office address and office hours before launch.")}</li><li>{ct("Confirm the launch destinations, visa classifications, prices, processing times and document requirements.")}</li></ul></details>
       </section>
 
       {canManage ? (
@@ -121,8 +121,8 @@ export default async function AdminSettingsPage({
               side and the public page picks the current interface language. */}
           {canPublishLegal ? <form action={updateSiteSettingsAction} className="mt-4 space-y-4">
             <input type="hidden" name="section" value="legal" />
-            <p className="text-sm text-slate-600">{ct("Publish owner-approved text only. Each change creates an immutable legal version.")}</p>
-            <p className="text-sm text-slate-600">{ct("The system records the actual publication timestamp automatically.")}</p>
+            <p className="text-base text-slate-600">{ct("Publish owner-approved text only. Each change creates an immutable legal version.")}</p>
+            <p className="text-base text-slate-600">{ct("The system records the actual publication timestamp automatically.")}</p>
             <Card>
               <CardHeader title={ct("Legal content")} subtitle={ct("Rendered on the public Privacy and Terms pages in the selected language.")} />
               <div className="space-y-6 px-6 py-6">
@@ -155,7 +155,7 @@ export default async function AdminSettingsPage({
       ) : (
         <Card>
           <CardHeader title={ct("Read-only view")} subtitle={ct("Your role cannot modify settings.")} />
-          <div className="space-y-2 px-6 py-6 text-sm text-slate-600">
+          <div className="space-y-2 px-6 py-6 text-base text-slate-600">
             <p>{ct("Brand name")}: {branding.name}</p>
             <p>{ct("Contact")}: <bdi dir="ltr">{settingString(settings, "site.contactEmail")} · {settingString(settings, "site.contactPhone")}</bdi></p>
           </div>

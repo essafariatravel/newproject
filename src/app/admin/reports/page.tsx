@@ -109,7 +109,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
           metric is reported as unavailable rather than as a fabricated 0. */}
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="p-4">
-          <h3 className="text-sm font-semibold text-navy-900">{ct("Average processing time")}</h3>
+          <h3 className="text-lg font-semibold text-navy-900">{ct("Average processing time")}</h3>
           <p className="mt-1 font-serif text-2xl text-navy-900" data-testid="avg-processing">
             {processing.avgDays === null
               ? ct("Not available yet")
@@ -120,7 +120,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
           </p>
         </Card>
         <Card className="p-4">
-          <h3 className="text-sm font-semibold text-navy-900">{ct("Decided dossiers")}</h3>
+          <h3 className="text-lg font-semibold text-navy-900">{ct("Decided dossiers")}</h3>
           <p className="mt-1 font-serif text-2xl text-navy-900">{Number(processing.decided ?? 0)}</p>
           <p className="mt-1 text-xs text-slate-400">
             {processing.fastestDays === null
@@ -129,8 +129,8 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
           </p>
         </Card>
         <Card className="p-4">
-          <h3 className="text-sm font-semibold text-navy-900">{ct("Wallet credits vs charges")}</h3>
-          <p className="mt-1 text-sm text-slate-600">
+          <h3 className="text-lg font-semibold text-navy-900">{ct("Wallet credits vs charges")}</h3>
+          <p className="mt-1 text-base text-slate-600">
             <bdi dir="ltr">{formatAmount(walletFlow.credits, "DZD", uiLocale)}</bdi> {ct("credited")} · <bdi dir="ltr">{formatAmount(walletFlow.charges, "DZD", uiLocale)}</bdi> {ct("charged")}
           </p>
           <p className="mt-1 text-xs text-slate-400">{ct("All amounts are DZD. Correction entries appear as their own ledger rows.")}</p>
@@ -147,7 +147,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
             <tbody className="divide-y divide-slate-100">
               {data.byAgency.map((r) => (
                 <tr key={r.agencyId} className="tr-hover">
-                  <td className="td font-medium text-navy-900">{r.agencyName}</td>
+                  <td className="td font-semibold text-navy-900">{r.agencyName}</td>
                   <td className="td tabular-nums">{Number(r.total)}</td>
                   <td className="td tabular-nums">{formatAmount(r.charged, "DZD", uiLocale)}</td>
                 </tr>
@@ -162,14 +162,14 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
           <div className="space-y-4 px-4 py-4">
             {data.byCountry.map((r) => (
               <div key={r.countryName} className="flex items-center justify-between gap-4">
-                <span className="w-40 truncate text-sm text-slate-700">{r.countryName}</span>
+                <span className="w-40 truncate text-base text-slate-700">{r.countryName}</span>
                 <Bar max={maxCountry} value={Number(r.total)} />
                 <span className="w-24 text-right text-xs tabular-nums text-slate-500">
                   {r.total} · {formatAmount(r.revenue, "DZD", uiLocale)}
                 </span>
               </div>
             ))}
-            {data.byCountry.length === 0 ? <p className="text-sm text-slate-500">{ct("No data.")}</p> : null}
+            {data.byCountry.length === 0 ? <p className="text-base text-slate-500">{ct("No data.")}</p> : null}
           </div>
         </Card>
 
@@ -183,7 +183,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
                 <span className="w-10 text-right text-xs tabular-nums text-slate-500">{r.total}</span>
               </div>
             ))}
-            {data.byStatus.length === 0 ? <p className="text-sm text-slate-500">{ct("No data.")}</p> : null}
+            {data.byStatus.length === 0 ? <p className="text-base text-slate-500">{ct("No data.")}</p> : null}
           </div>
         </Card>
 
@@ -192,12 +192,12 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
           <div className="space-y-4 px-4 py-4">
             {data.byVisaType.map((r) => (
               <div key={`${r.visaTypeId}:${r.visaTypeName}`} className="flex items-center justify-between gap-4">
-                <span className="w-56 truncate text-sm text-slate-700">{configName({name:r.visaTypeName,nameFr:r.visaTypeNameFr,nameAr:r.visaTypeNameAr},uiLocale)}</span>
+                <span className="w-56 truncate text-base text-slate-700">{configName({name:r.visaTypeName,nameFr:r.visaTypeNameFr,nameAr:r.visaTypeNameAr},uiLocale)}</span>
                 <Bar max={maxVisa} value={Number(r.total)} />
                 <span className="w-10 text-right text-xs tabular-nums text-slate-500">{r.total}</span>
               </div>
             ))}
-            {data.byVisaType.length === 0 ? <p className="text-sm text-slate-500">{ct("No data.")}</p> : null}
+            {data.byVisaType.length === 0 ? <p className="text-base text-slate-500">{ct("No data.")}</p> : null}
           </div>
         </Card>
 
