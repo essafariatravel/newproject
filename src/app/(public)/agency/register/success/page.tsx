@@ -33,10 +33,10 @@ export default async function RegistrationSuccessPage({
             }}
           />
           <div className="relative">
-            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gold-500/25 text-3xl text-gold-400 ring-2 ring-gold-400/70 shadow-[0_0_0_6px_rgb(255_255_255/0.06)]">
+            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gold-500/25 text-[32px] text-gold-200 ring-2 ring-gold-400/70 shadow-[0_0_0_6px_rgb(255_255_255/0.06)]">
               ✓
             </span>
-            <p className="mt-6 rounded-full bg-white/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.24em] text-gold-400 ring-1 ring-white/20">
+            <p className="mt-6 rounded-md bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-gold-200 ring-1 ring-white/20">
               {copy.success.kicker}
             </p>
             <h1 className="mx-auto mt-4 max-w-lg font-serif text-2xl font-semibold leading-snug text-white [text-shadow:0_2px_14px_rgb(0_0_0/0.45)] sm:text-[32px]">
@@ -46,10 +46,10 @@ export default async function RegistrationSuccessPage({
         </div>
 
         <div className="px-8 py-8 sm:px-8">
-          <p className="text-sm leading-relaxed text-slate-600 sm:text-base">{copy.success.body}</p>
+          <p className="text-base leading-relaxed text-slate-600 sm:text-base">{copy.success.body}</p>
 
           {reference ? (
-            <div className="mt-6 flex items-center justify-between gap-4 rounded-2xl border border-gold-100 bg-gold-50/70 px-6 py-4">
+            <div className="mt-6 flex items-center justify-between gap-4 rounded-lg border border-gold-100 bg-gold-50/70 px-6 py-4">
               <span className="text-xs font-semibold uppercase tracking-[0.1em] text-gold-700">
                 {copy.success.referenceLabel}
               </span>

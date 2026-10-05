@@ -25,7 +25,7 @@ export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
     <>
       <form action={formAction} className="mt-8 space-y-4">
         {state.error ? (
-          <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-4 text-sm text-red-700">
+          <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-4 text-base text-red-700">
             {state.error}
           </div>
         ) : null}

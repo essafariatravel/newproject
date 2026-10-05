@@ -24,7 +24,7 @@ export default function ActivationForm(props: {
       <input type="hidden" name="token" value={token} />
       <input type="hidden" name="locale" value={locale} />
       {state.error ? (
-        <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-4 text-sm text-red-700">
+        <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-4 text-base text-red-700">
           {state.error}
         </div>
       ) : null}
