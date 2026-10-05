@@ -34,7 +34,7 @@ export default async function PortalDashboardPage() {
             </span>
             <span className="travel-record-traveller"><strong>{row.applicantSummary}</strong><small><bdi>{row.app.reference}</bdi></small></span>
             <span className="travel-record-status"><StatusBadge code={row.statusCode} name={row.statusName} /><small>{formatDateTime(row.app.updatedAt, locale)}</small></span>
-            <span className="travel-record-action">{ct(row.agencyNextAction)}<span aria-hidden="true" className="directional-arrow"> →</span></span>
+            <span className="travel-record-action">{ct(attention ? "Upload requested documents" : "Open dossier")}<span aria-hidden="true" className="directional-arrow"> →</span></span>
           </Link>
         </li>
       ))}
@@ -70,7 +70,7 @@ export default async function PortalDashboardPage() {
       <nav className="agency-stats" aria-label={ct("Agency dashboard")}>
         <Link href="/portal/applications?queue=active"><strong>{totals.active}</strong><span>{ct("Active applications")}</span></Link>
         <Link href="/portal/applications?documents=requested"><strong>{(totals as { actionRequired?: number }).actionRequired ?? 0}</strong><span>{ct("Action required")}</span></Link>
-        <Link href="/portal/applications?queue=completed"><strong>{totals.completed}</strong><span>{ct("Completed")}</span></Link>
+        <Link href="/portal/applications?status=APPROVED"><strong>{totals.completed}</strong><span>{ct("Completed")}</span></Link>
         <Link href="/portal/wallet"><strong className="wallet-value tabular-nums">{formatAmount(wallet.balance, "DZD", locale)}</strong><span>{ct("Wallet balance")}</span></Link>
       </nav>
 
@@ -87,10 +87,10 @@ export default async function PortalDashboardPage() {
       {hasPermission(user,"transactions.view.own") ? <Card>
         <CardHeader title={ct("Recent wallet activity")} actions={<Link href="/portal/wallet" className="btn-secondary btn-sm">{ct("Ledger")}</Link>} />
         <ul className="divide-y divide-slate-100 px-4">
-          {data.recentTx.length === 0 ? <li className="py-6 text-sm text-slate-500">{ct("No transactions yet.")}</li> : data.recentTx.map((tx) => (
+          {data.recentTx.length === 0 ? <li className="py-6 text-base text-slate-500">{ct("No transactions yet.")}</li> : data.recentTx.map((tx) => (
             <li key={tx.id} className="flex items-center justify-between gap-4 py-4">
-              <div className="min-w-0"><p className="text-sm font-medium text-navy-900">{(tx as { reference?: string | null }).reference ?? businessLabel(tx.type, locale)}</p><p className="text-xs text-slate-500">{formatDateTime(tx.createdAt, locale)}</p></div>
-              <span className={`whitespace-nowrap text-sm font-medium tabular-nums ${tx.type === "CREDIT" ? "text-emerald-700" : "text-red-700"}`}>{tx.type === "CREDIT" ? "+" : "-"}{formatAmount(tx.amount, "DZD", locale)}</span>
+              <div className="min-w-0"><p className="text-base font-semibold text-navy-900">{(tx as { reference?: string | null }).reference ?? businessLabel(tx.type, locale)}</p><p className="text-xs text-slate-500">{formatDateTime(tx.createdAt, locale)}</p></div>
+              <span className={`whitespace-nowrap text-base font-semibold tabular-nums ${tx.type === "CREDIT" ? "text-emerald-700" : "text-red-700"}`}>{tx.type === "CREDIT" ? "+" : "-"}{formatAmount(tx.amount, "DZD", locale)}</span>
             </li>
           ))}
         </ul>

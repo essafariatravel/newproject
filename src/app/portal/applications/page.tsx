@@ -4,7 +4,7 @@ import { portalPageUser } from "@/lib/page-auth";
 import { searchApplications, resolvePageSize } from "@/lib/queries";
 import { listStatuses } from "@/lib/applications";
 import { flashFrom } from "@/lib/action-helpers";
-import { formatAmount, formatDateTime } from "@/lib/format";
+import { formatAmount, formatDate } from "@/lib/format";
 import { FilterBar, Pagination, PageSizeSelector } from "@/components/app-widgets";
 import { localizedStatusName } from "@/lib/ui-i18n";
 import { EmptyState, Flash, PageHeader, Progress, TableWrap } from "@/components/ui";
@@ -30,6 +30,7 @@ export default async function PortalApplicationsPage({
   const user = await portalPageUser();
   const flash = flashFrom(sp);
   const page = Number(sp.page ?? "1") || 1;
+  const hasActiveFilters = Boolean(sp.q || sp.status || sp.from || sp.to || sp.queue || sp.documents);
 
   const [result, statuses] = await Promise.all([
     searchApplications(user, { q: sp.q, queue:sp.queue==="active"||sp.queue==="completed"?sp.queue:undefined, documents: sp.documents === "requested" ? "requested" : undefined, statusCode: sp.status, dateFrom: sp.from, dateTo: sp.to, page, pageSize: resolvePageSize(sp.per) }),
@@ -72,9 +73,13 @@ export default async function PortalApplicationsPage({
       {result.rows.length === 0 ? (
         <div className="card">
           <EmptyState
-            title={ct("No applications found")}
-            body={ct("Create a new application to get started.")}
-            action={<Link href="/portal/applications/new" className="btn-primary btn-sm">{ct("Create application")}</Link>}
+            title={ct(hasActiveFilters ? "No applications match these filters." : "No applications yet")}
+            body={ct(hasActiveFilters ? "Adjust or clear the filters to see other applications." : "Submit your first visa application to see it tracked here.")}
+            action={
+              hasActiveFilters
+                ? <Link href="/portal/applications" className="btn-secondary btn-sm">{ct("Clear filters")}</Link>
+                : <Link href="/portal/applications/new" className="btn-primary btn-sm">{ct("Create application")}</Link>
+            }
           />
         </div>
       ) : (
@@ -85,64 +90,73 @@ export default async function PortalApplicationsPage({
           <div className="space-y-4 md:hidden" data-testid="applications-cards">
             {result.rows.map((r) => {
               const p = progressById.get(r.app.id);
+              const needsDocuments = ["DOCUMENTS_REQUESTED", "DOCUMENTS_REQUIRED"].includes(r.statusCode);
               return (
-                <Link
-                  key={r.app.id}
-                  href={`/portal/applications/${r.app.id}`}
-                  className="card block p-4"
-                >
+                <Link key={r.app.id} href={`/portal/applications/${r.app.id}`} className="card block p-4">
                   <div className="flex items-start justify-between gap-4">
-                    <span className="font-semibold text-navy-900">{r.applicantSummary ?? "—"}</span>
+                    <span className="font-semibold text-navy-900">{countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}</span>
                     <StatusBadge code={r.statusCode} name={r.statusName} />
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">{r.app.reference}</p>
+                  <p className="mt-2 text-lg font-semibold text-navy-900">{r.applicantSummary ?? "—"}</p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)} · {configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}
+                    {configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}
+                    <span aria-hidden="true"> · </span><bdi>{r.app.reference}</bdi>
                   </p>
-                  <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-                    <span className="tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</span>
-                    <span className="flex items-center gap-2">
-                      {p ? <Progress done={p.done} total={p.total} /> : null}
-                      <span>{formatDateTime(r.app.updatedAt, uiLocale)}</span>
+                  <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
+                    <div className="space-y-1 text-xs text-slate-500">
+                      <p className="tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {p ? <Progress done={p.done} total={p.total} /> : null}
+                        <span>{formatDate(r.app.createdAt, uiLocale)}</span>
+                      </div>
+                    </div>
+                    <span className="inline-flex min-h-11 items-center gap-2 text-base font-semibold text-navy-900">
+                      {ct(needsDocuments ? "Upload requested documents" : "Open dossier")}
+                      <span aria-hidden="true" className="directional-arrow">→</span>
                     </span>
                   </div>
-                  <p className="mt-4 text-xs font-medium text-navy-800">{ct("Next action")}: {ct(r.agencyNextAction)}</p>
                 </Link>
               );
             })}
           </div>
 
           <div className="hidden md:block">
-          <TableWrap ariaLabel={ct("Applications")}>
+          <TableWrap>
             <thead className="border-b border-slate-100 bg-ivory-50/60">
               <tr>
+                <th className="th">{ct("Destination")}</th>
                 <th className="th">{ct("Applicant")}</th>
-                <th className="th">{ct("Visa / Country")}</th>
+                <th className="th">{ct("Status")}</th>
                 <th className="th">{ct("Documents")}</th>
                 <th className="th">{ct("Fee")}</th>
-                <th className="th">{ct("Status")}</th>
+                <th className="th">{ct("Created")}</th>
                 <th className="th">{ct("Next action")}</th>
-                <th className="th">{ct("Last updated")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {result.rows.map((r) => {
                 const p = progressById.get(r.app.id);
+                const needsDocuments = ["DOCUMENTS_REQUESTED", "DOCUMENTS_REQUIRED"].includes(r.statusCode);
                 return (
                   <NavigableTableRow key={r.app.id} href={`/portal/applications/${r.app.id}`} className="tr-hover">
                     <td className="td">
-                      <Link href={`/portal/applications/${r.app.id}`} className="inline-flex min-h-11 items-center font-semibold text-navy-900 hover:underline">{r.applicantSummary ?? "—"}</Link>
-                      <span className="block text-xs text-slate-500">{r.app.reference}</span>
+                      <span className="font-semibold text-navy-900">{countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}</span>
+                      <span className="block text-xs text-slate-500">{configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}</span>
                     </td>
                     <td className="td">
-                      {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}
-                      <span className="block text-xs text-slate-400">{configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}</span>
+                      <Link href={`/portal/applications/${r.app.id}`} className="font-semibold text-navy-900 hover:underline">{r.applicantSummary ?? "—"}</Link>
+                      <span className="block text-xs text-slate-500"><bdi>{r.app.reference}</bdi></span>
                     </td>
+                    <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
                     <td className="td">{p ? <Progress done={p.done} total={p.total} /> : "—"}</td>
                     <td className="td whitespace-nowrap tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</td>
-                    <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
-                    <td className="td text-xs">{ct(r.agencyNextAction)}</td>
-                    <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(r.app.updatedAt, uiLocale)}</td>
+                    <td className="td whitespace-nowrap text-xs text-slate-500">{formatDate(r.app.createdAt, uiLocale)}</td>
+                    <td className="td">
+                      <Link href={`/portal/applications/${r.app.id}`} className="inline-flex min-h-11 items-center gap-2 font-semibold text-navy-900 hover:underline">
+                        {ct(needsDocuments ? "Upload requested documents" : "Open dossier")}
+                        <span aria-hidden="true" className="directional-arrow">→</span>
+                      </Link>
+                    </td>
                   </NavigableTableRow>
                 );
               })}
