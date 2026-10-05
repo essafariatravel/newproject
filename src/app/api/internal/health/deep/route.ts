@@ -5,7 +5,6 @@ import { Pool } from "pg";
 import * as applicationSchema from "@/db/schema";
 import { databasePoolConfig } from "@/lib/database-config";
 import { qualifiedTable } from "@/lib/database-schema";
-import { safeErrorCode } from "@/lib/safe-error";
 import { checkReleaseProtections } from "@/lib/release-protections";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +41,7 @@ export async function GET(request: Request) {
     database: {
       connected: false,
       latencyMs: null as number | null,
-      errorCode: null as string | null,
+      error: false,
     },
     schema: {
       columnsValid: false,
@@ -85,8 +84,8 @@ export async function GET(request: Request) {
     } finally {
       client.release();
     }
-  } catch (error) {
-    report.database.errorCode = safeErrorCode(error);
+  } catch {
+    report.database.error = true;
   } finally {
     await pool.end().catch(() => undefined);
   }
@@ -109,7 +108,39 @@ export async function GET(request: Request) {
     report.status = "degraded";
   }
 
-  return NextResponse.json({ ...report, releaseProtections }, {
+  // Project only operator status and aggregate metrics. Raw schema/ledger
+  // identifiers and arbitrary driver error strings must never leave this route.
+  return NextResponse.json({
+    status: report.status,
+    service: report.service,
+    environment: report.environment,
+    releaseSha: report.releaseSha,
+    database: report.database,
+    schema: {
+      columnsValid: report.schema.columnsValid,
+      requiredTableCount: REQUIRED_TABLES.length,
+      presentTableCount: REQUIRED_TABLES.filter(
+        (table) => report.schema.requiredTables[table] === true,
+      ).length,
+      migrationCount: report.schema.migrationLedger.length,
+    },
+    releaseProtections: {
+      status: releaseProtections.status,
+      checkedAt: releaseProtections.checkedAt,
+      missingCounts: {
+        migrations: releaseProtections.missing.migrations.length,
+        triggers: releaseProtections.missing.triggers.length,
+        constraints: releaseProtections.missing.constraints.length,
+        indexes: releaseProtections.missing.indexes.length,
+      },
+      apiLockdown: {
+        anonSchemaUsage: releaseProtections.apiLockdown.anonSchemaUsage,
+        authenticatedSchemaUsage: releaseProtections.apiLockdown.authenticatedSchemaUsage,
+        tableGrantCount: releaseProtections.apiLockdown.tableGrantCount,
+        routineGrantCount: releaseProtections.apiLockdown.routineGrantCount,
+      },
+    },
+  }, {
     status: report.status === "unavailable" ? 503 : 200,
     headers: { "Cache-Control": "no-store" },
   });
