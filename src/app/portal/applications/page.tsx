@@ -4,7 +4,7 @@ import { portalPageUser } from "@/lib/page-auth";
 import { searchApplications, resolvePageSize } from "@/lib/queries";
 import { listStatuses } from "@/lib/applications";
 import { flashFrom } from "@/lib/action-helpers";
-import { formatAmount, formatDate } from "@/lib/format";
+import { formatAmount, formatDateTime } from "@/lib/format";
 import { FilterBar, Pagination, PageSizeSelector } from "@/components/app-widgets";
 import { localizedStatusName } from "@/lib/ui-i18n";
 import { EmptyState, Flash, PageHeader, Progress, TableWrap } from "@/components/ui";
@@ -124,39 +124,33 @@ export default async function PortalApplicationsPage({
           <TableWrap>
             <thead className="border-b border-slate-100 bg-ivory-50/60">
               <tr>
-                <th className="th">{ct("Destination")}</th>
                 <th className="th">{ct("Applicant")}</th>
-                <th className="th">{ct("Status")}</th>
+                <th className="th">{ct("Visa / Country")}</th>
                 <th className="th">{ct("Documents")}</th>
                 <th className="th">{ct("Fee")}</th>
-                <th className="th">{ct("Created")}</th>
+                <th className="th">{ct("Status")}</th>
                 <th className="th">{ct("Next action")}</th>
+                <th className="th">{ct("Last updated")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {result.rows.map((r) => {
                 const p = progressById.get(r.app.id);
-                const needsDocuments = ["DOCUMENTS_REQUESTED", "DOCUMENTS_REQUIRED"].includes(r.statusCode);
                 return (
                   <NavigableTableRow key={r.app.id} href={`/portal/applications/${r.app.id}`} className="tr-hover">
                     <td className="td">
-                      <span className="font-semibold text-navy-900">{countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}</span>
-                      <span className="block text-xs text-slate-500">{configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}</span>
+                      <Link href={`/portal/applications/${r.app.id}`} className="inline-flex min-h-11 items-center font-semibold text-navy-900 hover:underline">{r.applicantSummary ?? "—"}</Link>
+                      <span className="block text-xs text-slate-500">{r.app.reference}</span>
                     </td>
                     <td className="td">
-                      <Link href={`/portal/applications/${r.app.id}`} className="font-semibold text-navy-900 hover:underline">{r.applicantSummary ?? "—"}</Link>
-                      <span dir="ltr" className="block text-xs text-slate-500">{r.app.reference}</span>
+                      {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}
+                      <span className="block text-xs text-slate-400">{configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}</span>
                     </td>
-                    <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
                     <td className="td">{p ? <Progress done={p.done} total={p.total} /> : "—"}</td>
                     <td className="td whitespace-nowrap tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</td>
-                    <td className="td whitespace-nowrap text-xs text-slate-500">{formatDate(r.app.createdAt, uiLocale)}</td>
-                    <td className="td">
-                      <Link href={`/portal/applications/${r.app.id}`} className="inline-flex min-h-11 items-center gap-2 font-semibold text-navy-900 hover:underline">
-                        {ct(needsDocuments ? "Upload requested documents" : "Open dossier")}
-                        <span aria-hidden="true" className="directional-arrow">→</span>
-                      </Link>
-                    </td>
+                    <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
+                    <td className="td text-xs">{ct(r.agencyNextAction)}</td>
+                    <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(r.app.updatedAt, uiLocale)}</td>
                   </NavigableTableRow>
                 );
               })}
