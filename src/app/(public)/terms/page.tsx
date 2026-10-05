@@ -34,7 +34,7 @@ export default async function TermsPage() {
       lang={locale}
       className="ess-container max-w-3xl py-8"
     >
-      <h1 className="font-serif text-3xl text-navy-900">{ct("Terms of Service")}</h1>
+      <h1 className="font-serif text-[32px] text-navy-900">{ct("Terms of Service")}</h1>
       {legal ? (
         <>
           <p className="mt-2 text-xs text-slate-500">
@@ -45,7 +45,7 @@ export default async function TermsPage() {
           </div>
         </>
       ) : (
-        <p role="status" className="mt-6 border-t border-line pt-6 text-sm leading-relaxed text-slate-600">
+        <p role="status" className="mt-6 border-t border-line pt-6 text-base leading-relaxed text-slate-600">
           {publicBrandCopy(locale).legalMissing}
         </p>
       )}

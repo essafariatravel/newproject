@@ -23,22 +23,22 @@ function DocumentFields({ value, locale }: { value?: typeof documentTypes.$infer
   const ct = contentT(locale);
   return <>
     {value ? <input type="hidden" name="id" value={value.id} /> : null}
-    <label className="block text-sm">{ct("Name *")} · EN
+    <label className="block text-base">{ct("Name *")} · EN
       <input name="name" required minLength={2} maxLength={80} defaultValue={value?.name} dir="ltr" className="input mt-1" />
     </label>
-    <label className="block text-sm">{ct("Code *")}
+    <label className="block text-base">{ct("Code *")}
       <input name="code" required minLength={2} maxLength={40} defaultValue={value?.code} readOnly={!!value} dir="ltr" className="input mt-1 uppercase" />
     </label>
-    <label className="block text-sm sm:col-span-2">{ct("Description")} · EN
+    <label className="block text-base sm:col-span-2">{ct("Description")} · EN
       <textarea name="description" maxLength={500} rows={2} defaultValue={value?.description ?? ""} dir="ltr" className="input mt-1" />
     </label>
     <ConfigTranslations value={value} locale={locale} />
-    <label className="block text-sm">{ct("Provided by")}
+    <label className="block text-base">{ct("Provided by")}
       <select name="agencyUploadable" className="input mt-1" defaultValue={value?.agencyUploadable === false ? "0" : "1"}>
         <option value="1">{ct("Agency uploads it")}</option><option value="0">{ct("ESSAFARIA / authority issues it")}</option>
       </select>
     </label>
-    <label className="block text-sm">{ct("Sort order")}
+    <label className="block text-base">{ct("Sort order")}
       <input name="sortOrder" type="number" min={0} max={9999} defaultValue={value?.sortOrder ?? 0} className="input mt-1" />
     </label>
     <div className="sm:col-span-2"><SubmitButton className="btn-primary" pendingLabel={ct("Saving…")}>{ct(value ? "Save" : "Add document type")}</SubmitButton></div>
@@ -81,8 +81,8 @@ export default async function DocumentTypesConfigPage({
         subtitle={ct("Catalogue used by visa requirements and checklists.")}
         actions={
           <form className="flex flex-wrap items-center gap-2">
-            <input name="q" defaultValue={q} placeholder={ct("Search document type…")} aria-label={ct("Search document type…")} className="input w-64 text-sm" />
-            <select name="status" defaultValue={status} aria-label={ct("Status")} className="input w-auto text-sm">
+            <input name="q" defaultValue={q} placeholder={ct("Search document type…")} aria-label={ct("Search document type…")} className="input w-64 text-base" />
+            <select name="status" defaultValue={status} aria-label={ct("Status")} className="input w-auto text-base">
               <option value="">{ct("All statuses")}</option><option value="active">{ct("Active")}</option><option value="inactive">{ct("Inactive")}</option>
             </select>
             <input type="hidden" name="per" value={per} />
@@ -117,7 +117,7 @@ export default async function DocumentTypesConfigPage({
         <tbody className="divide-y divide-slate-100">
           {paged.map((d) => (
             <tr key={d.id} className="tr-hover">
-              <td className="td font-medium text-navy-900">{configName(d, locale)}</td>
+              <td className="td font-semibold text-navy-900">{configName(d, locale)}</td>
               <td className="td"><span className="badge bg-navy-900/5 text-navy-800">{d.code}</span></td>
               <td className="td max-w-[320px] truncate text-xs text-slate-500" title={configDescription(d, locale)}>{configDescription(d, locale) || "—"}</td>
               <td className="td tabular-nums text-xs">{d.sortOrder}</td>

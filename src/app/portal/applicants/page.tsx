@@ -49,7 +49,7 @@ export default async function PortalApplicantsPage({
             <tbody className="divide-y divide-slate-100">
               {result.rows.map(({ applicant, applicationReference, applicationId }) => (
                 <NavigableTableRow key={applicant.id} href={`/portal/applications/${applicationId}`} className="tr-hover">
-                  <td className="td"><Link href={`/portal/applications/${applicationId}`} className="font-medium text-navy-900 hover:underline">{personName(applicant)}</Link></td>
+                  <td className="td"><Link href={`/portal/applications/${applicationId}`} className="font-semibold text-navy-900 hover:underline">{personName(applicant)}</Link></td>
                   <td className="td tabular-nums">
                     {applicant.passportNumber}
                     <span className="block text-xs text-slate-400">exp. {formatDate(applicant.passportExpiryDate)}</span>

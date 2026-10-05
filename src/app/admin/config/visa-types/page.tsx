@@ -79,10 +79,10 @@ export default async function VisaTypesConfigPage({
         subtitle={ct("Service catalogue — DZD only. Fees snapshotted at application creation.")}
         actions={
           <form className="flex flex-wrap items-center gap-2">
-            <input name="q" defaultValue={q} aria-label={ct("Search visa, country, code…")} placeholder={ct("Search visa, country, code…")} className="input w-64 text-sm" />
-            <select name="countryId" defaultValue={countryId} aria-label={ct("Country")} className="input w-auto text-sm"><option value="">{ct("All countries")}</option>{countries.map((c) => <option key={c.id} value={c.id}>{localizedCountryName(c, locale)}</option>)}</select>
-            <select name="categoryId" defaultValue={categoryId} aria-label={ct("Category")} className="input w-auto text-sm"><option value="">{ct("All categories")}</option>{categories.map((c) => <option key={c.id} value={c.id}>{configName(c, locale)}</option>)}</select>
-            <select name="status" defaultValue={status} aria-label={ct("Status")} className="input w-auto text-sm"><option value="">{ct("All statuses")}</option><option value="active">{ct("Active")}</option><option value="inactive">{ct("Inactive")}</option></select>
+            <input name="q" defaultValue={q} aria-label={ct("Search visa, country, code…")} placeholder={ct("Search visa, country, code…")} className="input w-64 text-base" />
+            <select name="countryId" defaultValue={countryId} aria-label={ct("Country")} className="input w-auto text-base"><option value="">{ct("All countries")}</option>{countries.map((c) => <option key={c.id} value={c.id}>{localizedCountryName(c, locale)}</option>)}</select>
+            <select name="categoryId" defaultValue={categoryId} aria-label={ct("Category")} className="input w-auto text-base"><option value="">{ct("All categories")}</option>{categories.map((c) => <option key={c.id} value={c.id}>{configName(c, locale)}</option>)}</select>
+            <select name="status" defaultValue={status} aria-label={ct("Status")} className="input w-auto text-base"><option value="">{ct("All statuses")}</option><option value="active">{ct("Active")}</option><option value="inactive">{ct("Inactive")}</option></select>
             <input type="hidden" name="per" value={per} />
             <button type="submit" className="btn-secondary btn-sm">{ct("Search")}</button>
             {q || status || countryId || categoryId ? <Link href="/admin/config/visa-types" className="btn-secondary btn-sm">{ct("Clear")}</Link> : null}
@@ -162,7 +162,7 @@ export default async function VisaTypesConfigPage({
           {paged.map(({ vt, countryName, categoryName }) => (
             <NavigableTableRow key={vt.id} href={`/admin/config/visa-types/${vt.id}`} className="tr-hover">
               <td className="td">
-                <Link href={`/admin/config/visa-types/${vt.id}`} className="font-medium text-navy-900 hover:underline">
+                <Link href={`/admin/config/visa-types/${vt.id}`} className="font-semibold text-navy-900 hover:underline">
                   {configName(vt, locale)}
                 </Link>
                 <span className="block text-xs text-slate-400">{vt.code}</span>
