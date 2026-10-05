@@ -1,106 +1,18 @@
 name: Restore Original Approved UX UI
-
 on:
   push:
-    branches:
-      - restore/original-approved-ux-ui
-    paths:
-      - .github/workflows/restore-original-approved-ux.yml
-
+    branches: [restore/original-approved-ux-ui]
+    paths: [.github/workflows/restore-original-approved-ux.yml, scripts/restore-approved-ui-safe-hunks.sh, scripts/restore-approved-ui-conflicts.py]
 permissions:
   contents: write
-
 jobs:
   restore:
-    if: github.event.head_commit.message == 'Restore remaining nonconflicting approved UX hunks'
+    if: github.event.head_commit.message == 'Run safe approved UX hunk restoration'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout restoration branch
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           fetch-depth: 0
           persist-credentials: true
-
-      - name: Verify frozen RC ancestry
-        shell: bash
-        run: |
-          set -euo pipefail
-          git merge-base --is-ancestor 8b4b44d0bbaf312d96cadbd438ec4193e58d278b HEAD
-
-      - name: Build patch for still-different approved frontend files
-        shell: bash
-        run: |
-          set -euo pipefail
-          BASE="1698562a05f8bd5c36027651d987a06bb60510f9"
-          APPROVED="a774203ec525f543e75a076cf867024a2a1af506"
-          mapfile -t paths < <(
-            git diff --name-only "$APPROVED" HEAD --               ':(glob)src/app/**/*.tsx'               'src/app/globals.css'               'src/app/travel-platform.css'               ':(glob)src/components/**/*.tsx'               'src/lib/i18n-content.ts' |
-            grep -Ev '^(src/app/globals\.css|src/app/travel-platform\.css|src/components/app-shell\.tsx|src/components/ui\.tsx|src/app/admin/page\.tsx|src/app/admin/applications/page\.tsx|src/app/admin/applications/\[id\]/page\.tsx|src/app/portal/applications/\[id\]/page\.tsx|src/lib/i18n-content\.ts)$'
-          )
-          test "${#paths[@]}" -gt 0
-          printf '%s\n' "${paths[@]}" > /tmp/candidates.txt
-          git diff --binary --full-index "$BASE" "$APPROVED" -- "${paths[@]}" > /tmp/original-approved-remaining.patch
-          test -s /tmp/original-approved-remaining.patch
-
-      - name: Apply clean hunks and resolve true conflicts to current RC
-        shell: bash
-        run: |
-          set -euo pipefail
-          git apply --3way --index --whitespace=nowarn /tmp/original-approved-remaining.patch || true
-          conflicts="$(git diff --name-only --diff-filter=U)"
-          if [ -n "$conflicts" ]; then
-            printf '%s\n' "$conflicts" > /tmp/conflicts.txt
-            python3 - <<'PY'
-from pathlib import Path
-
-for name in Path("/tmp/conflicts.txt").read_text().splitlines():
-    path = Path(name)
-    lines = path.read_text().splitlines(keepends=True)
-    out = []
-    i = 0
-    while i < len(lines):
-        if lines[i].startswith("<<<<<<< "):
-            i += 1
-            ours = []
-            while i < len(lines) and not lines[i].startswith("======="):
-                ours.append(lines[i])
-                i += 1
-            if i >= len(lines):
-                raise SystemExit(f"Malformed conflict in {name}")
-            i += 1
-            while i < len(lines) and not lines[i].startswith(">>>>>>> "):
-                i += 1
-            if i >= len(lines):
-                raise SystemExit(f"Malformed conflict in {name}")
-            i += 1
-            out.extend(ours)
-        else:
-            out.append(lines[i])
-            i += 1
-    path.write_text("".join(out))
-PY
-            while IFS= read -r file; do git add "$file"; done < /tmp/conflicts.txt
-          fi
-
-      - name: Enforce frontend-only scope
-        shell: bash
-        run: |
-          set -euo pipefail
-          changed="$(git diff --cached --name-only)"
-          printf '%s\n' "$changed"
-          test -n "$changed"
-          bad="$(printf '%s\n' "$changed" | grep -Ev '^(src/app/.*\.tsx|src/components/.*\.tsx)$' || true)"
-          test -z "$bad" || { echo "::error::Restoration escaped page/component scope"; printf '%s\n' "$bad"; exit 1; }
-          if printf '%s\n' "$changed" | grep -Eq '^(src/app/api/|src/app/actions/|src/db/|migrations/|src/lib/)'; then
-            echo "::error::Protected backend/security path touched."
-            exit 1
-          fi
-
-      - name: Commit remaining safe presentation hunks
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Restore remaining safe approved UX presentation hunks"
-          git push origin HEAD:restore/original-approved-ux-ui
+      - name: Restore safe visual hunks
+        run: bash scripts/restore-approved-ui-safe-hunks.sh
