@@ -12,6 +12,7 @@
  * It never contacts Production and never uses real customer data or secrets.
  */
 import { execFileSync, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { copyFile, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -420,8 +421,10 @@ async function main() {
         "select sequence_name from information_schema.sequences where sequence_schema=$1 order by sequence_name",
         [PRODUCTION_SCHEMA],
       );
-      const objectResult = await sourcePool.query<{ key: string; size_bytes: number; sha256: string }>(
-        `select key,size_bytes,encode("${PRODUCTION_SCHEMA}".digest(data,'sha256'),'hex') as sha256
+      // Hash bytes in Node rather than relying on an extension namespace or
+      // search_path. The storage manifest must be portable across restores.
+      const objectResult = await sourcePool.query<{ key: string; size_bytes: number; data: Buffer }>(
+        `select key,size_bytes,data
            from "${PRODUCTION_SCHEMA}".document_blobs
           order by key`,
       );
@@ -457,7 +460,7 @@ async function main() {
       const objects = objectResult.rows.map((row) => ({
         key: row.key,
         sizeBytes: Number(row.size_bytes),
-        sha256: row.sha256.toLowerCase(),
+        sha256: createHash("sha256").update(row.data).digest("hex"),
       }));
       const manifest: BackupManifest = {
         version: 1,

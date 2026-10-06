@@ -6,6 +6,7 @@ on:
       - release/essafaria-rc-2026-09
       - release/final-rc-consolidation
       - release/go-live-final-2026-10-06
+      - arena/7891f1ea-newproject
       - preprod/essafaria-final-hardening
       - security/pre-codex-gate-2026-10-03
   workflow_dispatch:
@@ -22,7 +23,7 @@ permissions:
 jobs:
   verify:
     name: Typecheck, lint, tests, build
-    if: github.ref == 'refs/heads/release/final-rc-consolidation' || github.ref == 'refs/heads/release/essafaria-rc-2026-09' || github.ref == 'refs/heads/release/go-live-final-2026-10-06' || github.ref == 'refs/heads/preprod/essafaria-final-hardening' || github.ref == 'refs/heads/security/pre-codex-gate-2026-10-03'
+    if: github.ref == 'refs/heads/release/final-rc-consolidation' || github.ref == 'refs/heads/release/essafaria-rc-2026-09' || github.ref == 'refs/heads/release/go-live-final-2026-10-06' || github.ref == 'refs/heads/arena/7891f1ea-newproject' || github.ref == 'refs/heads/preprod/essafaria-final-hardening' || github.ref == 'refs/heads/security/pre-codex-gate-2026-10-03'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -85,6 +86,13 @@ jobs:
         run: npm test -- tests/build-preview-guard.test.ts
 
       - name: Broader deterministic test suite
+        env:
+          # The suite owns a disposable embedded PostgreSQL instance. Keep the
+          # build guard above/below database-free, but do not import database
+          # modules with the workflow's intentionally blank DATABASE_URL.
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5434/essafaria_test
+          DATABASE_SCHEMA: public
+          STORAGE_PROVIDER: db
         run: npm test
 
       - name: Build without deployment or database access

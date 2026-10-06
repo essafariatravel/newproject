@@ -4,8 +4,16 @@ import { BaseSequencer, type TestSpecification } from "vitest/node";
 
 class DatabaseSequencer extends BaseSequencer {
   async sort(files: TestSpecification[]) {
-    const ordered = await super.sort(files);
-    return ordered.sort((a, b) => Number(a.moduleId.endsWith("/zz-teardown.test.ts")) - Number(b.moduleId.endsWith("/zz-teardown.test.ts")));
+    // Vitest's default sequencer may use historical duration data, which makes
+    // the order vary between developer and CI machines. These suites share one
+    // embedded PostgreSQL cluster, so a deterministic order is required for
+    // reproducible reset/teardown behavior; the sentinel teardown is always last.
+    return [...files].sort((a, b) => {
+      const aTeardown = a.moduleId.endsWith("/zz-teardown.test.ts");
+      const bTeardown = b.moduleId.endsWith("/zz-teardown.test.ts");
+      if (aTeardown !== bTeardown) return Number(aTeardown) - Number(bTeardown);
+      return a.moduleId.localeCompare(b.moduleId);
+    });
   }
 }
 
