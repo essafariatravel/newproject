@@ -190,6 +190,66 @@ export async function getChecklist(applicationId: string) {
     .orderBy(asc(checklistItems.sortOrder), asc(checklistItems.createdAt));
 }
 
+/**
+ * Batch checklist progress for list pages.
+ *
+ * The portal application list used to call `checklistProgress()` once per row,
+ * which created an N+1 burst of database round-trips under load. Keep the
+ * single-application helper for dossier pages, but aggregate every visible row
+ * in one query for list rendering.
+ */
+export async function checklistProgressForApplications(
+  applicationIds: readonly string[],
+): Promise<Map<string, ChecklistProgress>> {
+  const ids = [...new Set(applicationIds.filter(Boolean))];
+  const progressById = new Map<string, ChecklistProgress>(
+    ids.map((id) => [id, {
+      requiredTotal: 0,
+      requiredComplete: 0,
+      optionalTotal: 0,
+      optionalComplete: 0,
+    }]),
+  );
+  if (ids.length === 0) return progressById;
+
+  const usableDocument = sql`exists (
+    select 1
+      from ${sql.raw(qualifiedTable("documents"))} d
+     where d.checklist_item_id = ${checklistItems.id}
+       and d.status in ('UPLOADED','UNDER_REVIEW','ACCEPTED')
+  )`;
+
+  const rows = await db
+    .select({
+      applicationId: checklistItems.applicationId,
+      requiredTotal: sql<number>`count(*) filter (
+        where ${checklistItems.active} and ${checklistItems.required}
+      )::int`,
+      requiredComplete: sql<number>`count(*) filter (
+        where ${checklistItems.active} and ${checklistItems.required} and ${usableDocument}
+      )::int`,
+      optionalTotal: sql<number>`count(*) filter (
+        where ${checklistItems.active} and not ${checklistItems.required}
+      )::int`,
+      optionalComplete: sql<number>`count(*) filter (
+        where ${checklistItems.active} and not ${checklistItems.required} and ${usableDocument}
+      )::int`,
+    })
+    .from(checklistItems)
+    .where(inArray(checklistItems.applicationId, ids))
+    .groupBy(checklistItems.applicationId);
+
+  for (const row of rows) {
+    progressById.set(row.applicationId, {
+      requiredTotal: Number(row.requiredTotal ?? 0),
+      requiredComplete: Number(row.requiredComplete ?? 0),
+      optionalTotal: Number(row.optionalTotal ?? 0),
+      optionalComplete: Number(row.optionalComplete ?? 0),
+    });
+  }
+  return progressById;
+}
+
 /* ------------------------------------------------------------------ */
 /* Creation                                                            */
 /* ------------------------------------------------------------------ */
