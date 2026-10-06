@@ -2,14 +2,13 @@ import { configName } from "@/lib/config-localization";
 import Link from "next/link";
 import { portalPageUser } from "@/lib/page-auth";
 import { searchApplications, resolvePageSize } from "@/lib/queries";
-import { listStatuses } from "@/lib/applications";
+import { checklistProgressForApplications, listStatuses } from "@/lib/applications";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatAmount, formatDate, formatDateTime } from "@/lib/format";
 import { FilterBar, Pagination, PageSizeSelector } from "@/components/app-widgets";
 import { localizedStatusName } from "@/lib/ui-i18n";
 import { EmptyState, Flash, PageHeader, Progress, TableWrap } from "@/components/ui";
 import { StatusBadge } from "@/components/badges";
-import { checklistProgress } from "@/lib/applications";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { countryName } from "@/lib/country-names";
@@ -37,12 +36,9 @@ export default async function PortalApplicationsPage({
     listStatuses(true),
   ]);
 
-  const progressById = new Map<string, { done: number; total: number }>();
-  await Promise.all(
-    result.rows.map(async (r) => {
-      const p = await checklistProgress(r.app.id);
-      progressById.set(r.app.id, { done: p.requiredComplete, total: p.requiredTotal });
-    }),
+  const checklistProgressById = await checklistProgressForApplications(result.rows.map((r) => r.app.id));
+  const progressById = new Map(
+    [...checklistProgressById].map(([id, p]) => [id, { done: p.requiredComplete, total: p.requiredTotal }]),
   );
 
   return (
