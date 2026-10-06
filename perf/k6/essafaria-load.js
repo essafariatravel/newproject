@@ -120,9 +120,25 @@ function sessions(role) {
   return values;
 }
 
-function cookieFor(role) {
+function sessionIndexForVu(role, vu) {
+  let index = 0;
+  for (let candidate = 1; candidate < vu; candidate++) {
+    if (personaForVu(candidate) === role) index++;
+  }
+  return index;
+}
+
+function tokenForVu(role, vu) {
   const values = sessions(role);
-  return values[(__VU - 1) % values.length];
+  const index = sessionIndexForVu(role, vu);
+  if (index >= values.length) {
+    throw new Error(`No distinct synthetic session available for ${role} VU ${vu}.`);
+  }
+  return values[index];
+}
+
+function cookieFor(role) {
+  return tokenForVu(role, __VU);
 }
 
 function requestHeaders(role) {
@@ -277,6 +293,27 @@ function assertUniqueSessionCapacity() {
 
 assertUniqueSessionCapacity();
 
+function validateSyntheticSessions() {
+  for (let vu = 1; vu <= maximumVus(); vu++) {
+    const role = personaForVu(vu);
+    const token = tokenForVu(role, vu);
+    const res = http.get(`${BASE_URL}/api/session`, {
+      headers: {
+        cookie: `${sessionData.cookieName || "evos_session"}=${token}`,
+        "user-agent": "essafaria-k6-session-preflight",
+      },
+      redirects: 0,
+      tags: { operation: "setup_session_preflight", persona: role },
+    });
+    if (res.status !== 200) {
+      throw new Error(
+        `Synthetic session preflight failed for ${role} VU ${vu} with HTTP ${res.status}. ` +
+        "Regenerate fresh Preview performance sessions before running the tier."
+      );
+    }
+  }
+}
+
 function pickPath(paths) {
   return paths[(__ITER + __VU) % paths.length];
 }
@@ -304,6 +341,8 @@ function discoverApplications(role, path, prefix) {
 }
 
 export function setup() {
+  validateSyntheticSessions();
+
   const token = sessions("SUPER_ADMIN")[0];
   const res = http.get(`${BASE_URL}/api/health`, {
     headers: {
