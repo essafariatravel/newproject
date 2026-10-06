@@ -11,6 +11,7 @@
  *
  * It never contacts Production and never uses real customer data or secrets.
  */
+import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { copyFile, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -170,17 +171,26 @@ async function seedRecoverySignals(pool: Pool): Promise<void> {
      returning id::text`,
     [country.rows[0]!.id, category.rows[0]!.id],
   );
-  const status = await pool.query<{ id: string }>(
+  // The base migration already seeds canonical workflow rows. Reuse those
+  // rows when present instead of attempting a duplicate insert; the drill must
+  // exercise the real schema without mutating canonical configuration.
+  await pool.query(
     `insert into "${PRODUCTION_SCHEMA}".statuses
        (code,name,sort_order,is_terminal,is_draft,active)
      values ('SUBMITTED','Submitted',20,false,false,true)
-     returning id::text`,
+     on conflict (code) do nothing`,
   );
-  const priority = await pool.query<{ id: string }>(
+  const status = await pool.query<{ id: string }>(
+    `select id::text from "${PRODUCTION_SCHEMA}".statuses where code='SUBMITTED' limit 1`,
+  );
+  await pool.query(
     `insert into "${PRODUCTION_SCHEMA}".priorities
        (code,name,weight,active,sort_order)
      values ('STANDARD','Standard',0,true,10)
-     returning id::text`,
+     on conflict (code) do nothing`,
+  );
+  const priority = await pool.query<{ id: string }>(
+    `select id::text from "${PRODUCTION_SCHEMA}".priorities where code='STANDARD' limit 1`,
   );
 
   const agencies = await pool.query<{ id: string; email: string }>(
@@ -396,8 +406,11 @@ async function main() {
         "select sequence_name from information_schema.sequences where sequence_schema=$1 order by sequence_name",
         [PRODUCTION_SCHEMA],
       );
-      const objectResult = await sourcePool.query<{ key: string; size_bytes: number; sha256: string }>(
-        `select key,size_bytes,encode(digest(data,'sha256'),'hex') as sha256
+      // Hash bytes in Node rather than relying on an unqualified pgcrypto
+      // function. The extension may be installed in a namespace that is not
+      // present in the schema-local search_path used by the drill.
+      const objectResult = await sourcePool.query<{ key: string; size_bytes: number; data: Buffer }>(
+        `select key,size_bytes,data
            from "${PRODUCTION_SCHEMA}".document_blobs
           order by key`,
       );
@@ -433,7 +446,7 @@ async function main() {
       const objects = objectResult.rows.map((row) => ({
         key: row.key,
         sizeBytes: Number(row.size_bytes),
-        sha256: row.sha256.toLowerCase(),
+        sha256: createHash("sha256").update(row.data).digest("hex"),
       }));
       const manifest: BackupManifest = {
         version: 1,
@@ -814,5 +827,8 @@ async function main() {
 
 main().catch((error) => {
   console.error(error instanceof Error ? error.message : "Synthetic DR drill failed.");
-  process.exitCode = 1;
+  // A failed drill must never be reported as a successful shell step. Use an
+  // explicit exit here because embedded PostgreSQL child-process shutdown can
+  // otherwise overwrite a deferred process.exitCode during teardown.
+  process.exit(1);
 });
