@@ -5,8 +5,8 @@
 The detailed rows below are retained as historical requirement traceability from an earlier implementation snapshot. For this finalization handoff, the authoritative current status is the current gate matrix in `docs/FINAL-REPORT.md`.
 
 - Current authoritative base: `release/go-live-final-2026-10-06` at `905ed99a7c898a4dd2a10837763ae604ec1771de`.
-- Current Arena branch: `arena/7891f1ea-newproject` at `21d2387cba6b1aa44ddd46d1c37d996818ba665c`.
-- Current full suite: `npm test` → 169 files / 1,289 tests passed.
+- Implementation-validation SHA: `21d2387cba6b1aa44ddd46d1c37d996818ba665c`; the documentation addendum is carried by a subsequent commit. Use `git rev-parse HEAD` for the final handoff SHA.
+- Full suite at the implementation-validation SHA: `npm test` → 169 files / 1,289 tests passed.
 - Current typecheck, lint, four security gates, dependency audit, build, and local legal/privacy runtime smoke: PASS as individually recorded in the current final report.
 - Current synthetic DR drill: BLOCKED, not PASS, because the sandbox lacks `pg_dump`/`pg_restore`; the command now exits 1 truthfully.
 - Hosted Preview, live performance tiers, browser-driven E2E, independent pentest, and Production operations remain NOT_TESTED or explicitly prohibited; no row below should be read as current hosted or Production evidence.

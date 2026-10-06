@@ -5,8 +5,8 @@
 This addendum supersedes the historical snapshot below for the current handoff. It is evidence for the exact Arena branch state, not a claim that Production or a hosted Preview was changed.
 
 - Authoritative base: `release/go-live-final-2026-10-06` at `905ed99a7c898a4dd2a10837763ae604ec1771de`.
-- Arena branch: `arena/7891f1ea-newproject` at `21d2387cba6b1aa44ddd46d1c37d996818ba665c`.
-- Remote branch matches that SHA; working tree was clean at handoff.
+- Implementation-validation SHA: `21d2387cba6b1aa44ddd46d1c37d996818ba665c`.
+- This evidence addendum is carried by a subsequent documentation commit; use `git rev-parse HEAD` for the final handoff SHA. The remote Arena branch matches that final SHA; the working tree was clean at handoff.
 - Production, `release/go-live-final-2026-10-06`, `main`, DNS, credentials, legal publication, and business data were not modified.
 - Diff from authoritative base: 7 files, 145 insertions, 45 deletions. Changes are test isolation/gate corrections, deterministic CI setup, and a safer synthetic local DR drill; no Production operation is included.
 
