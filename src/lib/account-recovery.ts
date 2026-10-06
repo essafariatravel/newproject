@@ -6,6 +6,7 @@ import { AppError, type AuthUser, type Role } from "@/lib/types";
 import { assertAccountManager, normalizeAgencyUsername } from "@/lib/identity-policy";
 import { currentAccountActor, lockIdentityState, recordIdentityAudit, requireRecoveryManager, revokeUnusedAccessTokens, revokeUserAccess } from "@/lib/account-security";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
+import { sendSecureAccessEmail } from "@/lib/transactional-email";
 
 export const RECOVERY_ACKNOWLEDGEMENT = "If this account is eligible, your access request will be reviewed. Contact your account manager if you need help.";
 export const RESET_TOKEN_TTL_HOURS = 2;
@@ -65,6 +66,13 @@ export async function issueAccessToken(actor: AuthUser, userId: string, purpose:
     await recordIdentityAudit(tx, { actor: current, action: purpose === "ACTIVATION" ? "ACTIVATION_LINK_CREATED" : "PASSWORD_RESET_LINK_CREATED", entity: "user", entityId: userId,
       agencyId: row.user.agencyId, metadata: { purpose, expiresAt: expiresAt.toISOString(), recoveryRequestId: requestId } });
     return row.user;
+  });
+  await sendSecureAccessEmail({
+    to: user.email,
+    name: user.name,
+    purpose,
+    path: `/reset-access/${token}`,
+    expiresAt,
   });
   return { token, expiresAt, username: user.username, email: user.agencyId ? null : user.email, name: user.name };
 }
