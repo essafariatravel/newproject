@@ -86,6 +86,13 @@ jobs:
         run: npm test -- tests/build-preview-guard.test.ts
 
       - name: Broader deterministic test suite
+        env:
+          # The suite owns a disposable embedded PostgreSQL instance. Keep the
+          # build guard above/below database-free, but do not import database
+          # modules with the workflow's intentionally blank DATABASE_URL.
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5434/essafaria_test
+          DATABASE_SCHEMA: public
+          STORAGE_PROVIDER: db
         run: npm test
 
       - name: Build without deployment or database access
