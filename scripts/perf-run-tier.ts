@@ -48,6 +48,13 @@ function start(command: string, args: string[], env: NodeJS.ProcessEnv): ChildPr
 
 async function stop(child: ChildProcess | null) {
   if (!child || child.exitCode !== null || child.killed) return;
+  if (process.platform === "win32" && child.pid) {
+    spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+      stdio: "ignore",
+      shell: false,
+    });
+    return;
+  }
   child.kill("SIGTERM");
   await new Promise<void>((resolveDone) => {
     const timer = setTimeout(() => {

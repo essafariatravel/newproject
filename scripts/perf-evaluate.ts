@@ -89,6 +89,7 @@ async function main() {
   const p50 = metric(summary, "http_req_duration", "med");
   const p95 = metric(summary, "http_req_duration", "p(95)");
   const p99 = metric(summary, "http_req_duration", "p(99)");
+  const iterations = metric(summary, "iterations", "count");
   const deadlocksDelta = dbStat(after, "deadlocks") - dbStat(before, "deadlocks");
   const tempBytesDelta = dbStat(after, "temp_bytes") - dbStat(before, "temp_bytes");
   const rollbackDelta = dbStat(after, "xact_rollback") - dbStat(before, "xact_rollback");
@@ -118,6 +119,8 @@ async function main() {
 
   const checks = [
     { name: "all recorded k6 thresholds pass", pass: k6ThresholdFailures.length === 0, value: k6ThresholdFailures.length },
+    { name: "at least one workload iteration completed", pass: Number.isFinite(iterations) && iterations > 0, value: iterations },
+    { name: "operation-specific metrics were observed", pass: operationBudgets.length > 0, value: operationBudgets.length },
     { name: `unexpected request failure rate < ${budgets.global.errorRateMax}`, pass: Number.isFinite(errorRate) && errorRate < budgets.global.errorRateMax, value: errorRate },
     { name: `business/harness unexpected failure rate < ${budgets.global.unexpectedFailureRateMax}`, pass: Number.isFinite(unexpectedRate) && unexpectedRate < budgets.global.unexpectedFailureRateMax, value: unexpectedRate },
     { name: `global HTTP p95 screening threshold < ${budgets.global.p95Ms} ms`, pass: Number.isFinite(p95) && p95 < budgets.global.p95Ms, value: p95 },
@@ -130,6 +133,7 @@ async function main() {
   const output = {
     verdict: pass ? "SCREENING PASS — eligible to consider the next tier" : "STOP — investigate before any higher tier",
     note: "This screening verdict is not the final Performance Gate. Wallet/storage/business correctness and operation-specific budgets remain mandatory.",
+    workload: { iterations },
     latencyMs: { p50, p95, p99 },
     rates: { httpReqFailed: errorRate, unexpectedFailure: unexpectedRate },
     database: {

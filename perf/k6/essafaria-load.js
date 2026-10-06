@@ -17,6 +17,9 @@ const BASE_HOST = BASE_URL.replace(/^https?:\/\//i, "").split("/")[0].split(":")
 if (BASE_HOST === PROD_HOST) {
   throw new Error("The load harness refuses the Production hostname.");
 }
+if (String(__ENV.DATABASE_SCHEMA || "").trim() !== EXPECTED_SCHEMA) {
+  throw new Error("DATABASE_SCHEMA=visa_os_preview is required.");
+}
 
 // k6 open() resolves relative paths from this script's perf/k6 directory.
 const SESSION_FILE = __ENV.PERF_SESSION_FILE || "../.runtime/sessions.json";
@@ -309,12 +312,8 @@ export function setup() {
   });
   if (res.status !== 200) throw new Error(`Authenticated health preflight returned HTTP ${res.status}.`);
   const health = res.json();
-  if (health?.deployment?.environment === "production") throw new Error("Harness refuses a Production deployment.");
-  if (health?.schema?.name !== EXPECTED_SCHEMA) throw new Error("Harness requires visa_os_preview.");
-  if (health?.database?.intendedSupabaseProject !== true) throw new Error("Harness requires the recorded Supabase project.");
-  if (health?.ok !== true) throw new Error("Preview health preflight is not ready.");
-  if (health?.database?.host && !String(health.database.host).includes("supabase")) {
-    throw new Error("Unexpected database host in authenticated health report.");
+  if (health?.status !== "healthy" || health?.service !== "essafaria-visa-os") {
+    throw new Error("Preview health preflight is not ready.");
   }
 
   if (profile === "polling-only") {

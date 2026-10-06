@@ -42,6 +42,7 @@ function summary(operationP95 = 700, operationP99 = 1400, globalP95 = 900) {
       unexpected_failure: { values: { rate: 0 } },
       http_req_duration: { values: { med: 300, "p(95)": globalP95, "p(99)": 1400 } },
       http_reqs: { values: { rate: 10 } },
+      iterations: { values: { count: 100 } },
       op_agency_dashboard: { values: { "p(95)": operationP95, "p(99)": operationP99 } },
     },
   };

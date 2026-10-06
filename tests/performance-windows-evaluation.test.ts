@@ -47,9 +47,11 @@ async function evaluate(thresholdFailed = false, slow = false) {
     [summaryPath]: { metrics: {
       http_req_failed: { values: { rate: 0 } }, unexpected_failure: { values: { rate: 0 } },
       http_req_duration: { values: { med: 10, "p(95)": slow ? 10000 : 20, "p(99)": 30 }, thresholds: { "p(95)<500": { ok: !thresholdFailed } } },
+      iterations: { values: { count: 100 } },
+      op_agency_dashboard: { values: { "p(95)": 20, "p(99)": 30 } },
     } },
     [beforePath]: snapshot, [afterPath]: snapshot,
-    "perf/budgets.json": { global: { p95Ms: 1000, errorRateMax: 0.01, unexpectedFailureRateMax: 0.01 }, operations: {} },
+    "perf/budgets.json": { global: { p95Ms: 1000, errorRateMax: 0.01, unexpectedFailureRateMax: 0.01 }, operations: { agency_dashboard: { p95Ms: 500, p99Ms: 800 } } },
   };
   const reads: string[] = [];
   let output = "";

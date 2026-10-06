@@ -39,7 +39,7 @@ function initialize(
     });
   };
   const run = () => new Function("require", "exports", "__ENV", "open", executable)(
-    requireDouble, {}, { PERF_ACK_NONPROD: "YES", BASE_URL: "https://preview.example.test", ...overrides }, openDouble,
+    requireDouble, {}, { PERF_ACK_NONPROD: "YES", BASE_URL: "https://preview.example.test", DATABASE_SCHEMA: "visa_os_preview", ...overrides }, openDouble,
   );
   return { run, opened };
 }

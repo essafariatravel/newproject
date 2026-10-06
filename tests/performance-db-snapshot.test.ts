@@ -73,15 +73,15 @@ describe("Performance database snapshot namespace resolution", () => {
     const statementQuery = result.queries.find(({ sql }) => sql.includes('from "synthetic""extension"."pg_stat_statements"'));
     expect(statementQuery?.values).toEqual(["%visa_os_preview%"]);
     expect(result.queries.every(({ sql }) => /^\s*select\b/i.test(sql))).toBe(true);
-    expect(JSON.parse(result.files[0].body).pgStatStatements).toEqual([{ calls: 2, mean_exec_ms: 1 }]);
-    expect(result.files[0].mode).toBe(0o600);
+    expect(JSON.parse(result.files[0]!.body).pgStatStatements).toEqual([{ calls: 2, mean_exec_ms: 1 }]);
+    expect(result.files[0]!.mode).toBe(0o600);
     expect(result.released && result.ended).toBe(true);
   });
 
   it("preserves empty statement metrics when the extension is absent", async () => {
     const result = await runSnapshot({ installed: false });
     expect(result.exitCode).toBe(0);
-    expect(JSON.parse(result.files[0].body).pgStatStatements).toEqual([]);
+    expect(JSON.parse(result.files[0]!.body).pgStatStatements).toEqual([]);
   });
 
   it.each(["42P01", "42501"])("fails closed on a genuine statistics query failure %s", async (failure) => {
