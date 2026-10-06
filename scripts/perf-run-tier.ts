@@ -1,5 +1,5 @@
 import "./lib/load-env";
-import { mkdir } from "node:fs/promises";
+import { mkdir, stat } from "node:fs/promises";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { resolve } from "node:path";
 import { assertSafePerfTarget, safeTargetSummary } from "./perf-safety";
@@ -48,24 +48,57 @@ function start(command: string, args: string[], env: NodeJS.ProcessEnv): ChildPr
 
 async function stop(child: ChildProcess | null) {
   if (!child || child.exitCode !== null || child.killed) return;
-  if (process.platform === "win32" && child.pid) {
-    spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
-      stdio: "ignore",
-      shell: false,
+
+  if (process.platform === "win32") {
+    await new Promise<void>((resolveDone, reject) => {
+      const timer = setTimeout(() => {
+        if (child.exitCode === null && child.pid) {
+          spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+            stdio: "ignore",
+            shell: false,
+          });
+          reject(new Error(
+            "DB monitor did not exit naturally within 30 seconds after k6; performance evidence is incomplete."
+          ));
+          return;
+        }
+        resolveDone();
+      }, 30000);
+
+      child.once("exit", (code) => {
+        clearTimeout(timer);
+        if (code === 0) resolveDone();
+        else reject(new Error(`DB monitor exited with code ${code ?? "unknown"}.`));
+      });
+
+      if (child.exitCode !== null) {
+        clearTimeout(timer);
+        resolveDone();
+      }
     });
     return;
   }
+
   child.kill("SIGTERM");
-  await new Promise<void>((resolveDone) => {
+  await new Promise<void>((resolveDone, reject) => {
     const timer = setTimeout(() => {
       if (child.exitCode === null) child.kill("SIGKILL");
-      resolveDone();
+      reject(new Error("DB monitor did not exit within 5 seconds after SIGTERM."));
     }, 5000);
-    child.once("exit", () => {
+    child.once("exit", (code) => {
       clearTimeout(timer);
-      resolveDone();
+      if (code === 0) resolveDone();
+      else reject(new Error(`DB monitor exited with code ${code ?? "unknown"}.`));
     });
   });
+}
+
+async function evidenceFileReady(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).size > 0;
+  } catch {
+    return false;
+  }
 }
 
 async function main() {
@@ -106,6 +139,7 @@ async function main() {
 
   let monitorProcess: ChildProcess | null = null;
   let k6Error: unknown = null;
+  let monitorError: unknown = null;
   try {
     monitorProcess = start("npm", ["run", "perf:monitor"], {
       ...env,
@@ -117,39 +151,52 @@ async function main() {
     try {
       run("npm", ["run", "perf:k6"], env);
     } catch (error) {
-      // Preserve post-run DB evidence even when k6 itself exits non-zero.
+      // Preserve all post-run evidence even when k6 itself exits non-zero.
       k6Error = error;
     }
   } finally {
-    await stop(monitorProcess);
+    try {
+      await stop(monitorProcess);
+    } catch (error) {
+      monitorError = error;
+    }
   }
 
+  // Always preserve post-run database evidence when the DB is still reachable.
   run("npm", ["run", "perf:snapshot"], { ...env, PERF_SNAPSHOT_FILE: after });
 
+  let evaluationError: unknown = null;
   try {
     run(process.execPath, ["--import", "tsx", resolve("scripts/perf-evaluate.ts"), summary, before, after], {
       ...env,
       PERF_EVALUATE_OUTPUT: evaluation,
     });
   } catch (error) {
-    console.error(JSON.stringify({
-      action: "PERFORMANCE_TIER_STOP",
-      vus,
-      reason: "Evaluator rejected this tier. Investigate before any higher tier.",
-      k6ExitedNonZero: Boolean(k6Error),
-      evidence: { before, after, summary, monitor, evaluation },
-    }, null, 2));
-    throw error;
+    evaluationError = error;
   }
 
-  if (k6Error) {
+  const monitorReady = await evidenceFileReady(monitor);
+  if (monitorError || !monitorReady || evaluationError || k6Error) {
     console.error(JSON.stringify({
       action: "PERFORMANCE_TIER_STOP",
       vus,
-      reason: "k6 exited non-zero even though post-run evidence was preserved. Do not escalate.",
+      reason: !monitorReady
+        ? "DB monitor evidence is missing or empty. Do not escalate."
+        : monitorError
+          ? "DB monitor lifecycle failed. Do not escalate."
+          : evaluationError
+            ? "Evaluator rejected this tier. Investigate before any higher tier."
+            : "k6 exited non-zero. Do not escalate.",
+      k6ExitedNonZero: Boolean(k6Error),
+      monitorFailed: Boolean(monitorError) || !monitorReady,
+      evaluatorFailed: Boolean(evaluationError),
       evidence: { before, after, summary, monitor, evaluation },
     }, null, 2));
-    throw k6Error;
+
+    if (evaluationError) throw evaluationError;
+    if (k6Error) throw k6Error;
+    if (monitorError) throw monitorError;
+    throw new Error("DB monitor evidence is missing or empty.");
   }
 
   console.log(JSON.stringify({
