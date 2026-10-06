@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 const tempDirs: string[] = [];
 
 function tempDir() {
-  const dir = mkdtempSync(join(tmpdir(), "essafaria-perf-verdict-"));
+  const dir = mkdtempSync(join(tmpdir(), "essafaria perf verdict "));
   tempDirs.push(dir);
   return dir;
 }
@@ -17,11 +17,11 @@ afterEach(() => {
 });
 
 function run(script: string, args: string[]) {
-  const tsx = resolve("node_modules/.bin/tsx");
-  return spawnSync(tsx, [resolve(script), ...args], {
+  return spawnSync(process.execPath, ["--import", "tsx", resolve(script), ...args], {
     cwd: resolve("."),
     encoding: "utf8",
     env: { ...process.env },
+    shell: false,
   });
 }
 

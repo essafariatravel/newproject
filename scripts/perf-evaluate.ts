@@ -110,8 +110,14 @@ async function main() {
     }];
   });
   const operationFailures = operationBudgets.filter((item) => !item.pass);
+  const k6ThresholdFailures = Object.entries(summary.metrics ?? {}).flatMap(([metric, data]) =>
+    Object.entries(data.thresholds ?? {})
+      .filter(([, result]) => result.ok === false)
+      .map(([threshold]) => ({ metric, threshold })),
+  );
 
   const checks = [
+    { name: "all recorded k6 thresholds pass", pass: k6ThresholdFailures.length === 0, value: k6ThresholdFailures.length },
     { name: `unexpected request failure rate < ${budgets.global.errorRateMax}`, pass: Number.isFinite(errorRate) && errorRate < budgets.global.errorRateMax, value: errorRate },
     { name: `business/harness unexpected failure rate < ${budgets.global.unexpectedFailureRateMax}`, pass: Number.isFinite(unexpectedRate) && unexpectedRate < budgets.global.unexpectedFailureRateMax, value: unexpectedRate },
     { name: `global HTTP p95 screening threshold < ${budgets.global.p95Ms} ms`, pass: Number.isFinite(p95) && p95 < budgets.global.p95Ms, value: p95 },
@@ -137,6 +143,7 @@ async function main() {
     checks,
     operationBudgets,
     operationFailures,
+    k6ThresholdFailures,
     topStatementDeltas: statementDeltas(before, after),
     topTableScanDeltas: tableDeltas(before, after),
   };
