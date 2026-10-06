@@ -17,7 +17,7 @@ async function runner(k6Status = 0, evaluatorStatus = 0) {
   const requireDouble = (name: string) => {
     if (name === "./lib/load-env") return {};
     if (name === "node:path") return path;
-    if (name === "node:fs/promises") return { mkdir: async () => {} };
+    if (name === "node:fs/promises") return { mkdir: async () => {}, stat: async () => ({ size: 1 }) };
     if (name === "./perf-safety") return { assertSafePerfTarget: () => ({}), safeTargetSummary: () => ({}) };
     if (name === "node:child_process") return {
       spawnSync: (command: string, args: string[], options: { shell: boolean }) => {
@@ -79,7 +79,7 @@ describe("Windows Performance evaluation", () => {
   it("preserves k6 non-zero exit even when evaluation passes", async () => {
     const result = await runner(99);
     expect(result.exitCode).toBe(99);
-    expect(result.logs.join("\n")).toContain("k6 exited non-zero");
+    expect(result.logs.join("\n")).toContain('"k6ExitedNonZero": true');
     expect(result.logs.join("\n")).not.toContain("PERFORMANCE_TIER_ELIGIBLE_FOR_REVIEW");
   });
 
