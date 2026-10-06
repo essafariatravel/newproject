@@ -8,7 +8,7 @@ This addendum supersedes the historical snapshot below for the current handoff. 
 - Implementation-validation SHA: `21d2387cba6b1aa44ddd46d1c37d996818ba665c`.
 - This evidence addendum is carried by a subsequent documentation commit; use `git rev-parse HEAD` for the final handoff SHA. The remote Arena branch matches that final SHA; the working tree was clean at handoff.
 - Production, `release/go-live-final-2026-10-06`, `main`, DNS, credentials, legal publication, and business data were not modified.
-- Diff from authoritative base: 7 files, 145 insertions, 45 deletions. Changes are test isolation/gate corrections, deterministic CI setup, and a safer synthetic local DR drill; no Production operation is included.
+- Diff from authoritative base: 9 files, 220 insertions, 45 deletions. Changes are evidence-document updates, test isolation/gate corrections, deterministic CI setup, and a safer synthetic local DR drill; no Production operation is included.
 
 ### Current gate matrix
 
@@ -57,7 +57,7 @@ The four repository security gates and production dependency audit are green at 
 ### Reviewer package
 
 - Source/base SHAs and ordered commit list are recorded in the handoff response and are reproducible with `git log --reverse 905ed99a7c898a4dd2a10837763ae604ec1771de..HEAD`.
-- Review scope: `git diff --stat 905ed99a7c898a4dd2a10837763ae604ec1771de..21d2387cba6b1aa44ddd46d1c37d996818ba665c`.
+- Review scope: `git diff --stat 905ed99a7c898a4dd2a10837763ae604ec1771de..HEAD`.
 - Detailed requirement traceability remains below in the historical matrix; the current gate matrix above controls current evidence status.
 
 ---
