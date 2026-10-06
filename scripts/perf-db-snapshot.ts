@@ -82,10 +82,16 @@ async function main() {
       `);
 
       let statements: unknown[] = [];
-      const hasStatements = await client.query<{ present: boolean }>(
-        "select exists(select 1 from pg_extension where extname='pg_stat_statements') as present",
+      const hasStatements = await client.query<{ namespace: string }>(
+        `select n.nspname as namespace
+           from pg_catalog.pg_extension e
+           join pg_catalog.pg_namespace n on n.oid=e.extnamespace
+          where e.extname='pg_stat_statements'`,
       );
-      if (hasStatements.rows[0]?.present) {
+      const extension = hasStatements.rows[0];
+      if (extension) {
+        // Resolve outside the application search path and quote the catalog identifier.
+        const statementView = `"${extension.namespace.replaceAll('"', '""')}"."pg_stat_statements"`;
         const result = await client.query(`
           select queryid::text,
                  calls,
@@ -94,7 +100,7 @@ async function main() {
                  round(max_exec_time::numeric,3) as max_exec_ms,
                  rows,
                  left(regexp_replace(query, '\\s+', ' ', 'g'), 1000) as normalized_query
-            from pg_stat_statements
+            from ${statementView}
            where query ilike $1
            order by total_exec_time desc
            limit 75
