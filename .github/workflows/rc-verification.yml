@@ -5,6 +5,7 @@ on:
     branches:
       - release/essafaria-rc-2026-09
       - release/final-rc-consolidation
+      - release/go-live-final-2026-10-06
       - preprod/essafaria-final-hardening
       - security/pre-codex-gate-2026-10-03
   workflow_dispatch:
@@ -21,7 +22,7 @@ permissions:
 jobs:
   verify:
     name: Typecheck, lint, tests, build
-    if: github.ref == 'refs/heads/release/final-rc-consolidation' || github.ref == 'refs/heads/release/essafaria-rc-2026-09' || github.ref == 'refs/heads/preprod/essafaria-final-hardening' || github.ref == 'refs/heads/security/pre-codex-gate-2026-10-03'
+    if: github.ref == 'refs/heads/release/final-rc-consolidation' || github.ref == 'refs/heads/release/essafaria-rc-2026-09' || github.ref == 'refs/heads/release/go-live-final-2026-10-06' || github.ref == 'refs/heads/preprod/essafaria-final-hardening' || github.ref == 'refs/heads/security/pre-codex-gate-2026-10-03'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
