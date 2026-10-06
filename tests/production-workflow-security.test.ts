@@ -12,7 +12,7 @@ describe("Production release workflow security", () => {
   });
 
   it("allows the Production apply job only from the authorized RC branch", () => {
-    expect(workflow).toContain("github.ref == 'refs/heads/release/essafaria-rc-2026-09'");
+    expect(workflow).toContain("github.ref == 'refs/heads/release/go-live-final-2026-10-06'");
     expect(workflow).toContain("needs.audit.outputs.go == 'true'");
     expect(workflow).toContain("needs.audit.result == 'success'");
   });

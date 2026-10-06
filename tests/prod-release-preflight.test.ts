@@ -1,4 +1,4 @@
-/** Production release preflight guards for the verified post-release state through 0019. */
+/** Production release preflight guards for the approved 0019 baseline and authorized 0020→0031 promotion. */
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -131,7 +131,7 @@ describe("apply authorization remains push + PROD_GO only", () => {
   it("allows the RC branch but still requires push + PROD_GO + successful audit for apply", () => {
     const workflow = readFileSync(path.join(process.cwd(), ".github/workflows/prod-release.yml"), "utf8");
     const applySection = workflow.slice(workflow.indexOf("  apply:"));
-    expect(workflow).toContain("- release/essafaria-rc-2026-09");
+    expect(workflow).toContain("- release/go-live-final-2026-10-06");
     expect(applySection).toContain("github.event_name == 'push'");
     expect(applySection).toContain("needs.audit.outputs.go == 'true'");
     expect(applySection).toContain("needs.audit.result == 'success'");

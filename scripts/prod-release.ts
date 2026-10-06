@@ -1,7 +1,7 @@
 /**
  * Production release tooling — visa_os.
  *
- * CURRENT APPROVED STATE: post-release ledger 0001 → 0019 with no pending migrations.
+ * CURRENT APPROVED PRE-RELEASE STATE: Production ledger 0001 → 0019 with the explicitly authorized 0020 → 0031 migration scope pending.
  * Counts/checksums remain explicitly human-approved values: live drift is
  * NEVER adopted automatically. baseline-candidate is read-only evidence only.
  *
@@ -32,7 +32,7 @@
  *     ledger on Production (a missing ledger means a mispointed database).
  *   - Live state must equal the approved baseline EXACTLY (ledger, counts,
  *     wallet checksum, agency balances), and the pending set must be exactly
- *     the authorized release scope — currently empty post-release. Any
+ *     the authorized release scope — migrations 0020 through 0031. Any
  *     unexpected pending file aborts the run.
  *   - Protected counts / wallet checksum / agency balances / branding must be
  *     identical afterwards, and column validation must end true.
@@ -81,7 +81,20 @@ const MIGRATIONS_DIR = () => path.join(process.cwd(), "migrations");
  * path refuses to run when the pending set is not exactly this list, so a later
  * migration cannot ride along on this authorization.
  */
-export const RELEASE_SCOPE = [] as const;
+export const RELEASE_SCOPE = [
+  "0020_identity_security.sql",
+  "0021_business_invariants.sql",
+  "0022_registration_review.sql",
+  "0023_operations_legal.sql",
+  "0024_preview_api_lockdown.sql",
+  "0025_legal_privacy_readiness.sql",
+  "0026_function_privilege_hardening.sql",
+  "0027_document_integrity.sql",
+  "0028_file_identity_hardening.sql",
+  "0029_legacy_reconciliation.sql",
+  "0030_reconciliation_api_lockdown.sql",
+  "0031_reconciliation_event_sequence_repair.sql",
+] as const;
 
 const PROTECTED_COUNTS = [
   "users",
@@ -107,12 +120,21 @@ const SNAPSHOT_TABLES = [
   "applicants",
   "agencies",
   "users",
+  "sessions",
   "currencies",
   "visa_categories",
   "visa_types",
   "document_types",
+  "documents",
+  "document_blobs",
+  "checklist_items",
   "wallet_transactions",
+  "wallet_topup_requests",
   "document_requests",
+  "agency_registrations",
+  "agency_registration_documents",
+  "audit_logs",
+  "notifications",
   "schema_migrations",
   "site_settings",
 ] as const;
@@ -146,26 +168,26 @@ export const APPROVED_BASELINE = {
     "0019_config_translations.sql",
   ] as const,
   counts: {
-    users: 4,
-    agencies: 4,
+    users: 6,
+    agencies: 7,
     applications: 2,
     applicants: 2,
-    notifications: 31,
+    notifications: 44,
     communications: 0,
-    audit_logs: 67,
-    site_settings: 13,
+    audit_logs: 93,
+    site_settings: 19,
     documents: 6,
-    document_blobs: 8,
+    document_blobs: 13,
     checklist_items: 4,
     wallet_transactions: 4,
     application_status_history: 8,
   } as Record<string, number>,
   walletChecksum: "9df70462ea533466b9b4c253d6208a89",
-  agencyWalletsChecksum: "9d29f5a06c17e89b105bc1073e647c4f",
+  agencyWalletsChecksum: "440e8a0490e41c5a57a5e96fc893abe3",
 };
 
 /** Current fully applied approved ledger. */
-export const TARGET_LEDGER = [...APPROVED_BASELINE.ledger];
+export const TARGET_LEDGER = [...APPROVED_BASELINE.ledger, ...RELEASE_SCOPE];
 
 export const PROJECT_USER = `postgres.${EXPECTED_SUPABASE_PROJECT}`;
 
@@ -646,10 +668,10 @@ async function main(): Promise<void> {
         const md = renderReport("apply", host, before, before, [], [], { pending, mismatches: [], snapshots: [] });
         fs.writeFileSync(
           "/tmp/prod-release-report.md",
-          md + "\n\nMIGRATIONS ALREADY APPLIED (ledger complete 0001-0019) — no-op run; restore point not recreated.\n",
+          md + "\n\nMIGRATIONS ALREADY APPLIED (ledger complete 0001-0031) — no-op run; restore point not recreated.\n",
         );
         console.log(md);
-        console.log("migrations already applied — ledger complete 0001-0019; exiting as successful no-op.");
+        console.log("migrations already applied — ledger complete 0001-0031; exiting as successful no-op.");
         pool.end();
         return;
       }
