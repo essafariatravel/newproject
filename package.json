@@ -39,7 +39,10 @@
     "verify:perf:tooling": "vitest run tests/performance-safety.test.ts tests/performance-verdict-tooling.test.ts",
     "dr:manifest": "tsx scripts/dr-verify-manifest.ts",
     "dr:status": "tsx scripts/dr-status.ts",
-    "dr:repo-safety": "tsx scripts/dr-repo-safety.ts"
+    "dr:repo-safety": "tsx scripts/dr-repo-safety.ts",
+    "perf:create-sessions": "tsx scripts/perf-create-sessions.ts",
+    "perf:manifest": "tsx scripts/perf-create-application-manifest.ts",
+    "perf:tier": "tsx scripts/perf-run-tier.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
