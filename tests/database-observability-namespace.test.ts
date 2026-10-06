@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fixture = vi.hoisted(() => ({ namespace: 'synthetic"extension', enabled: true, failure: false, queries: [] as string[] }));
 vi.mock("@/lib/db", () => ({ pool: { query: async (sql: string) => {
@@ -21,6 +21,16 @@ beforeEach(() => {
   fixture.enabled = true;
   fixture.failure = false;
   fixture.queries = [];
+});
+
+// This suite intentionally replaces the shared database modules. The Vitest
+// run uses one module registry so the next real-database suite must not inherit
+// these mocks, regardless of the deterministic file order.
+afterAll(() => {
+  vi.doUnmock("@/lib/db");
+  vi.doUnmock("@/lib/database-schema");
+  vi.doUnmock("@/lib/observability");
+  vi.resetModules();
 });
 
 describe("database observability extension namespace", () => {
