@@ -164,7 +164,7 @@ After an operator has restored a backup into a disposable database:
 ```bash
 DR_ENVIRONMENT=RESTORE_TEST \
 DATABASE_SCHEMA=visa_os_restore_test \
-DATABASE_URL='postgresql://...local disposable database...' \
+DATABASE_URL='<safe-local-disposable-database-url>' \
 npm run dr:restore-verify
 ```
 
