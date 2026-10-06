@@ -8,7 +8,7 @@
  * Local example:
  *   DR_ENVIRONMENT=RESTORE_TEST \
  *   DATABASE_SCHEMA=visa_os_restore_test \
- *   DATABASE_URL=postgresql://...localhost... \
+ *   DATABASE_URL=<safe-local-restore-database-url> \
  *   npm run dr:restore-verify
  *
  * External-object storage:
