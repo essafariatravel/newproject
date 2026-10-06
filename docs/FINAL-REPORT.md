@@ -1,5 +1,69 @@
 # ESSAFARIA VISA OS — Final Report
 
+## Current finalization addendum — 2026-10-06
+
+This addendum supersedes the historical snapshot below for the current handoff. It is evidence for the exact Arena branch state, not a claim that Production or a hosted Preview was changed.
+
+- Authoritative base: `release/go-live-final-2026-10-06` at `905ed99a7c898a4dd2a10837763ae604ec1771de`.
+- Arena branch: `arena/7891f1ea-newproject` at `21d2387cba6b1aa44ddd46d1c37d996818ba665c`.
+- Remote branch matches that SHA; working tree was clean at handoff.
+- Production, `release/go-live-final-2026-10-06`, `main`, DNS, credentials, legal publication, and business data were not modified.
+- Diff from authoritative base: 7 files, 145 insertions, 45 deletions. Changes are test isolation/gate corrections, deterministic CI setup, and a safer synthetic local DR drill; no Production operation is included.
+
+### Current gate matrix
+
+| Gate | Exact evidence at current SHA | Status |
+| --- | --- | --- |
+| Dependency install | `npm ci --no-audit --no-fund` | PASS, exit 0 |
+| Type safety | `npm run typecheck` | PASS, exit 0 |
+| Lint | `npm run lint` | PASS, exit 0 |
+| Security static | `npx tsx scripts/security-static-gate.ts` | PASS, exit 0 |
+| Security history | `npx tsx scripts/security-history-gate.ts` | PASS, exit 0 |
+| Immutable Actions | `npx tsx scripts/security-actions-gate.ts` | PASS, exit 0 |
+| Dangerous-source gate | `npx tsx scripts/security-source-gate.ts` | PASS, exit 0 |
+| Production dependency audit | `npm audit --omit=dev --audit-level=high` | PASS, exit 0; 0 high-or-critical vulnerabilities reported |
+| Shell syntax | `bash -n scripts/hosted-verify.sh scripts/privacy-runtime-smoke.sh` | PASS, exit 0 |
+| Full automated suite | `npm test` | PASS, 169 files / 1,289 tests, exit 0 |
+| Production build | `npm run build` | PASS, exit 0 |
+| Local legal/privacy runtime | `bash scripts/privacy-runtime-smoke.sh` after disposable local migrate/seed/build/start | PASS, all listed checks; exit 0 |
+| Synthetic DR drill | `npm run dr:local-drill` | **BLOCKED**, exit 1 with `pg_dump` unavailable; this is correctly non-zero and is not a PASS |
+| Hosted Preview migration/health | No Preview credential was available in the workspace | **NOT_TESTED** |
+| 10/50/100-VU performance | No Preview target/credential; no authorized load test run | **NOT_TESTED** |
+| Browser-driven E2E / pixel inspection | No usable browser runtime in this sandbox | **NOT_TESTED** |
+| Independent pentest | Not commissioned or executed | **NOT_TESTED** |
+
+### Exact performance evidence
+
+No 10/50/100-VU run was executed for the current SHA. The current repository contains the performance safety/evaluation tests, and they pass within the 1,289-test suite; that is not runtime load evidence. The only recorded load-gate result is the older failing GitHub Actions run `37506773687` at SHA `fba1cd3851dab17b713ca090174627ee64ab0118`; it is not evidence for this handoff and is not converted to PASS.
+
+### Security findings and residual risk
+
+The four repository security gates and production dependency audit are green at the current SHA. Open/residual findings are external or intentionally unresolved: mandatory Staff MFA is not implemented in this custom authentication stack; hosted Preview security/runtime checks were not executable without credentials; malware/AV/CDR integration and an independent pentest were not performed; browser-level security/interaction checks remain unexecuted. No independent pentest is claimed.
+
+### CI and Production evidence
+
+- The latest completed Arena-branch CI run available from the remote branch is run `37540114120`, SHA `3be2a24ff4dccf79480a935b5d6e2ea7a794d809`, **success**; it executed the same deterministic RC verification workflow. It is predecessor evidence, not current-SHA evidence.
+- Current-SHA validation is the local matrix above. An attempted workflow dispatch was refused by GitHub with HTTP 403, so no current-SHA CI PASS is claimed.
+- On the authoritative base, read-only Production audit run `37512935684` was **success** and its guarded apply job was **skipped**. RC run `37512935621` failed at the authoritative SHA in the broader deterministic suite. Neither run is relabeled as current-SHA evidence.
+
+### Human actions required before any go-live decision
+
+1. Provision a verified same-major PostgreSQL client pair (`pg_dump` and `pg_restore`) and rerun `npm run dr:local-drill`; retain the encrypted archive, restore evidence, and reconciliation output.
+2. Provide an identified Preview deployment/database credential and run migration, health, browser abuse, and 10/50/100-VU gates against isolated Preview only.
+3. Design, implement, review, and verify protected MFA enrollment, recovery, and step-up controls for privileged Staff; do not improvise this in Production.
+4. Commission an independent penetration test and, if required by the data threat model, malware scanning/CDR.
+5. Obtain named human sign-offs for legal content/publication, release scope, backup/restore evidence, security findings, and the explicit decision not to execute Production operations in this handoff.
+
+### Reviewer package
+
+- Source/base SHAs and ordered commit list are recorded in the handoff response and are reproducible with `git log --reverse 905ed99a7c898a4dd2a10837763ae604ec1771de..HEAD`.
+- Review scope: `git diff --stat 905ed99a7c898a4dd2a10837763ae604ec1771de..21d2387cba6b1aa44ddd46d1c37d996818ba665c`.
+- Detailed requirement traceability remains below in the historical matrix; the current gate matrix above controls current evidence status.
+
+---
+
+# Historical final report snapshot
+
 Branch `arena/01a0ce58-newproject` · head `ae51ebd` · base production release `3a1cdc9` (untouched)
 Preview-first session · **STOP BEFORE PRODUCTION** · no production operation performed.
 

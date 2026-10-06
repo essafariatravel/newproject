@@ -1,5 +1,16 @@
 # ESSAFARIA VISA OS — Requirement Completion Matrix
 
+## Current evidence addendum — 2026-10-06
+
+The detailed rows below are retained as historical requirement traceability from an earlier implementation snapshot. For this finalization handoff, the authoritative current status is the current gate matrix in `docs/FINAL-REPORT.md`.
+
+- Current authoritative base: `release/go-live-final-2026-10-06` at `905ed99a7c898a4dd2a10837763ae604ec1771de`.
+- Current Arena branch: `arena/7891f1ea-newproject` at `21d2387cba6b1aa44ddd46d1c37d996818ba665c`.
+- Current full suite: `npm test` → 169 files / 1,289 tests passed.
+- Current typecheck, lint, four security gates, dependency audit, build, and local legal/privacy runtime smoke: PASS as individually recorded in the current final report.
+- Current synthetic DR drill: BLOCKED, not PASS, because the sandbox lacks `pg_dump`/`pg_restore`; the command now exits 1 truthfully.
+- Hosted Preview, live performance tiers, browser-driven E2E, independent pentest, and Production operations remain NOT_TESTED or explicitly prohibited; no row below should be read as current hosted or Production evidence.
+
 Scope: master directive (73 sections), staff back-office + agency portal + public site.
 Base: production release `3a1cdc9` (untouched). Work branch: `arena/01a0ce58-newproject`
 (head `ae51ebd`, all work preview-first, **no production operation performed**).
