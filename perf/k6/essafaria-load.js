@@ -24,6 +24,8 @@ if (String(__ENV.DATABASE_SCHEMA || "").trim() !== EXPECTED_SCHEMA) {
 // k6 open() resolves relative paths from this script's perf/k6 directory.
 const SESSION_FILE = __ENV.PERF_SESSION_FILE || "../.runtime/sessions.json";
 const sessionData = JSON.parse(open(SESSION_FILE));
+const APPLICATION_MANIFEST_FILE = __ENV.PERF_APPLICATION_MANIFEST || "../.runtime/application-manifest.json";
+const applicationManifest = JSON.parse(open(APPLICATION_MANIFEST_FILE));
 const BUDGETS = JSON.parse(open("../budgets.json"));
 const operationTrends = Object.fromEntries(
   Object.keys(BUDGETS.operations || {}).map((operation) => [operation, new Trend(`op_${operation}`, true)]),
@@ -320,8 +322,17 @@ export function setup() {
     return { startedAt: Date.now(), expectedProject: EXPECTED_PROJECT, agencyApplicationIds: [], staffApplicationIds: [] };
   }
 
-  const agencyApplicationIds = discoverApplications("AGENCY_USER", "/portal/applications?per=50", "/portal/applications");
-  const staffApplicationIds = discoverApplications("VISA_AGENT", "/admin/applications?q=PERF&per=50", "/admin/applications");
+  const agencyApplicationIds = Array.isArray(applicationManifest.agencyApplicationIds)
+    ? applicationManifest.agencyApplicationIds.filter((id) => typeof id === "string")
+    : [];
+  const staffApplicationIds = Array.isArray(applicationManifest.staffApplicationIds)
+    ? applicationManifest.staffApplicationIds.filter((id) => typeof id === "string")
+    : [];
+  const requestedDatasetId = String(__ENV.PERF_DATASET_ID || "").trim().toLowerCase();
+  const manifestDatasetId = String(applicationManifest.datasetId || "").trim().toLowerCase();
+  if (requestedDatasetId && manifestDatasetId !== requestedDatasetId) {
+    throw new Error("Application manifest dataset does not match PERF_DATASET_ID.");
+  }
   if (agencyApplicationIds.length === 0) throw new Error("No synthetic Agency application links discovered. Seed scale data first.");
   if (staffApplicationIds.length === 0) throw new Error("No synthetic Staff application links discovered. Seed scale data first.");
 

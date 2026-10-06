@@ -26,6 +26,11 @@ function initialize(
   const openDouble = (file: string) => {
     opened.push(file);
     if (file === "../budgets.json") return JSON.stringify({ global: { errorRateMax: 0.01, unexpectedFailureRateMax: 0.01, p95Ms: 1000 }, operations: {} });
+    if (file === "../.runtime/application-manifest.json") return JSON.stringify({
+      datasetId: "synthetic-test",
+      agencyApplicationIds: ["00000000-0000-4000-8000-000000000001"],
+      staffApplicationIds: ["00000000-0000-4000-8000-000000000002"],
+    });
     if (overrides.PERF_SESSION_FILE) {
       if (file !== overrides.PERF_SESSION_FILE) throw new Error("Session override changed");
     } else if (paths.resolve(scriptDirectory, file) !== defaultSession) {
@@ -51,7 +56,7 @@ describe("k6 session-file resolution (initialization only; no k6 process)", () =
   ])("resolves the default relative to perf/k6/essafaria-load.js on $name", ({ paths, root }) => {
     const harness = initialize(paths, root);
     expect(harness.run).not.toThrow();
-    expect(harness.opened).toEqual(["../.runtime/sessions.json", "../budgets.json"]);
+    expect(harness.opened).toEqual(["../.runtime/sessions.json", "../.runtime/application-manifest.json", "../budgets.json"]);
   });
 
   it.each([
