@@ -18,7 +18,8 @@ if (BASE_HOST === PROD_HOST) {
   throw new Error("The load harness refuses the Production hostname.");
 }
 
-const SESSION_FILE = __ENV.PERF_SESSION_FILE || "./perf/.runtime/sessions.json";
+// k6 open() resolves relative paths from this script's perf/k6 directory.
+const SESSION_FILE = __ENV.PERF_SESSION_FILE || "../.runtime/sessions.json";
 const sessionData = JSON.parse(open(SESSION_FILE));
 const BUDGETS = JSON.parse(open("../budgets.json"));
 const operationTrends = Object.fromEntries(
