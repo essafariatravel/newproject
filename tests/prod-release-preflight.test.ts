@@ -35,13 +35,8 @@ function approvedSnapshot(): SnapshotReport {
 }
 
 describe("current Production release manifest", () => {
-  it("keeps the approved Production ledger through 0019 and blocks the unapproved hardening migrations", () => {
-    expect([...RELEASE_SCOPE]).toEqual([]);
-    expect(APPROVED_BASELINE.ledger).toHaveLength(19);
-    expect(APPROVED_BASELINE.ledger[18]).toBe("0019_config_translations.sql");
-    expect(TARGET_LEDGER).toEqual([...APPROVED_BASELINE.ledger]);
-    const pending = pendingMigrations(APPROVED_BASELINE.ledger);
-    expect(pending).toEqual([
+  it("keeps the approved Production ledger through 0019 and authorizes only the explicit 0020→0031 promotion scope", () => {
+    expect([...RELEASE_SCOPE]).toEqual([
       "0020_identity_security.sql",
       "0021_business_invariants.sql",
       "0022_registration_review.sql",
@@ -55,7 +50,14 @@ describe("current Production release manifest", () => {
       "0030_reconciliation_api_lockdown.sql",
       "0031_reconciliation_event_sequence_repair.sql",
     ]);
-    expect(preflightFindings(approvedSnapshot(), pending).some((finding) => finding.includes("pending migration set is not this release"))).toBe(true);
+    expect(APPROVED_BASELINE.ledger).toHaveLength(19);
+    expect(APPROVED_BASELINE.ledger[18]).toBe("0019_config_translations.sql");
+    expect(TARGET_LEDGER).toEqual([...APPROVED_BASELINE.ledger, ...RELEASE_SCOPE]);
+    const pending = pendingMigrations(APPROVED_BASELINE.ledger);
+    expect(pending).toEqual([...RELEASE_SCOPE]);
+    expect(preflightFindings(approvedSnapshot(), pending)).toEqual([]);
+    expect(preflightFindings(approvedSnapshot(), ["0032_unapproved.sql"])
+      .some((finding) => finding.includes("pending migration set is not this release"))).toBe(true);
   });
 
   it("rejects the stale pre-release ledger ending at 0017", () => {
@@ -93,11 +95,11 @@ describe("baseline remains fail-closed", () => {
   it("still allows audit_logs to grow but never shrink", () => {
     const grown = approvedSnapshot();
     grown.counts.audit_logs = (APPROVED_BASELINE.counts.audit_logs ?? 0) + 10;
-    expect(preflightFindings(grown, [])).toEqual([]);
+    expect(preflightFindings(grown, [...RELEASE_SCOPE])).toEqual([]);
 
     const shrunk = approvedSnapshot();
     shrunk.counts.audit_logs = (APPROVED_BASELINE.counts.audit_logs ?? 0) - 1;
-    expect(preflightFindings(shrunk, []).some((f) => f.startsWith("audit_logs="))).toBe(true);
+    expect(preflightFindings(shrunk, [...RELEASE_SCOPE]).some((f) => f.startsWith("audit_logs="))).toBe(true);
   });
 });
 

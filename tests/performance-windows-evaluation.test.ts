@@ -17,7 +17,13 @@ async function runner(k6Status = 0, evaluatorStatus = 0) {
   const requireDouble = (name: string) => {
     if (name === "./lib/load-env") return {};
     if (name === "node:path") return path;
-    if (name === "node:fs/promises") return { mkdir: async () => {} };
+    if (name === "node:fs/promises") return {
+      mkdir: async () => {},
+      // The tier runner requires a non-empty monitor artifact before it can
+      // advance. Keep the Windows-path harness representative of that
+      // successful evidence check.
+      stat: async () => ({ size: 1 }),
+    };
     if (name === "./perf-safety") return { assertSafePerfTarget: () => ({}), safeTargetSummary: () => ({}) };
     if (name === "node:child_process") return {
       spawnSync: (command: string, args: string[], options: { shell: boolean }) => {
