@@ -2,6 +2,7 @@ import "./lib/load-env";
 import { Pool } from "pg";
 import { databasePoolConfig } from "../src/lib/database-config";
 import { assertSafePerfTarget, perfTable, safeTargetSummary } from "./perf-safety";
+import {trustedPreviewOrigin} from "./lib/preview-host";
 
 type HealthResponse = {
   status?: string;
@@ -11,9 +12,11 @@ type HealthResponse = {
 async function main() {
   const target = assertSafePerfTarget();
   if (!target.baseUrl) throw new Error("BASE_URL is required for performance preflight.");
+  if(process.env.VERCEL_AUTOMATION_BYPASS_SECRET)trustedPreviewOrigin(target.baseUrl,process.env.CONSOLIDATION_PREVIEW_URL);
 
   const healthResponse = await fetch(`${target.baseUrl}/api/health`, {
-    headers: { "user-agent": "essafaria-performance-preflight" },
+    headers: { "user-agent": "essafaria-performance-preflight",...(process.env.VERCEL_AUTOMATION_BYPASS_SECRET?{"x-vercel-protection-bypass":process.env.VERCEL_AUTOMATION_BYPASS_SECRET}:{}) },
+    redirect:"error",
     cache: "no-store",
   });
   if (!healthResponse.ok) {

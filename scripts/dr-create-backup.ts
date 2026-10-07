@@ -24,7 +24,7 @@ import { Pool } from "pg";
 import { databasePoolConfig } from "../src/lib/database-config";
 import { qualifiedTable } from "../src/lib/database-schema";
 import {
-  DR_CRITICAL_TABLES,
+  requiredDrTables,
   PRODUCTION_PROJECT_REF,
   PRODUCTION_SCHEMA,
   assessBackupManifest,
@@ -132,14 +132,16 @@ async function main() {
       [PRODUCTION_SCHEMA],
     );
     const tables = new Set(tableRows.rows.map((row) => row.table_name));
-    const missing = DR_CRITICAL_TABLES.filter((table) => !tables.has(table));
+    const sourceLedger=await client.query<{name:string}>(`select name from ${qualifiedTable("schema_migrations",PRODUCTION_SCHEMA)} order by applied_at,name`);
+    const criticalTables=requiredDrTables(sourceLedger.rows.map(row=>row.name));
+    const missing = criticalTables.filter((table) => !tables.has(table));
     if (missing.length) throw new Error(`Critical application tables are missing: ${missing.join(", ")}.`);
     if (!tables.has("document_blobs")) {
       throw new Error("DR_STORAGE_MODE=DATABASE_BLOBS requires document_blobs in the source schema.");
     }
 
     const rowCounts: Record<string, number> = {};
-    for (const table of DR_CRITICAL_TABLES) {
+    for (const table of criticalTables) {
       const rows = await client.query<{ count: number }>(
         `select count(*)::int as count from ${qualifiedTable(table, PRODUCTION_SCHEMA)}`,
       );
@@ -163,7 +165,7 @@ async function main() {
     }
 
     const objectRows = await client.query<{ key: string; size_bytes: number; sha256: string }>(
-      `select key, size_bytes, encode(digest(data,'sha256'),'hex') as sha256
+      `select key, size_bytes, encode(pg_catalog.sha256(data),'hex') as sha256
          from ${qualifiedTable("document_blobs", PRODUCTION_SCHEMA)}
         order by key`,
     );

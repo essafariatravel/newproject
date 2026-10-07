@@ -11,7 +11,8 @@
  *
  * It never contacts Production and never uses real customer data or secrets.
  */
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { copyFile, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -62,9 +63,9 @@ function embeddedPackageSegment(): string {
   return segment;
 }
 
-function pgBinary(name: string): string {
+function pgBinary(name: "pg_dump" | "pg_restore"): string {
   const suffix = process.platform === "win32" ? ".exe" : "";
-  return path.join(
+  const bundled = path.join(
     process.cwd(),
     "node_modules",
     "@embedded-postgres",
@@ -73,6 +74,25 @@ function pgBinary(name: string): string {
     "bin",
     name + suffix,
   );
+  // embedded-postgres ships the server lifecycle binaries, not the client
+  // utilities. Prefer an explicitly provisioned client pair, then a PATH
+  // client, and fail before creating any evidence if neither exists.
+  const override = process.env[name === "pg_dump" ? "PG_DUMP_BIN" : "PG_RESTORE_BIN"];
+  if (override?.trim()) return override.trim();
+  try {
+    execFileSync(bundled, ["--version"], { stdio: "ignore" });
+    return bundled;
+  } catch {
+    try {
+      execFileSync(name, ["--version"], { stdio: "ignore" });
+      return name;
+    } catch {
+      throw new Error(
+        `Synthetic DR drill requires ${name} (PostgreSQL client tools are not included by embedded-postgres). ` +
+        `Install a same-major PostgreSQL client or set ${name === "pg_dump" ? "PG_DUMP_BIN" : "PG_RESTORE_BIN"}.`,
+      );
+    }
+  }
 }
 
 function connection(database: string): string {
@@ -110,7 +130,7 @@ function run(
     child.once("error", () => reject(new Error(`${path.basename(binary)} could not be started.`)));
     child.once("close", (code) => {
       if (code === 0) resolve(stdout);
-      else reject(new Error(`${path.basename(binary)} failed with exit ${code ?? "unknown"}.${stderr ? " Inspect synthetic drill logs." : ""}`));
+      else reject(new Error(`${path.basename(binary)} failed with exit ${code ?? "unknown"}. ${stderr.slice(0, 3000)}`));
     });
   });
 }
@@ -170,18 +190,23 @@ async function seedRecoverySignals(pool: Pool): Promise<void> {
      returning id::text`,
     [country.rows[0]!.id, category.rows[0]!.id],
   );
+  // The real migration set installs the canonical SUBMITTED status, while
+  // priorities are catalogue data normally supplied by seed. Reuse the
+  // immutable status and create one namespaced synthetic priority; the drill
+  // must exercise recovery rather than depend on a demo seed.
   const status = await pool.query<{ id: string }>(
-    `insert into "${PRODUCTION_SCHEMA}".statuses
-       (code,name,sort_order,is_terminal,is_draft,active)
-     values ('SUBMITTED','Submitted',20,false,false,true)
-     returning id::text`,
+    `select id::text from "${PRODUCTION_SCHEMA}".statuses where code='SUBMITTED' and active=true limit 1`,
   );
   const priority = await pool.query<{ id: string }>(
     `insert into "${PRODUCTION_SCHEMA}".priorities
        (code,name,weight,active,sort_order)
-     values ('STANDARD','Standard',0,true,10)
+     values ('DR_STANDARD','Synthetic DR Standard',0,true,10)
+     on conflict (code) do update set active=true
      returning id::text`,
   );
+  if (!status.rows[0] || !priority.rows[0]) {
+    throw new Error("Synthetic DR catalogue is missing the canonical SUBMITTED row.");
+  }
 
   const agencies = await pool.query<{ id: string; email: string }>(
     `insert into "${PRODUCTION_SCHEMA}".agencies
@@ -374,6 +399,7 @@ async function main() {
   try {
     pg = new EmbeddedPostgres({
       databaseDir: dataDir,
+    initdbFlags: ["--encoding=UTF8", "--locale=C"],
       user: USER,
       password: PASSWORD,
       port: PORT,
@@ -396,8 +422,10 @@ async function main() {
         "select sequence_name from information_schema.sequences where sequence_schema=$1 order by sequence_name",
         [PRODUCTION_SCHEMA],
       );
-      const objectResult = await sourcePool.query<{ key: string; size_bytes: number; sha256: string }>(
-        `select key,size_bytes,encode(digest(data,'sha256'),'hex') as sha256
+      // Hash bytes in Node rather than relying on an extension namespace or
+      // search_path. The storage manifest must be portable across restores.
+      const objectResult = await sourcePool.query<{ key: string; size_bytes: number; data: Buffer }>(
+        `select key,size_bytes,data
            from "${PRODUCTION_SCHEMA}".document_blobs
           order by key`,
       );
@@ -433,7 +461,7 @@ async function main() {
       const objects = objectResult.rows.map((row) => ({
         key: row.key,
         sizeBytes: Number(row.size_bytes),
-        sha256: row.sha256.toLowerCase(),
+        sha256: createHash("sha256").update(row.data).digest("hex"),
       }));
       const manifest: BackupManifest = {
         version: 1,
@@ -808,11 +836,12 @@ async function main() {
     await stopChild(appProcess).catch(() => {});
     key.fill(0);
     if (pg) await pg.stop().catch(() => {});
-    await rm(root, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 }
 
 main().catch((error) => {
   console.error(error instanceof Error ? error.message : "Synthetic DR drill failed.");
-  process.exitCode = 1;
+  // An evidence-producing command must never report a failed drill as green.
+  process.exit(1);
 });

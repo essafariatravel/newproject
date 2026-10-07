@@ -8,7 +8,7 @@
 import { Pool } from "pg";
 import { assessProductionBackupSource } from "./lib/dr-backup";
 import {
-  DR_CRITICAL_TABLES,
+  requiredDrTables,
   PRODUCTION_SCHEMA,
   reconcileStorageSnapshot,
   reconcileWalletSnapshot,
@@ -42,9 +42,6 @@ async function main() {
       [PRODUCTION_SCHEMA],
     );
     const tables = new Set(tablesResult.rows.map((row) => row.table_name));
-    for (const table of DR_CRITICAL_TABLES) {
-      if (!tables.has(table)) findings.push(`CRITICAL_TABLE_MISSING: ${table}`);
-    }
     if (!tables.has("document_blobs")) findings.push("DOCUMENT_BLOBS_TABLE_MISSING");
 
     const migrations = tables.has("schema_migrations")
@@ -53,6 +50,7 @@ async function main() {
         )
       : { rows: [] as Array<{ name: string }> };
     if (!migrations.rows.length) findings.push("MIGRATION_LEDGER_EMPTY");
+    for(const table of requiredDrTables(migrations.rows.map(row=>row.name)))if(!tables.has(table))findings.push(`CRITICAL_TABLE_MISSING: ${table}`);
 
     const pgcrypto = await client.query<{ available: boolean }>(
       "select exists(select 1 from pg_extension where extname='pgcrypto') as available",
@@ -62,7 +60,7 @@ async function main() {
     if (tables.has("document_blobs")) {
       try {
         await client.query(
-          `select encode(digest(data,'sha256'),'hex')
+          `select encode(pg_catalog.sha256(data),'hex')
              from ${qualifiedTable("document_blobs", PRODUCTION_SCHEMA)}
             limit 1`,
         );
@@ -198,7 +196,7 @@ async function main() {
     let staleStaging = 0;
     if (tables.has("document_blobs")) {
       const rows = await client.query<{ key: string; size_bytes: number; sha256: string }>(
-        `select key,size_bytes,encode(digest(data,'sha256'),'hex') as sha256
+        `select key,size_bytes,encode(pg_catalog.sha256(data),'hex') as sha256
            from ${qualifiedTable("document_blobs", PRODUCTION_SCHEMA)}
           order by key`,
       );

@@ -1,0 +1,13 @@
+const fs=require("node:fs");const path=require("node:path");
+const expected={50:10,100:50,250:100,500:250,1000:500}[process.env.PERF_VUS];
+if(!expected)throw new Error("No preceding tier is defined.");
+const candidates=[];
+function walk(dir){for(const item of fs.readdirSync(dir,{withFileTypes:true})){const file=path.join(dir,item.name);if(item.isDirectory())walk(file);else if(item.name==="tier.json")candidates.push(file);}}
+walk(process.argv[2]);
+const matched=candidates.filter(file=>{const tier=JSON.parse(fs.readFileSync(file,"utf8"));return tier.sha===process.env.GITHUB_SHA&&tier.baseUrl===process.env.BASE_URL&&tier.schema==="visa_os_preview"&&tier.vus===expected&&tier.holdMinutes>=20&&tier.status==="PASS";});
+if(matched.length!==1)throw new Error("Passing preceding tier proof is missing or ambiguous.");
+const dir=path.dirname(matched[0]);
+for(const name of ["db-before.json","db-monitor.json","db-after.json","k6-summary.json","evaluation.json"])if(!fs.statSync(path.join(dir,name)).size)throw new Error("Mandatory previous-tier artifact is empty.");
+const evaluation=JSON.parse(fs.readFileSync(path.join(dir,"evaluation.json"),"utf8"));
+if(!evaluation.checks.length||!evaluation.checks.every(check=>check.pass===true))throw new Error("Previous-tier evaluation failed.");
+console.log(`PASS preceding ${expected}-VU tier, exact SHA and Preview URL verified.`);

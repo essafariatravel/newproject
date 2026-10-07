@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import * as safety from "../scripts/perf-safety";
+import {trustedPreviewOrigin} from "../scripts/lib/preview-host";
 
 const source = readFileSync(new URL("../scripts/perf-preflight.ts", import.meta.url), "utf8");
 const executable = ts.transpileModule(source, {
@@ -28,6 +29,7 @@ async function runPreflight(health: unknown, overrides: Partial<NodeJS.ProcessEn
   }
   const requireDouble = (name: string) => {
     if (name === "./lib/load-env") return {};
+    if(name==="./lib/preview-host")return {trustedPreviewOrigin};
     if (name === "pg") return { Pool };
     if (name === "../src/lib/database-config") return { databasePoolConfig: () => ({}) };
     if (name === "./perf-safety") return {

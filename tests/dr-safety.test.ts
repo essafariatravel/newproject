@@ -10,6 +10,7 @@ import {
   backupFreshnessFindings,
   reconcileStorageSnapshot,
   reconcileWalletSnapshot,
+  requiredDrTables,
   type BackupManifest,
 } from "../scripts/lib/dr-safety";
 
@@ -70,6 +71,16 @@ function verifiedManifest(): BackupManifest {
   };
 }
 
+it("requires only tables actually introduced by a contiguous source ledger, including MFA at 0032",()=>{
+  const baseline=CURRENT_MIGRATION_LEDGER.slice(0,19);
+  expect(requiredDrTables(baseline)).toContain("session_presence");
+  expect(requiredDrTables(baseline)).not.toContain("account_access_tokens");
+  expect(requiredDrTables(baseline)).not.toContain("mfa_credentials");
+  expect(requiredDrTables(CURRENT_MIGRATION_LEDGER)).toContain("mfa_credentials");
+  expect(()=>requiredDrTables([...baseline,baseline[0]!])).toThrow();
+  expect(()=>requiredDrTables(CURRENT_MIGRATION_LEDGER.slice(1))).toThrow();
+});
+
 describe("DR backup manifest", () => {
   it("classifies a complete encrypted and isolated-restore-tested manifest as VERIFIED", () => {
     const result = assessBackupManifest(verifiedManifest(), {
@@ -81,7 +92,7 @@ describe("DR backup manifest", () => {
     expect(result.findings).toEqual([]);
     expect(result.manifest?.source.migrationLedger).toEqual(CURRENT_MIGRATION_LEDGER);
     expect(CURRENT_MIGRATION_LEDGER.at(-1)).toBe(
-      "0031_reconciliation_event_sequence_repair.sql",
+      "0033_rule_provenance_and_bounded_history.sql",
     );
   });
 

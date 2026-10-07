@@ -1,0 +1,43 @@
+name: Candidate DR read-only source backup
+on:
+  push:
+    branches: [codex/world-class-final-consolidation-*]
+    paths: [.github/workflows/consolidation-dr-backup.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: candidate-readonly-production-backup
+  cancel-in-progress: false
+jobs:
+  backup:
+    if: github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/codex/world-class-final-consolidation-')
+    environment: Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DIRECT_DATABASE_URL || secrets.PRODUCTION_DATABASE_URL }}
+      # Read-only Vercel Production deployment inspection, 2026-10-07.
+      DR_SOURCE_RELEASE_SHA: 831607a2ed0423d575d693b8f8f3a9dfc1e5d9d1
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with: {node-version: 24, cache: npm}
+      - run: npm ci --no-audit --no-fund
+      - name: Install PostgreSQL 17 read-only dump clients
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          echo '/usr/lib/postgresql/17/bin' >> "$GITHUB_PATH"
+      - name: Source preflight and encrypted backup (no restore/migrate path)
+        run: npx tsx scripts/dr-readonly-backup.ts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: readonly-dr-backup-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/essafaria-readonly-dr-backup-*/*.enc
+            ${{ runner.temp }}/essafaria-readonly-dr-backup-*/*.manifest.json
+            ${{ runner.temp }}/essafaria-readonly-dr-backup-*/wrapped-backup-key.bin
+          retention-days: 3

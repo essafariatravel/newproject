@@ -13,11 +13,12 @@ async function runner(k6Status = 0, evaluatorStatus = 0) {
   const calls: Array<{ command: string; args: string[]; options: { shell: boolean } }> = [];
   let exitCode = 0;
   const logs: string[] = [];
+  const tierStates: string[]=[];
   const env = { PERF_RUN_DIR: "C:\\Users\\Azur Computer\\evidence", npm_execpath: "C:\\Program Files\\nodejs\\npm-cli.js" };
   const requireDouble = (name: string) => {
     if (name === "./lib/load-env") return {};
     if (name === "node:path") return path;
-    if (name === "node:fs/promises") return { mkdir: async () => {} };
+    if (name === "node:fs/promises") return { mkdir: async () => {}, stat: async () => ({ size: 1 }),writeFile:async(_file:string,value:string)=>{tierStates.push(JSON.parse(value).status);} };
     if (name === "./perf-safety") return { assertSafePerfTarget: () => ({}), safeTargetSummary: () => ({}) };
     if (name === "node:child_process") return {
       spawnSync: (command: string, args: string[], options: { shell: boolean }) => {
@@ -35,7 +36,7 @@ async function runner(k6Status = 0, evaluatorStatus = 0) {
     requireDouble, {}, { env, platform: "win32", execPath: "C:\\Program Files\\nodejs\\node.exe", exit: (code: number) => { exitCode = code; } },
     { log: (value: string) => logs.push(value), error: (value: string) => logs.push(value) },
   );
-  return { calls, exitCode, logs };
+  return { calls, exitCode, logs,tierStates };
 }
 
 async function evaluate(thresholdFailed = false, slow = false) {
@@ -79,7 +80,8 @@ describe("Windows Performance evaluation", () => {
   it("preserves k6 non-zero exit even when evaluation passes", async () => {
     const result = await runner(99);
     expect(result.exitCode).toBe(99);
-    expect(result.logs.join("\n")).toContain("k6 exited non-zero");
+    expect(result.tierStates).toEqual(["IN_PROGRESS","FAIL"]);
+    expect(result.logs.join("\n")).toContain('"k6ExitedNonZero": true');
     expect(result.logs.join("\n")).not.toContain("PERFORMANCE_TIER_ELIGIBLE_FOR_REVIEW");
   });
 

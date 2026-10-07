@@ -1,5 +1,5 @@
 import "./lib/load-env";
-import { mkdir, stat } from "node:fs/promises";
+import { mkdir, stat,writeFile } from "node:fs/promises";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { resolve } from "node:path";
 import { assertSafePerfTarget, safeTargetSummary } from "./perf-safety";
@@ -109,6 +109,9 @@ async function main() {
   const label = String(process.env.PERF_RUN_LABEL ?? `${vus}vu`).replace(/[^a-zA-Z0-9_-]/g, "-");
   const dir = resolve(process.env.PERF_RUN_DIR ?? `perf/results/run-${label}`);
   await mkdir(dir, { recursive: true });
+  const provenance={sha:process.env.EXPECTED_RELEASE_SHA??process.env.GITHUB_SHA??null,baseUrl:target.baseUrl,schema:target.schema,vus,holdMinutes,startedAt:new Date().toISOString()};
+  const tierFile=resolve(dir,"tier.json");
+  await writeFile(tierFile,JSON.stringify({...provenance,status:"IN_PROGRESS"},null,2));
 
   const before = resolve(dir, "db-before.json");
   const after = resolve(dir, "db-after.json");
@@ -177,6 +180,7 @@ async function main() {
 
   const monitorReady = await evidenceFileReady(monitor);
   if (monitorError || !monitorReady || evaluationError || k6Error) {
+    await writeFile(tierFile,JSON.stringify({...provenance,status:"FAIL",finishedAt:new Date().toISOString()},null,2));
     console.error(JSON.stringify({
       action: "PERFORMANCE_TIER_STOP",
       vus,
@@ -199,6 +203,7 @@ async function main() {
     throw new Error("DB monitor evidence is missing or empty.");
   }
 
+  await writeFile(tierFile,JSON.stringify({...provenance,status:"PASS",finishedAt:new Date().toISOString()},null,2));
   console.log(JSON.stringify({
     action: "PERFORMANCE_TIER_ELIGIBLE_FOR_REVIEW",
     vus,

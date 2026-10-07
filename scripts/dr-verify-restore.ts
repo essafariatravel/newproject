@@ -19,7 +19,7 @@ import { Pool } from "pg";
 import { databasePoolConfig } from "../src/lib/database-config";
 import { qualifiedTable } from "../src/lib/database-schema";
 import {
-  DR_CRITICAL_TABLES,
+  requiredDrTables,
   PRODUCTION_PROJECT_REF,
   PRODUCTION_SCHEMA,
   assessBackupManifest,
@@ -143,7 +143,9 @@ async function main() {
       [schema],
     );
     tables = new Set(tableRows.rows.map((row) => row.table_name));
-    for (const name of DR_CRITICAL_TABLES) {
+    const sourceLedger=await client.query<{name:string}>(`select name from ${qualifiedTable("schema_migrations",schema)} order by applied_at,name`);
+    ledger=sourceLedger.rows.map(row=>row.name);
+    for (const name of requiredDrTables(ledger)) {
       if (!tables.has(name)) {
         findings.push(`CRITICAL_TABLE_MISSING: ${name}`);
         continue;
@@ -355,7 +357,7 @@ async function main() {
         findings.push("DOCUMENT_BLOBS_TABLE_MISSING");
       } else {
         const rows = await client.query<{ key: string; size_bytes: number; sha256: string }>(
-          `select key, size_bytes, encode(digest(data,'sha256'),'hex') as sha256
+          `select key, size_bytes, encode(pg_catalog.sha256(data),'hex') as sha256
              from ${qualifiedTable("document_blobs", schema)}
             order by key`,
         );
@@ -397,7 +399,7 @@ async function main() {
       passed: null as boolean | null,
     };
     if (expected) {
-      const rowMismatches = DR_CRITICAL_TABLES.filter(
+      const rowMismatches = requiredDrTables(expected.source.migrationLedger).filter(
         (table) => rowCounts[table] !== expected!.database.rowCounts[table],
       );
       if (rowMismatches.length) {
@@ -456,8 +458,8 @@ async function main() {
         last: ledger.at(-1) ?? null,
       },
       schema: {
-        criticalTablesExpected: DR_CRITICAL_TABLES.length,
-        criticalTablesPresent: DR_CRITICAL_TABLES.filter((name) => tables.has(name)).length,
+        criticalTablesExpected: requiredDrTables(ledger).length,
+        criticalTablesPresent: requiredDrTables(ledger).filter((name) => tables.has(name)).length,
         rowCounts,
         sequenceCount: sequences.length,
       },

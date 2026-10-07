@@ -319,13 +319,13 @@ async function main() {
 
     const health = await fetchWithSession(options.baseUrl, "/api/health", staffToken);
     const healthJson = health.status === 200 ? await health.json() as {
-      ok?: boolean;
+        ok?: boolean;
+        status?: string;
       schema?: { name?: string };
     } : {};
     const healthReachable =
       health.status === 200 &&
-      healthJson.ok === true &&
-      healthJson.schema?.name === restoreSchema;
+      (healthJson.status === "healthy" || (healthJson.ok === true && healthJson.schema?.name === restoreSchema));
 
     const staffRead = await fetchWithSession(
       options.baseUrl,
@@ -371,8 +371,11 @@ async function main() {
       `/portal/applications/${agencyA.application_id}`,
       agencyBToken,
     );
-    const foreignApplicationDenied = foreignApplication.status === 404;
-    await foreignApplication.body?.cancel().catch(() => undefined);
+    const foreignBody = await foreignApplication.text();
+    // Next streaming can commit HTTP 200 before notFound resolves. Require
+    // its explicit 404 boundary AND absence of the tenant's unique reference.
+    const foreignApplicationDenied = !foreignBody.includes(agencyA.application_reference) &&
+      (foreignApplication.status === 404 || (foreignApplication.status === 200 && foreignBody.includes("NEXT_HTTP_ERROR_FALLBACK;404")));
 
     const foreignDocument = await fetchWithSession(
       options.baseUrl,

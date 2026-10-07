@@ -12,6 +12,8 @@ if (__ENV.PERF_ACK_NONPROD !== "YES") {
 if (!__ENV.BASE_URL) throw new Error("BASE_URL is required.");
 
 const BASE_URL = String(__ENV.BASE_URL).trim().replace(/\/+$/, "");
+if (__ENV.VERCEL_AUTOMATION_BYPASS_SECRET && BASE_URL !== String(__ENV.CONSOLIDATION_PREVIEW_URL || "").replace(/\/+$/, "")) throw new Error("Bypass secret requires the independently recorded exact Preview origin.");
+const bypassHeaders=__ENV.VERCEL_AUTOMATION_BYPASS_SECRET?{"x-vercel-protection-bypass":__ENV.VERCEL_AUTOMATION_BYPASS_SECRET}:{};
 if (!/^https?:\/\//i.test(BASE_URL)) throw new Error("BASE_URL must be an HTTP(S) origin.");
 const BASE_HOST = BASE_URL.replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].toLowerCase();
 if (BASE_HOST === PROD_HOST) {
@@ -99,6 +101,7 @@ function scenarioForProfile() {
 }
 
 export const options = {
+  maxRedirects:0,
   scenarios: { workload: scenarioForProfile() },
   thresholds: {
     http_req_failed: [{ threshold: `rate<${BUDGETS.global.errorRateMax}`, abortOnFail: false }],
@@ -143,6 +146,7 @@ function cookieFor(role) {
 
 function requestHeaders(role) {
   return {
+    ...bypassHeaders,
     cookie: `${sessionData.cookieName || "evos_session"}=${cookieFor(role)}`,
     "user-agent": "essafaria-k6-performance-gate",
   };
@@ -299,6 +303,7 @@ function validateSyntheticSessions() {
     const token = tokenForVu(role, vu);
     const res = http.get(`${BASE_URL}/api/session`, {
       headers: {
+        ...bypassHeaders,
         cookie: `${sessionData.cookieName || "evos_session"}=${token}`,
         "user-agent": "essafaria-k6-session-preflight",
       },
@@ -346,6 +351,7 @@ export function setup() {
   const token = sessions("SUPER_ADMIN")[0];
   const res = http.get(`${BASE_URL}/api/health`, {
     headers: {
+      ...bypassHeaders,
       cookie: `${sessionData.cookieName || "evos_session"}=${token}`,
       "user-agent": "essafaria-k6-safety-preflight",
     },

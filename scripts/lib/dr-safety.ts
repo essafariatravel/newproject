@@ -10,6 +10,7 @@ export const DR_CRITICAL_TABLES = [
   "agencies",
   "users",
   "sessions",
+  "session_presence",
   "countries",
   "visa_categories",
   "visa_types",
@@ -45,7 +46,18 @@ export const DR_CRITICAL_TABLES = [
   "legal_versions",
   "legacy_reconciliation_issues",
   "legacy_reconciliation_events",
+  "mfa_credentials",
+  "mfa_enrollment_authorizations",
 ] as const;
+
+/** Restore the source's actual ledger, not unapplied future hardening tables. */
+export function requiredDrTables(ledger:readonly string[]):readonly string[]{
+  const numbers=ledger.map(name=>/^\d{4}_[a-z0-9_]+\.sql$/.test(name)?Number(name.slice(0,4)):NaN).sort((a,b)=>a-b);
+  if(!numbers.length||numbers.some((value,index)=>value!==index+1)||numbers.at(-1)!>33)throw new Error("DR source migration ledger is not a supported contiguous history.");
+  const introduced:Record<string,number>={agency_registrations:3,agency_registration_documents:3,agency_registration_history:3,account_activation_tokens:3,application_price_adjustments:8,document_requests:12,wallet_topup_requests:14,account_recovery_requests:20,account_access_tokens:20,auth_rate_limits:20,agency_registration_requests:22,agency_registration_followup_tokens:22,legal_versions:23,legacy_reconciliation_issues:29,legacy_reconciliation_events:29,mfa_credentials:32,mfa_enrollment_authorizations:32};
+  introduced.session_presence=18;
+  return DR_CRITICAL_TABLES.filter(table=>(introduced[table]??1)<=numbers.at(-1)!);
+}
 
 const SHA256 = /^[0-9a-f]{64}$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
@@ -225,7 +237,9 @@ function parseManifest(input: unknown, findings: string[]): BackupManifest | nul
       }
       rowCounts[name] = value as number;
     }
-    for (const table of DR_CRITICAL_TABLES) {
+    let required:readonly string[]=DR_CRITICAL_TABLES;
+    try{required=requiredDrTables(migrationLedger);}catch{findings.push("source.migrationLedger is not a supported contiguous history");}
+    for (const table of required) {
       if (!(table in rowCounts)) findings.push(`database.rowCounts is missing critical table ${table}`);
     }
   }
