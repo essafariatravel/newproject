@@ -19,5 +19,5 @@ export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
 ] as const;
 
 export function automaticDatabaseChangesForbidden(branch: string | null | undefined): boolean {
-  return (AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES as readonly string[]).includes(branch ?? "");
+  return (branch ?? "").startsWith("codex/world-class-final-consolidation-") || (AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES as readonly string[]).includes(branch ?? "");
 }

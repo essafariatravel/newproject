@@ -8,7 +8,8 @@ import { users, sessions } from "@/db/schema";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import { requestAccountRecovery } from "@/lib/account-recovery";
 import { createAccount, updateAccount } from "@/lib/account-security";
-import { createSession, getSessionUser, touchCurrentSession } from "@/lib/auth";
+import { getSessionUser, touchCurrentSession } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import { sessionPolicy } from "@/lib/identity-policy";
 import { hashToken } from "@/lib/crypto";
 

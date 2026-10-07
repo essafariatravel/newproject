@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { suiteSetup } from "./helpers/global-state";
 import { agencyByEmail, userByEmail } from "./helpers/fixtures";
 import { request } from "./helpers/request";
-import { createSession } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import { db } from "@/lib/db";
 import { applications, documents, documentTypes, statuses, visaTypes, walletTransactions } from "@/db/schema";
 import { createDraftApplication } from "@/lib/applications";

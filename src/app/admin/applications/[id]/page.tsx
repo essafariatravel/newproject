@@ -78,7 +78,7 @@ export default async function AdminApplicationDetailPage({
       listDocumentsForApplication(id),
       getChecklist(id),
       getStatusHistory(id),
-      listCommunications(id, user),
+      listCommunications(id, user,sp.messagesBefore),
       findTransactionByApplication(id),
       allowedNextStatuses(app.statusId, user.role),
       hasPermission(user, "applications.assign") ? staffDirectory() : Promise.resolve([]),
@@ -107,7 +107,7 @@ export default async function AdminApplicationDetailPage({
   const documentGroups = groupDocumentsForDisplay(checklist, docs);
 
   // §18 — the embassy stage is only offered when the programme uses it.
-  const embassyApplicability = await getEmbassyApplicability(app.visaTypeId);
+  const embassyApplicability = await getEmbassyApplicability(app.visaTypeId,app.visaRuleSnapshot);
   const selectableStatuses = nextStatuses.filter(
     (s) =>
       !["APPROVED", "REJECTED"].includes(s.status.code) &&

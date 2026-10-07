@@ -7,6 +7,9 @@ import {
 } from "../scripts/lib/build-policy";
 
 describe("Preview build database-change guard", () => {
+  it("forbids automatic database writes on final consolidation candidates", () => {
+    expect(automaticDatabaseChangesForbidden("codex/world-class-final-consolidation-2026-10-07")).toBe(true);
+  });
   it("forbids automatic writes on the preproduction hardening branch before identity and backup verification", () => {
     expect(automaticDatabaseChangesForbidden("preprod/essafaria-final-hardening")).toBe(true);
     expect(automaticDatabaseChangesForbidden("security/pre-codex-gate-2026-10-03")).toBe(true);

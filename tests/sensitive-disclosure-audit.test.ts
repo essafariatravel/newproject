@@ -6,7 +6,7 @@ import { request } from "./helpers/request";
 import { userByEmail } from "./helpers/fixtures";
 import { db } from "@/lib/db";
 import { checklistItems, visaTypes } from "@/db/schema";
-import { createSession } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import { createDraftApplication } from "@/lib/applications";
 import { uploadDocument } from "@/lib/documents";
 import { registrationPdf } from "./helpers/fixtures";

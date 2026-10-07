@@ -303,6 +303,9 @@ export async function createDraftApplication(input: CreateApplicationInput) {
       .for("share");
     const cfg = rows[0];
     if (!cfg) throw new AppError("NOT_FOUND", "Visa type not found or inactive.");
+    const today=new Date().toISOString().slice(0,10);
+    const governance=cfg.visaType.ruleGovernance;
+    if((typeof governance.effectiveFrom==="string"&&governance.effectiveFrom>today)||(typeof governance.effectiveTo==="string"&&governance.effectiveTo<today))throw new AppError("RULE_NOT_EFFECTIVE","This programme's configured rule version is outside its effective dates. Ask ESSAFARIA to review its configuration.");
     const [created] = await tx.insert(applications).values({
       reference, agencyId: input.agencyId, countryId: cfg.country.id, visaTypeId: cfg.visaType.id,
       statusId: draftStatus.id, priorityId: priority.id, visaTypeName: cfg.visaType.name, visaTypeCode: cfg.visaType.code,
@@ -532,7 +535,7 @@ export async function changeApplicationStatus(params: {
   // programme that declares NOT_APPLICABLE can never be moved there, and the
   // guard lives here (server-side), not only in the UI.
   if (EMBASSY_STATUS_CODES.has(to.code)) {
-    const applicability = await getEmbassyApplicability(app.visaTypeId);
+    const applicability = await getEmbassyApplicability(app.visaTypeId,app.visaRuleSnapshot);
     if (applicability === "NOT_APPLICABLE") {
       throw new AppError(
         "INVALID_TRANSITION",
@@ -587,7 +590,8 @@ export async function changeApplicationStatus(params: {
     }
     if (EMBASSY_STATUS_CODES.has(currentTo.code)) {
       const [programme] = await tx.select({ embassy: visaTypes.embassyApplicability }).from(visaTypes).where(eq(visaTypes.id, app.visaTypeId)).for("share");
-      if (programme?.embassy === "NOT_APPLICABLE") throw new AppError("INVALID_TRANSITION", "This visa programme does not use an embassy stage.");
+      const captured=app.visaRuleSnapshot?.embassyApplicability;
+      if ((typeof captured==="string"?captured:programme?.embassy) === "NOT_APPLICABLE") throw new AppError("INVALID_TRANSITION", "This visa programme does not use an embassy stage.");
     }
     await tx.update(applications).set(patch).where(eq(applications.id, app.id));
     await tx.insert(applicationStatusHistory).values({
@@ -742,7 +746,8 @@ export async function recordApplicationDecision(params: DecisionInput): Promise<
         throw new AppError("BAD_STATE", "The application must be in Processing or at the Embassy and must not already be decided.");
       }
       const [programme] = await tx.select({ applicability: visaTypes.embassyApplicability }).from(visaTypes).where(eq(visaTypes.id, locked.visaTypeId));
-      if (programme?.applicability === "APPLICABLE" && from.code !== "EMBASSY_SENT") throw new AppError("EMBASSY_REQUIRED", "This programme requires the embassy stage before its final decision.");
+      const captured=locked.visaRuleSnapshot?.embassyApplicability;
+      if ((typeof captured==="string"?captured:programme?.applicability) === "APPLICABLE" && from.code !== "EMBASSY_SENT") throw new AppError("EMBASSY_REQUIRED", "This programme requires the embassy stage before its final decision.");
       const [transition] = await tx.select().from(statusTransitions).where(and(
         eq(statusTransitions.fromStatusId, from.id), eq(statusTransitions.toStatusId, to.id),
       ));

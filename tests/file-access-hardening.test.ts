@@ -5,7 +5,7 @@ import { request } from "./helpers/request";
 import { nextIp, registrationData, registrationPdf, userByEmail } from "./helpers/fixtures";
 import { db } from "@/lib/db";
 import { agencyRegistrationDocuments, auditLogs, checklistItems, documentBlobs, documents, users, visaTypes } from "@/db/schema";
-import { createSession } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import { createDraftApplication } from "@/lib/applications";
 import { getDocumentForUser, uploadDocument } from "@/lib/documents";
 import { submitAgencyRegistration } from "@/lib/registrations";

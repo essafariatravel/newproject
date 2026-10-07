@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { agencies } from "@/db/schema";
-import { createSession } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import PortalProfilePage from "@/app/portal/profile/page";
 import { suiteSetup } from "./helpers/global-state";
 import { userByEmail } from "./helpers/fixtures";

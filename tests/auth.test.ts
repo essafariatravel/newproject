@@ -6,7 +6,8 @@ suiteSetup();
 import { db } from "@/lib/db";
 import { users } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { authenticate, createSession } from "@/lib/auth";
+import { authenticate } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import { hashPassword, hashToken, verifyPassword } from "@/lib/crypto";
 import { AppError } from "@/lib/types";
 

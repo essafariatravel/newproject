@@ -20,7 +20,7 @@ export async function pageUser(): Promise<AuthUser> {
 
 /** Auth for the /change-password page itself — exempt from the §11 lock. */
 export async function pageUserForPasswordChange(): Promise<AuthUser> {
-  const user = await getSessionUser();
+  const user = await getSessionUser({ allowMfaPending: true });
   if (!user) redirect("/login?reason=session-expired");
   return user;
 }

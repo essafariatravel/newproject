@@ -25,7 +25,7 @@ function tsxFilesUnder(relativeRoot: string): string[] {
       const absolute = join(dir, entry);
       if (statSync(absolute).isDirectory()) visit(absolute);
       else if (entry.endsWith(".tsx")) {
-        out.push(absolute.slice(process.cwd().length + 1));
+        out.push(absolute.slice(process.cwd().length + 1).replaceAll("\\", "/"));
       }
     }
   };

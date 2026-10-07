@@ -3,7 +3,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 import { suiteSetup } from "./helpers/global-state";
 import { request } from "./helpers/request";
 import { agencyByEmail, userByEmail } from "./helpers/fixtures";
-import { createSession } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import { db } from "@/lib/db";
 import { and, eq, sql } from "drizzle-orm";
 import { applicants, applications, auditLogs, documentRequests, priorities, statuses, visaTypes } from "@/db/schema";

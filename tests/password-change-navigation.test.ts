@@ -21,7 +21,7 @@ function prepare(role: Role, forced: boolean) {
 }
 
 describe("password change action navigation", () => {
-  it.each([["AGENCY_ADMIN", "/portal"], ["SUPER_ADMIN", "/admin"]] as const)("takes a forced %s change into its authorized shell", async (role, path) => {
+  it.each([["AGENCY_ADMIN", "/portal"], ["SUPER_ADMIN", "/mfa"]] as const)("takes a forced %s change into its authorized next step", async (role, path) => {
     const form = prepare(role, true);
     await expect(changePasswordAction(form)).rejects.toMatchObject({ digest: expect.stringContaining(`${path}?ok=`) });
   });

@@ -6,16 +6,31 @@ import { agencyByEmail, userByEmail } from "./helpers/fixtures";
 import { db, pool } from "@/lib/db";
 import { applications, authRateLimits, communications, visaTypes } from "@/db/schema";
 import { qualifiedTable } from "@/lib/database-schema";
-import { createSession } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import { createDraftApplication } from "@/lib/applications";
 import { postMessageAction } from "@/app/actions/communications";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import { hashToken } from "@/lib/crypto";
+import {listCommunications} from "@/lib/queries";
 
 suiteSetup();
 afterEach(() => { request.cookie = ""; });
 
 describe("communication audit integrity", () => {
+  it("bounds long histories and traverses tied timestamps without loss or cross-tenant messages",async()=>{
+    const actor=await userByEmail("a-admin@test.example");const foreign=await userByEmail("b-admin@test.example");
+    const visa=(await db.select().from(visaTypes).limit(1))[0]!;
+    const app=await createDraftApplication({agencyId:actor.agencyId!,visaTypeId:visa.id,createdBy:actor});
+    await db.insert(communications).values(Array.from({length:125},(_,i)=>({applicationId:app.id,authorId:actor.id,visibility:"AGENCY",body:`Synthetic ${i}`,createdAt:new Date("2026-01-01T00:00:00.000Z")})));
+    const seen=new Set<string>();let cursor:string|undefined;
+    for(let page=0;page<3;page++){
+      const rows=await listCommunications(app.id,actor,cursor);expect(rows.length).toBeLessThanOrEqual(50);
+      rows.forEach(row=>{expect(seen.has(row.message.id)).toBe(false);seen.add(row.message.id);});
+      cursor=`${rows[0]!.message.createdAt.toISOString()}|${rows[0]!.message.id}`;
+    }
+    expect(seen.size).toBe(125);expect(await listCommunications(app.id,foreign)).toEqual([]);
+    expect(await listCommunications(app.id,actor,"malformed injection'" )).toHaveLength(50);
+  });
   it("rolls back a posted message when its audit row cannot be persisted", async () => {
     const agency = await agencyByEmail("ops@agencya.example");
     const actor = await userByEmail("a-admin@test.example");

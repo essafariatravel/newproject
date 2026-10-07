@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { suiteSetup } from "./helpers/global-state";
 import { userByEmail } from "./helpers/fixtures";
 import { request } from "./helpers/request";
-import { createSession } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import { recordAudit } from "@/lib/audit";
 import { listAuditLogs,listWalletTransactions } from "@/lib/queries";
 import { createTopupRequest,processTopupRequest } from "@/lib/topup";

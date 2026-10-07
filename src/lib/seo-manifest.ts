@@ -49,6 +49,14 @@ export const SEO_PUBLIC_ROUTE_MANIFEST = {
     cacheNoStore: true,
     noReferrer: true,
   },
+  mfa: {
+    path: "/mfa",
+    classification: "noindex",
+    sitemap: false,
+    headerSource: "/mfa",
+    cacheNoStore: true,
+    noReferrer: true,
+  },
   forgotPassword: {
     path: "/forgot-password",
     classification: "noindex",

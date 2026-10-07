@@ -94,7 +94,7 @@ describe("rbac", () => {
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/db/schema";
-import { createSession } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import { createUserAction, updateUserAction } from "@/app/actions/admin";
 import { request } from "./helpers/request";
 import { vi } from "vitest";

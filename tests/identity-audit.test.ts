@@ -4,7 +4,7 @@ import { suiteSetup } from "./helpers/global-state";
 import { userByEmail } from "./helpers/fixtures";
 import { db } from "@/lib/db";
 import { accountAccessTokens, sessions, users } from "@/db/schema";
-import { createSession } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import { changeAccountPassword, createAccount, updateAccount } from "@/lib/account-security";
 import { issueAccessToken, resetAccountFromToken } from "@/lib/account-recovery";
 import { hashToken } from "@/lib/crypto";

@@ -5,7 +5,7 @@ import { request } from "./helpers/request";
 import { agencyByEmail, userByEmail } from "./helpers/fixtures";
 import { db } from "@/lib/db";
 import { applicants, applications, notifications, statuses, visaTypes } from "@/db/schema";
-import { createSession } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import { createDraftApplication } from "@/lib/applications";
 import { addApplicantAction, assignOfficerAction, historyFor, submissionGateFor } from "@/app/actions/applications";
 

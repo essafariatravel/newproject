@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { auditLogs, visaTypes } from "@/db/schema";
-import { createSession } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import { updateCountryAction, updateCurrencyAction, updatePriorityAction, updateStatusAction, updateVisaTypeAction } from "@/app/actions/config";
 import { suiteSetup } from "./helpers/global-state";
 import { userByEmail } from "./helpers/fixtures";

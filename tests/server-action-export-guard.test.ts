@@ -15,6 +15,7 @@ const PUBLIC_EXPORTS = new Set([
 ]);
 
 const AUTH_MARKERS = [
+  "requireMfaSession(",
   "requireUser(",
   "requireStaff(",
   "requireAgencyUser(",

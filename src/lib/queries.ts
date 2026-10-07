@@ -11,7 +11,7 @@ export const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 export const DEFAULT_PAGE_SIZE = 20;
 
 export function resolvePageSize(value: unknown): number {
-  const parsed = Number(typeof value === "string" ? value : Array.isArray(value) ? value[0] : NaN);
+  const parsed = Number(typeof value === "number" || typeof value === "string" ? value : Array.isArray(value) ? value[0] : NaN);
   return (PAGE_SIZE_OPTIONS as readonly number[]).includes(parsed) ? parsed : DEFAULT_PAGE_SIZE;
 }
 /**
@@ -195,7 +195,7 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
     .innerJoin(priorities, eq(applications.priorityId, priorities.id))
     .where(where)
-    .orderBy(desc(applications.createdAt))
+    .orderBy(desc(applications.createdAt),desc(applications.id))
     .limit(pageSize)
     .offset((page - 1) * pageSize);
 
@@ -206,7 +206,7 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
     .where(where);
   const total = Number(totalRows[0]?.total ?? 0);
 
-  return { rows, total, page, pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+  return { rows, total, page, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
 /**
@@ -228,7 +228,7 @@ export async function exportApplications(user: AuthUser, filters: ApplicationFil
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
     .innerJoin(priorities, eq(applications.priorityId, priorities.id))
     .where(where)
-    .orderBy(desc(applications.createdAt))
+    .orderBy(desc(applications.createdAt),desc(applications.id))
     .limit(EXPORT_ROW_LIMIT + 1);
 
   const truncated = rows.length > EXPORT_ROW_LIMIT;
@@ -250,7 +250,9 @@ export const EMBASSY_APPLICABILITY_VALUES: readonly EmbassyApplicability[] = [
  * Reads the embassy applicability of a visa programme. Unknown/missing rows
  * fail safe to OPTIONAL — the stage stays available exactly as before.
  */
-export async function getEmbassyApplicability(visaTypeId: string | null | undefined): Promise<EmbassyApplicability> {
+export async function getEmbassyApplicability(visaTypeId: string | null | undefined,snapshot?:Record<string,unknown>|null): Promise<EmbassyApplicability> {
+  const captured=snapshot?.embassyApplicability;
+  if(typeof captured==="string"&&EMBASSY_APPLICABILITY_VALUES.includes(captured as EmbassyApplicability))return captured as EmbassyApplicability;
   if (!visaTypeId) return "OPTIONAL";
   const rows = await db
     .select({ value: visaTypes.embassyApplicability })
@@ -635,8 +637,8 @@ export async function listNotificationsForUser(userId: string, limit = 50, filte
     })
     .from(notifications)
     .where(and(...conditions))
-    .orderBy(desc(notifications.createdAt))
-    .limit(limit);
+    .orderBy(desc(notifications.createdAt),desc(notifications.id))
+    .limit(Number.isFinite(limit)?Math.min(100,Math.max(1,Math.floor(limit))):50);
 }
 
 export async function unreadNotificationCount(userId: string): Promise<number> {
@@ -649,8 +651,13 @@ export async function unreadNotificationCount(userId: string): Promise<number> {
 
 /* ------------------------------ communications -------------------------- */
 
-export async function listCommunications(applicationId: string, user: AuthUser) {
+export async function listCommunications(applicationId: string, user: AuthUser, before?: unknown) {
   const conditions = [eq(communications.applicationId, applicationId)];
+  if(typeof before==="string"){
+    const parts=before.split("|");
+    if(parts.length===2&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(parts[0]!)&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(parts[1]!)&&Number.isFinite(Date.parse(parts[0]!)))
+      conditions.push(sql`(${communications.createdAt},${communications.id})<(${parts[0]}::timestamptz,${parts[1]}::uuid)`);
+  }
   if (user.agencyId) {
     // Defense in depth: an agency user may only read messages of a dossier that
     // belongs to its own agency, and only agency-visible ones. The page loader
@@ -659,7 +666,7 @@ export async function listCommunications(applicationId: string, user: AuthUser) 
     conditions.push(eq(applications.agencyId, user.agencyId));
     conditions.push(eq(communications.visibility, "AGENCY"));
   }
-  return db
+  const rows=await db
     .select({
       message: communications,
       authorName: users.name,
@@ -669,7 +676,8 @@ export async function listCommunications(applicationId: string, user: AuthUser) 
     .innerJoin(users, eq(communications.authorId, users.id))
     .innerJoin(applications, eq(communications.applicationId, applications.id))
     .where(and(...conditions))
-    .orderBy(asc(communications.createdAt));
+    .orderBy(desc(communications.createdAt),desc(communications.id)).limit(50);
+  return rows.reverse();
 }
 
 /**
@@ -701,8 +709,8 @@ export async function recentCommunications(
     .innerJoin(users, eq(communications.authorId, users.id))
     .innerJoin(applications, eq(communications.applicationId, applications.id))
     .where(where)
-    .orderBy(desc(communications.createdAt))
-    .limit(limit);
+    .orderBy(desc(communications.createdAt),desc(communications.id))
+    .limit(Number.isFinite(limit)?Math.min(100,Math.max(1,Math.floor(limit))):30);
 }
 
 /* --------------------------------- config ------------------------------- */
@@ -891,8 +899,8 @@ export interface WalletLedgerFilters {
  * an agencyId is supplied, always server-side paginated (§57).
  */
 export async function listWalletTransactions(filters: WalletLedgerFilters) {
-  const pageSize = filters.pageSize ?? PAGE_SIZE;
-  const page = Math.max(1, filters.page ?? 1);
+  const pageSize = Number.isFinite(filters.pageSize)?Math.min(100,Math.max(1,Math.floor(filters.pageSize!))):PAGE_SIZE;
+  const page = Number.isFinite(filters.page)?Math.max(1,Math.floor(filters.page!)):1;
   const conditions = [];
   if (filters.agencyId) conditions.push(eq(walletTransactions.agencyId, filters.agencyId));
   if (filters.type) conditions.push(eq(walletTransactions.type, filters.type));
@@ -920,7 +928,7 @@ export async function listWalletTransactions(filters: WalletLedgerFilters) {
     .from(walletTransactions)
     .leftJoin(applications, eq(walletTransactions.applicationId, applications.id))
     .where(where)
-    .orderBy(desc(walletTransactions.createdAt))
+    .orderBy(desc(walletTransactions.createdAt),desc(walletTransactions.id))
     .limit(pageSize)
     .offset((page - 1) * pageSize);
   const totalRows = await db.select({ total: count() }).from(walletTransactions).leftJoin(applications, eq(walletTransactions.applicationId, applications.id)).where(where);

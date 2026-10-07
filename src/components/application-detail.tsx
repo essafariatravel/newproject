@@ -1,4 +1,5 @@
 import { businessLabel } from "@/lib/business-labels";
+import Link from "next/link";
 import type { ChecklistItem, Applicant, Application } from "@/db/schema";
 import { formatDateTime, formatAmount, personName, bytes } from "@/lib/format";
 import type { DocumentRow } from "@/db/schema";
@@ -315,6 +316,10 @@ export function CommunicationsPanel(props: {
           <SubmitButton className="btn-primary btn-sm" pendingLabel={t("Posting…")}>{t("Post message")}</SubmitButton>
         </div>
       </form>
+      <nav className="flex flex-wrap gap-4" aria-label={props.locale==="ar"?"سجل الرسائل":props.locale==="fr"?"Historique des messages":"Message history"}>
+        {props.messages.length===50&&<Link className="btn btn-secondary" href={`${props.back}&messagesBefore=${encodeURIComponent(`${props.messages[0]!.message.createdAt.toISOString()}|${props.messages[0]!.message.id}`)}`}>{props.locale==="ar"?"الرسائل السابقة":props.locale==="fr"?"Messages précédents":"Older messages"}</Link>}
+        <Link className="btn btn-secondary" href={props.back}>{props.locale==="ar"?"أحدث الرسائل":props.locale==="fr"?"Derniers messages":"Latest messages"}</Link>
+      </nav>
     </div>
   );
 }

@@ -39,7 +39,7 @@ const STAFF = "agent@test.example";
  * Anything the guard refuses is asserted as refused — not silently skipped.
  */
 async function actAsStaff() {
-  const { createSession } = await import("@/lib/auth");
+  const { createSession } = await import("./helpers/authenticated-session");
   const staffRow = (await db.select().from(users).where(eq(users.email, STAFF)).limit(1))[0]!;
   const { token } = await createSession(staffRow.id);
   request.cookie = token;
@@ -353,7 +353,7 @@ describe("bulk actions are limited to assign / priority / export", () => {
   it("16. an agency session cannot run the staff bulk actions at all", async () => {
     const { bulkAssignAction } = await import("@/app/actions/applications");
     const { app } = await oneApplication("bulk-rbac");
-    const { createSession } = await import("@/lib/auth");
+    const { createSession } = await import("./helpers/authenticated-session");
     const agencyAccount = (await db.select().from(users).where(eq(users.email, "a-admin@test.example")).limit(1))[0]!;
     const { token } = await createSession(agencyAccount.id);
     request.cookie = token;

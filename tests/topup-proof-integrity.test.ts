@@ -6,7 +6,7 @@ import { agencyByEmail, authUser, userByEmail } from "./helpers/fixtures";
 import { paymentProof } from "./helpers/payment-proof";
 import { db } from "@/lib/db";
 import { auditLogs, documentBlobs, walletTopupRequests } from "@/db/schema";
-import { createSession } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import { getBalance } from "@/lib/wallet";
 import { createTopupRequest, processTopupRequest } from "@/lib/topup";
 import { sha256Hex } from "@/lib/file-integrity";

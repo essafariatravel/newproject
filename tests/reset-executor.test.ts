@@ -82,7 +82,10 @@ async function fixture(label: string, changeBeforeBackup?: (schema: string) => P
   const edges = (await pool.query(`select child.relname child,parent.relname parent from pg_constraint c join pg_class child on child.oid=c.conrelid
     join pg_class parent on parent.oid=c.confrelid join pg_namespace n on n.oid=child.relnamespace where c.contype='f' and n.nspname=$1`, [source])).rows;
   await pool.query(`truncate ${tables.map(t => `"${restored}"."${t}"`).join(",")} restart identity cascade`);
+  // Copy already-versioned rule bytes exactly, as pg_restore does before post-data triggers.
+  await pool.query(`alter table "${restored}".visa_types disable trigger visa_rule_version; alter table "${restored}".visa_requirements disable trigger requirement_rule_version`);
   for (const table of dependencyDeleteOrder(tables, edges).reverse()) await pool.query(`insert into "${restored}"."${table}" select * from "${source}"."${table}"`);
+  await pool.query(`alter table "${restored}".visa_types enable trigger visa_rule_version; alter table "${restored}".visa_requirements enable trigger requirement_rule_version`);
   const sequences = await backupSequences(source);
   for (const sequence of sequences) await pool.query("select setval($1::regclass,$2::bigint,$3)", [`${restored}.${sequence.name}`, sequence.lastValue, sequence.isCalled]);
   // The real planner produces only non-secret digests needed by an operator manifest.

@@ -6,7 +6,7 @@ import { agencyByEmail, userByEmail } from "./helpers/fixtures";
 import { db } from "@/lib/db";
 import { applications, documentTypes, statuses, statusTransitions, visaRequirements, visaTypes } from "@/db/schema";
 import { changeApplicationStatus, createDraftApplication, getStatusByCode } from "@/lib/applications";
-import { createSession } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import { updateDocumentTypeAction, updateStatusAction, updateVisaTypeAction } from "@/app/actions/config";
 
 suiteSetup();

@@ -59,9 +59,9 @@ export async function createSession(
       await recordIdentityAudit(tx, { actor: { id: row.user.id, email: row.user.email,
         username: row.user.username, name: row.user.name, role: row.user.role as Role,
         agencyId: row.user.agencyId, userStatus: row.user.status, agencyStatus: row.agencyStatus,
-        agencyName: null }, action: "USER_LOGIN", entity: "user", entityId: userId,
+        agencyName: null }, action: row.user.agencyId ? "USER_LOGIN" : "STAFF_PASSWORD_VERIFIED", entity: "user", entityId: userId,
         agencyId: row.user.agencyId, ipAddress });
-      await tx.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id,userId));
+      if(row.user.agencyId)await tx.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id,userId));
     }
     return expiresAt;
   });
@@ -69,7 +69,7 @@ export async function createSession(
 }
 
 /** Resolve the current authenticated user, or null. Verifies session + user + agency state. */
-export async function getSessionUser(): Promise<AuthUser | null> {
+export async function getSessionUser(options: { allowMfaPending?: boolean } = {}): Promise<AuthUser | null> {
   let token: string | undefined;
   try {
     token = await readSessionToken();
@@ -84,6 +84,9 @@ export async function getSessionUser(): Promise<AuthUser | null> {
         user: users,
         agencyStatus: agencies.status,
         agencyName: agencies.legalName,
+        mfaVerifiedAt: sessions.mfaVerifiedAt,
+        sessionCreatedAt: sessions.createdAt,
+        sessionId: sessions.id,
       })
       .from(sessions)
       .innerJoin(users, eq(sessions.userId, users.id))
@@ -96,6 +99,8 @@ export async function getSessionUser(): Promise<AuthUser | null> {
     if (!row) return null;
     if (row.user.status !== "ACTIVE" || row.user.activationPending) return null;
     if (row.user.agencyId && row.agencyStatus !== "ACTIVE") return null;
+    const mfaPending = !row.user.agencyId && ["SUPER_ADMIN", "ADMIN", "VISA_AGENT", "ACCOUNTING"].includes(row.user.role) && !row.mfaVerifiedAt;
+    if (mfaPending && (!options.allowMfaPending || Date.now() - row.sessionCreatedAt.getTime() > 10 * 60_000)) return null;
     return {
       id: row.user.id,
       email: row.user.email,
@@ -108,6 +113,8 @@ export async function getSessionUser(): Promise<AuthUser | null> {
       agencyName: row.agencyName,
       mustChangePassword: row.user.mustChangePassword,
       credentialVersion: row.user.credentialVersion,
+      mfaPending,
+      sessionId: row.sessionId,
     };
   } catch (err) {
     // Database temporarily unavailable (e.g. missing migrations on Preview) must not become a 500.
@@ -131,7 +138,7 @@ export async function requireUser(): Promise<AuthUser> {
 
 /** Session for the password-change screen ONLY — bypasses the §11 lock. */
 export async function requirePasswordChangeSession(): Promise<AuthUser> {
-  const user = await getSessionUser();
+  const user = await getSessionUser({ allowMfaPending: true });
   if (!user) throw new AppError("UNAUTHENTICATED", "Please sign in to continue.");
   return user;
 }

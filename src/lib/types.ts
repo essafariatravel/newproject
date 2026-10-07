@@ -85,6 +85,8 @@ export interface AuthUser {
   mustChangePassword?: boolean;
   /** Credential generation resolved from the current session, checked at commit. */
   credentialVersion?: number;
+  mfaPending?: boolean;
+  sessionId?: string;
 }
 
 /** Error carrying a user-safe message; never leaks internals. */

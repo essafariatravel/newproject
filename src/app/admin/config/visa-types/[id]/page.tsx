@@ -4,6 +4,7 @@ import { countryName } from "@/lib/country-names";
 import { listCountries, listVisaCategories } from "@/lib/applications-exports";
 import { formatProcessingDays } from "@/lib/format";
 import Link from "next/link";
+import {RuleGovernanceForm} from "@/components/rule-governance";
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
@@ -296,6 +297,7 @@ export default async function VisaTypeDetailPage({
                 </fieldset>
                 <SubmitButton className="btn-primary w-full" pendingLabel={ct("Saving…")}>{ct("Save visa type")}</SubmitButton>
               </form>
+              <RuleGovernanceForm id={id} version={vt.ruleVersion} evidence={vt.ruleGovernance} locale={locale}/>
               <form action={deleteVisaTypeAction} className="border-t border-line px-4 py-4">
                 <input type="hidden" name="id" value={id} />
                 <p className="mb-4 text-xs text-slate-500">{ct("Only unused configuration can be deleted. Referenced records must be deactivated.")}</p>

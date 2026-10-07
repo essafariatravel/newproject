@@ -6,7 +6,7 @@ import { seedFixtures, userByEmail } from "./helpers/fixtures";
 import { request } from "./helpers/request";
 import { db } from "@/lib/db";
 import { agencyRegistrationDocuments, agencyRegistrations, auditLogs } from "@/db/schema";
-import { createSession } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import { updateAccount } from "@/lib/account-security";
 import { storageProvider } from "@/lib/storage";
 import { sha256Hex } from "@/lib/file-integrity";

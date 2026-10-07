@@ -116,6 +116,7 @@ export const sessions = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     tokenHash: text("token_hash").notNull().unique(),
+    mfaVerifiedAt: timestamp("mfa_verified_at", { withTimezone: true }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).notNull().defaultNow(),
     credentialVersion: integer("credential_version").notNull().default(0),
@@ -187,6 +188,8 @@ export const visaTypes = pgTable(
     active: boolean("active").notNull().default(true),
     /** NOT_APPLICABLE | OPTIONAL | APPLICABLE — §18/§42 embassy step */
     embassyApplicability: text("embassy_applicability").notNull().default("OPTIONAL"),
+    ruleVersion:integer("rule_version").notNull().default(1),
+    ruleGovernance:jsonb("rule_governance").$type<Record<string,unknown>>().notNull().default({}),
     ...timestamps,
   },
   (t) => [
@@ -329,6 +332,7 @@ export const applications = pgTable(
     submittedPrice: money("submitted_price"),
     submittedCurrency: char("submitted_currency", { length: 3 }),
     effectivePrice: money("effective_price"),
+    visaRuleSnapshot:jsonb("visa_rule_snapshot").$type<Record<string,unknown>>(),
     currency: char("currency", { length: 3 }).notNull(),
     processingMinDays: integer("processing_min_days").notNull(),
     processingMaxDays: integer("processing_max_days").notNull(),

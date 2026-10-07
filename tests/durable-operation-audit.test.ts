@@ -12,7 +12,7 @@ import { createDraftApplication } from "@/lib/applications";
 import { reviewDocument, uploadDocument, uploadResubmission } from "@/lib/documents";
 import { applyPriceAdjustment } from "@/lib/price-adjustments";
 import { listRequirementsForVisaType, submitVisaRequest } from "@/lib/requests";
-import { createSession } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import { createCountryAction } from "@/app/actions/config";
 import { postMessageAction } from "@/app/actions/communications";
 import { createTopupRequest, processTopupRequest } from "@/lib/topup";

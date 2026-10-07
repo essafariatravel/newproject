@@ -59,8 +59,8 @@ async function main() {
           const raw = generateSessionToken();
           await client.query(
             `insert into ${perfTable("sessions")}
-               (user_id, token_hash, expires_at, last_activity_at, credential_version, user_agent)
-             values ($1,$2,now()+interval '3 hours',now(),$3,'essafaria-performance-harness')`,
+               (user_id, token_hash, expires_at, last_activity_at, credential_version, user_agent, mfa_verified_at)
+             values ($1,$2,now()+interval '3 hours',now(),$3,'essafaria-performance-harness',now())`,
             [row.id, hashToken(raw), row.credential_version],
           );
           roles[identity.role]!.push(raw);

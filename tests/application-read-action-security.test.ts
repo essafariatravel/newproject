@@ -2,7 +2,7 @@ import { afterEach,beforeAll,describe,expect,it,vi } from "vitest";
 import { suiteSetup } from "./helpers/global-state";
 import { userByEmail } from "./helpers/fixtures";
 import { request } from "./helpers/request";
-import { createSession } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import { createDraftApplication } from "@/lib/applications";
 import { submissionGateFor,historyFor } from "@/app/actions/applications";
 vi.mock("next/cache",()=>({revalidatePath:()=>undefined}));

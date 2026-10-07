@@ -27,7 +27,7 @@ import { request } from "./helpers/request";
  */
 
 async function actAsSuperAdmin() {
-  const { createSession } = await import("@/lib/auth");
+  const { createSession } = await import("./helpers/authenticated-session");
   const row = (await db.select().from(users).where(eq(users.role, "SUPER_ADMIN")).limit(1))[0]!;
   const { token } = await createSession(row.id);
   request.cookie = token;

@@ -62,7 +62,7 @@ export default async function PortalApplicationDetailPage({
       listDocumentsForApplication(id),
       getChecklist(id),
       getStatusHistory(id),
-      listCommunications(id, user),
+      listCommunications(id, user,sp.messagesBefore),
       findTransactionByApplication(id),
       getStatusByCode("DRAFT"),
       getBalance(user.agencyId),
@@ -72,7 +72,7 @@ export default async function PortalApplicationDetailPage({
   const isDraft = app.statusId === draftStatus.id;
   // §17 — progress is derived from the persisted history, and the embassy
   // stage only appears when the programme declares it (or the file went there).
-  const embassyApplicability = await getEmbassyApplicability(app.visaTypeId);
+  const embassyApplicability = await getEmbassyApplicability(app.visaTypeId,app.visaRuleSnapshot);
   const progress = buildProgress({
     statusCode: detail.statusCode,
     history: history.map((h) => ({ toStatusCode: h.toStatus.code, createdAt: h.history.createdAt })),

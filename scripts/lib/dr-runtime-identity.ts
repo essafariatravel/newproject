@@ -11,6 +11,7 @@ export interface RuntimeIdentityPolicy {
   hasSessionCredentialVersion: boolean;
   hasSessionIpAddress: boolean;
   hasSessionUserAgent: boolean;
+  hasSessionMfaVerifiedAt: boolean;
   userCredentialSelect: string;
   activeIdentityClauses: string;
 }
@@ -31,6 +32,7 @@ export function runtimeIdentityPolicy(rows: readonly IdentityColumnRow[]): Runti
     hasSessionCredentialVersion: has("sessions", "credential_version"),
     hasSessionIpAddress: has("sessions", "ip_address"),
     hasSessionUserAgent: has("sessions", "user_agent"),
+    hasSessionMfaVerifiedAt: has("sessions", "mfa_verified_at"),
     userCredentialSelect: hasUserCredentialVersion
       ? "u.credential_version"
       : "0::int as credential_version",
@@ -52,6 +54,11 @@ export function recoverySessionInsertParts(
   const columns = ["user_id", "token_hash", "expires_at"];
   const values = ["$1::uuid", "$2", "now()+interval '1 hour'"];
   const extraParams: unknown[] = [];
+  // Disposable recovery runtime probe only; this is not evidence of MFA login.
+  if (policy.hasSessionMfaVerifiedAt) {
+    columns.push("mfa_verified_at");
+    values.push("now()");
+  }
 
   if (policy.hasSessionLastActivityAt) {
     columns.push("last_activity_at");

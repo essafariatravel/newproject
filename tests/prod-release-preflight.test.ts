@@ -35,12 +35,25 @@ function approvedSnapshot(): SnapshotReport {
 }
 
 describe("current Production release manifest", () => {
-  it("keeps the approved Production ledger through 0019 and blocks the unapproved hardening migrations", () => {
-    expect([...RELEASE_SCOPE]).toEqual([]);
+  it("keeps the approved Production ledger through 0019 and authorizes only the 0020→0031 hardening migration set", () => {
+    expect([...RELEASE_SCOPE]).toEqual([
+      "0020_identity_security.sql",
+      "0021_business_invariants.sql",
+      "0022_registration_review.sql",
+      "0023_operations_legal.sql",
+      "0024_preview_api_lockdown.sql",
+      "0025_legal_privacy_readiness.sql",
+      "0026_function_privilege_hardening.sql",
+      "0027_document_integrity.sql",
+      "0028_file_identity_hardening.sql",
+      "0029_legacy_reconciliation.sql",
+      "0030_reconciliation_api_lockdown.sql",
+      "0031_reconciliation_event_sequence_repair.sql",
+    ]);
     expect(APPROVED_BASELINE.ledger).toHaveLength(19);
     expect(APPROVED_BASELINE.ledger[18]).toBe("0019_config_translations.sql");
-    expect(TARGET_LEDGER).toEqual([...APPROVED_BASELINE.ledger]);
-    const pending = pendingMigrations(APPROVED_BASELINE.ledger);
+    expect(TARGET_LEDGER).toEqual([...APPROVED_BASELINE.ledger, ...RELEASE_SCOPE]);
+    const pending = [...RELEASE_SCOPE];
     expect(pending).toEqual([
       "0020_identity_security.sql",
       "0021_business_invariants.sql",
@@ -55,7 +68,7 @@ describe("current Production release manifest", () => {
       "0030_reconciliation_api_lockdown.sql",
       "0031_reconciliation_event_sequence_repair.sql",
     ]);
-    expect(preflightFindings(approvedSnapshot(), pending).some((finding) => finding.includes("pending migration set is not this release"))).toBe(true);
+    expect(preflightFindings(approvedSnapshot(), pending)).toEqual([]);
   });
 
   it("rejects the stale pre-release ledger ending at 0017", () => {
@@ -74,6 +87,11 @@ describe("current Production release manifest", () => {
     expect(findings).toHaveLength(1);
     expect(findings[0]).toContain("pending migration set is not this release");
   });
+  it("refuses candidate MFA migration without a new Production release authorization", () => {
+    const pending=pendingMigrations(APPROVED_BASELINE.ledger);
+    expect(pending).toEqual([...RELEASE_SCOPE,"0032_privileged_mfa.sql","0033_rule_provenance_and_bounded_history.sql"]);
+    expect(preflightFindings(approvedSnapshot(),pending)).toEqual([expect.stringContaining("pending migration set is not this release")]);
+  });
 });
 
 describe("baseline remains fail-closed", () => {
@@ -83,7 +101,7 @@ describe("baseline remains fail-closed", () => {
     live.counts.wallet_transactions = (APPROVED_BASELINE.counts.wallet_transactions ?? 0) + 1;
     live.walletChecksum = "candidate-wallet-checksum";
     live.agencyWallets = "candidate-agency-checksum";
-    const findings = preflightFindings(live, []);
+    const findings = preflightFindings(live, RELEASE_SCOPE);
     expect(findings.some((f) => f.startsWith("notifications:"))).toBe(true);
     expect(findings.some((f) => f.startsWith("wallet_transactions:"))).toBe(true);
     expect(findings.some((f) => f.includes("wallet ledger checksum differs"))).toBe(true);
@@ -93,11 +111,11 @@ describe("baseline remains fail-closed", () => {
   it("still allows audit_logs to grow but never shrink", () => {
     const grown = approvedSnapshot();
     grown.counts.audit_logs = (APPROVED_BASELINE.counts.audit_logs ?? 0) + 10;
-    expect(preflightFindings(grown, [])).toEqual([]);
+    expect(preflightFindings(grown, RELEASE_SCOPE)).toEqual([]);
 
     const shrunk = approvedSnapshot();
     shrunk.counts.audit_logs = (APPROVED_BASELINE.counts.audit_logs ?? 0) - 1;
-    expect(preflightFindings(shrunk, []).some((f) => f.startsWith("audit_logs="))).toBe(true);
+    expect(preflightFindings(shrunk, RELEASE_SCOPE)).toEqual([`audit_logs=${shrunk.counts.audit_logs} < approved ${APPROVED_BASELINE.counts.audit_logs}`]);
   });
 });
 

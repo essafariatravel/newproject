@@ -36,7 +36,7 @@ describe("Phase 2.2 §10 — SUPER_ADMIN agent + first admin onboarding", () => 
   it("creates agency + AGENCY_ADMIN, hashed temp password, mustChangePassword=true, audit without secrets", async () => {
     const suffix = Date.now().toString(36);
     const superA = await SUPER();
-    const { createSession } = await import("@/lib/auth");
+    const { createSession } = await import("./helpers/authenticated-session");
     const { token } = await createSession(superA.id);
     request.cookie = token;
 
@@ -63,7 +63,7 @@ describe("Phase 2.2 §10 — SUPER_ADMIN agent + first admin onboarding", () => 
   it("rejects duplicate agency legal names without partial user writes", async () => {
     const suffix = "d" + Date.now().toString(36).slice(-6);
     const superA = await SUPER();
-    const { createSession } = await import("@/lib/auth");
+    const { createSession } = await import("./helpers/authenticated-session");
     const { token } = await createSession(superA.id);
     request.cookie = token;
     await expect(createAgencyWithAdminAction(await adminForm(suffix))).rejects.toBeDefined().catch(() => undefined);
@@ -78,7 +78,7 @@ describe("Phase 2.2 §10 — SUPER_ADMIN agent + first admin onboarding", () => 
 
   it("non-SUPER_ADMIN staff cannot use the one-shot onboarding (forbidden)", async () => {
     const adminRole = await userByEmail("admin@test.example");
-    const { createSession } = await import("@/lib/auth");
+    const { createSession } = await import("./helpers/authenticated-session");
     const { token } = await createSession(adminRole.id);
     request.cookie = token;
     const suffix = "f" + Date.now().toString(36).slice(-6);
@@ -91,7 +91,7 @@ describe("Phase 2.2 §10 — SUPER_ADMIN agent + first admin onboarding", () => 
 describe("Phase 2.2 §11 — mandatory first password change (server-authoritative)", () => {
   async function flaggedUser(suffix: string) {
     const superA = await SUPER();
-    const { token } = await (await import("@/lib/auth")).createSession(superA.id);
+    const { token } = await (await import("./helpers/authenticated-session")).createSession(superA.id);
     request.cookie = token;
     const fd = await adminForm("pc" + suffix);
     await expect(createAgencyWithAdminAction(fd)).rejects.toBeDefined().catch(() => undefined);
@@ -107,7 +107,7 @@ describe("Phase 2.2 §11 — mandatory first password change (server-authoritati
       (await import("drizzle-orm")).sql`select id from sessions order by created_at desc limit 1`,
     );
     void sessionRows;
-    const { token } = await (await import("@/lib/auth")).createSession(admin.id);
+    const { token } = await (await import("./helpers/authenticated-session")).createSession(admin.id);
     request.cookie = token;
     const sessionUser = await getSessionUser();
     expect(sessionUser?.mustChangePassword).toBe(true);
@@ -118,7 +118,7 @@ describe("Phase 2.2 §11 — mandatory first password change (server-authoritati
   it("reject paths: wrong current password, mismatched confirm, temp reused — flag stays on", async () => {
     const suffix = "b" + Date.now().toString(36).slice(-4);
     const admin = await flaggedUser(suffix);
-    const { token } = await (await import("@/lib/auth")).createSession(admin.id);
+    const { token } = await (await import("./helpers/authenticated-session")).createSession(admin.id);
     request.cookie = token;
     const { changePasswordAction } = await import("@/app/actions/auth");
     const mk = (current: string, password: string, confirm: string) => {
@@ -137,7 +137,7 @@ describe("Phase 2.2 §11 — mandatory first password change (server-authoritati
   it("successful change: unlocks, new password works, temp dead, audited without secrets", async () => {
     const suffix = "c" + Date.now().toString(36).slice(-4);
     const admin = await flaggedUser(suffix);
-    const { token } = await (await import("@/lib/auth")).createSession(admin.id);
+    const { token } = await (await import("./helpers/authenticated-session")).createSession(admin.id);
     request.cookie = token;
     const { changePasswordAction } = await import("@/app/actions/auth");
     const fd = new FormData();
@@ -146,7 +146,7 @@ describe("Phase 2.2 §11 — mandatory first password change (server-authoritati
     const after = (await db.select().from(users).where(eq(users.id, admin.id)))[0]!;
     expect(after.mustChangePassword).toBe(false);
     // fresh session → requireUser no longer throws
-    const { token: token2 } = await (await import("@/lib/auth")).createSession(admin.id);
+    const { token: token2 } = await (await import("./helpers/authenticated-session")).createSession(admin.id);
     request.cookie = token2;
     await expect(requireUser()).resolves.toMatchObject({ username: `admin-pc${suffix}` });
     await expect(authenticate(`admin-pc${suffix}`, "ChosenPass77")).resolves.toBeTruthy();
@@ -160,7 +160,7 @@ describe("Phase 2.2 §11 — mandatory first password change (server-authoritati
 
   it("a normal password change rejects an incorrect current password", async () => {
     const superA = await SUPER();
-    const { token } = await (await import("@/lib/auth")).createSession(superA.id);
+    const { token } = await (await import("./helpers/authenticated-session")).createSession(superA.id);
     request.cookie = token;
     const { changePasswordAction } = await import("@/app/actions/auth");
     const fd = new FormData();

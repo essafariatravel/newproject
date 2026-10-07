@@ -25,7 +25,7 @@ export interface ResetManifest {
 }
 const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const operational = new Set(["agencies","users","sessions","session_presence","account_access_tokens","account_activation_tokens","account_recovery_requests","auth_rate_limits","applications","applicants","checklist_items","documents","document_requests","document_blobs","application_status_history","communications","notifications","wallet_transactions","wallet_topup_requests","application_price_adjustments","agency_registrations","agency_registration_documents","agency_registration_history","agency_registration_requests","agency_registration_followup_tokens","audit_logs","legacy_reconciliation_issues","legacy_reconciliation_events"]);
+const operational = new Set(["mfa_credentials","mfa_enrollment_authorizations","agencies","users","sessions","session_presence","account_access_tokens","account_activation_tokens","account_recovery_requests","auth_rate_limits","applications","applicants","checklist_items","documents","document_requests","document_blobs","application_status_history","communications","notifications","wallet_transactions","wallet_topup_requests","application_price_adjustments","agency_registrations","agency_registration_documents","agency_registration_history","agency_registration_requests","agency_registration_followup_tokens","audit_logs","legacy_reconciliation_issues","legacy_reconciliation_events"]);
 const configuration = new Set(["schema_migrations","site_settings","legal_versions","statuses","status_transitions","document_types","priorities","currencies","countries","visa_categories","visa_types","visa_requirements"]);
 const selectableCatalogue = new Set(["countries", "visa_categories", "visa_types", "visa_requirements"]);
 const normalize = (text: string, schema: string) => text.replaceAll('"'+schema+'".','').replaceAll(schema+'.','').replaceAll('"'+schema+'"','APP_SCHEMA')
@@ -261,11 +261,17 @@ export async function executeVerifiedLocalReset(client:PoolClient,plan:Awaited<R
   const preservedUsers: Record<string, unknown>[]=originalUsers.filter(row=>manifest.preservedUserIds.includes(String(row.id))).map(row=>({...row,credential_version:Number(row.credential_version??0)+1}));
   await insert("users",preservedUsers);
   const protectedRows = selectedRows(manifest, inventory.tableRows);
+  // Reconstruct approved rows exactly; provenance counters describe real edits,
+  // not immutable archive restoration. DDL and trigger state are reverified below.
+  await client.query(`alter table ${table("visa_types")} disable trigger visa_rule_version`);
+  await client.query(`alter table ${table("visa_requirements")} disable trigger requirement_rule_version`);
   for(const name of dependencyDeleteOrder(inventory.tables,inventory.edges).reverse())if(configuration.has(name)){
     const rows = protectedRows[name];
     if (!rows) throw new Error("Unknown protected configuration inventory; rollback required.");
     await insert(name,rows);
   }
+  await client.query(`alter table ${table("visa_types")} enable trigger visa_rule_version`);
+  await client.query(`alter table ${table("visa_requirements")} enable trigger requirement_rule_version`);
   await insert("document_blobs",(inventory.tableRows.document_blobs??[]).filter(row=>manifest.storage.preserveKeys.includes(String(row.key))));
   for(const state of inventory.sequences)await client.query("select setval($1::regclass,$2::bigint,$3)",[`${schema}.${state.name}`,state.lastValue,state.isCalled]);
   const after=await resetInventory(client,schema),zero=[...operational].filter(name=>!["users","document_blobs","audit_logs"].includes(name)&&after.tables.includes(name));

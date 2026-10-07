@@ -98,8 +98,10 @@ describe("canonical workflow integrity", () => {
   });
 
   it("required embassy programmes cannot skip their embassy stage", async () => {
+    const visa=(await db.select().from(visaTypes).where(eq(visaTypes.code,"JP-BUS")))[0]!;
+    await db.update(visaTypes).set({embassyApplicability:"APPLICABLE"}).where(eq(visaTypes.id,visa.id));
     const { app, staff } = await dossier();
-    await db.update(visaTypes).set({ embassyApplicability: "APPLICABLE" }).where(eq(visaTypes.id, app.visaTypeId));
+    await db.update(visaTypes).set({ embassyApplicability: "OPTIONAL" }).where(eq(visaTypes.id, app.visaTypeId));
     try {
       await expect(recordApplicationDecision({ applicationId: app.id, outcome: "APPROVED", actor: staff, file: receipt() })).rejects.toMatchObject({ code: "EMBASSY_REQUIRED" });
       expect(await getDecisionDocuments(app.id)).toHaveLength(0);

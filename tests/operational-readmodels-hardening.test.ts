@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { applications, countries, documentTypes, visaCategories, visaRequirements, visaTypes } from "@/db/schema";
 import { createDraftApplication } from "@/lib/applications";
 import { activeVisaOptions, reportData } from "@/lib/queries";
-import { createSession } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import { staffDirectory } from "@/app/actions/communications";
 import { addRequirementAction, deleteDocumentTypeAction, removeRequirementAction, updateDocumentTypeAction, updateRequirementAction } from "@/app/actions/config";
 
