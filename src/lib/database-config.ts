@@ -71,9 +71,12 @@ export function databasePoolConfig(env: Environment = process.env, migration = f
 }
 
 /** A routing check, not a substitute for successfully querying the database. */
-export function targetsSupabaseProject(value: string, reference: string): boolean {
+export function targetsSupabaseProject(value: string, reference: string, role = "postgres"): boolean {
+  // Recovery tooling may explicitly select a limited role. Hosted application
+  // and backup checks retain the default postgres identity.
+  if (!/^[a-z_][a-z0-9_]{0,62}$/.test(role)) return false;
   const url = new URL(value);
   return url.hostname === `db.${reference}.supabase.co` ||
     (url.hostname.endsWith(".pooler.supabase.com") &&
-      decodeURIComponent(url.username) === `postgres.${reference}`);
+      decodeURIComponent(url.username) === `${role}.${reference}`);
 }

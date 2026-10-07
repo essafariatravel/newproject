@@ -15,6 +15,7 @@
  * Remote disposable Supabase additionally requires:
  *   DR_ALLOW_REMOTE_DISPOSABLE=true
  *   DR_DISPOSABLE_PROJECT_REF=<non-Production project ref>
+ *   DR_DATABASE_ROLE=<explicit limited session-pooler role, default postgres>
  *
  * Usage:
  *   npm run dr:restore -- --manifest /private/ESSAFARIA-...manifest.json

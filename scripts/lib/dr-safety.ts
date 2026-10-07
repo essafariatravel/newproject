@@ -444,7 +444,7 @@ export function assessRestoreTarget(env: Record<string, string | undefined>): Re
   if (disposableRef === PRODUCTION_PROJECT_REF) findings.push("Production Supabase project can never be a restore-test target");
   if (disposableRef) {
     try {
-      if (!targetsSupabaseProject(raw, disposableRef)) findings.push("DATABASE_URL does not match DR_DISPOSABLE_PROJECT_REF");
+      if (!targetsSupabaseProject(raw, disposableRef, env.DR_DATABASE_ROLE || "postgres")) findings.push("DATABASE_URL does not match DR_DISPOSABLE_PROJECT_REF");
     } catch {
       findings.push("DATABASE_URL project identity could not be verified");
     }

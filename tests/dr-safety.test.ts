@@ -158,6 +158,24 @@ describe("DR backup manifest", () => {
 });
 
 describe("DR restore target guard", () => {
+  it("allows an explicitly named limited recovery pooler role while retaining project boundaries", () => {
+    const ref = "vwixmkzgpmzgwbshzxji";
+    const role = "essafaria_dr_20261007";
+    const env = {
+      DR_ENVIRONMENT: "RESTORE_TEST", DR_ALLOW_REMOTE_DISPOSABLE: "true",
+      DR_DISPOSABLE_PROJECT_REF: ref, DR_DATABASE_ROLE: role,
+      DATABASE_SCHEMA: "visa_os",
+      DATABASE_URL: `postgresql://${role}.${ref}:example@aws-0-us-east-1.pooler.supabase.com:5432/postgres`,
+    };
+    expect(assessRestoreTarget(env)).toMatchObject({safe:true,mode:"REMOTE_DISPOSABLE",findings:[]});
+    expect(assessRestoreTarget({...env,DR_DATABASE_ROLE:undefined}).safe).toBe(false);
+    expect(assessRestoreTarget({...env,DR_DATABASE_ROLE:"postgres"}).safe).toBe(false);
+    expect(assessRestoreTarget({...env,DR_DATABASE_ROLE:`${role}.${ref}`}).safe).toBe(false);
+    expect(assessRestoreTarget({...env,DR_DISPOSABLE_PROJECT_REF:PRODUCTION_PROJECT_REF}).safe).toBe(false);
+    expect(assessRestoreTarget({...env,DATABASE_URL:`postgresql://${role}.${PRODUCTION_PROJECT_REF}:example@aws-0-us-east-1.pooler.supabase.com:5432/postgres`}).safe).toBe(false);
+    expect(assessRestoreTarget({...env,DATABASE_URL:`postgresql://${role}.${ref}:example@pooler.supabase.com.attacker.test:5432/postgres`}).safe).toBe(false);
+  });
+
   it("allows only an explicitly declared local restore-test database", () => {
     expect(assessRestoreTarget({
       DR_ENVIRONMENT: "RESTORE_TEST",
