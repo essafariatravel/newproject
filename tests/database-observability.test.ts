@@ -1,9 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { randomUUID } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import { createServer } from "node:net";
+import EmbeddedPostgres from "embedded-postgres";
 import path from "node:path";
 import { Pool } from "pg";
 import { applyMigrations } from "../scripts/lib/migrations";
-import { testConnectionString, testDbReady } from "./helpers/pg";
+
 
 // The namespace-contract suite uses isolate:false and deliberately mocks the
 // database module. Remove those file-level doubles before this suite rebuilds
@@ -12,23 +15,28 @@ vi.unmock("@/lib/db");
 vi.unmock("@/lib/database-schema");
 vi.unmock("@/lib/observability");
 
-const databaseName = `observability_test_${randomUUID().replaceAll("-", "")}`;
-let administrator: Pool;
+let cluster: EmbeddedPostgres | undefined;
+let directory: string | undefined;
 let snapshotPool: Pool;
 
 let databaseObservabilitySnapshot: typeof import("@/lib/database-observability")["databaseObservabilitySnapshot"];
 let databaseHealthGET: typeof import("../src/app/api/internal/health/database/route")["GET"];
 
 beforeAll(async () => {
-  await testDbReady();
-  administrator = new Pool({ connectionString: testConnectionString() });
-  // Storage aggregation must run against its own real database. Otherwise the
-  // heavy fixture suites' relation files make this test depend on run order and
-  // filesystem performance, even after all business rows have been truncated.
-  await administrator.query(`create database "${databaseName}"`);
-  const target = new URL(testConnectionString());
-  target.pathname = `/${databaseName}`;
-  snapshotPool = new Pool({ connectionString: target.toString() });
+  // Own the entire disposable cluster: DROP DATABASE on the shared fixture
+  // forces a checkpoint of every suite's relation files on Windows.
+  const server = createServer();
+  await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Disposable test port unavailable.");
+  const port = address.port;
+  await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  directory = await mkdtemp(path.join(os.tmpdir(), "essafaria-observability-pg-"));
+  cluster = new EmbeddedPostgres({databaseDir:directory,initdbFlags:["--encoding=UTF8","--locale=C"],user:"postgres",password:"postgres",port,persistent:true});
+  await cluster.initialise();
+  await cluster.start();
+  await cluster.createDatabase("observability_test");
+  snapshotPool = new Pool({connectionString:`postgresql://postgres:postgres@127.0.0.1:${port}/observability_test`});
   await applyMigrations(snapshotPool, path.join(process.cwd(), "migrations"));
   // Rebuild this suite's module graph after the namespace test's mock has
   // been removed; otherwise a test double can leak into the runtime health
@@ -45,9 +53,11 @@ afterAll(async () => {
   vi.doUnmock("@/lib/db");
   vi.resetModules();
   if (snapshotPool) await snapshotPool.end();
-  if (administrator) {
-    try { await administrator.query(`drop database if exists "${databaseName}" with (force)`); }
-    finally { await administrator.end(); }
+  if (cluster) await cluster.stop();
+  if (directory) {
+    const ownedPath = path.resolve(directory);
+    if (!ownedPath.startsWith(path.resolve(os.tmpdir()) + path.sep) || !path.basename(ownedPath).startsWith("essafaria-observability-pg-")) throw new Error("Refusing to remove an unowned test directory.");
+    await rm(ownedPath, {recursive:true,force:true,maxRetries:10,retryDelay:100});
   }
 });
 
