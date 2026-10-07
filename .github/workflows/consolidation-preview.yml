@@ -33,7 +33,7 @@ jobs:
     timeout-minutes: 45
     environment: Preview
     env:
-      DATABASE_URL: ${{ secrets.PERF_PREVIEW_DATABASE_URL || secrets.PREVIEW_DATABASE_URL }}
+      DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL || secrets.PERF_PREVIEW_DATABASE_URL }}
       DATABASE_SCHEMA: visa_os_preview
       PERF_ACK_NONPROD: 'YES'
       BASE_URL: ${{ inputs.preview_url }}
