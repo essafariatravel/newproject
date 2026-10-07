@@ -4,6 +4,12 @@ on:
     branches: [codex/world-class-final-consolidation-*]
     paths: [.github/workflows/consolidation-dr-backup.yml]
   workflow_dispatch:
+    inputs:
+      credential_context:
+        description: Read-only source credential store (Preview uses the existing shared project connection)
+        type: choice
+        default: Production
+        options: [Production, Preview]
 permissions:
   contents: read
 concurrency:
@@ -12,11 +18,12 @@ concurrency:
 jobs:
   backup:
     if: github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/codex/world-class-final-consolidation-')
-    environment: Production
+    environment: ${{ inputs.credential_context == 'Preview' && 'Preview' || 'Production' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DIRECT_DATABASE_URL || secrets.PRODUCTION_DATABASE_URL }}
+      PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DIRECT_DATABASE_URL || secrets.PRODUCTION_DATABASE_URL || secrets.PREVIEW_DATABASE_URL }}
+      DR_USE_SESSION_POOLER: ${{ inputs.credential_context == 'Preview' && 'YES' || 'NO' }}
       # Read-only Vercel Production deployment inspection, 2026-10-07.
       DR_SOURCE_RELEASE_SHA: 831607a2ed0423d575d693b8f8f3a9dfc1e5d9d1
     steps:
