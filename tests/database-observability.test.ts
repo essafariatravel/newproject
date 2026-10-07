@@ -1,5 +1,9 @@
-import { beforeAll, describe, expect, it, vi } from "vitest";
-import { suiteSetup } from "./helpers/global-state";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { randomUUID } from "node:crypto";
+import path from "node:path";
+import { Pool } from "pg";
+import { applyMigrations } from "../scripts/lib/migrations";
+import { testConnectionString, testDbReady } from "./helpers/pg";
 
 // The namespace-contract suite uses isolate:false and deliberately mocks the
 // database module. Remove those file-level doubles before this suite rebuilds
@@ -8,18 +12,43 @@ vi.unmock("@/lib/db");
 vi.unmock("@/lib/database-schema");
 vi.unmock("@/lib/observability");
 
-suiteSetup();
+const databaseName = `observability_test_${randomUUID().replaceAll("-", "")}`;
+let administrator: Pool;
+let snapshotPool: Pool;
 
 let databaseObservabilitySnapshot: typeof import("@/lib/database-observability")["databaseObservabilitySnapshot"];
 let databaseHealthGET: typeof import("../src/app/api/internal/health/database/route")["GET"];
 
 beforeAll(async () => {
+  await testDbReady();
+  administrator = new Pool({ connectionString: testConnectionString() });
+  // Storage aggregation must run against its own real database. Otherwise the
+  // heavy fixture suites' relation files make this test depend on run order and
+  // filesystem performance, even after all business rows have been truncated.
+  await administrator.query(`create database "${databaseName}"`);
+  const target = new URL(testConnectionString());
+  target.pathname = `/${databaseName}`;
+  snapshotPool = new Pool({ connectionString: target.toString() });
+  await applyMigrations(snapshotPool, path.join(process.cwd(), "migrations"));
   // Rebuild this suite's module graph after the namespace test's mock has
   // been removed; otherwise a test double can leak into the runtime health
   // proof and turn a full-suite run into a false failure.
   vi.resetModules();
+  // This is a real pg Pool with the complete migrated schema, not a query
+  // response double. Only the test's database routing is isolated.
+  vi.doMock("@/lib/db", () => ({ pool: snapshotPool }));
   ({ databaseObservabilitySnapshot } = await import("@/lib/database-observability"));
   ({ GET: databaseHealthGET } = await import("../src/app/api/internal/health/database/route"));
+});
+
+afterAll(async () => {
+  vi.doUnmock("@/lib/db");
+  vi.resetModules();
+  if (snapshotPool) await snapshotPool.end();
+  if (administrator) {
+    try { await administrator.query(`drop database if exists "${databaseName}" with (force)`); }
+    finally { await administrator.end(); }
+  }
 });
 
 describe("database observability", () => {

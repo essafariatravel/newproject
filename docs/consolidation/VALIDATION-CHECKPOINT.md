@@ -18,6 +18,10 @@ Both source refs were fetched again and remain unchanged.
 
 Detailed local logs are retained outside Git in `tmp-final-verify/`. The release workflow also runs the complete suite in reverse order and verifies the exact checkout SHA. The authoritative remote candidate SHA and its Actions run must be obtained after pushing; this document does not substitute an earlier CI result for final-SHA verification.
 
+## Observability isolation correction
+
+An additional Windows reverse-order run reproduced a 60-second timeout in the real storage-size aggregate after heavy shared-database fixtures. Read-only activity inspection identified the executing storage-size query; focused fresh-database checks and Linux CI did not reproduce the timeout. The real observability suite now creates its own disposable localhost database, applies the complete migration ledger, routes the snapshot through a real PostgreSQL pool and removes the database after the suite. This preserves real runtime queries, all assertions and the existing timeout while eliminating dependence on earlier fixture relation files. The corrected focused observability/namespace/teardown run passed three files and eight tests. The complete corrected local reverse-order suite then passed 173 files and 1,311 tests, with the existing Windows-only shell check skipped. The previously timed-out aggregate completed in 470 ms. Typecheck, lint, all four security gates, the zero-vulnerability dependency audit and the build passed again. The final correction requires its own exact-SHA CI after pushing.
+
 ## Scope and safety
 
 All valid consolidation work was preserved. Arena's engineering was selectively integrated; its stale final reports were not adopted. Candidate migrations 0032 and 0033 remain outside the authorized Production 0020–0031 scope. Production preparation must reject them until separately approved.
