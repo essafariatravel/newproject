@@ -279,7 +279,7 @@ export default async function AdminApplicationDetailPage({
                 <form action={updateInternalNotesAction} className="px-4 py-4">
                   <input type="hidden" name="applicationId" value={id} />
                   <input type="hidden" name="back" value={back} />
-                  <textarea name="internalNotes" rows={3} defaultValue={app.internalNotes ?? ""} className="input" placeholder={ct("Case-officer notes…")} />
+                  <textarea aria-label={ct("Internal notes")} name="internalNotes" rows={3} defaultValue={app.internalNotes ?? ""} className="input" placeholder={ct("Case-officer notes…")} />
                   <div className="mt-2"><SubmitButton className="btn-secondary btn-sm" pendingLabel={ct("Saving…")}>{ct("Save notes")}</SubmitButton></div>
                 </form>
               </Card>
@@ -404,7 +404,7 @@ export default async function AdminApplicationDetailPage({
                         <input type="hidden" name="checklistItemId" value={item.id} />
                         <input type="hidden" name="back" value={`${back}?tab=documents`} />
                         <div className="flex-1 min-w-[180px]">
-                          <input name="reason" required minLength={5} placeholder={ct("Reason to request replacement")} className="input text-base" />
+                          <input aria-label={ct("Reason to request replacement")} name="reason" required minLength={5} placeholder={ct("Reason to request replacement")} className="input text-base" />
                         </div>
                         <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">{ct("Request replacement")}</SubmitButton>
                       </form>
