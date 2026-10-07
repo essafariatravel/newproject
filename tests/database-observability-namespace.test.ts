@@ -1,21 +1,47 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const fixture = vi.hoisted(() => ({ namespace: 'synthetic"extension', enabled: true, failure: false, queries: [] as string[] }));
-vi.mock("@/lib/db", () => ({ pool: { query: async (sql: string) => {
-  fixture.queries.push(sql);
-  if (sql.includes("from pg_stat_activity")) return { rows: [{ max_connections: 100, total_connections: 1, active_connections: 1, idle_connections: 0, active_waiting: 0, active_lock_waiting: 0, long_transactions: 0 }] };
-  if (sql.includes("from pg_locks")) return { rows: [{ waiting_locks: 0 }] };
-  if (sql.includes("from pg_stat_database")) return { rows: [{ deadlocks: 0, xact_rollback: 0, temp_files: 0, temp_bytes: 0, stats_reset: null }] };
-  if (sql.includes("pg_database_size")) return { rows: [{ database_bytes: 100, schema_bytes: 50 }] };
-  if (sql.includes("pg_extension")) return { rows: fixture.enabled ? [{ enabled: true, namespace: fixture.namespace }] : [] };
-  if (fixture.failure || !sql.includes('from "synthetic""extension"."pg_stat_statements"')) throw { code: "42P01" };
-  return { rows: [{ mean_over_500ms: 0, max_mean_exec_ms: 1, max_single_exec_ms: 2, application_mean_over_500ms: 0, application_max_mean_exec_ms: 1, application_max_single_exec_ms: 2 }] };
-} } }));
-vi.mock("@/lib/database-schema", () => ({ databaseSchema: () => "synthetic_application" }));
-vi.mock("@/lib/observability", () => ({ logErrorOnce: vi.fn() }));
+const fixture = {
+  namespace: 'synthetic"extension',
+  enabled: true,
+  failure: false,
+  queries: [] as string[],
+};
 
-import { databaseObservabilitySnapshot } from "../src/lib/database-observability";
-import { GET } from "../src/app/api/internal/health/database/route";
+let databaseObservabilitySnapshot: typeof import("../src/lib/database-observability")["databaseObservabilitySnapshot"];
+let GET: typeof import("../src/app/api/internal/health/database/route")["GET"];
+
+beforeAll(async () => {
+  // Keep this contract suite's doubles local to its module graph. The Vitest
+  // configuration intentionally shares a registry for the disposable DB
+  // suites, so static vi.mock declarations can otherwise poison later runtime
+  // observability tests.
+  vi.resetModules();
+  vi.doMock("@/lib/db", () => ({
+    pool: {
+      query: async (sql: string) => {
+        fixture.queries.push(sql);
+        if (sql.includes("from pg_stat_activity")) return { rows: [{ max_connections: 100, total_connections: 1, active_connections: 1, idle_connections: 0, active_waiting: 0, active_lock_waiting: 0, long_transactions: 0 }] };
+        if (sql.includes("from pg_locks")) return { rows: [{ waiting_locks: 0 }] };
+        if (sql.includes("from pg_stat_database")) return { rows: [{ deadlocks: 0, xact_rollback: 0, temp_files: 0, temp_bytes: 0, stats_reset: null }] };
+        if (sql.includes("pg_database_size")) return { rows: [{ database_bytes: 100, schema_bytes: 50 }] };
+        if (sql.includes("pg_extension")) return { rows: fixture.enabled ? [{ enabled: true, namespace: fixture.namespace }] : [] };
+        if (fixture.failure || !sql.includes('from "synthetic""extension"."pg_stat_statements"')) throw { code: "42P01" };
+        return { rows: [{ mean_over_500ms: 0, max_mean_exec_ms: 1, max_single_exec_ms: 2, application_mean_over_500ms: 0, application_max_mean_exec_ms: 1, application_max_single_exec_ms: 2 }] };
+      },
+    },
+  }));
+  vi.doMock("@/lib/database-schema", () => ({ databaseSchema: () => "synthetic_application" }));
+  vi.doMock("@/lib/observability", () => ({ logErrorOnce: vi.fn() }));
+  ({ databaseObservabilitySnapshot } = await import("../src/lib/database-observability"));
+  ({ GET } = await import("../src/app/api/internal/health/database/route"));
+});
+
+afterAll(() => {
+  vi.doUnmock("@/lib/db");
+  vi.doUnmock("@/lib/database-schema");
+  vi.doUnmock("@/lib/observability");
+  vi.resetModules();
+});
 
 beforeEach(() => {
   fixture.enabled = true;

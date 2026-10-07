@@ -29,6 +29,7 @@ async function start(): Promise<void> {
   state.directory = await mkdtemp(path.join(os.tmpdir(), "essafaria-test-pg-"));
   state.pg = new EmbeddedPostgres({
     databaseDir: state.directory,
+    initdbFlags: ["--encoding=UTF8", "--locale=C"],
     user: "postgres",
     password: "postgres",
     port: PORT,
@@ -76,7 +77,7 @@ export async function teardownTestDb(): Promise<void> {
   if (state.pg) {
     await state.pg.stop();
     state.pg = null;
-    if (state.directory) await rm(state.directory, { recursive: true, force: true });
+    if (state.directory) await rm(state.directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
     state.directory = null;
     state.ready = null;
   }

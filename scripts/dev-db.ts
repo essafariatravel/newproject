@@ -10,6 +10,7 @@ const dataDir = path.join(process.cwd(), ".embedded-pg");
 async function main() {
   const pg = new EmbeddedPostgres({
     databaseDir: dataDir,
+    initdbFlags: ["--encoding=UTF8", "--locale=C"],
     user: "postgres",
     password: "postgres",
     port: 5432,

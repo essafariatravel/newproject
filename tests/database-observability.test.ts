@@ -1,9 +1,26 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { suiteSetup } from "./helpers/global-state";
-import { databaseObservabilitySnapshot } from "@/lib/database-observability";
-import { GET as databaseHealthGET } from "../src/app/api/internal/health/database/route";
+
+// The namespace-contract suite uses isolate:false and deliberately mocks the
+// database module. Remove those file-level doubles before this suite rebuilds
+// its graph against the real disposable PostgreSQL instance.
+vi.unmock("@/lib/db");
+vi.unmock("@/lib/database-schema");
+vi.unmock("@/lib/observability");
 
 suiteSetup();
+
+let databaseObservabilitySnapshot: typeof import("@/lib/database-observability")["databaseObservabilitySnapshot"];
+let databaseHealthGET: typeof import("../src/app/api/internal/health/database/route")["GET"];
+
+beforeAll(async () => {
+  // Rebuild this suite's module graph after the namespace test's mock has
+  // been removed; otherwise a test double can leak into the runtime health
+  // proof and turn a full-suite run into a false failure.
+  vi.resetModules();
+  ({ databaseObservabilitySnapshot } = await import("@/lib/database-observability"));
+  ({ GET: databaseHealthGET } = await import("../src/app/api/internal/health/database/route"));
+});
 
 describe("database observability", () => {
   it("returns a safe aggregate snapshot", async () => {

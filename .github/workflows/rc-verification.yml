@@ -6,6 +6,7 @@ on:
       - release/essafaria-rc-2026-09
       - release/final-rc-consolidation
       - release/go-live-final-2026-10-06
+      - codex/world-class-final-consolidation-*
       - preprod/essafaria-final-hardening
       - security/pre-codex-gate-2026-10-03
   workflow_dispatch:
@@ -22,7 +23,7 @@ permissions:
 jobs:
   verify:
     name: Typecheck, lint, tests, build
-    if: github.ref == 'refs/heads/release/final-rc-consolidation' || github.ref == 'refs/heads/release/essafaria-rc-2026-09' || github.ref == 'refs/heads/release/go-live-final-2026-10-06' || github.ref == 'refs/heads/preprod/essafaria-final-hardening' || github.ref == 'refs/heads/security/pre-codex-gate-2026-10-03'
+    if: github.ref == 'refs/heads/release/final-rc-consolidation' || github.ref == 'refs/heads/release/essafaria-rc-2026-09' || github.ref == 'refs/heads/release/go-live-final-2026-10-06' || startsWith(github.ref, 'refs/heads/codex/world-class-final-consolidation-') || github.ref == 'refs/heads/preprod/essafaria-final-hardening' || github.ref == 'refs/heads/security/pre-codex-gate-2026-10-03'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -48,10 +49,10 @@ jobs:
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           echo "Verified commit: $GITHUB_SHA"
 
-      - name: Setup Node 22 with npm cache
+      - name: Setup Node 24 with npm cache
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Install dependencies from package-lock
@@ -85,10 +86,34 @@ jobs:
         run: npm test -- tests/build-preview-guard.test.ts
 
       - name: Broader deterministic test suite
+        env:
+          # The suite owns a disposable embedded PostgreSQL instance. Keep the
+          # build guard above/below database-free, but do not import database
+          # modules with the workflow's intentionally blank DATABASE_URL.
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5434/essafaria_test
+          DATABASE_SCHEMA: public
+          STORAGE_PROVIDER: db
         run: npm test
 
       - name: Build without deployment or database access
         run: npm run build
+
+      - name: Reverse-order suite isolation verification
+        env:
+          ESSAFARIA_TEST_REVERSE: '1'
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5434/essafaria_test
+          DATABASE_SCHEMA: public
+          STORAGE_PROVIDER: db
+        run: npm test
+
+      - name: Generate production dependency SBOM
+        run: npm sbom --sbom-format cyclonedx --omit=dev > /tmp/essafaria-sbom.cdx.json
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dependency-sbom-${{ github.sha }}
+          path: /tmp/essafaria-sbom.cdx.json
+          retention-days: 30
 
       - name: Local legal/privacy runtime smoke
         shell: bash
