@@ -26,6 +26,7 @@ export interface DatePickerProps {
   className?: string;
   /** Placeholder shown when empty — pass a localized string from the server page. */
   placeholder?: string;
+  ariaLabel?: string;
 }
 
 const ISO = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -195,7 +196,7 @@ export function DatePicker(props: DatePickerProps) {
           placeholder={props.placeholder ?? "YYYY-MM-DD"}
           onChange={(e) => applyText(e.target.value)}
           className={`input ${props.className ?? ""}`.trim()}
-          aria-label={props.placeholder ?? "YYYY-MM-DD"}
+          aria-label={props.ariaLabel??(props.id?undefined:props.placeholder??"YYYY-MM-DD")}
         />
         <button
           type="button"
@@ -203,7 +204,7 @@ export function DatePicker(props: DatePickerProps) {
           onClick={() => setOpen((o) => !o)}
           aria-haspopup="dialog"
           aria-expanded={open}
-          aria-label={display || props.placeholder || "Choose date"}
+          aria-label={`${props.ariaLabel??""} ${display || props.placeholder || (locale==="ar"?"اختيار التاريخ":locale==="fr"?"Choisir une date":"Choose date")}`.trim()}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-line bg-white text-slate-500 transition-colors hover:border-navy-600 hover:text-navy-900"
         >
           <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
@@ -225,7 +226,7 @@ export function DatePicker(props: DatePickerProps) {
               type="button"
               onClick={() => (view === "days" ? moveMonth(-1) : view === "months" ? setViewYear((y) => y - 1) : setPivotYear((y) => y - 12))}
               className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-ivory-100"
-              aria-label={view === "days" ? "Previous month" : view === "months" ? "Previous year" : "Earlier years"}
+              aria-label={view === "days" ? (locale==="ar"?"الشهر السابق":locale==="fr"?"Mois précédent":"Previous month") : view === "months" ? (locale==="ar"?"السنة السابقة":locale==="fr"?"Année précédente":"Previous year") : (locale==="ar"?"سنوات أسبق":locale==="fr"?"Années précédentes":"Earlier years")}
             >
               ‹
             </button>
@@ -245,7 +246,7 @@ export function DatePicker(props: DatePickerProps) {
               type="button"
               onClick={() => (view === "days" ? moveMonth(1) : view === "months" ? setViewYear((y) => y + 1) : setPivotYear((y) => y + 12))}
               className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-ivory-100"
-              aria-label={view === "days" ? "Next month" : view === "months" ? "Next year" : "Later years"}
+              aria-label={view === "days" ? (locale==="ar"?"الشهر التالي":locale==="fr"?"Mois suivant":"Next month") : view === "months" ? (locale==="ar"?"السنة التالية":locale==="fr"?"Année suivante":"Next year") : (locale==="ar"?"سنوات لاحقة":locale==="fr"?"Années suivantes":"Later years")}
             >
               ›
             </button>

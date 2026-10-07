@@ -42,6 +42,7 @@ export function FilterBar(props: {
           ) : f.type === "date" ? (
             <DatePicker
               id={`f-${f.name}`}
+              ariaLabel={f.label}
               name={f.name}
               defaultValue={f.value ?? ""}
               locale={props.locale ?? "en"}

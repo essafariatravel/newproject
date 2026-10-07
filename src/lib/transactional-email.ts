@@ -33,7 +33,7 @@ function absolutePortalLink(path: string | null | undefined, origin: string): st
   if (!path || !origin || !path.startsWith("/")) return null;
   try {
     const url = new URL(origin);
-    if (url.protocol !== "https:") return null;
+    if (url.protocol !== "https:" || url.username || url.password) return null;
     return `${url.origin}${path}`;
   } catch {
     return null;
@@ -68,11 +68,18 @@ async function sendBrevo(input: {
         tags: [input.tag],
       }),
       signal: AbortSignal.timeout(8_000),
+      redirect: "error",
     });
     if (!response.ok) {
       console.error("[transactional-email] provider rejected request", { status: response.status });
       return false;
     }
+    const confirmation:unknown=await response.json();
+    if(!confirmation||typeof confirmation!=="object"||!("messageId" in confirmation)||typeof confirmation.messageId!=="string"||!confirmation.messageId.trim()||confirmation.messageId.length>500){
+      console.error("[transactional-email] invalid provider confirmation",{code:"EMAIL_PROVIDER_MALFORMED_RESPONSE"});
+      return false;
+    }
+    // Provider acceptance is not recipient delivery; no recipient/content enters logs.
     return true;
   } catch (error) {
     console.error("[transactional-email] delivery failed", {
@@ -82,7 +89,7 @@ async function sendBrevo(input: {
   }
 }
 
-export function transactionalEmailReadiness(env: NodeJS.ProcessEnv = process.env) {
+export function transactionalEmailReadiness(env: Partial<NodeJS.ProcessEnv> = process.env) {
   const provider = env.TRANSACTIONAL_EMAIL_PROVIDER?.trim().toLowerCase() ?? "disabled";
   const missing: string[] = [];
   if (provider !== "brevo") {
@@ -90,7 +97,7 @@ export function transactionalEmailReadiness(env: NodeJS.ProcessEnv = process.env
   } else {
     if (!env.BREVO_API_KEY?.trim()) missing.push("BREVO_API_KEY");
     if (!env.TRANSACTIONAL_EMAIL_FROM?.trim()) missing.push("TRANSACTIONAL_EMAIL_FROM");
-    if (!env.TRANSACTIONAL_EMAIL_APP_ORIGIN?.trim()) missing.push("TRANSACTIONAL_EMAIL_APP_ORIGIN");
+    if (!absolutePortalLink("/",env.TRANSACTIONAL_EMAIL_APP_ORIGIN?.trim() ?? "")) missing.push("TRANSACTIONAL_EMAIL_APP_ORIGIN");
   }
   return { ready: missing.length === 0, provider, missing };
 }

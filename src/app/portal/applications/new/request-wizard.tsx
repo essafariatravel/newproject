@@ -152,7 +152,10 @@ export function RequestWizard(props: Props) {
   });
   const [visaTypeId, setVisaTypeId] = useState("");
   const [countrySearch, setCountrySearch] = useState("");
-  const [searchFocused, setSearchFocused] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(true);
+  const [activeDestination,setActiveDestination]=useState(-1);
+  const destinationChangeRef=useRef<HTMLButtonElement>(null);
+  const keyboardSelectionRef=useRef(false);
   const [natSearch, setNatSearch] = useState("");
   const [fileError, setFileError] = useState("");
   const [files, setFiles] = useState<Record<string, File[]>>({});
@@ -164,6 +167,7 @@ export function RequestWizard(props: Props) {
   const formRef = useRef<HTMLFormElement>(null);
 
   const country = useMemo(() => props.countries.find((c) => c.id === countryId) ?? null, [props.countries, countryId]);
+  useEffect(()=>{if(countryId&&keyboardSelectionRef.current){keyboardSelectionRef.current=false;destinationChangeRef.current?.focus();}},[countryId]);
   const visa = useMemo(() => country?.visaTypes.find((v) => v.id === visaTypeId) ?? null, [country, visaTypeId]);
   const requirements = useMemo(() => (visaTypeId ? (props.requirementsByVisaType[visaTypeId] ?? []) : []), [props.requirementsByVisaType, visaTypeId]);
 
@@ -361,6 +365,7 @@ export function RequestWizard(props: Props) {
               <button
                 type="button"
                 className="btn-secondary btn-sm"
+                ref={destinationChangeRef}
                 onClick={() => {
                   setCountryId("");
                   setVisaTypeId("");
@@ -380,13 +385,24 @@ export function RequestWizard(props: Props) {
                 role="combobox"
                 aria-expanded={searchFocused || countrySearch.length > 0}
                 aria-controls="destination-suggestions"
+                aria-autocomplete="list"
+                aria-activedescendant={suggestions[activeDestination]?`destination-${suggestions[activeDestination]!.id}`:undefined}
                 autoComplete="off"
                 className="input text-base"
                 placeholder={t.searchDestination}
                 value={countrySearch}
                 data-testid="wizard-destination-search"
                 onFocus={() => setSearchFocused(true)}
-                onChange={(e) => setCountrySearch(e.target.value)}
+                onChange={(e) => {setCountrySearch(e.target.value);setSearchFocused(true);setActiveDestination(-1);}}
+                onKeyDown={(event)=>{
+                  if(event.key==="ArrowDown"||event.key==="ArrowUp"){
+                    event.preventDefault();setSearchFocused(true);
+                    setActiveDestination(index=>suggestions.length?event.key==="ArrowDown"?(index+1)%suggestions.length:(index<=0?suggestions.length-1:index-1):-1);
+                  }else if(event.key==="Enter"&&(searchFocused || countrySearch.length > 0)){
+                    const selected=suggestions[activeDestination>=0?activeDestination:0];
+                    if(selected){event.preventDefault();keyboardSelectionRef.current=true;setCountryId(selected.id);setCountrySearch("");setSearchFocused(false);setActiveDestination(-1);if(selected.visaTypes.length!==1)setVisaTypeId("");}
+                  }else if(event.key==="Escape"){event.preventDefault();setSearchFocused(false);setCountrySearch("");setActiveDestination(-1);}
+                }}
               />
               <p className="text-xs text-slate-400">
                 {t.destinationsAvailable.replace("{count}", String(totalDestinations))}
@@ -394,7 +410,7 @@ export function RequestWizard(props: Props) {
 
               {suggestions.length === 0 ? (
                 <p className="rounded-lg bg-ivory-50 px-4 py-2 text-base text-slate-500">{t.noDestinationMatch}</p>
-              ) : (
+              ) : searchFocused||countrySearch.length>0 ? (
                 <div id="destination-suggestions" role="listbox" aria-label={t.searchDestination}>
                   {!countrySearch ? (
                     <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
@@ -402,23 +418,27 @@ export function RequestWizard(props: Props) {
                     </p>
                   ) : null}
                   <div className="flex flex-wrap gap-2">
-                    {suggestions.map((c) => (
+                    {suggestions.map((c,index) => (
                       /* Real links: a destination is deep-linkable and the step
                          still works without JavaScript (?destination=<id>). */
                       <a
                         key={c.id}
+                        id={`destination-${c.id}`}
                         role="option"
-                        aria-selected={countryId === c.id}
+                        aria-selected={activeDestination===index}
                         href={`?destination=${c.id}`}
                         data-testid="wizard-destination-option"
                         data-country-id={c.id}
                         onClick={(e) => {
                           e.preventDefault();
+                          keyboardSelectionRef.current = e.detail === 0;
                           setCountryId(c.id);
                           setCountrySearch("");
+                          setSearchFocused(false);
+                          setActiveDestination(-1);
                           if (c.visaTypes.length !== 1) setVisaTypeId("");
                         }}
-                        className="wizard-choice inline-flex min-h-11 items-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-base font-semibold text-navy-900 hover:bg-iris-50"
+                        className={`wizard-choice inline-flex min-h-11 items-center rounded-lg border px-4 py-2 text-base font-semibold text-navy-900 hover:bg-iris-50 ${activeDestination===index?"border-iris-400 bg-iris-50":"border-slate-200 bg-white"}`}
                       >
                         {c.name}
                         <span className="ms-2 text-xs text-slate-400">{c.visaTypes.length}</span>
@@ -426,7 +446,7 @@ export function RequestWizard(props: Props) {
                     ))}
                   </div>
                 </div>
-              )}
+              ) : null}
             </div>
           )}
 
@@ -541,7 +561,7 @@ export function RequestWizard(props: Props) {
         <div className="card space-y-4 p-6">
           <h2 className="font-serif text-lg text-navy-900">{t.documents}</h2>
           {fileError ? (
-            <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700" data-testid="wizard-file-error">
+            <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700" data-testid="wizard-file-error">
               {fileError}
             </p>
           ) : null}
@@ -568,6 +588,7 @@ export function RequestWizard(props: Props) {
                         {t.chooseFile}
                         <input
                           type="file"
+                          aria-label={`${t.chooseFile}: ${r.name}`}
                           name={`file_${r.documentTypeId}`}
                           multiple
                           accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
@@ -587,6 +608,7 @@ export function RequestWizard(props: Props) {
                             <span className="badge bg-emerald-100 text-emerald-800">{t.uploaded}</span>
                             <button
                               type="button"
+                              aria-label={`${t.remove}: ${f.name}`}
                               onClick={() => removeFile(r.documentTypeId, idx)}
                               className="inline-flex min-h-11 items-center px-2 text-xs font-semibold text-rose-700 underline"
                             >
