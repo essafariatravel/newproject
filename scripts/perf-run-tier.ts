@@ -126,6 +126,9 @@ async function main() {
     PERF_PROFILE: "tier",
     PERF_HOLD: `${holdMinutes}m`,
     PERF_SUMMARY: summary,
+    // k6 open() resolves relative paths from the script directory, unlike Node.
+    PERF_SESSION_FILE: resolve(process.env.PERF_SESSION_FILE ?? "perf/.runtime/sessions.json"),
+    PERF_APPLICATION_MANIFEST: resolve(process.env.PERF_APPLICATION_MANIFEST ?? "perf/.runtime/application-manifest.json"),
   };
 
   console.log(JSON.stringify({

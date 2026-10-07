@@ -10,22 +10,22 @@ function executable(script: string) {
 }
 
 async function runner(k6Status = 0, evaluatorStatus = 0) {
-  const calls: Array<{ command: string; args: string[]; options: { shell: boolean } }> = [];
+  const calls: Array<{ command: string; args: string[]; options: { shell: boolean; env: NodeJS.ProcessEnv } }> = [];
   let exitCode = 0;
   const logs: string[] = [];
   const tierStates: string[]=[];
-  const env = { PERF_RUN_DIR: "C:\\Users\\Azur Computer\\evidence", npm_execpath: "C:\\Program Files\\nodejs\\npm-cli.js" };
+  const env = { PERF_SESSION_FILE: "perf/.runtime/sessions.json", PERF_APPLICATION_MANIFEST: "perf/.runtime/application-manifest.json", PERF_RUN_DIR: "C:\\Users\\Azur Computer\\evidence", npm_execpath: "C:\\Program Files\\nodejs\\npm-cli.js" };
   const requireDouble = (name: string) => {
     if (name === "./lib/load-env") return {};
     if (name === "node:path") return path;
     if (name === "node:fs/promises") return { mkdir: async () => {}, stat: async () => ({ size: 1 }),writeFile:async(_file:string,value:string)=>{tierStates.push(JSON.parse(value).status);} };
     if (name === "./perf-safety") return { assertSafePerfTarget: () => ({}), safeTargetSummary: () => ({}) };
     if (name === "node:child_process") return {
-      spawnSync: (command: string, args: string[], options: { shell: boolean }) => {
+      spawnSync: (command: string, args: string[], options: { shell: boolean; env: NodeJS.ProcessEnv }) => {
         calls.push({ command, args, options });
         return { status: args.includes("perf:k6") ? k6Status : args.some((arg) => arg.endsWith("perf-evaluate.ts") || arg === "perf:evaluate") ? evaluatorStatus : 0 };
       },
-      spawn: (command: string, args: string[], options: { shell: boolean }) => {
+      spawn: (command: string, args: string[], options: { shell: boolean; env: NodeJS.ProcessEnv }) => {
         calls.push({ command, args, options });
         return { exitCode: 0, killed: false };
       },
@@ -77,6 +77,12 @@ describe("Windows Performance evaluation", () => {
     expect(evaluation?.args.slice(-3)).toEqual(["k6-summary.json", "db-before.json", "db-after.json"].map((file) => path.resolve("C:\\Users\\Azur Computer\\evidence", file)));
   });
 
+  it("resolves repository-relative fixture paths before passing them to k6", async () => {
+    const result = await runner();
+    const k6 = result.calls.find((call) => call.args.includes("perf:k6"));
+    expect(k6?.options.env.PERF_SESSION_FILE).toBe(path.resolve("perf/.runtime/sessions.json"));
+    expect(k6?.options.env.PERF_APPLICATION_MANIFEST).toBe(path.resolve("perf/.runtime/application-manifest.json"));
+  });
   it("preserves k6 non-zero exit even when evaluation passes", async () => {
     const result = await runner(99);
     expect(result.exitCode).toBe(99);
