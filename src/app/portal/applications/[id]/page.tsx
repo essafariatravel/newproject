@@ -266,14 +266,14 @@ export default async function PortalApplicationDetailPage({
               <div className="px-4 py-4 space-y-4">
                 {openRequests.map((r) => (
                   <div key={r.req.id} id={`request-${r.req.id}`} className="scroll-mt-24 rounded-xl border border-amber-200 bg-white p-4">
-                    <p className="font-semibold text-navy-900">{localizedDocTypeName(r.docTypeCode, r.docTypeName, uiLocale)} — {r.req.type === "REPLACEMENT" ? ct("Replacement requested") : ct("Additional document requested")}</p>
+                    <p id={`request-document-label-${r.req.id}`} className="font-semibold text-navy-900">{localizedDocTypeName(r.docTypeCode, r.docTypeName, uiLocale)} — {r.req.type === "REPLACEMENT" ? ct("Replacement requested") : ct("Additional document requested")}</p>
                     <p className="mt-1 text-base text-slate-600">{ct("Reason")}: {r.req.reason}</p>
                     <form action={uploadDocumentAction} encType="multipart/form-data" className="mt-4 flex flex-wrap items-center gap-2">
                       <input type="hidden" name="applicationId" value={id} />
                       {r.req.checklistItemId ? <input type="hidden" name="checklistItemId" value={r.req.checklistItemId} /> : null}
                       <input type="hidden" name="documentTypeId" value={r.req.documentTypeId} />
                       <input type="hidden" name="back" value={`${back}?tab=documents`} />
-                      <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:me-2 file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-xs file:text-white" />
+                      <input type="file" name="file" aria-labelledby={`request-document-label-${r.req.id}`} required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:me-2 file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-xs file:text-white" />
                       <button type="submit" className="btn-primary btn-sm">{ct("Upload replacement")}</button>
                     </form>
                   </div>
@@ -293,7 +293,7 @@ export default async function PortalApplicationDetailPage({
                   <div key={item.id} className="px-4 py-4">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
-                        <p className="font-semibold text-navy-900">{localizedDocTypeName(item.documentTypeCode, item.documentTypeName, uiLocale)} {item.required ? <span className="badge bg-rose-50 text-rose-600 text-xs">{ct("Required")}</span> : <span className="badge bg-slate-100 text-slate-500 text-xs">{ct("Optional")}</span>}</p>
+                        <p id={`checklist-document-label-${item.id}`} className="font-semibold text-navy-900">{localizedDocTypeName(item.documentTypeCode, item.documentTypeName, uiLocale)} {item.required ? <span className="badge bg-rose-50 text-rose-600 text-xs">{ct("Required")}</span> : <span className="badge bg-slate-100 text-slate-500 text-xs">{ct("Optional")}</span>}</p>
                         {item.notes ? <p className="mt-1 text-xs text-slate-500">{item.notes}</p> : null}
                         <p className="mt-1 text-xs text-slate-400">{ct("PDF, JPEG, PNG, WEBP, DOC, DOCX · 2 MB max")}</p>
                       </div>
@@ -324,7 +324,7 @@ export default async function PortalApplicationDetailPage({
                         <input type="hidden" name="applicationId" value={id} />
                         <input type="hidden" name="checklistItemId" value={item.id} />
                         <input type="hidden" name="back" value={`${back}?tab=documents`} />
-                        <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:me-2 file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-xs file:text-white" />
+                        <input type="file" name="file" aria-labelledby={`checklist-document-label-${item.id}`} required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:me-2 file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-xs file:text-white" />
                         <button type="submit" className="btn-secondary btn-sm">{latest ? ct("Replace") : ct("Upload")}</button>
                       </form>
                     ) : hasOpenRequest ? (

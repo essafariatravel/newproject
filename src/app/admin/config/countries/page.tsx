@@ -38,7 +38,7 @@ export default async function CountriesConfigPage({
         subtitle={ct("Destination countries — safe hard-delete blocked when referenced by visa types or applications.")}
         actions={
           <form className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-            <input name="q" defaultValue={typeof sp.q === "string" ? sp.q : ""} placeholder={ct("Search country, ISO, region…")} className="input min-w-0 flex-1 text-base sm:w-64" />
+            <input name="q" defaultValue={typeof sp.q === "string" ? sp.q : ""} aria-label={ct("Search country, ISO, region…")} placeholder={ct("Search country, ISO, region…")} className="input min-w-0 flex-1 text-base sm:w-64" />
             <button type="submit" className="btn-secondary btn-sm">{ct("Search")}</button>
             {q ? <Link href="/admin/config/countries" className="btn-secondary btn-sm">{ct("Clear")}</Link> : null}
           </form>

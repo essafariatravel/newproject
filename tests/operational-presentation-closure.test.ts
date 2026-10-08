@@ -20,6 +20,15 @@ vi.mock("next/cache",()=>({revalidatePath:()=>undefined}));
 suiteSetup();afterEach(()=>{request.cookie="";});
 let topupId:string,agencyId:string;
 describe("operational presentation closure",()=>{
+  it("names the country search control independently of its placeholder",async()=>{
+    request.cookie=(await createSession((await userByEmail("superadmin@test.example")).id)).token;
+    const html=renderToStaticMarkup(await CountriesConfigPage({searchParams:Promise.resolve({})}));
+    const control=html.match(/<input\b[^>]*name="q"[^>]*>/)?.[0];
+    expect(control).toBeDefined();
+    const label=control?.match(/\baria-label="([^"]+)"/)?.[1];
+    const id=control?.match(/\bid="([^"]+)"/)?.[1];
+    expect(Boolean(label?.trim()||(id&&html.includes(`for="${id}"`))),"country search needs a persistent accessible name").toBe(true);
+  });
   it("gives each country creation field its visible label as an accessible name",async()=>{
     request.cookie=(await createSession((await userByEmail("superadmin@test.example")).id)).token;
     const html=renderToStaticMarkup(await CountriesConfigPage({searchParams:Promise.resolve({})}));

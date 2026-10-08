@@ -1,7 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { renderToReadableStream } from "react-dom/server";
+import PortalApplicationDetailPage from "@/app/portal/applications/[id]/page";
+import { request } from "./helpers/request";
+import { createSession } from "./helpers/authenticated-session";
 import { suiteSetup } from "./helpers/global-state";
 
 suiteSetup();
+afterEach(()=>{request.cookie="";});
 
 import { db } from "@/lib/db";
 import {
@@ -105,6 +110,29 @@ async function submittedApplication(tag: string) {
   await submitApplication({ applicationId: app.id, actor: staff });
   return { app, agency, staff };
 }
+
+describe("dossier upload accessible names",()=>{
+  it("associates each draft and replacement file control with its document requirement",async()=>{
+    const owner=await userByEmail("a-admin@test.example");
+    const draft=await createDraftApplication({agencyId:owner.agencyId!,visaTypeId:await visaId(),createdBy:owner});
+    const submitted=await submittedApplication("accessible-upload");
+    const item=(await getChecklist(submitted.app.id))[0]!;
+    await requestDocumentReplacement({applicationId:submitted.app.id,checklistItemId:item.id,reason:"Synthetic accessibility replacement request.",actor:submitted.staff});
+    request.cookie=(await createSession(owner.id)).token;
+    for(const app of [draft,submitted.app]){
+      const stream=await renderToReadableStream(await PortalApplicationDetailPage({params:Promise.resolve({id:app.id}),searchParams:Promise.resolve({tab:"documents"})}));
+      await stream.allReady;
+      const html=await new Response(stream).text();
+      const controls=[...html.matchAll(/<input\b[^>]*type="file"[^>]*>/g)].map(m=>m[0]);
+      expect(controls.length).toBeGreaterThan(0);
+      for(const control of controls){
+        const references=control.match(/\baria-labelledby="([^"]+)"/)?.[1]?.split(/\s+/)??[];
+        expect(references.length,"upload must be named by its visible document requirement").toBeGreaterThan(0);
+        for(const id of references)expect(html).toContain(`id="${id}"`);
+      }
+    }
+  });
+});
 
 /** Exactly what the dossier pages load: checklist + documents + requests, grouped for display. */
 async function snapshot(applicationId: string) {
