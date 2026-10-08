@@ -1,5 +1,5 @@
 import "./lib/load-env";
-import { mkdir, stat,writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat,writeFile } from "node:fs/promises";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { resolve } from "node:path";
 import { assertSafePerfTarget, safeTargetSummary } from "./perf-safety";
@@ -47,50 +47,34 @@ function start(command: string, args: string[], env: NodeJS.ProcessEnv): ChildPr
 }
 
 async function stop(child: ChildProcess | null) {
-  if (!child || child.exitCode !== null || child.killed) return;
-
-  if (process.platform === "win32") {
-    await new Promise<void>((resolveDone, reject) => {
-      const timer = setTimeout(() => {
-        if (child.exitCode === null && child.pid) {
-          spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
-            stdio: "ignore",
-            shell: false,
-          });
-          reject(new Error(
-            "DB monitor did not exit naturally within 30 seconds after k6; performance evidence is incomplete."
-          ));
-          return;
-        }
-        resolveDone();
-      }, 30000);
-
-      child.once("exit", (code) => {
-        clearTimeout(timer);
-        if (code === 0) resolveDone();
-        else reject(new Error(`DB monitor exited with code ${code ?? "unknown"}.`));
-      });
-
-      if (child.exitCode !== null) {
-        clearTimeout(timer);
-        resolveDone();
-      }
-    });
+  if (!child) return;
+  if (child.exitCode !== null) {
+    if (child.exitCode !== 0) throw new Error(`DB monitor exited with code ${child.exitCode}.`);
     return;
   }
-
-  child.kill("SIGTERM");
+  // A completion marker lets the directly owned monitor flush its evidence on
+  // Windows and Linux alike, without killing an npm wrapper before its child.
   await new Promise<void>((resolveDone, reject) => {
     const timer = setTimeout(() => {
       if (child.exitCode === null) child.kill("SIGKILL");
-      reject(new Error("DB monitor did not exit within 5 seconds after SIGTERM."));
-    }, 5000);
+      reject(new Error("DB monitor did not flush evidence within 30 seconds after k6."));
+    }, 30000);
     child.once("exit", (code) => {
       clearTimeout(timer);
       if (code === 0) resolveDone();
       else reject(new Error(`DB monitor exited with code ${code ?? "unknown"}.`));
     });
   });
+}
+
+async function waitForMonitorReady(file: string, child: ChildProcess) {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    if (await evidenceFileReady(file)) return;
+    if (child.exitCode !== null) throw new Error("DB monitor exited before its first sample.");
+    await new Promise(resolveWait => setTimeout(resolveWait, 250));
+  }
+  throw new Error("DB monitor did not record its first sample before traffic.");
 }
 
 async function evidenceFileReady(path: string): Promise<boolean> {
@@ -105,11 +89,19 @@ async function main() {
   const target = assertSafePerfTarget();
   const vus = intEnv("PERF_VUS", 10, 1, 1000);
   if (!ALLOWED_VUS.has(vus)) throw new Error("PERF_VUS must be one of 10, 50, 100, 250, 500, 1000.");
-  const holdMinutes = intEnv("PERF_TIER_HOLD_MINUTES", 5, 1, 25);
+  const kind = process.env.PERF_RUN_KIND ?? "TIER";
+  if (!["TIER", "SOAK", "SPIKE"].includes(kind)) throw new Error("Unknown performance run kind.");
+  if (kind === "SOAK" && (![100, 250].includes(vus) || process.env.PERF_TIER_HOLD_MINUTES !== "120")) {
+    throw new Error("Soak requires a proven 100/250-VU tier and a two-hour hold.");
+  }
+  if (kind === "SPIKE" && vus !== 250) throw new Error("The spike profile requires a proven 250-VU tier.");
+  const holdMinutes = kind === "SOAK" ? 120 : kind === "SPIKE" ? 5 : intEnv("PERF_TIER_HOLD_MINUTES", 5, 1, 25);
+  const rampMinutes = vus <= 10 ? 1 : vus <= 100 ? 5 : 10;
+  const expectedDurationSeconds = kind === "SPIKE" ? 22 * 60 : (rampMinutes + holdMinutes + 1) * 60;
   const label = String(process.env.PERF_RUN_LABEL ?? `${vus}vu`).replace(/[^a-zA-Z0-9_-]/g, "-");
   const dir = resolve(process.env.PERF_RUN_DIR ?? `perf/results/run-${label}`);
   await mkdir(dir, { recursive: true });
-  const provenance={sha:process.env.EXPECTED_RELEASE_SHA??process.env.GITHUB_SHA??null,baseUrl:target.baseUrl,schema:target.schema,vus,holdMinutes,startedAt:new Date().toISOString()};
+  const provenance={sha:process.env.EXPECTED_RELEASE_SHA??process.env.GITHUB_SHA??null,baseUrl:target.baseUrl,schema:target.schema,kind,vus,holdMinutes,expectedDurationSeconds,startedAt:new Date().toISOString()};
   const tierFile=resolve(dir,"tier.json");
   await writeFile(tierFile,JSON.stringify({...provenance,status:"IN_PROGRESS"},null,2));
 
@@ -118,13 +110,18 @@ async function main() {
   const summary = resolve(dir, "k6-summary.json");
   const monitor = resolve(dir, "db-monitor.json");
   const evaluation = resolve(dir, "evaluation.json");
-  const monitorSeconds = holdMinutes * 60 + 120;
+  const monitorSeconds = expectedDurationSeconds + 45;
+  const monitorReadyFile = resolve(dir, "monitor.ready");
+  const monitorStopFile = resolve(dir, "monitor.stop");
+  await rm(monitorReadyFile, { force: true });
+  await rm(monitorStopFile, { force: true });
 
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     PERF_VUS: String(vus),
-    PERF_PROFILE: "tier",
+    PERF_PROFILE: kind === "SPIKE" ? "spike" : "tier",
     PERF_HOLD: `${holdMinutes}m`,
+    PERF_RAMP: `${rampMinutes}m`,
     PERF_SUMMARY: summary,
     // k6 open() resolves relative paths from the script directory, unlike Node.
     PERF_SESSION_FILE: resolve(process.env.PERF_SESSION_FILE ?? "perf/.runtime/sessions.json"),
@@ -146,23 +143,32 @@ async function main() {
   let monitorProcess: ChildProcess | null = null;
   let k6Error: unknown = null;
   let monitorError: unknown = null;
+  let k6StartedAt: string | null = null;
+  let k6FinishedAt: string | null = null;
   try {
-    monitorProcess = start("npm", ["run", "perf:monitor"], {
+    monitorProcess = start(process.execPath, ["--import", "tsx", resolve("scripts/perf-db-monitor.ts")], {
       ...env,
       PERF_MONITOR_SECONDS: String(monitorSeconds),
       PERF_MONITOR_INTERVAL_MS: process.env.PERF_MONITOR_INTERVAL_MS ?? "1000",
       PERF_MONITOR_OUTPUT: monitor,
+      PERF_MONITOR_READY_FILE: monitorReadyFile,
+      PERF_MONITOR_STOP_FILE: monitorStopFile,
     });
+    await waitForMonitorReady(monitorReadyFile, monitorProcess);
 
     try {
+      k6StartedAt = new Date().toISOString();
       run("npm", ["run", "perf:k6"], env);
     } catch (error) {
       // Preserve all post-run evidence even when k6 itself exits non-zero.
       k6Error = error;
+    } finally {
+      k6FinishedAt = new Date().toISOString();
     }
   } finally {
     try {
-      await stop(monitorProcess);
+      try { await writeFile(monitorStopFile, "stop", {mode:0o600}); }
+      finally { await stop(monitorProcess); }
     } catch (error) {
       monitorError = error;
     }
@@ -182,8 +188,19 @@ async function main() {
   }
 
   const monitorReady = await evidenceFileReady(monitor);
+  if (monitorReady && k6StartedAt && k6FinishedAt) {
+    try {
+      const data = JSON.parse(await readFile(monitor, "utf8"));
+      const first = Date.parse(data.samples?.[0]?.at);
+      const last = Date.parse(data.samples?.at(-1)?.at);
+      if (data.samplingFailed || ![first,last].every(Number.isFinite) ||
+          first > Date.parse(k6StartedAt) || last < Date.parse(k6FinishedAt) - Math.max(2000, 2 * Number(data.intervalMs || 1000))) {
+        throw new Error("Database monitoring does not cover the complete workload.");
+      }
+    } catch (error) { monitorError = error; }
+  }
   if (monitorError || !monitorReady || evaluationError || k6Error) {
-    await writeFile(tierFile,JSON.stringify({...provenance,status:"FAIL",finishedAt:new Date().toISOString()},null,2));
+    await writeFile(tierFile,JSON.stringify({...provenance,k6StartedAt,k6FinishedAt,status:"FAIL",finishedAt:new Date().toISOString()},null,2));
     console.error(JSON.stringify({
       action: "PERFORMANCE_TIER_STOP",
       vus,
@@ -206,7 +223,7 @@ async function main() {
     throw new Error("DB monitor evidence is missing or empty.");
   }
 
-  await writeFile(tierFile,JSON.stringify({...provenance,status:"PASS",finishedAt:new Date().toISOString()},null,2));
+  await writeFile(tierFile,JSON.stringify({...provenance,k6StartedAt,k6FinishedAt,status:"PASS",finishedAt:new Date().toISOString()},null,2));
   console.log(JSON.stringify({
     action: "PERFORMANCE_TIER_ELIGIBLE_FOR_REVIEW",
     vus,

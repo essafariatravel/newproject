@@ -1,5 +1,5 @@
 import "./lib/load-env";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { Pool } from "pg";
 import { databasePoolConfig } from "../src/lib/database-config";
@@ -17,6 +17,8 @@ async function main() {
   const intervalMs = intEnv("PERF_MONITOR_INTERVAL_MS", 1000, 250, 10000);
   const durationSeconds = intEnv("PERF_MONITOR_SECONDS", 600, 5, 14400);
   const output = resolve(process.env.PERF_MONITOR_OUTPUT ?? `perf/results/db-monitor-${Date.now()}.json`);
+  const readyFile = process.env.PERF_MONITOR_READY_FILE;
+  const stopFile = process.env.PERF_MONITOR_STOP_FILE;
   const pool = new Pool({ ...databasePoolConfig(process.env), max: 1 });
   const samples: Array<Record<string, unknown>> = [];
   let stopRequested = false;
@@ -30,6 +32,10 @@ async function main() {
 
   try {
     while (!stopRequested && Date.now() < deadlineMs) {
+      if (stopFile) {
+        try { await stat(stopFile); stopRequested = true; break; }
+        catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+      }
       try {
         const client = await pool.connect();
         try {
@@ -69,6 +75,7 @@ async function main() {
             waitingLocks: locks.rows[0]?.waiting_locks ?? 0,
             activity: activity.rows,
           });
+          if (samples.length === 1 && readyFile) await writeFile(readyFile, samples[0]!.at as string, {mode:0o600});
         } finally {
           client.release();
         }
@@ -115,7 +122,7 @@ async function main() {
     console.log(JSON.stringify({ ok: !samplingFailed, output, summary }, null, 2));
   }
 
-  if (samplingFailed) throw new Error("DB monitor sampling failed; evidence was written but the tier must fail closed.");
+  if (samplingFailed || samples.length === 0) throw new Error("DB monitor sampling failed; evidence was written but the tier must fail closed.");
 }
 
 main().catch((error: unknown) => {

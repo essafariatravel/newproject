@@ -9,7 +9,7 @@ on:
         description: Explicit non-Production operation
         required: true
         type: choice
-        options: [prepare, runtime, performance]
+        options: [prepare, runtime, performance, soak, spike]
       preview_url:
         description: Exact-SHA isolated Vercel Preview URL
         type: string
@@ -30,7 +30,7 @@ jobs:
   verify:
     if: github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/codex/world-class-final-consolidation-')
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: ${{ inputs.mode == 'soak' && 180 || 45 }}
     environment: Preview
     env:
       DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL || secrets.PERF_PREVIEW_DATABASE_URL }}
@@ -46,9 +46,10 @@ jobs:
       PERF_APPLICATION_MANIFEST: perf/.runtime/application-manifest.json
       PERF_VUS: ${{ inputs.vus }}
       PERF_SESSIONS_PER_ROLE: ${{ inputs.vus }}
-      PERF_TIER_HOLD_MINUTES: '20'
-      PERF_RUN_LABEL: candidate-${{ inputs.vus }}vu-${{ github.run_id }}
-      PERF_RUN_DIR: perf/results/candidate-${{ inputs.vus }}vu
+      PERF_RUN_KIND: ${{ inputs.mode == 'soak' && 'SOAK' || inputs.mode == 'spike' && 'SPIKE' || 'TIER' }}
+      PERF_TIER_HOLD_MINUTES: ${{ inputs.mode == 'soak' && '120' || '20' }}
+      PERF_RUN_LABEL: candidate-${{ inputs.mode }}-${{ inputs.vus }}vu-${{ github.run_id }}
+      PERF_RUN_DIR: perf/results/candidate-${{ inputs.mode }}-${{ inputs.vus }}vu
       EXPECTED_RELEASE_SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -63,7 +64,7 @@ jobs:
         if: inputs.mode != 'prepare'
         run: npx tsx scripts/consolidation-preview.ts runtime
       - name: Require previous tier proof
-        if: inputs.mode == 'performance' && inputs.vus != '10'
+        if: (inputs.mode == 'performance' && inputs.vus != '10') || inputs.mode == 'soak' || inputs.mode == 'spike'
         env:
           PREVIOUS_RUN: ${{ inputs.previous_run }}
         shell: bash
@@ -75,14 +76,14 @@ jobs:
           gh run download "$PREVIOUS_RUN" --dir /tmp/previous-proof
           node scripts/verify-previous-performance.cjs /tmp/previous-proof
       - uses: grafana/setup-k6-action@43b9fc21641a76002687994433dd586f56e791b1
-        if: inputs.mode == 'performance'
+        if: inputs.mode == 'performance' || inputs.mode == 'soak' || inputs.mode == 'spike'
       - name: Fresh distinct synthetic sessions and deterministic manifest
-        if: inputs.mode == 'performance'
+        if: inputs.mode == 'performance' || inputs.mode == 'soak' || inputs.mode == 'spike'
         run: |
           npm run perf:create-sessions
           npm run perf:manifest
       - name: Run one representative tier; never escalate automatically
-        if: inputs.mode == 'performance'
+        if: inputs.mode == 'performance' || inputs.mode == 'soak' || inputs.mode == 'spike'
         run: npm run perf:tier
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()

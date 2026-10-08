@@ -9,20 +9,27 @@ function executable(script: string) {
   }).outputText.replace("main().catch(", "return main().catch(");
 }
 
-async function runner(k6Status = 0, evaluatorStatus = 0) {
+async function runner(k6Status = 0, evaluatorStatus = 0, overrides: Partial<NodeJS.ProcessEnv> = {}, prematureMonitor = false) {
   const calls: Array<{ command: string; args: string[]; options: { shell: boolean; env: NodeJS.ProcessEnv } }> = [];
   let exitCode = 0;
   const logs: string[] = [];
   const tierStates: string[]=[];
-  const env = { PERF_SESSION_FILE: "perf/.runtime/sessions.json", PERF_APPLICATION_MANIFEST: "perf/.runtime/application-manifest.json", PERF_RUN_DIR: "C:\\Users\\Azur Computer\\evidence", npm_execpath: "C:\\Program Files\\nodejs\\npm-cli.js" };
+  const lifecycle: string[]=[];
+  const env = { PERF_SESSION_FILE: "perf/.runtime/sessions.json", PERF_APPLICATION_MANIFEST: "perf/.runtime/application-manifest.json", PERF_RUN_DIR: "C:\\Users\\Azur Computer\\evidence", npm_execpath: "C:\\Program Files\\nodejs\\npm-cli.js", ...overrides };
   const requireDouble = (name: string) => {
     if (name === "./lib/load-env") return {};
     if (name === "node:path") return path;
-    if (name === "node:fs/promises") return { mkdir: async () => {}, stat: async () => ({ size: 1 }),writeFile:async(_file:string,value:string)=>{tierStates.push(JSON.parse(value).status);} };
+    if (name === "node:fs/promises") return {
+      mkdir: async () => {},rm:async()=>{},
+      readFile:async()=>JSON.stringify({intervalMs:1000,samplingFailed:false,samples:[{at:new Date(Date.now()-120000).toISOString()},{at:new Date(Date.now()-(prematureMonitor?60000:0)).toISOString()}]}),
+      stat: async (file:string) => {if(file.endsWith("monitor.ready"))lifecycle.push("ready");return { size: 1 };},
+      writeFile:async(file:string,value:string)=>{if(file.endsWith("tier.json"))tierStates.push(JSON.parse(value).status);if(file.endsWith("monitor.stop"))lifecycle.push("stop");},
+    };
     if (name === "./perf-safety") return { assertSafePerfTarget: () => ({}), safeTargetSummary: () => ({}) };
     if (name === "node:child_process") return {
       spawnSync: (command: string, args: string[], options: { shell: boolean; env: NodeJS.ProcessEnv }) => {
         calls.push({ command, args, options });
+        if(args.includes("perf:k6"))lifecycle.push("k6");
         return { status: args.includes("perf:k6") ? k6Status : args.some((arg) => arg.endsWith("perf-evaluate.ts") || arg === "perf:evaluate") ? evaluatorStatus : 0 };
       },
       spawn: (command: string, args: string[], options: { shell: boolean; env: NodeJS.ProcessEnv }) => {
@@ -36,7 +43,7 @@ async function runner(k6Status = 0, evaluatorStatus = 0) {
     requireDouble, {}, { env, platform: "win32", execPath: "C:\\Program Files\\nodejs\\node.exe", exit: (code: number) => { exitCode = code; } },
     { log: (value: string) => logs.push(value), error: (value: string) => logs.push(value) },
   );
-  return { calls, exitCode, logs,tierStates };
+  return { calls, exitCode, logs,tierStates,lifecycle };
 }
 
 async function evaluate(thresholdFailed = false, slow = false) {
@@ -83,18 +90,43 @@ describe("Windows Performance evaluation", () => {
     expect(k6?.options.env.PERF_SESSION_FILE).toBe(path.resolve("perf/.runtime/sessions.json"));
     expect(k6?.options.env.PERF_APPLICATION_MANIFEST).toBe(path.resolve("perf/.runtime/application-manifest.json"));
   });
+  it.each([[50,1560],[250,1860]])("monitors the complete ramp, hold and ramp-down at %i VUs",async(vus,duration)=>{
+    const result=await runner(0,0,{PERF_VUS:String(vus),PERF_TIER_HOLD_MINUTES:"20"});
+    expect(result.exitCode).toBe(0);
+    const monitor=result.calls.find(call=>call.args.some(arg=>arg.endsWith("perf-db-monitor.ts")));
+    expect(Number(monitor?.options.env.PERF_MONITOR_SECONDS)).toBeGreaterThan(duration);
+  });
+  it("supports an explicit two-hour soak only at a permitted proven tier",async()=>{
+    const result=await runner(0,0,{PERF_VUS:"100",PERF_RUN_KIND:"SOAK",PERF_TIER_HOLD_MINUTES:"120"});
+    expect(result.exitCode).toBe(0);
+    const k6=result.calls.find(call=>call.args.includes("perf:k6"));
+    expect(k6?.options.env.PERF_PROFILE).toBe("tier");
+    expect(k6?.options.env.PERF_HOLD).toBe("120m");
+  });
+  it.each([
+    {PERF_VUS:"1000",PERF_RUN_KIND:"SOAK",PERF_TIER_HOLD_MINUTES:"120"},
+    {PERF_VUS:"100",PERF_RUN_KIND:"SOAK",PERF_TIER_HOLD_MINUTES:"5"},
+    {PERF_VUS:"100",PERF_RUN_KIND:"SPIKE"},
+    {PERF_VUS:"100",PERF_RUN_KIND:"UNKNOWN"},
+  ])("rejects an unapproved long-run profile before traffic: %j",async(env)=>{
+    const result=await runner(0,0,env);expect(result.exitCode).not.toBe(0);expect(result.calls).toHaveLength(0);
+  });
   it("preserves k6 non-zero exit even when evaluation passes", async () => {
     const result = await runner(99);
     expect(result.exitCode).toBe(99);
     expect(result.tierStates).toEqual(["IN_PROGRESS","FAIL"]);
     expect(result.logs.join("\n")).toContain('"k6ExitedNonZero": true');
     expect(result.logs.join("\n")).not.toContain("PERFORMANCE_TIER_ELIGIBLE_FOR_REVIEW");
+    expect(result.lifecycle).toEqual(["ready","k6","stop"]);
   });
 
   it("preserves evaluator rejection and k6 failure visibility", async () => {
     const result = await runner(99, 2);
     expect(result.exitCode).toBe(2);
     expect(result.logs.join("\n")).toContain('"k6ExitedNonZero": true');
+  });
+  it("rejects incomplete monitoring even when k6 and its evaluator both succeed",async()=>{
+    const result=await runner(0,0,{},true);expect(result.exitCode).not.toBe(0);expect(result.tierStates).toEqual(["IN_PROGRESS","FAIL"]);expect(result.logs.join("\n")).toContain('"monitorFailed": true');
   });
 
   it("evaluates full paths containing spaces", async () => {
