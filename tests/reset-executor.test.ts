@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { Pool } from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { applyMigrations } from "../scripts/lib/migrations";
 import { hashPassword, verifyPassword } from "@/lib/crypto";
 import { dependencyDeleteOrder } from "../scripts/lib/reset-plan";
@@ -122,8 +122,21 @@ async function fixture(label: string, changeBeforeBackup?: (schema: string) => P
 
 describe("guarded executable cleanup on synthetic localhost data", () => {
   beforeAll(async () => { await testDbReady(); directory = await mkdtemp(path.join(os.tmpdir(), "essafaria-reset-test-")); });
+  async function cleanupFixtures() {
+    // Each test owns its schemas. Keep the catalog bounded instead of retaining
+    // every migrated source/restore/archive until one large final teardown.
+    while (schemas.length) {
+      await pool.query(`drop schema if exists "${schemas[0]}" cascade`);
+      schemas.shift();
+    }
+  }
+  afterEach(async () => {
+    const ownedSchemas = [...schemas];
+    await cleanupFixtures();
+    expect((await pool.query("select nspname from pg_namespace where nspname=any($1::text[])", [ownedSchemas])).rows).toHaveLength(0);
+  });
   afterAll(async () => {
-    for (const schema of schemas) await pool.query(`drop schema if exists "${schema}" cascade`);
+    await cleanupFixtures();
     await pool.end();
     if (directory) await rm(directory, { recursive: true, force: true });
   });
