@@ -77,7 +77,11 @@ export default async function CountriesConfigPage({
                         <label className="label">{ct("Name")} · FR<input name="nameFr" className="input" defaultValue={c.nameFr??""}/></label>
                         <label className="label">{ct("Name")} · AR<input name="nameAr" className="input" dir="rtl" defaultValue={c.nameAr??""}/></label>
                         <label className="label">ISO-2<input name="iso2" required maxLength={2} minLength={2} className="input" defaultValue={c.iso2}/></label>
-                        <label className="label">{ct("Region")}<select name="region" className="input" defaultValue={c.region??"Europe"}>{REGIONS.map(region=><option key={region} value={region}>{ct(region)}</option>)}</select></label>
+                        <label className="label">{ct("Region")}<select name="region" aria-label={ct("Region")} className="input" defaultValue={c.region??""}>
+                          <option value="">—</option>
+                          {c.region&&!REGIONS.includes(c.region)?<option value={c.region}>{ct(c.region)}</option>:null}
+                          {REGIONS.map(region=><option key={region} value={region}>{ct(region)}</option>)}
+                        </select></label>
                         <label className="label">{ct("Sort order")}<input name="sortOrder" type="number" min={0} className="input" defaultValue={c.sortOrder}/></label>
                         <SubmitButton className="btn-primary btn-sm" pendingLabel={ct("Saving…")}>{ct("Save")}</SubmitButton>
                       </form>

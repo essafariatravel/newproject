@@ -53,6 +53,7 @@ const codeSchema = z
 
 /* ------------------------------ countries ------------------------------ */
 
+const countryRegionSchema = z.enum(["Africa", "Asia", "Europe", "Middle East", "North America", "South America", "Oceania"]);
 const countrySchema = z.object({
   name: z.string().trim().min(2, "Country name is required.").max(80),
   nameFr: z.string().trim().max(120).optional().nullable(),
@@ -63,7 +64,7 @@ const countrySchema = z.object({
     .length(2, "ISO code must be exactly 2 letters.")
     .regex(/^[A-Za-z]{2}$/)
     .transform((v) => v.toUpperCase()),
-  region: z.enum(["Africa", "Asia", "Europe", "Middle East", "North America", "South America", "Oceania"]).optional().nullable(),
+  region: countryRegionSchema.optional().nullable(),
   sortOrder: z.coerce.number().int().min(0).max(9999).default(0),
 });
 
@@ -90,9 +91,14 @@ export async function updateCountryAction(formData: FormData): Promise<void> {
       await tx.update(countries).set({ active: sql`not ${countries.active}`, updatedAt: new Date() }).where(eq(countries.id, id));
       await recordAudit({ actor: staff, action: "CONFIG_COUNTRY_TOGGLED", entity: "country", entityId: id, metadata: { oldValues: {active:before.active}, newValues:{active:!before.active} } }, tx);
     } else {
-      const data = countrySchema.parse(Object.fromEntries(formData));
-      await tx.update(countries).set({ ...data, updatedAt: new Date() }).where(eq(countries.id, id));
-      await recordAudit({ actor: staff, action: "CONFIG_COUNTRY_UPDATED", entity: "country", entityId: id, metadata: {oldValues:before,newValues:data} }, tx);
+      const input = Object.fromEntries(formData);
+      // A locked row may contain a historic region outside today's choices.
+      // Preserve only that exact existing value; new values remain validated.
+      const preserveRegion = typeof before.region === "string" && input.region === before.region && !countryRegionSchema.safeParse(before.region).success;
+      const data = countrySchema.parse({ ...input, ...(input.region === "" || preserveRegion ? { region: null } : {}) });
+      const values = { ...data, ...(preserveRegion ? { region: before.region } : {}) };
+      await tx.update(countries).set({ ...values, updatedAt: new Date() }).where(eq(countries.id, id));
+      await recordAudit({ actor: staff, action: "CONFIG_COUNTRY_UPDATED", entity: "country", entityId: id, metadata: {oldValues:before,newValues:values} }, tx);
     }
     revalidatePath("/admin/config/countries");
     revalidatePath("/countries");

@@ -14,12 +14,25 @@ import PortalWalletPage from "@/app/portal/wallet/page";
 import { getTransactions } from "@/lib/wallet";
 import { NotificationsPage } from "@/components/notifications-page";
 import { db } from "@/lib/db";
-import { users } from "@/db/schema";
+import { users,countries } from "@/db/schema";
 import { eq } from "drizzle-orm";
 vi.mock("next/cache",()=>({revalidatePath:()=>undefined}));
 suiteSetup();afterEach(()=>{request.cookie="";});
 let topupId:string,agencyId:string;
 describe("operational presentation closure",()=>{
+  it.each(["Synthetic legacy region",null])("preserves region %s when editing other country fields",async(region)=>{
+    const country=(await listCountries())[0]!;
+    await db.update(countries).set({region}).where(eq(countries.id,country.id));
+    try{
+      request.cookie=(await createSession((await userByEmail("superadmin@test.example")).id)).token;
+      const html=renderToStaticMarkup(await CountriesConfigPage({searchParams:Promise.resolve({})}));
+      const form=[...html.matchAll(/<form\b[^>]*>[\s\S]*?<\/form>/g)].map(m=>m[0]).find(f=>f.includes(`value="${country.id}"`)&&f.includes('<select'));
+      expect(form).toBeDefined();
+      const control=form?.match(/<select\b[^>]*name="region"[^>]*>[\s\S]*?<\/select>/)?.[0];
+      const selected=control?.match(/<option\b[^>]*\bselected=""[^>]*>/)?.[0];
+      expect(selected?.match(/\bvalue="([^"]*)"/)?.[1],"unrelated country edits must keep the existing region").toBe(region??"");
+    }finally{await db.update(countries).set({region:country.region}).where(eq(countries.id,country.id));}
+  });
   it("counts each country's actual visa programmes rather than the inner visa ID",async()=>{
     const programmes=await listVisaTypesWithRelations();
     expect(programmes.length).toBeGreaterThan(0);
