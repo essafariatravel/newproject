@@ -113,16 +113,16 @@ export default async function CountriesConfigPage({
           <h2 className="mb-4 font-serif text-lg text-navy-900">{ct("Add country")}</h2>
           <form action={createCountryAction} className="card grid grid-cols-1 gap-4 p-6 sm:grid-cols-4">
             <div className="sm:col-span-2">
-              <label className="label">{ct("Name")} *</label>
-              <input name="name" required className="input" placeholder="Portugal" />
+              <label className="label" htmlFor="country-create-name">{ct("Name")} *</label>
+              <input id="country-create-name" name="name" required className="input" placeholder="Portugal" />
             </div>
             <div>
-              <label className="label">ISO-2 *</label>
-              <input name="iso2" required maxLength={2} minLength={2} className="input uppercase" placeholder="PT" />
+              <label className="label" htmlFor="country-create-iso">ISO-2 *</label>
+              <input id="country-create-iso" name="iso2" required maxLength={2} minLength={2} className="input uppercase" placeholder="PT" />
             </div>
             <div>
-              <label className="label">{ct("Region")}</label>
-              <select name="region" className="input">{REGIONS.map(region=><option key={region} value={region}>{ct(region)}</option>)}</select>
+              <label className="label" htmlFor="country-create-region">{ct("Region")}</label>
+              <select id="country-create-region" name="region" className="input">{REGIONS.map(region=><option key={region} value={region}>{ct(region)}</option>)}</select>
             </div>
             <label className="label">{ct("Name")} · FR<input name="nameFr" className="input"/></label>
             <label className="label">{ct("Name")} · AR<input name="nameAr" className="input" dir="rtl"/></label>

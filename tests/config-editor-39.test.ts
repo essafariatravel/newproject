@@ -17,6 +17,16 @@ import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS, resolvePageSize } from "../src/li
 
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
 
+it("associates the visa creation labels with every required control",()=>{
+  const page=read("src/app/admin/config/visa-types/page.tsx");
+  const form=page.slice(page.indexOf('<form action={createVisaTypeAction}'),page.indexOf('</form>',page.indexOf('<form action={createVisaTypeAction}')));
+  for(const name of ["name","code","countryId","categoryId","fee","processingMinDays","processingMaxDays"]){
+    const control=form.match(new RegExp(`<(?:input|select)\\b[^>]*name="${name}"[^>]*>`))?.[0];
+    const id=control?.match(/\bid="([^"]+)"/)?.[1];
+    expect(Boolean(id&&form.includes(`htmlFor="${id}"`)),`${name} has a visible, programmatically associated label`).toBe(true);
+  }
+});
+
 describe("visa-type editor is organised in the six named sections", () => {
   const page = read("src/app/admin/config/visa-types/[id]/page.tsx");
 

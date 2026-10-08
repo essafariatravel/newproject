@@ -100,37 +100,37 @@ export default async function VisaTypesConfigPage({
               <input id="new-visa-name" name="name" required minLength={2} maxLength={120} dir="ltr" className="input" placeholder="Portugal Schengen Tourist Visa" />
             </div>
             <div>
-              <label className="label">{ct("Code *")}</label>
-              <input name="code" required className="input uppercase" placeholder="PT-SCH-TOUR" />
+              <label className="label" htmlFor="new-visa-code">{ct("Code *")}</label>
+              <input id="new-visa-code" name="code" required className="input uppercase" placeholder="PT-SCH-TOUR" />
             </div>
             <div>
-              <label className="label">{ct("Country *")}</label>
-              <select name="countryId" required className="input">
+              <label className="label" htmlFor="new-visa-country">{ct("Country *")}</label>
+              <select id="new-visa-country" name="countryId" required className="input">
                 {activeCountries.map((c) => (
                   <option key={c.id} value={c.id}>{localizedCountryName(c, locale)}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="label">{ct("Category *")}</label>
-              <select name="categoryId" required className="input">
+              <label className="label" htmlFor="new-visa-category">{ct("Category *")}</label>
+              <select id="new-visa-category" name="categoryId" required className="input">
                 {activeCategories.map((c) => (
                   <option key={c.id} value={c.id}>{configName(c, locale)}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="label">{ct("Fee (DZD) *")}</label>
-              <input name="fee" type="number" step="0.01" min="0" required className="input" placeholder="12000.00" />
+              <label className="label" htmlFor="new-visa-fee">{ct("Fee (DZD) *")}</label>
+              <input id="new-visa-fee" name="fee" type="number" step="0.01" min="0" required className="input" placeholder="12000.00" />
               <input type="hidden" name="currency" value="DZD" />
             </div>
             <div>
-              <label className="label">{ct("Processing min days *")}</label>
-              <input name="processingMinDays" type="number" min="0" required className="input" defaultValue={5} />
+              <label className="label" htmlFor="new-visa-min-days">{ct("Processing min days *")}</label>
+              <input id="new-visa-min-days" name="processingMinDays" type="number" min="0" required className="input" defaultValue={5} />
             </div>
             <div>
-              <label className="label">{ct("Processing max days *")}</label>
-              <input name="processingMaxDays" type="number" min="0" required className="input" defaultValue={15} />
+              <label className="label" htmlFor="new-visa-max-days">{ct("Processing max days *")}</label>
+              <input id="new-visa-max-days" name="processingMaxDays" type="number" min="0" required className="input" defaultValue={15} />
             </div>
             <div className="sm:col-span-3">
               <label className="label" htmlFor="new-visa-description">{ct("Description")} · EN</label>

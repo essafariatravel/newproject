@@ -8,6 +8,7 @@ import { recordAudit } from "@/lib/audit";
 import { listAuditLogs,listWalletTransactions } from "@/lib/queries";
 import { createTopupRequest,processTopupRequest } from "@/lib/topup";
 import AdminNotificationsPage from "@/app/admin/notifications/page";
+import CountriesConfigPage from "@/app/admin/config/countries/page";
 import AuditPage from "@/app/admin/audit/page";
 import PortalWalletPage from "@/app/portal/wallet/page";
 import { getTransactions } from "@/lib/wallet";
@@ -19,6 +20,18 @@ vi.mock("next/cache",()=>({revalidatePath:()=>undefined}));
 suiteSetup();afterEach(()=>{request.cookie="";});
 let topupId:string,agencyId:string;
 describe("operational presentation closure",()=>{
+  it("gives each country creation field its visible label as an accessible name",async()=>{
+    request.cookie=(await createSession((await userByEmail("superadmin@test.example")).id)).token;
+    const html=renderToStaticMarkup(await CountriesConfigPage({searchParams:Promise.resolve({})}));
+    const form=html.slice(html.indexOf('<h2',html.indexOf('</table>')));
+    for(const name of ["name","iso2","region"]){
+      const control=form.match(new RegExp(`<(?:input|select)\\b[^>]*name="${name}"[^>]*>`))?.[0];
+      expect(control).toBeDefined();
+      const id=control?.match(/\bid="([^"]+)"/)?.[1];
+      const wrapped=new RegExp(`<label\\b[^>]*>(?:(?!</label>)[\\s\\S])*<(?:input|select)\\b[^>]*name="${name}"[^>]*>(?:(?!</label>)[\\s\\S])*</label>`).test(form);
+      expect(Boolean(id&&form.includes(`for="${id}"`))||wrapped,`${name} must associate its visible label`).toBe(true);
+    }
+  });
   it("Staff notification action filter excludes a resolved historical top-up",async()=>{
     const actor=await userByEmail("b-admin@test.example"),staff=await userByEmail("admin@test.example"),bytes=Buffer.from("%PDF-1.4 synthetic bank receipt");
     const topup=await createTopupRequest({agencyId:actor.agencyId!,actor,amount:300,proof:{name:"receipt.pdf",type:"application/pdf",size:bytes.length,data:bytes}});
