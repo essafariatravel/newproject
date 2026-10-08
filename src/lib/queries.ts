@@ -716,7 +716,10 @@ export async function recentCommunications(
 /* --------------------------------- config ------------------------------- */
 
 export async function listCountries() {
-  return db.select({...getTableColumns(countries), usageCount:sql<number>`(select count(*)::int from ${sql.raw(qualifiedTable("visa_types"))} visa where visa.country_id=${countries.id})`}).from(countries).orderBy(asc(countries.sortOrder), asc(countries.name));
+  // Keep the outer column qualified: a single-table Drizzle projection otherwise
+  // emits bare "id", which resolves to the inner visa row inside this subquery.
+  const countryId = sql.raw(`${qualifiedTable("countries")}."id"`);
+  return db.select({...getTableColumns(countries), usageCount:sql<number>`(select count(*)::int from ${sql.raw(qualifiedTable("visa_types"))} visa where visa.country_id=${countryId})`}).from(countries).orderBy(asc(countries.sortOrder), asc(countries.name));
 }
 
 export async function listVisaCategories() {

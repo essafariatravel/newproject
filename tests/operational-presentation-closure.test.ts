@@ -5,7 +5,7 @@ import { userByEmail } from "./helpers/fixtures";
 import { request } from "./helpers/request";
 import { createSession } from "./helpers/authenticated-session";
 import { recordAudit } from "@/lib/audit";
-import { listAuditLogs,listWalletTransactions } from "@/lib/queries";
+import { listAuditLogs,listWalletTransactions,listCountries,listVisaTypesWithRelations } from "@/lib/queries";
 import { createTopupRequest,processTopupRequest } from "@/lib/topup";
 import AdminNotificationsPage from "@/app/admin/notifications/page";
 import CountriesConfigPage from "@/app/admin/config/countries/page";
@@ -20,6 +20,14 @@ vi.mock("next/cache",()=>({revalidatePath:()=>undefined}));
 suiteSetup();afterEach(()=>{request.cookie="";});
 let topupId:string,agencyId:string;
 describe("operational presentation closure",()=>{
+  it("counts each country's actual visa programmes rather than the inner visa ID",async()=>{
+    const programmes=await listVisaTypesWithRelations();
+    expect(programmes.length).toBeGreaterThan(0);
+    const rows=await listCountries();
+    for(const country of rows){
+      expect(country.usageCount,`${country.iso2} programme count`).toBe(programmes.filter(({vt})=>vt.countryId===country.id).length);
+    }
+  });
   it("names the country search control independently of its placeholder",async()=>{
     request.cookie=(await createSession((await userByEmail("superadmin@test.example")).id)).token;
     const html=renderToStaticMarkup(await CountriesConfigPage({searchParams:Promise.resolve({})}));
