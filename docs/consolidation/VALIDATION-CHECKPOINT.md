@@ -1,29 +1,40 @@
-# Consolidation validation checkpoint — 2026-10-07
+# Consolidation validation checkpoint — 2026-10-08
 
 Candidate branch: `codex/world-class-final-consolidation-2026-10-07`.
 Release base: `905ed99a7c898a4dd2a10837763ae604ec1771de`.
 Arena reviewed: `a6eed3d04f83324da8e8496e130ed7f96327550a`.
-Both source refs were fetched again and remain unchanged.
+Fresh fetch on 2026-10-08 confirmed both source refs unchanged. All valid candidate work was preserved; Arena reports were not adopted as release proof.
 
-## Local evidence
+## Current local qualification
 
 - Locked dependency installation passed.
-- Complete deterministic suite: 173 files passed, 1,311 tests passed, one skipped (1,312 collected). The existing skip is retained; test coverage was not reduced.
-- Focused wizard/date-input suite: two files, 15 tests passed.
+- Complete deterministic suite passed in normal and reverse order: **176 files, 1,334 tests passed, one existing Windows-only test skipped, 1,335 collected** in each order. No coverage was removed. Normal duration: 526.68 seconds; reverse: 535.25 seconds.
+- Affected date-navigation and performance-evidence regression checks passed. The broader focused DR/configuration/observability/performance run passed eight files and 60 tests.
 - Typecheck, lint and optimized application build passed.
-- Static credential-artifact gate, historical secret gate (1,206 revisions), immutable Actions gate (11 workflows) and dangerous-source AST gate (228 source files) passed.
-- Production dependency audit: zero vulnerabilities.
-- Synthetic local DR drill passed with PostgreSQL 17 dump/restore, encrypted archive, migration ledger, wallet and blob integrity, runtime and tenant isolation. This is not real offsite/recovery evidence.
-- Local authenticated Arabic/RTL browser checks: Arrow keys expose the active destination, Escape closes suggestions, Enter after Escape leaves the destination unselected, and keyboard activation of an option focuses the Change button. Screenshots remain ignored under `.screenshots/qa/`.
+- All four security gates passed: 631 previously tracked files, 1,218 historical revisions, 13 pinned workflows and 241 application source files. The newly added regression files must also pass the tracked-file gate after staging.
+- Production dependency audit returned **zero vulnerabilities** after retrying a transient npm registry error; the lockfile and thresholds were unchanged.
+- A separate real disposable PostgreSQL monitor check passed: the first sample preceded the simulated workload, the stop marker flushed evidence successfully, and nine samples covered the workload.
 
-Detailed local logs are retained outside Git in `tmp-final-verify/`. The release workflow also runs the complete suite in reverse order and verifies the exact checkout SHA. The authoritative remote candidate SHA and its Actions run must be obtained after pushing; this document does not substitute an earlier CI result for final-SHA verification.
+Logs and private evidence remain ignored under `tmp-final-verify/`. Exact remote SHA and final-SHA GitHub CI must be recorded after pushing; no previous SHA's CI substitutes for them.
 
-## Observability isolation correction
+## Corrections and suite isolation
 
-An additional Windows reverse-order run reproduced a 60-second timeout in the real storage-size aggregate after heavy shared-database fixtures. Read-only activity inspection identified the executing storage-size query; focused fresh-database checks and Linux CI did not reproduce the timeout. The real observability suite now creates its own disposable localhost database, applies the complete migration ledger, routes the snapshot through a real PostgreSQL pool and removes the database after the suite. This preserves real runtime queries, all assertions and the existing timeout while eliminating dependence on earlier fixture relation files. The corrected focused observability/namespace/teardown run passed three files and eight tests. The complete corrected local reverse-order suite then passed 173 files and 1,311 tests, with the existing Windows-only shell check skipped. The previously timed-out aggregate completed in 470 ms. Typecheck, lint, all four security gates, the zero-vulnerability dependency audit and the build passed again. The final correction requires its own exact-SHA CI after pushing.
+The observability suite owns a separate disposable PostgreSQL **cluster**, applies the complete migration ledger and uses a real pool. This avoids the shared-cluster checkpoint pressure reproduced on Windows. Mock cleanup remains explicit, and final teardown stays last in both deterministic orders. Both complete current runs passed.
 
-## Scope and safety
+Real Preview browser testing found that the date header announced a return to days while remaining on the year pane, and that its pane names remained English in French and Arabic. The corrected callback cycles days → months → years → days. All pane names are localized. Regression tests exercised the failing callback and rendered locale names before and after correction. The updated component still requires exact-final-SHA browser verification after deployment.
 
-All valid consolidation work was preserved. Arena's engineering was selectively integrated; its stale final reports were not adopted. Candidate migrations 0032 and 0033 remain outside the authorized Production 0020–0031 scope. Production preparation must reject them until separately approved.
+The old performance monitor stopped after hold + two minutes, omitting part of longer ramp/hold/down profiles. The corrected runner waits for a first real sample before traffic, owns the monitor child directly, signals completion after k6, and rejects missing, failed or prematurely ending monitoring. Previous-tier gates require complete same-SHA, same-Preview evidence. Existing budgets and workload were preserved. Explicit spike and two-hour soak modes require a previously proven stable tier.
 
-Production database, deployment, DNS and credentials were not modified. Passing this checkpoint does not prove Preview runtime, performance capacity, independent pentest, complete hosted browser coverage, real disaster recovery, Brevo account/DNS readiness or approved legal publication. Those remain separate evidence gates in the original mission.
+## Hosted and recovery evidence already obtained
+
+Previous candidate SHA `475ceaa3fdfb253f4716d22fe0dce44cd0c5fadb` passed exact-SHA CI run `37657509939`, including all 1,319 tests on Linux and both suite orders. Its isolated Preview passed public/protected health and native adversarial checks. It recorded passing 10- and 50-VU workloads, but the older 50-VU monitor did not cover the complete run. These are historical measurements; the updated candidate must restart ordered final capacity qualification at 10 VUs.
+
+Real Production **read-only** backup run `37650796497` restored into existing recovery project `vwixmkzgpmzgwbshzxji`. The 19-entry ledger, wallet invariants and all 13 blob hashes matched. The actual Production revision started against recovery and passed seven runtime and six tenant-isolation checks. Finalization was VERIFIED at 2026-10-07T17:00:58.825Z. The offsite GitHub artifact expires on October 10; durable retention and independently recoverable key escrow remain owner decisions. See `OPERATIONS-REVIEW.md` for precise limits. This is separate from the passing synthetic local DR drill.
+
+Fresh read-only Production aggregates captured at 2026-10-07T20:35:30Z matched protected counts, ledger and wallet/balance checksums. Production deployment identity remained unchanged. Revalidate before the final handoff; do not repair any new drift automatically.
+
+## Scope and outstanding release gates
+
+Candidate migrations 0032 and 0033 remain outside the authorized Production 0020–0031 scope. Production preflight must reject them until separately approved. The final-SHA CI, Preview runtime/browser checks and measured capacity evidence remain separate gates after these commits. Independent pentest, approved legal publication, Brevo account/sender/DNS readiness, malware scanning policy, database credential rotation and durable recovery-key custody require external decisions or explicitly authorized owner action.
+
+Production database, deployment, DNS and credentials were not modified. This checkpoint is evidence of completed local engineering qualification, not go-live approval.

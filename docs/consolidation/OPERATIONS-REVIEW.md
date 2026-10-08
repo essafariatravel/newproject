@@ -45,3 +45,17 @@ Create a dedicated random 32-byte MFA encryption key in the environment's secret
 ## Release and rollback preparation
 
 Owner review must cover exact candidate SHA, CI, isolated Preview runtime, proven load tier, additive migrations, legal and operational gates. Preserve an encrypted, verified backup and immutable previous deployment before any separately authorized Production change. After approval, use explicit migrations and exact-SHA deployment, then health/auth/upload/submit/wallet/notification/Staff smoke checks and read-only reconciliation. On runtime failure, roll back the deployment to the verified previous SHA; additive MFA/rule-history schema does not justify destructive down-migration. Do not claim a pilot capacity above the measured passing tier.
+
+## Recovery evidence and retention
+
+The 2026-10-07 real drill restored an encrypted read-only Production backup into the existing recovery project `vwixmkzgpmzgwbshzxji`. Backup run `37650796497` completed successfully. The restored 19-entry migration ledger, wallet invariants and all 13 blob hashes matched the captured source; the actual Production application revision `831607a2ed0423d575d693b8f8f3a9dfc1e5d9d1` started against recovery and passed seven runtime and six tenant-isolation checks. The temporary restore role was disabled and its temporary credential-delivery schema removed after verification. Production was not restored into or changed.
+
+The encrypted archive has a separately downloaded and verified GitHub Actions copy, artifact `11495503884`, with SHA-256 `2b3250d96693aae0c349aa8c2beb6618c89e5e3b7fa1a05a2b73dda7bd47ca11`. That copy expires on **2026-10-10 at 16:17:35 UTC**. It proves an independent copy for this drill, not durable operational retention. The local decryption material is protected with Windows DPAPI for the current user; a different machine or operator cannot be assumed to recover it. The owner must select durable encrypted retention and independently recoverable key escrow before relying on the procedure operationally.
+
+Capture-to-final-verification took approximately 43 minutes 27 seconds, including first-time provisioning, build and diagnosis. This is drill elapsed time, not a measured incident RTO. Scheduled backup frequency, PITR entitlement and an operational RPO remain separate owner/provider decisions. Preserve the verified manifest and private aggregate evidence without publishing backup contents or keys.
+
+## Capacity qualification policy
+
+Run authenticated tiers in order: 10, 50, 100, 250, 500 and 1,000 VUs, each with the existing representative workload and a 20-minute hold. A passing preceding tier must match the exact SHA and Preview URL, contain all five evidence files, and include DB samples spanning the complete workload. Older runs without this complete monitoring must not authorize escalation.
+
+The optional spike uses the existing 50-to-250-to-10 profile and requires a proven stable 250-VU tier. The optional soak uses the same representative workload at a previously proven 100 or 250 VUs for two hours. Neither profile substitutes for ordered stable tiers. Do not overlap portal and public load runs against shared database infrastructure or infer untested capacity from a passing lower tier.
