@@ -80,6 +80,11 @@ function cmp(a: string, b: string): number {
 
 export function DatePicker(props: DatePickerProps) {
   const locale = props.locale ?? "en";
+  const navigationLabels = {
+    en: { monthYear: "Choose month / year", month: "Choose month", year: "Choose year", days: "Back to days" },
+    fr: { monthYear: "Choisir le mois et l’année", month: "Choisir le mois", year: "Choisir l’année", days: "Revenir aux jours" },
+    ar: { monthYear: "اختيار الشهر والسنة", month: "اختيار الشهر", year: "اختيار السنة", days: "العودة إلى الأيام" },
+  }[locale];
   const today = useMemo(() => {
     const t = new Date();
     return { y: t.getFullYear(), m: t.getMonth(), d: t.getDate() };
@@ -233,8 +238,8 @@ export function DatePicker(props: DatePickerProps) {
             <button
               type="button"
               className="inline-flex min-h-11 items-center rounded-lg px-2 text-base font-semibold text-navy-900 hover:bg-ivory-100"
-              onClick={() => setView((v) => (v === "days" ? "months" : "years"))}
-              aria-label={view === "days" ? "Choose month / year" : view === "months" ? "Choose year" : "Back to days"}
+              onClick={() => setView((v) => (v === "days" ? "months" : v === "months" ? "years" : "days"))}
+              aria-label={view === "days" ? navigationLabels.monthYear : view === "months" ? navigationLabels.year : navigationLabels.days}
             >
               {view === "days"
                 ? fmtMonth.format(new Date(viewYear, viewMonth, 1))
@@ -297,7 +302,7 @@ export function DatePicker(props: DatePickerProps) {
             </div>
           </div>
           ) : view === "months" ? (
-            <div role="grid" aria-label="Choose month" className="grid grid-cols-3 gap-1 pb-2">
+            <div role="grid" aria-label={navigationLabels.month} className="grid grid-cols-3 gap-1 pb-2">
               {Array.from({ length: 12 }).map((_, m) => {
                 const monthLabel = new Intl.DateTimeFormat(locale, { month: "short" }).format(new Date(viewYear, m, 1));
                 const disabledCandidate = !allowed(iso(viewYear, m, 1)) && !allowed(iso(viewYear, m, new Date(viewYear, m + 1, 0).getDate()));
@@ -326,7 +331,7 @@ export function DatePicker(props: DatePickerProps) {
               })}
             </div>
           ) : (
-            <div role="grid" aria-label="Choose year" className="grid grid-cols-3 gap-1 pb-2">
+            <div role="grid" aria-label={navigationLabels.year} className="grid grid-cols-3 gap-1 pb-2">
               {Array.from({ length: 12 }).map((_, i) => {
                 const y = yearRangeWindow(pivotYear).start + i;
                 const disabledCandidate = !allowed(`${y}-01-01`) && !allowed(`${y}-12-31`);
