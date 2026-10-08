@@ -1,4 +1,4 @@
-import {describe,it,expect} from "vitest";
+import {describe,it,expect,vi} from "vitest";
 import {eq} from "drizzle-orm";
 import {suiteSetup} from "./helpers/global-state";
 import {userByEmail} from "./helpers/fixtures";
@@ -57,8 +57,33 @@ describe("large tenant and historical rule provenance",()=>{
     const first=await searchApplications(actor,{statusCode:"DRAFT",pageSize:100});const next=await searchApplications(actor,{statusCode:"DRAFT",pageSize:100,page:2});
     expect(first.total).toBeGreaterThanOrEqual(50001);expect(first.rows).toHaveLength(100);expect(first.pageCount).toBe(Math.ceil(first.total/100));
     const ids=new Set(first.rows.map(row=>row.app.id));expect(next.rows.every(row=>!ids.has(row.app.id))).toBe(true);
-    expect((await searchApplications(foreign,{statusCode:"DRAFT"})).total).toBe(0);
-    expect((await searchApplications(staff,{statusCode:"DRAFT",pageSize:100,page:450})).rows).toHaveLength(100);
+    expect((await searchApplications(foreign,{statusCode:"DRAFT",agencyId:actor.agencyId!})).total).toBe(0);
+    expect((await searchApplications(actor,{statusCode:"DRAFT",q:"SYN-LARGE-",pageSize:100})).rows).toHaveLength(100);
+    // EXPLAIN the actual wide read, rather than a simplified ID-only query.
+    // Detail projections must run only for the returned page, not OFFSET rows.
+    const querySpy=vi.spyOn(pool,"query");
+    let deepSql:string|undefined,deepParams:unknown[]=[];
+    try{
+      const deep=await searchApplications(staff,{statusCode:"DRAFT",pageSize:100,page:450});
+      expect(deep.rows).toHaveLength(100);
+      // pg's overloaded query signature reports only its last overload to the
+      // spy type. Inspect the actual captured driver arguments as unknowns.
+      const calls=querySpy.mock.calls as unknown as Array<[unknown,unknown]>;
+      const call=calls.find(([query])=>typeof query==="object"&&query!==null&&"text" in query&&String(query.text).startsWith("select ")&&String(query.text).includes(" offset "));
+      if(call&&typeof call[0]==="object"&&call[0]!==null&&"text" in call[0]){
+        deepSql=String(call[0].text);deepParams=Array.isArray(call[1])?call[1]:[];
+      }
+      expect((await searchApplications(staff,{statusCode:"DRAFT",pageSize:100,page:450})).rows.map(r=>r.app.id)).toEqual(deep.rows.map(r=>r.app.id));
+    }finally{querySpy.mockRestore();}
+    expect(deepSql).toBeTruthy();
+    const fullPlan=await pool.query("explain (analyze,buffers,format json) "+deepSql,deepParams);
+    type PlanNode={"Relation Name"?:string;"Actual Loops"?:number;Plans?:PlanNode[]};
+    const detailRelations=new Set(["visa_types","applicants","documents","agencies","countries","application_status_history","users","document_requests"]);
+    const detailLoops:number[]=[];
+    function visit(node:PlanNode){if(detailRelations.has(node["Relation Name"]??""))detailLoops.push(node["Actual Loops"]??0);for(const child of node.Plans??[])visit(child);}
+    visit(fullPlan.rows[0]["QUERY PLAN"][0].Plan as PlanNode);
+    expect(detailLoops.length).toBeGreaterThan(0);
+    expect(Math.max(...detailLoops)).toBeLessThanOrEqual(100);
     expect(await listCommunications(app.id,actor)).toHaveLength(50);expect(await listNotificationsForUser(actor.id,50000)).toHaveLength(100);
     expect(await recentCommunications(50000,{agencyId:actor.agencyId,agencyVisibleOnly:true})).toHaveLength(100);
     expect((await listAuditLogs({pageSize:100})).rows.length).toBeLessThanOrEqual(100);

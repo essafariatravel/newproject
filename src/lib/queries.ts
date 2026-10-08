@@ -189,8 +189,10 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
   const conditions = await buildApplicationConditions(user, filters);
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
-  const rows = await db
-    .select(applicationSelection)
+  // Bound the page before evaluating dossier details. A wide OFFSET query
+  // otherwise runs correlated detail reads for every discarded row.
+  const pageIds = db
+    .select({ id: applications.id })
     .from(applications)
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
     .innerJoin(priorities, eq(applications.priorityId, priorities.id))
@@ -198,6 +200,14 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
     .orderBy(desc(applications.createdAt),desc(applications.id))
     .limit(pageSize)
     .offset((page - 1) * pageSize);
+
+  const rows = await db
+    .select(applicationSelection)
+    .from(applications)
+    .innerJoin(statuses, eq(applications.statusId, statuses.id))
+    .innerJoin(priorities, eq(applications.priorityId, priorities.id))
+    .where(inArray(applications.id, pageIds))
+    .orderBy(desc(applications.createdAt),desc(applications.id));
 
   const totalRows = await db
     .select({ total: count() })
