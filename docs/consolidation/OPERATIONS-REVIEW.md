@@ -37,6 +37,8 @@ Create a dedicated random 32-byte MFA encryption key in the environment's secret
 
 ## External decisions
 
+Public DNS was checked read-only on 2026-10-08 at 08:28:24 UTC. `essafariavoyages.com` publishes SPF (`include:_spf.google.com include:sendersrv.com ~all`) and a DMARC monitoring record (`p=none`). These records already exist; they must not be reported as absent. They do not prove Brevo sender authorization, DKIM or delivery. Confirm the actual verified sender domain and Brevo-provided DKIM selector in the authenticated account before preparing exact DNS changes. Do not replace existing sender includes or tighten DMARC without checking all legitimate senders. No DNS changes were made.
+
 - Malware scanning/CDR: select a provider and policy after reviewing upload controls; do not claim file signatures detect malware.
 - Legal: counsel/owner must approve EN/FR/AR Privacy and Terms, effective/publication dates, version and reacceptance scope. Contact is `info@essafariavoyages.com`; do not publish draft text.
 - Email: owner supplies Brevo API key through the secret store, verifies sender, and configures SPF/DKIM/DMARC using the provider's actual account instructions. [Brevo response contract](https://developers.brevo.com/docs/send-a-transactional-email).
