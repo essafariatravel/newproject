@@ -101,6 +101,17 @@ export function DatePicker(props: DatePickerProps) {
   const [pivotYear, setPivotYear] = useState(initial?.y ?? today.y);
   const rootRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const focusRequested = useRef(false);
+
+  useEffect(() => {
+    if (!open || !focusRequested.current || !gridRef.current) return;
+    const selector = view === "days" ? `data-day="${focusedDay}"` : view === "months" ? `data-month="${viewMonth}"` : `data-year="${viewYear}"`;
+    const target = gridRef.current.querySelector<HTMLButtonElement>(`[${selector}]:not(:disabled)`)
+      ?? gridRef.current.querySelector<HTMLButtonElement>("button:not(:disabled)");
+    focusRequested.current = false;
+    target?.focus();
+  }, [open, view, viewYear, viewMonth, focusedDay, pivotYear]);
 
   useEffect(() => {
     if (!open) return;
@@ -121,8 +132,9 @@ export function DatePicker(props: DatePickerProps) {
   );
   const weekdayNames = useMemo(() => {
     const f = new Intl.DateTimeFormat(locale, { weekday: "narrow" });
+    const full = new Intl.DateTimeFormat(locale, { weekday: "long" });
     // 2024-01-07 was a Sunday; week starts Monday here.
-    return Array.from({ length: 7 }, (_, i) => f.format(new Date(2024, 0, 8 + i)));
+    return Array.from({ length: 7 }, (_, i) => ({ short: f.format(new Date(2024, 0, 8 + i)), full: full.format(new Date(2024, 0, 8 + i)) }));
   }, [locale]);
 
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
@@ -131,10 +143,15 @@ export function DatePicker(props: DatePickerProps) {
   const allowed = (v: string) =>
     (!props.min || cmp(props.min, v) <= 0) && (!props.max || cmp(v, props.max) <= 0);
 
-  function select(v: string) {
-    if (!allowed(v)) return;
-    setValue(v);
+  function closePicker() {
+    focusRequested.current = false;
     setOpen(false);
+    triggerRef.current?.focus();
+  }
+  function select(v: string) {
+    if (!parseIso(v) || !allowed(v)) return;
+    setValue(v);
+    closePicker();
   }
   function applyText(v: string) {
     setValue(v);
@@ -143,17 +160,24 @@ export function DatePicker(props: DatePickerProps) {
       setViewYear(p.y); setViewMonth(p.m); setFocusedDay(p.d);
     }
   }
-  function moveMonth(delta: number) {
+  function moveMonth(delta: number, keyboard = false) {
     let m = viewMonth + delta, y = viewYear;
     while (m < 0) { m += 12; y -= 1; }
     while (m > 11) { m -= 12; y += 1; }
-    setViewMonth(m); setViewYear(y);
+    const bounded = clampYearMonth(y, m, props.min, props.max);
+    y = bounded.year; m = bounded.month;
+    let day = Math.min(focusedDay, new Date(y, m + 1, 0).getDate());
+    if (props.min && iso(y, m, day) < props.min) day = Number(props.min.slice(8, 10));
+    if (props.max && iso(y, m, day) > props.max) day = Number(props.max.slice(8, 10));
+    if (keyboard) focusRequested.current = true;
+    setViewMonth(m); setViewYear(y); setFocusedDay(day);
   }
   function moveDay(deltaDays: number) {
     const cur = new Date(viewYear, viewMonth, focusedDay);
     cur.setDate(cur.getDate() + deltaDays);
     const v = iso(cur.getFullYear(), cur.getMonth(), cur.getDate());
     if (!allowed(v)) return;
+    focusRequested.current = true;
     setViewYear(cur.getFullYear());
     setViewMonth(cur.getMonth());
     setFocusedDay(cur.getDate());
@@ -166,13 +190,13 @@ export function DatePicker(props: DatePickerProps) {
       case "ArrowRight": e.preventDefault(); moveDay(rtl ? -1 : 1); break;
       case "ArrowUp":    e.preventDefault(); moveDay(-7); break;
       case "ArrowDown":  e.preventDefault(); moveDay(7); break;
-      case "PageUp":     e.preventDefault(); moveMonth(-1); break;
-      case "PageDown":   e.preventDefault(); moveMonth(1); break;
-      case "Home":       e.preventDefault(); setFocusedDay(1); break;
-      case "End":        e.preventDefault(); setFocusedDay(daysInMonth); break;
+      case "PageUp":     e.preventDefault(); moveMonth(-1, true); break;
+      case "PageDown":   e.preventDefault(); moveMonth(1, true); break;
+      case "Home":       e.preventDefault(); moveDay(-((new Date(viewYear, viewMonth, focusedDay).getDay() + 6) % 7)); break;
+      case "End":        e.preventDefault(); moveDay(6 - ((new Date(viewYear, viewMonth, focusedDay).getDay() + 6) % 7)); break;
       case "Enter":
       case " ":          e.preventDefault(); select(iso(viewYear, viewMonth, focusedDay)); break;
-      case "Escape":     e.preventDefault(); setOpen(false); break;
+      case "Escape":     e.preventDefault(); e.stopPropagation(); closePicker(); break;
     }
   }
 
@@ -204,9 +228,10 @@ export function DatePicker(props: DatePickerProps) {
           aria-label={props.ariaLabel??(props.id?undefined:props.placeholder??"YYYY-MM-DD")}
         />
         <button
+          ref={triggerRef}
           type="button"
           disabled={props.disabled}
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => { if (open) closePicker(); else { focusRequested.current = true; setOpen(true); } }}
           aria-haspopup="dialog"
           aria-expanded={open}
           aria-label={`${props.ariaLabel??""} ${display || props.placeholder || (locale==="ar"?"اختيار التاريخ":locale==="fr"?"Choisir une date":"Choose date")}`.trim()}
@@ -223,7 +248,7 @@ export function DatePicker(props: DatePickerProps) {
         <div
           role="dialog"
           aria-label={fmtMonth.format(new Date(viewYear, viewMonth, 1))}
-          onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); setOpen(false); } }}
+          onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closePicker(); } }}
           className="surface-popover absolute z-40 mt-2 w-72 rounded-lg border border-line bg-white p-4 shadow-[var(--shadow-pop)]"
         >
           <div className="flex items-center justify-between pb-2">
@@ -238,7 +263,10 @@ export function DatePicker(props: DatePickerProps) {
             <button
               type="button"
               className="inline-flex min-h-11 items-center rounded-lg px-2 text-base font-semibold text-navy-900 hover:bg-ivory-100"
-              onClick={() => setView((v) => (v === "days" ? "months" : v === "months" ? "years" : "days"))}
+              onClick={() => {
+                if (view === "years") moveMonth(0);
+                setView((v) => (v === "days" ? "months" : v === "months" ? "years" : "days"));
+              }}
               aria-label={view === "days" ? navigationLabels.monthYear : view === "months" ? navigationLabels.year : navigationLabels.days}
             >
               {view === "days"
@@ -260,23 +288,23 @@ export function DatePicker(props: DatePickerProps) {
           <div role="grid" ref={gridRef} onKeyDown={onGridKeyDown}>
             <div role="row" className="grid grid-cols-7 text-center text-xs font-semibold text-slate-400">
               {weekdayNames.map((w, i) => (
-                <span role="columnheader" key={i} className="py-1">{w}</span>
+                <span role="columnheader" aria-label={w.full} key={i} className="py-1">{w.short}</span>
               ))}
             </div>
-            <div role="row" className="grid grid-cols-7 gap-y-1">
-              {Array.from({ length: firstWeekday }).map((_, i) => (
-                <span key={`pad-${i}`} aria-hidden="true" />
-              ))}
-              {Array.from({ length: daysInMonth }).map((_, i) => {
-                const day = i + 1;
+            {Array.from({ length: Math.ceil((firstWeekday + daysInMonth) / 7) }, (_, week) => (
+            <div role="row" key={week} className="grid grid-cols-7 pb-1">
+              {Array.from({ length: 7 }, (_, column) => {
+                const day = week * 7 + column - firstWeekday + 1;
+                if (day < 1 || day > daysInMonth) return <span role="gridcell" key={column} />;
                 const cell = iso(viewYear, viewMonth, day);
                 const isSel = value === cell;
                 const isFocus = day === focusedDay;
                 const isToday = today.y === viewYear && today.m === viewMonth && today.d === day;
                 const disabled = !allowed(cell);
                 return (
+                  <span role="gridcell" key={column} aria-selected={isSel}>
                   <button
-                    key={day}
+                    data-day={day}
                     type="button"
                     tabIndex={isFocus ? 0 : -1}
                     disabled={disabled}
@@ -297,12 +325,14 @@ export function DatePicker(props: DatePickerProps) {
                   >
                     {new Intl.NumberFormat(locale).format(day)}
                   </button>
+                  </span>
                 );
               })}
             </div>
+            ))}
           </div>
           ) : view === "months" ? (
-            <div role="grid" aria-label={navigationLabels.month} className="grid grid-cols-3 gap-1 pb-2">
+            <div role="group" ref={gridRef} aria-label={navigationLabels.month} className="grid grid-cols-3 gap-1 pb-2">
               {Array.from({ length: 12 }).map((_, m) => {
                 const monthLabel = new Intl.DateTimeFormat(locale, { month: "short" }).format(new Date(viewYear, m, 1));
                 const disabledCandidate = !allowed(iso(viewYear, m, 1)) && !allowed(iso(viewYear, m, new Date(viewYear, m + 1, 0).getDate()));
@@ -310,9 +340,11 @@ export function DatePicker(props: DatePickerProps) {
                 return (
                   <button
                     key={m}
+                    data-month={m}
                     type="button"
                     disabled={disabledCandidate}
                     onClick={() => {
+                      focusRequested.current = true;
                       const clamped = clampYearMonth(viewYear, m, props.min, props.max);
                       setViewYear(clamped.year);
                       setViewMonth(clamped.month);
@@ -331,7 +363,7 @@ export function DatePicker(props: DatePickerProps) {
               })}
             </div>
           ) : (
-            <div role="grid" aria-label={navigationLabels.year} className="grid grid-cols-3 gap-1 pb-2">
+            <div role="group" ref={gridRef} aria-label={navigationLabels.year} className="grid grid-cols-3 gap-1 pb-2">
               {Array.from({ length: 12 }).map((_, i) => {
                 const y = yearRangeWindow(pivotYear).start + i;
                 const disabledCandidate = !allowed(`${y}-01-01`) && !allowed(`${y}-12-31`);
@@ -339,9 +371,11 @@ export function DatePicker(props: DatePickerProps) {
                 return (
                   <button
                     key={y}
+                    data-year={y}
                     type="button"
                     disabled={disabledCandidate}
                     onClick={() => {
+                      focusRequested.current = true;
                       const clamped = clampYearMonth(y, Math.min(viewMonth, 11), props.min, props.max);
                       setViewYear(clamped.year);
                       setViewMonth(clamped.month);
@@ -375,7 +409,7 @@ export function DatePicker(props: DatePickerProps) {
               type="button"
               className="inline-flex min-h-11 items-center text-base font-semibold text-slate-500 hover:underline"
               disabled={props.required}
-              onClick={() => { if (!props.required) { setValue(""); setOpen(false); } }}
+              onClick={() => { if (!props.required) { setValue(""); closePicker(); } }}
             >
               {locale === "fr" ? "Effacer" : locale === "ar" ? "مسح" : "Clear"}
             </button>
