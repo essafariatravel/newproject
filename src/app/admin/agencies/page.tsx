@@ -93,17 +93,17 @@ export default async function AdminAgenciesPage({
           <h2 className="mb-1 font-serif text-lg text-navy-900">{ct("Onboard agency + first administrator")}</h2>
           <p className="mb-4 text-xs text-slate-500">{ct("One step: agency + AGENCY_ADMIN with temporary password (forced change at first login). DZD wallet.")}</p>
           <form action={createAgencyWithAdminAction} className="card grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
-            <div><label className="label">{ct("Legal name")} *</label><input name="legalName" required className="input" /></div>
-            <div><label className="label">{ct("Trading name")}</label><input name="tradingName" className="input" /></div>
-            <div><label className="label">{ct("Agency email")} *</label><input name="email" type="email" required className="input" /></div>
-            <div><label className="label">{ct("Phone")}</label><input name="phone" className="input" /></div>
-            <div><label className="label">{ct("City")}</label><input name="city" className="input" /></div>
-            <div><label className="label">{ct("Country")}</label><input name="country" className="input" /></div>
+            <div><label className="label" htmlFor="agency-onboard-legal-name">{ct("Legal name")} *</label><input id="agency-onboard-legal-name" name="legalName" required className="input" /></div>
+            <div><label className="label" htmlFor="agency-onboard-trading-name">{ct("Trading name")}</label><input id="agency-onboard-trading-name" name="tradingName" className="input" /></div>
+            <div><label className="label" htmlFor="agency-onboard-email">{ct("Agency email")} *</label><input id="agency-onboard-email" name="email" type="email" required className="input" /></div>
+            <div><label className="label" htmlFor="agency-onboard-phone">{ct("Phone")}</label><input id="agency-onboard-phone" name="phone" className="input" /></div>
+            <div><label className="label" htmlFor="agency-onboard-city">{ct("City")}</label><input id="agency-onboard-city" name="city" className="input" /></div>
+            <div><label className="label" htmlFor="agency-onboard-country">{ct("Country")}</label><input id="agency-onboard-country" name="country" className="input" /></div>
             <input type="hidden" name="currency" value="DZD" />
-            <div><label className="label">{ct("Billing tax ID")}</label><input name="billingTaxId" className="input" /></div>
+            <div><label className="label" htmlFor="agency-onboard-tax-id">{ct("Billing tax ID")}</label><input id="agency-onboard-tax-id" name="billingTaxId" className="input" /></div>
             <div className="sm:col-span-2 lg:col-span-3 mt-2 border-t border-ivory-200 pt-4"><p className="mb-4 text-base font-semibold text-navy-800">{ct("First administrator")}</p></div>
-            <div><label className="label">{ct("Administrator name")} *</label><input name="adminName" required className="input" /></div>
-            <div><label className="label">{it("Username")} *</label><input name="adminUsername" type="text" required minLength={3} maxLength={48} className="input" dir="ltr" /></div>
+            <div><label className="label" htmlFor="agency-onboard-admin-name">{ct("Administrator name")} *</label><input id="agency-onboard-admin-name" name="adminName" required className="input" /></div>
+            <div><label className="label" htmlFor="agency-onboard-username">{it("Username")} *</label><input id="agency-onboard-username" name="adminUsername" type="text" required minLength={3} maxLength={48} className="input" dir="ltr" /></div>
                         <PasswordField
               id="a-admin-password"
               name="adminPassword"

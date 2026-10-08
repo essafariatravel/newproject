@@ -9,6 +9,7 @@ import { listAuditLogs,listWalletTransactions,listCountries,listVisaTypesWithRel
 import { createTopupRequest,processTopupRequest } from "@/lib/topup";
 import AdminNotificationsPage from "@/app/admin/notifications/page";
 import CountriesConfigPage from "@/app/admin/config/countries/page";
+import AdminAgenciesPage from "@/app/admin/agencies/page";
 import AuditPage from "@/app/admin/audit/page";
 import PortalWalletPage from "@/app/portal/wallet/page";
 import { getTransactions } from "@/lib/wallet";
@@ -20,6 +21,16 @@ vi.mock("next/cache",()=>({revalidatePath:()=>undefined}));
 suiteSetup();afterEach(()=>{request.cookie="";});
 let topupId:string,agencyId:string;
 describe("operational presentation closure",()=>{
+  it("associates each agency onboarding field with its visible label",async()=>{
+    request.cookie=(await createSession((await userByEmail("superadmin@test.example")).id)).token;
+    const html=renderToStaticMarkup(await AdminAgenciesPage({searchParams:Promise.resolve({q:"onboarding-labels-no-existing-fixture"})}));
+    for(const name of ["legalName","tradingName","email","phone","city","country","billingTaxId","adminName","adminUsername","adminPassword"]){
+      const control=html.match(new RegExp(`<input\\b[^>]*name="${name}"[^>]*>`))?.[0];
+      expect(control).toBeDefined();
+      const id=control?.match(/\bid="([^"]+)"/)?.[1];
+      expect(Boolean(id&&html.includes(`for="${id}"`)),`${name} must use its visible onboarding label`).toBe(true);
+    }
+  });
   it.each(["Synthetic legacy region",null])("preserves region %s when editing other country fields",async(region)=>{
     const country=(await listCountries())[0]!;
     await db.update(countries).set({region}).where(eq(countries.id,country.id));
