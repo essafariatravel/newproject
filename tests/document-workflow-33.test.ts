@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { renderToReadableStream } from "react-dom/server";
 import PortalApplicationDetailPage from "@/app/portal/applications/[id]/page";
+import StaffApplicationDetailPage from "@/app/admin/applications/[id]/page";
 import { request } from "./helpers/request";
 import { createSession } from "./helpers/authenticated-session";
 import { suiteSetup } from "./helpers/global-state";
@@ -131,6 +132,27 @@ describe("dossier upload accessible names",()=>{
         for(const id of references)expect(html).toContain(`id="${id}"`);
       }
     }
+  });
+});
+
+describe("document request responsibility", () => {
+  it("tells Staff the agency must upload while keeping the agency's own upload instruction", async () => {
+    const { app, staff } = await submittedApplication("request-responsibility");
+    const item = (await getChecklist(app.id))[0]!;
+    await requestDocumentReplacement({ applicationId: app.id, checklistItemId: item.id, reason: "Synthetic responsibility wording check.", actor: staff });
+    request.cookie = (await createSession(staff.id)).token;
+    const staffStream = await renderToReadableStream(await StaffApplicationDetailPage({ params: Promise.resolve({ id: app.id }), searchParams: Promise.resolve({ tab: "documents" }) }));
+    await staffStream.allReady;
+    const staffHtml = await new Response(staffStream).text();
+    const history = staffHtml.split("Document requests history")[1];
+    expect(history, "rendered Staff request history must exist").toBeDefined();
+    expect(history).toContain("Waiting for agency documents");
+    expect(history).not.toContain("Awaiting your upload");
+
+    request.cookie = (await createSession((await userByEmail("a-admin@test.example")).id)).token;
+    const agencyStream = await renderToReadableStream(await PortalApplicationDetailPage({ params: Promise.resolve({ id: app.id }), searchParams: Promise.resolve({ tab: "documents" }) }));
+    await agencyStream.allReady;
+    expect(await new Response(agencyStream).text()).toContain("Awaiting your upload");
   });
 });
 

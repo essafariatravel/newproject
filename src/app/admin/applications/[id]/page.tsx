@@ -487,7 +487,7 @@ export default async function AdminApplicationDetailPage({
                   <div key={r.req.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
                     <span>
                       <span className={`badge ${r.req.status === "OPEN" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
-                        {r.req.status === "OPEN" ? ct("Awaiting your upload") : r.req.status === "FULFILLED" ? ct("Received") : ct("Cancelled")}
+                        {r.req.status === "OPEN" ? ct("Waiting for agency documents") : r.req.status === "FULFILLED" ? ct("Received") : ct("Cancelled")}
                       </span>{" "}
                       {r.req.type === "REPLACEMENT" ? ct("Replacement requested") : ct("Additional document requested")} · {localizedDocTypeName(r.docTypeCode, r.docTypeName, uiLocale)}
                     </span>
