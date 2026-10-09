@@ -77,6 +77,7 @@ jobs:
           node scripts/verify-previous-performance.cjs /tmp/previous-proof
       - uses: grafana/setup-k6-action@43b9fc21641a76002687994433dd586f56e791b1
         if: inputs.mode == 'performance' || inputs.mode == 'soak' || inputs.mode == 'spike'
+        with: {k6-version: '2.3.0'}
       - name: Fresh distinct synthetic sessions and deterministic manifest
         if: inputs.mode == 'performance' || inputs.mode == 'soak' || inputs.mode == 'spike'
         run: |

@@ -14,6 +14,10 @@ if (!__ENV.BASE_URL) throw new Error("BASE_URL is required.");
 const BASE_URL = String(__ENV.BASE_URL).trim().replace(/\/+$/, "");
 if (__ENV.VERCEL_AUTOMATION_BYPASS_SECRET && BASE_URL !== String(__ENV.CONSOLIDATION_PREVIEW_URL || "").replace(/\/+$/, "")) throw new Error("Bypass secret requires the independently recorded exact Preview origin.");
 const bypassHeaders=__ENV.VERCEL_AUTOMATION_BYPASS_SECRET?{"x-vercel-protection-bypass":__ENV.VERCEL_AUTOMATION_BYPASS_SECRET}:{};
+// k6 disables automatic Accept-Encoding negotiation. Request browser-supported
+// compression while retaining the complete decoded response and existing timing
+// budgets, routes, sessions, think time and workload stages.
+const transportHeaders = { "Accept-Encoding": "gzip", ...bypassHeaders };
 if (!/^https?:\/\//i.test(BASE_URL)) throw new Error("BASE_URL must be an HTTP(S) origin.");
 const BASE_HOST = BASE_URL.replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].toLowerCase();
 if (BASE_HOST === PROD_HOST) {
@@ -150,7 +154,7 @@ function cookieFor(role) {
 
 function requestHeaders(role) {
   return {
-    ...bypassHeaders,
+    ...transportHeaders,
     cookie: `${sessionData.cookieName || "evos_session"}=${cookieFor(role)}`,
     "user-agent": "essafaria-k6-performance-gate",
   };
@@ -221,7 +225,7 @@ function discoverActivityAction() {
   const references = new Set();
   for (const chunk of chunks) {
     const response = http.get(BASE_URL + chunk, {
-      headers: bypassHeaders, redirects: 0, tags: { operation: "setup_activity_discovery" },
+      headers: transportHeaders, redirects: 0, tags: { operation: "setup_activity_discovery" },
     });
     if (response.status !== 200) throw new Error("Session activity discovery asset failed.");
     for (const match of String(response.body || "").matchAll(/createServerReference\)\("([a-f0-9]{40,64})"(?:(?!createServerReference)[\s\S]){0,350}?"touchSessionAction"/g)) {
@@ -360,7 +364,7 @@ function validateSyntheticSessions() {
         url: `${BASE_URL}/api/session`,
         params: {
           headers: {
-            ...bypassHeaders,
+            ...transportHeaders,
             cookie: `${sessionData.cookieName || "evos_session"}=${token}`,
             "user-agent": "essafaria-k6-session-preflight",
           },
@@ -418,7 +422,7 @@ export function setup() {
   const token = sessions("SUPER_ADMIN")[0];
   const res = http.get(`${BASE_URL}/api/health`, {
     headers: {
-      ...bypassHeaders,
+      ...transportHeaders,
       cookie: `${sessionData.cookieName || "evos_session"}=${token}`,
       "user-agent": "essafaria-k6-safety-preflight",
     },

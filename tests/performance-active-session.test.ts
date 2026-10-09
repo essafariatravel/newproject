@@ -58,6 +58,16 @@ function harness(profile = "tier", actionResponse = '1:{"expired":false}\n', chu
 }
 
 describe("representative active-user load session behavior", () => {
+  it("negotiates compressed responses for all preflight, discovery, API and active-navigation requests", () => {
+    const run = harness("tier", undefined, undefined, { vus: 1000 });
+    const data = run.setup();
+    run.navigate(data);
+    expect(run.calls.filter(call => call.options.tags?.operation === "setup_session_preflight")).toHaveLength(1000);
+    expect(run.calls.some(call => call.url.endsWith(".js"))).toBe(true);
+    expect(run.calls.some(call => call.options.tags?.operation === "session_activity")).toBe(true);
+    expect(run.calls.some(call => call.options.tags?.operation?.startsWith("staff_"))).toBe(true);
+    expect(run.calls.every(call => call.options.headers?.["Accept-Encoding"] === "gzip")).toBe(true);
+  });
   it("validates all 1000 distinct sessions within the setup deadline using bounded read-only batches", () => {
     const run = harness("tier", undefined, undefined, { vus: 1000, preflightDurationMs: 120 });
     expect(() => run.setup()).not.toThrow();
