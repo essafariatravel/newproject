@@ -102,6 +102,10 @@ function scenarioForProfile() {
 
 export const options = {
   maxRedirects:0,
+  setupTimeout: "60s",
+  teardownTimeout: "60s",
+  batch: 6,
+  batchPerHost: 6,
   scenarios: { workload: scenarioForProfile() },
   thresholds: {
     http_req_failed: [{ threshold: `rate<${BUDGETS.global.errorRateMax}`, abortOnFail: false }],
@@ -343,23 +347,41 @@ function assertUniqueSessionCapacity() {
 assertUniqueSessionCapacity();
 
 function validateSyntheticSessions() {
-  for (let vu = 1; vu <= maximumVus(); vu++) {
-    const role = personaForVu(vu);
-    const token = tokenForVu(role, vu);
-    const res = http.get(`${BASE_URL}/api/session`, {
-      headers: {
-        ...bypassHeaders,
-        cookie: `${sessionData.cookieName || "evos_session"}=${token}`,
-        "user-agent": "essafaria-k6-session-preflight",
-      },
-      redirects: 0,
-      tags: { operation: "setup_session_preflight", persona: role },
-    });
-    if (res.status !== 200) {
-      throw new Error(
-        `Synthetic session preflight failed for ${role} VU ${vu} with HTTP ${res.status}. ` +
-        "Regenerate fresh Preview performance sessions before running the tier."
-      );
+  // Validate every distinct session before traffic. Small, bounded batches avoid
+  // spending the setup deadline on 1000 serialized network round trips.
+  const limit = maximumVus();
+  for (let start = 1; start <= limit; start += 6) {
+    const batch = [];
+    for (let vu = start; vu < start + 6 && vu <= limit; vu++) {
+      const role = personaForVu(vu);
+      const token = tokenForVu(role, vu);
+      batch.push({ role, vu, request: {
+        method: "GET",
+        url: `${BASE_URL}/api/session`,
+        params: {
+          headers: {
+            ...bypassHeaders,
+            cookie: `${sessionData.cookieName || "evos_session"}=${token}`,
+            "user-agent": "essafaria-k6-session-preflight",
+          },
+          redirects: 0,
+          tags: { operation: "setup_session_preflight", persona: role },
+        },
+      } });
+    }
+    const responses = http.batch(batch.map(entry => entry.request));
+    if (!Array.isArray(responses) || responses.length !== batch.length) {
+      throw new Error("Synthetic session preflight returned an incomplete batch.");
+    }
+    for (let index = 0; index < batch.length; index++) {
+      const { role, vu } = batch[index];
+      const res = responses[index];
+      if (res?.status !== 200) {
+        throw new Error(
+          `Synthetic session preflight failed for ${role} VU ${vu} with HTTP ${res?.status ?? "missing"}. ` +
+          "Regenerate fresh Preview performance sessions before running the tier."
+        );
+      }
     }
   }
 }
