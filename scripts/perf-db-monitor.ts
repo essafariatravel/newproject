@@ -22,6 +22,7 @@ async function main() {
   const pool = new Pool({ ...databasePoolConfig(process.env), max: 1 });
   const samples: Array<Record<string, unknown>> = [];
   let stopRequested = false;
+  let completionObserved = false;
   let samplingFailed = false;
   const requestStop = () => { stopRequested = true; };
   process.once("SIGTERM", requestStop);
@@ -33,7 +34,7 @@ async function main() {
   try {
     while (!stopRequested && Date.now() < deadlineMs) {
       if (stopFile) {
-        try { await stat(stopFile); stopRequested = true; break; }
+        try { await stat(stopFile); completionObserved = true; stopRequested = true; break; }
         catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
       }
       try {
@@ -115,14 +116,17 @@ async function main() {
       durationSeconds,
       elapsedMs: Date.now() - startedAtMs,
       stoppedEarly: stopRequested,
+      completionObserved,
+      watchdogExpired: !stopRequested && Date.now() >= deadlineMs,
       samplingFailed,
       summary,
       samples,
     }, null, 2), { mode: 0o600 });
-    console.log(JSON.stringify({ ok: !samplingFailed, output, summary }, null, 2));
+    console.log(JSON.stringify({ ok: !samplingFailed && (!stopFile || completionObserved), output, summary }, null, 2));
   }
 
   if (samplingFailed || samples.length === 0) throw new Error("DB monitor sampling failed; evidence was written but the tier must fail closed.");
+  if (stopFile && !completionObserved) throw new Error("DB monitor stopped before owned workload completion; evidence was written but the tier must fail closed.");
 }
 
 main().catch((error: unknown) => {

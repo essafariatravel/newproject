@@ -110,7 +110,10 @@ async function main() {
   const summary = resolve(dir, "k6-summary.json");
   const monitor = resolve(dir, "db-monitor.json");
   const evaluation = resolve(dir, "evaluation.json");
-  const monitorSeconds = expectedDurationSeconds + 45;
+  // The stop marker owns normal completion. This is only a bounded watchdog:
+  // allow first-sample startup (30s), k6 setup (60s), graceful drain (30s),
+  // teardown (60s), and process launch/summary/flush overhead (30s).
+  const monitorSeconds = expectedDurationSeconds + 30 + 60 + 30 + 60 + 30;
   const monitorReadyFile = resolve(dir, "monitor.ready");
   const monitorStopFile = resolve(dir, "monitor.stop");
   await rm(monitorReadyFile, { force: true });
@@ -122,6 +125,8 @@ async function main() {
     PERF_PROFILE: kind === "SPIKE" ? "spike" : "tier",
     PERF_HOLD: `${holdMinutes}m`,
     PERF_RAMP: `${rampMinutes}m`,
+    K6_SETUP_TIMEOUT: "60s",
+    K6_TEARDOWN_TIMEOUT: "60s",
     PERF_SUMMARY: summary,
     // k6 open() resolves relative paths from the script directory, unlike Node.
     PERF_SESSION_FILE: resolve(process.env.PERF_SESSION_FILE ?? "perf/.runtime/sessions.json"),
