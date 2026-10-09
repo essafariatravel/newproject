@@ -204,6 +204,51 @@ function checkSession(role) {
   unexpectedFailure.add(!ok);
 }
 
+function discoverActivityAction() {
+  // Use the deployed reference instead of persisting a build-specific action ID.
+  const page = http.get(`${BASE_URL}/portal`, {
+    headers: requestHeaders("AGENCY_ADMIN"), redirects: 0,
+    tags: { operation: "setup_activity_discovery", persona: "AGENCY_ADMIN" },
+  });
+  if (page.status !== 200) throw new Error("Session activity discovery requires an authenticated portal.");
+  const chunks = [...new Set([...String(page.body || "").matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)]
+    .map(match => match[1]).filter(url => /^\/_next\/static\/[a-zA-Z0-9_./-]+\.js(?:\?[^#]*)?$/.test(url)))];
+  if (!chunks.length || chunks.length > 50) throw new Error("Session activity discovery assets are missing or unbounded.");
+  const references = new Set();
+  for (const chunk of chunks) {
+    const response = http.get(BASE_URL + chunk, {
+      headers: bypassHeaders, redirects: 0, tags: { operation: "setup_activity_discovery" },
+    });
+    if (response.status !== 200) throw new Error("Session activity discovery asset failed.");
+    for (const match of String(response.body || "").matchAll(/createServerReference\)\("([a-f0-9]{40,64})"(?:(?!createServerReference)[\s\S]){0,350}?"touchSessionAction"/g)) {
+      references.add(match[1]);
+    }
+  }
+  if (references.size !== 1) throw new Error("Session activity action reference is missing or ambiguous.");
+  return [...references][0];
+}
+
+function recordUserInteraction(role, actionId) {
+  if (!/^[a-f0-9]{40,64}$/.test(actionId || "")) throw new Error("Verified session activity action required.");
+  const route = role === "AGENCY_USER" || role === "AGENCY_ADMIN" ? "/portal" : "/admin";
+  const response = http.post(BASE_URL + route, "[]", {
+    headers: { ...requestHeaders(role), Origin: BASE_URL, "Next-Action": actionId, "Content-Type": "text/plain;charset=UTF-8" },
+    redirects: 0, tags: { operation: "session_activity", persona: role, traffic: "interaction" },
+  });
+  recordOperation("session_activity", response.timings.duration);
+  const accepted = check(response, {
+    "user interaction: current session accepted": result => result.status === 200 &&
+      String(result.body || "").split("\n").some(line => {
+        const packet = line.match(/^[a-f0-9]+:(\{.*\})$/);
+        if (!packet) return false;
+        try { const value = JSON.parse(packet[1]); return Object.keys(value).length === 1 && value.expired === false; }
+        catch { return false; }
+      }),
+  });
+  unexpectedFailure.add(!accepted);
+  if (!accepted) throw new Error("Session activity failed; stop this active navigation rather than masking expiry.");
+}
+
 const AGENCY_USER_PATHS = [
   ["/portal", "agency_dashboard"],
   ["/portal/applications", "agency_applications"],
@@ -386,6 +431,7 @@ export function setup() {
     expectedProject: EXPECTED_PROJECT,
     agencyApplicationIds,
     staffApplicationIds,
+    activityAction: discoverActivityAction(),
   };
 }
 export default function (setupData) {
@@ -398,9 +444,16 @@ export default function (setupData) {
   else if (role === "ACCOUNTING") { paths = ACCOUNTING_PATHS; trend = accountingLatency; }
   else { paths = SUPER_ADMIN_PATHS; trend = adminLatency; }
 
-  if (!runtime[__VU]) runtime[__VU] = { lastNotification: 0, lastPresence: 0, lastSession: 0 };
+  if (!runtime[__VU]) runtime[__VU] = { lastNotification: 0, lastPresence: 0, lastSession: 0, lastInteraction: 0 };
   const state = runtime[__VU];
   const now = Date.now();
+
+  // Navigating users produce trusted pointer/keyboard activity in the real UI.
+  // Model that existing call at its 60s cadence; passive polling must stay idle.
+  if (profile !== "polling-only" && now - state.lastInteraction >= 60000) {
+    recordUserInteraction(role, setupData.activityAction);
+    state.lastInteraction = now;
+  }
 
   if (now - state.lastNotification >= 15000) {
     pollNotifications(role);

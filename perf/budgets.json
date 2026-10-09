@@ -13,6 +13,7 @@
     "notifications_poll": { "p95Ms": 400, "p99Ms": 1000 },
     "presence": { "p95Ms": 400, "p99Ms": 1000 },
     "session_check": { "p95Ms": 400, "p99Ms": 1000 },
+    "session_activity": { "p95Ms": 400, "p99Ms": 1000 },
 
     "agency_dashboard": { "p95Ms": 800, "p99Ms": 1500 },
     "agency_applications": { "p95Ms": 700, "p99Ms": 1500 },
