@@ -1,28 +1,14 @@
-/**
- * White-label branding.
- *
- * Everything visual on the platform is editable by the super admin from
- * /admin/settings and stored in site_settings:
- *   brand.name, brand.tagline          — identity copy (already existed)
- *   brand.primary / accent / ink       — hex colors driving the whole palette
- *   brand.radius                       — soft | balanced | crisp
- *   brand.fonts                        — aurora | modern | classic
- *   brand.logoKey / brand.logoMime / brand.logoVersion
- *                                      — platform logo (storage provider)
- *
- * Color editing works at the CSS-variable layer: Tailwind v4 emits every
- * @theme token as a custom property and utilities reference them, so a
- * `:root { --color-iris-600: … }` override re-tints the entire UI — buttons,
- * badges, gradients, charts — with no rebuild. Tints/shades are derived with
- * color-mix(), which every evergreen browser supports.
- */
+/** Configurable identity and artwork; approved product tokens are fixed. */
+import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { agencies, siteSettings } from "@/db/schema";
+import { agencies, siteSettings, documentBlobs } from "@/db/schema";
 import { AppError } from "@/lib/types";
 import type { AuthUser } from "@/lib/types";
 import { storageProvider } from "@/lib/storage";
-import { getSiteSettings, updateSetting } from "@/lib/settings";
+import { getSiteSettings, updateSetting, type SettingsTransaction } from "@/lib/settings";
+import { recordAudit } from "@/lib/audit";
+import { currentOperationActor } from "@/lib/operation-identity";
 
 export const BRAND_LOGO_KEY = "branding/logo";
 export const AGENCY_LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
@@ -64,13 +50,6 @@ export function sanitizeHex(input: string): string | null {
   return /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/.test(v) ? v : null;
 }
 
-function clampHex(input: string, fallback: string): string {
-  return sanitizeHex(input) ?? fallback;
-}
-
-const RADIUS_PRESETS: RadiusPreset[] = ["soft", "balanced", "crisp"];
-const FONT_PRESETS: FontPreset[] = ["aurora", "modern", "classic"];
-
 function s(map: Record<string, unknown>, key: string): string {
   const v = map[key];
   return typeof v === "string" ? v : "";
@@ -80,20 +59,14 @@ function s(map: Record<string, unknown>, key: string): string {
 export async function readBranding(): Promise<Branding> {
   const map = (await getSiteSettings()) as Record<string, unknown>;
   const legacyIdentity = s(map, "brand.name") === "ESSAFARIA TRAVEL";
-  const radius = RADIUS_PRESETS.includes(s(map, "brand.radius") as RadiusPreset)
-    ? (s(map, "brand.radius") as RadiusPreset)
-    : BRANDING_DEFAULTS.radius;
-  const fonts = FONT_PRESETS.includes(s(map, "brand.fonts") as FontPreset)
-    ? (s(map, "brand.fonts") as FontPreset)
-    : BRANDING_DEFAULTS.fonts;
   return {
     name: legacyIdentity ? BRANDING_DEFAULTS.name : s(map, "brand.name") || BRANDING_DEFAULTS.name,
     tagline: s(map, "brand.tagline") || BRANDING_DEFAULTS.tagline,
-    primary: s(map, "brand.primary").toLowerCase() === "#4a5bd0" ? BRANDING_DEFAULTS.primary : clampHex(s(map, "brand.primary"), BRANDING_DEFAULTS.primary),
-    accent: s(map, "brand.accent").toLowerCase() === "#b2945e" ? BRANDING_DEFAULTS.accent : clampHex(s(map, "brand.accent"), BRANDING_DEFAULTS.accent),
-    ink: s(map, "brand.ink").toLowerCase() === "#1d2547" ? BRANDING_DEFAULTS.ink : clampHex(s(map, "brand.ink"), BRANDING_DEFAULTS.ink),
-    radius,
-    fonts,
+    primary: BRANDING_DEFAULTS.primary,
+    accent: BRANDING_DEFAULTS.accent,
+    ink: BRANDING_DEFAULTS.ink,
+    radius: BRANDING_DEFAULTS.radius,
+    fonts: BRANDING_DEFAULTS.fonts,
     logoKey: s(map, "brand.logoKey") || null,
     logoMime: s(map, "brand.logoMime") || null,
     logoVersion: s(map, "brand.logoVersion"),
@@ -113,25 +86,15 @@ function tint(color: string, percent: number): string {
  * Covers the full iris (primary), gold (accent) and navy (ink) scales plus
  * the radius and font presets — every utility in the app picks these up.
  */
-export function brandingCssOverride(b: Branding): string {
+export function brandingCssOverride(_branding: Branding): string {
+  // Legacy appearance values never override the approved product tokens.
+  const b = BRANDING_DEFAULTS;
   const radiusCard =
     b.radius === "crisp" ? "0.55rem" : b.radius === "balanced" ? "0.9rem" : "1rem";
   const radiusBtn = b.radius === "crisp" ? "0.55rem" : b.radius === "balanced" ? "0.75rem" : "1rem";
-  const fontStacks: Record<FontPreset, [string, string]> = {
-    aurora: [
-      `"Manrope", "Nunito Sans", ui-rounded, "SF Pro Rounded", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`,
-      `"Fraunces", "Playfair Display", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif`,
-    ],
-    modern: [
-      `ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`,
-      `ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`,
-    ],
-    classic: [
-      `Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif`,
-      `Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif`,
-    ],
-  };
-  const [sans, serif] = fontStacks[b.fonts];
+  // The RC's approved single family is Barlow. Persisted legacy font presets
+  // remain readable for compatibility, but presentation cannot override it.
+  const fontStack = `"Barlow", "Segoe UI", ui-sans-serif, system-ui, Arial, sans-serif`;
   return `
 :root {
   --color-iris-700: ${tint(b.primary, -14)};
@@ -141,12 +104,13 @@ export function brandingCssOverride(b: Branding): string {
   --color-iris-200: ${tint(b.primary, 68)};
   --color-iris-100: ${tint(b.primary, 82)};
   --color-iris-50: ${tint(b.primary, 92)};
-  --color-gold-700: ${tint(b.accent, -22)};
-  --color-gold-600: ${tint(b.accent, -10)};
-  --color-gold-500: ${b.accent};
-  --color-gold-400: ${tint(b.accent, 16)};
-  --color-gold-100: ${tint(b.accent, 76)};
-  --color-gold-50: ${tint(b.accent, 88)};
+  /* Keep the gold palette aligned with globals.css, including its contrast-safe text shade. */
+  --color-gold-700: #8a6419;
+  --color-gold-600: #a77c23;
+  --color-gold-500: #c99a32;
+  --color-gold-400: #dab66b;
+  --color-gold-100: #f7ecd0;
+  --color-gold-50: #fcf7e9;
   --color-navy-950: ${tint(b.ink, -12)};
   --color-navy-900: ${b.ink};
   --color-navy-800: ${tint(b.ink, 10)};
@@ -158,8 +122,9 @@ export function brandingCssOverride(b: Branding): string {
   --radius-card: ${radiusCard};
   --radius-btn: ${radiusBtn};
   --radius-input: ${b.radius === "crisp" ? "0.5rem" : b.radius === "balanced" ? "0.75rem" : "0.75rem"};
-  --font-sans: ${sans};
-  --font-serif: ${serif};
+  --font-sans: ${fontStack};
+  --font-serif: var(--font-sans);
+  --font-mono: var(--font-sans);
 }
 `.trim();
 }
@@ -183,57 +148,94 @@ export function validateLogoUpload(name: string, mimeType: string, size: number)
   }
 }
 
-async function putLogo(key: string, upload: LogoUpload): Promise<void> {
-  const storage = storageProvider();
-  await storage.delete(key).catch(() => {});
-  await storage.put(key, upload.data, upload.mimeType);
+function validateLogoContent(upload: LogoUpload): void {
+  const bytes = upload.data;
+  const matches =
+    upload.mimeType === "image/png"
+      ? bytes.subarray(0, 8).toString("hex") === "89504e470d0a1a0a"
+      : upload.mimeType === "image/jpeg"
+        ? bytes.subarray(0, 3).toString("hex") === "ffd8ff"
+        : upload.mimeType === "image/webp"
+          ? bytes.subarray(0, 4).toString() === "RIFF" && bytes.subarray(8, 12).toString() === "WEBP"
+          : false;
+  if (!matches) throw new AppError("INVALID_FILE", "The logo content does not match its declared image format.");
+}
+
+const externalLogoStorage = () => process.env.STORAGE_PROVIDER === "supabase";
+async function putLogo(key: string, upload: LogoUpload, actor: AuthUser, mutate: (tx: SettingsTransaction) => Promise<void>): Promise<void> {
+  validateLogoContent(upload);
+  const external=externalLogoStorage();
+  if (external) await storageProvider().put(key,upload.data,upload.mimeType);
+  try {
+    await db.transaction(async tx => {
+      await currentOperationActor(tx,actor);
+      if (!external) await tx.insert(documentBlobs).values({key,data:upload.data,mimeType:upload.mimeType,sizeBytes:upload.data.length}).onConflictDoUpdate({target:documentBlobs.key,set:{data:upload.data,mimeType:upload.mimeType,sizeBytes:upload.data.length}});
+      await mutate(tx);
+    });
+  } catch(error) {
+    if (external) await storageProvider().delete(key).catch(() => {});
+    throw error;
+  }
 }
 
 /** Store the platform logo and record it in settings. */
 export async function setBrandLogo(upload: LogoUpload, actor: AuthUser): Promise<void> {
-  await putLogo(BRAND_LOGO_KEY, upload);
-  await updateSetting("brand.logoKey", BRAND_LOGO_KEY, actor.id);
-  await updateSetting("brand.logoMime", upload.mimeType, actor.id);
-  await updateSetting("brand.logoVersion", String(Date.now()), actor.id);
+  let previous: string | null=null;
+  const key=externalLogoStorage() ? `${BRAND_LOGO_KEY}/${randomUUID()}` : BRAND_LOGO_KEY;
+  await putLogo(key,upload,actor,async tx => {
+    const [old]=await tx.select().from(siteSettings).where(eq(siteSettings.key,"brand.logoKey")).for("update");
+    previous=typeof old?.value==="string"?old.value:null;
+    await updateSetting("brand.logoKey",key,actor.id,tx);
+    await updateSetting("brand.logoMime",upload.mimeType,actor.id,tx);
+    await updateSetting("brand.logoVersion",randomUUID(),actor.id,tx);
+    await recordAudit({actor,action:"BRANDING_LOGO_UPLOADED",entity:"site_settings"},tx);
+  });
+  if (externalLogoStorage() && previous && previous !== key) await storageProvider().delete(previous).catch(() => {});
 }
 
 /** Remove the platform logo (falls back to the built-in monogram). */
 export async function clearBrandLogo(actor: AuthUser): Promise<void> {
-  const b = await readBranding();
-  if (b.logoKey) await storageProvider().delete(b.logoKey).catch(() => {});
-  for (const key of ["brand.logoKey", "brand.logoMime", "brand.logoVersion"]) {
-    await db.delete(siteSettings).where(eq(siteSettings.key, key));
-  }
-  void actor;
+  let previous: string | null=null;
+  await db.transaction(async tx => {
+    actor=await currentOperationActor(tx,actor);
+    const [old]=await tx.select().from(siteSettings).where(eq(siteSettings.key,"brand.logoKey")).for("update");
+    previous=typeof old?.value==="string"?old.value:null;
+    if (!externalLogoStorage() && previous) await tx.delete(documentBlobs).where(eq(documentBlobs.key,previous));
+    for (const key of ["brand.logoKey", "brand.logoMime", "brand.logoVersion"]) await tx.delete(siteSettings).where(eq(siteSettings.key,key));
+    await recordAudit({actor,action:"BRANDING_LOGO_REMOVED",entity:"site_settings"},tx);
+  });
+  if (externalLogoStorage() && previous) await storageProvider().delete(previous).catch(() => {});
 }
 
 const agencyLogoKey = (agencyId: string) => `agency-logos/${agencyId}/logo`;
 
 /** Store (or replace) an agency's logo. Caller has verified permissions. */
-export async function setAgencyLogo(agencyId: string, upload: LogoUpload): Promise<void> {
-  const rows = await db.select({ id: agencies.id }).from(agencies).where(eq(agencies.id, agencyId)).limit(1);
-  if (!rows[0]) throw new AppError("NOT_FOUND", "Agency not found.");
-  const key = agencyLogoKey(agencyId);
-  await putLogo(key, upload);
-  await db
-    .update(agencies)
-    .set({ logoKey: key, logoMime: upload.mimeType, logoUploadedAt: sql`now()` })
-    .where(eq(agencies.id, agencyId));
+export async function setAgencyLogo(agencyId: string, upload: LogoUpload, actor: AuthUser): Promise<void> {
+  const key=externalLogoStorage() ? `${agencyLogoKey(agencyId)}/${randomUUID()}` : agencyLogoKey(agencyId);
+  let previous: string | null=null;
+  await putLogo(key,upload,actor,async tx => {
+    const [row]=await tx.select({logoKey:agencies.logoKey}).from(agencies).where(eq(agencies.id,agencyId)).for("update");
+    if (!row) throw new AppError("NOT_FOUND","Agency not found.");
+    previous=row.logoKey;
+    await tx.update(agencies).set({logoKey:key,logoMime:upload.mimeType,logoUploadedAt:sql`now()`}).where(eq(agencies.id,agencyId));
+    await recordAudit({actor,action:"AGENCY_LOGO_UPLOADED",entity:"agency",entityId:agencyId,agencyId},tx);
+  });
+  if (externalLogoStorage() && previous && previous !== key) await storageProvider().delete(previous).catch(() => {});
 }
 
 /** Remove an agency's logo. No-op when the agency has none. */
-export async function clearAgencyLogo(agencyId: string): Promise<void> {
-  const rows = await db
-    .select({ logoKey: agencies.logoKey })
-    .from(agencies)
-    .where(eq(agencies.id, agencyId))
-    .limit(1);
-  const logoKey = rows[0]?.logoKey ?? null;
-  await db
-    .update(agencies)
-    .set({ logoKey: null, logoMime: null, logoUploadedAt: null })
-    .where(eq(agencies.id, agencyId));
-  if (logoKey) await storageProvider().delete(logoKey).catch(() => {});
+export async function clearAgencyLogo(agencyId: string, actor: AuthUser): Promise<void> {
+  let previous: string | null=null;
+  await db.transaction(async tx => {
+    actor=await currentOperationActor(tx,actor);
+    const [row]=await tx.select({logoKey:agencies.logoKey}).from(agencies).where(eq(agencies.id,agencyId)).for("update");
+    if (!row) throw new AppError("NOT_FOUND","Agency not found.");
+    previous=row.logoKey;
+    await tx.update(agencies).set({logoKey:null,logoMime:null,logoUploadedAt:null}).where(eq(agencies.id,agencyId));
+    if (!externalLogoStorage() && previous) await tx.delete(documentBlobs).where(eq(documentBlobs.key,previous));
+    await recordAudit({actor,action:"AGENCY_LOGO_REMOVED",entity:"agency",entityId:agencyId,agencyId},tx);
+  });
+  if (externalLogoStorage() && previous) await storageProvider().delete(previous).catch(() => {});
 }
 
 /** Public cache-busting URL for an agency logo (null when none). */

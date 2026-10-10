@@ -1,11 +1,14 @@
 import { businessLabel } from "@/lib/business-labels";
-import { eq } from "drizzle-orm";
+import Link from "next/link";
+import { eq, getTableColumns, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { agencies, users } from "@/db/schema";
 import { portalPageUser } from "@/lib/page-auth";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatDateTime } from "@/lib/format";
-import { createUserAction, updateUserAction } from "@/app/actions/admin";
+import { createUserAction, updateUserAction, updateOwnAgencyContactAction } from "@/app/actions/admin";
+import { AccessLinkForm } from "@/components/access-link-form";
+import { identityT } from "@/lib/identity-copy";
 import { PasswordField, SubmitButton } from "@/components/forms";
 import { Card, CardHeader, Flash, KeyValue, PageHeader, TableWrap } from "@/components/ui";
 import { hasPermission } from "@/lib/rbac";
@@ -28,10 +31,17 @@ export default async function PortalProfilePage({
   const user = await portalPageUser();
   const uiLocale = await getUiLocale();
   const ct = contentT(uiLocale);
+  const it = identityT(uiLocale);
   const flash = flashFrom(sp);
+  const canViewFinancialAdministration = hasPermission(user, "transactions.view.own");
 
   const [agencyRows, team, balance] = await Promise.all([
-    db.select().from(agencies).where(eq(agencies.id, user.agencyId)).limit(1),
+    db.select({ ...getTableColumns(agencies),
+      billingName: canViewFinancialAdministration ? agencies.billingName : sql<string | null>`null`,
+      billingEmail: canViewFinancialAdministration ? agencies.billingEmail : sql<string | null>`null`,
+      billingTaxId: canViewFinancialAdministration ? agencies.billingTaxId : sql<string | null>`null`,
+      notes: sql<string | null>`null`,
+    }).from(agencies).where(eq(agencies.id, user.agencyId)).limit(1),
     db.select().from(users).where(eq(users.agencyId, user.agencyId)),
     getBalance(user.agencyId),
   ]);
@@ -43,6 +53,7 @@ export default async function PortalProfilePage({
     <>
       <PageHeader title={ct("Profile")} subtitle={ct("Your agency account and team.")} />
       <Flash {...flash} />
+      <div className="agency-account-masthead"><h2>{agency.tradingName ?? agency.legalName}</h2><p>{ct("Partner since")} · {formatDateTime(agency.createdAt, uiLocale)}</p></div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="xl:col-span-2 space-y-4">
@@ -55,8 +66,8 @@ export default async function PortalProfilePage({
                   : ct("Only the agency administrator can change the logo.")
               }
             />
-            <div className="flex flex-wrap items-center gap-4 px-5 py-5">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-ivory-200 bg-ivory-50">
+            <div className="flex flex-wrap items-center gap-4 px-6 py-6">
+              <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-ivory-200 bg-ivory-50">
                 <BrandMark className="h-11 w-11" src={agencyLogoUrl(agency)} alt={agency.tradingName ?? agency.legalName} />
               </div>
               {user.role === "AGENCY_ADMIN" ? (
@@ -67,12 +78,14 @@ export default async function PortalProfilePage({
                     </form>
                   ) : null}
                   <form action={uploadOwnAgencyLogoAction} encType="multipart/form-data" className="flex flex-wrap items-center gap-2">
+                    <label htmlFor="agency-logo-upload" className="sr-only">{ct("Agency logo")}</label>
                     <input
+                      id="agency-logo-upload"
                       type="file"
                       name="logo"
                       accept="image/png,image/jpeg,image/webp"
                       required
-                      className="max-w-full text-xs file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-iris-600 file:px-3.5 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+                      className="min-h-11 max-w-full text-base file:me-2 file:min-h-11 file:cursor-pointer file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-base file:font-semibold file:text-white"
                     />
                     <SubmitButton className="btn-secondary btn-sm" pendingLabel={ct("Uploading…")}>
                       {agency.logoKey ? ct("Replace logo") : ct("Upload logo")}
@@ -94,11 +107,17 @@ export default async function PortalProfilePage({
                 { label: "Email", value: agency.email },
                 { label: ct("Phone"), value: agency.phone ?? "—" },
                 { label: ct("Address"), value: [agency.addressLine, agency.city, agency.country].filter(Boolean).join(", ") || "—" },
-                { label: ct("Billing"), value: [agency.billingName, agency.billingEmail, agency.billingTaxId].filter(Boolean).join(" · ") || "—" },
+                ...(canViewFinancialAdministration ? [{ label: ct("Billing"), value: [agency.billingName, agency.billingEmail, agency.billingTaxId].filter(Boolean).join(" · ") || "-" }] : []),
                 { label: ct("Wallet currency"), value: "DZD" },
-                { label: ct("Partner since"), value: formatDateTime(agency.createdAt) },
+                { label: ct("Partner since"), value: formatDateTime(agency.createdAt, uiLocale) },
               ]}
             />
+            {canManageUsers ? <form action={updateOwnAgencyContactAction} className="grid gap-4 border-t border-slate-100 p-6 sm:grid-cols-3">
+              <div><label htmlFor="profile-phone" className="label">{ct("Phone")}</label><input id="profile-phone" name="phone" defaultValue={agency.phone ?? ""} className="input" maxLength={40} /></div>
+              <div><label htmlFor="profile-city" className="label">{ct("City")}</label><input id="profile-city" name="city" defaultValue={agency.city ?? ""} className="input" maxLength={80} /></div>
+              <div><label htmlFor="profile-address" className="label">{ct("Address")}</label><input id="profile-address" name="addressLine" defaultValue={agency.addressLine ?? ""} className="input" maxLength={300} /></div>
+              <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">{it("Update contact details")}</SubmitButton>
+            </form> : null}
           </Card>
 
           <Card>
@@ -117,17 +136,19 @@ export default async function PortalProfilePage({
                 {team.map((u) => (
                   <tr key={u.id} className="tr-hover">
                     <td className="td">
-                      <span className="block font-medium text-navy-900">{u.name}</span>
-                      <span className="block text-xs text-slate-400">{u.email}</span>
+                      <span className="block font-semibold text-navy-900">{u.name}</span>
+                      <span className="block text-xs text-slate-400" dir="ltr">{u.username}</span>
                     </td>
                     <td className="td"><span className="badge bg-navy-900/5 text-navy-800">{businessLabel(u.role, uiLocale)}</span></td>
                     <td className="td">
-                      <span className={`badge ${u.status === "ACTIVE" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}`}>{u.status}</span>
+                      <span className={`badge ${u.status === "ACTIVE" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}`}>{businessLabel(u.status, uiLocale)}</span>
+                      {u.activationPending ? <p className="mt-1 text-xs text-slate-500">{it("Pending activation")}</p> : u.mustChangePassword ? <p className="mt-1 text-xs text-slate-500">{it("Pending first password change")}</p> : null}
                     </td>
                     <td className="td whitespace-nowrap text-xs text-slate-500">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : ct("never")}</td>
                     {canManageUsers ? (
                       <td className="td text-right">
-                        {u.id !== user.id ? (
+                        {u.id !== user.id && u.role === "AGENCY_USER" ? (
+                          <div className="flex flex-col items-end gap-2">
                           <form action={updateUserAction} className="inline">
                             <input type="hidden" name="id" value={u.id} />
                             <input type="hidden" name="back" value="/portal/profile" />
@@ -138,6 +159,9 @@ export default async function PortalProfilePage({
                               {u.status === "ACTIVE" ? ct("Suspend") : ct("Activate")}
                             </SubmitButton>
                           </form>
+                          {u.status === "ACTIVE" ? <AccessLinkForm userId={u.id} locale={uiLocale} /> : null}
+                          <form action={updateUserAction}><input type="hidden" name="id" value={u.id} /><input type="hidden" name="back" value="/portal/profile" /><input type="hidden" name="forceSignOut" value="1" /><SubmitButton className="btn-secondary btn-sm" pendingLabel="…">{it("Force sign-out")}</SubmitButton></form>
+                          </div>
                         ) : (
                           <span className="text-xs text-slate-400">{ct("you")}</span>
                         )}
@@ -152,16 +176,18 @@ export default async function PortalProfilePage({
           {canManageUsers ? (
             <Card>
               <CardHeader title={ct("Add team member")} subtitle={ct("New members are always created as Agency User with the temporary password you set.")} />
-              <form action={createUserAction} className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+              <form action={createUserAction} className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
                 <input type="hidden" name="back" value="/portal/profile" />
                 <div>
                   <label className="label" htmlFor="p-name">{ct("Full name")} *</label>
                   <input id="p-name" name="name" required className="input" />
                 </div>
                 <div>
-                  <label className="label" htmlFor="p-email">{ct("Email")} *</label>
-                  <input id="p-email" name="email" type="email" required className="input" />
+                  <label className="label" htmlFor="p-username">{it("Username")} *</label>
+                  <input id="p-username" name="username" type="text" required minLength={3} maxLength={48} autoComplete="off" className="input" dir="ltr" />
+                  <p className="mt-1 text-xs text-slate-500">{it("3–48 letters, digits, dots, hyphens or underscores. No personal email needed.")}</p>
                 </div>
+                <div><label className="label" htmlFor="p-role">{ct("Role")}</label><input id="p-role" className="input" value={businessLabel("AGENCY_USER", uiLocale)} readOnly /><p className="mt-1 text-xs text-slate-500">{ct("Role is assigned by ESSAFARIA.")}</p></div>
                 <input type="hidden" name="role" value="AGENCY_USER" />
                 <PasswordField
                   id="p-password"
@@ -191,11 +217,12 @@ export default async function PortalProfilePage({
           </Card>
           <Card>
             <CardHeader title={ct("Your account")} />
-            <div className="px-4 py-4 text-sm text-slate-700">
+            <div className="px-4 py-4 text-base text-slate-700">
               <p>{user.name}</p>
-              <p className="text-xs text-slate-400">{user.email}</p>
+              <p className="text-xs text-slate-400" dir="ltr">{user.username}</p>
+              <Link href="/change-password" className="mt-4 inline-flex min-h-11 items-center text-base font-semibold text-iris-700 underline">{it("Change password")}</Link>
               <p className="mt-2 text-xs">
-                {ct("Role")}: <span className="badge bg-gold-100 text-gold-600">{businessLabel(user.role, uiLocale)}</span>
+                {ct("Role")}: <span className="badge bg-gold-100 text-navy-900">{businessLabel(user.role, uiLocale)}</span>
               </p>
             </div>
           </Card>

@@ -7,6 +7,7 @@ import { flashFrom } from "@/lib/action-helpers";
 import { addTransitionAction, createStatusAction, deleteStatusAction, updateStatusAction } from "@/app/actions/config";
 import { SubmitButton } from "@/components/forms";
 import { ActiveBadge, Card, CardHeader, EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
+import { CORE_WORKFLOW_CODES } from "@/lib/configuration-policy";
 import { StatusBadge } from "@/components/badges";
 
 export const dynamic = "force-dynamic";
@@ -72,7 +73,7 @@ export default async function StatusesConfigPage({
                   <td className="td"><ActiveBadge active={s.active} locale={locale} /></td>
                   {canManage ? (
                     <td className="td">
-                      <div className="flex flex-wrap items-center gap-2">
+                      {(CORE_WORKFLOW_CODES as readonly string[]).includes(s.code) ? <span className="text-xs text-slate-500">{ct("Protected workflow")}</span> : <div className="flex flex-wrap items-center gap-2">
                         <form action={updateStatusAction}>
                           <input type="hidden" name="id" value={s.id} />
                           <input type="hidden" name="toggle" value="1" />
@@ -82,7 +83,7 @@ export default async function StatusesConfigPage({
                         </form>
                         <details className="relative">
                           <summary className="btn-danger btn-xs cursor-pointer list-none">{ct("Delete")}</summary>
-                          <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-red-100 bg-white p-3 shadow-lg">
+                          <div className="absolute end-0 z-20 mt-2 w-64 rounded-lg border border-red-100 bg-white p-4 shadow-lg">
                             <p className="text-xs text-navy-800">
                               {ct("Delete status")} <strong>{localizedStatusName(s.code, s.name, locale, s.nameFr, s.nameAr)}</strong> (<code>{s.code}</code>)? {ct("Referenced statuses are deactivated instead of deleted.")}
                             </p>
@@ -94,7 +95,7 @@ export default async function StatusesConfigPage({
                             </form>
                           </div>
                         </details>
-                      </div>
+                      </div>}
                     </td>
                   ) : null}
                 </tr>
@@ -105,23 +106,23 @@ export default async function StatusesConfigPage({
 
         <Card>
           <CardHeader title={ct("Transition matrix")} subtitle={ct("Which status changes are permitted, and by whom.")} />
-          <div className="space-y-3 px-4 py-4">
+          <div className="space-y-4 px-4 py-4">
             {[...byFrom.entries()].map(([from, list]) => (
               <div key={from}>
-                <p className="mb-1.5 text-xs font-semibold text-navy-900">
+                <p className="mb-2 text-xs font-semibold text-navy-900">
                   <StatusBadge code={from} /> →
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {list.map((t) => (
                     <span key={`${t.fromCode}-${t.toCode}`} className="badge bg-ivory-100 text-slate-600">
                       {t.toName}
-                      <span className="text-[9px] uppercase tracking-wide text-gold-600">{SCOPE_LABEL[t.scope]}</span>
+                      <span className="text-xs uppercase tracking-wide text-gold-600">{ct(SCOPE_LABEL[t.scope] ?? t.scope)}</span>
                     </span>
                   ))}
                 </div>
               </div>
             ))}
-            {transitions.length === 0 ? <p className="text-sm text-slate-500">{ct("No transitions configured.")}</p> : null}
+            {transitions.length === 0 ? <p className="text-base text-slate-500">{ct("No transitions configured.")}</p> : null}
           </div>
         </Card>
       </div>
@@ -145,16 +146,11 @@ export default async function StatusesConfigPage({
                 {rows.map((s) => (
                   <tr key={s.id} className="tr-hover align-middle">
                     <td className="td text-xs text-slate-500">{s.code}</td>
-                    <form action={updateStatusAction}>
-                      <input type="hidden" name="id" value={s.id} />
-                      <td className="td py-2"><input name="name" defaultValue={s.name} required className="input input-sm w-44" /></td>
-                      <td className="td py-2"><input name="nameFr" defaultValue={s.nameFr ?? ""} className="input input-sm w-44" /></td>
-                      <td className="td py-2" dir="rtl"><input name="nameAr" defaultValue={s.nameAr ?? ""} className="input input-sm w-44" /></td>
-                      <td className="td py-2"><input name="sortOrder" type="number" defaultValue={s.sortOrder} className="input input-sm w-20" /></td>
-                      <td className="td py-2">
-                        <SubmitButton className="btn-primary btn-xs" pendingLabel="…">{ct("Save")}</SubmitButton>
-                      </td>
-                    </form>
+                    <td className="td py-2"><input form={`status-${s.id}`} aria-label={`${ct("EN label")} ${s.code}`} name="name" defaultValue={s.name} required className="input input-sm w-44" /></td>
+                      <td className="td py-2"><input form={`status-${s.id}`} aria-label={`${ct("FR label")} ${s.code}`} name="nameFr" defaultValue={s.nameFr ?? ""} className="input input-sm w-44" /></td>
+                      <td className="td py-2" dir="rtl"><input form={`status-${s.id}`} aria-label={`${ct("AR label")} ${s.code}`} name="nameAr" defaultValue={s.nameAr ?? ""} className="input input-sm w-44" /></td>
+                      <td className="td py-2"><input form={`status-${s.id}`} aria-label={`${ct("Order")} ${s.code}`} name="sortOrder" type="number" defaultValue={s.sortOrder} className="input input-sm w-20" /></td>
+                      <td className="td py-2"><form id={`status-${s.id}`} action={updateStatusAction}><input type="hidden" name="id" value={s.id} /><SubmitButton className="btn-primary btn-xs" pendingLabel="…">{ct("Save")}</SubmitButton></form></td>
                   </tr>
                 ))}
               </tbody>
@@ -167,24 +163,24 @@ export default async function StatusesConfigPage({
         <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Card>
             <CardHeader title={ct("Add status")} />
-            <form action={createStatusAction} className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2">
+            <form action={createStatusAction} className="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-2">
               <div>
                 <label className="label" htmlFor="s-name">{ct("Name *")}</label>
-                <input id="s-name" name="name" required className="input" placeholder="Visa Issued" />
+                <input id="s-name" name="name" required className="input" placeholder="Embassy sent" />
               </div>
               <div>
                 <label className="label" htmlFor="s-code">{ct("Code *")}</label>
-                <input id="s-code" name="code" required className="input uppercase" placeholder="VISA_ISSUED" />
+                <input id="s-code" name="code" required className="input uppercase" placeholder="EMBASSY_SENT" />
               </div>
               <div>
                 <label className="label" htmlFor="s-order">{ct("Sort order")}</label>
                 <input id="s-order" name="sortOrder" type="number" defaultValue={120} className="input" />
               </div>
               <div className="flex items-end gap-4 pb-1 text-xs text-slate-600">
-                <label className="flex items-center gap-1.5">
+                <label className="flex items-center gap-2">
                   <input type="checkbox" name="isTerminal" className="h-3.5 w-3.5" /> Terminal
                 </label>
-                <label className="flex items-center gap-1.5">
+                <label className="flex items-center gap-2">
                   <input type="checkbox" name="isDraft" className="h-3.5 w-3.5" /> Draft-like
                 </label>
               </div>
@@ -208,7 +204,7 @@ export default async function StatusesConfigPage({
 
           <Card>
             <CardHeader title={ct("Add transition")} subtitle={ct("Connect two statuses and define who may perform the change.")} />
-            <form action={addTransitionAction} className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-3">
+            <form action={addTransitionAction} className="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-3">
               <div>
                 <label className="label" htmlFor="t-from">{ct("From *")}</label>
                 <select id="t-from" name="fromStatusId" required className="input">

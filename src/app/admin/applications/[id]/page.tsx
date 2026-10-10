@@ -1,4 +1,5 @@
 import { configName } from "@/lib/config-localization";
+import { ReconciliationWarning } from "@/components/reconciliation-warning";
 import { businessLabel } from "@/lib/business-labels";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -77,7 +78,7 @@ export default async function AdminApplicationDetailPage({
       listDocumentsForApplication(id),
       getChecklist(id),
       getStatusHistory(id),
-      listCommunications(id, user),
+      listCommunications(id, user,sp.messagesBefore),
       findTransactionByApplication(id),
       allowedNextStatuses(app.statusId, user.role),
       hasPermission(user, "applications.assign") ? staffDirectory() : Promise.resolve([]),
@@ -106,7 +107,7 @@ export default async function AdminApplicationDetailPage({
   const documentGroups = groupDocumentsForDisplay(checklist, docs);
 
   // §18 — the embassy stage is only offered when the programme uses it.
-  const embassyApplicability = await getEmbassyApplicability(app.visaTypeId);
+  const embassyApplicability = await getEmbassyApplicability(app.visaTypeId,app.visaRuleSnapshot);
   const selectableStatuses = nextStatuses.filter(
     (s) =>
       !["APPROVED", "REJECTED"].includes(s.status.code) &&
@@ -115,7 +116,7 @@ export default async function AdminApplicationDetailPage({
         ["EMBASSY_SENT", "EMBASSY_SUBMISSION"].includes(s.status.code)
       ),
   );
-  const allowedDecisionOutcomes = decisionOutcomesForStatus(detail.statusCode);
+  const allowedDecisionOutcomes = embassyApplicability === "APPLICABLE" && detail.statusCode !== "EMBASSY_SENT" ? [] : decisionOutcomesForStatus(detail.statusCode);
   const isClosed = ["APPROVED", "REJECTED", "CANCELLED", "COMPLETED", "REFUSED"].includes(detail.statusCode);
   const canStatusChange = hasPermission(user, "applications.status.change");
   const canReview = hasPermission(user, "applications.review");
@@ -125,13 +126,13 @@ export default async function AdminApplicationDetailPage({
   const ct = contentT(uiLocale);
   const visaDisplayName = configName({ name: app.visaTypeName, nameFr: detail.visaNameFr, nameAr: detail.visaNameAr }, uiLocale);
   const applicant = applicants[0];
-  const _openRequests = docRequests.filter((r) => r.req.status === "OPEN");
+  const openRequests = docRequests.filter((r) => r.req.status === "OPEN");
 
   return (
     <>
       <PageHeader
-        title={applicant?.fullName || `${applicant?.firstName ?? ""} ${applicant?.lastName ?? ""}`.trim() || app.reference}
-        subtitle={`${app.reference} · ${countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)} · ${visaDisplayName} — ${detail.agencyName ?? ""}`}
+        title={countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)}
+        subtitle={`${applicant?.fullName || `${applicant?.firstName ?? ""} ${applicant?.lastName ?? ""}`.trim() || app.reference} · ${detail.agencyName ?? ""} · ${visaDisplayName} · ${app.reference}`}
         actions={
           <>
             <StatusBadge code={detail.statusCode} name={detail.statusName} />
@@ -140,32 +141,58 @@ export default async function AdminApplicationDetailPage({
           </>
         }
       />
+      <ReconciliationWarning applicationId={id} user={user} locale={uiLocale}/>
       <Flash {...flash} />
       <Tabs tabs={TABS.map((t) => ({ ...t, label: ct(t.label), href: `${back}?tab=${t.id}` }))} current={tab} />
+
+      <section className="dossier-next-action" aria-labelledby="staff-next-action">
+        <p id="staff-next-action" className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{ct("Next action")}</p>
+        {isClosed ? (
+          <p className="mt-2 text-base text-navy-900">{ct("File closed.")}</p>
+        ) : openRequests.length > 0 ? (
+          <>
+            <p className="mt-2 text-base font-semibold text-navy-900">{ct("Waiting for agency documents")}</p>
+            <p className="mt-1 text-base text-slate-600">{ct("Review the requested documents when the agency uploads them.")}</p>
+            <Link href={`${back}?tab=documents`} className="btn-secondary btn-sm mt-4">{ct("Open documents")}</Link>
+          </>
+        ) : canStatusChange && selectableStatuses.length > 0 ? (
+          <>
+            <p className="mt-2 text-base text-navy-900">{ct("Choose the next processing step. Use Final decision to approve or refuse the application.")}</p>
+            <Link href={`${back}?tab=overview`} className="btn-primary btn-sm mt-4">{ct("Workflow")}</Link>
+          </>
+        ) : canReview && allowedDecisionOutcomes.length > 0 ? (
+          <>
+            <p className="mt-2 text-base text-navy-900">{ct("Record the final decision with its official approval or refusal document.")}</p>
+            <Link href={`${back}?tab=overview`} className="btn-primary btn-sm mt-4">{ct("Final decision")}</Link>
+          </>
+        ) : (
+          <p className="mt-2 text-base text-navy-900">{ct("No further staff action is available at this stage.")}</p>
+        )}
+      </section>
 
       {tab === "overview" ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <div className="space-y-4 xl:col-span-2">
             <Card>
               <CardHeader title={ct("Dossier")} />
-              <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 text-sm">
+              <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 text-base">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Applicant")}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Applicant")}</p>
                   <p className="mt-1 font-semibold text-navy-900">{applicant?.fullName || `${applicant?.firstName ?? ""} ${applicant?.lastName ?? ""}`.trim() || "—"}</p>
                   <p className="text-xs text-slate-500">{ct("Nationality")}: {applicant ? nationalityLabel(applicant.nationality, uiLocale) : "—"}</p>
                 </div>
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Agency")}</p>
-                  <p className="mt-1 font-medium text-navy-900">{detail.agencyName}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Agency")}</p>
+                  <p className="mt-1 font-semibold text-navy-900">{detail.agencyName}</p>
                   <p className="text-xs text-slate-500">{app.reference} · {formatDateTime(app.submittedAt, uiLocale)}</p>
                 </div>
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Destination")}</p>
-                  <p className="mt-1 font-medium text-navy-900">{countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Destination")}</p>
+                  <p className="mt-1 font-semibold text-navy-900">{countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)}</p>
                   <p className="text-xs text-slate-500">{visaDisplayName} · {app.categoryName}</p>
                 </div>
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{ct("Fee")}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Fee")}</p>
                   <p className="mt-1 font-semibold tabular-nums">{formatAmount(app.fee, "DZD", uiLocale)}</p>
                   <p className="text-xs text-slate-500">{ct("Processing time")}: {app.processingMinDays}–{app.processingMaxDays} {ct("days")}</p>
                 </div>
@@ -182,7 +209,7 @@ export default async function AdminApplicationDetailPage({
                       : ct("Choose the next processing step. Use Final decision to approve or refuse the application.")
                   }
                 />
-                <form action={changeStatusAction} className="flex flex-wrap items-end gap-3 px-4 py-4">
+                <form action={changeStatusAction} className="flex flex-wrap items-end gap-4 px-4 py-4">
                   <input type="hidden" name="applicationId" value={id} />
                   <input type="hidden" name="back" value={back} />
                   <div>
@@ -205,13 +232,13 @@ export default async function AdminApplicationDetailPage({
 
             {canReview ? (
               <Card className="border-navy-200">
-                <CardHeader title={ct("Final decision")} subtitle={ct("Record the final decision and optionally attach the official document.")} />
+                <CardHeader title={ct("Final decision")} subtitle={ct("Record the final decision with its official approval or refusal document.")} />
                 {decisionDocs.length > 0 ? (
-                  <ul className="space-y-2 px-4 py-3 text-sm">
+                  <ul className="space-y-2 px-4 py-4 text-base">
                     {decisionDocs.map((d) => (
-                      <li key={d.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-ivory-50/60 px-3 py-2">
+                      <li key={d.id} className="flex items-center justify-between gap-4 rounded-lg border border-slate-100 bg-ivory-50/60 px-4 py-2">
                         <div>
-                          <p className="font-medium text-navy-900">{localizedDocTypeName(d.typeCode, d.typeName, uiLocale)}</p>
+                          <p className="font-semibold text-navy-900">{localizedDocTypeName(d.typeCode, d.typeName, uiLocale)}</p>
                           <p className="text-xs text-slate-500">{formatDateTime(d.createdAt, uiLocale)} · {localizedDocStatus(d.status, uiLocale, d.status)}</p>
                         </div>
                         <a href={`/api/documents/${d.id}`} className="btn-secondary btn-sm">{ct("Download")}</a>
@@ -222,7 +249,7 @@ export default async function AdminApplicationDetailPage({
                   <p className="px-4 pt-1 text-xs text-slate-500">{ct("No decision document recorded yet.")}</p>
                 )}
                 {allowedDecisionOutcomes.length > 0 ? (
-                  <form action={recordDecisionAction} encType="multipart/form-data" className="flex flex-wrap items-end gap-3 px-4 py-4">
+                  <form action={recordDecisionAction} encType="multipart/form-data" className="flex flex-wrap items-end gap-4 px-4 py-4">
                     <input type="hidden" name="applicationId" value={id} />
                     <input type="hidden" name="back" value={back} />
                     <div>
@@ -234,8 +261,8 @@ export default async function AdminApplicationDetailPage({
                       </select>
                     </div>
                     <div className="min-w-[260px] flex-1">
-                      <label className="label">{ct("Decision document (PDF/JPG/PNG, optional, 2 MB)")}</label>
-                      <input aria-label={ct("Decision document (PDF/JPG/PNG, optional, 2 MB)")} name="file" type="file" accept="application/pdf,image/jpeg,image/png" className="input" />
+                      <label className="label" htmlFor="decision-file">{ct("Official decision document (PDF/JPG/PNG, required, 2 MB)")}</label>
+                      <input id="decision-file" aria-label={ct("Official decision document (PDF/JPG/PNG, required, 2 MB)")} name="file" type="file" required accept="application/pdf,image/jpeg,image/png" className="input" />
                     </div>
                     <div className="w-full"><label className="label" htmlFor="decision-note">{ct("Message to agency (optional)")}</label><textarea id="decision-note" name="note" maxLength={4000} className="input" rows={2} /></div>
                     <ConfirmButton className="btn-primary" message={ct("Confirm this final decision? The application will be closed.")}>{ct("Record decision")}</ConfirmButton>
@@ -252,8 +279,8 @@ export default async function AdminApplicationDetailPage({
                 <form action={updateInternalNotesAction} className="px-4 py-4">
                   <input type="hidden" name="applicationId" value={id} />
                   <input type="hidden" name="back" value={back} />
-                  <textarea name="internalNotes" rows={3} defaultValue={app.internalNotes ?? ""} className="input" placeholder={ct("Case-officer notes…")} />
-                  <div className="mt-2.5"><SubmitButton className="btn-secondary btn-sm" pendingLabel={ct("Saving…")}>{ct("Save notes")}</SubmitButton></div>
+                  <textarea aria-label={ct("Internal notes")} name="internalNotes" rows={3} defaultValue={app.internalNotes ?? ""} className="input" placeholder={ct("Case-officer notes…")} />
+                  <div className="mt-2"><SubmitButton className="btn-secondary btn-sm" pendingLabel={ct("Saving…")}>{ct("Save notes")}</SubmitButton></div>
                 </form>
               </Card>
             ) : null}
@@ -282,8 +309,8 @@ export default async function AdminApplicationDetailPage({
 
             <Card>
               <CardHeader title={ct("Billing")} />
-              <div className="p-4 text-sm space-y-2">
-                <div className="flex justify-between"><span className="text-slate-500">{ct("Fee")}</span><span className="font-medium tabular-nums">{formatAmount(app.fee, "DZD", uiLocale)}</span></div>
+              <div className="p-4 text-base space-y-2">
+                <div className="flex justify-between"><span className="text-slate-500">{ct("Fee")}</span><span className="font-semibold tabular-nums">{formatAmount(app.fee, "DZD", uiLocale)}</span></div>
                 {charge ? (
                   <>
                     <div className="flex justify-between"><span className="text-slate-500">{ct("Charged")}</span><span className="tabular-nums">{formatAmount(charge.amount, "DZD", uiLocale)}</span></div>
@@ -299,7 +326,7 @@ export default async function AdminApplicationDetailPage({
             {canAdjustPrice && pricing?.submittedPrice ? (
               <Card>
                 <CardHeader title={ct("Adjust price")} subtitle={ct("Immutable adjustment + compensating wallet entry")} />
-                <form action={applyPriceAdjustmentAction} className="grid grid-cols-1 gap-3 p-4">
+                <form action={applyPriceAdjustmentAction} className="grid grid-cols-1 gap-4 p-4">
                   <input type="hidden" name="applicationId" value={id} />
                   <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
                   <div>
@@ -318,10 +345,10 @@ export default async function AdminApplicationDetailPage({
                     <label className="label">{ct("Reason")} *</label>
                     <input aria-label={ct("Reason")} name="reason" required minLength={8} className="input" />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input name="confirm" type="checkbox" required className="h-4 w-4 rounded border-slate-300" />
-                    <label className="text-xs text-slate-700">{ct("I confirm this commercial adjustment")}</label>
-                  </div>
+                  <label className="flex min-h-11 items-center gap-2 text-base text-slate-700">
+                    <input name="confirm" type="checkbox" required className="h-5 w-5 rounded border-slate-300" />
+                    <span>{ct("I confirm this commercial adjustment")}</span>
+                  </label>
                   <SubmitButton className="btn-primary btn-sm" pendingLabel="Applying…">{ct("Apply adjustment")}</SubmitButton>
                 </form>
               </Card>
@@ -340,30 +367,30 @@ export default async function AdminApplicationDetailPage({
                 const latest = itemDocs[0];
                 return (
                   <div key={item.id} className="px-4 py-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
-                        <p className="font-medium text-navy-900">{localizedDocTypeName(item.documentTypeCode, item.documentTypeName, uiLocale)} {item.required ? <span className="badge bg-rose-50 text-rose-600 text-[10px]">{ct("Required")}</span> : null}</p>
-                        {item.notes ? <p className="mt-0.5 text-xs text-slate-500">{item.notes}</p> : null}
+                        <p className="font-semibold text-navy-900">{localizedDocTypeName(item.documentTypeCode, item.documentTypeName, uiLocale)} {item.required ? <span className="badge bg-rose-50 text-rose-600 text-xs">{ct("Required")}</span> : null}</p>
+                        {item.notes ? <p className="mt-1 text-xs text-slate-500">{item.notes}</p> : null}
                       </div>
                       {latest ? <span className="badge bg-emerald-50 text-emerald-700">{ct("Uploaded")}</span> : <span className="badge bg-amber-50 text-amber-700">{ct("Missing")}</span>}
                     </div>
                     {itemDocs.length > 0 ? (
-                      <ul className="mt-3 space-y-1.5">
+                      <ul className="mt-4 space-y-2">
                         {itemDocs.map(({ doc, applicantName }) => (
-                          <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ivory-50 px-3 py-2 text-xs">
-                            <span className="flex items-center gap-2 min-w-0">
-                              <a href={`/api/documents/${doc.id}`} target="_blank" className="font-medium truncate hover:underline">{doc.originalFilename}</a>
+                          <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ivory-50 px-4 py-2 text-xs">
+                            <span className="flex min-w-0 flex-wrap items-center gap-2">
+                              <a href={`/api/documents/${doc.id}`} target="_blank" className="font-semibold truncate hover:underline">{doc.originalFilename}</a>
                               <span className="text-slate-400">v{doc.version} · {localizedDocStatus(doc.status, uiLocale, doc.status)} · {formatDateTime(doc.createdAt, uiLocale)}</span>
                               {applicantName ? <span className="text-slate-500">· {applicantName}</span> : null}
                             </span>
-                            <span className="flex items-center gap-1.5">
-                              <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-xs">{ct("Preview")}</a>
+                            <span className="flex items-center gap-2">
+                              <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-sm">{ct("Preview")}</a>
                               {canReview && latest?.doc.id === doc.id && doc.status !== "ACCEPTED" ? (
                                 <form action={reviewDocumentAction}>
                                   <input type="hidden" name="documentId" value={doc.id} />
                                   <input type="hidden" name="applicationId" value={id} />
                                   <input type="hidden" name="back" value={`${back}?tab=documents`} />
-                                  <SubmitButton name="status" value="ACCEPTED" className="btn-secondary btn-xs" pendingLabel="…">{ct("Accept")}</SubmitButton>
+                                  <SubmitButton name="status" value="ACCEPTED" className="btn-secondary btn-sm" pendingLabel="…">{ct("Accept")}</SubmitButton>
                                 </form>
                               ) : null}
                             </span>
@@ -372,14 +399,14 @@ export default async function AdminApplicationDetailPage({
                       </ul>
                     ) : null}
                     {!isClosed ? (
-                      <form action={requestReplacementAction} className="mt-3 flex flex-wrap items-end gap-2">
+                      <form action={requestReplacementAction} className="mt-4 flex flex-wrap items-end gap-2">
                         <input type="hidden" name="applicationId" value={id} />
                         <input type="hidden" name="checklistItemId" value={item.id} />
                         <input type="hidden" name="back" value={`${back}?tab=documents`} />
                         <div className="flex-1 min-w-[180px]">
-                          <input name="reason" required minLength={5} placeholder={ct("Reason to request replacement")} className="input text-xs" />
+                          <input aria-label={ct("Reason to request replacement")} name="reason" required minLength={5} placeholder={ct("Reason to request replacement")} className="input text-base" />
                         </div>
-                        <SubmitButton className="btn-secondary btn-xs" pendingLabel="…">{ct("Request replacement")}</SubmitButton>
+                        <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">{ct("Request replacement")}</SubmitButton>
                       </form>
                     ) : (
                       <p className="mt-2 text-xs text-slate-400">{ct("File closed.")}</p>
@@ -393,7 +420,7 @@ export default async function AdminApplicationDetailPage({
           {!isClosed ? (
             <Card>
               <CardHeader title={ct("Request additional document")} subtitle={ct("Creates an extra requirement and notifies agency")} />
-              <form action={requestAdditionalDocumentAction} className="flex flex-wrap items-end gap-3 p-4">
+              <form action={requestAdditionalDocumentAction} className="flex flex-wrap items-end gap-4 p-4">
                 <input type="hidden" name="applicationId" value={id} />
                 <input type="hidden" name="back" value={`${back}?tab=documents`} />
                 {availableRequestableTypes.length === 0 ? (
@@ -430,20 +457,20 @@ export default async function AdminApplicationDetailPage({
               />
               <div className="divide-y divide-slate-100">
                 {documentGroups.unassigned.map(({ doc, documentTypeName }) => (
-                  <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+                  <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-4">
                     <span className="flex min-w-0 items-center gap-2 text-xs">
-                      <a href={`/api/documents/${doc.id}`} target="_blank" className="truncate font-medium text-navy-900 hover:underline">
+                      <a href={`/api/documents/${doc.id}`} target="_blank" className="truncate font-semibold text-navy-900 hover:underline">
                         {doc.originalFilename}
                       </a>
                       <span className="text-slate-400">v{doc.version} · {documentTypeName} · {formatDateTime(doc.createdAt, uiLocale)}</span>
                     </span>
                     <span className="flex items-center gap-2">
-                      <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-xs">{ct("Preview")}</a>
+                      <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-sm">{ct("Preview")}</a>
                       <form action={reviewDocumentAction} className="flex items-center gap-1">
                         <input type="hidden" name="documentId" value={doc.id} />
                         <input type="hidden" name="applicationId" value={id} />
                         <input type="hidden" name="back" value={`${back}?tab=documents`} />
-                        <SubmitButton name="status" value="ACCEPTED" className="btn-secondary btn-xs" pendingLabel="…">{ct("Accept")}</SubmitButton>
+                        <SubmitButton name="status" value="ACCEPTED" className="btn-secondary btn-sm" pendingLabel="…">{ct("Accept")}</SubmitButton>
                       </form>
                     </span>
                   </div>
@@ -457,10 +484,10 @@ export default async function AdminApplicationDetailPage({
               <CardHeader title={ct("Document requests history")} />
               <div className="divide-y divide-slate-100 text-xs">
                 {docRequests.map((r) => (
-                  <div key={r.req.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
+                  <div key={r.req.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
                     <span>
                       <span className={`badge ${r.req.status === "OPEN" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
-                        {r.req.status === "OPEN" ? ct("Awaiting your upload") : r.req.status === "FULFILLED" ? ct("Received") : ct("Cancelled")}
+                        {r.req.status === "OPEN" ? ct("Waiting for agency documents") : r.req.status === "FULFILLED" ? ct("Received") : ct("Cancelled")}
                       </span>{" "}
                       {r.req.type === "REPLACEMENT" ? ct("Replacement requested") : ct("Additional document requested")} · {localizedDocTypeName(r.docTypeCode, r.docTypeName, uiLocale)}
                     </span>
@@ -480,13 +507,13 @@ export default async function AdminApplicationDetailPage({
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader title={ct("Billing")} />
-            <div className="p-4 text-sm space-y-2">
-              <div className="flex justify-between"><span className="text-slate-500">{ct("Fee")}</span><span className="font-medium tabular-nums">{formatAmount(app.fee, "DZD", uiLocale)}</span></div>
+            <div className="p-4 text-base space-y-2">
+              <div className="flex justify-between"><span className="text-slate-500">{ct("Fee")}</span><span className="font-semibold tabular-nums">{formatAmount(app.fee, "DZD", uiLocale)}</span></div>
               {charge ? (
                 <>
-                  <div className="flex justify-between"><span className="text-slate-500">{ct("Amount")}</span><span>{formatAmount(charge.amount, "DZD", uiLocale)}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">{ct("Balance before")}</span><span>{formatAmount(charge.balanceBefore, "DZD", uiLocale)}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">{ct("Balance after")}</span><span>{formatAmount(charge.balanceAfter, "DZD", uiLocale)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">{ct("Amount")}</span><span className="tabular-nums">{formatAmount(charge.amount, "DZD", uiLocale)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">{ct("Balance before")}</span><span className="tabular-nums">{formatAmount(charge.balanceBefore, "DZD", uiLocale)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">{ct("Balance after")}</span><span className="tabular-nums">{formatAmount(charge.balanceAfter, "DZD", uiLocale)}</span></div>
                   <div className="flex justify-between"><span className="text-slate-500">{ct("Reference")}</span><span className="font-mono text-xs">{(charge as { reference?: string | null }).reference ?? charge.id.slice(0,8)}</span></div>
                 </>
               ) : <p className="text-xs text-slate-500">{ct("No charge recorded")}</p>}

@@ -67,8 +67,8 @@ describe("DatePicker Bug 4 — direct year/month navigation (Phase 2.3)", () => 
     const src = readFileSync(path.join(__dirname, "..", "src/components/date-picker.tsx"), "utf8");
     expect(src).toContain('"years"');
     expect(src).toContain('"months"');
-    expect(src).toContain('aria-label="Choose year"');
-    expect(src).toContain('aria-label="Choose month"');
+    expect(src).toContain('aria-label={navigationLabels.year}');
+    expect(src).toContain('aria-label={navigationLabels.month}');
     expect(src).toContain("yearRangeWindow");
     expect(src).toContain("Choose month / year");
   });

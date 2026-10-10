@@ -19,6 +19,7 @@ on:
       - arena/01a0c3b8-newproject
       - arena/01a0ce58-newproject
       - release/essafaria-rc-2026-09
+      - release/go-live-final-2026-10-06
     paths:
       - .github/workflows/prod-release.yml
       - scripts/prod-release.ts
@@ -39,7 +40,9 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write # post the release report as a commit comment
+  # Production jobs can read the exact release commit but cannot mutate GitHub.
+  # Reports are written to the Actions Job Summary instead of commit comments.
+  contents: read
 
 jobs:
   audit:
@@ -51,7 +54,6 @@ jobs:
       audit_ran: ${{ steps.guard.outputs.audit_ran }}
       go: ${{ steps.sentinel.outputs.go }}
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
       SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
@@ -61,7 +63,7 @@ jobs:
       DATABASE_SCHEMA: visa_os
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
       - name: Guard — Production database secret present
         id: guard
@@ -96,30 +98,28 @@ jobs:
           echo "audit_ran=true" >> "$GITHUB_OUTPUT"
           echo "Using Production env secret: $PICKED (value masked)"
 
-      - name: pnpm 12.5.1
-        uses: pnpm/action-setup@v4
-        with:
-          version: 12.5.1
-
       - name: Detect release/PROD_GO sentinel in this commit's tree
         id: sentinel
         run: |
           if [ -f release/PROD_GO ]; then echo "go=true" >> "$GITHUB_OUTPUT"; echo "sentinel present: release/PROD_GO (authorization recorded in this commit tree)"; else echo "go=false" >> "$GITHUB_OUTPUT"; fi
 
       - name: Toolchain
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
           node-version: 22
 
-      - name: Dependencies (diagnostics tee to report on failure)
+      - name: Dependencies from immutable package-lock
         run: |
           set +e
-          (pnpm install --frozen-lockfile --prefer-offline 2>&1 || pnpm install --prefer-offline 2>&1) | tee /tmp/deps.log
-          RC=$?
+          set -o pipefail
+          npm ci --no-audit --no-fund 2>&1 | tee /tmp/deps.log
+          RC=${PIPESTATUS[0]}
+          set +o pipefail
           echo "install rc=$RC"
           if [ "$RC" != "0" ]; then
             { echo '### Production release — environment diagnostics'; echo; echo '```';
-              echo "dependency install FAILED (rc=$RC) — tail of output:"; tail -30 /tmp/deps.log; echo '```';
+              echo "npm ci FAILED (rc=$RC) — package-lock is authoritative; refusing fallback install.";
+              tail -30 /tmp/deps.log; echo '```';
             } > /tmp/prod-release-report.md
             exit "$RC"
           fi
@@ -135,7 +135,7 @@ jobs:
           esac
           set +e
           set -o pipefail
-          node_modules/tsx/dist/cli.mjs scripts/prod-release.ts "$MODE" 2>&1 | tee /tmp/audit.log
+          npx --no-install tsx scripts/prod-release.ts "$MODE" 2>&1 | tee /tmp/audit.log
           RC=$?
           echo "audit pipeline rc=$RC"
           set +o pipefail
@@ -146,28 +146,20 @@ jobs:
           fi
           exit $RC
 
-      - name: Publish report as commit comment
+      - name: Publish report to Actions summary
         if: always()
-        env:
-          WF_REPO: ${{ github.repository }}
-          WF_SHA: ${{ github.sha }}
-          WF_CONCLUSION: ${{ job.status }}
         run: |
           R=/tmp/prod-release-report.md
           [ -f "$R" ] || printf '### Production release — AUDIT report\n\n```\n(audit did not produce a report — see guard step output)\n```\n' > "$R"
-          python3 -c '
-          import subprocess, sys, os
-          repo = os.environ["WF_REPO"]; sha = os.environ["WF_SHA"]; conclusion = os.environ["WF_CONCLUSION"]
-          body = open("/tmp/prod-release-report.md", encoding="utf-8", errors="replace").read() + "\n\nconclusion: " + conclusion
-          r = subprocess.run(["gh", "api", "repos/%s/commits/%s/comments" % (repo, sha), "-f", "body=" + body], capture_output=True, text=True)
-          print(r.stdout[-300:]); print(r.stderr[-300:], file=sys.stderr)
-          '
+          cat "$R" >> "$GITHUB_STEP_SUMMARY"
+          printf '\n\nconclusion: %s\n' "${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
 
   apply:
     name: "Apply pending Phase-2 migrations to visa_os (guarded)"
     needs: audit
     if: >-
       github.event_name == 'push' &&
+      github.ref == 'refs/heads/release/go-live-final-2026-10-06' &&
       needs.audit.outputs.go == 'true' &&
       needs.audit.result == 'success'
 
@@ -175,7 +167,6 @@ jobs:
     timeout-minutes: 20
     environment: Production
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
       SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
@@ -208,12 +199,7 @@ jobs:
           echo "Using Production environment secret: $PICKED (value masked — never printed)"
 
       - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: pnpm 12.5.1
-        uses: pnpm/action-setup@v4
-        with:
-          version: 12.5.1
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
       - name: Detect release/PROD_GO sentinel in this commit's tree
         id: sentinel
@@ -221,40 +207,34 @@ jobs:
           if [ -f release/PROD_GO ]; then echo "go=true" >> "$GITHUB_OUTPUT"; echo "sentinel present: release/PROD_GO (authorization recorded in this commit tree)"; else echo "go=false" >> "$GITHUB_OUTPUT"; fi
 
       - name: Toolchain
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
           node-version: 22
 
-      - name: Dependencies (diagnostics tee to report on failure)
+      - name: Dependencies from immutable package-lock
         run: |
           set +e
-          (pnpm install --frozen-lockfile --prefer-offline 2>&1 || pnpm install --prefer-offline 2>&1) | tee /tmp/deps.log
-          RC=$?
+          set -o pipefail
+          npm ci --no-audit --no-fund 2>&1 | tee /tmp/deps.log
+          RC=${PIPESTATUS[0]}
+          set +o pipefail
           echo "install rc=$RC"
           if [ "$RC" != "0" ]; then
             { echo '### Production release — environment diagnostics'; echo; echo '```';
-              echo "dependency install FAILED (rc=$RC) — tail of output:"; tail -30 /tmp/deps.log; echo '```';
+              echo "npm ci FAILED (rc=$RC) — package-lock is authoritative; refusing fallback install.";
+              tail -30 /tmp/deps.log; echo '```';
             } > /tmp/prod-release-report.md
             exit "$RC"
           fi
           set -e
 
       - name: Preflight + restore point + migrations + integrity postflight
-        run: node_modules/tsx/dist/cli.mjs scripts/prod-release.ts apply
+        run: npx --no-install tsx scripts/prod-release.ts apply
 
-      - name: Publish report as commit comment
+      - name: Publish report to Actions summary
         if: always()
-        env:
-          WF_REPO: ${{ github.repository }}
-          WF_SHA: ${{ github.sha }}
-          WF_CONCLUSION: ${{ job.status }}
         run: |
           R=/tmp/prod-release-report.md
           [ -f "$R" ] || printf '### Production release — APPLY report\n\n```\n(apply did not produce a report — step failed before execution)\n```\n' > "$R"
-          python3 -c '
-          import subprocess, sys, os
-          repo = os.environ["WF_REPO"]; sha = os.environ["WF_SHA"]; conclusion = os.environ["WF_CONCLUSION"]
-          body = open("/tmp/prod-release-report.md", encoding="utf-8", errors="replace").read() + "\n\nconclusion: " + conclusion
-          r = subprocess.run(["gh", "api", "repos/%s/commits/%s/comments" % (repo, sha), "-f", "body=" + body], capture_output=True, text=True)
-          print(r.stdout[-300:]); print(r.stderr[-300:], file=sys.stderr)
-          '
+          cat "$R" >> "$GITHUB_STEP_SUMMARY"
+          printf '\n\nconclusion: %s\n' "${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"

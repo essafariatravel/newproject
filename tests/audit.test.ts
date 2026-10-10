@@ -67,8 +67,8 @@ describe("audit logging", () => {
     expect(credit.metadata).toBeTruthy();
   });
 
-  it("recordAudit never throws into business flow", async () => {
-    // invalid foreign keys are swallowed and logged, not raised
+  it("recordAudit rejects invalid audit attribution instead of silently losing evidence", async () => {
+    // Mandatory immutable audit persistence now fails closed.
     await expect(
       recordAudit({
         actor: null,
@@ -77,6 +77,6 @@ describe("audit logging", () => {
         entityId: "00000000-0000-0000-0000-0000000000ee",
         agencyId: "00000000-0000-0000-0000-0000000000ef",
       }),
-    ).resolves.toBeUndefined();
+    ).rejects.toThrow();
   });
 });

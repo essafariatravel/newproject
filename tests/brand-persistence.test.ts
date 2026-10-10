@@ -43,31 +43,28 @@ describe("Brand Studio renders a real persisting form", () => {
     return null;
   }
 
-  it("posts brand.primary from inside a form", () => {
-    expect(innerFormHtml(0, "brand.primary")).toContain('name="brand.primary"');
+  it("keeps palette controls out of the persisted identity form", () => {
+    expect(html).not.toMatch(/name="brand\.(primary|accent|ink)"/);
   });
 
-  it("posts brand.accent / brand.ink from inside a form", () => {
-    expect(innerFormHtml(0, "brand.accent")).toBeTruthy();
-    expect(innerFormHtml(0, "brand.ink")).toBeTruthy();
+  it("keeps shape and typography out of the persisted identity form", () => {
+    expect(html).not.toMatch(/name="brand\.(radius|fonts)"/);
   });
 
-  it("posts brand.radius, brand.fonts, brand.name and brand.tagline from inside a form", () => {
-    expect(innerFormHtml(0, "brand.radius")).toBeTruthy();
-    expect(innerFormHtml(0, "brand.fonts")).toBeTruthy();
+  it("posts brand.name and brand.tagline from inside a form", () => {
     expect(innerFormHtml(0, "brand.name")).toBeTruthy();
     expect(innerFormHtml(0, "brand.tagline")).toBeTruthy();
   });
 
   it("the Save branding button lives inside the field-bearing form", () => {
-    const f = innerFormHtml(0, "brand.primary");
+    const f = innerFormHtml(0, "brand.name");
     expect(f).toContain("Save branding");
     expect(f).toContain('type="submit"');
   });
 });
 
 describe("Branding persists through the database settings path", () => {
-  it("round-trips every Brand Studio field", async () => {
+  it("round-trips identity while containing legacy appearance settings", async () => {
     const stamp = Date.now().toString(16);
     await updateSetting("brand.primary", `#${stamp.slice(0, 6)}`.padEnd(7, "0"), null);
     await updateSetting("brand.accent", "#112233", null);
@@ -83,12 +80,13 @@ describe("Branding persists through the database settings path", () => {
     expect(rows[0]?.value).toBe(`Audit Brand ${stamp}`);
 
     const branding = await readBranding();
-    expect(branding.accent).toBe("#112233");
-    expect(branding.ink).toBe("#445566");
+    expect(branding.accent).toBe("#c99a32");
+    expect(branding.ink).toBe("#071a33");
     expect(branding.radius).toBe("balanced");
-    expect(branding.fonts).toBe("classic");
+    expect(branding.fonts).toBe("modern");
     expect(branding.name).toBe(`Audit Brand ${stamp}`);
     expect(branding.tagline).toBe(`Test tagline ${stamp}`);
-    expect(branding.primary).toMatch(/^#[0-9a-f]{6}$/);
+    expect(branding.primary).toBe("#102a45");
+    expect((await db.select().from(siteSettings).where(eq(siteSettings.key, "brand.fonts")))[0]?.value).toBe("classic");
   });
 });

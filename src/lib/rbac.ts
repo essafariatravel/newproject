@@ -13,6 +13,7 @@ export type Permission =
   | "registrations.manage"
   | "users.manage"
   | "users.view"
+  | "recovery.manage"
   | "config.manage"
   | "config.view"
   | "cms.manage"
@@ -55,6 +56,7 @@ const PERMISSIONS: Record<Role, readonly Permission[]> = {
     "registrations.manage",
     "users.manage",
     "users.view",
+    "recovery.manage",
     "config.manage",
     "config.view",
     "cms.manage",
@@ -167,11 +169,19 @@ const PERMISSIONS: Record<Role, readonly Permission[]> = {
     "documents.upload.own",
     "documents.view.all",
     "wallet.view.own",
-    "transactions.view.own",
     "communications.post.agency",
     "notifications.agency",
   ],
 };
+
+// Keep persisted legacy names and audit history. V1 has one operational Staff
+// permission set; only SUPER_ADMIN administers accounts and issues recovery.
+const OPERATIONAL_STAFF_PERMISSIONS = PERMISSIONS.SUPER_ADMIN.filter(
+  (permission) => permission !== "users.manage" && permission !== "recovery.manage",
+);
+PERMISSIONS.ADMIN = OPERATIONAL_STAFF_PERMISSIONS;
+PERMISSIONS.VISA_AGENT = OPERATIONAL_STAFF_PERMISSIONS;
+PERMISSIONS.ACCOUNTING = OPERATIONAL_STAFF_PERMISSIONS;
 
 export function hasPermission(user: AuthUser, permission: Permission): boolean {
   return PERMISSIONS[user.role]?.includes(permission) ?? false;

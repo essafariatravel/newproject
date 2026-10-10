@@ -1,0 +1,156 @@
+name: Observability Gate verification
+
+on:
+  pull_request:
+    branches:
+      - 'release/**'
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: "Optional Vercel Preview URL to verify after CI/DB gates pass"
+        required: false
+        type: string
+
+concurrency:
+  group: observability-verification-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Typecheck, lint, tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERCEL: "0"
+      VERCEL_ENV: ""
+      DATABASE_URL: ""
+      ALLOW_DEMO_SEED: "false"
+      STORAGE_PROVIDER: "db"
+      CI: "true"
+
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+
+      - name: Targeted observability and integrity tests
+        run: >
+          npm test --
+          tests/observability.test.ts
+          tests/observability-artifacts.test.ts
+          tests/observability-watchdog.test.ts
+          tests/instrumentation-observability.test.ts
+          tests/preview-verifier-target.test.ts
+          tests/preview-observability-target.test.ts
+          tests/health-probes.test.ts
+          tests/health.test.ts
+          tests/integrity-monitor.test.ts
+          tests/database-observability.test.ts
+          tests/financial-integrity.test.ts
+
+      - name: Full deterministic regression
+        run: npm test
+
+      - run: npm run build
+
+  preview-evidence:
+    name: Preview DB observability evidence
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: Preview
+    env:
+      DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+      DATABASE_SCHEMA: visa_os_preview
+      VERCEL_ENV: preview
+      VERCEL_GIT_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      OBSERVABILITY_CUTOVER_AT: "2026-10-03T00:00:00.000Z"
+      STORAGE_PROVIDER: db
+      ALLOW_DEMO_SEED: "false"
+      CI: "true"
+
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Guard Preview-only target
+        shell: bash
+        run: |
+          test "$DATABASE_SCHEMA" = "visa_os_preview"
+          test -n "$DATABASE_URL"
+          echo "Preview target guard passed."
+
+      - name: Preview observability gate evidence
+        run: npm run observability:gate:preview | tee observability-preview-gate.json
+
+      - name: Upload Preview gate evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: observability-preview-evidence-${{ github.event.pull_request.head.sha || github.sha }}
+          path: observability-preview-gate.json
+          if-no-files-found: ignore
+
+
+  preview-runtime:
+    name: Preview runtime verification
+    if: github.event_name == 'workflow_dispatch' && inputs.preview_url != ''
+    needs:
+      - verify
+      - preview-evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: Preview
+    env:
+      PREVIEW_BASE_URL: ${{ inputs.preview_url }}
+      TARGET_ENVIRONMENT: preview
+      EXPECTED_RELEASE_SHA: ${{ github.sha }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      HEALTHCHECK_TOKEN: ${{ secrets.HEALTHCHECK_TOKEN }}
+      CI: "true"
+
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Verify deployed Preview
+        run: npm run observability:verify:preview | tee preview-runtime-verification.json
+
+      - name: Upload runtime verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: observability-runtime-evidence-${{ github.sha }}
+          path: preview-runtime-verification.json
+          if-no-files-found: ignore

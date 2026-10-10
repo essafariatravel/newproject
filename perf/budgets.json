@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "global": {
+    "p95Ms": 2000,
+    "errorRateMax": 0.01,
+    "unexpectedFailureRateMax": 0.01
+  },
+  "regression": {
+    "warnPct": 15,
+    "failPct": 25
+  },
+  "operations": {
+    "notifications_poll": { "p95Ms": 400, "p99Ms": 1000 },
+    "presence": { "p95Ms": 400, "p99Ms": 1000 },
+    "session_check": { "p95Ms": 400, "p99Ms": 1000 },
+    "session_activity": { "p95Ms": 400, "p99Ms": 1000 },
+
+    "agency_dashboard": { "p95Ms": 800, "p99Ms": 1500 },
+    "agency_applications": { "p95Ms": 700, "p99Ms": 1500 },
+    "agency_search": { "p95Ms": 700, "p99Ms": 1500 },
+    "agency_active_queue": { "p95Ms": 700, "p99Ms": 1500 },
+    "agency_notifications": { "p95Ms": 800, "p99Ms": 1500 },
+    "agency_communications": { "p95Ms": 800, "p99Ms": 1500 },
+    "agency_documents": { "p95Ms": 1000, "p99Ms": 2000 },
+    "agency_wallet": { "p95Ms": 600, "p99Ms": 1500 },
+    "agency_admin_dashboard": { "p95Ms": 800, "p99Ms": 1500 },
+    "agency_admin_applications": { "p95Ms": 700, "p99Ms": 1500 },
+    "agency_admin_search": { "p95Ms": 700, "p99Ms": 1500 },
+    "agency_new_application": { "p95Ms": 1000, "p99Ms": 2000 },
+    "agency_admin_wallet": { "p95Ms": 600, "p99Ms": 1500 },
+    "agency_profile": { "p95Ms": 800, "p99Ms": 1500 },
+    "agency_admin_notifications": { "p95Ms": 800, "p99Ms": 1500 },
+    "agency_dossier_detail": { "p95Ms": 800, "p99Ms": 1500 },
+
+    "staff_dashboard": { "p95Ms": 800, "p99Ms": 1500 },
+    "staff_applications": { "p95Ms": 700, "p99Ms": 1500 },
+    "staff_search": { "p95Ms": 700, "p99Ms": 1500 },
+    "staff_unassigned": { "p95Ms": 700, "p99Ms": 1500 },
+    "staff_aging": { "p95Ms": 1000, "p99Ms": 2000 },
+    "staff_documents": { "p95Ms": 1000, "p99Ms": 2000 },
+    "staff_communications": { "p95Ms": 800, "p99Ms": 1500 },
+    "staff_notifications": { "p95Ms": 800, "p99Ms": 1500 },
+    "staff_dossier_detail": { "p95Ms": 800, "p99Ms": 1500 },
+
+    "accounting_dashboard": { "p95Ms": 800, "p99Ms": 1500 },
+    "accounting_billing": { "p95Ms": 1000, "p99Ms": 2000 },
+    "accounting_billing_deep_page": { "p95Ms": 1200, "p99Ms": 2500 },
+    "accounting_reports": { "p95Ms": 2000, "p99Ms": 4000 },
+    "accounting_reports_date_filter": { "p95Ms": 2000, "p99Ms": 4000 },
+    "accounting_audit": { "p95Ms": 1200, "p99Ms": 2500 },
+    "accounting_applications": { "p95Ms": 700, "p99Ms": 1500 },
+
+    "admin_dashboard": { "p95Ms": 800, "p99Ms": 1500 },
+    "admin_agencies": { "p95Ms": 1000, "p99Ms": 2000 },
+    "admin_users": { "p95Ms": 1000, "p99Ms": 2000 },
+    "admin_reports": { "p95Ms": 2000, "p99Ms": 4000 },
+    "admin_reports_date_filter": { "p95Ms": 2000, "p99Ms": 4000 },
+    "admin_audit": { "p95Ms": 1200, "p99Ms": 2500 },
+    "admin_visa_types": { "p95Ms": 1000, "p99Ms": 2000 },
+
+    "applications_export_csv": { "p95Ms": 4000, "p99Ms": 8000 },
+    "applications_export_xlsx": { "p95Ms": 5000, "p99Ms": 10000 },
+    "reports_export_csv": { "p95Ms": 4000, "p99Ms": 8000 },
+    "reports_export_xlsx": { "p95Ms": 5000, "p99Ms": 10000 }
+  }
+}

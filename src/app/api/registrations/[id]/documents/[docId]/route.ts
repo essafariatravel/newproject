@@ -4,7 +4,10 @@ import { hasPermission } from "@/lib/rbac";
 import { getRegistrationDocument } from "@/lib/registrations";
 import { storageProvider } from "@/lib/storage";
 import { AppError } from "@/lib/types";
-import { recordAudit } from "@/lib/audit";
+import { recordAuditStrict } from "@/lib/audit";
+import { db } from "@/lib/db";
+import { currentOperationActor } from "@/lib/operation-identity";
+import { assertStoredFileIntegrity } from "@/lib/file-integrity";
 
 export const dynamic = "force-dynamic";
 
@@ -16,33 +19,40 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string; docId: string }> },
 ) {
-  const { id, docId } = await params;
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  }
+  if (user.mustChangePassword) {
+    return NextResponse.json({ error: "You must set a new password before continuing.", code: "PASSWORD_CHANGE_REQUIRED" }, { status: 403 });
   }
   if (!hasPermission(user, "registrations.view")) {
     // Do not leak existence of the record.
     return NextResponse.json({ error: "Not found." }, { status: 404 });
   }
+  const { id, docId } = await params;
   try {
     const doc = await getRegistrationDocument(id, docId);
     if (!doc) {
       return NextResponse.json({ error: "Not found." }, { status: 404 });
     }
-    const { data, mimeType } = await storageProvider().get(doc.storageKey);
-    await recordAudit({
-      actor: user,
-      action: "REGISTRATION_DOCUMENT_DOWNLOADED",
-      entity: "agency_registration_document",
-      entityId: doc.id,
-      metadata: { registrationId: id, filename: doc.originalFilename },
+    const { data } = await storageProvider().get(doc.storageKey);
+    assertStoredFileIntegrity({ data, expectedSizeBytes: doc.sizeBytes, expectedSha256: doc.sha256 });
+    await db.transaction(async tx => {
+      const actor = await currentOperationActor(tx, user);
+      await recordAuditStrict({
+        actor,
+        action: "REGISTRATION_DOCUMENT_DOWNLOADED",
+        entity: "agency_registration_document",
+        entityId: doc.id,
+        metadata: { registrationId: id, evidenceIntegrity: "VERIFIED" },
+      }, tx);
     });
     const safeName = doc.originalFilename.replace(/["\\\r\n]/g, "_");
     return new NextResponse(new Uint8Array(data), {
       status: 200,
       headers: {
-        "Content-Type": mimeType,
+        "Content-Type": doc.mimeType,
         "Content-Length": String(data.length),
         "Content-Disposition": `attachment; filename="${safeName}"`,
         "Cache-Control": "private, no-store",
@@ -51,9 +61,11 @@ export async function GET(
     });
   } catch (err) {
     if (err instanceof AppError) {
+      if (err.code === "AUDIT_FAILED") return NextResponse.json({ error: "Service temporarily unavailable." }, { status: 503 });
+      if (err.code === "UNAUTHENTICATED") return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
       return NextResponse.json({ error: "Not found." }, { status: err.code === "NOT_FOUND" ? 404 : 400 });
     }
-    console.error("registration-document-download-failed", err);
+    console.error("registration-document-download-failed");
     return NextResponse.json({ error: "Download failed." }, { status: 500 });
   }
 }

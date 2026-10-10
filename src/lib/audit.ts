@@ -1,8 +1,10 @@
 import { db } from "@/lib/db";
+import type { PoolClient } from "pg";
+import { qualifiedTable } from "@/lib/database-schema";
 import { auditLogs } from "@/db/schema";
-import type { AuthUser } from "@/lib/types";
+import { AppError, type AuthUser } from "@/lib/types";
 
-interface AuditInput {
+export interface AuditInput {
   actor: AuthUser | null;
   action: string;
   entity: string;
@@ -12,10 +14,11 @@ interface AuditInput {
   ipAddress?: string | null;
 }
 
-/** Persist an immutable audit record. Never throws into the caller's flow. */
-export async function recordAudit(input: AuditInput): Promise<void> {
-  try {
-    await db.insert(auditLogs).values({
+export type AuditTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** Sensitive mutations supply their transaction; failed audits abort the commit. */
+export async function recordAudit(input: AuditInput, executor: Pick<typeof db, "insert"> = db): Promise<void> {
+    await executor.insert(auditLogs).values({
       actorId: input.actor?.id ?? null,
       actorEmail: input.actor?.email ?? null,
       actorRole: input.actor?.role ?? null,
@@ -23,10 +26,23 @@ export async function recordAudit(input: AuditInput): Promise<void> {
       action: input.action,
       entity: input.entity,
       entityId: input.entityId ?? null,
-      metadata: input.metadata ?? null,
+      metadata: input.actor ? { ...input.metadata, actorName: input.actor.name, actorUsername: input.actor.username } : input.metadata ?? null,
       ipAddress: input.ipAddress ?? null,
     });
-  } catch (err) {
-    console.error("audit-log-failure", { action: input.action, entity: input.entity, err });
-  }
+}
+
+/** Native PostgreSQL operations retain audit atomicity without a second pool connection. */
+export async function recordAuditPg(client: PoolClient, input: AuditInput): Promise<void> {
+  await client.query(`insert into ${qualifiedTable("audit_logs")}
+    (actor_id, actor_email, actor_role, agency_id, action, entity, entity_id, metadata, ip_address)
+    values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)`, [input.actor?.id ?? null, input.actor?.email ?? null,
+    input.actor?.role ?? null, input.agencyId ?? input.actor?.agencyId ?? null, input.action, input.entity,
+    input.entityId ?? null, input.actor ? JSON.stringify({ ...input.metadata, actorName: input.actor.name, actorUsername: input.actor.username })
+      : input.metadata ? JSON.stringify(input.metadata) : null, input.ipAddress ?? null]);
+}
+
+/** Fail closed on private disclosure while preserving transactional actor checks. */
+export async function recordAuditStrict(input: AuditInput, executor: Pick<typeof db, "insert"> = db): Promise<void> {
+  try { await recordAudit(input, executor); }
+  catch { throw new AppError("AUDIT_FAILED", "Security audit is temporarily unavailable."); }
 }

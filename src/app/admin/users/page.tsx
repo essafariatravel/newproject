@@ -6,7 +6,9 @@ import { hasPermission } from "@/lib/rbac";
 import { listAgencies, listUsers } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatDateTime } from "@/lib/format";
-import { STAFF_ROLES, AGENCY_ROLES } from "@/lib/types";
+import { AGENCY_ROLES } from "@/lib/types";
+import { AccessLinkForm } from "@/components/access-link-form";
+import { identityT } from "@/lib/identity-copy";
 import { createUserAction, updateUserAction } from "@/app/actions/admin";
 import { FilterBar } from "@/components/app-widgets";
 import { contentT } from "@/lib/i18n-content";
@@ -45,45 +47,43 @@ export default async function AdminUsersPage({
   ]);
   const canManage = hasPermission(staff, "users.manage");
   const ct = contentT(uiLocale);
+  const it = identityT(uiLocale);
   // §privilege escalation — the role picker only ever offers roles that belong to
   // the population being edited. An agency account is never presented with a
   // staff role, even though the action would reject it anyway.
-  const roleOptions = view === "staff" ? STAFF_ROLES : AGENCY_ROLES;
+  const roleOptions = view === "staff" ? ["ADMIN", "SUPER_ADMIN"] as const : AGENCY_ROLES;
 
   return (
     <>
       <PageHeader
         title={view === "staff" ? ct("Staff users") : ct("Agency users")}
-        subtitle="Roles are enforced server-side on every action. Agency accounts are always bound to exactly one agency."
+        subtitle={ct("Account access is managed per role and agency.")}
       />
       <Flash {...flash} />
+      {staff.role === "SUPER_ADMIN" ? <Link href="/admin/recovery" className="mb-6 inline-flex min-h-11 items-center text-base font-semibold text-iris-700 underline">{it("Recovery requests")}</Link> : null}
 
-      <div className="mb-4 flex flex-wrap items-center gap-1.5" data-testid="user-views">
+      <nav className="notification-filters" data-testid="user-views" aria-label={ct("Users")}>
         <Link
           href="/admin/users?view=staff"
-          className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-            view === "staff" ? "border-iris-300 bg-iris-50 text-iris-700" : "border-slate-200 bg-white text-slate-500 hover:text-navy-900"
-          }`}
+          aria-current={view === "staff" ? "page" : undefined}
           data-testid="users-view-staff"
         >
-          ESSAFARIA staff · {staffRows.length}
+          {ct("ESSAFARIA staff")} · {staffRows.length}
         </Link>
         <Link
           href="/admin/users?view=agency"
-          className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-            view === "agency" ? "border-iris-300 bg-iris-50 text-iris-700" : "border-slate-200 bg-white text-slate-500 hover:text-navy-900"
-          }`}
+          aria-current={view === "agency" ? "page" : undefined}
           data-testid="users-view-agency"
         >
-          Agency users · {agencyRows.length}
+          {ct("Agency users")} · {agencyRows.length}
         </Link>
-      </div>
+      </nav>
 
       <FilterBar action="/admin/users" fields={[
-        { name: "q", label: "Search", type: "text", value: q, placeholder: "Name or email…" },
+        { name: "q", label: ct("Search"), type: "text", value: q, placeholder: ct("Name or email…") },
         ...(view === "agency" ? [{
           name: "agency",
-          label: "Agency",
+          label: ct("Agency"),
           type: "select" as const,
           value: agencyFilter,
           options: agencies.map((a) => ({ value: a.agency.id, label: a.agency.tradingName ?? a.agency.legalName })),
@@ -101,48 +101,34 @@ export default async function AdminUsersPage({
         <TableWrap>
           <thead className="border-b border-slate-100 bg-ivory-50/60">
             <tr>
-              <th className="th">User</th>
-              <th className="th">Role</th>
-              <th className="th">Agency</th>
-              <th className="th">Status</th>
-              <th className="th">Last login</th>
-              {canManage ? <th className="th text-right">Actions</th> : null}
+              <th className="th">{ct("User")}</th>
+              <th className="th">{ct("Role")}</th>
+              <th className="th">{ct("Agency")}</th>
+              <th className="th">{ct("Status")}</th>
+              <th className="th">{ct("Last login")}</th>
+              {canManage ? <th className="th text-end">{ct("Actions")}</th> : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.map(({ user: u, agencyName }) => (
               <tr key={u.id} className="tr-hover">
                 <td className="td">
-                  <span className="block font-medium text-navy-900">{u.name}</span>
-                  <span className="block text-xs text-slate-400">{u.email}</span>
+                  <span className="block font-semibold text-navy-900">{u.name}</span>
+                  <span className="block text-xs text-slate-400" dir="ltr">{u.username ?? u.email}</span>
                 </td>
                 <td className="td">
-                  {canManage && u.id !== staff.id ? (
-                    <form action={updateUserAction} className="flex items-center gap-1.5" id={`role-${u.id}`}>
-                      <input type="hidden" name="id" value={u.id} />
-                      <input type="hidden" name="back" value="/admin/users" />
-                      <input type="hidden" name="name" value={u.name} />
-                      <select name="role" defaultValue={u.role} className="input w-40 py-1 text-xs">
-                        {roleOptions.map((r) => (
-                          <option key={r} value={r}>
-                            {businessLabel(r, uiLocale)}
-                          </option>
-                        ))}
-                      </select>
-                      <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">Save</SubmitButton>
-                    </form>
-                  ) : (
-                    <span className="badge bg-navy-900/5 text-navy-800">{businessLabel(u.role, uiLocale)}</span>
-                  )}
+                  <span className="badge bg-navy-900/5 text-navy-800">{!u.agencyId && u.role !== "SUPER_ADMIN" ? it("Staff") : businessLabel(u.role, uiLocale)}</span>
                 </td>
                 <td className="td max-w-[160px] truncate">{agencyName ?? <span className="text-slate-400">staff</span>}</td>
                 <td className="td">
-                  <span className={`badge ${u.status === "ACTIVE" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}`}>{u.status}</span>
+                  <span className={`badge ${u.status === "ACTIVE" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}`}>{businessLabel(u.status, uiLocale)}</span>
+                  {u.activationPending ? <p className="mt-1 text-xs text-slate-500">{it("Pending activation")}</p> : u.mustChangePassword ? <p className="mt-1 text-xs text-slate-500">{it("Pending first password change")}</p> : null}
                 </td>
-                <td className="td whitespace-nowrap text-xs text-slate-500">{u.lastLoginAt ? formatDateTime(u.lastLoginAt, uiLocale) : "never"}</td>
+                <td className="td whitespace-nowrap text-xs text-slate-500">{u.lastLoginAt ? formatDateTime(u.lastLoginAt, uiLocale) : ct("never")}</td>
                 {canManage ? (
-                  <td className="td text-right">
+                  <td className="td text-end">
                     {u.id !== staff.id ? (
+                      <div className="flex flex-col items-end gap-2">
                       <form action={updateUserAction} className="inline">
                         <input type="hidden" name="id" value={u.id} />
                         <input type="hidden" name="back" value="/admin/users" />
@@ -150,14 +136,17 @@ export default async function AdminUsersPage({
                         <input type="hidden" name="role" value={u.role} />
                         <input type="hidden" name="toggleStatus" value="1" />
                         <ConfirmButton
-                          message={u.status === "ACTIVE" ? `Suspend ${u.email}?` : `Reactivate ${u.email}?`}
+                          message={`${ct(u.status === "ACTIVE" ? "Suspend this user?" : "Reactivate this user?")} ${u.name} (${u.username ?? u.email})`}
                           className="btn-secondary btn-sm"
                         >
-                          {u.status === "ACTIVE" ? "Suspend" : "Activate"}
+                          {ct(u.status === "ACTIVE" ? "Suspend" : "Activate")}
                         </ConfirmButton>
                       </form>
+                      {u.status === "ACTIVE" ? <AccessLinkForm userId={u.id} locale={uiLocale} /> : null}
+                      <form action={updateUserAction}><input type="hidden" name="id" value={u.id} /><input type="hidden" name="back" value={`/admin/users?view=${view}`} /><input type="hidden" name="forceSignOut" value="1" /><SubmitButton className="btn-secondary btn-sm" pendingLabel="…">{it("Force sign-out")}</SubmitButton></form>
+                      </div>
                     ) : (
-                      <span className="text-xs text-slate-400">you</span>
+                      <span className="text-xs text-slate-400">{ct("you")}</span>
                     )}
                   </td>
                 ) : null}
@@ -169,23 +158,23 @@ export default async function AdminUsersPage({
 
       {canManage ? (
         <div className="mt-8">
-          <h2 className="mb-3 font-serif text-xl text-navy-900">{view === "staff" ? ct("Create staff user") : ct("Create agency user")}</h2>
-          <form action={createUserAction} className="card grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-5">
+          <h2 className="mb-4 font-serif text-lg text-navy-900">{view === "staff" ? ct("Create staff user") : ct("Create agency user")}</h2>
+          <form action={createUserAction} className="card grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-5">
             <input type="hidden" name="back" value="/admin/users" />
             <div>
               <label className="label" htmlFor="n-name">{ct("Full name")} *</label>
               <input id="n-name" name="name" required className="input" />
             </div>
             <div>
-              <label className="label" htmlFor="n-email">{ct("Email")} *</label>
-              <input id="n-email" name="email" type="email" required className="input" />
+              <label className="label" htmlFor="n-identity">{view === "agency" ? it("Username") : ct("Email")} *</label>
+              <input id="n-identity" name={view === "agency" ? "username" : "email"} type={view === "agency" ? "text" : "email"} required className="input" maxLength={view === "agency" ? 48 : 254} dir="ltr" />
             </div>
             <div>
               <label className="label" htmlFor="n-role">{ct("Role")} *</label>
               <select id="n-role" name="role" required className="input" defaultValue={view === "staff" ? "VISA_AGENT" : "AGENCY_USER"}>
                 {roleOptions.map((r) => (
                   <option key={r} value={r}>
-                    {businessLabel(r, uiLocale)}
+                    {view === "staff" && r === "ADMIN" ? it("Staff") : businessLabel(r, uiLocale)}
                   </option>
                 ))}
               </select>
@@ -213,7 +202,7 @@ export default async function AdminUsersPage({
               hideLabel={ct("Hide")}
             />
             <div className="lg:col-span-5">
-              <SubmitButton className="btn-primary" pendingLabel="Creating…">Create user</SubmitButton>
+              <SubmitButton className="btn-primary" pendingLabel={ct("Creating…")}>{ct("Create user")}</SubmitButton>
             </div>
           </form>
         </div>

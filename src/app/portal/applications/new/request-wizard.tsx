@@ -17,6 +17,8 @@
 
 import { useMemo, useRef, useState, useEffect } from "react";
 import { contentT } from "@/lib/i18n-content";
+import { formatDZD } from "@/lib/format";
+import { readRequestResponse, requestFailureFeedback } from "@/lib/request-feedback";
 
 export interface WizardVisaOption {
   id: string;
@@ -150,16 +152,22 @@ export function RequestWizard(props: Props) {
   });
   const [visaTypeId, setVisaTypeId] = useState("");
   const [countrySearch, setCountrySearch] = useState("");
-  const [searchFocused, setSearchFocused] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(true);
+  const [activeDestination,setActiveDestination]=useState(-1);
+  const destinationChangeRef=useRef<HTMLButtonElement>(null);
+  const keyboardSelectionRef=useRef(false);
   const [natSearch, setNatSearch] = useState("");
   const [fileError, setFileError] = useState("");
   const [files, setFiles] = useState<Record<string, File[]>>({});
   const [pending, setPending] = useState(false);
   const [clientError, setClientError] = useState("");
+  const [catalogueRecovery, setCatalogueRecovery] = useState(false);
+  const [sessionRecovery, setSessionRecovery] = useState(false);
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const formRef = useRef<HTMLFormElement>(null);
 
   const country = useMemo(() => props.countries.find((c) => c.id === countryId) ?? null, [props.countries, countryId]);
+  useEffect(()=>{if(countryId&&keyboardSelectionRef.current){keyboardSelectionRef.current=false;destinationChangeRef.current?.focus();}},[countryId]);
   const visa = useMemo(() => country?.visaTypes.find((v) => v.id === visaTypeId) ?? null, [country, visaTypeId]);
   const requirements = useMemo(() => (visaTypeId ? (props.requirementsByVisaType[visaTypeId] ?? []) : []), [props.requirementsByVisaType, visaTypeId]);
 
@@ -286,8 +294,7 @@ export function RequestWizard(props: Props) {
           body.set("attempt", idempotencyKey); body.set("visaTypeId", visaTypeId);
           body.set("documentTypeId", requirement.documentTypeId); body.set("slot", String(slot)); body.set("file", selected[slot]!);
           const response = await fetch("/api/agency/requests", { method: "POST", body });
-          const data = await response.json();
-          if (!response.ok) throw new Error(data.error);
+          const data = await readRequestResponse<{token:string}>(response,props.locale);
           tokens.push(data.token);
         }
       }
@@ -295,23 +302,25 @@ export function RequestWizard(props: Props) {
       const response = await fetch("/api/agency/requests", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ attempt: idempotencyKey, countryId, visaTypeId, tokens,
           fullName: String(fields.get("t0_fullName") ?? ""), nationality: String(fields.get("t0_nationality") ?? ""), notes: String(fields.get("agencyNotes") ?? "") }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
+      const data = await readRequestResponse<{applicationId:string}>(response,props.locale);
       window.location.assign(`/portal/applications/${data.applicationId}?submitted=1`);
     } catch (error) {
-      setClientError(error instanceof Error && error.message ? error.message : contentT(props.locale)("request.error.INTERNAL"));
+      const feedback=requestFailureFeedback(error,props.locale);
+      setClientError(feedback.message);
+      setCatalogueRecovery(feedback.catalogue);
+      setSessionRecovery(feedback.session);
       setPending(false);
     }
   }
 
   return (
-    <form ref={formRef} className="space-y-5" onSubmit={(event) => { event.preventDefault(); void submit(event.currentTarget); }}>
+    <form ref={formRef} className="space-y-6" onSubmit={(event) => { event.preventDefault(); void submit(event.currentTarget); }}>
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       {countryId ? <input type="hidden" name="countryId" value={countryId} /> : null}
       <input type="hidden" name="locale" value={props.locale} />
 
       {/* Step rail */}
-      <ol className="grid grid-cols-3 gap-2 text-sm" data-testid="wizard-steps">
+      <ol className="grid grid-cols-3 gap-2 text-base" data-testid="wizard-steps">
         {[
           { n: 1, label: t.stepChoose },
           { n: 2, label: t.stepUpload },
@@ -331,23 +340,23 @@ export function RequestWizard(props: Props) {
       </ol>
 
       {props.serverError ? (
-        <p className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{props.serverError}</p>
+        <p className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700">{props.serverError}</p>
       ) : null}
       {clientError ? (
-        <p className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{clientError}</p>
+        <div role="alert" className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700"><p>{clientError}</p>{catalogueRecovery ? <button type="button" className="btn-secondary mt-4" onClick={() => window.location.reload()}>{contentT(props.locale)("Refresh catalogue and choose again")}</button> : null}{sessionRecovery ? <a className="btn-secondary mt-4" href="/login?reason=session-expired">{contentT(props.locale)("Sign in")}</a> : null}</div>
       ) : null}
 
       {/* STEP 1 — destination search, then programmes, then applicant */}
-      <section data-wizard-section="1" hidden={step !== 1} className="wizard-panel space-y-5" data-direction={wizardDirection}>
-        <div className="card space-y-4 p-5">
+      <section data-wizard-section="1" hidden={step !== 1} className="wizard-panel space-y-6" data-direction={wizardDirection}>
+        <div className="card space-y-4 p-6">
           <div>
             <h2 className="font-serif text-lg text-navy-900">{t.destinationQuestion}</h2>
             <p className="mt-1 text-xs text-slate-500">{t.destinationHint}</p>
           </div>
 
           {country ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-iris-200 bg-iris-50/50 px-4 py-3">
-              <p className="text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-iris-200 bg-iris-50/50 px-4 py-4">
+              <p className="text-base">
                 <span className="text-slate-500">{t.destination}: </span>
                 <span className="font-semibold text-navy-900" data-testid="wizard-destination-selected">
                   {country.name}
@@ -356,6 +365,7 @@ export function RequestWizard(props: Props) {
               <button
                 type="button"
                 className="btn-secondary btn-sm"
+                ref={destinationChangeRef}
                 onClick={() => {
                   setCountryId("");
                   setVisaTypeId("");
@@ -365,7 +375,7 @@ export function RequestWizard(props: Props) {
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               <label className="label sr-only" htmlFor="destination-search">
                 {t.searchDestination}
               </label>
@@ -375,60 +385,75 @@ export function RequestWizard(props: Props) {
                 role="combobox"
                 aria-expanded={searchFocused || countrySearch.length > 0}
                 aria-controls="destination-suggestions"
+                aria-autocomplete="list"
+                aria-activedescendant={suggestions[activeDestination]?`destination-${suggestions[activeDestination]!.id}`:undefined}
                 autoComplete="off"
                 className="input text-base"
                 placeholder={t.searchDestination}
                 value={countrySearch}
                 data-testid="wizard-destination-search"
                 onFocus={() => setSearchFocused(true)}
-                onChange={(e) => setCountrySearch(e.target.value)}
+                onChange={(e) => {setCountrySearch(e.target.value);setSearchFocused(true);setActiveDestination(-1);}}
+                onKeyDown={(event)=>{
+                  if(event.key==="ArrowDown"||event.key==="ArrowUp"){
+                    event.preventDefault();setSearchFocused(true);
+                    setActiveDestination(index=>suggestions.length?event.key==="ArrowDown"?(index+1)%suggestions.length:(index<=0?suggestions.length-1:index-1):-1);
+                  }else if(event.key==="Enter"&&(searchFocused || countrySearch.length > 0)){
+                    const selected=suggestions[activeDestination>=0?activeDestination:0];
+                    if(selected){event.preventDefault();keyboardSelectionRef.current=true;setCountryId(selected.id);setCountrySearch("");setSearchFocused(false);setActiveDestination(-1);if(selected.visaTypes.length!==1)setVisaTypeId("");}
+                  }else if(event.key==="Escape"){event.preventDefault();setSearchFocused(false);setCountrySearch("");setActiveDestination(-1);}
+                }}
               />
               <p className="text-xs text-slate-400">
                 {t.destinationsAvailable.replace("{count}", String(totalDestinations))}
               </p>
 
               {suggestions.length === 0 ? (
-                <p className="rounded-lg bg-ivory-50 px-3 py-2 text-sm text-slate-500">{t.noDestinationMatch}</p>
-              ) : (
+                <p className="rounded-lg bg-ivory-50 px-4 py-2 text-base text-slate-500">{t.noDestinationMatch}</p>
+              ) : searchFocused||countrySearch.length>0 ? (
                 <div id="destination-suggestions" role="listbox" aria-label={t.searchDestination}>
                   {!countrySearch ? (
-                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
                       {t.popularDestinations}
                     </p>
                   ) : null}
                   <div className="flex flex-wrap gap-2">
-                    {suggestions.map((c) => (
+                    {suggestions.map((c,index) => (
                       /* Real links: a destination is deep-linkable and the step
                          still works without JavaScript (?destination=<id>). */
                       <a
                         key={c.id}
+                        id={`destination-${c.id}`}
                         role="option"
-                        aria-selected={countryId === c.id}
+                        aria-selected={activeDestination===index}
                         href={`?destination=${c.id}`}
                         data-testid="wizard-destination-option"
                         data-country-id={c.id}
                         onClick={(e) => {
                           e.preventDefault();
+                          keyboardSelectionRef.current = e.detail === 0;
                           setCountryId(c.id);
                           setCountrySearch("");
+                          setSearchFocused(false);
+                          setActiveDestination(-1);
                           if (c.visaTypes.length !== 1) setVisaTypeId("");
                         }}
-                        className="wizard-choice rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-navy-900 hover:bg-iris-50"
+                        className={`wizard-choice inline-flex min-h-11 items-center rounded-lg border px-4 py-2 text-base font-semibold text-navy-900 hover:bg-iris-50 ${activeDestination===index?"border-iris-400 bg-iris-50":"border-slate-200 bg-white"}`}
                       >
                         {c.name}
-                        <span className="ms-2 text-[11px] text-slate-400">{c.visaTypes.length}</span>
+                        <span className="ms-2 text-xs text-slate-400">{c.visaTypes.length}</span>
                       </a>
                     ))}
                   </div>
                 </div>
-              )}
+              ) : null}
             </div>
           )}
 
           {/* Programmes for the chosen destination only */}
           {country ? (
-            <div className="space-y-3 border-t border-slate-100 pt-4">
-              <h3 className="text-sm font-semibold text-navy-900">
+            <div className="space-y-4 border-t border-slate-100 pt-4">
+              <h3 className="text-base font-semibold text-navy-900">
                 {t.availableProgrammes}
               </h3>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -436,7 +461,7 @@ export function RequestWizard(props: Props) {
                   <label
                     key={v.id}
                     data-testid="wizard-visa-type"
-                    className={`wizard-choice cursor-pointer rounded-lg border p-3 ${visaTypeId === v.id ? "border-gold-500 bg-gold-50/60 shadow-[inset_0_0_0_1px_rgb(201_154_50/0.12)]" : "border-slate-200"}`}
+                    className={`wizard-choice cursor-pointer rounded-lg border p-4 ${visaTypeId === v.id ? "border-gold-500 bg-gold-50/60 shadow-[inset_0_0_0_1px_rgb(201_154_50/0.12)]" : "border-slate-200"}`}
                   >
                     <input
                       type="radio"
@@ -448,9 +473,9 @@ export function RequestWizard(props: Props) {
                       onChange={() => setVisaTypeId(v.id)}
                     />
                     <span className="block font-semibold text-navy-900">{v.name}</span>
-                    <span className="mt-0.5 block text-xs text-slate-500">{v.categoryName}</span>
-                    <span className="mt-1.5 block text-sm font-medium text-navy-800 tabular-nums">
-                      {v.fee} DZD <span className="text-xs text-slate-400">· {t.processing} {processingLabel(v)}</span>
+                    <span className="mt-1 block text-xs text-slate-500">{v.categoryName}</span>
+                    <span className="mt-2 block text-base font-semibold text-navy-800 tabular-nums">
+                      {formatDZD(v.fee)} <span className="text-xs text-slate-400">· {t.processing} {processingLabel(v)}</span>
                     </span>
                     {v.description ? <span className="mt-1 block text-xs text-slate-500">{v.description}</span> : null}
                   </label>
@@ -461,9 +486,9 @@ export function RequestWizard(props: Props) {
         </div>
 
         {/* Applicant — one traveler, minimal data (§12) */}
-        <div className="card space-y-4 p-5">
+        <div className="card space-y-4 p-6">
           <h3 className="font-semibold text-navy-900">{t.applicant}</h3>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor="t0_fullName">{t.fullName} *</label>
               <input
@@ -478,7 +503,7 @@ export function RequestWizard(props: Props) {
             </div>
             <div>
               <label className="label" htmlFor="t0_nationality">{t.nationality} *</label>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <input
                   type="search"
                   placeholder={t.searchNationality}
@@ -512,57 +537,58 @@ export function RequestWizard(props: Props) {
 
       {/* STEP 2 — documents */}
       <section data-wizard-section="2" hidden={step !== 2} className="wizard-panel space-y-4" data-direction={wizardDirection}>
-        <div className="card p-5">
-          <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-4">
-            <div className="flex flex-col gap-0.5">
+        <div className="card p-6">
+          <dl className="grid grid-cols-1 gap-2 text-base sm:grid-cols-4">
+            <div className="flex flex-col gap-1">
               <dt className="text-xs text-slate-400">{t.destination}</dt>
-              <dd className="font-medium text-navy-900">{country?.name ?? "—"}</dd>
+              <dd className="font-semibold text-navy-900">{country?.name ?? "—"}</dd>
             </div>
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col gap-1">
               <dt className="text-xs text-slate-400">{t.stepChoose}</dt>
-              <dd className="font-medium text-navy-900">{visa?.name ?? "—"}</dd>
+              <dd className="font-semibold text-navy-900">{visa?.name ?? "—"}</dd>
             </div>
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col gap-1">
               <dt className="text-xs text-slate-400">{t.fee}</dt>
-              <dd className="font-medium tabular-nums text-navy-900">{visa ? `${visa.fee} DZD` : "—"}</dd>
+              <dd className="font-semibold tabular-nums text-navy-900">{visa ? formatDZD(visa.fee) : "—"}</dd>
             </div>
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col gap-1">
               <dt className="text-xs text-slate-400">{t.processing}</dt>
-              <dd className="font-medium text-navy-900">{visa ? processingLabel(visa) : "—"}</dd>
+              <dd className="font-semibold text-navy-900">{visa ? processingLabel(visa) : "—"}</dd>
             </div>
           </dl>
         </div>
 
-        <div className="card space-y-4 p-5">
+        <div className="card space-y-4 p-6">
           <h2 className="font-serif text-lg text-navy-900">{t.documents}</h2>
           {fileError ? (
-            <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" data-testid="wizard-file-error">
+            <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700" data-testid="wizard-file-error">
               {fileError}
             </p>
           ) : null}
           {requirements.length === 0 ? (
-            <p className="text-sm text-slate-500">{t.noDocumentsRequired}</p>
+            <p className="text-base text-slate-500">{t.noDocumentsRequired}</p>
           ) : (
             <ul className="border-y border-line">
               {requirements.map((r) => {
                 const picked = files[r.documentTypeId] ?? [];
                 return (
                   <li key={r.documentTypeId} className="border-b border-line py-4 last:border-b-0">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
                         <p className="font-semibold text-navy-900">
                           {r.name}{" "}
-                          <span className={`ms-1 rounded-md px-2 py-0.5 text-[10px] font-semibold ${r.required ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-500"}`}>
+                          <span className={`ms-1 rounded-md px-2 py-1 text-xs font-semibold ${r.required ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-500"}`}>
                             {r.required ? t.required : t.optional}
                           </span>
                         </p>
-                        {r.notes ? <p className="mt-0.5 text-xs text-slate-500">{r.notes}</p> : null}
-                        <p className="mt-1 text-[11px] text-slate-400">{t.uploadHint}</p>
+                        {r.notes ? <p className="mt-1 text-xs text-slate-500">{r.notes}</p> : null}
+                        <p className="mt-1 text-xs text-slate-400">{t.uploadHint}</p>
                       </div>
                       <label className="btn-secondary btn-sm cursor-pointer">
                         {t.chooseFile}
                         <input
                           type="file"
+                          aria-label={`${t.chooseFile}: ${r.name}`}
                           name={`file_${r.documentTypeId}`}
                           multiple
                           accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
@@ -577,13 +603,14 @@ export function RequestWizard(props: Props) {
                         {picked.map((f, idx) => (
                           <li key={idx} className="wizard-file-settle flex flex-wrap items-center gap-2">
                             <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                            <span className="font-medium text-navy-800">{f.name}</span>
+                            <span className="font-semibold text-navy-800">{f.name}</span>
                             <span className="text-slate-400">{(f.size / 1024).toFixed(0)} KB</span>
                             <span className="badge bg-emerald-100 text-emerald-800">{t.uploaded}</span>
                             <button
                               type="button"
+                              aria-label={`${t.remove}: ${f.name}`}
                               onClick={() => removeFile(r.documentTypeId, idx)}
-                              className="text-[11px] font-semibold text-rose-600 underline"
+                              className="inline-flex min-h-11 items-center px-2 text-xs font-semibold text-rose-700 underline"
                             >
                               {t.remove}
                             </button>
@@ -601,27 +628,27 @@ export function RequestWizard(props: Props) {
 
       {/* STEP 3 — review & submit */}
       <section data-wizard-section="3" hidden={step !== 3} className="wizard-panel space-y-4" data-direction={wizardDirection}>
-        <div className="card space-y-5 p-5">
+        <div className="card space-y-6 p-6">
           <div>
             <h2 className="font-serif text-lg text-navy-900">{t.reviewTitle}</h2>
-            <p className="mt-1 text-sm text-slate-500">{t.reviewSubtitle}</p>
+            <p className="mt-1 text-base text-slate-500">{t.reviewSubtitle}</p>
           </div>
 
           {/* VISA */}
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{t.sectionVisa}</h3>
-            <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
-              <div className="flex justify-between gap-3 rounded-md bg-ivory-50 px-3 py-2">
+            <dl className="grid grid-cols-1 gap-2 text-base sm:grid-cols-3">
+              <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
                 <dt className="text-slate-500">{t.destination}</dt>
-                <dd className="font-medium text-navy-900">{country?.name ?? "—"}</dd>
+                <dd className="font-semibold text-navy-900">{country?.name ?? "—"}</dd>
               </div>
-              <div className="flex justify-between gap-3 rounded-md bg-ivory-50 px-3 py-2">
+              <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
                 <dt className="text-slate-500">{t.programme}</dt>
-                <dd className="font-medium text-navy-900">{visa?.name ?? "—"}</dd>
+                <dd className="font-semibold text-navy-900">{visa?.name ?? "—"}</dd>
               </div>
-              <div className="flex justify-between gap-3 rounded-md bg-ivory-50 px-3 py-2">
+              <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
                 <dt className="text-slate-500">{t.processing}</dt>
-                <dd className="font-medium text-navy-900">{visa ? processingLabel(visa) : "—"}</dd>
+                <dd className="font-semibold text-navy-900">{visa ? processingLabel(visa) : "—"}</dd>
               </div>
             </dl>
           </div>
@@ -629,10 +656,10 @@ export function RequestWizard(props: Props) {
           {/* APPLICANT */}
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{t.sectionApplicant}</h3>
-            <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-              <div className="flex justify-between gap-3 rounded-md bg-ivory-50 px-3 py-2 sm:col-span-2">
+            <dl className="grid grid-cols-1 gap-2 text-base sm:grid-cols-2">
+              <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2 sm:col-span-2">
                 <dt className="text-slate-500">{t.summaryApplicant}</dt>
-                <dd className="font-medium text-navy-900" data-testid="wizard-applicant-summary">{applicantSummary()}</dd>
+                <dd className="font-semibold text-navy-900" data-testid="wizard-applicant-summary">{applicantSummary()}</dd>
               </div>
             </dl>
           </div>
@@ -640,14 +667,14 @@ export function RequestWizard(props: Props) {
           {/* DOCUMENTS */}
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{t.summaryDocuments}</h3>
-            <ul className="space-y-1 text-sm">
+            <ul className="space-y-1 text-base">
               {requirements.map((r) => {
                 const count = (files[r.documentTypeId] ?? []).length;
                 const missingHere = r.required && count === 0;
                 return (
-                  <li key={r.documentTypeId} className="flex items-center justify-between gap-3 rounded-md bg-ivory-50 px-3 py-2">
+                  <li key={r.documentTypeId} className="flex items-center justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
                     <span className="text-slate-600">{r.name}</span>
-                    <span className={missingHere ? "font-semibold text-rose-600" : "font-medium text-emerald-700"}>
+                    <span className={missingHere ? "font-semibold text-rose-600" : "font-semibold text-emerald-700"}>
                       {missingHere ? t.missingPrefix : `${count} × ${t.uploaded}`}
                     </span>
                   </li>
@@ -660,50 +687,50 @@ export function RequestWizard(props: Props) {
           {/* PAYMENT */}
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{t.sectionPayment}</h3>
-            <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
-              <div className="flex justify-between gap-3 rounded-md bg-ivory-50 px-3 py-2">
+            <dl className="grid grid-cols-1 gap-2 text-base sm:grid-cols-3">
+              <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
                 <dt className="text-slate-500">{t.fee}</dt>
-                <dd className="font-medium tabular-nums text-navy-900">{visa ? `${visa.fee} DZD` : "—"}</dd>
+                <dd className="font-semibold tabular-nums text-navy-900">{visa ? formatDZD(visa.fee) : "—"}</dd>
               </div>
-              <div className="flex justify-between gap-3 rounded-md bg-ivory-50 px-3 py-2">
+              <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
                 <dt className="text-slate-500">{t.currentBalance}</dt>
-                <dd className="font-medium tabular-nums text-navy-900">{props.walletBalance} DZD</dd>
+                <dd className="font-semibold tabular-nums text-navy-900">{formatDZD(props.walletBalance)}</dd>
               </div>
-              <div className={`flex justify-between gap-3 rounded-xl px-3 py-2 ${canAfford ? "bg-emerald-50" : "bg-gold-50"}`}>
+              <div className={`flex justify-between gap-4 rounded-lg px-4 py-2 ${canAfford ? "bg-emerald-50" : "bg-gold-50"}`}>
                 <dt className={canAfford ? "text-emerald-700" : "text-gold-800"}>{t.balanceAfter}</dt>
-                <dd className={`font-medium tabular-nums ${canAfford ? "text-emerald-800" : "text-gold-800"}`}>
-                  {canAfford && visa ? `${afterNum.toFixed(2)} DZD` : "—"}
+                <dd className={`font-semibold tabular-nums ${canAfford ? "text-emerald-800" : "text-gold-800"}`}>
+                  {canAfford && visa ? formatDZD(afterNum) : "—"}
                 </dd>
               </div>
             </dl>
           </div>
 
-          <p className="rounded-xl bg-iris-50 px-3 py-2 text-xs text-iris-800">{t.chargeNote}</p>
+          <p className="rounded-lg bg-iris-50 px-4 py-2 text-xs text-iris-800">{t.chargeNote}</p>
 
           {canAfford ? (
             <button
               type="submit"
-              disabled={pending}
+              disabled={pending || catalogueRecovery || sessionRecovery}
               className="btn-primary w-full sm:w-auto disabled:opacity-50"
               data-testid="wizard-submit"
             >
-              {pending ? t.submitting : `${t.submitApplication} — ${visa?.fee ?? ""} DZD`}
+              {pending ? t.submitting : <>{t.submitApplication} — <bdi dir="ltr">{visa ? formatDZD(visa.fee) : "—"}</bdi></>}
             </button>
           ) : (
-            <div className="space-y-3 rounded-2xl border border-gold-200 bg-gold-50 p-4">
+            <div className="space-y-4 rounded-lg border border-gold-200 bg-gold-50 p-4">
               <p className="font-semibold text-gold-900">{t.insufficientTitle}</p>
-              <dl className="grid grid-cols-1 gap-1 text-sm sm:grid-cols-3">
+              <dl className="grid grid-cols-1 gap-1 text-base sm:grid-cols-3">
                 <div className="flex justify-between gap-2">
                   <dt className="text-gold-800">{t.requiredAmount}</dt>
-                  <dd className="font-medium tabular-nums text-gold-900">{feeNumber.toFixed(2)} DZD</dd>
+                  <dd className="font-semibold tabular-nums text-gold-900">{formatDZD(feeNumber)}</dd>
                 </div>
                 <div className="flex justify-between gap-2">
                   <dt className="text-gold-800">{t.currentBalance}</dt>
-                  <dd className="font-medium tabular-nums text-gold-900">{balanceNumber.toFixed(2)} DZD</dd>
+                  <dd className="font-semibold tabular-nums text-gold-900">{formatDZD(balanceNumber)}</dd>
                 </div>
                 <div className="flex justify-between gap-2">
-                  <dt className="text-gold-800">{t.missingAmount}</dt>
-                  <dd className="font-semibold tabular-nums text-gold-900">{missing.toFixed(2)} DZD</dd>
+                  <dt className="text-navy-700">{t.missingAmount}</dt>
+                  <dd className="font-semibold tabular-nums text-navy-700">{formatDZD(missing)}</dd>
                 </div>
               </dl>
               <a href={topupHref} className="btn-primary inline-flex w-full sm:w-auto" data-testid="wizard-topup-cta">

@@ -11,7 +11,10 @@ import { readBranding, brandLogoUrl } from "@/lib/branding";
 import { chromeT, getUiLocale } from "@/lib/ui-i18n";
 import { UiLanguageSwitcher } from "@/components/ui-language-switcher";
 import { StaffSearch } from "@/components/staff-search";
+import type { Metadata } from "next";
+import { buildNoIndexMetadata } from "@/lib/seo";
 
+export const metadata: Metadata = buildNoIndexMetadata("Staff workspace");
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
@@ -70,7 +73,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       items: [
         { href: "/admin/reports", label: tr("Reports")},
         { href: "/admin/audit", label: tr("Audit Logs")},
+        ...(["SUPER_ADMIN","ADMIN"].includes(user.role) ? [{href:"/admin/reconciliation",label:{en:"Reconciliation",fr:"Régularisation",ar:"التسوية"}[locale]}] : []),
         { href: "/admin/settings", label: tr("Settings")},
+        { href: "/admin/security", label: {en:"Account security",fr:"Sécurité du compte",ar:"أمان الحساب"}[locale]},
       ],
     },
   ];

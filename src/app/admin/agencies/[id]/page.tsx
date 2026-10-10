@@ -1,16 +1,19 @@
+import { WalletAdjustmentForm } from "@/components/wallet-adjustment-form";
 import { businessLabel } from "@/lib/business-labels";
+import { identityT } from "@/lib/identity-copy";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
 import { getTransactions, getBalance } from "@/lib/wallet";
 import { db } from "@/lib/db";
-import { agencies, users } from "@/db/schema";
+import { agencies, users, agencyRegistrations, agencyRegistrationDocuments } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatAmount, formatDateTime } from "@/lib/format";
-import { adjustWalletAction, toggleAgencyStatusAction, updateAgencyAction, createUserAction } from "@/app/actions/admin";
-import { searchApplications } from "@/lib/queries";
+import { toggleAgencyStatusAction, updateAgencyAction, createUserAction } from "@/app/actions/admin";
+import { searchApplications, listAuditLogs } from "@/lib/queries";
+import { AuditTime } from "@/components/audit-time";
 import { PasswordField, SubmitButton } from "@/components/forms";
 import BrandMark from "@/components/brand-mark";
 import { agencyLogoUrl } from "@/lib/branding";
@@ -48,10 +51,13 @@ export default async function AdminAgencyDetailPage({
   const canAdjust = WALLET_MANAGE_ROLES.includes(staff.role);
   const canUsers = hasPermission(staff, "users.manage");
 
-  const [agencyUsers, txs, apps] = await Promise.all([
+  const [agencyUsers, txs, apps, activity, verificationDocuments] = await Promise.all([
     db.select().from(users).where(eq(users.agencyId, id)),
     getTransactions(id, 25),
     searchApplications(staff, { agencyId: id, page: 1 }),
+    hasPermission(staff,"audit.view") ? listAuditLogs({agencyId:id,pageSize:25}) : Promise.resolve(null),
+    hasPermission(staff,"registrations.view") ? db.select({document:agencyRegistrationDocuments,registrationId:agencyRegistrations.id}).from(agencyRegistrationDocuments)
+      .innerJoin(agencyRegistrations,eq(agencyRegistrationDocuments.registrationId,agencyRegistrations.id)).where(eq(agencyRegistrations.agencyId,id)) : Promise.resolve([]),
   ]);
   const balance = await getBalance(id);
 
@@ -68,8 +74,16 @@ export default async function AdminAgencyDetailPage({
         }
       />
       <Flash {...flash} />
+      <div className="my-4 grid gap-4 lg:grid-cols-2">
+        <Card><CardHeader title={ct("Verification documents")}/><div className="space-y-4 p-6">
+          {verificationDocuments.length?verificationDocuments.map(({document,registrationId})=><div key={document.id}><Link href={`/api/registrations/${registrationId}/documents/${document.id}`} className="block underline">{document.originalFilename}</Link><Link href={`/admin/registrations/${registrationId}`} className="inline-flex min-h-11 items-center text-base underline">{ct("View registration")}</Link></div>):<p className="text-base text-slate-500">{ct("No verification documents are linked to this agency.")}</p>}
+        </div></Card>
+        {activity?<Card><CardHeader title={ct("Agency activity")} actions={<Link href={`/admin/audit?agency=${id}`} className="btn-secondary btn-sm">{ct("View all")}</Link>}/><ul className="divide-y px-6">
+          {activity.rows.length?activity.rows.slice(0,6).map(({log,actorName,actorUsername})=><li key={log.id} className="py-4 text-xs"><p className="font-semibold">{businessLabel(log.action,uiLocale)}</p><p>{String(log.metadata?.actorName??actorName??log.actorEmail??ct("System"))} · <bdi dir="ltr">{String(log.metadata?.actorUsername??actorUsername??log.actorId??"")}</bdi></p><AuditTime iso={log.createdAt.toISOString()} locale={uiLocale}/></li>):<li className="py-6 text-base text-slate-500">{ct("No agency activity yet.")}</li>}
+        </ul></Card>:null}
+      </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label={ct("Wallet balance")} value={formatAmount(balance.balance, "DZD", uiLocale)} tone="gold" />
         <StatCard label={ct("Users")} value={agencyUsers.length} />
         <StatCard label={ct("Applications")} value={apps.total} href="/admin/applications" />
@@ -80,7 +94,7 @@ export default async function AdminAgencyDetailPage({
         <div className="space-y-4 xl:col-span-2">
           <Card>
             <CardHeader title={ct("Agency logo")} subtitle={ct("Shown across the agency portal and partner surfaces.")} />
-            <div className="flex flex-wrap items-center gap-4 px-5 py-5">
+            <div className="flex flex-wrap items-center gap-4 px-6 py-6">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-ivory-200 bg-ivory-50">
                 <BrandMark className="h-11 w-11" src={agencyLogoUrl(agency)} alt={agencyLabel} />
               </div>
@@ -89,7 +103,7 @@ export default async function AdminAgencyDetailPage({
                   {agency.logoKey ? (
                     <form action={removeAgencyLogoAction}>
                       <input type="hidden" name="agencyId" value={id} />
-                      <SubmitButton className="btn-danger btn-sm" pendingLabel="Removing…">{ct("Remove logo")}</SubmitButton>
+                      <SubmitButton className="btn-danger btn-sm" pendingLabel={ct("Removing…")}>{ct("Remove logo")}</SubmitButton>
                     </form>
                   ) : null}
                   <form action={uploadAgencyLogoAction} encType="multipart/form-data" className="flex flex-wrap items-center gap-2">
@@ -99,9 +113,9 @@ export default async function AdminAgencyDetailPage({
                       name="logo"
                       accept="image/png,image/jpeg,image/webp"
                       required
-                      className="max-w-full text-xs file:mr-2 file:cursor-pointer file:rounded-full file:border-0 file:bg-iris-600 file:px-3.5 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+                      className="min-h-11 max-w-full text-base file:me-2 file:min-h-11 file:cursor-pointer file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-base file:font-semibold file:text-white"
                     />
-                    <SubmitButton className="btn-secondary btn-sm" pendingLabel="Uploading…">
+                    <SubmitButton className="btn-secondary btn-sm" pendingLabel={ct("Uploading…")}>
                       {agency.logoKey ? ct("Replace logo") : ct("Upload logo")}
                     </SubmitButton>
                   </form>
@@ -147,7 +161,7 @@ export default async function AdminAgencyDetailPage({
                   <label className="label" htmlFor="addressLine">{ct("Address")}</label>
                   <input id="addressLine" name="addressLine" defaultValue={agency.addressLine ?? ""} className="input" />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="label" htmlFor="city">{ct("City")}</label>
                     <input id="city" name="city" defaultValue={agency.city ?? ""} className="input" />
@@ -174,7 +188,7 @@ export default async function AdminAgencyDetailPage({
                   <textarea id="notes" name="notes" rows={2} defaultValue={agency.notes ?? ""} className="input" />
                 </div>
                 <div className="sm:col-span-2">
-                  <SubmitButton className="btn-primary" pendingLabel="Saving…">{ct("Save agency")}</SubmitButton>
+                  <SubmitButton className="btn-primary" pendingLabel={ct("Saving…")}>{ct("Save agency")}</SubmitButton>
                 </div>
               </form>
             </Card>
@@ -196,7 +210,7 @@ export default async function AdminAgencyDetailPage({
           <Card>
             <CardHeader title={ct("Recent applications")} actions={<Link href={`/admin/applications?agency=${id}`} className="btn-secondary btn-sm">All →</Link>} />
             {apps.rows.length === 0 ? (
-              <p className="px-4 py-8 text-center text-sm text-slate-500">{ct("No applications yet.")}</p>
+              <p className="px-4 py-8 text-center text-base text-slate-500">{ct("No applications yet.")}</p>
             ) : (
               <TableWrap>
                 <thead className="border-b border-slate-100 bg-ivory-50/60">
@@ -212,7 +226,7 @@ export default async function AdminAgencyDetailPage({
                   {apps.rows.slice(0, 8).map((r) => (
                     <tr key={r.app.id} className="tr-hover">
                       <td className="td">
-                        <Link href={`/admin/applications/${r.app.id}`} className="font-medium text-navy-900 hover:underline">
+                        <Link href={`/admin/applications/${r.app.id}`} className="font-semibold text-navy-900 hover:underline">
                           {r.app.reference}
                         </Link>
                       </td>
@@ -231,34 +245,15 @@ export default async function AdminAgencyDetailPage({
         <div className="space-y-4">
           {canAdjust ? (
             <Card>
-              <CardHeader title={ct("Wallet adjustment")} subtitle={`${ct("Current balance")} ${formatAmount(balance.balance, "DZD", uiLocale)}. DZD only. ${ct("Every adjustment is logged.")}`} />
-              <form action={adjustWalletAction} className="space-y-3 px-4 py-4">
-                <input type="hidden" name="agencyId" value={id} />
-                <input type="hidden" name="back" value={`/admin/agencies/${id}`} />
-                <div>
-                  <label className="label" htmlFor="operation">{ct("Operation")} *</label>
-                  <select id="operation" name="operation" required className="input" defaultValue="CREDIT">
-                    <option value="CREDIT">{ct("Credit wallet")}</option>
-                    <option value="DEBIT">{ct("Debit wallet")}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label" htmlFor="amount">{ct("Amount (DZD)")} *</label>
-                  <input id="amount" name="amount" type="number" step="0.01" min="0.01" required className="input" placeholder="50000" />
-                </div>
-                <div>
-                  <label className="label" htmlFor="reason">{ct("Reason (mandatory)")} *</label>
-                  <input id="reason" name="reason" required minLength={5} className="input" placeholder={ct("Bank transfer #1234, refund…")} />
-                </div>
-                <SubmitButton className="btn-primary w-full" pendingLabel="Adjusting…">{ct("Apply adjustment")}</SubmitButton>
-              </form>
+              <CardHeader title={ct("Wallet adjustment")} subtitle={<>{ct("Current balance")} <bdi dir="ltr">{formatAmount(balance.balance, "DZD", uiLocale)}</bdi>. DZD only. {ct("Every adjustment is logged.")}</>} />
+              <WalletAdjustmentForm agencies={[{id:agency.id,name:agency.tradingName??agency.legalName,balance:balance.balance}]} back={`/admin/agencies/${id}`} locale={uiLocale}/>
             </Card>
           ) : null}
 
           {canUsers ? (
             <Card>
               <CardHeader title={ct("Add agency user")} subtitle={ct("Agency Admin chooses password directly.")} />
-              <form action={createUserAction} className="space-y-3 px-4 py-4">
+              <form action={createUserAction} className="space-y-4 px-4 py-4">
                 <input type="hidden" name="back" value={`/admin/agencies/${id}`} />
                 <input type="hidden" name="agencyId" value={id} />
                 <div>
@@ -266,13 +261,13 @@ export default async function AdminAgencyDetailPage({
                   <input id="u-name" name="name" required className="input" />
                 </div>
                 <div>
-                  <label className="label" htmlFor="u-email">{ct("Email")} *</label>
-                  <input id="u-email" name="email" type="email" required className="input" />
+                  <label className="label" htmlFor="u-username">{identityT(uiLocale)("Username")} *</label>
+                  <input id="u-username" name="username" type="text" required minLength={3} maxLength={48} className="input" dir="ltr" />
                 </div>
                 <div>
                   <label className="label" htmlFor="u-role">{ct("Role")} *</label>
                   <select id="u-role" name="role" required className="input" defaultValue="AGENCY_USER">
-                    <option value="AGENCY_ADMIN">{ct("Agency Admin")}</option>
+                    {staff.role === "SUPER_ADMIN" ? <option value="AGENCY_ADMIN">{ct("Agency Admin")}</option> : null}
                     <option value="AGENCY_USER">{ct("Agency User")}</option>
                   </select>
                 </div>
@@ -285,7 +280,7 @@ export default async function AdminAgencyDetailPage({
                   showLabel={ct("Show")}
                   hideLabel={ct("Hide")}
                 />
-                <SubmitButton className="btn-secondary w-full" pendingLabel="Creating…">{ct("Create user")}</SubmitButton>
+                <SubmitButton className="btn-secondary w-full" pendingLabel={ct("Creating…")}>{ct("Create user")}</SubmitButton>
               </form>
             </Card>
           ) : null}
@@ -294,18 +289,18 @@ export default async function AdminAgencyDetailPage({
             <CardHeader title={ct("Agency users")} />
             <ul className="divide-y divide-slate-100 px-4">
               {agencyUsers.map((u) => (
-                <li key={u.id} className="flex items-center justify-between gap-2 py-2.5">
+                <li key={u.id} className="flex items-center justify-between gap-2 py-2">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-navy-900">{u.name}</p>
-                    <p className="truncate text-xs text-slate-400">{u.email}</p>
+                    <p className="truncate text-base font-semibold text-navy-900">{u.name}</p>
+                    <p className="truncate text-xs text-slate-400" dir="ltr">{u.username}</p>
                   </div>
                   <div className="text-right">
                     <span className="badge bg-navy-900/5 text-navy-800">{businessLabel(u.role, uiLocale)}</span>
-                    <span className={`mt-1 block text-[11px] ${u.status === "ACTIVE" ? "text-emerald-600" : "text-red-500"}`}>{u.status}</span>
+                    <span className={`mt-1 block text-xs ${u.status === "ACTIVE" ? "text-emerald-600" : "text-red-500"}`}>{u.status}</span>
                   </div>
                 </li>
               ))}
-              {agencyUsers.length === 0 ? <li className="py-6 text-center text-sm text-slate-500">{ct("No users yet.")}</li> : null}
+              {agencyUsers.length === 0 ? <li className="py-6 text-center text-base text-slate-500">{ct("No users yet.")}</li> : null}
             </ul>
           </Card>
         </div>
@@ -330,17 +325,17 @@ export default async function AdminAgencyDetailPage({
               {txs.length === 0 ? (
                 <tr><td colSpan={7} className="td py-8 text-center text-slate-500">{ct("No transactions yet.")}</td></tr>
               ) : (
-                txs.map(({ tx, applicationReference }) => (
+                txs.map(({ tx, applicationReference, topupRequestId, topupReference }) => (
                   <tr key={tx.id} className="tr-hover">
-                    <td className="td whitespace-nowrap text-xs font-mono">{(tx as { reference?: string | null }).reference ?? tx.id.slice(0, 8)}</td>
+                    <td className="td whitespace-nowrap text-xs font-mono">{tx.reference ?? tx.id.slice(0, 8)}{topupRequestId?<Link href={`/api/topups/${topupRequestId}/proof`} className="mt-1 block underline">{topupReference} · {ct("View receipt")}</Link>:null}</td>
                     <td className="td whitespace-nowrap text-xs">{formatDateTime(tx.createdAt, uiLocale)}</td>
                     <td className="td">
                       <span className={`badge ${tx.type === "CREDIT" ? "bg-emerald-100 text-emerald-800" : tx.type === "DEBIT" ? "bg-red-100 text-red-700" : "bg-navy-900/5 text-navy-800"}`}>
                         {businessLabel(tx.type, uiLocale)}
                       </span>
                     </td>
-                    <td className={`td whitespace-nowrap tabular-nums font-medium ${tx.type === "DEBIT" || tx.type === "APPLICATION_CHARGE" ? "text-red-700" : "text-emerald-700"}`}>
-                      {tx.type === "CREDIT" ? "+" : "−"}{formatAmount(tx.amount, "DZD", uiLocale)}
+                    <td className={`td whitespace-nowrap tabular-nums font-semibold ${Number(tx.balanceAfter) >= Number(tx.balanceBefore) ? "text-emerald-700" : "text-red-700"}`}>
+                      {Number(tx.balanceAfter) >= Number(tx.balanceBefore) ? "+" : "-"}{formatAmount(tx.amount, "DZD", uiLocale)}
                     </td>
                     <td className="td whitespace-nowrap tabular-nums text-xs">
                       {formatAmount(tx.balanceBefore, "DZD", uiLocale)} → {formatAmount(tx.balanceAfter, "DZD", uiLocale)}

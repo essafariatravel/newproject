@@ -6,11 +6,18 @@
  * Database changes for these branches are handled explicitly outside build.
  */
 export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
+  "preprod/essafaria-final-hardening",
+  "release/final-rc-consolidation",
+  "security/pre-codex-gate-2026-10-03",
+  "design/essafaria-northstar",
   "codex/essafaria-premium-redesign",
   "codex/essafaria-product-excellence",
   "release/essafaria-rc-2026-09",
+  // Release assembly is intentionally migration-free until explicitly approved.
+  "arena/01a107e1-newproject",
+  "release/final-assembly-2026-10-04",
 ] as const;
 
 export function automaticDatabaseChangesForbidden(branch: string | null | undefined): boolean {
-  return (AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES as readonly string[]).includes(branch ?? "");
+  return (branch ?? "").startsWith("codex/world-class-final-consolidation-") || (AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES as readonly string[]).includes(branch ?? "");
 }

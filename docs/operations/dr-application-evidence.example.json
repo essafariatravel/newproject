@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "kind": "ESSAFARIA_DR_APPLICATION",
+  "backupId": "ESSAFARIA-PROD-YYYYMMDDTHHMMSSZ-RELEASE",
+  "restoreEvidenceSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "testedAt": "2026-10-03T00:00:00.000Z",
+  "targetRef": "RESTORE-APPLICATION-DRILL-0001",
+  "checks": {
+    "healthReachable": false,
+    "staffAuthenticatedSession": false,
+    "agencyAuthenticatedSession": false,
+    "staffCriticalRead": false,
+    "agencyOwnApplicationRead": false,
+    "agencyOwnDocumentRead": false,
+    "walletRead": false
+  },
+  "releaseSha": "0000000000000000000000000000000000000000"
+}

@@ -3,7 +3,10 @@ import { getSessionUser } from "@/lib/auth";
 import { getDocumentForUser } from "@/lib/documents";
 import { storageProvider } from "@/lib/storage";
 import { AppError } from "@/lib/types";
-import { recordAudit } from "@/lib/audit";
+import { recordAuditStrict } from "@/lib/audit";
+import { db } from "@/lib/db";
+import { currentOperationActor } from "@/lib/operation-identity";
+import { assertStoredFileIntegrity } from "@/lib/file-integrity";
 
 export const dynamic = "force-dynamic";
 
@@ -15,30 +18,38 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params;
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
+  if (user.mustChangePassword) {
+    return NextResponse.json({ error: "You must set a new password before continuing.", code: "PASSWORD_CHANGE_REQUIRED" }, { status: 403 });
+  }
+  const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) {
     return NextResponse.json({ error: "Not found." }, { status: 404 });
   }
   try {
     const row = await getDocumentForUser(id, user);
-    const { data, mimeType } = await storageProvider().get(row.doc.storageKey);
-    await recordAudit({
-      actor: user,
-      action: "DOCUMENT_DOWNLOADED",
-      entity: "document",
-      entityId: id,
-      agencyId: row.appAgencyId,
+    const { data } = await storageProvider().get(row.doc.storageKey);
+    assertStoredFileIntegrity({ data, expectedSizeBytes: row.doc.sizeBytes, expectedSha256: row.doc.sha256 });
+    await db.transaction(async tx => {
+      const actor = await currentOperationActor(tx, user);
+      await recordAuditStrict({
+        actor,
+        action: "DOCUMENT_DOWNLOADED",
+        entity: "document",
+        entityId: id,
+        agencyId: row.appAgencyId,
+        metadata: { evidenceIntegrity: "VERIFIED" },
+      }, tx);
     });
     // Content-Disposition attachment prevents inline script execution for HTML-like uploads
     const safeName = row.doc.originalFilename.replace(/["\\\r\n]/g, "_");
     return new NextResponse(new Uint8Array(data), {
       status: 200,
       headers: {
-        "Content-Type": mimeType,
+        "Content-Type": row.doc.mimeType,
         "Content-Length": String(data.length),
         "Content-Disposition": `attachment; filename="${safeName}"`,
         "Cache-Control": "private, no-store",
@@ -47,9 +58,11 @@ export async function GET(
     });
   } catch (err) {
     if (err instanceof AppError) {
+      if (err.code === "AUDIT_FAILED") return NextResponse.json({ error: "Service temporarily unavailable." }, { status: 503 });
+      if (err.code === "UNAUTHENTICATED") return NextResponse.json({error:"UNAUTHENTICATED"},{status:401});
       return NextResponse.json({ error: "Not found." }, { status: err.code === "NOT_FOUND" ? 404 : 400 });
     }
-    console.error("document-download-failed", err);
+    console.error("document-download-failed");
     return NextResponse.json({ error: "Download failed." }, { status: 500 });
   }
 }

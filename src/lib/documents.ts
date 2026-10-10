@@ -1,4 +1,5 @@
 import { validateDocumentFormat } from "@/lib/upload-validation";
+import { sha256Hex } from "@/lib/file-integrity";
 import { qualifiedTable } from "./database-schema";
 import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 /**
@@ -24,13 +25,14 @@ import {
 import {
   ALLOWED_MIME_TYPES,
   AppError,
-  DOCUMENT_REVIEW_ROLES,
+  isStaffRole,
   MAX_UPLOAD_BYTES,
   type AuthUser,
   type DocumentStatus,
 } from "@/lib/types";
 import { buildStorageKey, storageProvider } from "@/lib/storage";
 import { recordAudit } from "@/lib/audit";
+import { currentOperationActor } from "@/lib/operation-identity";
 import { agencyUserIds, staffUserIds, notifyUsers } from "@/lib/notifications";
 import { getStatusByCode } from "@/lib/applications";
 
@@ -48,6 +50,7 @@ export async function assertApplicationAccess(
   applicationId: string,
   user: AuthUser,
 ): Promise<ApplicationAccess> {
+  if (user.mustChangePassword || (!user.agencyId && !isStaffRole(user.role))) throw new AppError("FORBIDDEN", "You are not authorized to access this application.");
   const rows = await db
     .select({
       id: applications.id,
@@ -95,6 +98,7 @@ export async function listDocumentsForApplication(applicationId: string) {
 }
 
 export async function getDocumentForUser(documentId: string, user: AuthUser) {
+  if (user.mustChangePassword) throw new AppError("PASSWORD_CHANGE_REQUIRED", "You must set a new password before continuing.");
   const rows = await db
     .select({
       doc: documents,
@@ -123,7 +127,7 @@ export interface UploadDocumentInput {
   ipAddress?: string | null;
 }
 
-export async function uploadDocument(input: UploadDocumentInput) {
+export async function uploadDocument(input: UploadDocumentInput, resubmittedDocumentId?: string) {
   const access = await assertApplicationAccess(input.applicationId, input.actor);
 
   // Resolve checklist item first to know document type
@@ -196,8 +200,9 @@ export async function uploadDocument(input: UploadDocumentInput) {
   if (problem) throw new AppError("INVALID_FILENAME", fileNameErrorMessage(problem));
 
   validateDocumentFormat(input.file);
+  const sha256 = sha256Hex(input.file.data);
   const dtRows = await db
-    .select({ id: documentTypes.id, name: documentTypes.name, active: documentTypes.active, agencyUploadable: documentTypes.agencyUploadable })
+    .select({ id: documentTypes.id, code: documentTypes.code, name: documentTypes.name, active: documentTypes.active, agencyUploadable: documentTypes.agencyUploadable })
     .from(documentTypes)
     .where(eq(documentTypes.id, documentTypeId))
     .limit(1);
@@ -211,6 +216,7 @@ export async function uploadDocument(input: UploadDocumentInput) {
       `"${dtRows[0].name}" is issued by ESSAFARIA and is not uploaded by agencies.`,
     );
   }
+  if (dtRows[0].code.startsWith("DECISION_")) throw new AppError("DECISION_REQUIRED", "Official decision documents must be recorded through the final-decision panel.");
 
   if (input.applicantId) {
     const rows = await db
@@ -227,8 +233,10 @@ export async function uploadDocument(input: UploadDocumentInput) {
   const storageKey = buildStorageKey(input.applicationId, documentId);
   await storageProvider().put(storageKey, input.file.data, input.file.type);
   let doc: typeof documents.$inferSelect;
+  let fulfilledRequest = false;
   try {
     doc = await db.transaction(async (tx) => {
+      input = { ...input, actor: await currentOperationActor(tx,input.actor) };
       // Lock the dossier across request validation, version allocation and insert.
       // A concurrent replacement waits, then sees the request already fulfilled.
       await tx.select({ id: applications.id }).from(applications)
@@ -237,7 +245,7 @@ export async function uploadDocument(input: UploadDocumentInput) {
         .from(applications).innerJoin(statuses, eq(applications.statusId, statuses.id))
         .where(eq(applications.id, input.applicationId)))[0]!;
       let request: typeof documentRequests.$inferSelect | undefined;
-      if (input.actor.agencyId && !current.draft) {
+      if (input.actor.agencyId) {
         if (["APPROVED", "REJECTED", "CANCELLED", "COMPLETED", "REFUSED"].includes(current.code)) {
           throw new AppError("UPLOAD_NOT_ALLOWED", "Documents are locked after the final decision.");
         }
@@ -246,7 +254,7 @@ export async function uploadDocument(input: UploadDocumentInput) {
           eq(documentRequests.documentTypeId, documentTypeId),
         )).for("update");
         request = open.find((r) => !r.checklistItemId || r.checklistItemId === checklistItem?.id);
-        if (!request) throw new AppError("UPLOAD_NOT_ALLOWED", "This document request has already been fulfilled or closed.");
+        if (!current.draft && !request) throw new AppError("UPLOAD_NOT_ALLOWED", "This document request has already been fulfilled or closed.");
       }
       const versions = await tx.select({ max: sql<number | null>`max(${documents.version})` }).from(documents)
         .where(and(eq(documents.applicationId, input.applicationId), checklistItem
@@ -255,25 +263,30 @@ export async function uploadDocument(input: UploadDocumentInput) {
       const [created] = await tx.insert(documents).values({
         id: documentId, applicationId: input.applicationId, applicantId: input.applicantId ?? null,
         checklistItemId: checklistItem?.id ?? null, documentTypeId,
-        originalFilename: name, mimeType: input.file.type, sizeBytes: input.file.data.length,
+        originalFilename: name, mimeType: input.file.type, sizeBytes: input.file.data.length, sha256,
         storageKey, status: "UPLOADED", uploadedBy: input.actor.id, version,
       }).returning();
       if (request) {
         await tx.update(documentRequests).set({ status: "FULFILLED", fulfilledBy: input.actor.id,
           fulfilledDocumentId: created!.id, fulfilledAt: new Date(), updatedAt: new Date(),
         }).where(and(eq(documentRequests.id, request.id), eq(documentRequests.status, "OPEN")));
+        fulfilledRequest = true;
         const recipients = await tx.select({ id: users.id }).from(users).where(sql`${users.agencyId} is null and ${users.status} = 'ACTIVE'`);
         if (recipients.length) await tx.insert(notifications).values(recipients.map(({ id }) => ({
           userId: id, type: "DOCUMENT_REQUEST_FULFILLED", title: `Requested document received — ${access.reference}`,
           body: name, agencyId: access.agencyId, applicationId: input.applicationId,
+          documentRequestId: request!.id,
           link: `/admin/applications/${input.applicationId}?tab=documents`,
         })));
       }
       await tx.insert(auditLogs).values({ actorId: input.actor.id, actorEmail: input.actor.email,
         actorRole: input.actor.role, agencyId: access.agencyId, action: "DOCUMENT_UPLOADED", entity: "document",
-        entityId: created!.id, metadata: { filename: name, sizeBytes: input.file.data.length, version, checklistItemId: checklistItem?.id ?? null },
+        entityId: created!.id, metadata: { sizeBytes: input.file.data.length, sha256, version, checklistItemId: checklistItem?.id ?? null },
         ipAddress: input.ipAddress ?? null,
       });
+      if (resubmittedDocumentId) await recordAudit({ actor: input.actor, action: "DOCUMENT_RESUBMITTED", entity: "document",
+        entityId: created!.id, agencyId: access.agencyId, metadata: { replaces: resubmittedDocumentId, applicationId: input.applicationId },
+        ipAddress: input.ipAddress ?? null }, tx);
       return created!;
     });
   } catch (error) {
@@ -282,7 +295,7 @@ export async function uploadDocument(input: UploadDocumentInput) {
   }
 
   // Notify staff if agency uploaded outside fulfillment path (draft stage)
-  if (input.actor.agencyId && access.isDraft) {
+  if (input.actor.agencyId && access.isDraft && !fulfilledRequest) {
     const sIds = await staffUserIds();
     await notifyUsers(sIds, {
       type: "DOCUMENTS_REQUIRED",
@@ -297,23 +310,15 @@ export async function uploadDocument(input: UploadDocumentInput) {
 
 export async function uploadResubmission(input: UploadDocumentInput & { originalDocumentId: string }) {
   const original = await getDocumentForUser(input.originalDocumentId, input.actor);
+  if (original.doc.applicationId !== input.applicationId) throw new AppError("NOT_FOUND", "Document not found for this application.");
   if (!["REJECTED", "RESUBMISSION_REQUIRED"].includes(original.doc.status)) {
     throw new AppError("INVALID_STATE", "This document was not rejected; upload to the checklist instead.");
   }
   const doc = await uploadDocument({
     ...input,
     checklistItemId: original.doc.checklistItemId,
-    documentTypeId: null,
-  });
-  await recordAudit({
-    actor: input.actor,
-    action: "DOCUMENT_RESUBMITTED",
-    entity: "document",
-    entityId: doc.id,
-    agencyId: original.appAgencyId,
-    metadata: { replaces: original.doc.id, filename: doc.originalFilename },
-    ipAddress: input.ipAddress ?? null,
-  });
+    documentTypeId: original.doc.documentTypeId,
+  }, original.doc.id);
   return doc;
 }
 
@@ -327,21 +332,26 @@ export interface ReviewInput {
 }
 
 export async function reviewDocument(input: ReviewInput) {
-  if (!DOCUMENT_REVIEW_ROLES.includes(input.actor.role)) {
+  if (!isStaffRole(input.actor.role) || input.actor.agencyId || input.actor.mustChangePassword) {
     throw new AppError("FORBIDDEN", "Only ESSAFARIA staff can review documents.");
   }
   const rows = await db
     .select({
       doc: documents,
+      documentTypeCode: documentTypes.code,
       appAgencyId: applications.agencyId,
       appReference: applications.reference,
     })
     .from(documents)
     .innerJoin(applications, eq(documents.applicationId, applications.id))
+    .leftJoin(documentTypes, eq(documents.documentTypeId, documentTypes.id))
     .where(eq(documents.id, input.documentId))
     .limit(1);
   const row = rows[0];
   if (!row) throw new AppError("NOT_FOUND", "Document not found.");
+  if (row.documentTypeCode?.startsWith("DECISION_")) {
+    throw new AppError("DECISION_DOCUMENT_LOCKED", "Official decision documents cannot be changed through document review.");
+  }
 
   const requiresReason = input.status === "REJECTED" || input.status === "RESUBMISSION_REQUIRED";
   const reason = input.rejectionReason?.trim() ?? "";
@@ -352,7 +362,9 @@ export async function reviewDocument(input: ReviewInput) {
     );
   }
 
-  await db
+  await db.transaction(async (tx) => {
+  input = { ...input, actor: await currentOperationActor(tx,input.actor) };
+  await tx
     .update(documents)
     .set({
       status: input.status,
@@ -371,11 +383,11 @@ export async function reviewDocument(input: ReviewInput) {
     entityId: input.documentId,
     agencyId: row.appAgencyId,
     metadata: {
-      filename: row.doc.originalFilename,
       reason: requiresReason ? reason : null,
       notes: input.reviewNotes ?? null,
     },
     ipAddress: input.ipAddress ?? null,
+  }, tx);
   });
 
   const aIds = await agencyUserIds(row.appAgencyId);
@@ -416,17 +428,21 @@ export async function deleteDocument(documentId: string, actor: AuthUser, ipAddr
   if (appRows[0]?.statusId !== draft.id) {
     throw new AppError("DELETE_NOT_ALLOWED", "Documents can only be removed while the application is a draft.");
   }
-  await db.delete(documents).where(eq(documents.id, documentId));
-  await storageProvider().delete(row.doc.storageKey).catch(() => {});
+  await db.transaction(async (tx) => {
+  actor = await currentOperationActor(tx,actor);
+  const [current] = await tx.select({ statusId: applications.statusId }).from(applications).where(eq(applications.id,row.doc.applicationId)).for("update");
+  if (current?.statusId !== draft.id) throw new AppError("DELETE_NOT_ALLOWED", "Documents can only be removed while the application is a draft.");
+  await tx.delete(documents).where(eq(documents.id, documentId));
   await recordAudit({
     actor,
     action: "DOCUMENT_DELETED",
     entity: "document",
     entityId: documentId,
     agencyId: row.appAgencyId,
-    metadata: { filename: row.doc.originalFilename },
     ipAddress: ipAddress ?? null,
+  }, tx);
   });
+  await storageProvider().delete(row.doc.storageKey).catch(() => {});
 }
 
 export async function listApplicantsForApplication(applicationId: string) {

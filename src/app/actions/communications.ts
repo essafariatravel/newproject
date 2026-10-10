@@ -1,4 +1,5 @@
 "use server";
+import { currentOperationActor } from "@/lib/operation-identity";
 
 /**
  * Communication + notification actions.
@@ -6,14 +7,16 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { applications, communications, notifications, users } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/rbac";
-import { AppError, type AuthUser } from "@/lib/types";
+import { AppError, STAFF_ROLES, type AuthUser } from "@/lib/types";
 import { agencyUserIds, notifyUsers, staffUserIds } from "@/lib/notifications";
 import { runAction } from "@/lib/action-helpers";
 import { recordAudit } from "@/lib/audit";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 
 const idSchema = z.string().uuid("Invalid identifier.");
 
@@ -56,19 +59,26 @@ export async function postMessageAction(formData: FormData): Promise<void> {
       visibility = data.visibility === "INTERNAL" ? "INTERNAL" : "AGENCY";
     }
 
-    await db.insert(communications).values({
+    const userAllowed = await consumeAuthRateLimit("message-user-minute", user.id, 20, 60_000);
+    const agencyAllowed = user.agencyId ? await consumeAuthRateLimit("message-agency-hour", user.agencyId, 100, 60 * 60_000) : true;
+    if (!userAllowed || !agencyAllowed) throw new AppError("RATE_LIMITED", "Too many messages. Please wait before posting again.");
+
+    await db.transaction(async (tx) => {
+    await currentOperationActor(tx,user);
+    const [message] = await tx.insert(communications).values({
       applicationId: app.id,
       authorId: user.id,
       visibility,
       body: data.body,
-    });
+    }).returning({ id: communications.id });
     await recordAudit({
       actor: user,
       action: "MESSAGE_POSTED",
       entity: "communication",
-      entityId: app.id,
+      entityId: message!.id,
       agencyId: app.agencyId,
-      metadata: { visibility },
+      metadata: { visibility, applicationId: app.id, reference: app.reference },
+    }, tx);
     });
     if (visibility === "AGENCY") {
       const recipients = user.agencyId
@@ -112,6 +122,15 @@ export async function markNotificationsReadAction(formData: FormData): Promise<v
   });
 }
 
+export async function openConversationAction(formData: FormData): Promise<void> {
+  const user=await requireUser();
+  const id=idSchema.parse(formData.get("applicationId"));
+  await appContextFor(id,user);
+  requirePermission(user,user.agencyId?"communications.post.agency":"communications.view.all");
+  await db.update(notifications).set({readAt:new Date()}).where(and(eq(notifications.userId,user.id),eq(notifications.applicationId,id),eq(notifications.type,"MESSAGE_POSTED"),isNull(notifications.readAt)));
+  redirect(`${user.agencyId?"/portal":"/admin"}/applications/${id}?tab=communications`);
+}
+
 /** Resolve staff directory for assignment dropdowns. */
 export async function staffDirectory() {
   const { requireStaff } = await import("@/lib/auth");
@@ -121,5 +140,5 @@ export async function staffDirectory() {
   return db
     .select({ id: users.id, name: users.name, role: users.role })
     .from(users)
-    .where(and(isNull(users.agencyId), eq(users.status, "ACTIVE"), inArray(users.role, ["SUPER_ADMIN", "ADMIN", "VISA_AGENT"])));
+    .where(and(isNull(users.agencyId), eq(users.status, "ACTIVE"), inArray(users.role, [...STAFF_ROLES])));
 }

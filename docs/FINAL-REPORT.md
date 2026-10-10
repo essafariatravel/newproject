@@ -1,3 +1,5 @@
+> Historical report retained for traceability. Its branch, SHA, test counts, hosted evidence and readiness claims do not qualify the current Codex candidate. See [the current validation checkpoint](consolidation/VALIDATION-CHECKPOINT.md) and [operations review](consolidation/OPERATIONS-REVIEW.md). Exact-final-SHA CI and runtime/capacity qualification remain required.
+
 # ESSAFARIA VISA OS — Final Report
 
 Branch `arena/01a0ce58-newproject` · head `ae51ebd` · base production release `3a1cdc9` (untouched)

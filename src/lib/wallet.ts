@@ -15,8 +15,9 @@ import { and, eq, sql } from "drizzle-orm";
 import type { PoolClient } from "pg";
 import { db, pool } from "@/lib/db";
 import { agencies, applications, walletTransactions } from "@/db/schema";
-import { AppError, type AuthUser } from "@/lib/types";
-import { recordAudit } from "@/lib/audit";
+import { AppError, type AuthUser, isStaffRole, OVERRIDE_ROLES } from "@/lib/types";
+import { recordAuditPg } from "@/lib/audit";
+import { currentOperationActorPg } from "@/lib/operation-identity";
 import { agencyUserIds, notifyUsers } from "@/lib/notifications";
 
 export interface WalletMutationResult {
@@ -144,6 +145,7 @@ export async function adjustWallet(params: {
   ipAddress?: string | null;
   operation?: "CREDIT" | "DEBIT";
 }): Promise<string> {
+  if (!isStaffRole(params.actor.role) || params.actor.agencyId || params.actor.mustChangePassword) throw new AppError("FORBIDDEN", "Only ESSAFARIA staff can adjust wallets.");
   let operation: "CREDIT" | "DEBIT";
   let amountAbs: string;
   if (params.operation) {
@@ -160,17 +162,27 @@ export async function adjustWallet(params: {
     amountAbs = Math.abs(rounded).toFixed(2);
     operation = rounded > 0 ? "CREDIT" : "DEBIT";
   }
+  if (Number(amountAbs) <= 0) throw new AppError("INVALID_AMOUNT", "Amount must be at least 0.01 DZD.");
+  const reason = params.reason?.trim();
+  if (!reason || reason.length < 5 || reason.length > 500) throw new AppError("REASON_REQUIRED", "Give a reason between 5 and 500 characters for this wallet adjustment.");
 
   const client = await pool.connect();
   let result: WalletMutationResult;
   try {
     await client.query("begin");
+    params = { ...params, actor: await currentOperationActorPg(client,params.actor) };
     result = await applyWalletMutation(client, {
       agencyId: params.agencyId,
       operation,
       amountAbs,
-      reason: params.reason,
+      reason,
       actorId: params.actor.id,
+    });
+    await recordAuditPg(client, {
+      actor: params.actor, action: operation === "CREDIT" ? "WALLET_CREDIT" : "WALLET_DEBIT",
+      entity: "wallet_transaction", entityId: result.transactionId, agencyId: params.agencyId,
+      metadata: { amount: amountAbs, reason, reference: result.reference, balanceBefore: result.balanceBefore,
+        balanceAfter: result.balanceAfter, currency: "DZD" }, ipAddress: params.ipAddress ?? null,
     });
     await client.query("commit");
   } catch (err) {
@@ -179,22 +191,6 @@ export async function adjustWallet(params: {
   } finally {
     client.release();
   }
-
-  await recordAudit({
-    actor: params.actor,
-    action: operation === "CREDIT" ? "WALLET_CREDIT" : "WALLET_DEBIT",
-    entity: "wallet_transaction",
-    entityId: result.transactionId,
-    agencyId: params.agencyId,
-    metadata: {
-      amount: amountAbs,
-      reason: params.reason,
-      balanceBefore: result.balanceBefore,
-      balanceAfter: result.balanceAfter,
-      currency: "DZD",
-    },
-    ipAddress: params.ipAddress ?? null,
-  });
 
   // §34 — a manual wallet movement is never silent: the agency is told what
   // changed, by how much and what the balance is now, with a deep link to the
@@ -231,10 +227,15 @@ export async function chargeApplicationSubmission(params: {
   submittedStatusId: string;
   draftStatusId: string;
   ipAddress?: string | null;
+  actor?: AuthUser;
+  overrideReason?: string | null;
 }): Promise<ChargeResult> {
   const client = await pool.connect();
   try {
     await client.query("begin");
+    const captured = params.actor ?? (await client.query<AuthUser>(`select id, email, username, name, role, agency_id as "agencyId" from ${qualifiedTable("users")} where id=$1`,[params.actorId])).rows[0];
+    if (!captured || captured.id !== params.actorId) throw new AppError("FORBIDDEN", "Submission actor not found.");
+    const actor = await currentOperationActorPg(client,captured);
 
     const appRes = await client.query<{
       id: string;
@@ -261,6 +262,14 @@ export async function chargeApplicationSubmission(params: {
       );
     }
 
+    if (actor.agencyId && actor.agencyId !== app.agency_id) throw new AppError("NOT_FOUND", "Application not found.");
+    const applicantsPresent=(await client.query(`select exists(select 1 from ${qualifiedTable("applicants")} where application_id=$1) present`,[app.id])).rows[0]?.present;
+    if (!applicantsPresent) throw new AppError("NO_APPLICANTS", "Add at least one applicant before submitting.");
+    const missing=(await client.query(`select c.document_type_name from ${qualifiedTable("checklist_items")} c where c.application_id=$1 and c.required and c.active
+      and not exists(select 1 from ${qualifiedTable("documents")} d where d.checklist_item_id=c.id and d.status in ('UPLOADED','UNDER_REVIEW','ACCEPTED'))`,[app.id])).rows;
+    if (missing.length && (actor.agencyId || !OVERRIDE_ROLES.includes(actor.role) || (params.overrideReason?.trim().length ?? 0)<10)) {
+      throw new AppError("CHECKLIST_INCOMPLETE", "Required documents changed. Refresh the dossier before submitting.");
+    }
     const upd = await client.query<{ balance_after: string; balance_before: string }>(
       `update ${qualifiedTable("agencies")}
          set balance = balance - $2::numeric, updated_at = now()
@@ -301,9 +310,10 @@ export async function chargeApplicationSubmission(params: {
     await client.query(
       `update ${qualifiedTable("applications")}
          set status_id = $2, submitted_at = now(), updated_at = now(),
-             submitted_price = fee, submitted_currency = 'DZD', effective_price = fee
+             submitted_price = fee, submitted_currency = 'DZD', effective_price = fee,
+             override_reason = $3, override_by = case when $3::text is null then null else $4::uuid end
        where id = $1`,
-      [app.id, params.submittedStatusId],
+      [app.id, params.submittedStatusId, params.overrideReason ?? null, params.actorId],
     );
     await client.query(
       `insert into ${qualifiedTable("application_status_history")}
@@ -311,6 +321,9 @@ export async function chargeApplicationSubmission(params: {
        values ($1, $2, $3, $4, 'Application submitted')`,
       [app.id, params.draftStatusId, params.submittedStatusId, params.actorId],
     );
+    await recordAuditPg(client, { actor, action: params.overrideReason ? "APPLICATION_SUBMITTED_OVERRIDE" : "APPLICATION_SUBMITTED",
+      entity: "application", entityId: app.id, agencyId: app.agency_id,
+      metadata: { reference: app.reference, fee: app.fee, currency: "DZD", ...(params.overrideReason ? { overrideReason: params.overrideReason } : {}) }, ipAddress: params.ipAddress ?? null });
     await client.query("commit");
     return { transactionId: txId, balanceBefore: balance_before, balanceAfter: balance_after };
   } catch (err) {
@@ -326,6 +339,8 @@ export async function getTransactions(agencyId?: string, limit = 100) {
     .select({
       tx: walletTransactions,
       applicationReference: applications.reference,
+      topupRequestId: sql<string | null>`(select t.id from ${sql.raw(qualifiedTable("wallet_topup_requests"))} t where t.wallet_transaction_id = wallet_transactions.id)`,
+      topupReference: sql<string | null>`(select t.reference from ${sql.raw(qualifiedTable("wallet_topup_requests"))} t where t.wallet_transaction_id = wallet_transactions.id)`,
     })
     .from(walletTransactions)
     .leftJoin(applications, eq(walletTransactions.applicationId, applications.id))

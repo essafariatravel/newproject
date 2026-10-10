@@ -11,6 +11,7 @@ import {
   agencyRegistrations,
   agencies,
   auditLogs,
+  authRateLimits,
   documentBlobs,
   notifications,
   users,
@@ -22,10 +23,11 @@ import {
   registrationFormSchema,
   submitAgencyRegistration,
   validateRegistrationFile,
+  getRegistrationDuplicateCandidates,
 } from "@/lib/registrations";
 import { registrationCopy } from "@/lib/i18n";
 import { submitRegistrationAction } from "@/app/actions/registrations";
-import { nextIp, registrationData, registrationPdf } from "./helpers/fixtures";
+import { nextIp, registrationData, registrationPdf, userByEmail } from "./helpers/fixtures";
 
 const schemaEn = registrationFormSchema(registrationCopy("en").errors);
 
@@ -46,9 +48,7 @@ describe("public agency registration — validation", () => {
     expect(parsed.success).toBe(false);
     const fieldErrors = fieldErrorsFrom(parsed.error!);
     for (const key of [
-      "legalName", "country", "city", "addressLine", "phone", "email",
-      "commercialRegistrationNumber", "contactFirstName", "contactLastName",
-      "contactPosition", "contactEmail", "contactPhone", "businessType",
+      "legalName", "phone", "email", "contactFirstName", "contactEmail", "contactPhone",
       "terms", "privacy", "accuracy",
     ]) {
       expect(fieldErrors[key], `missing error for ${key}`).toBeTruthy();
@@ -166,7 +166,8 @@ describe("public agency registration — document safety", () => {
     const before = await countRegistrations();
     const data = registrationData({ locale: "fr" });
     const files = [registrationPdf("COMMERCIAL_REGISTRATION"), registrationPdf("AGENCY_LICENCE", "licence-agence.pdf")];
-    const result = await submitAgencyRegistration({ data, files, ipAddress: nextIp() });
+    const ip = nextIp();
+    const result = await submitAgencyRegistration({ data, files, ipAddress: ip });
     expect(result.reference).toMatch(/^AGR-\d{4}-[A-Z0-9]{6}$/);
     expect(await countRegistrations()).toBe(before + 1);
 
@@ -180,6 +181,7 @@ describe("public agency registration — document safety", () => {
     expect(reg.adminUserId).toBeNull();
     expect(reg.internalNotes).toBeNull();
     expect(reg.rejectionReason).toBeNull();
+    expect(reg.ipAddress).toBeNull();
 
     const docs = await db
       .select()
@@ -207,13 +209,16 @@ describe("public agency registration — document safety", () => {
     const roles = new Set(notifs.map((n) => n.users.role));
     expect(roles.has("SUPER_ADMIN")).toBe(true);
     expect(roles.has("ADMIN")).toBe(true);
-    expect(roles.has("ACCOUNTING")).toBe(false);
+    expect(roles.has("ACCOUNTING")).toBe(true);
+    expect(roles.has("VISA_AGENT")).toBe(true);
 
     const audit = await db
       .select()
       .from(auditLogs)
       .where(eq(auditLogs.action, "AGENCY_REGISTRATION_SUBMITTED"));
-    expect(audit.some((a) => a.entityId === result.id && a.actorId === null)).toBe(true);
+    const submittedAudit = audit.find((a) => a.entityId === result.id && a.actorId === null);
+    expect(submittedAudit).toBeDefined();
+    expect(submittedAudit!.ipAddress).toBeNull();
 
     // no agency, no user, no wallet activity was created by a public submission
     const createdAgencies = await db
@@ -227,35 +232,25 @@ describe("public agency registration — document safety", () => {
 });
 
 describe("public agency registration — duplicates & rate limiting", () => {
-  it("blocks a duplicate submission (same contact email while in flight)", async () => {
+  it("accepts likely duplicates for Staff review rather than rejecting them", async () => {
     const data = registrationData();
-    await submitAgencyRegistration({ data, files: [], ipAddress: nextIp() });
-    await expect(
-      submitAgencyRegistration({ data: registrationData({ contactEmail: data.contactEmail, email: "other@company.example", legalName: "Completely Different Name SARL", commercialRegistrationNumber: "RC-OTHER-1" }), files: [], ipAddress: nextIp() }),
-    ).rejects.toMatchObject({ code: "DUPLICATE" });
-
-    await expect(
-      submitAgencyRegistration({ data: registrationData({ legalName: data.legalName }), files: [], ipAddress: nextIp() }),
-    ).rejects.toMatchObject({ code: "DUPLICATE" });
+    const first = await submitAgencyRegistration({ data, files: [], ipAddress: nextIp() });
+    const second = await submitAgencyRegistration({ data, files: [], ipAddress: nextIp() });
+    expect(first.id).not.toBe(second.id);
+    const matches = await getRegistrationDuplicateCandidates(second.id, await userByEmail("admin@test.example"));
+    expect(matches.some((match) => match.id === first.id && match.signals.includes("email"))).toBe(true);
   });
-
-  it("blocks emails that already belong to platform users", async () => {
-    await expect(
-      submitAgencyRegistration({ data: registrationData({ contactEmail: "a-admin@test.example" }), files: [], ipAddress: nextIp() }),
-    ).rejects.toMatchObject({ code: "DUPLICATE" });
+  it("accepts a shared mailbox already used by a platform user", async () => {
+    await expect(submitAgencyRegistration({ data: registrationData({contactEmail:"a-admin@test.example"}), files:[], ipAddress:nextIp() })).resolves.toHaveProperty("reference");
   });
-
-  it("blocks companies that already exist as partner agencies", async () => {
-    await expect(
-      submitAgencyRegistration({ data: registrationData({ legalName: "Agency A Ltd" }), files: [], ipAddress: nextIp() }),
-    ).rejects.toMatchObject({ code: "DUPLICATE" });
-    await expect(
-      submitAgencyRegistration({ data: registrationData({ email: "ops@agencya.example" }), files: [], ipAddress: nextIp() }),
-    ).rejects.toMatchObject({ code: "DUPLICATE" });
+  it("assists Staff with an existing partner name match", async () => {
+    const submitted=await submitAgencyRegistration({data:registrationData({legalName:"Agency A Ltd"}),files:[],ipAddress:nextIp()});
+    const matches=await getRegistrationDuplicateCandidates(submitted.id,await userByEmail("admin@test.example"));
+    expect(matches.some((match)=>match.kind==="agency" && match.signals.includes("name"))).toBe(true);
   });
-
-  it("rate limits abusive velocity from one source IP", async () => {
+  it("rate limits abusive velocity from one source IP without persisting the raw IP", async () => {
     const ip = nextIp();
+    const beforeCounters = (await db.select().from(authRateLimits)).length;
     for (let i = 0; i < 5; i += 1) {
       await submitAgencyRegistration({ data: registrationData(), files: [], ipAddress: ip });
     }
@@ -263,6 +258,11 @@ describe("public agency registration — duplicates & rate limiting", () => {
       submitAgencyRegistration({ data: registrationData(), files: [], ipAddress: ip }),
     ).rejects.toMatchObject({ code: "RATE_LIMITED" });
     await expect(assertRegistrationRateLimit(ip)).rejects.toMatchObject({ code: "RATE_LIMITED" });
+    const counters = await db.select().from(authRateLimits);
+    expect(counters.length).toBeGreaterThanOrEqual(beforeCounters + 2);
+    expect(counters.some((row) => row.key === ip)).toBe(false);
+    const persisted = await db.select().from(agencyRegistrations).where(eq(agencyRegistrations.ipAddress, ip));
+    expect(persisted).toHaveLength(0);
   });
 });
 
@@ -274,6 +274,8 @@ describe("public registration action — anti-automation & safe errors", () => {
       ...data,
       locale: "en",
       renderedAt: String(Date.now() - 10_000),
+      termsVersion: "1",
+      privacyVersion: "1",
       ...overrides,
     })) {
       if (typeof v === "string") form.set(k, v);

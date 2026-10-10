@@ -16,26 +16,21 @@ import { requirePermission, hasPermission } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
 import { updateSetting } from "@/lib/settings";
 import { runAction } from "@/lib/action-helpers";
+import { currentOperationActor } from "@/lib/operation-identity";
 import {
   readBranding,
-  sanitizeHex,
   setBrandLogo,
   clearBrandLogo,
   setAgencyLogo,
   clearAgencyLogo,
   validateLogoUpload,
-  type RadiusPreset,
-  type FontPreset,
 } from "@/lib/branding";
-
-const RADIi: RadiusPreset[] = ["soft", "balanced", "crisp"];
-const FONTS: FontPreset[] = ["aurora", "modern", "classic"];
 
 function revalidateBrandSurfaces(): void {
   revalidatePath("/", "layout");
 }
 
-/** Save colors / radius / fonts / identity copy from the Brand Studio form. */
+/** Save identity copy; submitted appearance overrides are ignored. */
 export async function saveBrandingAction(formData: FormData): Promise<void> {
   await runAction("/admin/settings", async () => {
     const staff = await requireStaff();
@@ -47,32 +42,19 @@ export async function saveBrandingAction(formData: FormData): Promise<void> {
     const tagline = String(formData.get("brand.tagline") ?? "").trim();
     if (tagline) entries.push(["brand.tagline", tagline.slice(0, 160)]);
 
-    for (const key of ["brand.primary", "brand.accent", "brand.ink"] as const) {
-      const raw = String(formData.get(key) ?? "");
-      const hex = sanitizeHex(raw);
-      if (!hex) throw new AppError("INVALID_COLOR", `${key.replace("brand.", "")} must be a hex color like #4a5bd0.`);
-      entries.push([key, hex]);
-    }
-    const radius = String(formData.get("brand.radius") ?? "");
-    if (radius) {
-      if (!RADIi.includes(radius as RadiusPreset)) throw new AppError("INVALID_COLOR", "Unknown radius preset.");
-      entries.push(["brand.radius", radius]);
-    }
-    const fonts = String(formData.get("brand.fonts") ?? "");
-    if (fonts) {
-      if (!FONTS.includes(fonts as FontPreset)) throw new AppError("INVALID_COLOR", "Unknown font preset.");
-      entries.push(["brand.fonts", fonts]);
-    }
-
-    for (const [key, value] of entries) await updateSetting(key, value, staff.id);
-    await recordAudit({
+    if (!entries.length) throw new AppError("VALIDATION", "Enter a brand name or tagline.");
+    await db.transaction(async tx => {
+      await currentOperationActor(tx,staff);
+      for (const [key, value] of entries) await updateSetting(key, value, staff.id, tx);
+      await recordAudit({
       actor: staff,
       action: "BRANDING_UPDATED",
       entity: "site_settings",
       metadata: { keys: entries.map(([k]) => k) },
+      }, tx);
     });
     revalidateBrandSurfaces();
-    return "Branding saved — the whole platform is re-tinted.";
+    return "Brand identity saved.";
   });
 }
 
@@ -93,7 +75,6 @@ export async function uploadBrandLogoAction(formData: FormData): Promise<void> {
     requirePermission(staff, "cms.manage");
     const upload = await logoFromFile(formData);
     await setBrandLogo(upload, staff);
-    await recordAudit({ actor: staff, action: "BRANDING_LOGO_UPLOADED", entity: "site_settings" });
     revalidateBrandSurfaces();
     return "Platform logo updated.";
   });
@@ -105,7 +86,6 @@ export async function removeBrandLogoAction(): Promise<void> {
     const staff = await requireStaff();
     requirePermission(staff, "cms.manage");
     await clearBrandLogo(staff);
-    await recordAudit({ actor: staff, action: "BRANDING_LOGO_REMOVED", entity: "site_settings" });
     revalidateBrandSurfaces();
     return "Platform logo removed — monogram restored.";
   });
@@ -126,8 +106,7 @@ export async function uploadAgencyLogoAction(formData: FormData): Promise<void> 
     const staff = await requireStaff();
     await assertAgencyLogoPermission(staff, agencyId);
     const upload = await logoFromFile(formData);
-    await setAgencyLogo(agencyId, upload);
-    await recordAudit({ actor: staff, action: "AGENCY_LOGO_UPLOADED", entity: "agency", entityId: agencyId });
+    await setAgencyLogo(agencyId, upload, staff);
     revalidatePath(`/admin/agencies/${agencyId}`);
     revalidatePath("/portal", "layout");
     return "Agency logo updated.";
@@ -140,8 +119,7 @@ export async function removeAgencyLogoAction(formData: FormData): Promise<void> 
   await runAction(`/admin/agencies/${agencyId}`, async () => {
     const staff = await requireStaff();
     await assertAgencyLogoPermission(staff, agencyId);
-    await clearAgencyLogo(agencyId);
-    await recordAudit({ actor: staff, action: "AGENCY_LOGO_REMOVED", entity: "agency", entityId: agencyId });
+    await clearAgencyLogo(agencyId, staff);
     revalidatePath(`/admin/agencies/${agencyId}`);
     revalidatePath("/portal", "layout");
     return "Agency logo removed.";
@@ -156,14 +134,7 @@ export async function uploadOwnAgencyLogoAction(formData: FormData): Promise<voi
       throw new AppError("FORBIDDEN", "Only the agency administrator can change the agency logo.");
     }
     const upload = await logoFromFile(formData);
-    await setAgencyLogo(user.agencyId, upload);
-    await recordAudit({
-      actor: user,
-      action: "AGENCY_LOGO_UPLOADED",
-      entity: "agency",
-      entityId: user.agencyId,
-      agencyId: user.agencyId,
-    });
+    await setAgencyLogo(user.agencyId, upload, user);
     revalidatePath("/portal/profile");
     revalidatePath("/portal", "layout");
     return "Agency logo updated.";
@@ -177,14 +148,7 @@ export async function removeOwnAgencyLogoAction(): Promise<void> {
     if (user.role !== "AGENCY_ADMIN" || !user.agencyId) {
       throw new AppError("FORBIDDEN", "Only the agency administrator can change the agency logo.");
     }
-    await clearAgencyLogo(user.agencyId);
-    await recordAudit({
-      actor: user,
-      action: "AGENCY_LOGO_REMOVED",
-      entity: "agency",
-      entityId: user.agencyId,
-      agencyId: user.agencyId,
-    });
+    await clearAgencyLogo(user.agencyId, user);
     revalidatePath("/portal/profile");
     revalidatePath("/portal", "layout");
     return "Agency logo removed.";

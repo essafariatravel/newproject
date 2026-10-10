@@ -23,7 +23,7 @@ export function FilterBar(props: {
 }) {
   const ct = contentT(props.locale ?? "en");
   return (
-    <form method="get" action={props.action} className="filter-bar flex flex-wrap items-end gap-3">
+    <form method="get" action={props.action} className="filter-bar flex flex-wrap items-end gap-4">
       {Object.entries(props.hidden ?? {}).map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
       ))}
@@ -42,6 +42,7 @@ export function FilterBar(props: {
           ) : f.type === "date" ? (
             <DatePicker
               id={`f-${f.name}`}
+              ariaLabel={f.label}
               name={f.name}
               defaultValue={f.value ?? ""}
               locale={props.locale ?? "en"}
@@ -60,7 +61,7 @@ export function FilterBar(props: {
         </div>
       ))}
       <div className="flex gap-2">
-        <button type="submit" className="btn-primary btn-sm px-4 py-2">{ct("Filter")}</button>
+        <button type="submit" className="btn-primary btn-sm">{ct("Filter")}</button>
         <Link href={props.action} className="filter-reset">{ct("Reset")}</Link>
       </div>
     </form>
@@ -89,7 +90,7 @@ export function PageSizeSelector(props: {
     return `${props.basePath}${qs ? `?${qs}` : ""}`;
   };
   return (
-    <div className="flex items-center gap-1.5 text-xs text-slate-500" data-testid="page-size">
+    <div className="flex items-center gap-2 text-base text-slate-500" data-testid="page-size">
       <span>{ct("Rows per page")}:</span>
       {[20, 50, 100].map((size) => (
         <Link
@@ -126,7 +127,7 @@ export function Pagination(props: {
     return `${props.basePath}${qs ? `?${qs}` : ""}`;
   };
   return (
-    <div className="flex items-center justify-between gap-3 px-1 py-3 text-sm">
+    <div className="flex items-center justify-between gap-4 px-1 py-2 text-base">
       <p className="text-xs text-slate-500">
         {props.total} {ct(props.total === 1 ? "result" : "results")} · {ct("page")} {page} {ct("of")} {pageCount}
       </p>

@@ -88,6 +88,8 @@ describe("§18 — the transition is enforced server-side", () => {
     await setApplicability(visa.id, "NOT_APPLICABLE");
     const app = await inProcessApplication(visa.id);
 
+    // Later programme edits cannot rewrite the dossier's captured requirement.
+    await setApplicability(visa.id,"APPLICABLE");
     const err = (await changeApplicationStatus({
       applicationId: app.id,
       toStatusCode: "EMBASSY_SENT",
@@ -106,6 +108,7 @@ describe("§18 — the transition is enforced server-side", () => {
     await setApplicability(visa.id, "APPLICABLE");
     const app = await inProcessApplication(visa.id);
 
+    await setApplicability(visa.id,"NOT_APPLICABLE");
     const result = await changeApplicationStatus({
       applicationId: app.id,
       toStatusCode: "EMBASSY_SENT",
@@ -184,7 +187,7 @@ describe("§18 — the admin surface exposes the choice", () => {
 
     const action = readFileSync("src/app/actions/config.ts", "utf8");
     expect(action).toContain('"NOT_APPLICABLE", "OPTIONAL", "APPLICABLE"');
-    // The stamp is audited with the change.
-    expect(action).toContain("embassyApplicability: data.embassyApplicability");
+    // The real action's persisted before/after embassy values are verified by
+    // configuration-audit-values.test.ts; audit object punctuation may change.
   });
 });

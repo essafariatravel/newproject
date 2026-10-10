@@ -14,13 +14,19 @@ import { db } from "@/lib/db";
 import { auditLogs, walletTopupRequests, walletTransactions } from "@/db/schema";
 import { getBalance } from "@/lib/wallet";
 import {
-  createTopupRequest,
+  createTopupRequest as createTopupRequestService,
   listTopupRequests,
   listTopupRequestsForAgency,
   processTopupRequest,
+  topupRequestById,
 } from "@/lib/topup";
 import { AppError } from "@/lib/types";
 import { agencyByEmail, authUser, userByEmail } from "./helpers/fixtures";
+import { paymentProof } from "./helpers/payment-proof";
+
+function createTopupRequest(params: Parameters<typeof createTopupRequestService>[0]) {
+  return createTopupRequestService({ ...params, proof: paymentProof() });
+}
 
 suiteSetup();
 
@@ -40,11 +46,7 @@ async function actors() {
     email: "agent@test.example",
     role: "VISA_AGENT",
   });
-  const aAdmin = authUser({
-    id: (await userByEmail("a-admin@test.example")).id,
-    email: "a-admin@test.example",
-    role: "AGENCY_ADMIN",
-  });
+  const aAdmin = await userByEmail("a-admin@test.example");
   const agencyA = await agencyByEmail("ops@agencya.example");
   const agencyB = await agencyByEmail("ops@agencyb.example");
   return { superAdmin, accounting, visaAgent, aAdmin, agencyA, agencyB };
@@ -124,7 +126,7 @@ describe("§10 — tenant isolation on requests", () => {
     await clearPending(agencyA.id);
     await clearPending(agencyB.id);
     await createTopupRequest({ agencyId: agencyA.id, amount: 11111, actor: aAdmin });
-    await createTopupRequest({ agencyId: agencyB.id, amount: 22222, actor: aAdmin });
+    await createTopupRequest({ agencyId: agencyB.id, amount: 22222, actor: await userByEmail("b-admin@test.example") });
 
     const forA = await listTopupRequestsForAgency(agencyA.id);
     const forB = await listTopupRequestsForAgency(agencyB.id);
@@ -144,6 +146,20 @@ describe("§10 — tenant isolation on requests", () => {
     expect(action).not.toContain('formData.get("agencyId")');
   });
 });
+
+  it("cross-tenant receipt lookup is indistinguishable from not found", async () => {
+    const { aAdmin, agencyB } = await actors();
+    await clearPending(agencyB.id);
+    const bAdmin = await userByEmail("b-admin@test.example");
+    const created = await createTopupRequest({ agencyId: agencyB.id, amount: 23456, actor: bAdmin });
+
+    await expect(topupRequestById(created.id, aAdmin)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(await topupRequestById(crypto.randomUUID(), aAdmin)).toBeNull();
+
+    const agencyUser = await userByEmail("a-user@test.example");
+    await expect(topupRequestById(created.id, agencyUser)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(topupRequestById(crypto.randomUUID(), agencyUser)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
 
 describe("§10 — only authorized staff can move the money", () => {
   it("agency roles can never process a request — not even their own", async () => {
@@ -166,15 +182,15 @@ describe("§10 — only authorized staff can move the money", () => {
     await clearPending(agencyA.id);
   });
 
-  it("VISA_AGENT may view wallets but never credit one", async () => {
+  it("VISA_AGENT shares the approved V1 Staff operational top-up permissions", async () => {
     const { aAdmin, visaAgent, agencyA } = await actors();
     await clearPending(agencyA.id);
     const created = await createTopupRequest({ agencyId: agencyA.id, amount: 15000, actor: aAdmin });
 
-    const err = (await processTopupRequest({ requestId: created.id, actor: visaAgent, decision: "CREDIT" }).catch(
-      (e) => e,
-    )) as AppError;
-    expect(err.code).toBe("FORBIDDEN");
+    const before = await getBalance(agencyA.id);
+    const result = await processTopupRequest({ requestId: created.id, actor: visaAgent, decision: "CREDIT" });
+    expect(result.status).toBe("PROCESSED");
+    expect(Number((await getBalance(agencyA.id)).balance) - Number(before.balance)).toBe(15000);
     await clearPending(agencyA.id);
   });
 

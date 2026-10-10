@@ -126,15 +126,15 @@ const en: RegistrationCopy = {
   noticeBody:
     "Submitting this form does not create an account and does not guarantee access. Every application is reviewed individually by ESSAFARIA TRAVEL, and portal access is activated only after approval.",
   reviewNote:
-    "Our partnerships team typically reviews complete applications within 1–2 business days. Company documents accelerate verification.",
+    "Our partnerships team reviews your partnership request first. If specific administrative evidence is needed, ESSAFARIA will request it later through a secure link.",
   languageLabel: "Language",
   sections: {
     company: { title: "Company", hint: "Legal information about your business, as registered." },
     contact: { title: "Primary contact", hint: "The person authorized to represent this agency." },
-    business: { title: "Business profile", hint: "Help us understand your activity and volumes." },
+    business: { title: "Your request", hint: "Share only what is useful for reviewing the B2B partnership request." },
     documents: {
-      title: "Company documents",
-      hint: "Optional at this stage, but strongly recommended. Files are stored privately and reviewed only by authorized ESSAFARIA staff.",
+      title: "Administrative documents",
+      hint: "Not collected during first contact. ESSAFARIA requests specific evidence later, securely, only when needed.",
     },
     consent: { title: "Consent", hint: "Please confirm each statement to submit your application." },
   },
@@ -221,8 +221,8 @@ const en: RegistrationCopy = {
     noReference: "Your application has been received.",
     nextTitle: "What happens next",
     nextSteps: [
-      "Our partnerships team reviews your company information and documents.",
-      "We may contact your primary contact if additional information is required.",
+      "Our partnerships team reviews your partnership request.",
+      "If specific administrative evidence is needed, ESSAFARIA sends a secure request for only those documents.",
       "If approved, your agency workspace is created and your administrator receives a secure activation link.",
     ],
     backHome: "Back to the homepage",
@@ -258,15 +258,15 @@ const fr: RegistrationCopy = {
   noticeBody:
     "L'envoi de ce formulaire ne crée pas de compte et ne garantit pas l'accès. Chaque demande est examinée individuellement par ESSAFARIA TRAVEL et l'accès au portail n'est activé qu'après approbation.",
   reviewNote:
-    "Notre équipe partenariats examine généralement les dossiers complets sous 1 à 2 jours ouvrés. Les documents de l'entreprise accélèrent la vérification.",
+    "Notre équipe partenariats examine d’abord votre demande. Si un justificatif administratif précis est nécessaire, ESSAFARIA le demandera ensuite via un lien sécurisé.",
   languageLabel: "Langue",
   sections: {
     company: { title: "Entreprise", hint: "Informations légales de votre société, telles qu'enregistrées." },
     contact: { title: "Contact principal", hint: "La personne habilitée à représenter cette agence." },
-    business: { title: "Profil d'activité", hint: "Aidez-nous à comprendre votre activité et vos volumes." },
+    business: { title: "Votre demande", hint: "Partagez uniquement les informations utiles à l’examen de la demande de partenariat B2B." },
     documents: {
-      title: "Documents de l'entreprise",
-      hint: "Facultatif à cette étape, mais fortement recommandé. Les fichiers sont conservés en espace privé et consultés uniquement par le personnel ESSAFARIA autorisé.",
+      title: "Documents administratifs",
+      hint: "Non collectés lors du premier contact. ESSAFARIA demande ensuite, de manière sécurisée, uniquement les justificatifs précis nécessaires.",
     },
     consent: { title: "Consentement", hint: "Veuillez confirmer chaque déclaration pour envoyer votre demande." },
   },
@@ -353,8 +353,8 @@ const fr: RegistrationCopy = {
     noReference: "Votre demande a bien été reçue.",
     nextTitle: "Prochaines étapes",
     nextSteps: [
-      "Notre équipe partenariats examine les informations et documents de votre société.",
-      "Nous pouvons contacter votre contact principal si des informations complémentaires sont nécessaires.",
+      "Notre équipe partenariats examine votre demande de partenariat.",
+      "Si un justificatif administratif précis est nécessaire, ESSAFARIA envoie une demande sécurisée limitée aux documents requis.",
       "En cas d'approbation, l'espace de votre agence est créé et votre administrateur reçoit un lien d'activation sécurisé.",
     ],
     backHome: "Retour à l'accueil",
@@ -390,15 +390,15 @@ const ar: RegistrationCopy = {
   noticeBody:
     "إرسال هذا النموذج لا يؤدي إلى إنشاء حساب ولا يضمن الحصول على الوصول. تتم مراجعة كل طلب على حدة من طرف ESSAFARIA TRAVEL، ولا يتم تفعيل الدخول إلى البوابة إلا بعد الموافقة.",
   reviewNote:
-    "يراجع فريق الشراكات الطلبات المكتملة عادةً خلال يوم إلى يومي عمل. إرفاق وثائق الشركة يُسرّع عملية التحقق.",
+    "يراجع فريق الشراكات طلب الشراكة أولاً. وإذا لزم مستند إداري محدد، ستطلبه ESSAFARIA لاحقاً عبر رابط آمن.",
   languageLabel: "اللغة",
   sections: {
     company: { title: "الشركة", hint: "البيانات القانونية لشركتكم كما هي مسجلة رسمياً." },
     contact: { title: "جهة الاتصال الرئيسية", hint: "الشخص المخوّل بتمثيل هذه الوكالة." },
-    business: { title: "الملف التجاري", hint: "ساعدونا على فهم نشاطكم وحجم أعمالكم." },
+    business: { title: "طلبكم", hint: "شاركوا فقط المعلومات المفيدة لمراجعة طلب الشراكة بين الشركات." },
     documents: {
-      title: "وثائق الشركة",
-      hint: "اختياري في هذه المرحلة لكنه موصى به بشدة. تُحفظ الملفات بشكل خاص وآمن ولا يطّلع عليها إلا موظفو ESSAFARIA المخوّلون.",
+      title: "الوثائق الإدارية",
+      hint: "لا يتم جمعها عند الاتصال الأول. ستطلب ESSAFARIA لاحقاً وبطريقة آمنة فقط المستندات المحددة المطلوبة.",
     },
     consent: { title: "الموافقة والإقرار", hint: "يرجى تأكيد كل بيان لإرسال طلبكم." },
   },
@@ -484,8 +484,8 @@ const ar: RegistrationCopy = {
     noReference: "تم استلام طلبكم.",
     nextTitle: "الخطوات التالية",
     nextSteps: [
-      "يراجع فريق الشراكات بيانات شركتكم والوثائق المرفقة.",
-      "قد نتواصل مع جهة الاتصال الرئيسية إذا لزمت معلومات إضافية.",
+      "يراجع فريق الشراكات طلب الشراكة الخاص بكم.",
+      "إذا لزم مستند إداري محدد، ترسل ESSAFARIA طلباً آمناً يقتصر على الوثائق المطلوبة.",
       "عند الموافقة، يتم إنشاء مساحة عمل وكالتكم ويتلقى المسؤول رابط تفعيل آمن.",
     ],
     backHome: "العودة إلى الصفحة الرئيسية",
@@ -512,6 +512,26 @@ const ar: RegistrationCopy = {
 
 const DICTS: Record<RegistrationLocale, RegistrationCopy> = { en, fr, ar };
 
+const FIRST_CONTACT = {
+  en: { subtitle: "Tell us about your agency. Our team will review your request and contact you if more information is needed.", reviewNote: "Administrative documents are requested separately after review. Portal access follows approval.", agency: "Agency name", contact: "Primary contact name", email: "Shared professional agency email", phone: "Phone / WhatsApp", optional: "optional", next: ["Our team reviews your partnership request.", "If needed, we send a secure link for specific administrative documents.", "After approval, your agency administrator receives access instructions."] },
+  fr: { subtitle: "Présentez-nous votre agence. Notre équipe examine votre demande et vous contacte si des informations complémentaires sont nécessaires.", reviewNote: "Les documents administratifs sont demandés séparément après examen. L’accès au portail suit l’approbation.", agency: "Nom de l’agence", contact: "Nom du contact principal", email: "Email professionnel partagé de l’agence", phone: "Téléphone / WhatsApp", optional: "facultatif", next: ["Notre équipe examine votre demande de partenariat.", "Si nécessaire, nous envoyons un lien sécurisé pour les documents administratifs demandés.", "Après approbation, le responsable de votre agence reçoit les instructions d’accès."] },
+  ar: { subtitle: "أخبرونا عن وكالتكم. يراجع فريقنا الطلب ويتواصل معكم عند الحاجة إلى معلومات إضافية.", reviewNote: "تُطلب الوثائق الإدارية بشكل منفصل بعد المراجعة. يُمنح دخول البوابة بعد الموافقة.", agency: "اسم الوكالة", contact: "اسم جهة الاتصال الرئيسية", email: "البريد المهني المشترك للوكالة", phone: "الهاتف / واتساب", optional: "اختياري", next: ["يراجع فريقنا طلب الشراكة.", "عند الحاجة، نرسل رابطاً آمناً للوثائق الإدارية المطلوبة تحديداً.", "بعد الموافقة، يتلقى مسؤول وكالتكم تعليمات الدخول."] },
+};
+
 export function registrationCopy(locale: RegistrationLocale): RegistrationCopy {
-  return DICTS[locale] ?? en;
+  const copy = DICTS[locale] ?? en;
+  const minimal = FIRST_CONTACT[locale] ?? FIRST_CONTACT.en;
+  return { ...copy, subtitle:minimal.subtitle, reviewNote:minimal.reviewNote, fields:{...copy.fields, legalName:{label:minimal.agency}, contactFirstName:{label:minimal.contact}, email:{label:minimal.email}, phone:{label:minimal.phone}, city:{label:copy.fields.city!.label,optional:minimal.optional}, addressLine:{label:copy.fields.addressLine!.label,optional:minimal.optional}}, success:{...copy.success,nextSteps:minimal.next} };
 }
+
+const REVIEW_COPY = {
+  en: { title:"Agency review", all:"All registrations", company:"Agency details", contact:"Primary contact", documents:"Administrative documents", noDocs:"No administrative documents received.", decision:"Review decision", start:"Start review", approve:"Approve partnership", reject:"Reject partnership", reason:"Reason for rejection", note:"Internal note", addNote:"Add note", history:"Review history", duplicates:"Possible duplicate agencies", duplicateHelp:"Review these matches before deciding. Similar contact details do not automatically reject the request.", request:"Request specific documents", purpose:"Explain what is needed and why", label:"Document name / instructions", issue:"Generate secure upload link", share:"Copy this link and share it securely with the agency. It expires in 72 hours; previous links are revoked.", invalid:"This link is invalid, expired or already completed. Contact ESSAFARIA for a new link.", uploadTitle:"Administrative verification", uploadHint:"Upload only the requested documents. PDF, JPEG, PNG or WebP, maximum 2 MB each.", upload:"Upload document", uploading:"Uploading…", received:"Documents received. Our team can continue the review.", error:"Could not upload. Please try again or contact ESSAFARIA.", activation:"Generate activation link", username:"Username", view:"Open", requestStatus:"Document status", approved:"Approved", pending:"New", review:"In review", requested:"Information / documents requested", rejected:"Rejected", consent:"Submission consent", email:"Shared email", phone:"Phone / WhatsApp", city:"City", address:"Address", reference:"Reference", submitted:"Submitted", status:"Status", search:"Search", empty:"No registrations found", queue:"Review partnership requests", saved:"Saved", starting:"Starting…", saving:"Saving…", activationHelp:"Share the username and single-use activation link securely. Only authorized account administrators may issue access links." },
+  fr: { title:"Examen des agences", all:"Toutes les demandes", company:"Coordonnées de l’agence", contact:"Contact principal", documents:"Documents administratifs", noDocs:"Aucun document administratif reçu.", decision:"Décision d’examen", start:"Commencer l’examen", approve:"Approuver le partenariat", reject:"Refuser le partenariat", reason:"Motif du refus", note:"Note interne", addNote:"Ajouter une note", history:"Historique", duplicates:"Agences potentiellement en double", duplicateHelp:"Examinez ces correspondances avant de décider. Des coordonnées similaires ne refusent pas automatiquement la demande.", request:"Demander des documents précis", purpose:"Précisez les documents et leur finalité", label:"Nom du document / instructions", issue:"Générer un lien sécurisé", share:"Copiez ce lien et transmettez-le à l’agence de façon sécurisée. Il expire sous 72 heures et révoque les anciens liens.", invalid:"Ce lien est invalide, expiré ou déjà utilisé. Contactez ESSAFARIA pour un nouveau lien.", uploadTitle:"Vérification administrative", uploadHint:"Téléversez uniquement les documents demandés. PDF, JPEG, PNG ou WebP, 2 Mo maximum par fichier.", upload:"Téléverser le document", uploading:"Téléversement…", received:"Documents reçus. Notre équipe peut poursuivre l’examen.", error:"Échec du téléversement. Réessayez ou contactez ESSAFARIA.", activation:"Générer un lien d’activation", username:"Nom d’utilisateur", view:"Ouvrir", requestStatus:"État des documents", approved:"Approuvée", pending:"Nouvelle", review:"En examen", requested:"Informations / documents demandés", rejected:"Refusée", consent:"Consentement", email:"Email partagé", phone:"Téléphone / WhatsApp", city:"Ville", address:"Adresse", reference:"Référence", submitted:"Soumise", status:"État", search:"Rechercher", empty:"Aucune demande trouvée", queue:"Examiner les demandes de partenariat", saved:"Enregistré", starting:"Démarrage…", saving:"Enregistrement…", activationHelp:"Transmettez le nom d’utilisateur et le lien d’activation à usage unique de façon sécurisée. Seuls les administrateurs de comptes autorisés peuvent créer ces liens." },
+  ar: { title:"مراجعة الوكالات", all:"جميع الطلبات", company:"بيانات الوكالة", contact:"جهة الاتصال الرئيسية", documents:"الوثائق الإدارية", noDocs:"لم تُستلم وثائق إدارية.", decision:"قرار المراجعة", start:"بدء المراجعة", approve:"الموافقة على الشراكة", reject:"رفض الشراكة", reason:"سبب الرفض", note:"ملاحظة داخلية", addNote:"إضافة ملاحظة", history:"سجل المراجعة", duplicates:"وكالات قد تكون مكررة", duplicateHelp:"راجعوا هذه المطابقات قبل اتخاذ القرار. بيانات التواصل المتشابهة لا تؤدي إلى الرفض التلقائي.", request:"طلب وثائق محددة", purpose:"وضحوا الوثائق المطلوبة وسبب طلبها", label:"اسم الوثيقة / التعليمات", issue:"إنشاء رابط رفع آمن", share:"انسخوا الرابط وشاركوه بأمان مع الوكالة. تنتهي صلاحيته بعد 72 ساعة ويُبطل الروابط السابقة.", invalid:"الرابط غير صالح أو منتهي أو مكتمل. تواصلوا مع ESSAFARIA للحصول على رابط جديد.", uploadTitle:"التحقق الإداري", uploadHint:"ارفعوا الوثائق المطلوبة فقط. PDF أو JPEG أو PNG أو WebP، بحد أقصى 2 ميغابايت لكل ملف.", upload:"رفع الوثيقة", uploading:"جارٍ الرفع…", received:"تم استلام الوثائق. يستطيع فريقنا متابعة المراجعة.", error:"تعذر الرفع. حاولوا مجدداً أو تواصلوا مع ESSAFARIA.", activation:"إنشاء رابط التفعيل", username:"اسم المستخدم", view:"فتح", requestStatus:"حالة الوثائق", approved:"مقبول", pending:"جديد", review:"قيد المراجعة", requested:"معلومات / وثائق مطلوبة", rejected:"مرفوض", consent:"الموافقة على الإرسال", email:"البريد المشترك", phone:"الهاتف / واتساب", city:"المدينة", address:"العنوان", reference:"المرجع", submitted:"تاريخ الإرسال", status:"الحالة", search:"بحث", empty:"لا توجد طلبات", queue:"مراجعة طلبات الشراكة", saved:"تم الحفظ", starting:"جارٍ البدء…", saving:"جارٍ الحفظ…", activationHelp:"شاركوا اسم المستخدم ورابط التفعيل لمرة واحدة بأمان. يمكن لمسؤولي الحسابات المخولين فقط إنشاء روابط الدخول." },
+};
+const REVIEW_FEEDBACK = {
+  en: {copyLink:"Copy link",copied:"Copied",hideLink:"Hide link",actionError:"Could not save this review. Refresh the page and check the current status and form values.",reviewSaved:"Registration is now under review.",infoSaved:"Information requested.",approvalSaved:"Partnership approved. Share the username and activation link with the agency administrator.",alreadyApproved:"Partnership already approved.",rejectSaved:"Partnership request rejected.",noteSaved:"Internal note added."},
+  fr: {copyLink:"Copier le lien",copied:"Copié",hideLink:"Masquer le lien",actionError:"Impossible d’enregistrer cet examen. Actualisez la page et vérifiez l’état actuel et les champs.",reviewSaved:"La demande est maintenant en cours d’examen.",infoSaved:"Informations demandées.",approvalSaved:"Partenariat approuvé. Transmettez le nom d’utilisateur et le lien d’activation au responsable de l’agence.",alreadyApproved:"Partenariat déjà approuvé.",rejectSaved:"Demande de partenariat refusée.",noteSaved:"Note interne ajoutée."},
+  ar: {copyLink:"نسخ الرابط",copied:"تم النسخ",hideLink:"إخفاء الرابط",actionError:"تعذر حفظ المراجعة. حدّث الصفحة وتحقق من الحالة الحالية والحقول.",reviewSaved:"الطلب الآن قيد المراجعة.",infoSaved:"تم طلب المعلومات.",approvalSaved:"تمت الموافقة على الشراكة. شارك اسم المستخدم ورابط التفعيل مع مسؤول الوكالة.",alreadyApproved:"الشراكة مقبولة مسبقاً.",rejectSaved:"تم رفض طلب الشراكة.",noteSaved:"تمت إضافة الملاحظة الداخلية."},
+};
+export function registrationReviewCopy(locale: RegistrationLocale) { return {...REVIEW_COPY[locale],...REVIEW_FEEDBACK[locale]}; }

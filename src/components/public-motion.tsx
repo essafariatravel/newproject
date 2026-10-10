@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 
 /** Progressive enhancement for editorial sections; content stays visible without JS. */
 export function PublicMotion() {
+  const pathname = usePathname();
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) return;
     document.documentElement.classList.add("public-motion-ready");
@@ -24,6 +26,6 @@ export function PublicMotion() {
       observer.disconnect();
       document.documentElement.classList.remove("public-motion-ready");
     };
-  }, []);
+  }, [pathname]);
   return null;
 }

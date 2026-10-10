@@ -1,0 +1,197 @@
+{
+  "version": 1,
+  "purpose": "Provider-agnostic dashboard and monitor contract for ESSAFARIA VISA OS",
+  "global_filters": [
+    "environment",
+    "release_sha",
+    "event_name",
+    "classification",
+    "action",
+    "result",
+    "error_code"
+  ],
+  "forbidden_dimensions": [
+    "email",
+    "phone",
+    "passport",
+    "filename",
+    "storage_key",
+    "raw_user_id",
+    "raw_agency_id",
+    "raw_application_id",
+    "request_body",
+    "response_body"
+  ],
+  "panels": [
+    {
+      "id": "availability_readiness",
+      "title": "Readiness availability",
+      "source": "GET /api/health/ready",
+      "metric": "success_ratio",
+      "window": "24h",
+      "target_percent": 99.9
+    },
+    {
+      "id": "critical_failures",
+      "title": "Critical technical failures",
+      "source": "structured_logs",
+      "metric": "count",
+      "filter": "classification=BUSINESS_FAILURE AND severity IN (error,critical)",
+      "group_by": [
+        "event_name",
+        "error_code"
+      ],
+      "window": "1h"
+    },
+    {
+      "id": "integrity",
+      "title": "Integrity violations",
+      "source": "structured_logs",
+      "metric": "count",
+      "filter": "event_name=integrity.violation",
+      "group_by": [
+        "environment",
+        "release_sha"
+      ],
+      "window": "24h"
+    },
+    {
+      "id": "critical_latency",
+      "title": "Critical operation latency",
+      "source": "structured_logs",
+      "metric": "p95(duration_ms)",
+      "filter": "duration_ms IS NOT NULL",
+      "group_by": [
+        "event_name"
+      ],
+      "window": "1h"
+    },
+    {
+      "id": "db_connections",
+      "title": "DB connection utilization",
+      "source": "internal_database_health",
+      "metric": "connections.utilizationPct",
+      "window": "1h"
+    },
+    {
+      "id": "db_waits",
+      "title": "DB waits and long transactions",
+      "source": "internal_database_health",
+      "metrics": [
+        "connections.activeWaiting",
+        "transactions.waitingLocks",
+        "transactions.longOver60s"
+      ],
+      "window": "1h"
+    },
+    {
+      "id": "storage",
+      "title": "Storage failures",
+      "source": "structured_logs",
+      "metric": "count",
+      "filter": "event_name MATCHES storage.*.failed",
+      "group_by": [
+        "event_name",
+        "error_code"
+      ],
+      "window": "1h"
+    },
+    {
+      "id": "wallet",
+      "title": "Wallet and top-up technical failures",
+      "source": "structured_logs",
+      "metric": "count",
+      "filter": "event_name MATCHES wallet.*.technical_failed",
+      "group_by": [
+        "event_name",
+        "error_code"
+      ],
+      "window": "1h"
+    },
+    {
+      "id": "auth",
+      "title": "Authentication outcomes",
+      "source": "structured_logs",
+      "metric": "count",
+      "filter": "event_name MATCHES auth.login.*",
+      "group_by": [
+        "event_name"
+      ],
+      "window": "1h"
+    },
+    {
+      "id": "notification",
+      "title": "Notification delivery failures",
+      "source": "structured_logs",
+      "metric": "count",
+      "filter": "event_name=notification.delivery.failed",
+      "group_by": [
+        "error_code"
+      ],
+      "window": "24h"
+    },
+    {
+      "id": "release_protections",
+      "title": "Release protection status",
+      "source": "internal_deep_health",
+      "metrics": [
+        "releaseProtections.status",
+        "releaseProtections.apiLockdown.tableGrantCount",
+        "releaseProtections.apiLockdown.routineGrantCount"
+      ],
+      "window": "latest"
+    }
+  ],
+  "monitors": [
+    {
+      "id": "sev1_integrity",
+      "severity": "SEV-1",
+      "condition": "event_name=integrity.violation",
+      "trigger": "count >= 1",
+      "window": "immediate"
+    },
+    {
+      "id": "sev2_5xx",
+      "severity": "SEV-2",
+      "condition": "HTTP 5xx rate >= 2% AND requests >= 20",
+      "window": "5m"
+    },
+    {
+      "id": "sev2_critical_failures",
+      "severity": "SEV-2",
+      "condition": "critical route technical failures >= 5",
+      "window": "5m"
+    },
+    {
+      "id": "sev2_db_connections",
+      "severity": "SEV-2",
+      "condition": "DB connection utilization >= 85%",
+      "window": "5m"
+    },
+    {
+      "id": "sev2_wallet",
+      "severity": "SEV-2",
+      "condition": "wallet technical failures >= 3",
+      "window": "5m"
+    },
+    {
+      "id": "sev2_release_protections",
+      "severity": "SEV-2",
+      "condition": "release protection status != healthy in preview/production",
+      "window": "immediate"
+    },
+    {
+      "id": "sev3_notifications",
+      "severity": "SEV-3",
+      "condition": "notification.delivery.failed > 0",
+      "window": "business-hours review unless broad"
+    }
+  ],
+  "deduplication_key": [
+    "environment",
+    "event_family",
+    "action",
+    "error_code"
+  ],
+  "recovery": "Require stable healthy condition / multiple successful probes before resolved notification"
+}
