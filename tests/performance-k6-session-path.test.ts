@@ -44,7 +44,7 @@ function initialize(
     });
   };
   const run = () => new Function("require", "exports", "__ENV", "open", executable)(
-    requireDouble, {}, { PERF_ACK_NONPROD: "YES", BASE_URL: "https://preview.example.test", DATABASE_SCHEMA: "visa_os_preview", ...overrides }, openDouble,
+    requireDouble, {}, { PERF_ACK_NONPROD: "YES", BASE_URL: "http://127.0.0.1:3000", DATABASE_SCHEMA: "visa_os_preview", ...overrides }, openDouble,
   );
   return { run, opened };
 }
@@ -71,7 +71,13 @@ describe("k6 session-file resolution (initialization only; no k6 process)", () =
 
   it("refuses Production before opening session data", () => {
     const harness = initialize(posix, "/workspace/essafaria", { BASE_URL: "https://visa.essafariavoyages.com" });
-    expect(harness.run).toThrow("refuses the Production hostname");
+    expect(harness.run).toThrow(/HOSTED_K6_DISABLED/);
+    expect(harness.opened).toEqual([]);
+  });
+
+  it("refuses hosted Preview before opening session data", () => {
+    const harness = initialize(posix, "/workspace/essafaria", { BASE_URL: "https://preview.example.test" });
+    expect(harness.run).toThrow(/HOSTED_K6_DISABLED/);
     expect(harness.opened).toEqual([]);
   });
 
