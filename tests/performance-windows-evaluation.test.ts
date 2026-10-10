@@ -21,7 +21,8 @@ async function runner(k6Status = 0, evaluatorStatus = 0, overrides: Partial<Node
     constructor(value?: string | number) { super(value ?? clock); }
     static override now() { return clock; }
   }
-  const env = { PERF_SESSION_FILE: "perf/.runtime/sessions.json", PERF_APPLICATION_MANIFEST: "perf/.runtime/application-manifest.json", PERF_RUN_DIR: "C:\\Users\\Azur Computer\\evidence", npm_execpath: "C:\\Program Files\\nodejs\\npm-cli.js", ...overrides };
+  // All child processes are simulated; this URL is never requested.
+  const env = { BASE_URL: "http://127.0.0.1:3000", PERF_SESSION_FILE: "perf/.runtime/sessions.json", PERF_APPLICATION_MANIFEST: "perf/.runtime/application-manifest.json", PERF_RUN_DIR: "C:\\Users\\Azur Computer\\evidence", npm_execpath: "C:\\Program Files\\nodejs\\npm-cli.js", ...overrides };
   const requireDouble = (name: string) => {
     if (name === "./lib/load-env") return {};
     if (name === "node:path") return path;
@@ -86,6 +87,18 @@ async function evaluate(thresholdFailed = false, slow = false) {
 }
 
 describe("Windows Performance evaluation", () => {
+  it.each([
+    { BASE_URL: "https://preview.example.test" },
+    { BASE_URL: "https://visa.essafariavoyages.com" },
+    { BASE_URL: "" },
+  ])("rejects a non-loopback target before any workload or database action: %j", async (overrides) => {
+    const result = await runner(0, 0, overrides);
+    expect(result.exitCode).not.toBe(0);
+    expect(result.logs.join("\\n")).toContain("HOSTED_K6_DISABLED");
+    expect(result.calls).toEqual([]);
+    expect(result.tierStates).toEqual([]);
+  });
+
   it("passes spaced evidence paths directly to Node without a command shell", async () => {
     const result = await runner();
     expect(result.exitCode).toBe(0);
