@@ -86,6 +86,11 @@ async function evidenceFileReady(path: string): Promise<boolean> {
 }
 
 async function main() {
+  // Block hosted targets before DB snapshots, preflight probes, or any k6 workload.
+  const requestedBaseUrl = String(process.env.BASE_URL || "").trim().replace(/\/+$/, "");
+  if (!/^http:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?$/i.test(requestedBaseUrl)) {
+    throw new Error("HOSTED_K6_DISABLED: performance tiers require a local loopback BASE_URL.");
+  }
   const target = assertSafePerfTarget();
   const vus = intEnv("PERF_VUS", 10, 1, 1000);
   if (!ALLOWED_VUS.has(vus)) throw new Error("PERF_VUS must be one of 10, 50, 100, 250, 500, 1000.");
