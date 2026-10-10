@@ -12,6 +12,10 @@ if (__ENV.PERF_ACK_NONPROD !== "YES") {
 if (!__ENV.BASE_URL) throw new Error("BASE_URL is required.");
 
 const BASE_URL = String(__ENV.BASE_URL).trim().replace(/\/+$/, "");
+// Fail closed before ANY network call: Vercel Hobby prohibits hosted load testing.
+if (!/^http:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?$/i.test(BASE_URL)) {
+  throw new Error("HOSTED_K6_DISABLED: k6 load testing is permitted only against local loopback (localhost/127.0.0.1/[::1]).");
+}
 if (__ENV.VERCEL_AUTOMATION_BYPASS_SECRET && BASE_URL !== String(__ENV.CONSOLIDATION_PREVIEW_URL || "").replace(/\/+$/, "")) throw new Error("Bypass secret requires the independently recorded exact Preview origin.");
 const bypassHeaders=__ENV.VERCEL_AUTOMATION_BYPASS_SECRET?{"x-vercel-protection-bypass":__ENV.VERCEL_AUTOMATION_BYPASS_SECRET}:{};
 // k6 disables automatic Accept-Encoding negotiation. Request browser-supported
