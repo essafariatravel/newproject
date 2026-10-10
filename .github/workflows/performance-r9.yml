@@ -16,6 +16,9 @@ concurrency:
 
 jobs:
   r9:
+    # Hosted performance traffic forbidden on Hobby; do not start this job.
+    # Local deterministic CI gates remain separate and untouched.
+    if: ${{ false }}
     name: Preview 10-VU final validation
     runs-on: ubuntu-latest
     timeout-minutes: 40
