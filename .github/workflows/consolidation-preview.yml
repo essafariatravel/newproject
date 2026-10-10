@@ -1,3 +1,5 @@
+# ESSAFARIA emergency Hobby protection: hosted k6 load/stress/soak modes are disabled.
+# Preserve explicit Preview prepare/runtime checks without running performance traffic.
 name: Candidate isolated Preview verification
 on:
   push:
@@ -9,16 +11,9 @@ on:
         description: Explicit non-Production operation
         required: true
         type: choice
-        options: [prepare, runtime, performance, soak, spike]
+        options: [prepare, runtime]
       preview_url:
         description: Exact-SHA isolated Vercel Preview URL
-        type: string
-      vus:
-        description: Single tier (prior tier proof required)
-        type: choice
-        options: ['10', '50', '100', '250', '500', '1000']
-      previous_run:
-        description: Passing preceding tier run ID for the same SHA
         type: string
 permissions:
   contents: read
@@ -35,21 +30,10 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL || secrets.PERF_PREVIEW_DATABASE_URL }}
       DATABASE_SCHEMA: visa_os_preview
-      PERF_ACK_NONPROD: 'YES'
       BASE_URL: ${{ inputs.preview_url }}
       CONSOLIDATION_PREVIEW_URL: ${{ vars.CONSOLIDATION_PREVIEW_URL }}
       HEALTHCHECK_TOKEN: ${{ secrets.CONSOLIDATION_HEALTHCHECK_TOKEN }}
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      PERF_DATASET_ID: smoke10r6
-      PERF_SESSION_FILE: perf/.runtime/sessions.json
-      PERF_APPLICATION_MANIFEST: perf/.runtime/application-manifest.json
-      PERF_VUS: ${{ inputs.vus }}
-      PERF_SESSIONS_PER_ROLE: ${{ inputs.vus }}
-      PERF_RUN_KIND: ${{ inputs.mode == 'soak' && 'SOAK' || inputs.mode == 'spike' && 'SPIKE' || 'TIER' }}
-      PERF_TIER_HOLD_MINUTES: ${{ inputs.mode == 'soak' && '120' || '20' }}
-      PERF_RUN_LABEL: candidate-${{ inputs.mode }}-${{ inputs.vus }}vu-${{ github.run_id }}
-      PERF_RUN_DIR: perf/results/candidate-${{ inputs.mode }}-${{ inputs.vus }}vu
       EXPECTED_RELEASE_SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -63,29 +47,6 @@ jobs:
       - name: Verify exact deployed SHA before runtime/load
         if: inputs.mode != 'prepare'
         run: npx tsx scripts/consolidation-preview.ts runtime
-      - name: Require previous tier proof
-        if: (inputs.mode == 'performance' && inputs.vus != '10') || inputs.mode == 'soak' || inputs.mode == 'spike'
-        env:
-          PREVIOUS_RUN: ${{ inputs.previous_run }}
-        shell: bash
-        run: |
-          test -n "$PREVIOUS_RUN"
-          [[ "$PREVIOUS_RUN" =~ ^[0-9]+$ ]]
-          gh run view "$PREVIOUS_RUN" --json headSha,conclusion,workflowName > /tmp/previous-run.json
-          node -e 'const r=require("/tmp/previous-run.json");if(r.headSha!==process.env.GITHUB_SHA||r.conclusion!=="success"||r.workflowName!=="Candidate isolated Preview verification")process.exit(1)'
-          gh run download "$PREVIOUS_RUN" --dir /tmp/previous-proof
-          node scripts/verify-previous-performance.cjs /tmp/previous-proof
-      - uses: grafana/setup-k6-action@43b9fc21641a76002687994433dd586f56e791b1
-        if: inputs.mode == 'performance' || inputs.mode == 'soak' || inputs.mode == 'spike'
-        with: {k6-version: '2.3.0'}
-      - name: Fresh distinct synthetic sessions and deterministic manifest
-        if: inputs.mode == 'performance' || inputs.mode == 'soak' || inputs.mode == 'spike'
-        run: |
-          npm run perf:create-sessions
-          npm run perf:manifest
-      - name: Run one representative tier; never escalate automatically
-        if: inputs.mode == 'performance' || inputs.mode == 'soak' || inputs.mode == 'spike'
-        run: npm run perf:tier
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
