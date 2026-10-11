@@ -19,6 +19,30 @@ const MIGRATION_FILES = readdirSync(path.join(__dirname, "..", "migrations"))
 suiteSetup();
 
 describe("safe migrations against isolated test PostgreSQL", () => {
+  it("rolls back migration DDL, snapshots and ledger when transactional postflight fails", async () => {
+    const pool = new Pool({ connectionString: testConnectionString() });
+    const schema = `atomic_test_${randomBytes(6).toString("hex")}`;
+    const directory = await mkdtemp(path.join(tmpdir(), "essafaria-atomic-test-"));
+    try {
+      await writeFile(path.join(directory, "0001_probe.sql"), "create table atomic_probe (id integer)");
+      await expect(applyMigrations(pool, directory, schema, {
+        before: async client => { await client.query("create table restore_probe (id integer)"); },
+        after: async () => { throw new Error("postflight rejected"); },
+      })).rejects.toThrow("postflight rejected");
+      expect((await pool.query("select to_regnamespace($1) as name", [schema])).rows[0].name).toBeNull();
+    } finally { await pool.end(); await rm(directory, { recursive: true, force: true }); }
+  });
+  it("refuses a changed migration digest before running SQL", async () => {
+    const pool = new Pool({ connectionString: testConnectionString() });
+    const schema = `digest_test_${randomBytes(6).toString("hex")}`;
+    const directory = await mkdtemp(path.join(tmpdir(), "essafaria-digest-test-"));
+    try {
+      await writeFile(path.join(directory, "0001_probe.sql"), "create table digest_probe (id integer)");
+      await expect(applyMigrations(pool, directory, schema, { hashes: { "0001_probe.sql": "0".repeat(64) } }))
+        .rejects.toThrow("digest");
+      expect((await pool.query("select to_regnamespace($1) as name", [schema])).rows[0].name).toBeNull();
+    } finally { await pool.end(); await rm(directory, { recursive: true, force: true }); }
+  });
   it("creates an isolated application without modifying public tables", async () => {
     const pool = new Pool({ connectionString: testConnectionString() });
     try {

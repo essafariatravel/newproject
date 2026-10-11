@@ -11,6 +11,8 @@ import {
   TARGET_LEDGER,
   isReadOnlyMode,
   ledgerEquals,
+  alreadyAppliedFindings,
+  guardedProductionPoolConfig,
   pendingMigrations,
   preflightFindings,
   projectGuardFindings,
@@ -35,6 +37,10 @@ function approvedSnapshot(): SnapshotReport {
 }
 
 describe("current Production release manifest", () => {
+  it("refuses unexpected pending files on an already-applied no-op",()=>{
+    expect(alreadyAppliedFindings([])).toEqual([]);
+    expect(alreadyAppliedFindings(["0034_future.sql"])).toEqual(["Already-applied release has unexpected pending migrations."]);
+  });
   it("keeps the approved Production ledger through 0019 and authorizes only the 0020→0031 hardening migration set", () => {
     expect([...RELEASE_SCOPE]).toEqual([
       "0020_identity_security.sql",
@@ -131,6 +137,13 @@ describe("read-only audit safety", () => {
 });
 
 describe("Production target pinning", () => {
+  it("checks the effective migration URL and forces verified TLS",()=>{
+    const env={DATABASE_SCHEMA:"visa_os",DATABASE_URL:"postgresql://postgres.xgetzgixalrsmuvfthpf:pw@aws-1-us-east-1.pooler.supabase.com:6543/postgres?sslmode=disable"};
+    expect(()=>guardedProductionPoolConfig({...env,MIGRATION_DATABASE_URL:"postgresql://postgres.other:pw@aws-1-us-east-1.pooler.supabase.com:5432/postgres"})).toThrow();
+    const config=guardedProductionPoolConfig(env);
+    expect(config.connectionString).not.toContain("sslmode");
+    expect(config.ssl).toMatchObject({rejectUnauthorized:true});
+  });
   it("hard-pins schema to visa_os", () => {
     expect(PRODUCTION_SCHEMA).toBe("visa_os");
   });
@@ -146,6 +159,11 @@ describe("Production target pinning", () => {
 });
 
 describe("apply authorization remains push + PROD_GO only", () => {
+  it("does not contact Production on an unarmed candidate push",()=>{
+    const workflow=readFileSync(path.join(process.cwd(),".github/workflows/prod-release.yml"),"utf8");
+    const auditStep=workflow.slice(workflow.indexOf("      - name: Run read-only Production audit / baseline candidate"));
+    expect(auditStep.split("      - name: Publish report")[0]).toContain("if: github.event_name == 'workflow_dispatch' || steps.sentinel.outputs.go == 'true'");
+  });
   it("allows the RC branch but still requires push + PROD_GO + successful audit for apply", () => {
     const workflow = readFileSync(path.join(process.cwd(), ".github/workflows/prod-release.yml"), "utf8");
     const applySection = workflow.slice(workflow.indexOf("  apply:"));

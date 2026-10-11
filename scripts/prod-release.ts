@@ -32,7 +32,8 @@
  *     ledger on Production (a missing ledger means a mispointed database).
  *   - Live state must equal the approved baseline EXACTLY (ledger, counts,
  *     wallet checksum, agency balances), and the pending set must be exactly
- *     the authorized release scope — migrations 0020 through 0031. Any
+ *     the default authorized scope — 0020 through 0031. Qualified 0020–0033
+ *     requires a separate expiring, exact-SHA/file owner approval. Any
  *     unexpected pending file aborts the run.
  *   - Protected counts / wallet checksum / agency balances / branding must be
  *     identical afterwards, and column validation must end true.
@@ -58,6 +59,11 @@ import * as applicationSchema from "../src/db/schema";
 import { databasePoolConfig, targetsSupabaseProject } from "../src/lib/database-config";
 import { safeErrorCode, safeErrorText } from "../src/lib/safe-error";
 import { applyMigrations } from "./lib/migrations";
+import { spawnSync } from "node:child_process";
+import { createRestorePoints, protectedContentDigests, sourceColumnProjection, discoverProtectedTables, assertCleanReleaseCheckout, verifyHardeningUpdates, digest, validateReleaseApproval, validateIndependentCustodyReceipt, type ReleaseApproval } from "./lib/release-safeguards";
+import { privateArtifactPath } from "./lib/dr-private-path";
+import { rootCertificates } from "node:tls";
+import { SUPABASE_CA } from "../src/lib/supabase-ca";
 
 
 export type ReleaseMode = "audit" | "baseline-candidate" | "apply";
@@ -72,8 +78,6 @@ const MODE = resolveReleaseMode(process.argv[2]);
 export const PRODUCTION_SCHEMA = "visa_os";
 export const EXPECTED_SUPABASE_PROJECT = "xgetzgixalrsmuvfthpf";
 const SCHEMA = PRODUCTION_SCHEMA;
-const STAMP = new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 12);
-const SNAP = (t: string) => `visa_os._restore_${STAMP}_${t}`;
 const MIGRATIONS_DIR = () => path.join(process.cwd(), "migrations");
 
 /**
@@ -110,33 +114,6 @@ const PROTECTED_COUNTS = [
   "checklist_items",
   "wallet_transactions",
   "application_status_history",
-] as const;
-
-/** Tables the pending migrations write to — the ONLY ones snapshotted. */
-const SNAPSHOT_TABLES = [
-  "statuses",
-  "status_transitions",
-  "applications",
-  "applicants",
-  "agencies",
-  "users",
-  "sessions",
-  "currencies",
-  "visa_categories",
-  "visa_types",
-  "document_types",
-  "documents",
-  "document_blobs",
-  "checklist_items",
-  "wallet_transactions",
-  "wallet_topup_requests",
-  "document_requests",
-  "agency_registrations",
-  "agency_registration_documents",
-  "audit_logs",
-  "notifications",
-  "schema_migrations",
-  "site_settings",
 ] as const;
 
 /**
@@ -240,6 +217,9 @@ async function inSchema<T>(
 export function ledgerEquals(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i]);
 }
+export function alreadyAppliedFindings(pending:readonly string[]):string[] {
+  return pending.length ? ["Already-applied release has unexpected pending migrations."] : [];
+}
 
 /** Migrations present in the repo but not yet recorded in the live ledger. */
 export function pendingMigrations(liveLedger: readonly string[]): string[] {
@@ -278,7 +258,7 @@ export function releaseManifestFindings(
   ];
 }
 
-export function preflightFindings(live: SnapshotReport, pending: readonly string[]): string[] {
+export function preflightFindings(live: SnapshotReport, pending: readonly string[], releaseScope: readonly string[] = RELEASE_SCOPE): string[] {
   const mismatches: string[] = [];
   if (!ledgerEquals(live.ledger, APPROVED_BASELINE.ledger)) {
     mismatches.push(
@@ -302,7 +282,7 @@ export function preflightFindings(live: SnapshotReport, pending: readonly string
       `agency balances checksum differs: live=${live.agencyWallets} expected=${APPROVED_BASELINE.agencyWalletsChecksum}`,
     );
   }
-  mismatches.push(...releaseManifestFindings(pending));
+  mismatches.push(...releaseManifestFindings(pending, releaseScope));
   return mismatches;
 }
 
@@ -320,6 +300,14 @@ export function projectGuardFindings(url: string): string[] {
   } catch {
     return ["DATABASE_URL is not parseable — cannot verify the Production project identity"];
   }
+}
+export function guardedProductionPoolConfig(env:Record<string,string|undefined> = process.env):import("pg").PoolConfig {
+  if (env.DATABASE_SCHEMA !== PRODUCTION_SCHEMA) throw new Error("Production schema must be exactly visa_os.");
+  const config = databasePoolConfig(env, true);
+  if (!config.connectionString || projectGuardFindings(config.connectionString).length) throw new Error("Effective Production database project identity is invalid.");
+  const uri = new URL(config.connectionString);
+  for (const key of [...uri.searchParams.keys()]) if (/^ssl/i.test(key) || key === "uselibpqcompat") uri.searchParams.delete(key);
+  return {...config, connectionString:uri.href, ssl:{rejectUnauthorized:true,ca:[...rootCertificates,SUPABASE_CA]}};
 }
 
 function fail(msg: string): never {
@@ -397,6 +385,7 @@ async function collect(client: import("pg").PoolClient, notes: string[]): Promis
   const REMAP_SOURCES = ["REFUSED", "UNDER_REVIEW", "DOCUMENTS_REQUIRED", "PROCESSING", "EMBASSY_SUBMISSION", "AWAITING_DECISION", "COMPLETED"];
   for (const code of REMAP_SOURCES) report.remapExposure[code] = report.statusMix[code] ?? 0;
   try {
+    await client.query("savepoint column_validation");
     for (const table of Object.values(applicationSchema)) {
       if (!is(table, Table)) continue;
       const columns = Object.values(getTableColumns(table)).map((c) => `"${c.name.replaceAll('"', '""')}"`);
@@ -404,8 +393,11 @@ async function collect(client: import("pg").PoolClient, notes: string[]): Promis
     }
     report.columnsValid = true;
   } catch (err) {
+    await client.query("rollback to savepoint column_validation");
     report.columnsValid = false;
     report.schemaError = `${safeErrorCode(err) ?? "?"}: ${safeErrorText(err).slice(0, 200)}`;
+  } finally {
+    await client.query("release savepoint column_validation");
   }
   return report;
 }
@@ -436,7 +428,7 @@ async function collectBaselineReview(client: import("pg").PoolClient): Promise<B
     recentNotifications: notifications.rows,
   };
 }
-function diffReport(before: SnapshotReport, after: SnapshotReport): string[] {
+export function diffReport(before: SnapshotReport, after: SnapshotReport): string[] {
   const findings: string[] = [];
   for (const table of PROTECTED_COUNTS) {
     if (before.counts[table] !== after.counts[table]) {
@@ -458,7 +450,7 @@ function renderReport(
   after: SnapshotReport | null,
   findings: string[],
   applied: string[],
-  preflight?: { pending: string[]; mismatches: string[]; snapshots: string[] },
+  preflight?: { pending: string[]; mismatches: string[]; snapshots: string[]; scope?: readonly string[] },
 ): string {
   const lines: string[] = [];
   lines.push(`### Production release — ${mode.toUpperCase()} report (schema visa_os)`);
@@ -486,7 +478,7 @@ function renderReport(
   if (before.snapshotTables.length) lines.push(`restore snapshots: ${before.snapshotTables.join(", ")}`);
   if (preflight) {
     lines.push("");
-    lines.push(`release scope: [${RELEASE_SCOPE.join(", ")}]`);
+    lines.push(`release scope: [${(preflight.scope ?? RELEASE_SCOPE).join(", ")}]`);
     lines.push(`pending migrations: [${preflight.pending.join(", ") || "none"}]`);
     lines.push(
       `existing restore points in visa_os: [${preflight.snapshots.join(", ") || "none"}]`,
@@ -559,8 +551,53 @@ function describeTarget(value: string): string {
   }
 }
 
+export async function runQualifiedReleaseTransaction(pool: Pool, hashes: Record<string,string>, directory = MIGRATIONS_DIR()) {
+  const notes: string[] = [];
+  const releaseScope = Object.keys(hashes).sort();
+  const targetLedger = [...APPROVED_BASELINE.ledger, ...releaseScope];
+  let before: SnapshotReport;
+    let after: SnapshotReport | null = null;
+    let projection: Record<string,string[]> = {};
+    let contentBefore: Record<string,string> = {};
+    const applied = await applyMigrations(pool, directory, SCHEMA, {
+      hashes: hashes,
+      before: async (client, pending) => {
+        // Freeze protected source tables, then re-audit under the migration lock.
+        // No data can race between snapshot, migration and integrity comparison.
+        const protectedTables = await discoverProtectedTables(client);
+        for (const table of [...protectedTables, "schema_migrations"].sort()) {
+          const exists = await client.query("select to_regclass($1) as t", [`visa_os.${table}`]);
+          if (exists.rows[0]?.t) await client.query(`lock table visa_os."${table}" in access exclusive mode`);
+        }
+        before = await collect(client, notes);
+        const findings = preflightFindings(before, pending, releaseScope);
+        if (findings.length) throw new Error("Locked preflight rejected; no release writes committed.");
+        projection = await sourceColumnProjection(client, protectedTables);
+        contentBefore = await protectedContentDigests(client, projection);
+        before.snapshotTables = await createRestorePoints(client, protectedTables);
+      },
+      after: async client => {
+        after = await collect(client, notes);
+        const findings = diffReport(before, after);
+        const contentAfter = await protectedContentDigests(client, projection);
+        const changedTables = Object.keys(contentBefore).filter(table => contentBefore[table] !== contentAfter[table]);
+        if (changedTables.length) findings.push(`Original protected column content changed: ${changedTables.join(",")}`);
+        await verifyHardeningUpdates(client, before.snapshotTables);
+        if (findings.length || !after.columnsValid || !ledgerEquals(after.ledger, targetLedger)) {
+          throw new Error(`Transactional postflight rejected; migrations and restore snapshots rolled back. Checks: ${findings.join(";")}; columnsValid=${after.columnsValid}; ledgerValid=${ledgerEquals(after.ledger, targetLedger)}`);
+        }
+      },
+    });
+    if (!after) throw new Error("Transactional postflight did not run.");
+  return {before:before!, after:after as SnapshotReport, applied};
+}
+
 async function main(): Promise<void> {
-  const url = process.env.DATABASE_URL;
+  // Authorization and offline freshness checks precede even opening a DB pool.
+  const approval = MODE === "apply" || (MODE === "audit" && fs.existsSync("release/PROD_GO")) ? loadApplyAuthorization() : null;
+  const releaseScope: readonly string[] = approval ? Object.keys(approval.migrations).sort() : RELEASE_SCOPE;
+  const targetLedger = [...APPROVED_BASELINE.ledger, ...releaseScope];
+  const url = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL;
   if (!url) fail("DATABASE_URL is not available to this job — expected in the 'Production' GitHub environment secrets.");
   TARGET_DESCRIPTOR = describeTarget(url);
   console.log("connection target (credentials never printed): " + TARGET_DESCRIPTOR);
@@ -569,7 +606,7 @@ async function main(): Promise<void> {
   try {
     const parsed = new URL(url);
     host = parsed.hostname;
-    const isSupabase = host.endsWith(".supabase.com");
+    const isSupabase = targetsSupabaseProject(url, EXPECTED_SUPABASE_PROJECT);
     if (!isSupabase) fail(`DATABASE_URL host '${host}' is not a Supabase host; refusing to run.`);
     projectNote = targetsSupabaseProject(url, EXPECTED_SUPABASE_PROJECT)
       ? `targets the recorded project ${EXPECTED_SUPABASE_PROJECT}`
@@ -584,7 +621,7 @@ async function main(): Promise<void> {
   if ((process.env.DATABASE_SCHEMA ?? "").trim() !== SCHEMA) {
     fail(`DATABASE_SCHEMA must be exactly '${SCHEMA}' for this tool (got '${process.env.DATABASE_SCHEMA ?? ""}'). Refusing to run.`);
   }
-  const pool = new Pool(databasePoolConfig(process.env, true));
+  const pool = new Pool(guardedProductionPoolConfig());
   const notes: string[] = [];
   try {
     const client = await pool.connect();
@@ -594,7 +631,7 @@ async function main(): Promise<void> {
       // Identity probe: must run in the same transaction as the `set local`, so
       // the answer is the *live* schema of this release's connection and can
       // never be a stale/default-schema artefact of the pooler.
-      const readOnly = isReadOnlyMode(MODE);
+      const readOnly = true;
       const collected = await inSchema(client, async (probe) => {
         const who = await probe.query("select current_database() as db, current_schema() as sc");
         if (who.rows[0].sc !== SCHEMA) {
@@ -608,16 +645,16 @@ async function main(): Promise<void> {
           fail("Production migration ledger is missing — this is not a managed Production database state. Nothing was changed.");
         }
         notes.push(`connected: database=${dbName} schema=${SCHEMA}; ${projectNote}`);
-        return readOnly ? collect(probe, notes) : null;
+        return collect(probe, notes);
       }, readOnly);
-      before = collected ?? await collect(client, notes);
+      before = collected;
     } finally {
       client.release();
     }
 
     if (MODE === "audit" || MODE === "baseline-candidate") {
       const pending = pendingMigrations(before.ledger);
-      const mismatches = preflightFindings(before, pending);
+      const mismatches = preflightFindings(before, pending, releaseScope);
       const snapClientForAudit = await pool.connect();
       let snapshots: string[] = [];
       let review: BaselineReview | null = null;
@@ -644,7 +681,7 @@ async function main(): Promise<void> {
         console.log("BASELINE CANDIDATE GENERATED READ-ONLY — no Production data or approved baseline was changed.");
         return;
       }
-      const md = renderReport("audit", host, before, null, [], [], { pending, mismatches, snapshots });
+      const md = renderReport("audit", host, before, null, [], [], { pending, mismatches, snapshots, scope:releaseScope });
       fs.writeFileSync("/tmp/prod-release-report.md", md);
       console.log(md);
       if (mismatches.length) {
@@ -664,18 +701,19 @@ async function main(): Promise<void> {
     {
       const pending = pendingMigrations(before.ledger);
       // Already released: idempotent no-op, nothing written, no restore point needed.
-      if (ledgerEquals(before.ledger, TARGET_LEDGER)) {
+      if (ledgerEquals(before.ledger, targetLedger)) {
+        if (alreadyAppliedFindings(pending).length) throw new Error("Already-applied release has unexpected pending migrations.");
+        if (!before.columnsValid) throw new Error("Already-applied ledger has invalid candidate columns.");
         const md = renderReport("apply", host, before, before, [], [], { pending, mismatches: [], snapshots: [] });
         fs.writeFileSync(
           "/tmp/prod-release-report.md",
-          md + "\n\nMIGRATIONS ALREADY APPLIED (ledger complete 0001-0031) — no-op run; restore point not recreated.\n",
+          md + "\n\nMIGRATIONS ALREADY APPLIED — no-op run; restore point not recreated.\n",
         );
         console.log(md);
-        console.log("migrations already applied — ledger complete 0001-0031; exiting as successful no-op.");
-        pool.end();
+        console.log("migrations already applied — explicitly approved ledger complete; successful no-op.");
         return;
       }
-      const mismatches = [...preflightFindings(before, pending), ...projectGuardFindings(url)];
+      const mismatches = [...preflightFindings(before, pending, releaseScope), ...projectGuardFindings(url)];
       if (mismatches.length) {
         fail(
           `PRE-APPLY STATE DIVERGES FROM THE APPROVED PREFLIGHT — refusing to apply anything:\n - ${mismatches.join("\n - ")}`,
@@ -683,33 +721,9 @@ async function main(): Promise<void> {
       }
     }
 
-    // ---- apply mode: surgical in-place restore point (outside the migration transaction) ----
-    const snapClient = await pool.connect();
-    try {
-      for (const table of SNAPSHOT_TABLES) {
-        const exists = await snapClient.query(`select to_regclass($1) as t`, [`${SCHEMA}.${table}`]);
-        if (!exists.rows[0].t) continue;
-        await snapClient.query(`drop table if exists ${SNAP(table)}`);
-        await snapClient.query(`create table ${SNAP(table)} as select * from ${SCHEMA}.${table}`);
-        before.snapshotTables.push(SNAP(table));
-      }
-    } finally {
-      snapClient.release();
-    }
-
-    const applied = await applyMigrations(pool, path.join(process.cwd(), "migrations"), SCHEMA);
-
-    const postClient = await pool.connect();
-    let after: SnapshotReport;
-    try {
-      // No session-level `set search_path` here: every read in collect() is
-      // explicitly schema-qualified (`visa_os.<table>`), so nothing depends on
-      // pooled session state that the pooler may reset between statements.
-      after = await collect(postClient, notes);
-    } finally {
-      postClient.release();
-    }
-
+    const transaction = await runQualifiedReleaseTransaction(pool, approval!.migrations);
+    before = transaction.before;
+    const {after, applied} = transaction;
     const findings = diffReport(before, after);
     const md = renderReport("apply", host, before, after, findings, applied);
     fs.writeFileSync("/tmp/prod-release-report.md", md);
@@ -718,17 +732,43 @@ async function main(): Promise<void> {
       console.error("INTEGRITY VIOLATIONS — investigate before proceeding:", findings);
       process.exitCode = 3;
     }
-    if (!after.columnsValid) {
+    if (!(after as SnapshotReport).columnsValid) {
       console.error("Post-migration column validation still failing — NOT ready.");
       process.exitCode = 4;
     }
-    if (after.ledger.length < before.ledger.length) {
+    if ((after as SnapshotReport).ledger.length < before.ledger.length) {
       console.error("Migration ledger shrank — unexpected; NOT ready.");
       process.exitCode = 5;
     }
   } finally {
     await pool.end();
   }
+}
+
+function loadApplyAuthorization(): ReleaseApproval {
+  if (process.env.GITHUB_ACTIONS !== "true") throw new Error("Production apply requires the protected GitHub release job.");
+  const approvalFile = privateArtifactPath(process.env.RELEASE_APPROVAL_FILE ?? "", "Release approval", {requireAbsolute:true});
+  const raw = fs.readFileSync(approvalFile);
+  const approvalDigest = digest(raw);
+  if (approvalDigest !== process.env.RELEASE_APPROVAL_SHA256) {
+    throw new Error("Exact owner approval digest is required.");
+  }
+  const approval = validateReleaseApproval(JSON.parse(raw.toString("utf8")), {sha:process.env.GITHUB_SHA ?? "",ref:process.env.GITHUB_REF ?? ""});
+  assertCleanReleaseCheckout(approval.candidateSha);
+  // The nonce avoids a circular dependency between Git SHA and its own file.
+  if (fs.readFileSync("release/PROD_GO", "utf8").trim() !== approval.authorizationId) throw new Error("PROD_GO does not match the exact owner authorization.");
+  const manifest = privateArtifactPath(process.env.RELEASE_DR_VERIFIED_MANIFEST ?? "", "Verified DR manifest", {requireAbsolute:true});
+  const bundle = privateArtifactPath(process.env.RELEASE_DR_EVIDENCE_BUNDLE ?? "", "DR evidence bundle", {requireAbsolute:true});
+  const custody = privateArtifactPath(process.env.RELEASE_KEY_CUSTODY_RECEIPT ?? "", "Independent custody receipt", {requireAbsolute:true});
+  const custodyRaw = fs.readFileSync(custody);
+  if (digest(custodyRaw) !== approval.custodyReceiptSha256) throw new Error("Independent custody receipt differs from owner approval.");
+  validateIndependentCustodyReceipt(JSON.parse(custodyRaw.toString("utf8")));
+  if (digest(fs.readFileSync(manifest)) !== approval.verifiedManifestSha256 || digest(fs.readFileSync(bundle)) !== approval.evidenceBundleSha256) {
+    throw new Error("DR evidence files do not match owner approval.");
+  }
+  const gate = spawnSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "scripts/dr-release-gate.ts", "--verified-manifest", manifest, "--evidence-bundle", bundle, "--expected-release-sha", approval.sourceReleaseSha, "--max-age-hours", "24"], {shell:false,windowsHide:true,encoding:"utf8",timeout:60000});
+  if (gate.status !== 0) throw new Error("Fresh verified Production DR gate is blocked; no database contacted by apply.");
+  return approval;
 }
 
 function persistError(text: string): void {
