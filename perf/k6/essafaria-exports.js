@@ -8,6 +8,10 @@ if (__ENV.PERF_ACK_NONPROD !== "YES") throw new Error("PERF_ACK_NONPROD=YES is r
 if (!__ENV.BASE_URL) throw new Error("BASE_URL is required.");
 
 const BASE_URL = String(__ENV.BASE_URL).trim().replace(/\/+$/, "");
+// Fail closed before ANY network call: Vercel Hobby prohibits hosted load testing.
+if (!/^http:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?$/i.test(BASE_URL)) {
+  throw new Error("HOSTED_K6_DISABLED: k6 load testing is permitted only against local loopback (localhost/127.0.0.1/[::1]).");
+}
 const host = BASE_URL.replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].toLowerCase();
 if (host === PROD_HOST) throw new Error("Export harness refuses Production.");
 

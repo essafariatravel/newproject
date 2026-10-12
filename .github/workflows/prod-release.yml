@@ -20,6 +20,7 @@ on:
       - arena/01a0ce58-newproject
       - release/essafaria-rc-2026-09
       - release/go-live-final-2026-10-06
+      - release/essafaria-prod-candidate-2026-10-10
     paths:
       - .github/workflows/prod-release.yml
       - scripts/prod-release.ts
@@ -61,6 +62,11 @@ jobs:
       POSTGRES_URL_POSTGRES: ${{ secrets.POSTGRES_URL_POSTGRES }}
       DIRECT_DATABASE_URL: ${{ secrets.PRODUCTION_DIRECT_DATABASE_URL || secrets.DIRECT_DATABASE_URL }}
       DATABASE_SCHEMA: visa_os
+      RELEASE_APPROVAL_FILE: ${{ runner.temp }}/release-approval.json
+      RELEASE_APPROVAL_SHA256: ${{ vars.RELEASE_APPROVAL_SHA256 }}
+      RELEASE_DR_VERIFIED_MANIFEST: ${{ runner.temp }}/release-dr-verified.json
+      RELEASE_DR_EVIDENCE_BUNDLE: ${{ runner.temp }}/release-dr-bundle.json
+      RELEASE_KEY_CUSTODY_RECEIPT: ${{ runner.temp }}/release-custody-receipt.json
     steps:
       - name: Checkout
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -125,7 +131,17 @@ jobs:
           fi
           set -e
 
+      - name: Stage exact owner approval and verified DR evidence privately
+        if: steps.sentinel.outputs.go == 'true'
+        env:
+          RELEASE_APPROVAL_JSON: ${{ vars.RELEASE_APPROVAL_JSON }}
+          RELEASE_DR_VERIFIED_JSON: ${{ vars.RELEASE_DR_VERIFIED_JSON }}
+          RELEASE_DR_BUNDLE_JSON: ${{ vars.RELEASE_DR_BUNDLE_JSON }}
+          RELEASE_KEY_CUSTODY_JSON: ${{ vars.RELEASE_KEY_CUSTODY_JSON }}
+        run: node scripts/stage-release-approval.cjs
+
       - name: Run read-only Production audit / baseline candidate
+        if: github.event_name == 'workflow_dispatch' || steps.sentinel.outputs.go == 'true'
         run: |
           MODE="${{ inputs.mode }}"
           [ -n "$MODE" ] || MODE="audit"
@@ -146,6 +162,11 @@ jobs:
           fi
           exit $RC
 
+      - name: Report unarmed candidate
+        if: github.event_name == 'push' && steps.sentinel.outputs.go != 'true'
+        run: |
+          printf '### Production release remains unarmed\n\nNo Production query or write was authorized or attempted. Owner approval and PROD_GO are required.\n' > /tmp/prod-release-report.md
+
       - name: Publish report to Actions summary
         if: always()
         run: |
@@ -159,7 +180,7 @@ jobs:
     needs: audit
     if: >-
       github.event_name == 'push' &&
-      github.ref == 'refs/heads/release/go-live-final-2026-10-06' &&
+      github.ref == 'refs/heads/release/essafaria-prod-candidate-2026-10-10' &&
       needs.audit.outputs.go == 'true' &&
       needs.audit.result == 'success'
 
@@ -174,6 +195,11 @@ jobs:
       POSTGRES_URL_POSTGRES: ${{ secrets.POSTGRES_URL_POSTGRES }}
       DIRECT_DATABASE_URL: ${{ secrets.PRODUCTION_DIRECT_DATABASE_URL || secrets.DIRECT_DATABASE_URL }}
       DATABASE_SCHEMA: visa_os
+      RELEASE_APPROVAL_FILE: ${{ runner.temp }}/release-approval.json
+      RELEASE_APPROVAL_SHA256: ${{ vars.RELEASE_APPROVAL_SHA256 }}
+      RELEASE_DR_VERIFIED_MANIFEST: ${{ runner.temp }}/release-dr-verified.json
+      RELEASE_DR_EVIDENCE_BUNDLE: ${{ runner.temp }}/release-dr-bundle.json
+      RELEASE_KEY_CUSTODY_RECEIPT: ${{ runner.temp }}/release-custody-receipt.json
     steps:
       - name: Guard — resolve the Production database secret (masked)
         run: |
@@ -227,6 +253,14 @@ jobs:
             exit "$RC"
           fi
           set -e
+
+      - name: Stage exact owner approval and verified DR evidence privately
+        env:
+          RELEASE_APPROVAL_JSON: ${{ vars.RELEASE_APPROVAL_JSON }}
+          RELEASE_DR_VERIFIED_JSON: ${{ vars.RELEASE_DR_VERIFIED_JSON }}
+          RELEASE_DR_BUNDLE_JSON: ${{ vars.RELEASE_DR_BUNDLE_JSON }}
+          RELEASE_KEY_CUSTODY_JSON: ${{ vars.RELEASE_KEY_CUSTODY_JSON }}
+        run: node scripts/stage-release-approval.cjs
 
       - name: Preflight + restore point + migrations + integrity postflight
         run: npx --no-install tsx scripts/prod-release.ts apply

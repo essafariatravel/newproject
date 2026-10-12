@@ -11,10 +11,16 @@ describe("Production release workflow security", () => {
     expect(workflow).not.toContain("GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}");
   });
 
-  it("allows the Production apply job only from the authorized RC branch", () => {
-    expect(workflow).toContain("github.ref == 'refs/heads/release/go-live-final-2026-10-06'");
-    expect(workflow).toContain("needs.audit.outputs.go == 'true'");
-    expect(workflow).toContain("needs.audit.result == 'success'");
+  it("requires the exact candidate ref, push event, armed sentinel and successful audit for Production apply", () => {
+    const applyCondition = workflow.match(
+      /^ {2}apply:[\s\S]*?^ {4}if: >-\r?\n([\s\S]*?)^ {4}runs-on:/m,
+    )?.[1]?.replace(/\s+/g, " ").trim();
+    expect(applyCondition).toBe([
+      "github.event_name == 'push'",
+      "github.ref == 'refs/heads/release/essafaria-prod-candidate-2026-10-10'",
+      "needs.audit.outputs.go == 'true'",
+      "needs.audit.result == 'success'",
+    ].join(" && "));
   });
 
   it("installs release dependencies only from package-lock without fallback resolution", () => {

@@ -7,7 +7,8 @@ const executable = ts.transpileModule(readFileSync(resolve("perf/k6/essafaria-lo
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 const actionId = "a".repeat(40);
-const base = "https://preview.example.test";
+// This harness never makes real HTTP requests; use loopback to satisfy the hosted-k6 guard.
+const base = "http://127.0.0.1:3000";
 type Request = { url: string; body?: string | null; options: { headers?: Record<string, string>; tags?: Record<string, string> } };
 function harness(profile = "tier", actionResponse = '1:{"expired":false}\n', chunk = `(0,n.createServerReference)("${actionId}",n.callServer,void 0,n.findSourceMapURL,"touchSessionAction")`, configuration: { vus?: number; preflightDurationMs?: number; invalidPreflightIndex?: number; incompleteBatch?: boolean } = {}) {
   const calls: Request[] = [], failures: boolean[] = [];

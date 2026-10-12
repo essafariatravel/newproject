@@ -7,6 +7,18 @@ import {
 } from "../scripts/lib/build-policy";
 
 describe("Preview build database-change guard", () => {
+  it("forbids automatic migrations and seeds on production release candidates", () => {
+    for (const branch of [
+      "release/essafaria-prod-candidate-2026-10-10",
+      "release/essafaria-prod-candidate-2026-10-11",
+    ]) {
+      expect(automaticDatabaseChangesForbidden(branch)).toBe(true);
+    }
+  });
+  it("disables automatic Vercel deployments for the frozen production candidate", () => {
+    const config = JSON.parse(readFileSync(path.join(process.cwd(), "vercel.json"), "utf8"));
+    expect(config.git?.deploymentEnabled?.["release/essafaria-prod-candidate-2026-10-10"]).toBe(false);
+  });
   it("forbids automatic database writes on final consolidation candidates", () => {
     expect(automaticDatabaseChangesForbidden("codex/world-class-final-consolidation-2026-10-07")).toBe(true);
   });

@@ -1,6 +1,7 @@
 /** Production release preflight guards for the approved 0019 baseline and authorized 0020→0031 promotion. */
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { Client } from "pg";
 import { describe, expect, it } from "vitest";
 import {
   APPROVED_BASELINE,
@@ -11,6 +12,8 @@ import {
   TARGET_LEDGER,
   isReadOnlyMode,
   ledgerEquals,
+  alreadyAppliedFindings,
+  guardedProductionPoolConfig,
   pendingMigrations,
   preflightFindings,
   projectGuardFindings,
@@ -35,6 +38,10 @@ function approvedSnapshot(): SnapshotReport {
 }
 
 describe("current Production release manifest", () => {
+  it("refuses unexpected pending files on an already-applied no-op",()=>{
+    expect(alreadyAppliedFindings([])).toEqual([]);
+    expect(alreadyAppliedFindings(["0034_future.sql"])).toEqual(["Already-applied release has unexpected pending migrations."]);
+  });
   it("keeps the approved Production ledger through 0019 and authorizes only the 0020→0031 hardening migration set", () => {
     expect([...RELEASE_SCOPE]).toEqual([
       "0020_identity_security.sql",
@@ -131,6 +138,48 @@ describe("read-only audit safety", () => {
 });
 
 describe("Production target pinning", () => {
+  const approvedUri = "postgresql://postgres.xgetzgixalrsmuvfthpf:synthetic-password@aws-1-us-east-1.pooler.supabase.com:6543/postgres";
+  it.each([
+    "host=other.invalid",
+    "%68ost=other.invalid",
+    "host=aws-1-us-east-1.pooler.supabase.com&host=other.invalid",
+    "user=postgres.other",
+    "port=5432",
+    "password=other-synthetic-password",
+    "options=-c%20search_path%3Dpublic",
+    "database=other",
+    "connectionString=postgresql%3A%2F%2Fother.invalid%2Fpostgres",
+    "application_name=unapproved",
+  ])("rejects unapproved driver query parameters before connection: %s", (query) => {
+    expect(() => guardedProductionPoolConfig({
+      DATABASE_SCHEMA: "visa_os", DATABASE_URL: `${approvedUri}?${query}`,
+    })).toThrow("Production database URI contains unsupported connection parameters.");
+  });
+
+  it("preserves the approved effective driver target, schema options and verified TLS", () => {
+    const config = guardedProductionPoolConfig({
+      DATABASE_SCHEMA: "visa_os",
+      DATABASE_URL: `${approvedUri}?sslmode=disable&ssl=no-verify&sslcert=missing-file&sslkey=missing-file&sslrootcert=missing-file&sslnegotiation=direct&uselibpqcompat=true`,
+    });
+    // Construction parses the actual installed driver's configuration; connect() is never called.
+    const client = new Client(config) as Client & {
+      connectionParameters: { host: string; port: number; user: string; database: string; options: string; ssl: unknown };
+    };
+    expect(client.connectionParameters).toMatchObject({
+      host: "aws-1-us-east-1.pooler.supabase.com", port: 6543,
+      user: "postgres.xgetzgixalrsmuvfthpf", database: "postgres",
+      options: "-c search_path=pg_catalog,visa_os", ssl: { rejectUnauthorized: true },
+    });
+    expect(new URL(config.connectionString!).search).toBe("");
+  });
+
+  it("checks the effective migration URL and forces verified TLS",()=>{
+    const env={DATABASE_SCHEMA:"visa_os",DATABASE_URL:"postgresql://postgres.xgetzgixalrsmuvfthpf:pw@aws-1-us-east-1.pooler.supabase.com:6543/postgres?sslmode=disable"};
+    expect(()=>guardedProductionPoolConfig({...env,MIGRATION_DATABASE_URL:"postgresql://postgres.other:pw@aws-1-us-east-1.pooler.supabase.com:5432/postgres"})).toThrow();
+    const config=guardedProductionPoolConfig(env);
+    expect(config.connectionString).not.toContain("sslmode");
+    expect(config.ssl).toMatchObject({rejectUnauthorized:true});
+  });
   it("hard-pins schema to visa_os", () => {
     expect(PRODUCTION_SCHEMA).toBe("visa_os");
   });
@@ -146,6 +195,11 @@ describe("Production target pinning", () => {
 });
 
 describe("apply authorization remains push + PROD_GO only", () => {
+  it("does not contact Production on an unarmed candidate push",()=>{
+    const workflow=readFileSync(path.join(process.cwd(),".github/workflows/prod-release.yml"),"utf8");
+    const auditStep=workflow.slice(workflow.indexOf("      - name: Run read-only Production audit / baseline candidate"));
+    expect(auditStep.split("      - name: Publish report")[0]).toContain("if: github.event_name == 'workflow_dispatch' || steps.sentinel.outputs.go == 'true'");
+  });
   it("allows the RC branch but still requires push + PROD_GO + successful audit for apply", () => {
     const workflow = readFileSync(path.join(process.cwd(), ".github/workflows/prod-release.yml"), "utf8");
     const applySection = workflow.slice(workflow.indexOf("  apply:"));
