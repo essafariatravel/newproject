@@ -1,0 +1,48 @@
+import type { UiLocale } from "@/lib/ui-i18n";
+
+const copy: Record<string, readonly [string, string]> = {
+  "Username": ["Nom d’utilisateur", "اسم المستخدم"],
+  "Username or staff email": ["Nom d’utilisateur ou e-mail professionnel", "اسم المستخدم أو البريد المهني للموظف"],
+  "Forgot password?": ["Mot de passe oublié ?", "نسيت كلمة المرور؟"],
+  "Recover account access": ["Récupérer l’accès au compte", "استعادة الوصول إلى الحساب"],
+  "Request access help": ["Demander de l’aide", "طلب المساعدة"],
+  "If this account is eligible, your access request will be reviewed. Contact your account manager if you need help.": ["Si ce compte est éligible, votre demande d’accès sera examinée. Contactez votre interlocuteur si vous avez besoin d’aide.", "إذا كان الحساب مؤهلاً، فستتم مراجعة طلب الوصول. تواصل مع مسؤول حسابك عند الحاجة إلى المساعدة."],
+  "Enter your agency username or your staff professional email.": ["Saisissez votre nom d’utilisateur agence ou votre e-mail professionnel ESSAFARIA.", "أدخل اسم مستخدم الوكالة أو البريد المهني لموظف ESSAFARIA."],
+  "Back to sign in": ["Retour à la connexion", "العودة إلى تسجيل الدخول"],
+  "Access recovery": ["Récupération d’accès", "استعادة الوصول"],
+  "Recovery requests": ["Demandes de récupération", "طلبات استعادة الوصول"],
+  "No pending recovery requests": ["Aucune demande en attente", "لا توجد طلبات استعادة معلّقة"],
+  "Account not found": ["Compte introuvable", "الحساب غير موجود"],
+  "Close request": ["Clore la demande", "إغلاق الطلب"],
+  "Reset access": ["Réinitialiser l’accès", "إعادة تعيين الوصول"],
+  "Generate access link": ["Créer un lien d’accès", "إنشاء رابط الوصول"],
+  "Generate activation link": ["Créer un lien d’activation", "إنشاء رابط التفعيل"],
+  "Review requests and verify the account holder before sharing a single-use link.": ["Vérifiez les demandes et l’identité du titulaire avant de transmettre un lien à usage unique.", "راجع الطلبات وتحقق من صاحب الحساب قبل مشاركة رابط للاستخدام مرة واحدة."],
+  "Copy link": ["Copier le lien", "نسخ الرابط"],
+  "Copied": ["Copié", "تم النسخ"],
+  "Hide link": ["Masquer le lien", "إخفاء الرابط"],
+  "Expires": ["Expire le", "تنتهي الصلاحية"],
+  "Copy this single-use link now and share it securely with the user. Previous links were revoked.": ["Copiez ce lien à usage unique et transmettez-le de façon sécurisée. Les liens précédents ont été révoqués.", "انسخ الرابط للاستخدام مرة واحدة وشاركه بأمان مع المستخدم. أُلغيت الروابط السابقة."],
+  "This access link is invalid or has expired.": ["Ce lien d’accès est invalide ou a expiré.", "رابط الوصول غير صالح أو انتهت صلاحيته."],
+  "Set a new password": ["Définir un nouveau mot de passe", "تعيين كلمة مرور جديدة"],
+  "Save password": ["Enregistrer le mot de passe", "حفظ كلمة المرور"],
+  "Existing sessions will be signed out. Sign in with your new password.": ["Les sessions existantes seront fermées. Connectez-vous avec votre nouveau mot de passe.", "ستُغلق الجلسات الحالية. سجّل الدخول بكلمة المرور الجديدة."],
+  "Force sign-out": ["Fermer toutes les sessions", "تسجيل الخروج من جميع الجلسات"],
+  "Pending first password change": ["Premier changement de mot de passe requis", "يلزم تغيير كلمة المرور لأول مرة"],
+  "Pending activation": ["Activation en attente", "بانتظار التفعيل"],
+  "Shared agency mailbox": ["E-mail partagé de l’agence", "البريد المشترك للوكالة"],
+  "Staff": ["Équipe ESSAFARIA", "موظف ESSAFARIA"],
+  "Change password": ["Changer le mot de passe", "تغيير كلمة المرور"],
+  "Current password": ["Mot de passe actuel", "كلمة المرور الحالية"],
+  "Keep your account secure with a password you do not use elsewhere.": ["Protégez votre compte avec un mot de passe que vous n’utilisez pas ailleurs.", "احمِ حسابك بكلمة مرور لا تستخدمها في مكان آخر."],
+  "3–48 letters, digits, dots, hyphens or underscores. No personal email needed.": ["3 à 48 lettres, chiffres, points, tirets ou traits de soulignement. Aucun e-mail personnel requis.", "من 3 إلى 48 حرفاً لاتينياً أو رقماً أو نقطة أو شرطة. لا يلزم بريد شخصي."],
+  "Update contact details": ["Modifier les coordonnées", "تحديث بيانات الاتصال"],
+  "Only SUPER_ADMIN can manage the recovery queue.": ["Seul SUPER_ADMIN peut gérer les demandes de récupération.", "يمكن للمسؤول الرئيسي فقط إدارة طلبات استعادة الوصول."],
+  "The confirmation does not match the new password.": ["La confirmation ne correspond pas au nouveau mot de passe.", "تأكيد كلمة المرور لا يطابق كلمة المرور الجديدة."],
+  "Use at least 10 characters with letters and digits.": ["Utilisez au moins 10 caractères avec des lettres et des chiffres.", "استخدم 10 أحرف على الأقل تشمل حروفاً وأرقاماً."],
+  "Invalid username, email or password.": ["Nom d’utilisateur, e-mail ou mot de passe incorrect.", "اسم المستخدم أو البريد أو كلمة المرور غير صحيحة."],
+};
+
+export function identityT(locale: UiLocale) {
+  return (text: string) => locale === "en" ? text : copy[text]?.[locale === "fr" ? 0 : 1] ?? text;
+}

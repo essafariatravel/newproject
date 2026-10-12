@@ -1,0 +1,56 @@
+# ESSAFARIA emergency Hobby protection: hosted k6 load/stress/soak modes are disabled.
+# Preserve explicit Preview prepare/runtime checks without running performance traffic.
+name: Candidate isolated Preview verification
+on:
+  push:
+    branches: [codex/world-class-final-consolidation-*]
+    paths: [.github/workflows/consolidation-preview.yml]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Explicit non-Production operation
+        required: true
+        type: choice
+        options: [prepare, runtime]
+      preview_url:
+        description: Exact-SHA isolated Vercel Preview URL
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: candidate-preview-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/codex/world-class-final-consolidation-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: Preview
+    env:
+      DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL || secrets.PERF_PREVIEW_DATABASE_URL }}
+      DATABASE_SCHEMA: visa_os_preview
+      BASE_URL: ${{ inputs.preview_url }}
+      CONSOLIDATION_PREVIEW_URL: ${{ vars.CONSOLIDATION_PREVIEW_URL }}
+      HEALTHCHECK_TOKEN: ${{ secrets.CONSOLIDATION_HEALTHCHECK_TOKEN }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      EXPECTED_RELEASE_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with: {node-version: 24, cache: npm}
+      - run: npm ci --no-audit --no-fund
+      - name: Prepare only Preview schema
+        if: inputs.mode == 'prepare'
+        run: npx tsx scripts/consolidation-preview.ts prepare
+      - name: Verify exact deployed SHA (bounded Preview health checks)
+        if: inputs.mode != 'prepare'
+        run: npx tsx scripts/consolidation-preview.ts runtime
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: candidate-preview-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            tmp-final-verify/*.json
+          retention-days: 30

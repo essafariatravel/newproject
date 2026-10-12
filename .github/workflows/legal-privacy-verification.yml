@@ -1,0 +1,68 @@
+name: Legal Privacy deterministic verification
+
+on:
+  push:
+    branches:
+      - hardening/legal-privacy-readiness-v2
+  workflow_dispatch:
+
+concurrency:
+  group: legal-privacy-v2-${{ github.sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Typecheck, lint, migrations, tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      VERCEL: "0"
+      VERCEL_ENV: ""
+      DATABASE_URL: ""
+      DATABASE_SCHEMA: "public"
+      ALLOW_DEMO_SEED: "false"
+      STORAGE_PROVIDER: "db"
+      CI: "true"
+
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify checkout
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "Verified commit: $GITHUB_SHA"
+
+      - name: Setup Node 22
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Legal/privacy targeted tests
+        run: npm test -- tests/legal-hardening.test.ts tests/privacy-readiness.test.ts tests/registration-followup.test.ts tests/registration-e2e.test.ts
+
+      - name: Migration safety
+        run: npm test -- tests/migrations.test.ts
+
+      - name: Full deterministic suite
+        run: npm test
+
+      - name: Build without deployment or external database access
+        run: npm run build

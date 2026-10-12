@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { loginAction } from "@/app/actions/auth";
 import { SubmitButton } from "@/components/forms";
+import Link from "next/link";
 
 /**
  * Form only. The page (src/app/(public)/login/page.tsx) owns the layout
@@ -15,6 +16,7 @@ export interface LoginCopy {
   signIn: string;
   signingIn: string;
   footer: string;
+  forgotPassword: string;
 }
 
 export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
@@ -23,7 +25,7 @@ export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
     <>
       <form action={formAction} className="mt-8 space-y-4">
         {state.error ? (
-          <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-4 text-base text-red-700">
             {state.error}
           </div>
         ) : null}
@@ -31,12 +33,13 @@ export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
           <label htmlFor="email" className="label">{copy.email}</label>
           <input
             id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
+            name="identifier"
+            type="text"
+            autoComplete="username"
+            maxLength={254}
+            dir="ltr"
             required
             className="input"
-            placeholder="you@agency.example"
           />
         </div>
         <div>
@@ -51,10 +54,11 @@ export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
             placeholder="••••••••"
           />
         </div>
-        <SubmitButton className="btn-primary w-full py-2.5" pendingLabel={copy.signingIn}>
+        <SubmitButton className="btn-primary w-full py-2" pendingLabel={copy.signingIn}>
           {copy.signIn}
         </SubmitButton>
       </form>
+      <Link href="/forgot-password" className="mt-4 block text-center text-base text-iris-700 underline">{copy.forgotPassword}</Link>
       <p className="mt-6 text-center text-xs text-slate-500">
         {copy.footer}
       </p>

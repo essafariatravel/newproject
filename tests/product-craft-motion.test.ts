@@ -8,7 +8,7 @@ describe("ESSAFARIA shared motion system", () => {
     const css = read("src/app/globals.css");
     expect(css).toContain("--motion-micro: 120ms");
     expect(css).toContain("--motion-standard: 200ms");
-    expect(css).toContain("--motion-spatial: 300ms");
+    expect(css).toContain("--motion-spatial: 240ms");
     expect(css).toContain("--motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1)");
   });
 
@@ -74,7 +74,9 @@ describe("visual craft restraint", () => {
     expect(home).not.toContain("backdrop-blur-sm");
     expect(home).not.toContain("B2B Visa Processing Platform");
     expect(home).not.toContain('className="public-card card p-6"');
-    expect(home).toContain("group-hover:translate-x-1");
+    expect(home).toContain('className="public-cta');
+    expect(home).toContain('className="directional-arrow"');
+    expect(css).toContain(".public-cta:hover .directional-arrow");
   });
 
   it("uses restrained file controls on operational upload surfaces", () => {

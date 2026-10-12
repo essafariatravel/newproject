@@ -1,3 +1,4 @@
+import { readPublishedLegal, publishLegalContent } from "@/lib/legal";
 import { describe, expect, it, vi } from "vitest";
 
 // Server actions finish with revalidatePath(); outside a request scope Next
@@ -10,7 +11,7 @@ suiteSetup();
 
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { auditLogs, siteSettings, users } from "@/db/schema";
+import { auditLogs, users } from "@/db/schema";
 import { getSiteSettings, settingString, settingObject } from "@/lib/settings";
 import { request } from "./helpers/request";
 
@@ -26,7 +27,7 @@ import { request } from "./helpers/request";
  */
 
 async function actAsSuperAdmin() {
-  const { createSession } = await import("@/lib/auth");
+  const { createSession } = await import("./helpers/authenticated-session");
   const row = (await db.select().from(users).where(eq(users.role, "SUPER_ADMIN")).limit(1))[0]!;
   const { token } = await createSession(row.id);
   request.cookie = token;
@@ -74,13 +75,15 @@ describe("§Settings — independent sections, multilingual legal copy", () => {
 
     const form = new FormData();
     form.set("section", "legal");
+    form.set("legal.privacy.ar.effectiveAt", "2026-09-30");
+    form.set("legal.terms.ar.effectiveAt", "2026-09-30");
     form.set("legal.privacy.ar", "إشعار الخصوصية بالعربية");
     form.set("legal.terms.ar", "شروط الخدمة بالعربية");
     const flash = await runAction(updateSiteSettingsAction, form);
-    expect(flash).toMatch(/Legal content saved/);
+    expect(flash).toMatch(/Approved legal versions published/);
 
     const settings = await getSiteSettings();
-    expect(settingString(settings, "legal.privacy.ar")).toBe("إشعار الخصوصية بالعربية");
+    expect((await readPublishedLegal("privacy", "ar"))?.body).toBe("إشعار الخصوصية بالعربية");
     expect(settingString(settings, "brand.product")).toBe("ESSAFARIA Visa OS");
   });
 
@@ -89,6 +92,10 @@ describe("§Settings — independent sections, multilingual legal copy", () => {
     await actAsSuperAdmin();
     const form = new FormData();
     form.set("section", "legal");
+    for (const locale of ["en", "fr", "ar"]) {
+      form.set(`legal.privacy.${locale}.effectiveAt`, "2026-09-30");
+      form.set(`legal.terms.${locale}.effectiveAt`, "2026-09-30");
+    }
     form.set("legal.privacy.en", "English privacy");
     form.set("legal.privacy.fr", "Confidentialité française");
     form.set("legal.privacy.ar", "الخصوصية العربية");
@@ -97,12 +104,11 @@ describe("§Settings — independent sections, multilingual legal copy", () => {
     form.set("legal.terms.ar", "الشروط العربية");
     await runAction(updateSiteSettingsAction, form);
 
-    const settings = await getSiteSettings();
     for (const locale of ["en", "fr", "ar"]) {
-      expect(settingString(settings, `legal.privacy.${locale}`)).not.toBe("");
-      expect(settingString(settings, `legal.terms.${locale}`)).not.toBe("");
+      expect((await readPublishedLegal("privacy", locale as "en"|"fr"|"ar"))?.body).not.toBe("");
+      expect((await readPublishedLegal("terms", locale as "en"|"fr"|"ar"))?.body).not.toBe("");
     }
-    expect(settingString(settings, "legal.privacy.ar")).toMatch(/[\u0600-\u06FF]/);
+    expect((await readPublishedLegal("privacy","ar"))?.body).toMatch(/[\u0600-\u06FF]/);
   });
 
   it("4. a language that was never translated falls back instead of rendering blank", async () => {
@@ -129,15 +135,16 @@ describe("§Settings — independent sections, multilingual legal copy", () => {
     const admin = await actAsSuperAdmin();
     const form = new FormData();
     form.set("section", "legal");
+    form.set("legal.privacy.fr.effectiveAt", "2026-09-30");
     form.set("legal.privacy.fr", "Confidentialité auditée");
     await runAction(updateSiteSettingsAction, form);
 
-    const audits = await db.select().from(auditLogs).where(eq(auditLogs.action, "SETTINGS_UPDATED"));
+    const audits = await db.select().from(auditLogs).where(eq(auditLogs.action, "LEGAL_PUBLISHED"));
     const mine = audits.filter((a) => a.actorId === admin.id);
     expect(mine.length).toBeGreaterThan(0);
-    const metadata = mine.at(-1)!.metadata as { section?: string; keys?: string[] };
-    expect(metadata.section).toBe("legal");
-    expect(metadata.keys).toContain("legal.privacy.fr");
+    const metadata = mine.at(-1)!.metadata as {kind?:string;locale?:string;version?:number};
+    expect(metadata.kind).toBe("privacy");
+    expect(metadata.locale).toBe("fr"); expect(metadata.version).toBeGreaterThan(0);
   });
 
   it("7. brand and CMS settings live in separate rows — one save cannot blank the other", async () => {
@@ -150,20 +157,20 @@ describe("§Settings — independent sections, multilingual legal copy", () => {
     await actAsSuperAdmin();
     const form = new FormData();
     form.set("section", "legal");
+    form.set("legal.terms.en.effectiveAt", "2026-09-30");
     form.set("legal.terms.en", "Terms v2");
     await runAction(updateSiteSettingsAction, form);
 
     const after = await getSiteSettings();
     expect(settingObject(after, "site.social").linkedin).toContain("linkedin.com");
-    expect(settingString(after, "legal.terms.en")).toBe("Terms v2");
+    expect((await readPublishedLegal("terms","en"))?.body).toBe("Terms v2");
   });
 
   it("8. legal text is stored as text, never as markup, and long copy round-trips", async () => {
-    const { updateSetting } = await import("@/lib/settings");
     const long = "Article 1 — Scope.\n".repeat(120);
-    await updateSetting("legal.terms.fr", long, null);
-    const row = (await db.select().from(siteSettings).where(eq(siteSettings.key, "legal.terms.fr")).limit(1))[0]!;
-    expect(typeof row.value).toBe("string");
-    expect(String(row.value).length).toBe(long.length);
+    await publishLegalContent({kind:"terms",locale:"fr",body:long,effectiveAt:new Date("2026-09-30"),actor:await import("./helpers/fixtures").then(m=>m.userByEmail("superadmin@test.example"))});
+    const row = await readPublishedLegal("terms","fr");
+    expect(typeof row?.body).toBe("string");
+    expect(row?.body).toBe(long.trim());
   });
 });

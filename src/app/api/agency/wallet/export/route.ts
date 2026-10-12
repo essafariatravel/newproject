@@ -17,6 +17,8 @@ import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { businessLabel, businessReason } from "@/lib/business-labels";
 import { toCsv, toXlsx, XLSX_CONTENT_TYPE, type Column } from "@/lib/tabular-export";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
+import { recordAuditStrict } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +34,10 @@ export async function GET(request: Request) {
     }
     if (!hasPermission(user, "transactions.view.own")) {
       return NextResponse.json({ error: "Not authorized.", code: "FORBIDDEN" }, { status: 403 });
+    }
+
+    if (!await consumeAuthRateLimit("export-wallet-user-minute", user.id, 10, 60_000)) {
+      return NextResponse.json({ error: "Too many exports. Please wait before retrying.", code: "RATE_LIMITED" }, { status: 429, headers: { "Retry-After": "60" } });
     }
 
     const url = new URL(request.url);
@@ -69,6 +75,20 @@ export async function GET(request: Request) {
     const xlsx = url.searchParams.get("format") === "xlsx";
     const body = xlsx ? new Uint8Array(toXlsx(ct("Wallet"), columns, data)) : toCsv(columns, data, { locale, excel: true });
     const stamp = new Date().toISOString().slice(0, 10);
+    await recordAuditStrict({
+      actor: user,
+      action: "WALLET_EXPORTED",
+      entity: "wallet_transaction",
+      agencyId: user.agencyId,
+      metadata: {
+        format: xlsx ? "xlsx" : "csv",
+        rows: data.length,
+        period: sp.period ?? null,
+        from: sp.from ?? null,
+        to: sp.to ?? null,
+        type: url.searchParams.get("type"),
+      },
+    });
     return new NextResponse(body, {
       headers: {
         "Content-Type": xlsx ? XLSX_CONTENT_TYPE : "text/csv; charset=utf-8",
@@ -79,7 +99,8 @@ export async function GET(request: Request) {
     });
   } catch (err) {
     if (err instanceof AppError) {
-      return NextResponse.json({ error: err.message, code: err.code }, { status: 400 });
+      const status = err.code === "AUDIT_FAILED" ? 503 : 400;
+      return NextResponse.json({ error: err.message, code: err.code }, { status });
     }
     console.error("[wallet-export] failed:", err);
     return NextResponse.json({ error: "Could not export the ledger." }, { status: 500 });

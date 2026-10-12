@@ -12,7 +12,7 @@ export function AgencyListIdentity(props: {
     <span className="min-w-0">
       <Link
         href={`/admin/agencies/${props.id}`}
-        className="block truncate font-medium text-navy-900 hover:underline"
+        className="block truncate font-semibold text-navy-900 hover:underline"
       >
         {label}
       </Link>

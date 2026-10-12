@@ -1,0 +1,19 @@
+{
+  "environment": "Preview URL / isolated test database identifier",
+  "commit": "REPLACE_WITH_TESTED_COMMIT_SHA",
+  "walletCorrectness": false,
+  "storageCorrectness": false,
+  "runs": [
+    {
+      "label": "10-vu",
+      "vus": 10,
+      "summary": "perf/results/k6-10-vu-summary.json",
+      "beforeDb": "perf/results/before-10-vu.json",
+      "afterDb": "perf/results/after-10-vu.json"
+    }
+  ],
+  "notes": [
+    "Replace this example with the exact measured run artifacts.",
+    "Never mark wallet/storage correctness true without the dedicated hosted correctness suites."
+  ]
+}

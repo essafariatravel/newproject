@@ -5,9 +5,11 @@ import { PasswordField, SubmitButton } from "@/components/forms";
 import { Flash } from "@/components/ui";
 import { chromeT, getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
+import { identityT } from "@/lib/identity-copy";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Set your password" };
+export const metadata = { title: "Set your password", robots: { index: false, follow: false }, referrer: "no-referrer" as const };
 
 /**
  * Phase 2.2 §11 — mandatory first password change. Lives outside the
@@ -24,14 +26,15 @@ export default async function ChangePasswordPage({
   const user = await pageUserForPasswordChange();
   const uiLocale = await getUiLocale();
   const ct = contentT(uiLocale);
+  const it = identityT(uiLocale);
   const cc = chromeT(uiLocale);
   const flash = flashFrom(await searchParams);
 
   return (
-    <div className="mx-auto max-w-md px-4 py-16">
-      <h1 className="font-serif text-3xl text-navy-900">{ct("Set your password")}</h1>
-      <p className="mt-2 text-sm text-slate-500">
-        {ct("For security, you must choose a new password before you can continue.")}
+    <div className="mx-auto max-w-md px-4 py-8">
+      <h1 className="font-serif text-[32px] text-navy-900">{user.mustChangePassword ? ct("Set your password") : it("Change password")}</h1>
+      <p className="mt-2 text-base text-slate-500">
+        {user.mustChangePassword ? ct("For security, you must choose a new password before you can continue.") : it("Keep your account secure with a password you do not use elsewhere.")}
       </p>
       <div className="mt-6">
         <Flash {...flash} />
@@ -40,10 +43,10 @@ export default async function ChangePasswordPage({
         <PasswordField
           id="cp-current"
           name="current"
-          label={ct("Current (temporary) password")}
+          label={user.mustChangePassword ? ct("Current (temporary) password") : it("Current password")}
           required
           autoComplete="current-password"
-          hint={ct("The password you were given by ESSAFARIA.")}
+          hint={user.mustChangePassword ? ct("The password you were given by ESSAFARIA.") : undefined}
           showLabel={ct("Show")}
           hideLabel={ct("Hide")}
         />
@@ -68,15 +71,16 @@ export default async function ChangePasswordPage({
           hideLabel={ct("Hide")}
         />
         <SubmitButton className="btn-primary w-full" pendingLabel={ct("Saving…")}>
-          {ct("Set password and continue")}
+          {user.mustChangePassword ? ct("Set password and continue") : it("Save password")}
         </SubmitButton>
       </form>
       <div className="mt-4 flex items-center justify-between text-xs text-slate-400">
-        <span>{user.email}</span>
+        <span dir="ltr">{user.username ?? user.email}</span>
         <form action={logoutAction}>
           <button className="text-iris-600 hover:underline">{cc("Sign out")}</button>
         </form>
       </div>
+      {!user.mustChangePassword ? <Link href={user.agencyId ? "/portal/profile" : "/admin"} className="mt-4 block text-base text-iris-700 underline">{ct("Back")}</Link> : null}
     </div>
   );
 }

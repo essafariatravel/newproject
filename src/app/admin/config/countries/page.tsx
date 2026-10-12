@@ -11,6 +11,7 @@ import { contentT } from "@/lib/i18n-content";
 import { countryName } from "@/lib/country-names";
 
 export const dynamic = "force-dynamic";
+const REGIONS = ["Africa","Asia","Europe","Middle East","North America","South America","Oceania"];
 
 export default async function CountriesConfigPage({
   searchParams,
@@ -36,8 +37,8 @@ export default async function CountriesConfigPage({
         title={ct("Countries")}
         subtitle={ct("Destination countries — safe hard-delete blocked when referenced by visa types or applications.")}
         actions={
-          <form className="flex items-center gap-2">
-            <input name="q" defaultValue={typeof sp.q === "string" ? sp.q : ""} placeholder={ct("Search country, ISO, region…")} className="input w-64 text-sm" />
+          <form className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <input name="q" defaultValue={typeof sp.q === "string" ? sp.q : ""} aria-label={ct("Search country, ISO, region…")} placeholder={ct("Search country, ISO, region…")} className="input min-w-0 flex-1 text-base sm:w-64" />
             <button type="submit" className="btn-secondary btn-sm">{ct("Search")}</button>
             {q ? <Link href="/admin/config/countries" className="btn-secondary btn-sm">{ct("Clear")}</Link> : null}
           </form>
@@ -52,6 +53,7 @@ export default async function CountriesConfigPage({
             <th className="th">ISO</th>
             <th className="th">{ct("Region")}</th>
             <th className="th">{ct("Sort")}</th>
+            <th className="th">{ct("Used by visa programmes")}</th>
             <th className="th">{ct("Status")}</th>
             {canManage ? <th className="th text-right">{ct("Actions")}</th> : null}
           </tr>
@@ -59,14 +61,31 @@ export default async function CountriesConfigPage({
         <tbody className="divide-y divide-slate-100">
           {rows.map((c) => (
             <tr key={c.id} className="tr-hover">
-              <td className="td font-medium text-navy-900">{countryName(c, locale)}</td>
+              <td className="td font-semibold text-navy-900">{countryName(c, locale)}</td>
               <td className="td"><span className="badge bg-navy-900/5 text-navy-800">{c.iso2}</span></td>
               <td className="td">{c.region ? ct(c.region) : "—"}</td>
               <td className="td tabular-nums text-xs">{c.sortOrder}</td>
+              <td className="td tabular-nums text-xs">{c.usageCount}</td>
               <td className="td"><ActiveBadge active={c.active} locale={locale} /></td>
               {canManage ? (
                 <td className="td text-right">
-                  <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-2">
+                    <details className="text-start"><summary className="btn-secondary btn-sm cursor-pointer">{ct("Edit")}</summary>
+                      <form action={updateCountryAction} className="space-y-4 p-4 min-w-60">
+                        <input type="hidden" name="id" value={c.id}/>
+                        <label className="label">{ct("Name")} · EN<input name="name" required className="input" defaultValue={c.name}/></label>
+                        <label className="label">{ct("Name")} · FR<input name="nameFr" className="input" defaultValue={c.nameFr??""}/></label>
+                        <label className="label">{ct("Name")} · AR<input name="nameAr" className="input" dir="rtl" defaultValue={c.nameAr??""}/></label>
+                        <label className="label">ISO-2<input name="iso2" required maxLength={2} minLength={2} className="input" defaultValue={c.iso2}/></label>
+                        <label className="label">{ct("Region")}<select name="region" aria-label={ct("Region")} className="input" defaultValue={c.region??""}>
+                          <option value="">—</option>
+                          {c.region&&!REGIONS.includes(c.region)?<option value={c.region}>{ct(c.region)}</option>:null}
+                          {REGIONS.map(region=><option key={region} value={region}>{ct(region)}</option>)}
+                        </select></label>
+                        <label className="label">{ct("Sort order")}<input name="sortOrder" type="number" min={0} className="input" defaultValue={c.sortOrder}/></label>
+                        <SubmitButton className="btn-primary btn-sm" pendingLabel={ct("Saving…")}>{ct("Save")}</SubmitButton>
+                      </form>
+                    </details>
                     <form action={updateCountryAction} className="inline">
                       <input type="hidden" name="id" value={c.id} />
                       <input type="hidden" name="name" value={c.name} />
@@ -95,20 +114,22 @@ export default async function CountriesConfigPage({
 
       {canManage ? (
         <div className="mt-8">
-          <h2 className="mb-3 font-serif text-xl text-navy-900">{ct("Add country")}</h2>
-          <form action={createCountryAction} className="card grid grid-cols-1 gap-4 p-5 sm:grid-cols-4">
+          <h2 className="mb-4 font-serif text-lg text-navy-900">{ct("Add country")}</h2>
+          <form action={createCountryAction} className="card grid grid-cols-1 gap-4 p-6 sm:grid-cols-4">
             <div className="sm:col-span-2">
-              <label className="label">{ct("Name")} *</label>
-              <input name="name" required className="input" placeholder="Portugal" />
+              <label className="label" htmlFor="country-create-name">{ct("Name")} *</label>
+              <input id="country-create-name" name="name" required className="input" placeholder="Portugal" />
             </div>
             <div>
-              <label className="label">ISO-2 *</label>
-              <input name="iso2" required maxLength={2} minLength={2} className="input uppercase" placeholder="PT" />
+              <label className="label" htmlFor="country-create-iso">ISO-2 *</label>
+              <input id="country-create-iso" name="iso2" required maxLength={2} minLength={2} className="input uppercase" placeholder="PT" />
             </div>
             <div>
-              <label className="label">{ct("Region")}</label>
-              <input name="region" className="input" placeholder={ct("Europe")} />
+              <label className="label" htmlFor="country-create-region">{ct("Region")}</label>
+              <select id="country-create-region" name="region" className="input">{REGIONS.map(region=><option key={region} value={region}>{ct(region)}</option>)}</select>
             </div>
+            <label className="label">{ct("Name")} · FR<input name="nameFr" className="input"/></label>
+            <label className="label">{ct("Name")} · AR<input name="nameAr" className="input" dir="rtl"/></label>
             <div className="sm:col-span-4">
               <SubmitButton className="btn-primary" pendingLabel={ct("Saving…")}>{ct("Add country")}</SubmitButton>
             </div>

@@ -37,8 +37,10 @@ export function settingObject(
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, string>) : fallback;
 }
 
-export async function updateSetting(key: string, value: unknown, updatedBy: string | null) {
-  await db
+export type SettingsTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export async function updateSetting(key: string, value: unknown, updatedBy: string | null, writer: SettingsTransaction | typeof db = db) {
+  await writer
     .insert(siteSettings)
     .values({ key, value: value as never, updatedBy })
     .onConflictDoUpdate({

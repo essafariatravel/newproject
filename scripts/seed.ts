@@ -264,8 +264,6 @@ const SITE_SETTINGS: Record<string, unknown> = {
   "site.address": "Boulevard Mohammed V, Casablanca, Morocco",
   "site.social": { linkedin: "https://www.linkedin.com/company/essafaria", instagram: "", x: "" },
   "site.officeHours": "Monday – Friday, 09:00 – 18:00 (GMT+1)",
-  "legal.privacy": "ESSAFARIA TRAVEL processes personal data of visa applicants strictly for the purpose of preparing and submitting visa applications, in line with applicable data protection law. Documents are stored encrypted at rest, access is restricted to authorized staff of the handling agency and ESSAFARIA operations team, and records are retained only as long as legally required. Applicants may request access, correction or deletion of their data via their agency.",
-  "legal.terms": "These terms govern the B2B visa services provided by ESSAFARIA TRAVEL to partner agencies. 1. Services: ESSAFARIA reviews, prepares and submits visa applications on behalf of partner agencies. 2. Fees: each submitted application is charged against the agency prepaid wallet at the rate published in the platform configuration at the time of submission. 3. Wallet: balances are prepaid and non-interest bearing; refunds for cancelled files are issued as wallet credit. 4. Decisions: ESSAFARIA facilitates submission but does not influence consular decisions. 5. Liability: agencies remain responsible for the authenticity of applicant documents.",
 };
 
 async function seedStatuses() {
@@ -464,6 +462,10 @@ async function main() {
       agencyNotes: "Honeymoon couple, departure in 6 weeks.",
       createdBy: { ...agencyAdminA, role: agencyAdminA.role as Role, userStatus: "ACTIVE", agencyStatus: "ACTIVE", agencyName: agencyA.legalName } as AuthUser,
     });
+    // Give the demo dossier its stable reference BEFORE submission. The wallet
+    // charge created by submitApplication can then record the correct reason
+    // from the start; immutable ledger history is never rewritten afterwards.
+    await db.update(applications).set({ reference: "EVT-DEMO-0001" }).where(eq(applications.id, app.id));
     await db.insert(applicants).values({
       applicationId: app.id,
       firstName: "Leila",
@@ -495,8 +497,6 @@ async function main() {
       await db.delete(applications).where(eq(applications.id, app.id));
       throw err;
     }
-    await db.update(applications).set({ reference: "EVT-DEMO-0001" }).where(eq(applications.id, app.id));
-    await db.execute(sql`update ${sql.raw(qualifiedTable("wallet_transactions"))} set reason = 'Visa application EVT-DEMO-0001' where application_id = ${app.id}`);
   }
 
   console.log("Seed complete.");

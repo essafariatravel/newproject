@@ -19,11 +19,12 @@ import {
   fieldErrorsFrom,
   registrationFormSchema,
   submitAgencyRegistration,
-  validateRegistrationFile,
-  type RegistrationFileInput,
 } from "@/lib/registrations";
 import { AppError } from "@/lib/types";
-import { REGISTRATION_DOCUMENT_CATEGORIES } from "@/db/schema";
+import { readPublishedLegal } from "@/lib/legal";
+import { publicBrandCopy } from "@/lib/public-brand-copy";
+import { safeErrorCode } from "@/lib/safe-error";
+
 
 export interface RegistrationFormState {
   error?: string;
@@ -93,7 +94,7 @@ export async function submitRegistrationAction(
     redirect(`/agency/register/success?lang=${locale}`);
   }
 
-  // Anti-automation 2 — render-time trap: a real KYC form takes a moment.
+  // Anti-automation 2 — render-time trap: a real partnership request takes a moment.
   const renderedAt = Number(formData.get("renderedAt"));
   if (Number.isFinite(renderedAt) && renderedAt > 0 && Date.now() - renderedAt < 1500) {
     return { error: copy.errors.tooFast };
@@ -103,26 +104,10 @@ export async function submitRegistrationAction(
   const schema = registrationFormSchema(copy.errors);
   const parsed = schema.safeParse({
     legalName: field(formData, "legalName"),
-    tradingName: field(formData, "tradingName"),
-    country: field(formData, "country"),
-    region: field(formData, "region"),
+    contactFirstName: field(formData, "contactFirstName"),
     city: field(formData, "city"),
-    addressLine: field(formData, "addressLine"),
     phone: field(formData, "phone"),
     email: field(formData, "email"),
-    website: field(formData, "website"),
-    commercialRegistrationNumber: field(formData, "commercialRegistrationNumber"),
-    taxId: field(formData, "taxId"),
-    licenceNumber: field(formData, "licenceNumber"),
-    contactFirstName: field(formData, "contactFirstName"),
-    contactLastName: field(formData, "contactLastName"),
-    contactPosition: field(formData, "contactPosition"),
-    contactEmail: field(formData, "contactEmail"),
-    contactPhone: field(formData, "contactPhone"),
-    businessType: field(formData, "businessType"),
-    monthlyVolume: field(formData, "monthlyVolume"),
-    mainMarkets: field(formData, "mainMarkets"),
-    message: field(formData, "message"),
     terms: field(formData, "terms"),
     privacy: field(formData, "privacy"),
     accuracy: field(formData, "accuracy"),
@@ -132,42 +117,50 @@ export async function submitRegistrationAction(
     return { error: Object.values(fieldErrors)[0] ?? copy.errors.required, fieldErrors };
   }
 
-  // Optional company documents — validated (type, content, size) server-side.
-  const files: RegistrationFileInput[] = [];
-  for (const category of REGISTRATION_DOCUMENT_CATEGORIES) {
-    const f = formData.get(`doc_${category}`);
-    if (f instanceof File && f.size > 0) {
-      const input: RegistrationFileInput = {
-        category,
-        name: f.name,
-        type: f.type || "application/octet-stream",
-        size: f.size,
-        data: Buffer.from(await f.arrayBuffer()),
-      };
-      try {
-        validateRegistrationFile(input);
-      } catch (err) {
-        const message =
-          err instanceof AppError ? localizedError(err.code, copy.errors) : copy.errors.generic;
-        return { error: message, fieldErrors: { [`doc_${category}`]: message } };
-      }
-      files.push(input);
-    }
-  }
+  // Administrative files are accepted only through a scoped Staff-issued follow-up link.
 
   let reference: string;
   try {
+    const [terms, privacy] = await Promise.all([readPublishedLegal("terms",locale),readPublishedLegal("privacy",locale)]);
+    if (!terms || !privacy) return {error:publicBrandCopy(locale).legalMissing};
+    const acceptedTermsId = field(formData, "termsVersionId");
+    const acknowledgedPrivacyId = field(formData, "privacyVersionId");
+    if (
+      Number(field(formData, "termsVersion")) !== terms.version ||
+      Number(field(formData, "privacyVersion")) !== privacy.version ||
+      acceptedTermsId !== terms.id ||
+      acknowledgedPrivacyId !== privacy.id
+    ) {
+      return { error: publicBrandCopy(locale).legalChanged };
+    }
     const submitted = await submitAgencyRegistration({
-      data: { ...parsed.data, locale },
-      files,
+      data: {
+        ...parsed.data,
+        locale,
+        legalConsentVersions: {
+          terms: {
+            id: terms.id,
+            version: terms.version,
+            effectiveAt: terms.effectiveAt.toISOString(),
+          },
+          privacy: {
+            id: privacy.id,
+            version: privacy.version,
+            effectiveAt: privacy.effectiveAt.toISOString(),
+          },
+          locale,
+        },
+      },
+      files: [],
       ipAddress: ip,
     });
     reference = submitted.reference;
   } catch (err) {
     if (err instanceof AppError) {
+      if (err.code === "LEGAL_CHANGED") return { error: publicBrandCopy(locale).legalChanged };
       return { error: localizedError(err.code, copy.errors) };
     }
-    console.error("[registrations] submission failed", err);
+    console.error("[registrations] submission failed", safeErrorCode(err) ?? "unknown");
     return { error: copy.errors.generic };
   }
   redirect(`/agency/register/success?ref=${encodeURIComponent(reference)}&lang=${locale}`);

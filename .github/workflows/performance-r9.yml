@@ -1,0 +1,93 @@
+name: Final R9 Performance Gate — 10 VUs
+
+on:
+  push:
+    branches:
+      - release/go-live-final-2026-10-06
+    paths:
+      - .github/workflows/performance-r9.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: essafaria-final-r9
+  cancel-in-progress: true
+
+jobs:
+  r9:
+    # Hosted performance traffic forbidden on Hobby; do not start this job.
+    # Local deterministic CI gates remain separate and untouched.
+    if: ${{ false }}
+    name: Preview 10-VU final validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: Preview
+    env:
+      PERF_ACK_NONPROD: "YES"
+      DATABASE_SCHEMA: visa_os_preview
+      DATABASE_URL: ${{ secrets.PERF_PREVIEW_DATABASE_URL || secrets.PREVIEW_DATABASE_URL }}
+      BASE_URL: https://newproject-fy8br8a9u-essafaria-travel-s-projects.vercel.app
+      PERF_DATASET_ID: smoke10r6
+      PERF_SESSION_FILE: perf/.runtime/sessions.json
+      PERF_APPLICATION_MANIFEST: perf/.runtime/application-manifest.json
+      PERF_VUS: "10"
+      PERF_TIER_HOLD_MINUTES: "20"
+      PERF_RUN_LABEL: r9-release
+      PERF_RUN_DIR: perf/results/run-smoke-10vu-r9
+
+    steps:
+      - name: Checkout exact release commit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup Node 22
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup k6
+        uses: grafana/setup-k6-action@43b9fc21641a76002687994433dd586f56e791b1
+        with: {k6-version: '2.3.0'}
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Guard Preview-only target
+        shell: bash
+        run: |
+          test -n "$DATABASE_URL" || { echo "Preview DB secret is missing; no load was started."; exit 1; }
+          test "$DATABASE_SCHEMA" = "visa_os_preview"
+          case "$BASE_URL" in
+            https://visa.essafariavoyages.com|https://visa.essafariavoyages.com/*)
+              echo "Production hostname is forbidden."
+              exit 1
+              ;;
+          esac
+
+      - name: Verify performance tooling
+        run: npm run verify:perf:tooling
+
+      - name: Create fresh synthetic sessions
+        env:
+          PERF_SESSIONS_PER_ROLE: "50"
+        run: npm run perf:create-sessions
+
+      - name: Generate deterministic application manifest
+        run: npm run perf:manifest
+
+      - name: Run R9 at 10 VUs only
+        run: npm run perf:tier
+
+      - name: Upload R9 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: essafaria-r9-${{ github.sha }}-${{ github.run_id }}
+          path: perf/results/run-smoke-10vu-r9/
+          if-no-files-found: warn
+          retention-days: 30

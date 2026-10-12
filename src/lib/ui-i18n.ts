@@ -9,24 +9,8 @@
  * persistence reuses the same cookie once signed in.
  */
 import { cookies } from "next/headers";
-
-export const UI_LOCALES = ["en", "fr", "ar"] as const;
-export type UiLocale = (typeof UI_LOCALES)[number];
-export const UI_LOCALE_COOKIE = "evos_ui_locale";
-export const DEFAULT_UI_LOCALE: UiLocale = "en";
-
-export const UI_LOCALE_NAMES: Record<UiLocale, string> = {
-  en: "English",
-  fr: "Français",
-  ar: "العربية",
-};
-
-/** Normalise any raw value to a supported interface locale (or null). */
-export function pickUiLocale(v: unknown): UiLocale | null {
-  if (typeof v !== "string") return null;
-  const s = v.trim().toLowerCase();
-  return (UI_LOCALES as readonly string[]).includes(s) ? (s as UiLocale) : null;
-}
+import { DEFAULT_UI_LOCALE, UI_LOCALE_COOKIE, pickUiLocale, type UiLocale } from "./ui-locale-values";
+export * from "./ui-locale-values";
 
 export function getUiLocaleFromSearch(sp: Record<string, unknown> | undefined): UiLocale | null {
   if (!sp) return null;

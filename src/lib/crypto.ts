@@ -14,7 +14,7 @@ export async function hashPassword(password: string): Promise<string> {
 /** Verify a password against a stored hash. Constant-time comparison. */
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const parts = stored.split("$");
-  if (parts.length !== 3 || parts[0] !== "scrypt") return false;
+  if (parts.length !== 3 || parts[0] !== "scrypt" || !/^[0-9a-f]{32}$/i.test(parts[1]!) || !/^[0-9a-f]{128}$/i.test(parts[2]!)) return false;
   const salt = Buffer.from(parts[1]!, "hex");
   const expected = Buffer.from(parts[2]!, "hex");
   const derived = (await scrypt(password, salt, expected.length)) as Buffer;

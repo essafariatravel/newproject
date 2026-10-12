@@ -45,7 +45,7 @@ export function PasswordField(props: {
         <button
           type="button"
           onClick={() => setVisible((v) => !v)}
-          className="absolute end-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 hover:text-navy-900"
+          className="absolute end-0 top-1/2 inline-flex min-h-11 -translate-y-1/2 items-center px-2 text-xs font-semibold text-slate-500 hover:text-navy-900"
           aria-pressed={visible}
           data-testid={`${props.id}-toggle`}
         >
@@ -127,7 +127,7 @@ export function ActionForm(props: {
 
 export function FieldError({ message }: { message?: string }) {
   if (!message) return null;
-  return <p className="mt-1 text-xs text-red-600">{message}</p>;
+  return <p className="mt-1 text-base text-red-700">{message}</p>;
 }
 
 /** Destructive-action button with a browser confirm() guard. */

@@ -28,9 +28,9 @@ const labels: Record<string, [string, string, string]> = {
   SUSPENDED: ["Suspended", "Suspendu", "موقوف"],
 
   SUPER_ADMIN: ["Super administrator", "Super administrateur", "المسؤول الرئيسي"],
-  ADMIN: ["Administrator", "Administrateur", "مسؤول"],
-  VISA_AGENT: ["Visa agent", "Agent visa", "موظف التأشيرات"],
-  ACCOUNTING: ["Accounting", "Comptabilité", "المحاسبة"],
+  ADMIN: ["Staff", "Personnel", "الموظفون"],
+  VISA_AGENT: ["Staff", "Personnel", "الموظفون"],
+  ACCOUNTING: ["Staff", "Personnel", "الموظفون"],
   AGENCY_ADMIN: ["Agency administrator", "Administrateur agence", "مسؤول الوكالة"],
   AGENCY_USER: ["Agency member", "Membre de l’agence", "عضو الوكالة"],
   CREDIT: ["Wallet credit", "Crédit portefeuille", "إيداع في المحفظة"],

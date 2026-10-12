@@ -227,12 +227,15 @@ describe("§34 notifications — every required event produces a notification", 
     const aAdmin = { ...(await userByEmail("a-admin@test.example")), agencyId: agency.id };
     const superAdmin = await userByEmail("superadmin@test.example");
 
-    const req = await createTopupRequest({ agencyId: agency.id, amount: 50000, note: "transfer pending", actor: aAdmin });
+    const receipt = Buffer.from("%PDF-1.7 notification receipt");
+    const req = await createTopupRequest({ agencyId: agency.id, amount: 50000, note: "transfer pending", actor: aAdmin,
+      proof: { name: "receipt.pdf", type: "application/pdf", size: receipt.length, data: receipt } });
 
     // staff side
     const staffRows = await db.select().from(notifications).where(and(eq(notifications.userId, superAdmin.id), eq(notifications.type, "TOPUP_REQUESTED")));
     expect(staffRows.length).toBeGreaterThan(0);
-    expect(staffRows[0]!.link).toBe("/admin/billing");
+    expect(staffRows[0]!.link).toBe(`/admin/billing#topup-${req.id}`);
+    expect(staffRows[0]!.topupRequestId).toBe(req.id);
     expect(staffRows[0]!.title).toContain(req.reference);
 
     // agency side, after the decision
