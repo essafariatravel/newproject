@@ -306,7 +306,12 @@ export function guardedProductionPoolConfig(env:Record<string,string|undefined> 
   const config = databasePoolConfig(env, true);
   if (!config.connectionString || projectGuardFindings(config.connectionString).length) throw new Error("Effective Production database project identity is invalid.");
   const uri = new URL(config.connectionString);
-  for (const key of [...uri.searchParams.keys()]) if (/^ssl/i.test(key) || key === "uselibpqcompat") uri.searchParams.delete(key);
+  // pg query parameters override authority fields and the pinned search_path.
+  // Only accept TLS parameters, then remove them so the verified TLS config wins.
+  for (const key of [...uri.searchParams.keys()]) {
+    if (!/^ssl/i.test(key) && key !== "uselibpqcompat") throw new Error("Production database URI contains unsupported connection parameters.");
+    uri.searchParams.delete(key);
+  }
   return {...config, connectionString:uri.href, ssl:{rejectUnauthorized:true,ca:[...rootCertificates,SUPABASE_CA]}};
 }
 
