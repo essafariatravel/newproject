@@ -1,4 +1,4 @@
-import { qualifiedTable } from "../src/lib/database-schema";
+import { databaseSchema, qualifiedTable } from "../src/lib/database-schema";
 /**
  * Deterministic, idempotent demo/development seed.
  *
@@ -336,14 +336,25 @@ async function ensureAgency(a: {
 }
 
 async function main() {
-  // VERCEL_ENV is the reliable production indicator: NODE_ENV is "production"
-  // during EVERY Vercel build (Preview builds included), so checking NODE_ENV
-  // here would also block the explicitly opted-in Preview demo seed.
-  if (process.env.VERCEL_ENV === "production") {
-    throw new Error("Demo seeding is disabled for Production deployments.");
+  // CLI runs may have no Vercel marker. Protect the Production schema itself,
+  // before any seed query, regardless of demo consent or target hostname.
+  const schema = databaseSchema();
+  if (process.env.VERCEL_ENV === "production" || schema === "visa_os") {
+    throw new Error("Demo seeding is disabled for Production deployments and the visa_os schema.");
   }
-  const host = new URL(databaseUrl()).hostname;
+  const target = new URL(databaseUrl());
+  // pg lets URI host/options override the authority and configured search_path.
+  // Refuse those alternate routes rather than authorizing an ambiguous target.
+  if (target.searchParams.has("host") || target.searchParams.has("options")) {
+    throw new Error("Demo seeding connection URI host/options overrides are disabled.");
+  }
+  const host = target.hostname;
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(host);
+  // Controlled acceptance must never recreate removed demo accounts or an
+  // additional demo SUPER_ADMIN. Loopback fixtures remain usable.
+  if (!local && schema === "visa_os_preview") {
+    throw new Error("Demo seeding is disabled for the controlled remote Preview schema visa_os_preview.");
+  }
   if (!local && (process.env.ALLOW_DEMO_SEED !== "true" ||
       !process.env.SEED_ADMIN_PASSWORD || !process.env.SEED_AGENCY_PASSWORD ||
       process.env.SEED_ADMIN_PASSWORD === "Admin!2345" || process.env.SEED_AGENCY_PASSWORD === "Agency!2345")) {
