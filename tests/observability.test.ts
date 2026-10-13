@@ -158,4 +158,25 @@ describe("privacy-first observability", () => {
     expect(errorLog).toHaveBeenCalledTimes(1);
     expect(String(errorLog.mock.calls[0]?.[0])).not.toContain("top-secret");
   });
+
+  it.each([
+    "params: Private Synthetic Name,confidential-case-note,identity-scan.pdf",
+    "params: [\n\"Private Synthetic Name\",\n\"confidential-case-note\",\n\"identity-scan.pdf\"\n]",
+    "parameters: {\"name\":\"Private Synthetic Name\",\"note\":\"confidential-case-note\",\"file\":\"identity-scan.pdf\"}",
+  ])("omits every database parameter value from error telemetry (%#)", (parameters) => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const error = Object.assign(new Error(`Failed query: insert into applications values ($1,$2,$3)\n${parameters}`), { code: "23514" });
+
+    logErrorOnce("database.query.failed", error, { severity: "error", classification: "BUSINESS_FAILURE" });
+
+    const line = String(errorLog.mock.calls[0]?.[0]);
+    for (const value of ["Private Synthetic Name", "confidential-case-note", "identity-scan.pdf"]) {
+      expect(line).not.toContain(value);
+    }
+    const event = JSON.parse(line);
+    expect(event.event_name).toBe("database.query.failed");
+    expect(event.error_code).toBe("23514");
+    expect(event.classification).toBe("BUSINESS_FAILURE");
+    expect(event.metadata.error_text).toContain("params: <redacted>");
+  });
 });

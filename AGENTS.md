@@ -11,6 +11,20 @@ Follow the screenshots skill at the workspace `.agents/skills/screenshots/SKILL.
 
 Use the locked dependencies. Run typecheck, lint, build and tests. Only use disposable localhost databases for fixture creation; never apply design migrations or seed to Preview or Production.
 
+## Agent skills
+
+### Issue tracker
+
+Use GitHub Issues in `essafariatravel/newproject` when the owner authorizes publishing work items. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the default five-role vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Use a single-context glossary and ADR layout. Read `docs/agents/domain.md` when exploring domain terminology or decisions.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

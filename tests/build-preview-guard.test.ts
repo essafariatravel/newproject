@@ -7,6 +7,22 @@ import {
 } from "../scripts/lib/build-policy";
 
 describe("Preview build database-change guard", () => {
+  it.each([
+    "codex/essafaria-autonomous-completion-2026-10-13",
+    "codex/essafaria-autonomous-completion-2026-11-01",
+  ])("forbids automatic database changes on engineering branch %s", (branch) => {
+    expect(automaticDatabaseChangesForbidden(branch)).toBe(true);
+  });
+  it("disables automatic Vercel deployments for the autonomous engineering branch", () => {
+    const config = JSON.parse(readFileSync(path.join(process.cwd(), "vercel.json"), "utf8"));
+    expect(config.git?.deploymentEnabled?.["codex/essafaria-autonomous-completion-2026-10-13"]).toBe(false);
+  });
+  it.each([
+    "codex/essafaria-unrelated-engineering-2026-10-13",
+    "codex/essafaria-autonomous-completions-2026-10-13",
+  ])("leaves unrelated engineering branch %s unchanged", (branch) => {
+    expect(automaticDatabaseChangesForbidden(branch)).toBe(false);
+  });
   it("forbids automatic migrations and seeds on production release candidates", () => {
     for (const branch of [
       "release/essafaria-prod-candidate-2026-10-10",

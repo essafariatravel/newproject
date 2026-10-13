@@ -16,7 +16,9 @@ const FILE_PATH_PATTERN = /(?:[A-Za-z]:\\(?:[^\\\s"']+\\)*[^\\\s"']+|\/(?:tmp|va
 const SENSITIVE_QUERY_PATTERN = /([?&](?:token|access_token|refresh_token|signature|sig|secret|key|apikey|api_key|code)=)[^&\s"']+/gi;
 const SENSITIVE_ASSIGNMENT_PATTERN =
   /\b(password|passwd|authorization|cookie|session|token|secret|service[_-]?role[_-]?key|database[_-]?url)\s*[:=]\s*("[^"]*"|'[^']*'|[^,;\s]+)/gi;
-const PARAMS_PATTERN = /\bparams?\s*:\s*(\[[^\n]*\]|\{[^\n]*\})/gi;
+// Drizzle formats bound values as a comma-separated suffix, not necessarily
+// JSON. Drop the whole suffix, including multiline arrays and object values.
+const PARAMS_PATTERN = /\b(?:params?|parameters)\s*:[\s\S]*/i;
 
 /** Scrub a free-form string before it reaches logs or diagnostic responses. */
 export function redactSensitiveText(value: string): string {
