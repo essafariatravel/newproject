@@ -19,8 +19,12 @@ export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
 ] as const;
 
 export function automaticDatabaseChangesForbidden(branch: string | null | undefined): boolean {
+  // The explicit authentication pause must never cause build-time DB writes,
+  // including when Vercel has not exposed the branch's system metadata.
+  if (process.env.MFA_ENFORCEMENT_ENABLED === "false") return true;
   const ref = branch ?? "";
   return ref.startsWith("codex/world-class-final-consolidation-") ||
+    ref.startsWith("codex/preview-mfa-enforcement-") ||
     ref.startsWith("codex/essafaria-autonomous-completion-") ||
     ref.startsWith("release/essafaria-prod-candidate-") ||
     (AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES as readonly string[]).includes(ref);

@@ -12,6 +12,7 @@ import { runAction } from "@/lib/action-helpers";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { localizeError } from "@/lib/i18n-content";
 import { safeErrorCode } from "@/lib/safe-error";
+import { mfaEnforcementEnabled } from "@/lib/mfa-policy";
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const locale = await getUiLocale();
@@ -52,7 +53,7 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   }
   // Phase 2.2 §11 — forced first password change before any shell page
   if ((user as { mustChangePassword?: boolean }).mustChangePassword) redirect("/change-password");
-  if (!user.agencyId) redirect("/mfa");
+  if (!user.agencyId && mfaEnforcementEnabled()) redirect("/mfa");
   redirect(isAgencyRole(user.role) ? "/portal" : "/admin");
 }
 
@@ -100,7 +101,7 @@ export async function changePasswordAction(formData: FormData): Promise<void> {
     const version = await changeAccountPassword(user, parsed.data.current, parsed.data.password);
     const session = await createSession(user.id, { expectedCredentialVersion: version });
     await setSessionCookie(session.token, session.expiresAt);
-    if (user.mustChangePassword) successPath = isAgencyRole(user.role) ? "/portal" : "/mfa";
+    if (user.mustChangePassword) successPath = isAgencyRole(user.role) ? "/portal" : mfaEnforcementEnabled() ? "/mfa" : "/admin";
     return "Password updated. Welcome!";
   }, { successPath: () => successPath });
 }

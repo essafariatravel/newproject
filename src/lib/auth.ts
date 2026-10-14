@@ -15,6 +15,7 @@ import type { User } from "@/db/schema";
 import { normalizeAgencyUsername, sessionPolicy } from "@/lib/identity-policy";
 import { lockIdentityState, recordIdentityAudit } from "@/lib/account-security";
 import { safeErrorCode } from "@/lib/safe-error";
+import { mfaEnforcementEnabled } from "@/lib/mfa-policy";
 
 function preferredSessionCookieName(): string {
   return process.env.NODE_ENV === "production" ? PRODUCTION_SESSION_COOKIE : SESSION_COOKIE;
@@ -56,12 +57,14 @@ export async function createSession(
     await tx.insert(sessions).values({ userId, tokenHash: hashToken(token), expiresAt,
       lastActivityAt: new Date(), credentialVersion: row.user.credentialVersion, ipAddress, userAgent });
     if (options.auditLogin) {
+      const passwordOnlyPreview = !mfaEnforcementEnabled();
       await recordIdentityAudit(tx, { actor: { id: row.user.id, email: row.user.email,
         username: row.user.username, name: row.user.name, role: row.user.role as Role,
         agencyId: row.user.agencyId, userStatus: row.user.status, agencyStatus: row.agencyStatus,
-        agencyName: null }, action: row.user.agencyId ? "USER_LOGIN" : "STAFF_PASSWORD_VERIFIED", entity: "user", entityId: userId,
-        agencyId: row.user.agencyId, ipAddress });
-      if(row.user.agencyId)await tx.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id,userId));
+        agencyName: null }, action: row.user.agencyId || passwordOnlyPreview ? "USER_LOGIN" : "STAFF_PASSWORD_VERIFIED", entity: "user", entityId: userId,
+        agencyId: row.user.agencyId, ipAddress,
+        ...(!row.user.agencyId && passwordOnlyPreview ? { metadata: { authentication: "password", mfaEnforcement: "preview-paused" } } : {}) });
+      if(row.user.agencyId || passwordOnlyPreview)await tx.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id,userId));
     }
     return expiresAt;
   });
@@ -100,7 +103,8 @@ export async function getSessionUser(options: { allowMfaPending?: boolean } = {}
     if (row.user.status !== "ACTIVE" || row.user.activationPending) return null;
     if (row.user.agencyId && row.agencyStatus !== "ACTIVE") return null;
     const mfaPending = !row.user.agencyId && ["SUPER_ADMIN", "ADMIN", "VISA_AGENT", "ACCOUNTING"].includes(row.user.role) && !row.mfaVerifiedAt;
-    if (mfaPending && (!options.allowMfaPending || Date.now() - row.sessionCreatedAt.getTime() > 10 * 60_000)) return null;
+    // Preserve real verification state so resuming MFA challenges these sessions.
+    if (mfaPending && mfaEnforcementEnabled() && (!options.allowMfaPending || Date.now() - row.sessionCreatedAt.getTime() > 10 * 60_000)) return null;
     return {
       id: row.user.id,
       email: row.user.email,
@@ -194,7 +198,7 @@ export async function destroySession(): Promise<void> {
   await clearSessionCookie();
 }
 
-/** Agency username or unique Staff professional email; mailbox is never an agency login key. */
+/** Existing identities; paused Preview also accepts an unambiguous account email. */
 export async function authenticate(identifier: string, password: string): Promise<User> {
   if (password.length === 0 || password.length > 200) {
     throw new AppError("INVALID_CREDENTIALS", "Invalid username, email or password.");
@@ -208,13 +212,14 @@ export async function authenticate(identifier: string, password: string): Promis
       try { normalized = normalizeAgencyUsername(normalized); }
       catch { normalized = ""; }
     }
+    const previewEmail = staffEmail && !mfaEnforcementEnabled();
     const rows = await db
       .select()
       .from(users)
-      .where(staffEmail ? and(sql`lower(btrim(${users.email})) = ${normalized}`, sql`${users.agencyId} IS NULL`) :
+      .where(staffEmail ? (previewEmail ? sql`lower(btrim(${users.email})) = ${normalized}` : and(sql`lower(btrim(${users.email})) = ${normalized}`, sql`${users.agencyId} IS NULL`)) :
         and(eq(users.username, normalized), sql`${users.agencyId} IS NOT NULL`))
-      .limit(1);
-    user = rows[0] as User | undefined;
+      .limit(previewEmail ? 2 : 1);
+    user = rows.length === 1 ? rows[0] as User : undefined;
   } catch (err) {
     // Hide raw database errors (e.g. missing table / connection failure) from the user.
     console.error("[auth] authenticate query failed", safeErrorCode(err) ?? "unknown");

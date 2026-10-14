@@ -12,12 +12,17 @@ import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import { qualifiedTable } from "@/lib/database-schema";
 import { AppError, type AuthUser } from "@/lib/types";
 import { decryptMfaSecret, encryptMfaSecret, verifyMfaCode } from "./mfa-crypto";
+import { mfaEnforcementEnabled } from "./mfa-policy";
 
 const table = () => sql.raw(qualifiedTable("mfa_credentials"));
 type Credential = { encrypted_secret: string; confirmed_at: Date | null; enrollment_expires_at: Date; last_epoch: string | null; recovery_hashes: string[] };
 const denied = () => new AppError("INVALID_CREDENTIALS", "Verification failed. Please try again.");
+function requireMfaEnforcement(): void {
+  if (!mfaEnforcementEnabled()) throw new AppError("FORBIDDEN", "MFA configuration is temporarily unavailable in this Preview.");
+}
 
 export async function requireMfaSession(): Promise<AuthUser> {
+  requireMfaEnforcement();
   const actor = await getSessionUser({ allowMfaPending: true });
   if (!actor || actor.agencyId || actor.mustChangePassword) throw denied();
   return actor;
@@ -41,6 +46,7 @@ async function currentMfaActor(tx: IdentityTransaction, actor: AuthUser) {
 
 /** A verified SUPER_ADMIN authorizes enrollment after an independent identity check. */
 export async function authorizeMfaEnrollment(actor:AuthUser,targetId:string) {
+  requireMfaEnforcement();
   const code=randomBytes(16).toString("hex");
   await db.transaction(async tx=>{
     await lockIdentityState(tx);
@@ -110,6 +116,7 @@ export async function completeMfa(code: string, enrollment = false) {
 }
 
 export async function resetMfa(actor: AuthUser, targetId: string, password: string, reason: string): Promise<void> {
+  requireMfaEnforcement();
   if (reason.trim().length < 10 || reason.length > 300) throw new AppError("VALIDATION", "Enter a security reset reason.");
   await limit(actor);
   await db.transaction(async tx => {
