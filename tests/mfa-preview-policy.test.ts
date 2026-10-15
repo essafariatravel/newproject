@@ -218,3 +218,19 @@ describe("enforcement fails closed outside the exact Preview context", () => {
     expect((await authenticate("a-user", "Test-Password-123")).role).toBe("AGENCY_USER");
   });
 });
+
+describe("password-only access in the independent clean Preview",()=>{
+  it.each(roles)("preserves %s identity, permissions and honest MFA state",async(role,email,path)=>{
+    configure({VERCEL_GIT_COMMIT_REF:"codex/isolated-clean-preview-2026-10-15",DATABASE_URL:"postgresql://postgres.nqudhszgodmzckautrby:synthetic@aws-0-us-east-1.pooler.supabase.com:5432/postgres"});
+    const user=await userByEmail(email);
+    const before=(await pool.query("select password_hash,role,agency_id,credential_version from users where id=$1",[user.id])).rows[0];
+    const form=new FormData();form.set("identifier",email);form.set("password","Test-Password-123");
+    await expect(loginAction({},form)).rejects.toMatchObject({digest:expect.stringContaining(`;${path};`)});
+    expect(await getSessionUser()).toMatchObject({id:user.id,role,agencyId:user.agencyId});
+    expect((await pool.query("select mfa_verified_at from sessions where token_hash=$1",[hashToken(request.cookie)])).rows[0].mfa_verified_at).toBeNull();
+    expect((await pool.query("select password_hash,role,agency_id,credential_version from users where id=$1",[user.id])).rows[0]).toEqual(before);
+    expect((await notifications()).status).toBe(200);
+    if(user.agencyId){expect((await requireAgencyUser()).agencyId).toBe(user.agencyId);await expect(requireStaff()).rejects.toMatchObject({code:"FORBIDDEN"});}
+    else{expect((await requireStaff()).id).toBe(user.id);await expect(requireAgencyUser()).rejects.toMatchObject({code:"FORBIDDEN"});}
+  });
+});

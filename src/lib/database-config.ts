@@ -2,6 +2,7 @@ import type { PoolConfig } from "pg";
 import { rootCertificates } from "node:tls";
 import { SUPABASE_CA } from "./supabase-ca";
 import { databaseSchema } from "./database-schema";
+import { ISOLATED_PREVIEW_BRANCH, isolatedPreviewConnection, isolatedPreviewContext, targetsIsolatedPreview } from "./isolated-preview";
 
 type Environment = Record<string, string | undefined>;
 const LOCAL_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/essafaria";
@@ -41,8 +42,15 @@ export function databaseUrl(env: Environment = process.env, migration = false): 
     // Do not include the input: URL parsing errors can contain the password.
     throw new Error("Database configuration must be a PostgreSQL connection URI.");
   }
+  // This branch is Preview-only even if hosted environment metadata is absent
+  // or someone mistakenly attempts to use it as a Production deployment.
+  const isolatedPreview = env.VERCEL_GIT_COMMIT_REF === ISOLATED_PREVIEW_BRANCH;
+  if ((isolatedPreview || targetsIsolatedPreview(value)) && (!isolatedPreviewContext(env) || !isolatedPreviewConnection(value))) {
+    throw new Error("Deployment database project boundary mismatch.");
+  }
   if (
     (env.VERCEL_ENV === "preview" || env.VERCEL_ENV === "production") &&
+    !isolatedPreview &&
     !targetsSupabaseProject(value, EXPECTED_SUPABASE_PROJECT)
   ) {
     throw new Error("Deployment database project boundary mismatch.");

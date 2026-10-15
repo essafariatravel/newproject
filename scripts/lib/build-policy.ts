@@ -25,6 +25,7 @@ export function automaticDatabaseChangesForbidden(branch: string | null | undefi
   const ref = branch ?? "";
   return ref.startsWith("codex/world-class-final-consolidation-") ||
     ref.startsWith("codex/preview-mfa-enforcement-") ||
+    ref.startsWith("codex/isolated-clean-preview-") ||
     ref.startsWith("codex/essafaria-autonomous-completion-") ||
     ref.startsWith("release/essafaria-prod-candidate-") ||
     (AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES as readonly string[]).includes(ref);
