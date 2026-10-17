@@ -26,6 +26,7 @@ import { db, pool } from "@/lib/db";
 import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 import { qualifiedTable } from "@/lib/database-schema";
 import { currentOperationActor, currentOperationActorPg } from "@/lib/operation-identity";
+import { legalContentSha256 } from "@/lib/legal-evidence";
 import { requirePermission } from "@/lib/rbac";
 import { legacyAgencyUsername } from "@/lib/identity-policy";
 import { lockIdentityState, recordIdentityAudit, requireRecoveryManager, revokeUnusedAccessTokens, revokeUserAccess } from "@/lib/account-security";
@@ -404,6 +405,7 @@ async function persistRegistration(
       return await db.transaction(async (tx) => {
         let consent = data.legalConsentVersions;
         let consentedAt = new Date();
+        const consentHashes = {} as Record<"terms" | "privacy", string>;
         if (consent) {
           if (consent.locale !== data.locale || !["en","fr","ar"].includes(data.locale)) {
             throw new AppError("LEGAL_CHANGED", "Review the currently effective legal documents before submitting.");
@@ -420,11 +422,11 @@ async function persistRegistration(
           consentedAt = acceptance.acceptedAt instanceof Date ? acceptance.acceptedAt : new Date(acceptance.acceptedAt);
           const canonical = {} as Record<"terms" | "privacy", NonNullable<RegistrationData["legalConsentVersions"]>["terms"]>;
           for (const kind of ["privacy","terms"] as const) {
-            const result = await tx.execute(sql`select id, version, effective_at as "effectiveAt"
+            const result = await tx.execute(sql`select id, version, body, effective_at as "effectiveAt"
               from ${sql.raw(qualifiedTable("legal_versions"))}
               where kind=${kind} and locale=${data.locale} and effective_at<=${consentedAt}
               order by version desc limit 1`);
-            const current = result.rows[0] as { id: string; version: number; effectiveAt: Date | string } | undefined;
+            const current = result.rows[0] as { id: string; version: number; body: string; effectiveAt: Date | string } | undefined;
             const effectiveAt = current ? current.effectiveAt instanceof Date ? current.effectiveAt : new Date(current.effectiveAt) : null;
             const supplied = consent[kind];
             if (!current || !supplied || typeof supplied.effectiveAt !== "string" ||
@@ -434,6 +436,7 @@ async function persistRegistration(
               throw new AppError("LEGAL_CHANGED", "Review the currently effective legal documents before submitting.");
             }
             canonical[kind] = { id: current.id, version: current.version, effectiveAt: effectiveAt.toISOString() };
+            consentHashes[kind] = legalContentSha256(current.body);
           }
           consent = { ...canonical, locale: data.locale };
         }
@@ -497,7 +500,9 @@ async function persistRegistration(
             const legal = consent[kind];
             await recordAudit({ actor: null, action, entity: "agency_registration", entityId: id,
               metadata: { legalVersionId: legal.id, version: legal.version, locale: consent.locale,
-                effectiveAt: legal.effectiveAt } }, tx);
+                effectiveAt: legal.effectiveAt, documentType: kind === "terms" ? "terms_b2b" : "privacy_b2b",
+                contentSha256: consentHashes[kind], acceptedAt: consentedAt.toISOString(),
+                method: kind === "terms" ? "EXPLICIT_CHECKBOX" : "ACKNOWLEDGEMENT" } }, tx);
           }
         }
         return reference;

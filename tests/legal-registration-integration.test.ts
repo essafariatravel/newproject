@@ -5,6 +5,7 @@ import { nextIp, registrationData, registrationPdf, userByEmail } from "./helper
 import { db } from "@/lib/db";
 import { agencyRegistrationDocuments, agencyRegistrationHistory, agencyRegistrations, auditLogs, documentBlobs, users } from "@/db/schema";
 import { publishLegalContent } from "@/lib/legal";
+import { legalContentSha256 } from "@/lib/legal-evidence";
 import { submitAgencyRegistration } from "@/lib/registrations";
 import * as notifications from "@/lib/notifications";
 import * as nextHeaders from "next/headers";
@@ -86,7 +87,9 @@ describe("integrated legal authorization and atomic registration audits", () => 
       expect(JSON.stringify(event.metadata)).not.toContain(data.legalName);
     }
     expect(events.find(event => event.action === "TERMS_ACCEPTED")!.metadata).toMatchObject({ legalVersionId: consent.terms.id, version: consent.terms.version, effectiveAt: consent.terms.effectiveAt });
+    expect(events.find(event => event.action === "TERMS_ACCEPTED")!.metadata).toMatchObject({ documentType: "terms_b2b", contentSha256: legalContentSha256("TEST ONLY approved terms"), method: "EXPLICIT_CHECKBOX", acceptedAt: reg!.consentedAt!.toISOString() });
     expect(events.find(event => event.action === "PRIVACY_NOTICE_ACKNOWLEDGED")!.metadata).toMatchObject({ legalVersionId: consent.privacy.id, version: consent.privacy.version, effectiveAt: consent.privacy.effectiveAt });
+    expect(events.find(event => event.action === "PRIVACY_NOTICE_ACKNOWLEDGED")!.metadata).toMatchObject({ documentType: "privacy_b2b", contentSha256: legalContentSha256("TEST ONLY approved privacy"), method: "ACKNOWLEDGEMENT" });
   });
 
   it("retains committed registration files when staff notification delivery fails", async () => {

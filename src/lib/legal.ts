@@ -6,7 +6,8 @@ import type { UiLocale } from "@/lib/ui-i18n";
 import { recordAuditPg } from "@/lib/audit";
 import { currentOperationActorPg } from "@/lib/operation-identity";
 
-export type LegalKind = "terms" | "privacy";
+export const LEGAL_KINDS=["terms","privacy","legal_notice","cookies","commercial","staff_confidentiality","traveller_submission_declaration"] as const;
+export type LegalKind = typeof LEGAL_KINDS[number];
 
 export interface PublishedLegal {
   id: string;
@@ -90,7 +91,7 @@ export async function publishLegalContents(inputs: LegalPublication[]): Promise<
     if (input.actor.agencyId || input.actor.role !== "SUPER_ADMIN") {
       throw new AppError("FORBIDDEN", "Only SUPER_ADMIN can publish approved legal content.");
     }
-    if (!["terms", "privacy"].includes(input.kind) || !["en", "fr", "ar"].includes(input.locale) ||
+    if (!LEGAL_KINDS.includes(input.kind) || !["en", "fr", "ar"].includes(input.locale) ||
         !input.body.trim() || input.body.trim().length > 50_000 || !(input.effectiveAt instanceof Date) ||
         !Number.isFinite(input.effectiveAt.getTime())) {
       throw new AppError(

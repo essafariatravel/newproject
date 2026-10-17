@@ -1,5 +1,6 @@
 import { pool } from "@/lib/db";
-import { qualifiedTable } from "@/lib/database-schema";
+import { databaseSchema, qualifiedTable } from "@/lib/database-schema";
+import { qualifiedPurgedDecisionSql } from "@/lib/document-retention-receipts";
 import { logErrorOnce, logEvent } from "@/lib/observability";
 
 export interface IntegrityCounts {
@@ -73,6 +74,7 @@ export async function runIntegrityChecks(): Promise<IntegrityReport> {
   }
 
   try {
+    const qualifiedRetention = await qualifiedPurgedDecisionSql(pool, databaseSchema());
     const result = await pool.query<{
       negative_balances: number | string;
       legacy_non_dzd_agency_wallets: number | string;
@@ -193,6 +195,7 @@ export async function runIntegrityChecks(): Promise<IntegrityReport> {
           cross join observability_cutover oc
           where s.code in ('APPROVED', 'REJECTED')
             and coalesce(a.decision_at, a.updated_at) < oc.applied_at
+            and not (${qualifiedRetention})
             and not exists (
               select 1
               from ${qualifiedTable("documents")} d
@@ -213,6 +216,7 @@ export async function runIntegrityChecks(): Promise<IntegrityReport> {
           cross join observability_cutover oc
           where s.code in ('APPROVED', 'REJECTED')
             and coalesce(a.decision_at, a.updated_at) >= oc.applied_at
+            and not (${qualifiedRetention})
             and not exists (
               select 1
               from ${qualifiedTable("documents")} d

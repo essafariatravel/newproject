@@ -2,6 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
+      "codex/legal-readiness-rc-2026-10-15": false,
       "codex/isolated-clean-preview-2026-10-15": false,
       "codex/essafaria-autonomous-completion-2026-10-13": false,
       "release/essafaria-prod-candidate-2026-10-10": false,

@@ -147,6 +147,22 @@ export const SEO_PUBLIC_ROUTE_MANIFEST = {
     cacheNoStore: false,
     noReferrer: false,
   },
+  legalDocuments: {
+    path: "/legal/[document]",
+    classification: "noindex",
+    sitemap: false,
+    headerSource: "/legal/:document",
+    cacheNoStore: true,
+    noReferrer: true,
+  },
+  legalAcceptances: {
+    path: "/legal/acceptances",
+    classification: "noindex",
+    sitemap: false,
+    headerSource: "/legal/acceptances",
+    cacheNoStore: true,
+    noReferrer: true,
+  },
 } as const;
 
 export type SeoPublicRouteKey = keyof typeof SEO_PUBLIC_ROUTE_MANIFEST;

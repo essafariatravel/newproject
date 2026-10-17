@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from "pg";
 import { databaseSchema, qualifiedTable } from "@/lib/database-schema";
 import { AppError, type AuthUser } from "@/lib/types";
 import { officialDocumentIntegritySql, storedDocumentIntegritySql } from "./decision-integrity";
+import { qualifiedPurgedDecisionSql } from "./document-retention-receipts";
 
 export interface ReconciliationIssue {
   id: string; kind: "MISSING_OFFICIAL_DECISION" | "MISSING_STORAGE_OBJECT"; applicationId: string;
@@ -46,9 +47,10 @@ export function createLegacyReconciliationService(pool: Pool, schema = databaseS
   return {
     list: (actor: AuthUser) => transaction(actor, listRows),
     scan: (actor: AuthUser) => transaction(actor, async client => {
+      const qualifiedRetention = await qualifiedPurgedDecisionSql(client, schema);
       const missing = (await client.query<{ fingerprint: string; kind: string; applicationId: string; documentId: string | null; storageKey: string | null }>(`
         select 'decision:'||a.id as fingerprint,'MISSING_OFFICIAL_DECISION' as kind,a.id as "applicationId",null::uuid as "documentId",null::text as "storageKey"
-        from ${table("applications")} a join ${table("statuses")} s on s.id=a.status_id where s.code in ('APPROVED','REJECTED') and (a.decision_at is null or not ${official("a.id")})
+        from ${table("applications")} a join ${table("statuses")} s on s.id=a.status_id where s.code in ('APPROVED','REJECTED') and not (${qualifiedRetention}) and (a.decision_at is null or not ${official("a.id")})
         union all select 'storage:'||d.id,'MISSING_STORAGE_OBJECT',d.application_id,d.id,d.storage_key
         from ${table("documents")} d left join ${table("document_blobs")} b on b.key=d.storage_key
         where b.key is null or not (${storedDocumentIntegritySql("d", "b")})`)).rows;

@@ -30,6 +30,11 @@ export default async function PublicLayout({ children }: { children: ReactNode }
   const locale = await getUiLocale();
   const tr = chromeT(locale);
   const ct = contentT(locale);
+  const legalLinks = {
+    fr: ["Mentions légales", "Politique de cookies", "Conditions commerciales B2B"],
+    en: ["Legal notice", "Cookie policy", "B2B commercial terms"],
+    ar: ["البيانات القانونية", "سياسة ملفات الارتباط", "الشروط التجارية بين المهنيين"],
+  }[locale];
 
   return (
     <div className="public-site flex min-h-screen flex-col">
@@ -76,6 +81,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
               <li><Link className="text-white/70 transition-colors hover:text-white" href="/contact">{ct("Contact")}</Link></li>
               <li><Link className="text-white/70 transition-colors hover:text-white" href="/privacy">{ct("Privacy Notice")}</Link></li>
               <li><Link className="text-white/70 transition-colors hover:text-white" href="/terms">{ct("Terms of Service")}</Link></li>
+              {(["legal-notice", "cookies", "commercial"] as const).map((document, index) => <li key={document}><Link className="text-white/70 transition-colors hover:text-white" href={`/legal/${document}?lang=${locale}`}>{legalLinks[index]}</Link></li>)}
             </ul>
           </div>
           {hasContact ? <div>

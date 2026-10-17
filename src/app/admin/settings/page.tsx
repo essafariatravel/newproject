@@ -18,6 +18,8 @@ import { readLatestLegal, readPublishedLegal } from "@/lib/legal";
 import { db } from "@/lib/db";
 import { countries, visaTypes, visaCategories } from "@/db/schema";
 import { launchContentReadiness } from "@/lib/launch-readiness";
+import Link from "next/link";
+import { legalReviewEnabled } from "@/lib/legal-review-pack";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +54,7 @@ export default async function AdminSettingsPage({
         subtitle={ct("Manage identity, public contact details and owner-approved legal content.")}
       />
       <Flash {...flash} />
+      {canPublishLegal && legalReviewEnabled() ? <p className="mb-6 text-base"><Link className="underline underline-offset-4" href={`/admin/legal-review?lang=${uiLocale}`}>{({ fr: "Ouvrir le pack juridique en revue privée", en: "Open the private legal review pack", ar: "فتح حزمة المراجعة القانونية الخاصة" })[uiLocale]}</Link></p> : null}
       <section className="mb-6 border-y border-line py-6" aria-labelledby="launch-readiness-title">
         <h2 id="launch-readiness-title" className="text-lg font-semibold text-navy-900">{ct("Launch content readiness")}</h2>
         <p className="mt-1 text-base text-slate-600">{ct("Technical checks do not approve company facts, the launch catalogue or legal text.")}</p>

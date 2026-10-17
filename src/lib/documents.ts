@@ -231,7 +231,9 @@ export async function uploadDocument(input: UploadDocumentInput, resubmittedDocu
 
   const documentId = randomUUID();
   const storageKey = buildStorageKey(input.applicationId, documentId);
-  await storageProvider().put(storageKey, input.file.data, input.file.type);
+  const provider = storageProvider();
+  const databaseStorage = process.env.STORAGE_PROVIDER !== "supabase";
+  await provider.put(storageKey, input.file.data, input.file.type);
   let doc: typeof documents.$inferSelect;
   let fulfilledRequest = false;
   try {
@@ -260,6 +262,16 @@ export async function uploadDocument(input: UploadDocumentInput, resubmittedDocu
         .where(and(eq(documents.applicationId, input.applicationId), checklistItem
           ? eq(documents.checklistItemId, checklistItem.id) : eq(documents.documentTypeId, documentTypeId)));
       const version = (versions[0]?.max ?? 0) + 1;
+      if (databaseStorage) {
+        // Storage staging precedes the metadata transaction. A qualified purge
+        // may have removed an unclaimed staged object while this upload waited.
+        // Recheck and hold the exact bytes until the document/audit commit.
+        const stored = await tx.execute(sql`select key from ${sql.raw(qualifiedTable("document_blobs"))}
+          where key=${storageKey} and mime_type=${input.file.type} and size_bytes=${input.file.data.length}
+            and octet_length(data)=${input.file.data.length} and encode(pg_catalog.sha256(data),'hex')=${sha256}
+          for share`);
+        if (!stored.rows.length) throw new AppError("STORAGE_CHANGED", "The stored file changed before the upload completed. Upload it again.");
+      }
       const [created] = await tx.insert(documents).values({
         id: documentId, applicationId: input.applicationId, applicantId: input.applicantId ?? null,
         checklistItemId: checklistItem?.id ?? null, documentTypeId,
@@ -290,7 +302,7 @@ export async function uploadDocument(input: UploadDocumentInput, resubmittedDocu
       return created!;
     });
   } catch (error) {
-    await storageProvider().delete(storageKey).catch(() => {});
+    await provider.delete(storageKey).catch(() => {});
     throw error;
   }
 
