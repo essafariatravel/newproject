@@ -1,4 +1,4 @@
-import "./lib/load-env";
+import "./lib/perf-local-env";
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { Pool } from "pg";

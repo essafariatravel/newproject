@@ -20,7 +20,9 @@ function run(script: string, args: string[]) {
   return spawnSync(process.execPath, ["--import", "tsx", resolve(script), ...args], {
     cwd: resolve("."),
     encoding: "utf8",
-    env: { ...process.env },
+    // Offline artifact evaluation must not inherit test URL stubs or cloud credentials.
+    env: {NODE_ENV:"test", ...Object.fromEntries(Object.entries(process.env).filter(([name]) =>
+      /^(PATH|SystemRoot|WINDIR|COMSPEC|PATHEXT|TEMP|TMP|USERPROFILE|APPDATA|LOCALAPPDATA)$/i.test(name)))},
     shell: false,
   });
 }
@@ -56,7 +58,7 @@ describe("performance verdict tooling fails closed", () => {
     writeFileSync(before, JSON.stringify(dbSnapshot(0, 0)));
     writeFileSync(after, JSON.stringify(dbSnapshot(0, 0)));
     const result = run("scripts/perf-evaluate.ts", [s, before, after]);
-    expect(result.status).toBe(0);
+    expect(result.status, result.stderr).toBe(0);
     expect(result.stdout).toContain("SCREENING PASS");
   });
 

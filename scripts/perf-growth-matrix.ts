@@ -1,3 +1,4 @@
+import "./lib/perf-local-env";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 

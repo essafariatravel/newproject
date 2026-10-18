@@ -1,21 +1,26 @@
 import http from "k6/http";
 import { check } from "k6";
 import { Trend, Rate } from "k6/metrics";
+import { assertLocalHttpOrigin, assertLocalPerfEnvironment, assertLocalPostgresUrl } from "../local-safety.js";
 
 const PROD_HOST = "visa.essafariavoyages.com";
 const EXPECTED_SCHEMA = "visa_os_preview";
 if (__ENV.PERF_ACK_NONPROD !== "YES") throw new Error("PERF_ACK_NONPROD=YES is required.");
+assertLocalPerfEnvironment(__ENV);
+if (!__ENV.DATABASE_URL) throw new Error("DATABASE_URL is required for the isolated local workload.");
+assertLocalPostgresUrl(__ENV.DATABASE_URL);
 if (!__ENV.BASE_URL) throw new Error("BASE_URL is required.");
 
-const BASE_URL = String(__ENV.BASE_URL).trim().replace(/\/+$/, "");
-// Fail closed before ANY network call: Vercel Hobby prohibits hosted load testing.
+const BASE_URL = assertLocalHttpOrigin(__ENV.BASE_URL);
+// Fail closed on every plan, before session files and all network calls.
 if (!/^http:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?$/i.test(BASE_URL)) {
   throw new Error("HOSTED_K6_DISABLED: k6 load testing is permitted only against local loopback (localhost/127.0.0.1/[::1]).");
 }
 const host = BASE_URL.replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].toLowerCase();
 if (host === PROD_HOST) throw new Error("Export harness refuses Production.");
 
-const sessionData = JSON.parse(open(__ENV.PERF_SESSION_FILE || "./perf/.runtime/sessions.json"));
+if (String(__ENV.DATABASE_SCHEMA || "") !== EXPECTED_SCHEMA) throw new Error("DATABASE_SCHEMA=visa_os_preview is required.");
+const sessionData = JSON.parse(open(__ENV.PERF_SESSION_FILE || "../.runtime/sessions.json"));
 const BUDGETS = JSON.parse(open("../budgets.json"));
 const operationTrends = {
   applications_export_csv: new Trend("op_applications_export_csv", true),
@@ -69,9 +74,8 @@ export function setup() {
   const res = http.get(`${BASE_URL}/api/health`, { headers: headers(), redirects: 0 });
   if (res.status !== 200) throw new Error(`Health preflight returned ${res.status}.`);
   const health = res.json();
-  if (health?.deployment?.environment === "production") throw new Error("Export harness refuses Production deployment.");
-  if (health?.schema?.name !== EXPECTED_SCHEMA || health?.database?.intendedSupabaseProject !== true || health?.ok !== true) {
-    throw new Error("Export harness requires healthy ESSAFARIA Preview.");
+  if (health?.status !== "healthy" || health?.service !== "essafaria-visa-os") {
+    throw new Error("Export harness requires a healthy local ESSAFARIA service.");
   }
 }
 

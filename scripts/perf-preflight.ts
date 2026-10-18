@@ -1,4 +1,4 @@
-import "./lib/load-env";
+import "./lib/perf-local-env";
 import { Pool } from "pg";
 import { databasePoolConfig } from "../src/lib/database-config";
 import { assertSafePerfTarget, perfTable, safeTargetSummary } from "./perf-safety";

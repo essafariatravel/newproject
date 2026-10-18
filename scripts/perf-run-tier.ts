@@ -1,4 +1,4 @@
-import "./lib/load-env";
+import "./lib/perf-local-env";
 import { mkdir, readFile, rm, stat,writeFile } from "node:fs/promises";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { resolve } from "node:path";

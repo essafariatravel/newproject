@@ -3,12 +3,12 @@ import {Pool} from "pg";
 import {mkdir,writeFile} from "node:fs/promises";
 import path from "node:path";
 import {databasePoolConfig} from "../src/lib/database-config";
-import {assertSafePerfTarget,perfTable} from "./perf-safety";
+import {assertConsolidationPreviewTarget,maintenanceTable as perfTable} from "./lib/non-performance-targets";
 import {applyMigrations} from "./lib/migrations";
 import {trustedPreviewOrigin} from "./lib/preview-host";
 
 async function main(){
-  const mode=process.argv[2];const target=assertSafePerfTarget();
+  const mode=process.argv[2];const target=assertConsolidationPreviewTarget();
   if(!target.remote||target.schema!=="visa_os_preview")throw new Error("This runner requires the recorded remote Preview schema.");
   await mkdir("tmp-final-verify",{recursive:true});
   if(mode==="prepare"){

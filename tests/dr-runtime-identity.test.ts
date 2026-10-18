@@ -10,6 +10,11 @@ function rows(table: "users" | "sessions", columns: string[]): IdentityColumnRow
 }
 
 describe("DR runtime identity compatibility", () => {
+  it("never manufactures MFA verification for a recovery probe session", () => {
+    const policy = runtimeIdentityPolicy(rows("sessions", ["id", "user_id", "mfa_verified_at"]));
+    expect(policy.hasSessionMfaVerifiedAt).toBe(true);
+    expect(recoverySessionInsertParts(policy, 1).columns).not.toContain("mfa_verified_at");
+  });
   it("supports the Production-era 0019 identity/session columns", () => {
     const policy = runtimeIdentityPolicy([
       ...rows("users", ["id","email","must_change_password","status","agency_id"]),

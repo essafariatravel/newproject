@@ -12,8 +12,8 @@ const executable = ts.transpileModule(source, {
 async function runPreflight(health: unknown, overrides: Partial<NodeJS.ProcessEnv> = {}, httpStatus = 200) {
   const env: NodeJS.ProcessEnv = {
     NODE_ENV: "test", PERF_ACK_NONPROD: "YES", DATABASE_SCHEMA: "visa_os_preview",
-    DATABASE_URL: `postgresql://postgres.${safety.PERF_EXPECTED_PROJECT}:synthetic-password@aws-1-us-east-1.pooler.supabase.com:6543/postgres`,
-    BASE_URL: "https://preview.example.test", ...overrides,
+    DATABASE_URL: "postgresql://fixture:synthetic@127.0.0.1:5434/perf_fixture",
+    BASE_URL: "http://127.0.0.1:3010", ...overrides,
   };
   let output = "";
   let error = "";
@@ -28,7 +28,7 @@ async function runPreflight(health: unknown, overrides: Partial<NodeJS.ProcessEn
     async end() {}
   }
   const requireDouble = (name: string) => {
-    if (name === "./lib/load-env") return {};
+    if (name === "./lib/perf-local-env") { safety.assertLocalPerfEnvironment(env); return {}; }
     if(name==="./lib/preview-host")return {trustedPreviewOrigin};
     if (name === "pg") return { Pool };
     if (name === "../src/lib/database-config") return { databasePoolConfig: () => ({}) };
@@ -38,11 +38,11 @@ async function runPreflight(health: unknown, overrides: Partial<NodeJS.ProcessEn
     };
     throw new Error("Unexpected preflight dependency");
   };
-  await new Function("require", "exports", "process", "fetch", "console", executable)(
+  try { await new Function("require", "exports", "process", "fetch", "console", executable)(
     requireDouble, {}, { env, exit: (code: number) => { exitCode = code; } },
     async () => { fetches++; return new Response(JSON.stringify(health), { status: httpStatus }); },
     { log: (value: string) => { output += value; }, error: (value: string) => { error += value; } },
-  );
+  ); } catch (failure) { exitCode=1; error+=String(failure); }
   return { output, error, exitCode, fetches, connections };
 }
 
@@ -77,7 +77,7 @@ describe("Performance preflight public health contract", () => {
   it.each([
     { PERF_ACK_NONPROD: undefined },
     { DATABASE_SCHEMA: "visa_os" },
-    { DATABASE_SCHEMA: "unapproved_remote" },
+    { DATABASE_SCHEMA: "invalid/schema" },
     { BASE_URL: "https://visa.essafariavoyages.com" },
     { DATABASE_URL: "postgresql://postgres.wrongproject:synthetic-password@aws-1-us-east-1.pooler.supabase.com:6543/postgres" },
   ])("preserves non-Production guard before HTTP or database access %#", async (overrides) => {

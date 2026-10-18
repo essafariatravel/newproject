@@ -1,3 +1,4 @@
+require("../perf/local-safety.js").assertLocalPerfEnvironment(process.env);
 const fs=require("node:fs");const path=require("node:path");
 const kind=process.env.PERF_RUN_KIND||"TIER";
 const vus=Number(process.env.PERF_VUS);
@@ -21,4 +22,4 @@ if(monitor.samplingFailed||!monitor.samples?.length)throw new Error("Previous-ti
 const first=Date.parse(monitor.samples[0].at),last=Date.parse(monitor.samples.at(-1).at);
 const started=Date.parse(tier.k6StartedAt),finished=Date.parse(tier.k6FinishedAt);
 if(![first,last,started,finished].every(Number.isFinite)||first>started||last<finished-Math.max(2000,2*monitor.intervalMs))throw new Error("Database monitoring does not cover the previous complete workload.");
-console.log(`PASS preceding ${expected}-VU tier, exact SHA and Preview URL verified.`);
+console.log(`PASS preceding ${expected}-VU tier, exact SHA and local URL verified.`);

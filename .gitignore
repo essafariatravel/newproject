@@ -40,6 +40,7 @@ pnpm-workspace.yaml
 /.screenshots/
 /.playwright-cli/
 /.superpowers/
+/.tmp/
 
 # Disposable local verification database and logs
 tmp-final-verify/

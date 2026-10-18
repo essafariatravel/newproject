@@ -54,11 +54,8 @@ export function recoverySessionInsertParts(
   const columns = ["user_id", "token_hash", "expires_at"];
   const values = ["$1::uuid", "$2", "now()+interval '1 hour'"];
   const extraParams: unknown[] = [];
-  // Disposable recovery runtime probe only; this is not evidence of MFA login.
-  if (policy.hasSessionMfaVerifiedAt) {
-    columns.push("mfa_verified_at");
-    values.push("now()");
-  }
+  // A recovery probe is not a TOTP ceremony. Leave the marker NULL, including
+  // in disposable restores; protected MFA routes must remain fail-closed.
 
   if (policy.hasSessionLastActivityAt) {
     columns.push("last_activity_at");

@@ -1,3 +1,4 @@
+import "./lib/perf-local-env";
 import { readFile } from "node:fs/promises";
 
 type Benchmark = { datasetId?: string; datasetRows?: number; queries?: Array<{ name: string; p95Ms: number; p99Ms?: number }> };

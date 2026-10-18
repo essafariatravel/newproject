@@ -8,7 +8,7 @@ afterEach(()=>{for(const dir of dirs.splice(0))rmSync(dir,{recursive:true,force:
 function verify(kind="TIER",vus=50,overrides:Record<string,unknown>={},premature=false){
   const dir=mkdtempSync(join(tmpdir(),"essafaria-prior-proof-"));dirs.push(dir);
   const previous=kind==="TIER"?10:vus;
-  const tier={sha:"a".repeat(40),baseUrl:"https://newproject-test-essafaria-travel-s-projects.vercel.app",schema:"visa_os_preview",kind:"TIER",vus:previous,holdMinutes:20,status:"PASS",k6StartedAt:"2026-10-07T10:00:00Z",k6FinishedAt:"2026-10-07T10:26:00Z",...overrides};
+  const tier={sha:"a".repeat(40),baseUrl:"http://127.0.0.1:3000",schema:"visa_os_preview",kind:"TIER",vus:previous,holdMinutes:20,status:"PASS",k6StartedAt:"2026-10-07T10:00:00Z",k6FinishedAt:"2026-10-07T10:26:00Z",...overrides};
   writeFileSync(join(dir,"tier.json"),JSON.stringify(tier));
   for(const name of ["db-before.json","db-after.json","k6-summary.json"])writeFileSync(join(dir,name),'{}');
   writeFileSync(join(dir,"evaluation.json"),JSON.stringify({checks:[{pass:true}]}));
@@ -22,4 +22,5 @@ describe("preceding capacity evidence",()=>{
     const vus=kind==="SOAK"?100:250;expect(verify(kind,vus).status).toBe(0);expect(verify(kind,vus,{kind,holdMinutes:120}).status).not.toBe(0);
   });
   it("rejects stale-SHA evidence and unrestricted soak loads",()=>{expect(verify("TIER",50,{sha:"b".repeat(40)}).status).not.toBe(0);expect(verify("SOAK",1000).status).not.toBe(0);});
+  it("rejects hosted proof before granting preceding-tier permission",()=>{expect(verify("TIER",50,{baseUrl:"https://unqualified.example.test"}).status).not.toBe(0);});
 });

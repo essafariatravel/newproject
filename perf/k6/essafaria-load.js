@@ -1,6 +1,7 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
 import { Trend, Rate, Counter } from "k6/metrics";
+import { assertLocalHttpOrigin, assertLocalPerfEnvironment, assertLocalPostgresUrl } from "../local-safety.js";
 
 const PROD_HOST = "visa.essafariavoyages.com";
 const EXPECTED_PROJECT = "xgetzgixalrsmuvfthpf";
@@ -9,19 +10,20 @@ const EXPECTED_SCHEMA = "visa_os_preview";
 if (__ENV.PERF_ACK_NONPROD !== "YES") {
   throw new Error("PERF_ACK_NONPROD=YES is required.");
 }
+assertLocalPerfEnvironment(__ENV);
+if (!__ENV.DATABASE_URL) throw new Error("DATABASE_URL is required for the isolated local workload.");
+assertLocalPostgresUrl(__ENV.DATABASE_URL);
 if (!__ENV.BASE_URL) throw new Error("BASE_URL is required.");
 
-const BASE_URL = String(__ENV.BASE_URL).trim().replace(/\/+$/, "");
-// Fail closed before ANY network call: Vercel Hobby prohibits hosted load testing.
+const BASE_URL = assertLocalHttpOrigin(__ENV.BASE_URL);
+// Fail closed on every plan, before session files and all network calls.
 if (!/^http:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?$/i.test(BASE_URL)) {
   throw new Error("HOSTED_K6_DISABLED: k6 load testing is permitted only against local loopback (localhost/127.0.0.1/[::1]).");
 }
-if (__ENV.VERCEL_AUTOMATION_BYPASS_SECRET && BASE_URL !== String(__ENV.CONSOLIDATION_PREVIEW_URL || "").replace(/\/+$/, "")) throw new Error("Bypass secret requires the independently recorded exact Preview origin.");
-const bypassHeaders=__ENV.VERCEL_AUTOMATION_BYPASS_SECRET?{"x-vercel-protection-bypass":__ENV.VERCEL_AUTOMATION_BYPASS_SECRET}:{};
 // k6 disables automatic Accept-Encoding negotiation. Request browser-supported
 // compression while retaining the complete decoded response and existing timing
 // budgets, routes, sessions, think time and workload stages.
-const transportHeaders = { "Accept-Encoding": "gzip", ...bypassHeaders };
+const transportHeaders = { "Accept-Encoding": "gzip" };
 if (!/^https?:\/\//i.test(BASE_URL)) throw new Error("BASE_URL must be an HTTP(S) origin.");
 const BASE_HOST = BASE_URL.replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].toLowerCase();
 if (BASE_HOST === PROD_HOST) {

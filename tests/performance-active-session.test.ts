@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
+import * as localSafety from "../perf/local-safety.js";
 
 const executable = ts.transpileModule(readFileSync(resolve("perf/k6/essafaria-load.js"), "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -27,6 +28,7 @@ function harness(profile = "tier", actionResponse = '1:{"expired":false}\n', chu
         return { status, timings: { duration: 10 }, body: url.endsWith(".js") ? chunk : '<script src="/_next/static/session.js"></script>', json: () => ({ status: "healthy", service: "essafaria-visa-os" }) };
   };
   const requireDouble = (name: string) => {
+    if (name === "../local-safety.js") return localSafety;
     if (name === "k6/http") return { default: {
       get,
       batch: (requests: Array<{ method: string; url: string; params: Request["options"] }>) => {
@@ -54,7 +56,7 @@ function harness(profile = "tier", actionResponse = '1:{"expired":false}\n', chu
   };
   const openDouble = (file: string) => JSON.stringify(file.endsWith("budgets.json") ? { global: { errorRateMax: .01, unexpectedFailureRateMax: .01, p95Ms: 2000 }, operations: { session_activity: {} } } : file.endsWith("sessions.json") ? { roles: Object.fromEntries(roles.map(role => [role, Array.from({ length: Math.max(10, configuration.vus ?? 10) }, (_, i) => `synthetic-unused-${role}-${i}`)])) } : { agencyApplicationIds: ["synthetic-agency-dossier"], staffApplicationIds: ["synthetic-staff-dossier"] });
   const exports: { setup?: () => Record<string, unknown>; default?: (data: Record<string, unknown>) => void } = {};
-  new Function("require", "exports", "__ENV", "open", "__VU", "__ITER", "Date", executable)(requireDouble, exports, { PERF_ACK_NONPROD: "YES", BASE_URL: base, DATABASE_SCHEMA: "visa_os_preview", PERF_PROFILE: profile, PERF_VUS: String(configuration.vus ?? 10) }, openDouble, 2, 1, { now: () => now });
+  new Function("require", "exports", "__ENV", "open", "__VU", "__ITER", "Date", executable)(requireDouble, exports, { PERF_ACK_NONPROD: "YES", BASE_URL: base, DATABASE_URL:"postgresql://fixture:synthetic@127.0.0.1:5434/perf_fixture", DATABASE_SCHEMA: "visa_os_preview", PERF_PROFILE: profile, PERF_VUS: String(configuration.vus ?? 10) }, openDouble, 2, 1, { now: () => now });
   return { calls, failures, batches, setup: () => exports.setup!(), navigate: (data: Record<string, unknown>) => exports.default!(data), advance: (ms: number) => { now += ms; }, elapsedMs: () => now - setupStarted };
 }
 

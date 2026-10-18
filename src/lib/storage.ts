@@ -44,9 +44,47 @@ const dbProvider: StorageProvider = {
 
 /* -------------------------- supabase provider ---------------------------- */
 
-const SUPABASE_UPLOAD_LIMIT = 10 * 1024 * 1024;
+const SUPABASE_UPLOAD_LIMIT = 2 * 1024 * 1024;
+const SUPABASE_READ_LIMIT = 10 * 1024 * 1024; // Preserve bounded legacy downloads.
 const SUPABASE_REQUEST_TIMEOUT_MS = 15_000;
 const EXPECTED_SUPABASE_STORAGE_HOST = "xgetzgixalrsmuvfthpf.supabase.co";
+
+function validStorageKey(key: string) {
+  if (!key || key.length > 1024 || !/^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/.test(key) ||
+      key.split("/").some(part => part === "." || part === "..")) {
+    throw new AppError("INVALID_STORAGE_KEY", "The stored file identifier is invalid.");
+  }
+}
+type StorageOperation = "WRITE" | "READ" | "DELETE";
+function storageFailure(operation: StorageOperation) {
+  return new AppError(`STORAGE_${operation}_FAILED`, "The storage operation could not be verified. Try again.");
+}
+async function storageRequest(url: string, init: RequestInit, operation: StorageOperation) {
+  try { return await fetch(url, { ...init, redirect: "error", signal: AbortSignal.timeout(SUPABASE_REQUEST_TIMEOUT_MS) }); }
+  catch { throw storageFailure(operation); } // Never forward provider diagnostics or credentials.
+}
+async function boundedBody(res: Response, limit: number): Promise<Buffer> {
+  const length = res.headers.get("content-length");
+  if (length && (!/^\d+$/.test(length) || Number(length) > limit)) {
+    await res.body?.cancel().catch(() => {}); throw new Error("STORAGE_BODY_LIMIT");
+  }
+  const reader = res.body?.getReader();
+  if (!reader) return Buffer.alloc(0);
+  const chunks: Buffer[] = []; let bytes = 0;
+  try {
+    for (;;) { const chunk = await reader.read(); if (chunk.done) break;
+      bytes += chunk.value.length;
+      if (bytes > limit) { await reader.cancel(); throw new Error("STORAGE_BODY_LIMIT"); }
+      chunks.push(Buffer.from(chunk.value));
+    }
+    return Buffer.concat(chunks, bytes);
+  } finally { reader.releaseLock(); }
+}
+async function missingObject(res: Response): Promise<boolean> {
+  if (res.status !== 404) { await res.body?.cancel().catch(() => {}); return false; }
+  try { const body = JSON.parse((await boundedBody(res, 64 * 1024)).toString("utf8")); return body?.code === "NoSuchKey" || body?.error === "NoSuchKey"; }
+  catch { return false; }
+}
 
 function supabaseConfig() {
   const rawUrl = process.env.SUPABASE_URL;
@@ -90,48 +128,48 @@ function supabaseConfig() {
 
 const supabaseProvider: StorageProvider = {
   async put(key, data, mimeType) {
+    validStorageKey(key);
     if (data.length > SUPABASE_UPLOAD_LIMIT) {
       throw new AppError("FILE_TOO_LARGE", "File exceeds the storage provider limit.");
     }
     const { url, key: serviceKey, bucket } = supabaseConfig();
-    const res = await fetch(`${url}/storage/v1/object/${bucket}/${encodeURIComponent(key)}`, {
+    const res = await storageRequest(`${url}/storage/v1/object/${bucket}/${encodeURIComponent(key)}`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${serviceKey}`,
         "Content-Type": mimeType,
-        "x-upsert": "true",
+        "x-upsert": "false", // Each version has a new key; never replace immutable bytes.
       },
       body: new Uint8Array(data),
-      signal: AbortSignal.timeout(SUPABASE_REQUEST_TIMEOUT_MS),
-    });
+    }, "WRITE");
     if (!res.ok) {
-      console.error("supabase-storage-put-failed", res.status);
-      throw new AppError("STORAGE_WRITE_FAILED", "Could not store the file.");
+      await res.body?.cancel().catch(() => {}); throw storageFailure("WRITE");
     }
+    await res.body?.cancel().catch(() => {});
   },
   async get(key) {
+    validStorageKey(key);
     const { url, key: serviceKey, bucket } = supabaseConfig();
-    const res = await fetch(`${url}/storage/v1/object/${bucket}/${encodeURIComponent(key)}`, {
+    const res = await storageRequest(`${url}/storage/v1/object/${bucket}/${encodeURIComponent(key)}`, {
       headers: { Authorization: `Bearer ${serviceKey}` },
-      signal: AbortSignal.timeout(SUPABASE_REQUEST_TIMEOUT_MS),
-    });
+    }, "READ");
     if (!res.ok) {
-      console.error("supabase-storage-get-failed", res.status);
-      throw new AppError("NOT_FOUND", "Stored file not found.");
+      if (await missingObject(res)) throw new AppError("NOT_FOUND", "Stored file not found.");
+      throw storageFailure("READ");
     }
-    const buf = Buffer.from(await res.arrayBuffer());
+    let buf: Buffer;
+    try { buf = await boundedBody(res, SUPABASE_READ_LIMIT); } catch { throw storageFailure("READ"); }
     return { data: buf, mimeType: res.headers.get("content-type") ?? "application/octet-stream" };
   },
   async delete(key) {
+    validStorageKey(key);
     const { url, key: serviceKey, bucket } = supabaseConfig();
-    const res = await fetch(`${url}/storage/v1/object/${bucket}/${encodeURIComponent(key)}`, {
+    const res = await storageRequest(`${url}/storage/v1/object/${bucket}/${encodeURIComponent(key)}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${serviceKey}` },
-      signal: AbortSignal.timeout(SUPABASE_REQUEST_TIMEOUT_MS),
-    });
-    if (!res.ok && res.status !== 404) {
-      console.error("supabase-storage-delete-failed", res.status);
-    }
+    }, "DELETE");
+    if (!res.ok && !await missingObject(res)) throw storageFailure("DELETE");
+    await res.body?.cancel().catch(() => {});
   },
 };
 
@@ -141,8 +179,10 @@ export function storageProvider(): StorageProvider {
   switch (process.env.STORAGE_PROVIDER) {
     case "supabase":
       return supabaseProvider;
-    default:
+    case undefined:
+    case "db":
       return dbProvider;
+    default: throw new AppError("STORAGE_MISCONFIGURED", "The storage provider is not configured correctly.");
   }
 }
 

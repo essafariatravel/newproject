@@ -7,6 +7,12 @@ import {
 } from "../scripts/lib/build-policy";
 
 describe("Preview build database-change guard", () => {
+  it("holds the Master RC against automatic deployment, migrations and seeds", () => {
+    expect(automaticDatabaseChangesForbidden("codex/master-go-live-rc-2026-10-17")).toBe(true);
+    expect(automaticDatabaseChangesForbidden("codex/master-go-live-rc-2026-11-01")).toBe(true);
+    const config = JSON.parse(readFileSync(path.join(process.cwd(), "vercel.json"), "utf8"));
+    expect(config.git?.deploymentEnabled?.["codex/master-go-live-rc-2026-10-17"]).toBe(false);
+  });
   it("prevents automatic deployments and database writes for the local legal release candidate", () => {
     expect(automaticDatabaseChangesForbidden("codex/legal-readiness-rc-2026-10-15")).toBe(true);
     const config = JSON.parse(readFileSync(path.join(process.cwd(), "vercel.json"), "utf8"));

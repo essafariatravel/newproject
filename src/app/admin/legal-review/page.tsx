@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
 import { getUiLocale } from "@/lib/ui-i18n";
-import { readPrivateLegalReviewPack } from "@/lib/legal-review";
-import { legalReviewEnabled, reviewDocument, reviewPackReadiness, REVIEW_DOCUMENT_SECTIONS, type ReviewDocument } from "@/lib/legal-review-pack";
+import { readPrivateLegalReviewPack, readPrivateOwnerLegalApproval } from "@/lib/legal-review";
+import { assessOwnerLegalApproval, legalReviewEnabled, reviewDocument, reviewPackReadiness, REVIEW_DOCUMENT_SECTIONS, type ReviewDocument } from "@/lib/legal-review-pack";
 
 export const dynamic="force-dynamic";
 export const metadata={robots:{index:false,follow:false},title:"Legal review — ESSAFARIA"};
@@ -13,6 +13,7 @@ const copy={
   en:{title:"Private legal review",warning:"Unapproved draft. Counsel review and an effective date are required before publication or acceptance.",missing:"The private review pack is not configured.",version:"Proposed version",reservations:"Clauses with reservations",source:"Source document digest",digest:"Displayed content digest"},
   ar:{title:"المراجعة القانونية الخاصة",warning:"مسودة غير معتمدة. يلزم اعتماد المستشار القانوني وتحديد تاريخ السريان قبل النشر أو الإقرار.",missing:"لم يتم إعداد حزمة المراجعة الخاصة.",version:"الإصدار المقترح",reservations:"البنود التي تتضمن تحفظات",source:"بصمة الوثيقة المصدر",digest:"بصمة النص المعروض"},
 };
+const approvedCopy={fr:"Contenu validé par le propriétaire. Publication technique en attente ; la date d’effet sera l’horodatage réel d’enregistrement.",en:"Content approved by the owner. Technical publication is pending; the effective date will be the actual recording timestamp.",ar:"المحتوى معتمد من المالك. النشر التقني قيد الإعداد؛ تاريخ السريان هو التوقيت الفعلي للتسجيل."};
 export default async function LegalReviewPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}) {
   if(!legalReviewEnabled())notFound();
   const actor=await pageUser();if(actor.role!=="SUPER_ADMIN"||actor.agencyId||!hasPermission(actor,"cms.manage"))notFound();
@@ -20,9 +21,10 @@ export default async function LegalReviewPage({searchParams}:{searchParams:Promi
   if(!pack)return <section lang={locale} dir={locale==="ar"?"rtl":"ltr"}><h1 className="text-2xl font-semibold text-navy-900">{ct.title}</h1><p role="status" className="mt-4 text-base text-slate-700">{ct.missing}</p></section>;
   const kind=typeof sp.document==="string"&&Object.hasOwn(REVIEW_DOCUMENT_SECTIONS,sp.document)?sp.document as ReviewDocument:"legal_notice";
   const document=reviewDocument(pack,kind,locale),readiness=reviewPackReadiness(pack);
+  const approval=assessOwnerLegalApproval(pack,await readPrivateOwnerLegalApproval());
   return <section lang={locale} dir={document.direction} className="max-w-3xl">
     <h1 className="text-2xl font-semibold text-navy-900">{ct.title}</h1>
-    <p role="status" className="mt-4 border-y border-line py-4 text-base font-semibold text-slate-700">{ct.warning}</p>
+    <p role="status" className="mt-4 border-y border-line py-4 text-base font-semibold text-slate-700">{approval.businessStatus==="OWNER_APPROVED"?approvedCopy[locale]:ct.warning}</p>
     <nav aria-label={ct.title} className="mt-6 flex flex-wrap gap-x-6 gap-y-3">{(["fr","en","ar"] as const).map(lang=><Link key={lang} lang={lang} aria-current={lang===locale?"page":undefined} className="text-base underline underline-offset-4" href={`?lang=${lang}&document=${kind}`}>{lang.toUpperCase()}</Link>)}</nav>
     <nav aria-label={pack.locales[locale].title} className="mt-6 space-y-2">{(Object.keys(REVIEW_DOCUMENT_SECTIONS) as ReviewDocument[]).map(id=><Link key={id} className="block text-base underline underline-offset-4" aria-current={kind===id?"page":undefined} href={`?lang=${locale}&document=${id}`}>{pack.locales[locale].sections.find(s=>s.id===REVIEW_DOCUMENT_SECTIONS[id])!.title}</Link>)}</nav>
     <p className="mt-6 text-base text-slate-600">{ct.version}: <bdi dir="ltr">{pack.version}</bdi> · {ct.reservations}: {readiness.unresolvedClauses.length}</p>

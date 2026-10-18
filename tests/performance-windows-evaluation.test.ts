@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import * as path from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
+import { assertLocalPerfEnvironment } from "../perf/local-safety.js";
 
 function executable(script: string) {
   return ts.transpileModule(readFileSync(path.resolve(script), "utf8"), {
@@ -24,7 +25,7 @@ async function runner(k6Status = 0, evaluatorStatus = 0, overrides: Partial<Node
   // All child processes are simulated; this URL is never requested.
   const env = { BASE_URL: "http://127.0.0.1:3000", PERF_SESSION_FILE: "perf/.runtime/sessions.json", PERF_APPLICATION_MANIFEST: "perf/.runtime/application-manifest.json", PERF_RUN_DIR: "C:\\Users\\Azur Computer\\evidence", npm_execpath: "C:\\Program Files\\nodejs\\npm-cli.js", ...overrides };
   const requireDouble = (name: string) => {
-    if (name === "./lib/load-env") return {};
+    if (name === "./lib/perf-local-env") { assertLocalPerfEnvironment(env); return {}; }
     if (name === "node:path") return path;
     if (name === "node:fs/promises") return {
       mkdir: async () => {},rm:async()=>{},
@@ -52,10 +53,10 @@ async function runner(k6Status = 0, evaluatorStatus = 0, overrides: Partial<Node
     };
     throw new Error("Unexpected runner dependency");
   };
-  await new Function("require", "exports", "process", "console", "Date", executable("scripts/perf-run-tier.ts"))(
+  try { await new Function("require", "exports", "process", "console", "Date", executable("scripts/perf-run-tier.ts"))(
     requireDouble, {}, { env, platform: "win32", execPath: "C:\\Program Files\\nodejs\\node.exe", exit: (code: number) => { exitCode = code; } },
     { log: (value: string) => logs.push(value), error: (value: string) => logs.push(value) }, ClockDate,
-  );
+  ); } catch (failure) { exitCode=1; logs.push(String(failure)); }
   return { calls, exitCode, logs,tierStates,lifecycle };
 }
 
@@ -77,7 +78,7 @@ async function evaluate(thresholdFailed = false, slow = false) {
   const reads: string[] = [];
   let output = "";
   const proc = { argv: ["node", "perf-evaluate.ts", summaryPath, beforePath, afterPath], env: {}, exitCode: 0, exit: (code: number) => { proc.exitCode = code; } };
-  const requireDouble = (name: string) => name === "node:path" ? path : {
+  const requireDouble = (name: string) => name === "./lib/perf-local-env" ? (assertLocalPerfEnvironment(proc.env), {}) : name === "node:path" ? path : {
     readFile: async (file: string) => { reads.push(file); if (!(file in data)) throw new Error("Evidence argument split"); return JSON.stringify(data[file]); },
   };
   await new Function("require", "exports", "process", "console", executable("scripts/perf-evaluate.ts"))(
@@ -94,7 +95,7 @@ describe("Windows Performance evaluation", () => {
   ])("rejects a non-loopback target before any workload or database action: %j", async (overrides) => {
     const result = await runner(0, 0, overrides);
     expect(result.exitCode).not.toBe(0);
-    expect(result.logs.join("\\n")).toContain("HOSTED_K6_DISABLED");
+    expect(result.logs.join("\\n")).toMatch(/HOSTED_(?:PERF|K6)_DISABLED/);
     expect(result.calls).toEqual([]);
     expect(result.tierStates).toEqual([]);
   });

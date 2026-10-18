@@ -15,6 +15,20 @@ async function published(kind: "terms" | "privacy" | "commercial" | "staff_confi
 }
 
 describe("server-canonical legal acceptance evidence", () => {
+  it("uses the real database recording instant for owner-authorized publication, and retries without changing it", async()=>{
+    const actor=await userByEmail("superadmin@test.example");
+    const input={kind:"terms" as const,locale:"ar" as const,body:"SYNTHETIC owner approved recording-time test",effectiveAt:"AT_RECORDING" as const,ownerApprovalReference:"OWNER-MASTER-20261017-synthetic",actor};
+    const before=(await pool.query("select clock_timestamp() at")).rows[0].at;
+    const result=await publishLegalContent(input);
+    const after=(await pool.query("select clock_timestamp() at")).rows[0].at;
+    expect(result.effectiveAt).toEqual(result.publishedAt);
+    expect(result.publishedAt.getTime()).toBeGreaterThanOrEqual(before.getTime());
+    expect(result.publishedAt.getTime()).toBeLessThanOrEqual(after.getTime());
+    expect((await publishLegalContent(input)).id).toBe(result.id);
+    await expect(publishLegalContent({...input,body:input.body+" changed"})).rejects.toMatchObject({code:"LEGAL_APPROVAL_CHANGED"});
+    const metadata=(await pool.query("select metadata from audit_logs where action='LEGAL_PUBLISHED' and entity_id=$1",[result.id])).rows[0].metadata;
+    expect(metadata).toMatchObject({ownerApprovalReference:input.ownerApprovalReference,effectiveDatePolicy:"AT_RECORDING",contentSha256:legalContentSha256(input.body)});
+  });
   it.each([
     ["terms_b2b", "terms", "EXPLICIT_CHECKBOX"],
     ["privacy_b2b", "privacy", "ACKNOWLEDGEMENT"],

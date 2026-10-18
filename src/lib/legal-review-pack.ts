@@ -56,6 +56,30 @@ export function reviewPackReadiness(pack:LegalReviewPack){
   const unresolvedClauses=locales.flatMap(locale=>pack.locales[locale].sections.flatMap(s=>s.clauses.filter(c=>/\[[^\]]+\]/u.test(c.body)).map(c=>`${locale}:${c.id}`)));
   return {publishable:false as const,blockers:["COUNSEL_APPROVAL_REQUIRED","EFFECTIVE_DATE_REQUIRED",...(unresolvedClauses.length?["SOURCE_RESERVATIONS_UNRESOLVED"]:[])],unresolvedClauses};
 }
+
+/** Source REVIEW is immutable provenance; this separate record binds the human decision. */
+export function legalPackDigest(pack:LegalReviewPack):string {
+  return createHash("sha256").update(JSON.stringify(parseLegalReviewPack(pack))).digest("hex");
+}
+export function assessOwnerLegalApproval(pack:LegalReviewPack, record:unknown) {
+  const sourceMarkers=locales.flatMap(locale=>pack.locales[locale].sections.flatMap(s=>s.clauses.filter(c=>/\[[^\]]+\]/u.test(c.body)).map(c=>`${locale}:${c.id}`)));
+  const result={businessStatus:record?"APPROVAL_MISMATCH":"REVIEW",technicalStatus:"TECHNICAL_PENDING",effectiveAtPolicy:null as string|null,blockers:[] as string[],sourceMarkers};
+  try {
+    const r=object(record),digests=object(r.sourceSha256);
+    if(r.recordVersion!==1||r.status!=="OWNER_APPROVED"||r.proofKind!=="EXPLICIT_OWNER_DIRECTIVE"||
+       r.packVersion!==pack.version||r.packSha256!==legalPackDigest(pack)||
+       typeof r.approvalReference!=="string"||!/^[A-Za-z0-9_-]{16,128}$/.test(r.approvalReference)||
+       typeof r.statementSha256!=="string"||!/^[a-f0-9]{64}$/.test(r.statementSha256)||
+       typeof r.recordedAtUtc!=="string"||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(r.recordedAtUtc)||!Number.isFinite(Date.parse(r.recordedAtUtc))||
+       locales.some(locale=>digests[locale]!==pack.locales[locale].sourceSha256))throw new Error("UNBOUND_APPROVAL");
+    result.businessStatus="OWNER_APPROVED";
+    if(r.effectiveAtPolicy!=="AT_RECORDING")result.blockers.push("EFFECTIVE_DATE_POLICY_REQUIRED");
+    else result.effectiveAtPolicy="AT_RECORDING";
+    if(sourceMarkers.length)result.blockers.push("SOURCE_FIELD_VALUES_REQUIRED");
+    result.technicalStatus=result.blockers.length?"TECHNICAL_PENDING":"READY";
+  } catch { result.blockers.push(record?"APPROVAL_DIGEST_OR_METADATA_MISMATCH":"OWNER_APPROVAL_RECORD_REQUIRED"); }
+  return result;
+}
 /** Server metadata only; no browser parameter can enable this in Production. */
 export function legalReviewEnabled(env:Record<string,string|undefined>=process.env):boolean {
   if (env.VERCEL || env.VERCEL_ENV || env.VERCEL_TARGET_ENV) {

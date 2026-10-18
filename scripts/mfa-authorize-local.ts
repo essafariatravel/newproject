@@ -4,11 +4,11 @@ import {writeFile} from "node:fs/promises";
 import {Pool} from "pg";
 import {databasePoolConfig} from "../src/lib/database-config";
 import {hashToken} from "../src/lib/crypto";
-import {assertSafePerfTarget,perfTable} from "./perf-safety";
+import {assertLocalMfaBootstrapTarget,maintenanceTable as perfTable} from "./lib/non-performance-targets";
 
 /** Controlled first-administrator bootstrap; never runs against Production. */
 async function main(){
-  assertSafePerfTarget();
+  assertLocalMfaBootstrapTarget();
   const userId=process.env.MFA_BOOTSTRAP_USER_ID;
   const output=process.env.MFA_BOOTSTRAP_CODE_FILE;
   if(!userId||!output||!process.env.MFA_ENCRYPTION_KEY)throw new Error("User, secure output file and MFA encryption key are required.");

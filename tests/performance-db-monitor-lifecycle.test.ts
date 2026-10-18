@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import * as path from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
+import { assertLocalPerfEnvironment } from "../perf/local-safety.js";
 
 const executable = ts.transpileModule(readFileSync(path.resolve("scripts/perf-db-monitor.ts"), "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -17,7 +18,7 @@ async function monitor(owned: boolean, stopAtMs?: number, failAfterSamples?: num
   }
   const env = { PERF_MONITOR_SECONDS: "10", PERF_MONITOR_INTERVAL_MS: "1000", PERF_MONITOR_OUTPUT: "monitor.json", PERF_MONITOR_READY_FILE: "monitor.ready", ...(owned ? { PERF_MONITOR_STOP_FILE: "monitor.stop" } : {}) };
   const requireDouble = (name: string) => {
-    if (name === "./lib/load-env") return {};
+    if (name === "./lib/perf-local-env") { assertLocalPerfEnvironment(env); return {}; }
     if (name === "node:path") return path;
     if (name === "node:fs/promises") return {
       mkdir: async () => {}, writeFile: async (file: string, value: string) => { files.set(path.basename(file), value); },

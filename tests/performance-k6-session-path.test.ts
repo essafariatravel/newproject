@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { posix, win32, resolve } from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
+import * as localSafety from "../perf/local-safety.js";
 
 const source = readFileSync(resolve("perf/k6/essafaria-load.js"), "utf8");
 const executable = ts.transpileModule(source, {
@@ -18,6 +19,7 @@ function initialize(
   const opened: string[] = [];
   const forbiddenRuntimeCall = () => { throw new Error("HTTP/load execution is forbidden in this test"); };
   const requireDouble = (name: string) => {
+    if (name === "../local-safety.js") return localSafety;
     if (name === "k6/http") return { default: { get: forbiddenRuntimeCall, post: forbiddenRuntimeCall } };
     if (name === "k6") return { check: forbiddenRuntimeCall, sleep: forbiddenRuntimeCall };
     if (name === "k6/metrics") return { Trend: class {}, Rate: class {}, Counter: class {} };
@@ -44,7 +46,7 @@ function initialize(
     });
   };
   const run = () => new Function("require", "exports", "__ENV", "open", executable)(
-    requireDouble, {}, { PERF_ACK_NONPROD: "YES", BASE_URL: "http://127.0.0.1:3000", DATABASE_SCHEMA: "visa_os_preview", ...overrides }, openDouble,
+    requireDouble, {}, { PERF_ACK_NONPROD: "YES", BASE_URL: "http://127.0.0.1:3000", DATABASE_URL:"postgresql://fixture:synthetic@127.0.0.1:5434/local", DATABASE_SCHEMA: "visa_os_preview", ...overrides }, openDouble,
   );
   return { run, opened };
 }
@@ -71,13 +73,13 @@ describe("k6 session-file resolution (initialization only; no k6 process)", () =
 
   it("refuses Production before opening session data", () => {
     const harness = initialize(posix, "/workspace/essafaria", { BASE_URL: "https://visa.essafariavoyages.com" });
-    expect(harness.run).toThrow(/HOSTED_K6_DISABLED/);
+    expect(harness.run).toThrow(/HOSTED_(?:PERF|K6)_DISABLED/);
     expect(harness.opened).toEqual([]);
   });
 
   it("refuses hosted Preview before opening session data", () => {
     const harness = initialize(posix, "/workspace/essafaria", { BASE_URL: "https://preview.example.test" });
-    expect(harness.run).toThrow(/HOSTED_K6_DISABLED/);
+    expect(harness.run).toThrow(/HOSTED_(?:PERF|K6)_DISABLED/);
     expect(harness.opened).toEqual([]);
   });
 

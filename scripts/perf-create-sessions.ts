@@ -1,4 +1,4 @@
-import "./lib/load-env";
+import "./lib/perf-local-env";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { Pool } from "pg";
@@ -59,8 +59,8 @@ async function main() {
           const raw = generateSessionToken();
           await client.query(
             `insert into ${perfTable("sessions")}
-               (user_id, token_hash, expires_at, last_activity_at, credential_version, user_agent, mfa_verified_at)
-             values ($1,$2,now()+interval '3 hours',now(),$3,'essafaria-performance-harness',now())`,
+               (user_id, token_hash, expires_at, last_activity_at, credential_version, user_agent)
+             values ($1,$2,now()+interval '3 hours',now(),$3,'essafaria-performance-harness')`,
             [row.id, hashToken(raw), row.credential_version],
           );
           roles[identity.role]!.push(raw);
@@ -95,7 +95,7 @@ async function main() {
     sessionFile: output,
     sessionsPerRole: perRole,
     roles: Object.fromEntries(Object.entries(roles).map(([role, tokens]) => [role, tokens.length])),
-    note: "Raw session tokens are stored only in the gitignored runtime file and are never printed.",
+    note: "Synthetic password-level sessions only: MFA is never fabricated. Staff routes requiring MFA must fail closed until real local enrollment/challenge. Tokens remain in the ignored runtime file.",
   }, null, 2));
 }
 

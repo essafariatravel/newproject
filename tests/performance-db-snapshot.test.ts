@@ -16,8 +16,8 @@ async function runSnapshot(options: {
 } = {}) {
   const env: NodeJS.ProcessEnv = {
     NODE_ENV: "test", PERF_ACK_NONPROD: "YES", DATABASE_SCHEMA: "visa_os_preview",
-    DATABASE_URL: `postgresql://postgres.${safety.PERF_EXPECTED_PROJECT}:synthetic-password@aws-1-us-east-1.pooler.supabase.com:6543/postgres`,
-    BASE_URL: "https://preview.example.test", ...options.env,
+    DATABASE_URL: "postgresql://fixture:synthetic@127.0.0.1:5434/perf_fixture",
+    BASE_URL: "http://127.0.0.1:3010", ...options.env,
   };
   const queries: Array<{ sql: string; values?: unknown[] }> = [];
   const files: Array<{ body: string; mode: number }> = [];
@@ -47,7 +47,7 @@ async function runSnapshot(options: {
     async end() { ended = true; }
   }
   const requireDouble = (name: string) => {
-    if (name === "./lib/load-env") return {};
+    if (name === "./lib/perf-local-env") { safety.assertLocalPerfEnvironment(env); return {}; }
     if (name === "node:path") return path;
     if (name === "node:fs/promises") return {
       mkdir: async () => {},
@@ -58,10 +58,10 @@ async function runSnapshot(options: {
     if (name === "./perf-safety") return { ...safety, assertSafePerfTarget: () => safety.assertSafePerfTarget(env) };
     throw new Error("Unexpected snapshot dependency");
   };
-  await new Function("require", "exports", "process", "console", executable)(
+  try { await new Function("require", "exports", "process", "console", executable)(
     requireDouble, {}, { env, exit: (code: number) => { exitCode = code; } },
     { log: () => {}, error: (value: string) => { error += value; } },
-  );
+  ); } catch (failure) { exitCode=1; error+=String(failure); }
   return { queries, files, error, exitCode, connections, released, ended };
 }
 
@@ -95,7 +95,7 @@ describe("Performance database snapshot namespace resolution", () => {
   it.each([
     { PERF_ACK_NONPROD: undefined },
     { DATABASE_SCHEMA: "visa_os" },
-    { DATABASE_SCHEMA: "unapproved_remote" },
+    { DATABASE_SCHEMA: "invalid/schema" },
     { BASE_URL: "https://visa.essafariavoyages.com" },
     { DATABASE_URL: "postgresql://postgres.wrongproject:synthetic-password@aws-1-us-east-1.pooler.supabase.com:6543/postgres" },
   ])("preserves performance safety before connecting or writing files %#", async (env) => {
