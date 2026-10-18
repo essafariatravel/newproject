@@ -32,6 +32,37 @@ async function agency(){return agencyByEmail("ops@agencya.example");}
 async function attach(f:Awaited<ReturnType<typeof reserve>>){const a=await agency();await service.adopt(f.ticket.id,client=>client.query("update agencies set logo_key=$1 where id=$2",[f.key,a.id]));return a;}
 
 describe("durable storage recovery protocol on isolated PostgreSQL",()=>{
+ it('retains single-writer ownership for concurrent starts and duplicate reservations',async()=>{
+  const f=await reserve();
+  const starts=await Promise.allSettled([service.upload(f.ticket.id,f.data),service.upload(f.ticket.id,f.data)]);
+  expect(starts.filter(result=>result.status==='fulfilled')).toHaveLength(1);expect(writes).toBe(1);
+  expect((await service.inspect(f.ticket.id)).state).toBe('UPLOADED');
+  const key=`visa-documents/${randomUUID()}/${randomUUID()}`,input={key,mimeType:'application/pdf',sizeBytes:f.data.length,sha256:digest(f.data)};
+  const reservations=await Promise.allSettled([service.reserve(input),service.reserve(input)]);
+  expect(reservations.filter(result=>result.status==='fulfilled')).toHaveLength(1);
+  expect((await pool.query('select count(*)::int n from storage_operations where object_key=$1',[key])).rows[0].n).toBe(1);
+ });
+ it('allows an unrelated object upload to finish while another object has a blocked journal transition',async()=>{
+  const first=await reserve(),second=await reserve(),gate=await pool.connect(),gateId=210181;
+  let firstUpload:Promise<unknown>|undefined,secondUpload:Promise<unknown>|undefined;
+  await gate.query('select pg_advisory_lock($1)',[gateId]);
+  await pool.query(`create function storage_upload_gate() returns trigger language plpgsql as $$begin if NEW.operation_id='${first.ticket.id}'::uuid and NEW.code='UPLOAD_BEGIN' then perform pg_advisory_xact_lock(${gateId});end if;return NEW;end$$; create trigger storage_upload_gate before insert on storage_operation_events for each row execute function storage_upload_gate()`);
+  try{
+   firstUpload=service.upload(first.ticket.id,first.data);void firstUpload.catch(()=>{});
+   const until=Date.now()+2000;let waiting=false;
+   while(Date.now()<until){waiting=(await pool.query("select exists(select 1 from pg_locks where locktype='advisory' and objid=$1 and not granted) waiting",[gateId])).rows[0].waiting;if(waiting)break;await new Promise(resolve=>setTimeout(resolve,10));}
+   expect(waiting).toBe(true);
+   secondUpload=service.upload(second.ticket.id,second.data);void secondUpload.catch(()=>{});
+   let timer:ReturnType<typeof setTimeout>|undefined;
+   try{expect(await Promise.race([secondUpload.then(()=>true),new Promise<boolean>(resolve=>{timer=setTimeout(()=>resolve(false),1000);})])).toBe(true);}
+   finally{if(timer)clearTimeout(timer);}
+   expect(objects.has(second.key)).toBe(true);expect(objects.has(first.key)).toBe(false);
+  }finally{
+   await gate.query('select pg_advisory_unlock($1)',[gateId]);gate.release();
+   await Promise.allSettled([firstUpload,secondUpload]);
+   await pool.query('drop trigger storage_upload_gate on storage_operation_events;drop function storage_upload_gate()');
+  }
+ });
  it("reserves opaque integrity evidence before the first external write",async()=>{const f=await reserve();expect(writes).toBe(0);expect(await service.inspect(f.ticket.id)).toMatchObject({state:"STAGED",sha256:digest(f.data),size_bytes:f.data.length});expect((await service.events(f.ticket.id)).map(e=>e.state)).toEqual(["STAGED"]);});
  it("verifies exact bytes and MIME before accepting upload",async()=>{const f=await uploaded();expect(await service.inspect(f.ticket.id)).toMatchObject({state:"UPLOADED"});expect(objects.get(f.key)?.data).toEqual(f.data);});
  it("never loses an uploaded object when the provider loses its acknowledgment",async()=>{const f=await reserve();uploadFault=true;await expect(service.upload(f.ticket.id,f.data)).rejects.toMatchObject({code:"STORAGE_UPLOAD_UNCERTAIN"});expect(objects.has(f.key)).toBe(true);expect((await service.inspect(f.ticket.id)).state).toBe("UPLOAD_UNCERTAIN");expect(JSON.stringify(await service.events(f.ticket.id))).not.toMatch(/secret|provider diagnostic|PDF-/);});

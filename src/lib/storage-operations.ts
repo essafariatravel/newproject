@@ -40,16 +40,17 @@ export function createLocalStorageOperations(config:Configuration,backend:Storag
     // A timeout does not cancel the remote action. Uploads remain UNCERTAIN and
     // cannot be retired without independently qualified drainage/reconciliation.
   }
-  async function transaction<T>(action:(client:PoolClient)=>Promise<T>):Promise<T>{
+  async function transaction<T>(action:(client:PoolClient)=>Promise<T>,scope:'serial'|'object'='serial'):Promise<T>{
     const client=await pool.connect();
     try{
       await client.query("begin");
       await client.query("set local lock_timeout='2s';set local statement_timeout='15s'");
       const target=(await client.query("select current_database() name,host(inet_server_addr()) address,inet_server_port() port")).rows[0];
       if(target.name!=="essafaria_test"||target.port!==5434||!["127.0.0.1","::1"].includes(target.address))throw failure("STORAGE_OPERATIONS_LOCAL_ONLY");
-      // Serial local qualification protocol. This is not a throughput design for
-      // 500 agencies; all application writers must be integrated before rollout.
-      await client.query("select pg_advisory_xact_lock(2030181036)");
+      // Deletion, adoption and reference reconciliation remain serialized.
+      // Independent upload phases use their immutable row lock; reservations
+      // retain the unique-key constraint and identity/retention lock below.
+      if(scope==='serial')await client.query("select pg_advisory_xact_lock(2030181036)");
       const result=await action(client);await client.query("commit");return result;
     }catch(error){
       await client.query("rollback").catch(()=>{});
@@ -164,7 +165,7 @@ export function createLocalStorageOperations(config:Configuration,backend:Storag
         const row=(await client.query<Operation>(`insert into ${table("storage_operations")}(provider_origin,bucket,object_key,mime_type,size_bytes,sha256,state)
           values($1,$2,$3,$4,$5,$6,'STAGED') returning *`,[origin,bucket,input.key,input.mimeType,input.sizeBytes,input.sha256])).rows[0]!;
         await event(client,row.id,'STAGED','RESERVED');return row;
-      });
+      },'object');
     },
     async upload(id:string,data:Buffer){
       const row=await transaction(async client=>{
@@ -172,21 +173,21 @@ export function createLocalStorageOperations(config:Configuration,backend:Storag
         if(row.state!=='STAGED')throw failure("STORAGE_STATE_INVALID");
         if(data.length!==row.size_bytes||hash(data)!==row.sha256)throw failure("STORAGE_INPUT_CHANGED");
         await transition(client,row,'UPLOAD_STARTED','UPLOAD_BEGIN');return row;
-      });
+      },'object');
       try{
         await bounded(()=>backend.put(row.object_key,data,row.mime_type));
-        await transaction(async client=>{const pending=await locked(client,id);await client.query(`update ${table("storage_operations")} set upload_acknowledged_at=clock_timestamp() where id=$1`,[id]);await event(client,pending.id,'UPLOAD_STARTED','UPLOAD_ACKNOWLEDGED');});
+        await transaction(async client=>{const pending=await locked(client,id);await client.query(`update ${table("storage_operations")} set upload_acknowledged_at=clock_timestamp() where id=$1`,[id]);await event(client,pending.id,'UPLOAD_STARTED','UPLOAD_ACKNOWLEDGED');},'object');
         const stored=await bounded(()=>backend.get(row.object_key));
         if(stored.data.length!==row.size_bytes||stored.mimeType!==row.mime_type||hash(stored.data)!==row.sha256)throw failure("STORAGE_VERIFICATION_FAILED");
       }catch{
-        await transaction(async client=>{const pending=await locked(client,id);await transition(client,pending,'UPLOAD_UNCERTAIN','UPLOAD_UNCERTAIN');});
+        await transaction(async client=>{const pending=await locked(client,id);await transition(client,pending,'UPLOAD_UNCERTAIN','UPLOAD_UNCERTAIN');},'object');
         throw failure("STORAGE_UPLOAD_UNCERTAIN");
       }
       return transaction(async client=>{
         const pending=await locked(client,id);
         if(pending.state!=='UPLOAD_STARTED')throw failure("STORAGE_STATE_INVALID");
         await transition(client,pending,'UPLOADED','UPLOAD_VERIFIED');return {id,state:'UPLOADED' as const};
-      });
+      },'object');
     },
     async adopt(id:string,mutate:Mutation){
       return transaction(async client=>{
