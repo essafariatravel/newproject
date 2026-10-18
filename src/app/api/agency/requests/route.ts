@@ -6,7 +6,7 @@ import { requireAgencyUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { applications } from "@/db/schema";
 import { AppError } from "@/lib/types";
-import { submitVisaRequest } from "@/lib/requests";
+import { submitVisaRequest,coalesceVisaSubmission } from "@/lib/requests";
 import { stageRequestUpload, resolveRequestUploads, clearRequestUploads } from "@/lib/request-uploads";
 import { requestErrorMessage } from "@/lib/request-feedback";
 import { getUiLocale } from "@/lib/ui-i18n";
@@ -43,12 +43,15 @@ export async function POST(request: Request) {
     }
     const input = submission.parse(json);
     // A retry after a lost response works even after temporary files are removed.
+    const id=await coalesceVisaSubmission(actor,input.attempt,async()=>{
     const [existing] = await db.select({ id: applications.id }).from(applications)
       .where(and(eq(applications.idempotencyKey, input.attempt), eq(applications.agencyId, actor.agencyId)));
-    const id = existing?.id ?? (await submitVisaRequest({ actor, idempotencyKey: input.attempt, countryId: input.countryId,
+    const committedId = existing?.id ?? (await submitVisaRequest({ actor, idempotencyKey: input.attempt, countryId: input.countryId,
       visaTypeId: input.visaTypeId, agencyNotes: input.notes, travellers: [{ fullName: input.fullName, nationality: input.nationality }],
       documents: await resolveRequestUploads(actor, input.attempt, input.visaTypeId, input.tokens) })).applicationId;
     await clearRequestUploads(actor, input.attempt).catch(() => {});
+    return committedId;
+    });
     revalidatePath("/portal", "layout"); revalidatePath("/admin", "layout");
     return NextResponse.json({ applicationId: id }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {

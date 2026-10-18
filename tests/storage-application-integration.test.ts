@@ -13,6 +13,7 @@ import {createRegistrationFollowup,resolveRegistrationFollowup,uploadRegistratio
 import {createTopupRequest} from '@/lib/topup';
 import {setAgencyLogo,clearAgencyLogo} from '@/lib/branding';
 import {randomUUID} from 'node:crypto';
+import {removeStorageProposal} from './helpers/storage-proposal';
 
 suiteSetup();
 const objects=new Map<string,{data:Buffer;mime:string}>();
@@ -46,7 +47,7 @@ beforeAll(async()=>{
 afterAll(async()=>{
   const close=Reflect.get(storage,"closeStorageOperations");if(typeof close==="function")await close();
   vi.unstubAllEnvs();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));
-  await pool.query("drop table public.storage_operation_events,public.storage_operations;drop function public.reject_storage_operation_identity_mutation(),public.reject_storage_operation_event_mutation()");
+  await removeStorageProposal(pool);
 });
 async function fixture(){const actor=await userByEmail("b-admin@test.example"),agency=await agencyByEmail("ops@agencyb.example"),type=await documentTypeIdByCode("PASSPORT"),visa=(await pool.query("select id from visa_types where code='JP-BUS'")).rows[0].id;const app=await createDraftApplication({agencyId:agency.id,visaTypeId:visa,createdBy:actor});return{actor,app,type};}
 async function upload(f:Awaited<ReturnType<typeof fixture>>){const data=Buffer.from("%PDF-1.4\nFictional passport only\n%%EOF");return uploadDocument({applicationId:f.app.id,actor:f.actor,documentTypeId:f.type,file:{name:"fictional.pdf",type:"application/pdf",size:data.length,data}});}

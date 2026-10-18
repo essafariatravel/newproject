@@ -35,7 +35,7 @@ import { chargeApplicationSubmission } from "@/lib/wallet";
 import { recordAudit } from "@/lib/audit";
 import { getEmbassyApplicability } from "@/lib/queries";
 import { agencyUserIds, staffUserIds, notifyUsers } from "@/lib/notifications";
-import { buildStorageKey, storageProvider, storageReferenceCommitted } from "@/lib/storage";
+import { buildStorageKey, storageProvider, storageReferenceCommitted,storageOperationsEnabled,storageOperationsBinding } from "@/lib/storage";
 import { documents } from "@/db/schema";
 import { currentOperationActor } from "@/lib/operation-identity";
 
@@ -675,7 +675,27 @@ function documentTypeForOutcome(outcome: DecisionOutcome): string {
 export async function getDecisionDocuments(applicationId: string) {
   // External storage needs a provider inventory before historical proof can be
   // vouched for. Preserve the dossier and show its reconciliation warning.
-  if (process.env.STORAGE_PROVIDER && process.env.STORAGE_PROVIDER !== "db") return [];
+  if (process.env.STORAGE_PROVIDER && process.env.STORAGE_PROVIDER !== "db") {
+    if(process.env.STORAGE_PROVIDER!=='supabase'||!storageOperationsEnabled())return [];
+    const binding=storageOperationsBinding();
+    const rows=await db.select({id:documents.id,originalFilename:documents.originalFilename,mimeType:documents.mimeType,sizeBytes:documents.sizeBytes,status:documents.status,createdAt:documents.createdAt,typeCode:documentTypes.code,typeName:documentTypes.name,storageKey:documents.storageKey,sha256:documents.sha256})
+      .from(documents).innerJoin(documentTypes,eq(documentTypes.id,documents.documentTypeId)).innerJoin(applications,eq(applications.id,documents.applicationId)).innerJoin(statuses,eq(statuses.id,applications.statusId))
+      .where(and(eq(documents.applicationId,applicationId),inArray(documentTypes.code,[...DECISION_DOC_TYPE_CODES]),
+        inArray(documents.mimeType,['application/pdf','image/jpeg','image/png']),
+        sql`${documents.status}='ACCEPTED' and ${documents.uploadedBy} is not null and ${documents.reviewedBy} is not null and ${documents.reviewedAt} is not null and ${documents.applicantId} is null and ${documents.checklistItemId} is null and ${applications.decisionAt} is not null`,
+        sql`((${statuses.code}='APPROVED' and ${documentTypes.code}='DECISION_VISA_APPROVAL') or (${statuses.code}='REJECTED' and ${documentTypes.code}='DECISION_REFUSAL_LETTER'))`,
+        sql`exists(select 1 from ${sql.raw(qualifiedTable('storage_operations'))} operation where operation.object_key=${documents.storageKey} and operation.provider_origin=${binding.origin} and operation.bucket=${binding.bucket} and operation.state='REFERENCED' and operation.sha256=${documents.sha256} and operation.mime_type=${documents.mimeType} and operation.size_bytes=${documents.sizeBytes})`)).orderBy(desc(documents.createdAt));
+    const verified=[];
+    for(const row of rows){
+      try{
+        const stored=await storageProvider().get(row.storageKey);
+        if(stored.data.length!==row.sizeBytes||stored.mimeType!==row.mimeType||sha256Hex(stored.data)!==row.sha256)continue;
+        validateDocumentFormat({name:row.originalFilename,type:row.mimeType,data:stored.data});
+        const {storageKey:omittedKey,sha256:omittedHash,...document}=row;void omittedKey;void omittedHash;verified.push(document);
+      }catch{/* Missing or unverifiable bytes never become official decision proof. */}
+    }
+    return verified;
+  }
   return db
     .select({
       id: documents.id,

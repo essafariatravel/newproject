@@ -4,6 +4,7 @@ import {Pool,type PoolClient} from "pg";
 import type {StorageProvider} from "./storage";
 import {AppError} from "./types";
 import {assertLocalHttpOrigin,assertLocalPostgresUrl} from "../../perf/local-safety.js";
+import {currentRetentionIntentAllowed} from './document-retention-policy';
 
 interface Configuration {enabled?:boolean;databaseUrl:string;origin:string;bucket:string;schema:string;transportTimeoutMs?:number}
 interface Reservation {key:string;mimeType:string;sizeBytes:number;sha256:string}
@@ -83,7 +84,7 @@ export function createLocalStorageOperations(config:Configuration,backend:Storag
       exists(select 1 from ${table("agency_registration_documents")} where storage_key=$1) or
       exists(select 1 from ${table("wallet_topup_requests")} where proof_storage_key=$1) or
       exists(select 1 from ${table("agencies")} where logo_key=$1) or
-      exists(select 1 from ${table("site_settings")} where value=to_jsonb($1::text)) or
+      exists(select 1 from ${table("site_settings")} where strpos(value::text,$1)>0) or
       exists(select 1 from ${table("legacy_reconciliation_issues")} where storage_key=$1) or
       exists(select 1 from ${table("document_blobs")} where key=$1) as present`,[key]);
     return result.rows[0].present===true;
@@ -92,13 +93,23 @@ export function createLocalStorageOperations(config:Configuration,backend:Storag
     const row=(await client.query<Operation>(`select * from ${table("storage_operations")} where provider_origin=$1 and bucket=$2 and object_key=$3 for update`,[origin,bucket,key])).rows[0];
     if(!row)throw failure("STORAGE_OWNERSHIP_NOT_PROVEN");return row;
   }
+  async function pendingRetention(client:Connection,key:string){
+    const id=/^visa-documents\/([a-f0-9-]{36})\//i.exec(key)?.[1];if(!id||!validId(id))return false;
+    return (await client.query("select exists(select 1 from public.document_retention_jobs where application_id=$1 and state='PENDING') present",[id])).rows[0].present===true;
+  }
   async function held(client:Connection,key:string){
     const id=/^visa-documents\/([a-f0-9-]{36})\//i.exec(key)?.[1];if(!id||!validId(id))return false;
     if(!(await client.query("select to_regclass('public.document_retention_case_events') relation")).rows[0].relation)return false;
-    return (await client.query("select legal_hold from public.document_retention_case_events where application_id=$1 order by event_sequence desc limit 1",[id])).rows[0]?.legal_hold===true;
+    const control=(await client.query("select legal_hold,exceptions_reviewed,reviewed_decision_at from public.document_retention_case_events where application_id=$1 order by event_sequence desc limit 1",[id])).rows[0];
+    if(control?.legal_hold===true)return true;
+    const job=(await client.query("select application_id,payload,decision_at from public.document_retention_jobs where application_id=$1 and state='PENDING'",[id])).rows[0];
+    if(!job)return false;
+    if(job.payload.origin!==origin||job.payload.bucket!==bucket)return true;
+    return !await currentRetentionIntentAllowed(client,'public',job);
   }
   return {
     async referenceCommitted(client:Connection,key:string){
+      if(await pendingRetention(client,key))throw failure('STORAGE_RETENTION_PENDING');
       const row=await byKey(client,key);
       if(!['UPLOADED','REFERENCED'].includes(row.state))throw failure("STORAGE_STATE_INVALID");
       if(!await hasReference(client,key,false))throw failure("STORAGE_REFERENCE_REQUIRED");
@@ -148,6 +159,8 @@ export function createLocalStorageOperations(config:Configuration,backend:Storag
          !/^[a-f0-9]{64}$/.test(input.sha256)||!Number.isSafeInteger(input.sizeBytes)||input.sizeBytes<1||input.sizeBytes>2*1024*1024||
          !/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/.test(input.mimeType))throw failure("STORAGE_RESERVATION_INVALID");
       return transaction(async client=>{
+        await client.query('select pg_advisory_xact_lock(1163087699)');
+        if(await pendingRetention(client,input.key))throw failure('STORAGE_RETENTION_PENDING');
         const row=(await client.query<Operation>(`insert into ${table("storage_operations")}(provider_origin,bucket,object_key,mime_type,size_bytes,sha256,state)
           values($1,$2,$3,$4,$5,$6,'STAGED') returning *`,[origin,bucket,input.key,input.mimeType,input.sizeBytes,input.sha256])).rows[0]!;
         await event(client,row.id,'STAGED','RESERVED');return row;

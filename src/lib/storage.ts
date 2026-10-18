@@ -256,6 +256,10 @@ export async function reconcileStorageOperations(limit=50){
   return operations().reconcile(limit);
 }
 export async function closeStorageOperations(){if(journal)await journal.close();journal=undefined;binding=undefined;}
+export function storageOperationsBinding(){
+  if(!storageOperationsEnabled())throw new AppError('STORAGE_MISCONFIGURED','Durable storage operations are required.');
+  return {origin:localJournalTarget(),bucket:process.env.SUPABASE_STORAGE_BUCKET??'visa-documents'};
+}
 
 /** Opaque, unguessable, tenant-scoped storage key. Never derived from user input. */
 export function buildStorageKey(applicationId: string, documentId: string): string {

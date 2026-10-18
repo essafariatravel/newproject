@@ -14,7 +14,7 @@ import { captureRecoverySnapshot, compareRecoverySnapshots, qualifyRecoveryExpor
 const bin = process.env.DR_LOCAL_PG_BIN;
 it.skipIf(!bin)("restores a restricted encrypted real 0019 archive and detects row/ACL/sequence loss beyond critical tables", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "dr-export-real-")), port = 55462;
-  const data = path.join(root, "pgdata"), baseline = path.join(root, "baseline"), encrypted = path.join(root, "archive.enc");
+  const data = path.join(root, "pgdata"), targetData=path.join(root,'target-pgdata'), baseline = path.join(root, "baseline"), encrypted = path.join(root, "archive.enc");
   const env = pgEnvironmentFromUrl(`postgresql://postgres@127.0.0.1:${port}/postgres`);
   const command = (name: string, args: string[]) => {
     const result = spawnSync(path.join(bin!, name + (process.platform === "win32" ? ".exe" : "")), args, { env, shell: false, windowsHide: true, stdio: name === "pg_ctl" ? "ignore" : "pipe" });
@@ -23,17 +23,23 @@ it.skipIf(!bin)("restores a restricted encrypted real 0019 archive and detects r
   const url = (db: string, user = "postgres") => `postgresql://${user}@127.0.0.1:${port}/${db}`;
   const admin = new Pool({ connectionString: url("postgres"), max: 1 });
   const source = new Pool({ connectionString: url("dr_source"), max: 1 });
-  const target = new Pool({ connectionString: url("dr_target"), max: 1 });
+  const targetUrl=(db:string,user='postgres')=>`postgresql://${user}@127.0.0.1:55463/${db}`;
+  const targetAdmin=new Pool({connectionString:targetUrl('postgres'),max:1});
+  const target = new Pool({ connectionString: targetUrl("dr_target"), max: 1 });
+  const targetReader=new Pool({connectionString:targetUrl('dr_target','recovery_export_fixture'),max:1});
   const restricted = new Pool({ connectionString: url("dr_source", "recovery_export_fixture"), max: 1 });
-  let started = false;
+  let started = false,targetStarted=false;
   try {
     await mkdir(baseline);
     for (const name of (await readdir("migrations")).filter(name => /^\d{4}_.+\.sql$/.test(name)).sort().slice(0, 19)) await copyFile(path.join("migrations", name), path.join(baseline, name));
     command("initdb", ["--pgdata", data, "--username=postgres", "--auth=trust", "--encoding=UTF8", "--no-locale"]);
     command("pg_ctl", ["--pgdata", data, "--log", path.join(root, "postgres.log"), "--options", `-p ${port} -h 127.0.0.1`, "--wait", "start"]); started = true;
-    await admin.query("create role anon nologin; create role authenticated nologin");
+    command('initdb',['--pgdata',targetData,'--username=postgres','--auth=trust','--encoding=UTF8','--no-locale']);
+    command('pg_ctl',['--pgdata',targetData,'--log',path.join(root,'target-postgres.log'),'--options','-p 55463 -h 127.0.0.1','--wait','start']);targetStarted=true;
+    await admin.query("create role anon nologin; create role authenticated nologin; grant anon to authenticated");
     await admin.query("create database dr_source");
-    await admin.query("create database dr_target");
+    await targetAdmin.query("create role anon nologin; create role authenticated nologin; grant anon to authenticated; create role recovery_export_fixture login nosuperuser nocreatedb nocreaterole noinherit noreplication nobypassrls;alter role recovery_export_fixture set default_transaction_read_only=on");
+    await targetAdmin.query("create database dr_target");
     await applyMigrations(source, baseline, "visa_os");
     await source.query(`
       create table visa_os.recovery_auxiliary(id integer primary key, payload bytea not null);
@@ -77,11 +83,21 @@ it.skipIf(!bin)("restores a restricted encrypted real 0019 archive and detects r
     } finally { await controller.query("rollback"); controller.release(); }
     const restoreBin = path.join(bin!, "pg_restore" + (process.platform === "win32" ? ".exe" : ""));
     expect(await readEncryptedArchive({ binary: restoreBin, args: ["--list"], env, artifact: encrypted, key })).toContain("recovery_auxiliary");
-    await readEncryptedArchive({ binary: restoreBin, args: ["--exit-on-error", "--single-transaction", "--no-password", "--dbname=dr_target"], env: pgEnvironmentFromUrl(url("dr_target")), artifact: encrypted, key });
+    await readEncryptedArchive({ binary: restoreBin, args: ["--exit-on-error", "--single-transaction", "--no-password", "--dbname=dr_target"], env: pgEnvironmentFromUrl(targetUrl("dr_target")), artifact: encrypted, key });
+    expect((await targetReader.query('select count(*)::int n from visa_os.recovery_auxiliary')).rows[0].n).toBe(1);
+    await expect(targetReader.query('delete from visa_os.recovery_auxiliary')).rejects.toMatchObject({code:'25006'});
+    await targetReader.query('set default_transaction_read_only=off');
+    await expect(targetReader.query('delete from visa_os.recovery_auxiliary')).rejects.toMatchObject({code:'42501'});
+    await targetReader.query('set default_transaction_read_only=on');
+    expect((await target.query("select has_table_privilege('anon','visa_os.recovery_auxiliary','SELECT') allowed")).rows[0].allowed).toBe(false);
     const restored = await target.connect();
     try {
       await restored.query("begin isolation level repeatable read read only");
       expect(compareRecoverySnapshots(original!, await captureRecoverySnapshot(restored, "visa_os"))).toEqual([]);
+      await restored.query('rollback');
+      await targetAdmin.query('revoke anon from authenticated');
+      expect(compareRecoverySnapshots(original!,await captureRecoverySnapshot(restored,'visa_os')).join(' ')).toContain('ROLE_MEMBERSHIP');
+      await targetAdmin.query('grant anon to authenticated');
       await restored.query("rollback");
       for (const mode of ['disable', 'enable replica', 'enable always']) {
         await restored.query(`alter table visa_os.audit_logs ${mode} trigger recovery_history_immutable`);
@@ -112,7 +128,8 @@ it.skipIf(!bin)("restores a restricted encrypted real 0019 archive and detects r
     finally { external.release(); }
     key.fill(0);
   } finally {
-    await Promise.all([admin.end(), source.end(), target.end(), restricted.end()]);
+    await Promise.all([admin.end(),targetAdmin.end(), source.end(), target.end(),targetReader.end(), restricted.end()]);
+    if(targetStarted)command('pg_ctl',['--pgdata',targetData,'--wait','stop','--mode=fast']);
     if (started) command("pg_ctl", ["--pgdata", data, "--wait", "stop", "--mode=fast"]);
     if(path.dirname(path.resolve(root))!==path.resolve(os.tmpdir())||!path.basename(root).startsWith('dr-export-real-'))throw new Error('LOCAL_RETIREMENT_PATH_UNSAFE');
     await rm(root, { recursive: true, force: true });

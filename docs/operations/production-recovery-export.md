@@ -30,7 +30,28 @@ Primary references: [Supabase connection methods](https://supabase.com/docs/guid
 
 The existing `dr-create-backup.ts` and `dr-restore.ts` now use the tested streaming pipeline. No raw dump is persisted. The schema archive retains owner/ACL statements and explicitly includes required extensions; its encrypted companion records every table's row/byte digest, sequences, functions/triggers/constraints, ACL/RLS, extension versions, role attributes/defaults and memberships without password hashes from `pg_authid`. The companion descriptor is validated and preserved by the manifest parser. Restoring a new generation compares that complete snapshot in addition to existing wallet/storage checks. Existing legacy generations remain identifiable by their missing companion; they cannot be represented as having this additional evidence.
 
-Local tests actually export a restricted 0019 fixture and restore it into a different local database. They reject changed payloads, ACL, sequences, role capabilities, trigger enablement (disabled/replica/always, including internal FK enforcement) and uncovered external dependencies. Internal trigger identities are compared by semantics rather than generated OID names. Both databases use a disposable local cluster, so cluster roles are deliberately shared in this drill. A separate real recovery target must provision and verify the recorded role names, capabilities/defaults and memberships before restoration; an unavailable owner/extension/ACL is a failure, never a reason to add `--no-owner` or `--no-acl`.
+Local tests actually export a restricted 0019 fixture and restore it into a second independent PostgreSQL cluster on loopback ports 55462/55463, with separate data directories. Target roles/defaults/memberships are bootstrapped independently without passwords from the source. The drill verifies restored SELECT/RLS visibility and refusal of writes both by the read-only default and by SQL privileges; anonymous access is denied. It rejects changed payloads, ACL, sequences, role capabilities/memberships, trigger enablement (disabled/replica/always, including internal FK enforcement) and uncovered external dependencies. Internal trigger identities are compared by semantics rather than generated OID names. A real recovery target must likewise provision and verify the recorded role names, capabilities/defaults, memberships and extension versions before restoration; an unavailable owner/extension/ACL is a failure, never a reason to add `--no-owner` or `--no-acl`.
+
+The same streaming module also qualifies a separate encrypted object archive against two actual loopback HTTP services. Inventory keys, MIME, size and SHA-256 are authenticated before any target write; bad authentication causes zero writes. A failed target PUT can resume by verifying existing matching bytes. Conflicting bytes are preserved and rejected, and the source is never deleted. Only ciphertext is persisted. This local object drill does not attribute or recover the four historical Production external objects: their exact private provider, immutable inventory and approved access are still required. `dr:backup` remains limited to its declared `DATABASE_BLOBS` mode and must not be presented as covering external objects automatically.
+
+### Prepared operator sequence (run only after the distinct approval below)
+
+Use an operator shell populated through the existing private profile/key mechanism, with a scrubbed child environment, the official CA and compatible PostgreSQL client tools. Never paste a URI, key or password in a command or report. Configure the named role and approval reference only after the real decision; the reference is not a substitute for approval. Verify a clean disposable target and reproduce the required roles and extension versions before restoring.
+
+```powershell
+# Source operation: restricted approved profile, visa_os, verified TLS,
+# DR_EXPORT_ROLE, DR_EXPORT_APPROVAL_REFERENCE, DR_RELEASE_SHA,
+# DR_BACKUP_ENVIRONMENT=PRODUCTION, DR_STORAGE_MODE=DATABASE_BLOBS,
+# DR_BACKUP_KEY_BASE64 supplied privately; privateDirectory is outside Git.
+npm run dr:backup -- --output-dir $privateDirectory
+
+# Separate target-only shell: no source/cloud write credential; RESTORE_TEST,
+# DATABASE_URL/DATABASE_SCHEMA for the disposable target and key supplied privately.
+npm run dr:restore -- --manifest $privateManifest --evidence-output $privateRestoreEvidence
+npm run dr:restore-verify -- --expected-manifest $privateManifest
+```
+
+The verifier also needs `--storage-manifest $privateObjectInventory` when external storage is in scope; metadata alone does not prove the objects were recovered. These commands are preparation, not a claim of restoration or an approval. Local repeatable proof uses `DR_LOCAL_PG_BIN` pointing to local PostgreSQL tools and `vitest run tests/dr-export.test.ts tests/dr-export-integration.test.ts tests/dr-external-objects.test.ts`. Tests use synthetic data, separate clusters and synthetic in-memory encryption material. A local PASS never sets Production RESTORE_PASS.
 
 ### Exact approval still required — no live operation performed
 

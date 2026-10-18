@@ -2,6 +2,9 @@ import { spawn } from "node:child_process";
 import { rm } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { createHash } from "node:crypto";
+import {Readable} from 'node:stream';
+import {assertLocalHttpOrigin} from '../../perf/local-safety.js';
+import type {StorageProvider} from '../../src/lib/storage';
 import type { PoolClient } from "pg";
 import { authenticatedArchiveStream, encryptStreamAes256Gcm, verifyEncryptedFileAes256Gcm } from "./dr-backup";
 
@@ -197,4 +200,64 @@ export async function readEncryptedArchive(options: {
   const failure = result.find(item => item.status === "rejected");
   if (failure?.status === "rejected") { child.kill(); throw failure.reason; }
   return stdout;
+}
+
+export interface RecoveryObject {key:string;mimeType:string;sizeBytes:number;sha256:string}
+function objectInventory(inventory:RecoveryObject[]){
+ if(!Array.isArray(inventory)||inventory.length>10000)throw Error('OBJECT_INVENTORY_INVALID');
+ const sorted=[...inventory].sort((a,b)=>a.key<b.key?-1:a.key>b.key?1:0);
+ if(new Set(sorted.map(object=>object.key)).size!==sorted.length||sorted.some(object=>!object.key||object.key.length>1024||!/^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/.test(object.key)||object.key.split('/').some(part=>part==='.'||part==='..')||!Number.isSafeInteger(object.sizeBytes)||object.sizeBytes<1||object.sizeBytes>2097152||!/^[a-f0-9]{64}$/.test(object.sha256)||!/^[-a-z0-9.+]+\/[-a-z0-9.+]+$/.test(object.mimeType)))throw Error('OBJECT_INVENTORY_INVALID');
+ return sorted;
+}
+function objectMatches(object:RecoveryObject,stored:{data:Buffer;mimeType:string}){
+ return stored.data.length===object.sizeBytes&&stored.mimeType===object.mimeType&&createHash('sha256').update(stored.data).digest('hex')===object.sha256;
+}
+/** Local qualification only. Hosted export still requires separately approved
+ * source attribution, custody and a verified private provider binding. */
+export async function exportEncryptedObjects(options:{sourceOrigin:string;source:Pick<StorageProvider,'get'>;inventory:RecoveryObject[];output:string;key:Buffer}){
+ const origin=assertLocalHttpOrigin(options.sourceOrigin),inventory=objectInventory(options.inventory);
+ const inventorySha256=createHash('sha256').update(JSON.stringify(inventory)).digest('hex');
+ async function* records(){
+  yield Buffer.from(JSON.stringify({kind:'ESSAFARIA_OBJECT_RECOVERY',version:1,origin,inventorySha256})+'\n');
+  for(const object of inventory){const stored=await options.source.get(object.key);if(!objectMatches(object,stored))throw Error('SOURCE_OBJECT_CHANGED_OR_MISSING');yield Buffer.from(JSON.stringify({...object,data:stored.data.toString('base64')})+'\n');}
+  yield Buffer.from(JSON.stringify({complete:true,count:inventory.length,inventorySha256})+'\n');
+ }
+ await encryptStreamAes256Gcm(Readable.from(records()),options.output,options.key);
+ await verifyEncryptedFileAes256Gcm(options.output,options.key);
+ return{objectCount:inventory.length,totalBytes:inventory.reduce((sum,object)=>sum+object.sizeBytes,0),inventorySha256};
+}
+async function* objectLines(artifact:string,key:Buffer){
+ const stream=await authenticatedArchiveStream(artifact,key);let pending='';
+ try{
+  for await(const chunk of stream){pending+=Buffer.from(chunk).toString('utf8');let newline:number;
+   while((newline=pending.indexOf('\n'))>=0){if(newline>3*1024*1024)throw Error('OBJECT_RECORD_TOO_LARGE');yield JSON.parse(pending.slice(0,newline));pending=pending.slice(newline+1);}
+   if(pending.length>3*1024*1024)throw Error('OBJECT_RECORD_TOO_LARGE');
+  }
+  if(pending)throw Error('OBJECT_ARCHIVE_INCOMPLETE');
+ }finally{stream.destroy();}
+}
+/** Authenticate and validate the entire bounded inventory before any target
+ * write. Partial restores are resumable; no existing/source object is deleted. */
+export async function restoreEncryptedObjects(options:{targetOrigin:string;target:Pick<StorageProvider,'get'|'put'>;inventory:RecoveryObject[];artifact:string;key:Buffer}){
+ const targetOrigin=assertLocalHttpOrigin(options.targetOrigin),inventory=objectInventory(options.inventory),inventorySha256=createHash('sha256').update(JSON.stringify(inventory)).digest('hex');
+ let index=-1,complete=false;
+ for await(const record of objectLines(options.artifact,options.key)){
+  if(index===-1){if(record.kind!=='ESSAFARIA_OBJECT_RECOVERY'||record.version!==1||record.inventorySha256!==inventorySha256||(new URL(assertLocalHttpOrigin(record.origin)).port||'80')===(new URL(targetOrigin).port||'80'))throw Error('OBJECT_RECOVERY_TARGET_OR_INVENTORY_MISMATCH');index=0;continue;}
+  if(complete)throw Error('OBJECT_ARCHIVE_TRAILING_RECORD');
+  if(record.complete===true){if(record.count!==inventory.length||index!==inventory.length||record.inventorySha256!==inventorySha256)throw Error('OBJECT_ARCHIVE_INCOMPLETE');complete=true;continue;}
+  const expected=inventory[index];if(!expected||record.key!==expected.key||record.mimeType!==expected.mimeType||record.sizeBytes!==expected.sizeBytes||record.sha256!==expected.sha256||typeof record.data!=='string'||!objectMatches(expected,{data:Buffer.from(record.data,'base64'),mimeType:record.mimeType}))throw Error('OBJECT_RECORD_INTEGRITY_MISMATCH');index++;
+ }
+ if(!complete)throw Error('OBJECT_ARCHIVE_INCOMPLETE');
+ let restored=0,reused=0;
+ for await(const record of objectLines(options.artifact,options.key)){
+  if(!record.key)continue;
+  const expected=inventory.find(object=>object.key===record.key)!;
+  let present=false;
+  try{const stored=await options.target.get(record.key);if(!objectMatches(expected,stored))throw Error('PREEXISTING_TARGET_OBJECT_CONFLICT');present=true;}
+  catch(error){if((error as {code?:string})?.code!=='NOT_FOUND')throw error;}
+  if(present){reused++;continue;}
+  await options.target.put(record.key,Buffer.from(record.data,'base64'),record.mimeType);
+  if(!objectMatches(expected,await options.target.get(record.key)))throw Error('RESTORED_OBJECT_INTEGRITY_MISMATCH');restored++;
+ }
+ return{verified:inventory.length,restored,reused,inventorySha256};
 }

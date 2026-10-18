@@ -21,7 +21,7 @@ import { validateDocumentFormat } from "@/lib/upload-validation";
 
 import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 import { randomUUID } from "node:crypto";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq,gt,sql } from "drizzle-orm";
 import { db, pool } from "@/lib/db";
 import { databaseSchema, qualifiedTable } from "@/lib/database-schema";
 import {
@@ -29,6 +29,7 @@ import {
   countries,
   documentTypes,
   priorities,
+  sessions,
   statuses,
   visaCategories,
   visaRequirements,
@@ -40,6 +41,33 @@ import { buildStorageKey, storageProvider, storageReferenceCommitted } from "@/l
 import { isValidNationality } from "@/lib/nationalities";
 import { currentOperationActor, currentOperationActorPg } from "@/lib/operation-identity";
 import { sha256Hex } from "@/lib/file-integrity";
+
+// Only coalesce the same actor's currently running HTTP attempt. PostgreSQL's
+// existing idempotency/financial constraints remain authoritative across workers
+// and restarts. No pool connection or session-level advisory lock is held while
+// waiting for object I/O (including on transaction-pooler deployments).
+const pendingHttpSubmissions=new Map<string,Promise<string>>();
+export async function coalesceVisaSubmission(actor:AuthUser,attempt:string,submit:()=>Promise<string>):Promise<string>{
+  if(!Number.isSafeInteger(actor.credentialVersion)||(actor.credentialVersion??-1)<0||!actor.sessionId)throw new AppError('UNAUTHENTICATED','Please sign in to continue.');
+  if(!actor.agencyId||!isAgencyRole(actor.role)||actor.mustChangePassword)throw new AppError('FORBIDDEN','Agency access required.');
+  if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(attempt))throw new AppError('VALIDATION','Invalid submission attempt.');
+  const key=JSON.stringify([actor.agencyId,actor.id,actor.credentialVersion??null,attempt]);
+  let pending=pendingHttpSubmissions.get(key);
+  if(!pending){
+    if(pendingHttpSubmissions.size>=1000)throw new AppError('SERVICE_UNAVAILABLE','Please retry this submission later.');
+    pending=Promise.resolve().then(submit);pendingHttpSubmissions.set(key,pending);
+  }
+  try{
+    const result=await pending;
+    // A suspended/revoked waiter does not inherit another request's result.
+    await db.transaction(async tx=>{
+      await currentOperationActor(tx,actor);
+      const [session]=await tx.select({id:sessions.id}).from(sessions).where(and(eq(sessions.id,actor.sessionId!),eq(sessions.userId,actor.id),eq(sessions.credentialVersion,actor.credentialVersion!),gt(sessions.expiresAt,new Date()),sql`${sessions.lastActivityAt}>now()-interval '2 hours'`)).limit(1).for('share');
+      if(!session)throw new AppError('UNAUTHENTICATED','Please sign in to continue.');
+    });
+    return result;
+  }finally{if(pendingHttpSubmissions.get(key)===pending)pendingHttpSubmissions.delete(key);}
+}
 
 /**
  * Phase 2-Final: exactly ONE applicant per request — the portal collects

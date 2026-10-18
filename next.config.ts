@@ -37,6 +37,9 @@ const publicNoIndexHeaders = SEO_NOINDEX_PUBLIC_ENTRIES
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Next 16 logs Server Function arguments in development by default. Passwords,
+  // enrollment authorizations and TOTP/recovery codes must never enter logs.
+  logging: {serverFunctions:false},
   serverExternalPackages: ["pg"],
   // Arena's proxied Live Preview origin is a host under *.e2b.app; allow its
   // dev-only HMR/action origin without widening any production host policy.

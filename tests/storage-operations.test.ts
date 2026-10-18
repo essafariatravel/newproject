@@ -6,6 +6,7 @@ import {agencyByEmail} from "./helpers/fixtures";
 import {pool} from "@/lib/db";
 import {AppError} from "@/lib/types";
 import {createLocalStorageOperations} from "@/lib/storage-operations";
+import {removeStorageProposal} from './helpers/storage-proposal';
 
 suiteSetup();
 const sqlPath="migrations/proposals/0036_storage_operations.sql";
@@ -24,7 +25,7 @@ let installed=false;
 beforeAll(async()=>{const client=await pool.connect();try{await client.query("begin");await client.query("set local search_path to public,pg_catalog");await client.query(readFileSync(sqlPath,"utf8"));await client.query("commit");installed=true;}catch(e){await client.query("rollback");throw e;}finally{client.release();}});
 beforeEach(async()=>{await pool.query("truncate storage_operation_events,storage_operations");objects.clear();writes=0;deletes=0;deleteFault=false;falseDelete=false;uploadFault=false;corruptRead=false;readFault=false;beforeDelete=null;service=createLocalStorageOperations(config,transport);});
 afterEach(async()=>{await service?.close();});
-afterAll(async()=>{if(installed)await pool.query("drop table public.storage_operation_events,public.storage_operations; drop function public.reject_storage_operation_identity_mutation(),public.reject_storage_operation_event_mutation()");});
+afterAll(async()=>{if(installed)await removeStorageProposal(pool);});
 async function reserve(){const data=Buffer.from("%PDF-1.7 fictional content only"),key=`visa-documents/${randomUUID()}/${randomUUID()}`;const ticket=await service.reserve({key,mimeType:"application/pdf",sizeBytes:data.length,sha256:digest(data)});return{ticket,key,data};}
 async function uploaded(){const f=await reserve();await service.upload(f.ticket.id,f.data);return f;}
 async function agency(){return agencyByEmail("ops@agencya.example");}
