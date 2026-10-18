@@ -21,8 +21,7 @@
  *   npm run dr:restore -- --manifest /private/ESSAFARIA-...manifest.json
  */
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
-import os from "node:os";
+import { readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Pool } from "pg";
 import {
@@ -35,10 +34,11 @@ import type { RestoreEvidence } from "./lib/dr-finalization";
 import { privateArtifactPath } from "./lib/dr-private-path";
 import {
   backupKeyFromEnvironment,
-  decryptFileAes256Gcm,
+  authenticatedArchiveStream,
   pgEnvironmentFromUrl,
   sha256File,
 } from "./lib/dr-backup";
+import {readEncryptedArchive,captureRecoverySnapshot,compareRecoverySnapshots,type RecoverySnapshot} from './lib/dr-export';
 
 function parseArgs(args: string[]) {
   let manifestPath: string | undefined;
@@ -131,14 +131,21 @@ async function main() {
   if (actualSha !== manifest.database.sha256) throw new Error("Encrypted artifact SHA-256 does not match the manifest.");
 
   const key = backupKeyFromEnvironment(process.env.DR_BACKUP_KEY_BASE64);
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "essafaria-restore-"));
-  const rawDump = path.join(tempDir, "database.dump");
   try {
-    await decryptFileAes256Gcm(artifactPath, rawDump, key);
     const targetUrl = process.env.DATABASE_URL!;
     const pgEnv = pgEnvironmentFromUrl(targetUrl);
     await run("pg_restore", ["--version"], pgEnv);
-    await run("pg_restore", ["--list", rawDump], pgEnv);
+    await readEncryptedArchive({binary:'pg_restore',args:['--list'],env:pgEnv,artifact:artifactPath,key});
+    let recoverySnapshot:RecoverySnapshot|undefined;
+    if(manifest.database.recoverySnapshot){
+      const descriptor=manifest.database.recoverySnapshot;
+      if(path.basename(descriptor.artifact)!==descriptor.artifact||!descriptor.encrypted||!/^[a-f0-9]{64}$/.test(descriptor.sha256))throw new Error('Invalid encrypted recovery snapshot descriptor.');
+      const file=path.join(path.dirname(manifestPath),descriptor.artifact);
+      if((await stat(file)).size!==descriptor.bytes||await sha256File(file)!==descriptor.sha256)throw new Error('Recovery snapshot ciphertext integrity mismatch.');
+      const stream=await authenticatedArchiveStream(file,key);const buffers:Buffer[]=[];let bytes=0;for await(const chunk of stream){bytes+=chunk.length;if(bytes>16*1024*1024)throw new Error('Recovery catalog descriptor exceeds bound.');buffers.push(Buffer.from(chunk));}
+      recoverySnapshot=JSON.parse(Buffer.concat(buffers).toString('utf8')) as RecoverySnapshot;
+      if(recoverySnapshot.schema!==target.schema)throw new Error('Recovery snapshot target mismatch.');
+    }
 
     const pool = new Pool({ connectionString: targetUrl });
     const client = await pool.connect();
@@ -155,13 +162,13 @@ async function main() {
       await pool.end();
     }
 
-    await run("pg_restore", [
+    await readEncryptedArchive({binary:'pg_restore',args:[
       "--exit-on-error",
-      "--no-owner",
-      "--no-acl",
+      "--single-transaction",
+      "--no-password",
       `--dbname=${pgEnv.PGDATABASE}`,
-      rawDump,
-    ], pgEnv, true);
+    ],env:pgEnv,artifact:artifactPath,key});
+    if(recoverySnapshot){const verifiedPool=new Pool({connectionString:targetUrl});const verified=await verifiedPool.connect();try{await verified.query('begin isolation level repeatable read read only');const findings=compareRecoverySnapshots(recoverySnapshot,await captureRecoverySnapshot(verified,target.schema));if(findings.length)throw new Error('Full recovery snapshot comparison failed: '+findings.join(';'));await verified.query('rollback');}finally{await verified.query('rollback').catch(()=>{});verified.release();await verifiedPool.end();}}
 
     const tsx = path.join(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs");
     await run(process.execPath, [
@@ -220,7 +227,6 @@ async function main() {
     throw error;
   } finally {
     key.fill(0);
-    await rm(tempDir, { recursive: true, force: true });
   }
 }
 

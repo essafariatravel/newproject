@@ -31,7 +31,7 @@ import {
 import { qualifiedTable } from "@/lib/database-schema";
 import { AppError, type AuthUser, MAX_UPLOAD_BYTES, STAFF_ROLES, isStaffRole } from "@/lib/types";
 import { randomUUID } from "node:crypto";
-import { storageProvider } from "@/lib/storage";
+import { storageProvider, storageReferenceCommitted } from "@/lib/storage";
 import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 import { validateDocumentFormat } from "@/lib/upload-validation";
 import { assertStoredFileIntegrity, sha256Hex } from "@/lib/file-integrity";
@@ -160,6 +160,7 @@ export async function createTopupRequest(params: {
       const staff = await tx.select({ id: users.id }).from(users).where(sql`${users.agencyId} is null and ${users.status} = 'ACTIVE' and ${users.role} in ('SUPER_ADMIN','ADMIN','VISA_AGENT','ACCOUNTING')`);
       if (staff.length) await tx.insert(notifications).values(staff.map((u) => ({ userId: u.id, type: "TOPUP_REQUESTED", title: `Wallet top-up request ${row!.reference}`,
         body: `${actor.agencyName ?? "Agency"} requested ${amountAbs} DZD.`, link: `/admin/billing#topup-${row!.id}`, topupRequestId: row!.id, agencyId: params.agencyId })));
+      await storageReferenceCommitted(tx, key);
       return { id: row!.id, reference: row!.reference, amount: row!.amount, reused: false };
     });
     if (result.reused) await storageProvider().delete(key).catch(() => {});

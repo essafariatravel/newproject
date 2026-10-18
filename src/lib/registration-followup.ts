@@ -7,7 +7,7 @@ import { requirePermission } from "@/lib/rbac";
 import { AppError, type AuthUser } from "@/lib/types";
 import { validateRegistrationFile, type RegistrationFileInput } from "@/lib/registrations";
 import { REGISTRATION_DOCUMENT_CATEGORIES, type RegistrationDocumentCategory } from "@/lib/registration-constants";
-import { storageProvider } from "@/lib/storage";
+import { storageProvider, storageReferenceCommitted } from "@/lib/storage";
 import { currentOperationActorPg } from "@/lib/operation-identity";
 import { sha256Hex } from "@/lib/file-integrity";
 
@@ -84,6 +84,7 @@ export async function uploadRegistrationFollowup(input: {token: string; slotId: 
       }
       await client.query(`insert into ${q("agency_registration_history")} (registration_id,kind,from_status,to_status,note) values ($1,'INFO_REQUEST','MORE_INFORMATION_REQUIRED',$2,$3)`,[registrationId,remaining.rows.length?"MORE_INFORMATION_REQUIRED":"UNDER_REVIEW",`Administrative document received: ${file.category}`]);
       await client.query(`insert into ${q("audit_logs")} (action,entity,entity_id,metadata) values ('REGISTRATION_DOCUMENT_RECEIVED','agency_registration',$1,$2)`,[registrationId,JSON.stringify({requestId:input.slotId,documentId:inserted.rows[0]!.id,sha256})]);
+      await storageReferenceCommitted(client, storageKey);
       await client.query("commit"); committed=true;
     } catch (error) { await client.query("rollback").catch(()=>{}); throw error; }
     finally { client.release(); }

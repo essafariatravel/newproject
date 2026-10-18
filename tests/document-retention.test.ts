@@ -53,6 +53,13 @@ async function purge(f: Awaited<ReturnType<typeof dossier>>, manifestHash: strin
 }
 
 describe("transactional, disabled-by-default document retention", () => {
+  it('blocks purge while unattributed request staging can contain another encoded document copy',async()=>{
+    const f=await dossier();await qualify(f);
+    const key=`pending-request/${randomUUID()}/${randomUUID()}/${randomUUID()}/fixture/0`,data=Buffer.from(JSON.stringify({data:Buffer.from('%PDF-fictional extra copy').toString('base64')}));
+    await pool.query('insert into document_blobs(key,data,mime_type,size_bytes) values($1,$2,$3,$4)',[key,data,'application/json',data.length]);
+    try{expect((await service.dryRun(f.actor,f.app.id)).reasons).toContain('STORAGE_COVERAGE_INCOMPLETE');}
+    finally{await pool.query('delete from document_blobs where key=$1',[key]);}
+  });
   it("reports without writes and requires policy approval and a current legal exception review", async () => {
     const f = await dossier();
     const count = (await pool.query("select count(*)::int n from audit_logs")).rows[0].n;

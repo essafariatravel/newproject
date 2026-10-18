@@ -56,7 +56,7 @@ import {
   REGISTRATION_MIME_TYPES,
   type AuthUser,
 } from "@/lib/types";
-import { storageProvider } from "@/lib/storage";
+import { storageProvider, storageReferenceCommitted } from "@/lib/storage";
 import { sha256Hex } from "@/lib/file-integrity";
 import { recordAudit } from "@/lib/audit";
 import { notifyUsers, staffUserIds } from "@/lib/notifications";
@@ -505,6 +505,7 @@ async function persistRegistration(
                 method: kind === "terms" ? "EXPLICIT_CHECKBOX" : "ACKNOWLEDGEMENT" } }, tx);
           }
         }
+        await storageReferenceCommitted(tx, stored.map(({ key }) => key));
         return reference;
       });
     } catch (err) {

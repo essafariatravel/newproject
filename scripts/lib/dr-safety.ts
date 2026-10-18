@@ -107,6 +107,7 @@ export interface BackupManifest {
     encrypted: boolean;
     rowCounts: Record<string, number>;
     sequences: string[];
+    recoverySnapshot?: {artifact:string;bytes:number;sha256:string;encrypted:true};
   };
   storage: {
     mode: StorageBackupMode;
@@ -225,6 +226,12 @@ function parseManifest(input: unknown, findings: string[]): BackupManifest | nul
   if (!dbSha) findings.push("database.sha256 must be a SHA-256 digest");
   const dbEncrypted = booleanValue(database.encrypted);
   if (dbEncrypted === null) findings.push("database.encrypted must be boolean");
+  let recoverySnapshot:BackupManifest['database']['recoverySnapshot'];
+  if(database.recoverySnapshot!==undefined){
+    const item=record(database.recoverySnapshot),artifact=item&&stringValue(item.artifact),bytes=item&&nonNegativeInteger(item.bytes),digest=item&&sha256(item.sha256);
+    if(!artifact||!/^[A-Za-z0-9][A-Za-z0-9._-]{1,220}$/.test(artifact)||!bytes||!digest||item?.encrypted!==true)findings.push('database.recoverySnapshot must identify an encrypted, hashed opaque artifact');
+    else recoverySnapshot={artifact,bytes,sha256:digest,encrypted:true};
+  }
   const rowCountsInput = record(database.rowCounts);
   const rowCounts: Record<string, number> = {};
   if (!rowCountsInput) {
@@ -330,6 +337,7 @@ function parseManifest(input: unknown, findings: string[]): BackupManifest | nul
       encrypted: dbEncrypted!,
       rowCounts,
       sequences,
+      ...(recoverySnapshot?{recoverySnapshot}:{}),
     },
     storage: {
       mode: storageMode as StorageBackupMode,

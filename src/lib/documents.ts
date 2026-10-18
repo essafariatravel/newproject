@@ -30,7 +30,7 @@ import {
   type AuthUser,
   type DocumentStatus,
 } from "@/lib/types";
-import { buildStorageKey, storageProvider } from "@/lib/storage";
+import { buildStorageKey, storageProvider, storageReferenceCommitted,storageDeletionQueued,storageOperationsEnabled } from "@/lib/storage";
 import { recordAudit } from "@/lib/audit";
 import { currentOperationActor } from "@/lib/operation-identity";
 import { agencyUserIds, staffUserIds, notifyUsers } from "@/lib/notifications";
@@ -299,6 +299,7 @@ export async function uploadDocument(input: UploadDocumentInput, resubmittedDocu
       if (resubmittedDocumentId) await recordAudit({ actor: input.actor, action: "DOCUMENT_RESUBMITTED", entity: "document",
         entityId: created!.id, agencyId: access.agencyId, metadata: { replaces: resubmittedDocumentId, applicationId: input.applicationId },
         ipAddress: input.ipAddress ?? null }, tx);
+      await storageReferenceCommitted(tx,storageKey);
       return created!;
     });
   } catch (error) {
@@ -444,17 +445,19 @@ export async function deleteDocument(documentId: string, actor: AuthUser, ipAddr
   actor = await currentOperationActor(tx,actor);
   const [current] = await tx.select({ statusId: applications.statusId }).from(applications).where(eq(applications.id,row.doc.applicationId)).for("update");
   if (current?.statusId !== draft.id) throw new AppError("DELETE_NOT_ALLOWED", "Documents can only be removed while the application is a draft.");
+  await storageDeletionQueued(tx,row.doc.storageKey);
   await tx.delete(documents).where(eq(documents.id, documentId));
   await recordAudit({
     actor,
-    action: "DOCUMENT_DELETED",
+    action: storageOperationsEnabled()?"DOCUMENT_REMOVAL_REQUESTED":"DOCUMENT_DELETED",
     entity: "document",
     entityId: documentId,
     agencyId: row.appAgencyId,
     ipAddress: ipAddress ?? null,
   }, tx);
   });
-  await storageProvider().delete(row.doc.storageKey).catch(() => {});
+  if(storageOperationsEnabled())await storageProvider().delete(row.doc.storageKey);
+  else await storageProvider().delete(row.doc.storageKey).catch(() => {});
 }
 
 export async function listApplicantsForApplication(applicationId: string) {

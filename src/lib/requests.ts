@@ -36,7 +36,7 @@ import {
 } from "@/db/schema";
 import type { AuthUser } from "@/lib/types";
 import { AppError, ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES, isAgencyRole } from "@/lib/types";
-import { buildStorageKey, storageProvider } from "@/lib/storage";
+import { buildStorageKey, storageProvider, storageReferenceCommitted } from "@/lib/storage";
 import { isValidNationality } from "@/lib/nationalities";
 import { currentOperationActor, currentOperationActorPg } from "@/lib/operation-identity";
 import { sha256Hex } from "@/lib/file-integrity";
@@ -540,6 +540,7 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
         ],
       );
 
+      await storageReferenceCommitted(client, writtenKeys);
       await client.query("commit");
       return {
         applicationId,

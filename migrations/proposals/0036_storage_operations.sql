@@ -10,6 +10,7 @@ create table storage_operations (
   sha256 text not null check(sha256 ~ '^[a-f0-9]{64}$'),
   state text not null check(state in ('STAGED','UPLOAD_STARTED','UPLOADED','UPLOAD_UNCERTAIN','REFERENCED','DELETE_PENDING','RETRY_REQUIRED','DELETED')),
   attempts integer not null default 0 check(attempts>=0),
+  upload_acknowledged_at timestamptz,
   created_at timestamptz not null default clock_timestamp(),
   updated_at timestamptz not null default clock_timestamp(),
   unique(provider_origin,bucket,object_key)
@@ -21,14 +22,14 @@ create table storage_operation_events (
   operation_id uuid not null references storage_operations(id),
   state text not null check(state in ('STAGED','UPLOAD_STARTED','UPLOADED','UPLOAD_UNCERTAIN','REFERENCED','DELETE_PENDING','RETRY_REQUIRED','DELETED','PRESERVED_REFERENCED')),
   occurred_at timestamptz not null default clock_timestamp(),
-  code text not null check(code in ('RESERVED','UPLOAD_BEGIN','UPLOAD_VERIFIED','UPLOAD_UNCERTAIN','REFERENCE_COMMITTED','DELETE_QUEUED','DELETE_UNCERTAIN','OBJECT_STILL_REFERENCED','OBJECT_ABSENCE_VERIFIED'))
+  code text not null check(code in ('RESERVED','UPLOAD_BEGIN','UPLOAD_ACKNOWLEDGED','UPLOAD_VERIFIED','UPLOAD_UNCERTAIN','REFERENCE_COMMITTED','DELETE_QUEUED','DELETE_UNCERTAIN','OBJECT_STILL_REFERENCED','OBJECT_ABSENCE_VERIFIED'))
 );
 create index storage_operation_events_operation_idx on storage_operation_events(operation_id,sequence);
 create unique index storage_operation_events_deleted_once on storage_operation_events(operation_id) where state='DELETED';
 create function reject_storage_operation_identity_mutation() returns trigger language plpgsql as $$
 begin
  if TG_OP='DELETE' then raise exception 'Storage operation identity is immutable';end if;
- if OLD.state='DELETED' or ROW(NEW.id,NEW.provider_origin,NEW.bucket,NEW.object_key,NEW.mime_type,NEW.size_bytes,NEW.sha256,NEW.created_at)
+ if (OLD.upload_acknowledged_at is not null and NEW.upload_acknowledged_at is distinct from OLD.upload_acknowledged_at) or OLD.state='DELETED' or ROW(NEW.id,NEW.provider_origin,NEW.bucket,NEW.object_key,NEW.mime_type,NEW.size_bytes,NEW.sha256,NEW.created_at)
    is distinct from ROW(OLD.id,OLD.provider_origin,OLD.bucket,OLD.object_key,OLD.mime_type,OLD.size_bytes,OLD.sha256,OLD.created_at)
  then raise exception 'Storage operation identity is immutable';end if;
  return NEW;

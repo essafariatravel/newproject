@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { agencies, siteSettings, documentBlobs } from "@/db/schema";
 import { AppError } from "@/lib/types";
 import type { AuthUser } from "@/lib/types";
-import { storageProvider } from "@/lib/storage";
+import { storageDeletionQueued, storageProvider, storageReferenceCommitted } from "@/lib/storage";
 import { getSiteSettings, updateSetting, type SettingsTransaction } from "@/lib/settings";
 import { recordAudit } from "@/lib/audit";
 import { currentOperationActor } from "@/lib/operation-identity";
@@ -162,7 +162,7 @@ function validateLogoContent(upload: LogoUpload): void {
 }
 
 const externalLogoStorage = () => process.env.STORAGE_PROVIDER === "supabase";
-async function putLogo(key: string, upload: LogoUpload, actor: AuthUser, mutate: (tx: SettingsTransaction) => Promise<void>): Promise<void> {
+async function putLogo(key: string, upload: LogoUpload, actor: AuthUser, mutate: (tx: SettingsTransaction) => Promise<string | null>): Promise<void> {
   validateLogoContent(upload);
   const external=externalLogoStorage();
   if (external) await storageProvider().put(key,upload.data,upload.mimeType);
@@ -170,7 +170,11 @@ async function putLogo(key: string, upload: LogoUpload, actor: AuthUser, mutate:
     await db.transaction(async tx => {
       await currentOperationActor(tx,actor);
       if (!external) await tx.insert(documentBlobs).values({key,data:upload.data,mimeType:upload.mimeType,sizeBytes:upload.data.length}).onConflictDoUpdate({target:documentBlobs.key,set:{data:upload.data,mimeType:upload.mimeType,sizeBytes:upload.data.length}});
-      await mutate(tx);
+      const previous = await mutate(tx);
+      if (external) {
+        await storageReferenceCommitted(tx, key);
+        if (previous && previous !== key) await storageDeletionQueued(tx, previous);
+      }
     });
   } catch(error) {
     if (external) await storageProvider().delete(key).catch(() => {});
@@ -189,6 +193,7 @@ export async function setBrandLogo(upload: LogoUpload, actor: AuthUser): Promise
     await updateSetting("brand.logoMime",upload.mimeType,actor.id,tx);
     await updateSetting("brand.logoVersion",randomUUID(),actor.id,tx);
     await recordAudit({actor,action:"BRANDING_LOGO_UPLOADED",entity:"site_settings"},tx);
+    return previous;
   });
   if (externalLogoStorage() && previous && previous !== key) await storageProvider().delete(previous).catch(() => {});
 }
@@ -202,6 +207,7 @@ export async function clearBrandLogo(actor: AuthUser): Promise<void> {
     previous=typeof old?.value==="string"?old.value:null;
     if (!externalLogoStorage() && previous) await tx.delete(documentBlobs).where(eq(documentBlobs.key,previous));
     for (const key of ["brand.logoKey", "brand.logoMime", "brand.logoVersion"]) await tx.delete(siteSettings).where(eq(siteSettings.key,key));
+    if (externalLogoStorage() && previous) await storageDeletionQueued(tx, previous);
     await recordAudit({actor,action:"BRANDING_LOGO_REMOVED",entity:"site_settings"},tx);
   });
   if (externalLogoStorage() && previous) await storageProvider().delete(previous).catch(() => {});
@@ -219,6 +225,7 @@ export async function setAgencyLogo(agencyId: string, upload: LogoUpload, actor:
     previous=row.logoKey;
     await tx.update(agencies).set({logoKey:key,logoMime:upload.mimeType,logoUploadedAt:sql`now()`}).where(eq(agencies.id,agencyId));
     await recordAudit({actor,action:"AGENCY_LOGO_UPLOADED",entity:"agency",entityId:agencyId,agencyId},tx);
+    return previous;
   });
   if (externalLogoStorage() && previous && previous !== key) await storageProvider().delete(previous).catch(() => {});
 }
@@ -233,6 +240,7 @@ export async function clearAgencyLogo(agencyId: string, actor: AuthUser): Promis
     previous=row.logoKey;
     await tx.update(agencies).set({logoKey:null,logoMime:null,logoUploadedAt:null}).where(eq(agencies.id,agencyId));
     if (!externalLogoStorage() && previous) await tx.delete(documentBlobs).where(eq(documentBlobs.key,previous));
+    if (externalLogoStorage() && previous) await storageDeletionQueued(tx, previous);
     await recordAudit({actor,action:"AGENCY_LOGO_REMOVED",entity:"agency",entityId:agencyId,agencyId},tx);
   });
   if (externalLogoStorage() && previous) await storageProvider().delete(previous).catch(() => {});

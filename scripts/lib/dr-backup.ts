@@ -1,7 +1,9 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
 import { open, rm, stat } from "node:fs/promises";
-import { Writable } from "node:stream";
+import { Readable, Writable } from "node:stream";
+import { finished, pipeline } from "node:stream/promises";
+import { once } from "node:events";
 import { targetsSupabaseProject } from "../../src/lib/database-config";
 import { PRODUCTION_PROJECT_REF, PRODUCTION_SCHEMA } from "./dr-safety";
 
@@ -33,10 +35,16 @@ export function assessProductionBackupSource(env: Record<string, string | undefi
     return { safe: false, findings, databaseUrl: null };
   }
   try {
-    if (!targetsSupabaseProject(databaseUrl, PRODUCTION_PROJECT_REF)) {
+    const exportRole=env.DR_EXPORT_ROLE??'postgres';
+    if(!['postgres','essafaria_recovery_export'].includes(exportRole))findings.push('DR_EXPORT_ROLE is not an approved export identity');
+    if (!targetsSupabaseProject(databaseUrl, PRODUCTION_PROJECT_REF,exportRole)) {
       findings.push("database URL does not target the approved ESSAFARIA Supabase project");
     }
     const parsed = new URL(databaseUrl);
+    if(exportRole!=='postgres'&&decodeURIComponent(parsed.username)!==`${exportRole}.${PRODUCTION_PROJECT_REF}`&&
+      !(parsed.hostname===`db.${PRODUCTION_PROJECT_REF}.supabase.co`&&decodeURIComponent(parsed.username)===exportRole))findings.push('export role identity mismatch');
+    if(exportRole!=='postgres'&&(parsed.pathname!=='/postgres'||!['postgres:','postgresql:'].includes(parsed.protocol)||
+      [...parsed.searchParams].some(([name,value])=>name!=='sslmode'||value!=='verify-full')))findings.push('restricted export requires a verified PostgreSQL endpoint without routing overrides');
     const transactionPooler =
       parsed.hostname.endsWith(".pooler.supabase.com") &&
       (parsed.port || "5432") === "6543";
@@ -67,7 +75,11 @@ export function pgEnvironmentFromUrl(raw: string, base: NodeJS.ProcessEnv = proc
   if (!["postgres:", "postgresql:"].includes(url.protocol)) throw new Error("Database URL must be PostgreSQL.");
   const database = url.pathname.replace(/^\//, "");
   if (!url.hostname || !database || !url.username) throw new Error("Database URL is incomplete.");
-  const env: NodeJS.ProcessEnv = { ...base };
+  // Start with OS/runtime necessities only. Never pass cloud/application keys,
+  // PGSERVICE/PGHOSTADDR or inherited credentials to a PostgreSQL subprocess.
+  const env: NodeJS.ProcessEnv = { NODE_ENV: base.NODE_ENV ?? "development", ...Object.fromEntries(Object.entries(base).filter(([name]) =>
+    /^(PATH|SystemRoot|WINDIR|COMSPEC|PATHEXT|TEMP|TMP|HOME|USERPROFILE|LANG|LC_ALL)$/i.test(name),
+  )) };
   env.PGHOST = url.hostname;
   env.PGPORT = url.port || "5432";
   env.PGDATABASE = decodeURIComponent(database);
@@ -76,10 +88,51 @@ export function pgEnvironmentFromUrl(raw: string, base: NodeJS.ProcessEnv = proc
   const sslmode = url.searchParams.get("sslmode");
   if (sslmode) env.PGSSLMODE = sslmode;
   else if (url.hostname.endsWith(".supabase.co") || url.hostname.endsWith(".pooler.supabase.com")) env.PGSSLMODE = "require";
+  if (base.PGSSLROOTCERT) env.PGSSLROOTCERT = base.PGSSLROOTCERT;
   delete env.DATABASE_URL;
   delete env.MIGRATION_DATABASE_URL;
   delete env.DR_BACKUP_KEY_BASE64;
   return env;
+}
+
+/** The plaintext is consumed in memory; only the authenticated envelope is persisted. */
+export async function encryptStreamAes256Gcm(input: Readable, destinationPath: string, key: Buffer): Promise<void> {
+  if (key.length !== 32) throw new Error("AES-256-GCM requires a 32-byte key.");
+  const iv = randomBytes(IV_BYTES), cipher = createCipheriv("aes-256-gcm", key, iv);
+  const output = createWriteStream(destinationPath, { flags: "wx", mode: 0o600 });
+  let ownsOutput = false;
+  try {
+    await once(output, "open");
+    ownsOutput = true;
+    output.write(Buffer.concat([MAGIC, iv]));
+    await pipeline(input, cipher, output, { end: false });
+    output.end(cipher.getAuthTag());
+    await finished(output);
+  } catch (error) {
+    input.destroy(); cipher.destroy(); output.destroy();
+    await finished(output).catch(() => {});
+    if (ownsOutput) await rm(destinationPath, { force: true });
+    throw error;
+  }
+}
+
+/** Authenticate first; a restore process must never receive unauthenticated bytes. */
+export async function authenticatedArchiveStream(sourcePath: string, key: Buffer): Promise<Readable> {
+  await verifyEncryptedFileAes256Gcm(sourcePath, key);
+  const metadata = await stat(sourcePath), handle = await open(sourcePath, "r");
+  const prefix = Buffer.alloc(MAGIC.length + IV_BYTES), tag = Buffer.alloc(TAG_BYTES);
+  try {
+    await handle.read(prefix, 0, prefix.length, 0);
+    await handle.read(tag, 0, TAG_BYTES, metadata.size - TAG_BYTES);
+  } finally { await handle.close(); }
+  const decipher = createDecipheriv("aes-256-gcm", key, prefix.subarray(MAGIC.length));
+  decipher.setAuthTag(tag);
+  const input = createReadStream(sourcePath, { start: MAGIC.length + IV_BYTES, end: metadata.size - TAG_BYTES - 1 });
+  const transfer = pipeline(input, decipher);
+  // The returned stream carries pipeline errors to its consumer without an
+  // unhandled promise rejection if that consumer fails or closes its pipe.
+  void transfer.catch(error => decipher.destroy(error));
+  return decipher;
 }
 
 export async function sha256File(path: string): Promise<string> {

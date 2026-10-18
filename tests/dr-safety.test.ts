@@ -18,6 +18,14 @@ const CURRENT_MIGRATION_LEDGER = readdirSync(resolve(process.cwd(), "migrations"
   .filter((name) => name.endsWith(".sql"))
   .sort();
 
+it('preserves the encrypted full recovery snapshot descriptor and rejects unsafe descriptor paths',()=>{
+  const manifest=verifiedManifest();
+  manifest.database.recoverySnapshot={artifact:'synthetic.snapshot.enc',bytes:1234,sha256:'b'.repeat(64),encrypted:true};
+  expect(assessBackupManifest(manifest).manifest?.database.recoverySnapshot).toEqual(manifest.database.recoverySnapshot);
+  manifest.database.recoverySnapshot.artifact='../unsafe.snapshot.enc';
+  expect(assessBackupManifest(manifest).status).toBe('INVALID');
+});
+
 function verifiedManifest(): BackupManifest {
   return {
     version: 1,

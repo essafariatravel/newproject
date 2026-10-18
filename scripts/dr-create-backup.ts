@@ -17,8 +17,9 @@
  *   npm run dr:backup -- --output-dir /absolute/private/backup/directory
  */
 import { spawn } from "node:child_process";
-import { mkdtemp, mkdir, rm, stat, writeFile } from "node:fs/promises";
-import os from "node:os";
+import { mkdir, rm, stat, writeFile } from "node:fs/promises";
+import {Readable} from "node:stream";
+import {randomUUID} from "node:crypto";
 import path from "node:path";
 import { Pool } from "pg";
 import { databasePoolConfig } from "../src/lib/database-config";
@@ -33,12 +34,13 @@ import {
 import {
   assessProductionBackupSource,
   backupKeyFromEnvironment,
-  encryptFileAes256Gcm,
+  encryptStreamAes256Gcm,
   pgEnvironmentFromUrl,
   sha256File,
   storageInventorySha256,
   verifyEncryptedFileAes256Gcm,
 } from "./lib/dr-backup";
+import {qualifyRecoveryExportSession,captureRecoverySnapshot,compareRecoverySnapshots,exportEncryptedSnapshot,readEncryptedArchive} from './lib/dr-export';
 
 function parseArgs(args: string[]) {
   let outputDir: string | undefined;
@@ -88,6 +90,8 @@ function compactUtc(now = new Date()): string {
 
 async function main() {
   const { outputDir } = parseArgs(process.argv.slice(2));
+  if(process.env.DR_EXPORT_ROLE!=='essafaria_recovery_export'||!/^[A-Za-z0-9_-]{16,128}$/.test(process.env.DR_EXPORT_APPROVAL_REFERENCE??''))
+    throw new Error('PROD_EXPORT_APPROVAL_REQUIRED: named restricted role and an operator-recorded owner approval reference are required. This does not authorize cleanup, migration or publication.');
   const source = assessProductionBackupSource(process.env);
   if (!source.safe || !source.databaseUrl) {
     console.error(JSON.stringify({ status: "REFUSED", findings: source.findings }, null, 2));
@@ -98,6 +102,7 @@ async function main() {
   await mkdir(outputDir, { recursive: true, mode: 0o700 });
 
   const pgEnv = pgEnvironmentFromUrl(source.databaseUrl);
+  pgEnv.PGSSLMODE='verify-full';
   const dumpVersion = await run("pg_dump", ["--version"], pgEnv, true);
   await run("pg_restore", ["--version"], pgEnv, true);
   const dumpMajor = pgMajor(dumpVersion);
@@ -105,15 +110,16 @@ async function main() {
 
   const pool = new Pool(databasePoolConfig(process.env, true));
   const client = await pool.connect();
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "essafaria-dr-"));
-  const rawDump = path.join(tempDir, "database.dump");
   const timestamp = compactUtc();
-  const backupId = `ESSAFARIA-PROD-${timestamp}-${process.env.DR_RELEASE_SHA!.slice(0, 12).toLowerCase()}`;
+  const backupId = `ESSAFARIA-PROD-${timestamp}-${process.env.DR_RELEASE_SHA!.slice(0, 12).toLowerCase()}-${randomUUID().slice(0,8)}`;
   const encryptedName = `${backupId}.dump.enc`;
   const encryptedPath = path.join(outputDir, encryptedName);
   const manifestPath = path.join(outputDir, `${backupId}.manifest.json`);
+  const snapshotName=`${backupId}.snapshot.enc`,snapshotPath=path.join(outputDir,snapshotName);
+  let archiveOwned=false,snapshotOwned=false,manifestOwned=false;
 
   try {
+    await qualifyRecoveryExportSession(client,{database:'postgres',role:'essafaria_recovery_export',schema:PRODUCTION_SCHEMA,requireTls:true});
     await client.query("begin isolation level repeatable read read only");
     await client.query("set local statement_timeout = '2min'");
 
@@ -140,13 +146,8 @@ async function main() {
       throw new Error("DR_STORAGE_MODE=DATABASE_BLOBS requires document_blobs in the source schema.");
     }
 
-    const rowCounts: Record<string, number> = {};
-    for (const table of criticalTables) {
-      const rows = await client.query<{ count: number }>(
-        `select count(*)::int as count from ${qualifiedTable(table, PRODUCTION_SCHEMA)}`,
-      );
-      rowCounts[table] = Number(rows.rows[0]!.count);
-    }
+    const recoverySnapshot=await captureRecoverySnapshot(client,PRODUCTION_SCHEMA);
+    const rowCounts=Object.fromEntries(Object.entries(recoverySnapshot.tables).map(([name,value])=>[name,value.rows]));
 
     const migrationRows = await client.query<{ name: string }>(
       `select name from ${qualifiedTable("schema_migrations", PRODUCTION_SCHEMA)}
@@ -182,20 +183,14 @@ async function main() {
     const snapshot = snapshotRows.rows[0]?.snapshot;
     if (!snapshot) throw new Error("Could not export a consistent PostgreSQL snapshot.");
 
-    await run("pg_dump", [
-      "--format=custom",
-      "--no-owner",
-      "--no-acl",
-      `--schema=${PRODUCTION_SCHEMA}`,
-      `--snapshot=${snapshot}`,
-      `--file=${rawDump}`,
-    ], pgEnv);
+    await exportEncryptedSnapshot({binary:'pg_dump',schema:PRODUCTION_SCHEMA,snapshot,extensions:recoverySnapshot.extensions.map(item=>item.name),env:pgEnv,output:encryptedPath,key});archiveOwned=true;
+    const changed=compareRecoverySnapshots(recoverySnapshot,await captureRecoverySnapshot(client,PRODUCTION_SCHEMA));
+    if(changed.length)throw new Error('Source recovery identity/catalog/non-MVCC sequence changed during export; reject this generation.');
+    await encryptStreamAes256Gcm(Readable.from([Buffer.from(JSON.stringify(recoverySnapshot))]),snapshotPath,key);snapshotOwned=true;
 
     await client.query("commit");
 
-    await run("pg_restore", ["--list", rawDump], pgEnv, true);
-
-    await encryptFileAes256Gcm(rawDump, encryptedPath, key);
+    await readEncryptedArchive({binary:'pg_restore',args:['--list'],env:pgEnv,artifact:encryptedPath,key});
     await verifyEncryptedFileAes256Gcm(encryptedPath, key);
     const encryptedStats = await stat(encryptedPath);
     const encryptedSha = await sha256File(encryptedPath);
@@ -218,6 +213,7 @@ async function main() {
         encrypted: true,
         rowCounts,
         sequences,
+        recoverySnapshot:{artifact:snapshotName,bytes:(await stat(snapshotPath)).size,sha256:await sha256File(snapshotPath),encrypted:true},
       },
       storage: {
         mode: "DATABASE_BLOBS",
@@ -265,6 +261,7 @@ async function main() {
       mode: 0o600,
       flag: "wx",
     });
+    manifestOwned=true;
 
     console.log(JSON.stringify({
       status: "CREATED",
@@ -286,13 +283,13 @@ async function main() {
     }, null, 2));
   } catch (error) {
     await client.query("rollback").catch(() => {});
-    await rm(encryptedPath, { force: true }).catch(() => {});
-    await rm(manifestPath, { force: true }).catch(() => {});
+    if(archiveOwned)await rm(encryptedPath, { force: true }).catch(() => {});
+    if(snapshotOwned)await rm(snapshotPath,{force:true}).catch(()=>{});
+    if(manifestOwned)await rm(manifestPath, { force: true }).catch(() => {});
     throw error;
   } finally {
     client.release();
     await pool.end();
-    await rm(tempDir, { recursive: true, force: true });
     key.fill(0);
   }
 }

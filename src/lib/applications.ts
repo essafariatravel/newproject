@@ -35,7 +35,7 @@ import { chargeApplicationSubmission } from "@/lib/wallet";
 import { recordAudit } from "@/lib/audit";
 import { getEmbassyApplicability } from "@/lib/queries";
 import { agencyUserIds, staffUserIds, notifyUsers } from "@/lib/notifications";
-import { buildStorageKey, storageProvider } from "@/lib/storage";
+import { buildStorageKey, storageProvider, storageReferenceCommitted } from "@/lib/storage";
 import { documents } from "@/db/schema";
 import { currentOperationActor } from "@/lib/operation-identity";
 
@@ -781,6 +781,7 @@ export async function recordApplicationDecision(params: DecisionInput): Promise<
         link: `/${u.agencyId ? "portal" : "admin"}/applications/${app.id}`,
       }));
       if (events.length) await tx.insert(notifications).values(events);
+      await storageReferenceCommitted(tx,storageKey);
       return { documentId, statusCode: to.code };
     });
   } catch (error) {

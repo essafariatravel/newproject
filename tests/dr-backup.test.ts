@@ -30,6 +30,11 @@ describe("Production backup source guard", () => {
   it("accepts only the explicitly pinned Production project/schema/source", () => {
     expect(assessProductionBackupSource(safeEnv())).toMatchObject({ safe: true, findings: [] });
   });
+  it("accepts the named restricted export role only on the pinned session endpoint",()=>{
+    const env={...safeEnv(),DR_EXPORT_ROLE:'essafaria_recovery_export',MIGRATION_DATABASE_URL:`postgresql://essafaria_recovery_export.${PRODUCTION_PROJECT_REF}:synthetic@aws-1-us-east-1.pooler.supabase.com:5432/postgres?sslmode=verify-full`};
+    expect(assessProductionBackupSource(env).safe).toBe(true);
+    expect(assessProductionBackupSource({...env,DR_EXPORT_ROLE:'unapproved_role'}).safe).toBe(false);
+  });
 
   it("fails closed on wrong project, schema, storage mode or deployed runtime", () => {
     const wrong = {
@@ -98,6 +103,19 @@ describe("backup key and PostgreSQL child-process environment", () => {
     expect(env.DATABASE_URL).toBeUndefined();
     expect(env.MIGRATION_DATABASE_URL).toBeUndefined();
     expect(env.DR_BACKUP_KEY_BASE64).toBeUndefined();
+  });
+
+  it("does not pass unrelated cloud credentials or inherited libpq routing to PostgreSQL clients", () => {
+    const env = pgEnvironmentFromUrl("postgresql://reader@127.0.0.1:55462/fixture", {
+      NODE_ENV: "test",
+      PATH: "local-tools", SUPABASE_SERVICE_ROLE_KEY: "cloud-secret", VERCEL_TOKEN: "cloud-secret",
+      PGPASSWORD: "inherited-password", PGHOSTADDR: "203.0.113.9", PGSERVICE: "unexpected-route",
+      PGOPTIONS: "-c default_transaction_read_only=off", NODE_OPTIONS: "untrusted-loader",
+    });
+    expect(env.PATH).toBe("local-tools");
+    for (const name of ["SUPABASE_SERVICE_ROLE_KEY", "VERCEL_TOKEN", "PGPASSWORD", "PGHOSTADDR", "PGSERVICE", "PGOPTIONS", "NODE_OPTIONS"]) {
+      expect(env[name], name).toBeUndefined();
+    }
   });
 });
 

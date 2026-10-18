@@ -10,10 +10,14 @@
  * The provider is selected with STORAGE_PROVIDER. Switching providers never
  * changes caller code.
  */
-import { eq } from "drizzle-orm";
+import { eq,sql } from "drizzle-orm";
+import {createHash} from "node:crypto";
+import type {PoolClient} from "pg";
 import { db } from "@/lib/db";
 import { documentBlobs } from "@/db/schema";
 import { AppError } from "@/lib/types";
+import {createLocalStorageOperations} from "./storage-operations";
+import {assertLocalHttpOrigin,assertLocalPostgresUrl} from "../../perf/local-safety.js";
 
 export interface StorageProvider {
   put(key: string, data: Buffer, mimeType: string): Promise<void>;
@@ -90,6 +94,11 @@ function supabaseConfig() {
   const rawUrl = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? "visa-documents";
+  if(storageOperationsEnabled()){
+    const url=localJournalTarget();
+    if(rawUrl!==url||!key||!/^[A-Za-z0-9_-]{1,80}$/.test(bucket))throw new AppError("STORAGE_MISCONFIGURED","The isolated storage configuration is invalid.");
+    return {url,key,bucket};
+  }
   if (!rawUrl || !key) {
     throw new AppError(
       "STORAGE_MISCONFIGURED",
@@ -178,13 +187,75 @@ const supabaseProvider: StorageProvider = {
 export function storageProvider(): StorageProvider {
   switch (process.env.STORAGE_PROVIDER) {
     case "supabase":
-      return supabaseProvider;
+      return storageOperationsEnabled()?journaledProvider:supabaseProvider;
     case undefined:
     case "db":
       return dbProvider;
     default: throw new AppError("STORAGE_MISCONFIGURED", "The storage provider is not configured correctly.");
   }
 }
+
+/** No hosted activation is implemented. The flag never authorizes Production. */
+export function storageOperationsEnabled(){
+  const flag=process.env.STORAGE_OPERATIONS_ENABLED;
+  if(!flag||flag==='false')return false;
+  if(flag!=='local-qualification')throw new AppError("STORAGE_MISCONFIGURED","Storage operations require qualification.");
+  localJournalTarget();return true;
+}
+function localJournalTarget(){
+  let uri:URL;try{uri=new URL(assertLocalPostgresUrl(process.env.DATABASE_URL??''));}catch{throw new AppError("STORAGE_MISCONFIGURED","Storage target is not qualified.");}
+  if(uri.port!=='5434'||uri.pathname!=='/essafaria_test'||process.env.DATABASE_SCHEMA!=='public'||process.env.STORAGE_PROVIDER!=='supabase'||
+    process.env.VERCEL||process.env.VERCEL_ENV||process.env.VERCEL_TARGET_ENV||process.env.NETLIFY||process.env.RENDER||process.env.CF_PAGES)
+    throw new AppError("STORAGE_MISCONFIGURED","Storage target is not qualified.");
+  return assertLocalHttpOrigin(process.env.STORAGE_LOCAL_HTTP_ORIGIN??'');
+}
+let journal:ReturnType<typeof createLocalStorageOperations>|undefined;
+let binding:string|undefined;
+function operations(){
+  const origin=localJournalTarget(),bucket=process.env.SUPABASE_STORAGE_BUCKET??'visa-documents';
+  const target=JSON.stringify([origin,bucket,process.env.DATABASE_URL]);
+  if(journal&&binding!==target)throw new AppError("STORAGE_MISCONFIGURED","The journal target changed.");
+  if(!journal){journal=createLocalStorageOperations({enabled:true,databaseUrl:process.env.DATABASE_URL!,schema:'public',origin,bucket},supabaseProvider);binding=target;}
+  return journal;
+}
+const journaledProvider:StorageProvider={
+  async put(key,data,mime){
+    const op=operations();
+    const ticket=await op.reserve({key,mimeType:mime,sizeBytes:data.length,sha256:createHash('sha256').update(data).digest('hex')});
+    await op.upload(ticket.id,data);
+  },
+  get(key){return supabaseProvider.get(key);},
+  async delete(key){
+    const op=operations(),row=await op.findByKey(key);
+    if(row.state==='DELETED')return;
+    await op.requestDeletion(row.id);
+    const result=await op.retryDeletion(row.id);
+    if(result.state!=='DELETED')throw new AppError("STORAGE_DELETE_PENDING","File removal is pending verification. No completed physical deletion is claimed.");
+  },
+};
+type WriterTransaction=Pick<typeof db,'execute'>|Pick<PoolClient,'query'>;
+function journalConnection(tx:WriterTransaction):Pick<PoolClient,'query'>{
+  if(typeof Reflect.get(tx,'query')==='function')return tx as Pick<PoolClient,'query'>;
+  // Convert our own positional SQL into parameter-bound Drizzle chunks. This
+  // bridges public query APIs, never private transaction/session internals.
+  return {query:async(text:string,values:unknown[]=[])=>{
+    const chunks=text.split(/\$(\d+)/).map((part,index)=>index%2?sql`${values[Number(part)-1]}`:sql.raw(part));
+    return (tx as Pick<typeof db,'execute'>).execute(sql.join(chunks,sql.raw('')));
+  }} as Pick<PoolClient,'query'>;
+}
+export async function storageReferenceCommitted(tx:WriterTransaction,keys:string|string[]){
+  if(!storageOperationsEnabled())return;
+  for(const key of typeof keys==='string'?[keys]:keys)await operations().referenceCommitted(journalConnection(tx),key);
+}
+export async function storageDeletionQueued(tx:WriterTransaction,keys:string|string[]){
+  if(!storageOperationsEnabled())return;
+  for(const key of typeof keys==='string'?[keys]:keys)await operations().deletionQueued(journalConnection(tx),key);
+}
+export async function reconcileStorageOperations(limit=50){
+  if(!storageOperationsEnabled())throw new AppError("STORAGE_MISCONFIGURED","Storage operations are not enabled.");
+  return operations().reconcile(limit);
+}
+export async function closeStorageOperations(){if(journal)await journal.close();journal=undefined;binding=undefined;}
 
 /** Opaque, unguessable, tenant-scoped storage key. Never derived from user input. */
 export function buildStorageKey(applicationId: string, documentId: string): string {

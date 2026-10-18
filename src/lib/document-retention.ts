@@ -110,9 +110,13 @@ export function createDocumentRetentionService(pool: Pool, options: Options = {}
       or exists(select 1 from ${q("site_settings")} s,unnest($1::text[]) k where strpos(s.value::text,k)>0)
       or exists(select 1 from ${q("legacy_reconciliation_issues")} where storage_key=any($1::text[])) shared`, [keys, applicationId])).rows[0]!.shared;
     const outsideCopy = keys.length > 0 && (await client.query<{ copied: boolean }>(`select exists(select 1 from ${q("document_blobs")} where not(key=any($1::text[])) and encode(pg_catalog.sha256(data),'hex')=any($2::text[])) copied`, [keys, blobs.map(blob => blob.sha256)])).rows[0]!.copied;
+    // Wizard staging encodes file bytes inside JSON, so a bytea hash comparison
+    // cannot attribute or exclude another copy. Do not certify full coverage
+    // until this transient inventory is reconciled; never purge it by guessing.
+    const stagedCopies=(await client.query<{present:boolean}>(`select exists(select 1 from ${q("document_blobs")} where starts_with(key,'pending-request/')) present`)).rows[0]!.present;
     const receipt = (await client.query<{ id: string }>(`select id from ${q("document_retention_receipts")} where application_id=$1 and decision_at=$2`, [applicationId, app.decision_at])).rows[0];
     const provider = process.env.STORAGE_PROVIDER ?? "db";
-    const coverage = provider === "db" && !unknownStorage && !shared && !outsideCopy && documents.every(doc => doc.intact && doc.storage_key.startsWith(prefix)) &&
+    const coverage = provider === "db" && !unknownStorage && !shared && !outsideCopy && !stagedCopies && documents.every(doc => doc.intact && doc.storage_key.startsWith(prefix)) &&
       Boolean(policy?.coverage_approved_at && policy.all_live_copies_covered && policy.coverage_fingerprint === coverageFingerprint && policy.storage_provider === "db");
     const evaluation = evaluateDocumentRetention({ statusCode: app.status_code, decisionAt: app.decision_at, genuineDecision: !!app.audit_id,
       reopened: app.reopened, openRequests: app.open_requests,
