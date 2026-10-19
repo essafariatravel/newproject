@@ -8,6 +8,12 @@ function validPort(port) {
   return !port || (Number(port) >= 1 && Number(port) <= 65535);
 }
 
+export function localPerfSessionToken(cookie) {
+  const match = /^(?:__Host-)?evos_session=([A-Za-z0-9_-]+)$/.exec(cookie);
+  if (!match) refuse('one supported application session cookie is required');
+  return match[1];
+}
+
 export function assertLocalHttpOrigin(value) {
   const match = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::([1-9][0-9]{0,4}))?\/?$/.exec(value);
   if (!match || !validPort(match[2])) refuse("BASE_URL must be a canonical loopback HTTP origin");

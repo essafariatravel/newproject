@@ -6,6 +6,7 @@ import {performance} from 'node:perf_hooks';
 import {Pool} from 'pg';
 import {assertSafePerfTarget} from './perf-safety';
 import {verifyPerfWalletSubmission} from './lib/perf-wallet-evidence';
+import {localPerfSessionToken} from '../perf/local-safety.js';
 
 /** Bounded changed-path qualification, not a replacement for the historical
  * mixed k6 gate. Concurrent requests use genuinely authenticated fixture actors;
@@ -31,8 +32,8 @@ async function main(){
   const identity=(await pool.query("select current_database() name,host(inet_server_addr()) host,inet_server_port() port")).rows[0];
   if(identity.name!=='essafaria_test'||identity.port!==5434||!['127.0.0.1','::1'].includes(identity.host))throw Error('LIVE_LOCAL_DATABASE_IDENTITY_MISMATCH');
   for(const actor of fixture.actors){
-   if(!/^(SUPER_ADMIN|ADMIN|VISA_AGENT|ACCOUNTING|AGENCY_ADMIN|AGENCY_USER)$/.test(actor.role)||!/^evos_session=[A-Za-z0-9_-]+$/.test(actor.cookie))throw Error('FIXTURE_ACTOR_INVALID');
-   const token=actor.cookie.slice('evos_session='.length);
+   if(!/^(SUPER_ADMIN|ADMIN|VISA_AGENT|ACCOUNTING|AGENCY_ADMIN|AGENCY_USER)$/.test(actor.role))throw Error('FIXTURE_ACTOR_INVALID');
+   const token=localPerfSessionToken(actor.cookie);
    const row=(await pool.query(`select u.id,u.role,u.agency_id,s.mfa_verified_at from public.sessions s join public.users u on u.id=s.user_id where s.token_hash=$1 and s.credential_version=u.credential_version and s.expires_at>now() and u.status='ACTIVE' and not u.must_change_password and not u.activation_pending`,[createHash('sha256').update(token).digest('hex')])).rows[0];
    if(!row||row.role!==actor.role||(!row.agency_id&&!row.mfa_verified_at))throw Error('ACTUAL_AUTHENTICATED_FACTOR_REQUIRED');
    actors.set(actor.role,{...actor,id:row.id,agencyId:row.agency_id});
@@ -41,10 +42,11 @@ async function main(){
   if(fixture.documentTargets!==undefined){
    if(!Array.isArray(fixture.documentTargets)||fixture.documentTargets.length<2||fixture.documentTargets.length>50)throw Error('DISTRIBUTED_FIXTURE_INVALID');
    for(const actor of fixture.documentTargets){
-    if(!/^evos_session=[A-Za-z0-9_-]+$/.test(actor.cookie)||!['AGENCY_ADMIN','AGENCY_USER'].includes(actor.role)||!Array.isArray(actor.submissions)||actor.submissions.length!==stages.length)throw Error('DISTRIBUTED_ACTOR_INVALID');
+    if(!['AGENCY_ADMIN','AGENCY_USER'].includes(actor.role)||!Array.isArray(actor.submissions)||actor.submissions.length!==stages.length)throw Error('DISTRIBUTED_ACTOR_INVALID');
+    const token=localPerfSessionToken(actor.cookie);
     const row=(await pool.query(`select u.id,u.role,u.agency_id from public.sessions s join public.users u on u.id=s.user_id join public.agencies a on a.id=u.agency_id
       join public.applications app on app.id=$2 and app.agency_id=a.id join public.checklist_items ci on ci.id=$3 and ci.application_id=app.id
-      where s.token_hash=$1 and s.credential_version=u.credential_version and s.expires_at>now() and s.last_activity_at>now()-interval '2 hours' and u.status='ACTIVE' and a.status='ACTIVE' and not u.must_change_password and not u.activation_pending`,[createHash('sha256').update(actor.cookie.slice('evos_session='.length)).digest('hex'),actor.applicationId,actor.checklistItemId])).rows[0];
+      where s.token_hash=$1 and s.credential_version=u.credential_version and s.expires_at>now() and s.last_activity_at>now()-interval '2 hours' and u.status='ACTIVE' and a.status='ACTIVE' and not u.must_change_password and not u.activation_pending`,[createHash('sha256').update(token).digest('hex'),actor.applicationId,actor.checklistItemId])).rows[0];
     if(!row||row.role!==actor.role)throw Error('DISTRIBUTED_TENANT_OR_SESSION_MISMATCH');
     cohort.push({...actor,id:row.id,agencyId:row.agency_id});
    }

@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { assertSafePerfTarget } from "../scripts/perf-safety";
+import { localPerfSessionToken } from '../perf/local-safety.js';
+
+describe('actual application cookie formats in local compiled-runtime evidence',()=>{
+  it.each(['evos_session','__Host-evos_session'])('accepts only the actual %s cookie without changing its name',name=>{
+    expect(localPerfSessionToken(name+'=synthetic-token_123')).toBe('synthetic-token_123');
+  });
+  it.each(['arbitrary=synthetic','evos_session=a; another=b','__Secure-evos_session=a','evos_session=','evos_session=a\r\nx-header:b'])('rejects an unsupported or multi-cookie header',cookie=>{
+    expect(()=>localPerfSessionToken(cookie)).toThrow('HOSTED_PERF_DISABLED');
+  });
+});
 
 function env(overrides: Partial<NodeJS.ProcessEnv> = {}): NodeJS.ProcessEnv {
   return {

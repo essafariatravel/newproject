@@ -49,6 +49,13 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5434/essafaria_test
           DATABASE_SCHEMA: public
-        run: npm test
+          DR_LOCAL_PG_BIN: /usr/lib/postgresql/17/bin
+        run: |
+          # Fail rather than silently skip the independent recovery drill when
+          # the runner image lacks its native local PostgreSQL tools.
+          for tool in initdb pg_ctl pg_dump pg_restore; do
+            test -x "$DR_LOCAL_PG_BIN/$tool"
+          done
+          npm test
       - name: Offline build
         run: npm run build
