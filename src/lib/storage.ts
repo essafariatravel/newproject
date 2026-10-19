@@ -92,7 +92,7 @@ async function missingObject(res: Response): Promise<boolean> {
     // Hosted Storage also wraps a genuine missing object in HTTP 400.
     // Require the complete object-specific envelope, never just a generic 404.
     return res.status === 404 && (body?.code === "NoSuchKey" || body?.error === "NoSuchKey") ||
-      String(body?.statusCode) === "404" && body?.error === "not_found" && body?.message === "Object not found";
+      body?.statusCode === "404" && body?.error === "not_found" && body?.message === "Object not found";
   }
   catch { return false; }
 }

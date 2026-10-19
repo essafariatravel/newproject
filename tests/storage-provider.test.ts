@@ -116,6 +116,8 @@ describe("Supabase storage protocol", () => {
     {status:400,body:{statusCode:'404',error:'not_found',message:'Bucket not found'}},
     {status:400,body:{error:'not_found',message:'Object not found'}},
     {status:400,body:{statusCode:'403',error:'not_found',message:'Object not found'}},
+    {status:400,body:{statusCode:['404'],error:'not_found',message:'Object not found'}},
+    {status:404,body:{statusCode:[404],error:'not_found',message:'Object not found'}},
     {status:400,body:{statusCode:'404',error:'AccessDenied',message:'Object not found'}},
     ...[401,403,429,500,503].map(status=>({status,body:{statusCode:'404',error:'not_found',message:'Object not found'}})),
   ])('does not turn HTTP $status / $body.message into false object absence',async({status,body})=>{
