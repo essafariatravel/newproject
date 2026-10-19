@@ -30,7 +30,7 @@ export function createLocalStorageOperations(config:Configuration,backend:Storag
   const bucket=config.bucket;
   const timeoutMs=config.transportTimeoutMs??15_000;
   if(!Number.isSafeInteger(timeoutMs)||timeoutMs<20||timeoutMs>15_000)throw failure("STORAGE_TRANSPORT_TIMEOUT_INVALID");
-  const pool=new Pool({connectionString:config.databaseUrl,max:8});
+  const pool=new Pool({connectionString:config.databaseUrl,max:12});
   pool.on("error",()=>{}); // No raw server diagnostics or credentials in logs.
   const table=(name:string)=>`"public"."${name}"`;
   async function bounded<T>(run:()=>Promise<T>):Promise<T>{
