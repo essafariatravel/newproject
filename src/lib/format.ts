@@ -37,19 +37,16 @@ export function formatDateTime(d: Date | string | null | undefined, locale: stri
  * Historical rows may carry legacy currency metadata; we preserve the numeric
  * value but render as DZD to avoid €/$ confusion.
  */
-export function formatAmount(amount: string | number, currency?: string | null, locale: string = "en"): string {
+export function formatAmount(amount: string | number, _currency?: string | null, _locale: string = "en"): string {
   const n = typeof amount === "string" ? Number(amount) : amount;
-  if (!Number.isFinite(n)) return `${amount} DZD`;
-  const nfLocale = locale === "fr" ? "fr-DZ" : locale === "ar" ? "ar-DZ" : "en-DZ";
-  try {
-    const formatted = new Intl.NumberFormat(nfLocale, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }).format(n);
-    return `${formatted} DZD`;
-  } catch {
-    return `${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} DZD`;
-  }
+  if (!Number.isFinite(n)) return "—";
+  // One operational notation across the three languages; currency codes and
+  // decimal figures remain LTR even inside Arabic records.
+  const formatted = new Intl.NumberFormat("en-GB", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(n).replaceAll(",", " ");
+  return `${formatted} DZD`;
 }
 
 /** Alias for explicit DZD formatting where currency param is not needed */

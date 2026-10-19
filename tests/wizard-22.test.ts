@@ -71,7 +71,7 @@ describe("Phase 2 Final — 3-step atomic request wizard + simplified dossier", 
     expect(WIZARD).toContain('data-testid="wizard-topup-cta"');
     // …while submission stays disabled and no negative balance is ever displayed.
     expect(WIZARD).toContain("insufficientTitle");
-    expect(WIZARD).toContain("disabled={pending}");
+    expect(WIZARD).toContain("disabled={pending || catalogueRecovery || sessionRecovery}");
     expect(WIZARD).toContain("missingAmount");
   });
 });

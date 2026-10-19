@@ -20,11 +20,11 @@ export default function ActivationForm(props: {
   );
 
   return (
-    <form action={formAction} className="mt-5 space-y-4">
+    <form action={formAction} className="mt-6 space-y-4">
       <input type="hidden" name="token" value={token} />
       <input type="hidden" name="locale" value={locale} />
       {state.error ? (
-        <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-4 text-base text-red-700">
           {state.error}
         </div>
       ) : null}
@@ -50,7 +50,7 @@ export default function ActivationForm(props: {
         showLabel={props.showLabel}
         hideLabel={props.hideLabel}
       />
-      <button type="submit" disabled={pending} className="btn-gold w-full px-5 py-2.5">
+      <button type="submit" disabled={pending} className="btn-gold w-full px-6 py-2">
         {pending ? (
           <>
             <Spinner /> {copy.activation.submitPending}

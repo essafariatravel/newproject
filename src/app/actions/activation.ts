@@ -58,7 +58,7 @@ export async function activateAccountAction(
   }
 
   try {
-    const session = await createSession(user.id);
+    const session = await createSession(user.id, { expectedCredentialVersion: user.credentialVersion });
     await setSessionCookie(session.token, session.expiresAt);
   } catch (err) {
     console.error("[activation] session creation failed", err);

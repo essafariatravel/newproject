@@ -11,14 +11,14 @@ export const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 export const DEFAULT_PAGE_SIZE = 20;
 
 export function resolvePageSize(value: unknown): number {
-  const parsed = Number(typeof value === "string" ? value : Array.isArray(value) ? value[0] : NaN);
+  const parsed = Number(typeof value === "number" || typeof value === "string" ? value : Array.isArray(value) ? value[0] : NaN);
   return (PAGE_SIZE_OPTIONS as readonly number[]).includes(parsed) ? parsed : DEFAULT_PAGE_SIZE;
 }
 /**
  * Read-model queries with server-side filtering and pagination.
  * Every query takes the authenticated user and enforces tenant scope.
  */
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, getTableColumns, gte, ilike, inArray, isNotNull, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   agencies,
@@ -39,7 +39,7 @@ import {
   visaTypes,
   walletTransactions,
 } from "@/db/schema";
-import type { AuthUser } from "@/lib/types";
+import { STAFF_ROLES, type AuthUser } from "@/lib/types";
 
 export const PAGE_SIZE = 20;
 
@@ -49,6 +49,7 @@ export interface ApplicationFilters {
   countryId?: string;
   visaTypeId?: string;
   statusCode?: string;
+  queue?: "active" | "completed";
   priorityCode?: string;
   dateFrom?: string;
   dateTo?: string;
@@ -90,6 +91,14 @@ const applicationSelection = {
   )`,
   /** §25 — the case officer currently owning the dossier (null = unassigned). */
   ownerName: sql<string | null>`(select u.name from ${sql.raw(qualifiedTable("users"))} u where u.id = applications.assigned_to)`,
+  agencyNextAction: sql<string>`case when ${statuses.isTerminal} then 'View final dossier'
+    when exists(select 1 from ${sql.raw(qualifiedTable("document_requests"))} r where r.application_id=${applications.id} and r.status='OPEN') then 'Upload requested documents'
+    else 'Await ESSAFARIA review' end`,
+  staffNextAction: sql<string>`case when ${statuses.isTerminal} then 'View final dossier'
+    when exists(select 1 from ${sql.raw(qualifiedTable("document_requests"))} r where r.application_id=${applications.id} and r.status='OPEN') then 'Await requested documents'
+    when ${statuses.code}='SUBMITTED' then 'Review submitted documents'
+    when ${statuses.code}='IN_PROCESS' or ${statuses.code}='EMBASSY_SENT' then 'Process application'
+    else 'Review dossier' end`,
 };
 
 /**
@@ -120,6 +129,8 @@ export async function buildApplicationConditions(user: AuthUser, filters: Applic
     const p = await db.select().from(priorities).where(eq(priorities.code, filters.priorityCode)).limit(1);
     if (p[0]) conditions.push(eq(applications.priorityId, p[0].id));
   }
+  if (filters.queue === "completed") conditions.push(user.agencyId ? inArray(statuses.code,["APPROVED","COMPLETED"]) : eq(statuses.isTerminal,true));
+  else if (filters.queue) conditions.push(eq(statuses.isTerminal,false));
   if (filters.dateFrom) conditions.push(gte(applications.createdAt, new Date(filters.dateFrom)));
   if (filters.dateTo) conditions.push(lte(applications.createdAt, new Date(`${filters.dateTo}T23:59:59`)));
   // §25/§27 — ownership scope.
@@ -178,15 +189,25 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
   const conditions = await buildApplicationConditions(user, filters);
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
+  // Bound the page before evaluating dossier details. A wide OFFSET query
+  // otherwise runs correlated detail reads for every discarded row.
+  const pageIds = db
+    .select({ id: applications.id })
+    .from(applications)
+    .innerJoin(statuses, eq(applications.statusId, statuses.id))
+    .innerJoin(priorities, eq(applications.priorityId, priorities.id))
+    .where(where)
+    .orderBy(desc(applications.createdAt),desc(applications.id))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
+
   const rows = await db
     .select(applicationSelection)
     .from(applications)
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
     .innerJoin(priorities, eq(applications.priorityId, priorities.id))
-    .where(where)
-    .orderBy(desc(applications.createdAt))
-    .limit(pageSize)
-    .offset((page - 1) * pageSize);
+    .where(inArray(applications.id, pageIds))
+    .orderBy(desc(applications.createdAt),desc(applications.id));
 
   const totalRows = await db
     .select({ total: count() })
@@ -195,7 +216,7 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
     .where(where);
   const total = Number(totalRows[0]?.total ?? 0);
 
-  return { rows, total, page, pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+  return { rows, total, page, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
 /**
@@ -217,7 +238,7 @@ export async function exportApplications(user: AuthUser, filters: ApplicationFil
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
     .innerJoin(priorities, eq(applications.priorityId, priorities.id))
     .where(where)
-    .orderBy(desc(applications.createdAt))
+    .orderBy(desc(applications.createdAt),desc(applications.id))
     .limit(EXPORT_ROW_LIMIT + 1);
 
   const truncated = rows.length > EXPORT_ROW_LIMIT;
@@ -239,7 +260,9 @@ export const EMBASSY_APPLICABILITY_VALUES: readonly EmbassyApplicability[] = [
  * Reads the embassy applicability of a visa programme. Unknown/missing rows
  * fail safe to OPTIONAL — the stage stays available exactly as before.
  */
-export async function getEmbassyApplicability(visaTypeId: string | null | undefined): Promise<EmbassyApplicability> {
+export async function getEmbassyApplicability(visaTypeId: string | null | undefined,snapshot?:Record<string,unknown>|null): Promise<EmbassyApplicability> {
+  const captured=snapshot?.embassyApplicability;
+  if(typeof captured==="string"&&EMBASSY_APPLICABILITY_VALUES.includes(captured as EmbassyApplicability))return captured as EmbassyApplicability;
   if (!visaTypeId) return "OPTIONAL";
   const rows = await db
     .select({ value: visaTypes.embassyApplicability })
@@ -289,7 +312,7 @@ export async function adminDashboard() {
       processing: sql<number>`count(*) filter (where ${statuses.code} in ('IN_PROCESS','EMBASSY_SENT'))::int`,
       completed: sql<number>`count(*) filter (where ${statuses.code} in ('APPROVED','COMPLETED'))::int`,
       refused: sql<number>`count(*) filter (where ${statuses.code} in ('REJECTED','REFUSED'))::int`,
-      missingDocs: sql<number>`count(*) filter (where ${statuses.code} = 'DOCUMENTS_REQUESTED')::int`,
+      missingDocs: sql<number>`count(*) filter (where ${agencyAttentionCondition()})::int`,
       last30: sql<number>`count(*) filter (where ${applications.createdAt} > now() - interval '30 days')::int`,
       // Work queue metrics
       newApps: sql<number>`count(*) filter (where ${statuses.code} = 'SUBMITTED')::int`,
@@ -346,7 +369,9 @@ export async function adminDashboard() {
   const reviewQueue = await db
     .select({ total: count() })
     .from(documents)
-    .where(inArray(documents.status, ["UPLOADED", "UNDER_REVIEW"]));
+    .innerJoin(applications,eq(documents.applicationId,applications.id))
+    .innerJoin(statuses,eq(applications.statusId,statuses.id))
+    .where(and(eq(statuses.isTerminal,false),inArray(documents.status,["UPLOADED","UNDER_REVIEW"]),sql`${documents.version}=(select max(history.version) from ${sql.raw(qualifiedTable("documents"))} history where history.application_id=${documents.applicationId} and history.document_type_id=${documents.documentTypeId})`));
 
   const [pendingRegs] = await db
     .select({
@@ -436,9 +461,26 @@ export async function reportData(filters: ReportFilters = {}) {
     filters.priorityId ? eq(applications.priorityId, filters.priorityId) : undefined,
     filters.officerId ? eq(applications.assignedTo, filters.officerId) : undefined,
   );
+  // Grouped application activity means real submissions, regardless of creation date.
   const appWhere = and(dimensions,
+    isNotNull(applications.submittedAt),
+    filters.from ? gte(applications.submittedAt, filters.from) : undefined,
+    filters.to ? lt(applications.submittedAt, filters.to) : undefined,
+    filters.agencyId ? eq(applications.agencyId, filters.agencyId) : undefined,
+  );
+  const createdWhere = and(dimensions,
     filters.from ? gte(applications.createdAt, filters.from) : undefined,
     filters.to ? lt(applications.createdAt, filters.to) : undefined,
+    filters.agencyId ? eq(applications.agencyId, filters.agencyId) : undefined,
+  );
+  // Workload is the current operational assignment snapshot, independent of
+  // the selected event period. A prior submission still needs an officer today.
+  const liveWorkloadWhere = and(dimensions,
+    filters.agencyId ? eq(applications.agencyId, filters.agencyId) : undefined,
+  );
+  const decisionWhere = and(dimensions,
+    filters.from ? gte(applications.decisionAt, filters.from) : undefined,
+    filters.to ? lt(applications.decisionAt, filters.to) : undefined,
     filters.agencyId ? eq(applications.agencyId, filters.agencyId) : undefined,
   );
   // Application dimensions apply only to ledger entries linked to matching
@@ -460,6 +502,7 @@ export async function reportData(filters: ReportFilters = {}) {
     .leftJoin(applications, and(eq(applications.agencyId, agencies.id), appWhere))
     .where(filters.agencyId ? eq(agencies.id, filters.agencyId) : undefined)
     .groupBy(agencies.id)
+    .having(sql`count(${applications.id}) > 0`)
     .orderBy(desc(count(applications.id)));
 
   const byCountry = await db
@@ -475,12 +518,16 @@ export async function reportData(filters: ReportFilters = {}) {
 
   const byVisaType = await db
     .select({
+      visaTypeId: applications.visaTypeId,
       visaTypeName: applications.visaTypeName,
+      visaTypeNameFr: visaTypes.nameFr,
+      visaTypeNameAr: visaTypes.nameAr,
       total: count(),
     })
     .from(applications)
+    .leftJoin(visaTypes, eq(applications.visaTypeId, visaTypes.id))
     .where(appWhere)
-    .groupBy(applications.visaTypeName)
+    .groupBy(applications.visaTypeId, applications.visaTypeName, visaTypes.nameFr, visaTypes.nameAr)
     .orderBy(desc(count()));
 
   const byStatus = await db
@@ -492,18 +539,22 @@ export async function reportData(filters: ReportFilters = {}) {
     .orderBy(asc(statuses.sortOrder));
 
   const byPriority = await db
-    .select({ priorityName: priorities.name, total: count() })
+    .select({ priorityCode: priorities.code, priorityName: priorities.name, total: count() })
     .from(applications)
     .innerJoin(priorities, eq(applications.priorityId, priorities.id))
-    .where(appWhere)
-    .groupBy(priorities.name, priorities.weight)
+    .innerJoin(statuses, eq(applications.statusId, statuses.id))
+    .where(and(appWhere, eq(statuses.isTerminal, false)))
+    .groupBy(priorities.code, priorities.name, priorities.weight)
     .orderBy(desc(priorities.weight));
 
   const docIssues = await db
     .select({ status: documents.status, total: count() })
     .from(documents)
     .innerJoin(applications, eq(documents.applicationId, applications.id))
-    .where(and(appWhere, inArray(documents.status, ["REJECTED", "RESUBMISSION_REQUIRED"])))
+    .where(and(dimensions, filters.agencyId ? eq(applications.agencyId,filters.agencyId) : undefined,
+      filters.from ? gte(documents.reviewedAt,filters.from) : undefined,
+      filters.to ? lt(documents.reviewedAt,filters.to) : undefined,
+      isNotNull(documents.reviewedAt),inArray(documents.status, ["REJECTED", "RESUBMISSION_REQUIRED"])))
     .groupBy(documents.status);
 
   const [walletFlow] = await db
@@ -520,8 +571,8 @@ export async function reportData(filters: ReportFilters = {}) {
       assigned: count(applications.id),
     })
     .from(users)
-    .leftJoin(applications, and(eq(applications.assignedTo, users.id), appWhere, isNull(applications.completedAt), isNull(applications.decisionAt), notInArray(applications.statusId, db.select({ id: statuses.id }).from(statuses).where(inArray(statuses.code, ["CANCELLED", "COMPLETED", "APPROVED", "REJECTED"])))))
-    .where(and(inArray(users.role, ["SUPER_ADMIN", "ADMIN", "VISA_AGENT"]), eq(users.status, "ACTIVE"), filters.officerId ? eq(users.id, filters.officerId) : undefined))
+    .leftJoin(applications, and(eq(applications.assignedTo, users.id), liveWorkloadWhere, isNull(applications.completedAt), isNull(applications.decisionAt), notInArray(applications.statusId, db.select({ id: statuses.id }).from(statuses).where(eq(statuses.isTerminal, true)))))
+    .where(and(inArray(users.role, [...STAFF_ROLES]), isNull(users.agencyId), eq(users.status, "ACTIVE"), filters.officerId ? eq(users.id, filters.officerId) : undefined))
     .groupBy(users.id, users.name)
     .orderBy(desc(count(applications.id)));
 
@@ -537,7 +588,11 @@ export async function reportData(filters: ReportFilters = {}) {
       slowestDays: sql<string | null>`max(extract(epoch from (${applications.decisionAt} - ${applications.submittedAt})) / 86400.0)::text`,
     })
     .from(applications)
-    .where(and(appWhere, isNotNull(applications.submittedAt), isNotNull(applications.decisionAt)));
+    .where(and(decisionWhere, isNotNull(applications.submittedAt), isNotNull(applications.decisionAt),sql`${applications.decisionAt} >= ${applications.submittedAt}`));
+
+  const [createdActivity] = await db.select({ total:count() }).from(applications).where(createdWhere);
+  const [submittedActivity] = await db.select({ total:count() }).from(applications).where(appWhere);
+  const [decisionActivity] = await db.select({ total:count() }).from(applications).where(and(decisionWhere,isNotNull(applications.decisionAt)));
 
   return {
     byAgency,
@@ -548,19 +603,52 @@ export async function reportData(filters: ReportFilters = {}) {
     docIssues,
     walletFlow,
     workload,
+    activity: { created: Number(createdActivity?.total??0), submitted: Number(submittedActivity?.total??0), decisions: Number(decisionActivity?.total??0) },
     processing: processing ?? { decided: 0, avgDays: null, fastestDays: null, slowestDays: null },
   };
 }
 
 /* ------------------------------ notifications --------------------------- */
 
-export async function listNotificationsForUser(userId: string, limit = 50) {
+export type NotificationFilter = "all" | "action" | "applications" | "messages" | "wallet";
+export async function listNotificationsForUser(userId: string, limit = 50, filter: NotificationFilter = "all") {
+  const conditions = [eq(notifications.userId, userId)];
+  const table = (name: string) => sql.raw(qualifiedTable(name));
+  if (filter === "messages") conditions.push(eq(notifications.type, "MESSAGE_POSTED"));
+  if (filter === "wallet") conditions.push(sql`(${notifications.type} like '%WALLET%' or ${notifications.type} = 'TOPUP_REQUESTED')`);
+  if (filter === "applications") conditions.push(sql`${notifications.applicationId} is not null and ${notifications.type} <> 'MESSAGE_POSTED' and ${notifications.type} not like '%WALLET%'`);
+  if (filter === "action") conditions.push(sql`(
+    exists (select 1 from ${table("users")} recipient
+      join ${table("applications")} dossier on dossier.id = ${notifications.applicationId}
+      join ${table("statuses")} state on state.id = dossier.status_id
+      where recipient.id = ${userId} and not state.is_terminal and (
+        (recipient.agency_id = dossier.agency_id and ${notifications.type} in ('DOCUMENT_REQUESTED','DOCUMENT_REJECTED','RESUBMISSION_REQUIRED')
+          and exists (select 1 from ${table("document_requests")} requested where requested.application_id = dossier.id and requested.status = 'OPEN'
+            and requested.id = ${notifications.documentRequestId}))
+        or (recipient.agency_id is null and (
+          (${notifications.type} = 'APPLICATION_SUBMITTED' and state.code = 'SUBMITTED')
+          or (${notifications.type} = 'DOCUMENT_REQUEST_FULFILLED' and exists (
+            select 1 from ${table("document_requests")} requested join ${table("documents")} file on file.id=requested.fulfilled_document_id
+            where requested.id=${notifications.documentRequestId} and requested.application_id=dossier.id and requested.status='FULFILLED' and file.status in ('UPLOADED','UNDER_REVIEW') and file.version = (
+              select max(history.version) from ${table("documents")} history where history.application_id = dossier.id and history.checklist_item_id = file.checklist_item_id)))))))
+    or (${notifications.type} = 'TOPUP_REQUESTED' and exists (
+      select 1 from ${table("wallet_topup_requests")} topup where topup.id=${notifications.topupRequestId} and topup.agency_id = ${notifications.agencyId} and topup.status = 'PENDING'))
+    or (${notifications.type} = 'REGISTRATION_SUBMITTED' and exists (
+      select 1 from ${table("agency_registrations")} registration where ${notifications.link}='/admin/registrations/' || registration.id::text and registration.status in ('PENDING','UNDER_REVIEW')))
+  )`);
   return db
-    .select()
+    .select({
+      ...getTableColumns(notifications),
+      travellerName: sql<string | null>`(select coalesce(traveller.full_name, concat_ws(' ',traveller.first_name,traveller.last_name)) from ${table("applicants")} traveller where traveller.application_id = ${notifications.applicationId} limit 1)`,
+      destination: sql<string | null>`(select dossier.country_name from ${table("applications")} dossier where dossier.id = ${notifications.applicationId})`,
+      visaName: sql<string | null>`(select dossier.visa_type_name from ${table("applications")} dossier where dossier.id = ${notifications.applicationId})`,
+      reference: sql<string | null>`(select dossier.reference from ${table("applications")} dossier where dossier.id = ${notifications.applicationId})`,
+      agencyName: sql<string | null>`(select coalesce(agency.trading_name,agency.legal_name) from ${table("agencies")} agency where agency.id = ${notifications.agencyId})`,
+    })
     .from(notifications)
-    .where(eq(notifications.userId, userId))
-    .orderBy(desc(notifications.createdAt))
-    .limit(limit);
+    .where(and(...conditions))
+    .orderBy(desc(notifications.createdAt),desc(notifications.id))
+    .limit(Number.isFinite(limit)?Math.min(100,Math.max(1,Math.floor(limit))):50);
 }
 
 export async function unreadNotificationCount(userId: string): Promise<number> {
@@ -573,8 +661,13 @@ export async function unreadNotificationCount(userId: string): Promise<number> {
 
 /* ------------------------------ communications -------------------------- */
 
-export async function listCommunications(applicationId: string, user: AuthUser) {
+export async function listCommunications(applicationId: string, user: AuthUser, before?: unknown) {
   const conditions = [eq(communications.applicationId, applicationId)];
+  if(typeof before==="string"){
+    const parts=before.split("|");
+    if(parts.length===2&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(parts[0]!)&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(parts[1]!)&&Number.isFinite(Date.parse(parts[0]!)))
+      conditions.push(sql`(${communications.createdAt},${communications.id})<(${parts[0]}::timestamptz,${parts[1]}::uuid)`);
+  }
   if (user.agencyId) {
     // Defense in depth: an agency user may only read messages of a dossier that
     // belongs to its own agency, and only agency-visible ones. The page loader
@@ -583,17 +676,18 @@ export async function listCommunications(applicationId: string, user: AuthUser) 
     conditions.push(eq(applications.agencyId, user.agencyId));
     conditions.push(eq(communications.visibility, "AGENCY"));
   }
-  return db
+  const rows=await db
     .select({
       message: communications,
       authorName: users.name,
-      authorRole: users.role,
+      authorRole: user.agencyId ? sql<string>`case when ${users.agencyId} is null then 'ESSAFARIA_TEAM' else ${users.role} end` : users.role,
     })
     .from(communications)
     .innerJoin(users, eq(communications.authorId, users.id))
     .innerJoin(applications, eq(communications.applicationId, applications.id))
     .where(and(...conditions))
-    .orderBy(asc(communications.createdAt));
+    .orderBy(desc(communications.createdAt),desc(communications.id)).limit(50);
+  return rows.reverse();
 }
 
 /**
@@ -625,14 +719,17 @@ export async function recentCommunications(
     .innerJoin(users, eq(communications.authorId, users.id))
     .innerJoin(applications, eq(communications.applicationId, applications.id))
     .where(where)
-    .orderBy(desc(communications.createdAt))
-    .limit(limit);
+    .orderBy(desc(communications.createdAt),desc(communications.id))
+    .limit(Number.isFinite(limit)?Math.min(100,Math.max(1,Math.floor(limit))):30);
 }
 
 /* --------------------------------- config ------------------------------- */
 
 export async function listCountries() {
-  return db.select().from(countries).orderBy(asc(countries.sortOrder), asc(countries.name));
+  // Keep the outer column qualified: a single-table Drizzle projection otherwise
+  // emits bare "id", which resolves to the inner visa row inside this subquery.
+  const countryId = sql.raw(`${qualifiedTable("countries")}."id"`);
+  return db.select({...getTableColumns(countries), usageCount:sql<number>`(select count(*)::int from ${sql.raw(qualifiedTable("visa_types"))} visa where visa.country_id=${countryId})`}).from(countries).orderBy(asc(countries.sortOrder), asc(countries.name));
 }
 
 export async function listVisaCategories() {
@@ -686,7 +783,7 @@ export async function activeVisaOptions() {
     .innerJoin(visaCategories, eq(visaTypes.categoryId, visaCategories.id))
     // Bookable = active programme + active destination + DZD price (§7/§13):
     // a non-DZD price is configuration debt, never something an agency can book.
-    .where(and(eq(visaTypes.active, true), eq(countries.active, true), eq(visaTypes.currency, "DZD")))
+    .where(and(eq(visaTypes.active, true), eq(countries.active, true), eq(visaCategories.active,true), eq(visaTypes.currency, "DZD")))
     .orderBy(asc(countries.name), asc(visaTypes.name));
 }
 
@@ -723,7 +820,7 @@ export async function listUsers(
   const conditions = [];
   if (q) {
     const term = `%${q.trim()}%`;
-    conditions.push(or(ilike(users.name, term), ilike(users.email, term))!);
+    conditions.push(or(ilike(users.name, term), ilike(users.email, term), ilike(users.username, term))!);
   }
   if (scope === "staff") conditions.push(isNull(users.agencyId));
   if (scope === "agency") conditions.push(isNotNull(users.agencyId));
@@ -784,6 +881,8 @@ export async function listAuditLogs(filters: { q?: string; agencyId?: string; ac
   const rows = await db
     .select({
       log: auditLogs,
+      actorName: sql<string | null>`(select u.name from ${sql.raw(qualifiedTable("users"))} u where u.id = audit_logs.actor_id)`,
+      actorUsername: sql<string | null>`(select u.username from ${sql.raw(qualifiedTable("users"))} u where u.id = audit_logs.actor_id)`,
       agencyName: sql<string | null>`(select coalesce(a.trading_name, a.legal_name) from ${sql.raw(qualifiedTable("agencies"))} a where a.id = audit_logs.agency_id)`,
     })
     .from(auditLogs)
@@ -813,8 +912,8 @@ export interface WalletLedgerFilters {
  * an agencyId is supplied, always server-side paginated (§57).
  */
 export async function listWalletTransactions(filters: WalletLedgerFilters) {
-  const pageSize = filters.pageSize ?? PAGE_SIZE;
-  const page = Math.max(1, filters.page ?? 1);
+  const pageSize = Number.isFinite(filters.pageSize)?Math.min(100,Math.max(1,Math.floor(filters.pageSize!))):PAGE_SIZE;
+  const page = Number.isFinite(filters.page)?Math.max(1,Math.floor(filters.page!)):1;
   const conditions = [];
   if (filters.agencyId) conditions.push(eq(walletTransactions.agencyId, filters.agencyId));
   if (filters.type) conditions.push(eq(walletTransactions.type, filters.type));
@@ -836,11 +935,13 @@ export async function listWalletTransactions(filters: WalletLedgerFilters) {
       tx: walletTransactions,
       agencyName: sql<string>`(select coalesce(a.trading_name, a.legal_name) from ${sql.raw(qualifiedTable("agencies"))} a where a.id = wallet_transactions.agency_id)`,
       applicationReference: applications.reference,
+      topupRequestId: sql<string | null>`(select t.id from ${sql.raw(qualifiedTable("wallet_topup_requests"))} t where t.wallet_transaction_id = wallet_transactions.id)`,
+      topupReference: sql<string | null>`(select t.reference from ${sql.raw(qualifiedTable("wallet_topup_requests"))} t where t.wallet_transaction_id = wallet_transactions.id)`,
     })
     .from(walletTransactions)
     .leftJoin(applications, eq(walletTransactions.applicationId, applications.id))
     .where(where)
-    .orderBy(desc(walletTransactions.createdAt))
+    .orderBy(desc(walletTransactions.createdAt),desc(walletTransactions.id))
     .limit(pageSize)
     .offset((page - 1) * pageSize);
   const totalRows = await db.select({ total: count() }).from(walletTransactions).leftJoin(applications, eq(walletTransactions.applicationId, applications.id)).where(where);

@@ -1,12 +1,14 @@
 import { contentT } from "@/lib/i18n-content";
-import { getUiLocale, localizedStatusName, localizedPriority } from "@/lib/ui-i18n";
+import { configName } from "@/lib/config-localization";
+import { getUiLocale, localizedStatusName, localizedPriority, localizedDocStatus } from "@/lib/ui-i18n";
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/rbac";
 import { reportData } from "@/lib/queries";
 import { parseReportFilters } from "@/lib/report-filters";
-import { recordAudit } from "@/lib/audit";
+import { recordAuditStrict } from "@/lib/audit";
 import { toCsv, toXlsx, XLSX_CONTENT_TYPE, type Column, type Row } from "@/lib/tabular-export";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 
 /**
  * Reports export (DZD only) — CSV or XLSX.
@@ -35,6 +37,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "FORBIDDEN", message: "Your role cannot export reports." }, { status: 403 });
   }
 
+  if (!await consumeAuthRateLimit("export-reports-user-minute", user.id, 10, 60_000)) {
+    return NextResponse.json({ error: "RATE_LIMITED" }, { status: 429, headers: { "Retry-After": "60" } });
+  }
+
   const url = new URL(request.url);
   const format = url.searchParams.get("format") === "xlsx" ? "xlsx" : "csv";
   const locale = await getUiLocale({ lang: url.searchParams.get("lang") });
@@ -54,11 +60,16 @@ export async function GET(request: Request) {
   ];
 
   const rows: Row[] = [];
+  rows.push({ section: ct("Activity"), label: ct("Created applications"), applications: data.activity.created });
+  rows.push({ section: ct("Activity"), label: ct("Submitted applications"), applications: data.activity.submitted });
+  rows.push({ section: ct("Activity"), label: ct("Decisions recorded"), applications: data.activity.decisions });
   for (const r of data.byAgency) rows.push({ section: ct("By agency"), label: r.agencyName ?? "—", applications: Number(r.total), amountDzd: Number(r.charged) });
   for (const r of data.byCountry) rows.push({ section: ct("By country"), label: r.countryName ?? "—", applications: Number(r.total), amountDzd: Number(r.revenue) });
-  for (const r of data.byVisaType) rows.push({ section: ct("By visa type"), label: r.visaTypeName ?? "—", applications: Number(r.total), amountDzd: null });
+  for (const r of data.byVisaType) rows.push({ section: ct("By visa type"), label: configName({name:r.visaTypeName,nameFr:r.visaTypeNameFr,nameAr:r.visaTypeNameAr},locale), applications: Number(r.total), amountDzd: null });
   for (const r of data.byStatus) rows.push({ section: ct("By status"), label: localizedStatusName(r.statusCode, r.statusName, locale), applications: Number(r.total), amountDzd: null });
-  for (const r of data.byPriority) rows.push({ section: ct("By priority"), label: localizedPriority(r.priorityName.toUpperCase(), r.priorityName, locale), applications: Number(r.total), amountDzd: null });
+  for (const r of data.byPriority) rows.push({ section: ct("By priority"), label: localizedPriority(r.priorityCode, r.priorityName, locale), applications: Number(r.total), amountDzd: null });
+  for (const r of data.docIssues) rows.push({ section: ct("Document review"), label: localizedDocStatus(r.status, locale, r.status), applications: Number(r.total) });
+  for (const r of data.workload) rows.push({ section: ct("Current workload"), label: r.officer ?? "-", applications: Number(r.assigned), metric: ct("Current assignments; independent of the selected event period") });
 
   const wallet = data.walletFlow!;
   rows.push({ section: ct("Wallet (DZD)"), label: ct("Credits"), applications: null, amountDzd: Number(wallet.credits) });
@@ -92,7 +103,7 @@ export async function GET(request: Request) {
     value: processing.slowestDays === null ? null : Number(Number(processing.slowestDays).toFixed(2)),
   });
 
-  await recordAudit({ actor: user, action: "REPORTS_EXPORTED", entity: "report", metadata: { format, rows: rows.length, filters } });
+  await recordAuditStrict({ actor: user, action: "REPORTS_EXPORTED", entity: "report", metadata: { format, rows: rows.length, filters } });
 
   const stamp = new Date().toISOString().slice(0, 10);
   const headers = { "Cache-Control": "no-store" };

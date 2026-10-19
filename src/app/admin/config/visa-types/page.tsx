@@ -79,10 +79,10 @@ export default async function VisaTypesConfigPage({
         subtitle={ct("Service catalogue — DZD only. Fees snapshotted at application creation.")}
         actions={
           <form className="flex flex-wrap items-center gap-2">
-            <input name="q" defaultValue={q} aria-label={ct("Search visa, country, code…")} placeholder={ct("Search visa, country, code…")} className="input w-64 text-sm" />
-            <select name="countryId" defaultValue={countryId} aria-label={ct("Country")} className="input w-auto text-sm"><option value="">{ct("All countries")}</option>{countries.map((c) => <option key={c.id} value={c.id}>{localizedCountryName(c, locale)}</option>)}</select>
-            <select name="categoryId" defaultValue={categoryId} aria-label={ct("Category")} className="input w-auto text-sm"><option value="">{ct("All categories")}</option>{categories.map((c) => <option key={c.id} value={c.id}>{configName(c, locale)}</option>)}</select>
-            <select name="status" defaultValue={status} aria-label={ct("Status")} className="input w-auto text-sm"><option value="">{ct("All statuses")}</option><option value="active">{ct("Active")}</option><option value="inactive">{ct("Inactive")}</option></select>
+            <input name="q" defaultValue={q} aria-label={ct("Search visa, country, code…")} placeholder={ct("Search visa, country, code…")} className="input w-64 text-base" />
+            <select name="countryId" defaultValue={countryId} aria-label={ct("Country")} className="input w-auto text-base"><option value="">{ct("All countries")}</option>{countries.map((c) => <option key={c.id} value={c.id}>{localizedCountryName(c, locale)}</option>)}</select>
+            <select name="categoryId" defaultValue={categoryId} aria-label={ct("Category")} className="input w-auto text-base"><option value="">{ct("All categories")}</option>{categories.map((c) => <option key={c.id} value={c.id}>{configName(c, locale)}</option>)}</select>
+            <select name="status" defaultValue={status} aria-label={ct("Status")} className="input w-auto text-base"><option value="">{ct("All statuses")}</option><option value="active">{ct("Active")}</option><option value="inactive">{ct("Inactive")}</option></select>
             <input type="hidden" name="per" value={per} />
             <button type="submit" className="btn-secondary btn-sm">{ct("Search")}</button>
             {q || status || countryId || categoryId ? <Link href="/admin/config/visa-types" className="btn-secondary btn-sm">{ct("Clear")}</Link> : null}
@@ -90,47 +90,47 @@ export default async function VisaTypesConfigPage({
         }
       />
       <Flash {...flash} />
-      <div className="mb-5">
+      <div className="mb-6">
       {canManage ? (
         <ConfigDialog title={ct("Add visa type (DZD only)")} closeLabel={ct("Close")}>
 
-          <form action={createVisaTypeAction} className="card grid grid-cols-1 gap-4 p-5 sm:grid-cols-3">
+          <form action={createVisaTypeAction} className="card grid grid-cols-1 gap-4 p-6 sm:grid-cols-3">
             <div className="sm:col-span-2">
               <label className="label" htmlFor="new-visa-name">{ct("Name *")} · EN</label>
               <input id="new-visa-name" name="name" required minLength={2} maxLength={120} dir="ltr" className="input" placeholder="Portugal Schengen Tourist Visa" />
             </div>
             <div>
-              <label className="label">{ct("Code *")}</label>
-              <input name="code" required className="input uppercase" placeholder="PT-SCH-TOUR" />
+              <label className="label" htmlFor="new-visa-code">{ct("Code *")}</label>
+              <input id="new-visa-code" name="code" required className="input uppercase" placeholder="PT-SCH-TOUR" />
             </div>
             <div>
-              <label className="label">{ct("Country *")}</label>
-              <select name="countryId" required className="input">
+              <label className="label" htmlFor="new-visa-country">{ct("Country *")}</label>
+              <select id="new-visa-country" name="countryId" required className="input">
                 {activeCountries.map((c) => (
                   <option key={c.id} value={c.id}>{localizedCountryName(c, locale)}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="label">{ct("Category *")}</label>
-              <select name="categoryId" required className="input">
+              <label className="label" htmlFor="new-visa-category">{ct("Category *")}</label>
+              <select id="new-visa-category" name="categoryId" required className="input">
                 {activeCategories.map((c) => (
                   <option key={c.id} value={c.id}>{configName(c, locale)}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="label">{ct("Fee (DZD) *")}</label>
-              <input name="fee" type="number" step="0.01" min="0" required className="input" placeholder="12000.00" />
+              <label className="label" htmlFor="new-visa-fee">{ct("Fee (DZD) *")}</label>
+              <input id="new-visa-fee" name="fee" type="number" step="0.01" min="0" required className="input" placeholder="12000.00" />
               <input type="hidden" name="currency" value="DZD" />
             </div>
             <div>
-              <label className="label">{ct("Processing min days *")}</label>
-              <input name="processingMinDays" type="number" min="0" required className="input" defaultValue={5} />
+              <label className="label" htmlFor="new-visa-min-days">{ct("Processing min days *")}</label>
+              <input id="new-visa-min-days" name="processingMinDays" type="number" min="0" required className="input" defaultValue={5} />
             </div>
             <div>
-              <label className="label">{ct("Processing max days *")}</label>
-              <input name="processingMaxDays" type="number" min="0" required className="input" defaultValue={15} />
+              <label className="label" htmlFor="new-visa-max-days">{ct("Processing max days *")}</label>
+              <input id="new-visa-max-days" name="processingMaxDays" type="number" min="0" required className="input" defaultValue={15} />
             </div>
             <div className="sm:col-span-3">
               <label className="label" htmlFor="new-visa-description">{ct("Description")} · EN</label>
@@ -162,7 +162,7 @@ export default async function VisaTypesConfigPage({
           {paged.map(({ vt, countryName, categoryName }) => (
             <NavigableTableRow key={vt.id} href={`/admin/config/visa-types/${vt.id}`} className="tr-hover">
               <td className="td">
-                <Link href={`/admin/config/visa-types/${vt.id}`} className="font-medium text-navy-900 hover:underline">
+                <Link href={`/admin/config/visa-types/${vt.id}`} className="font-semibold text-navy-900 hover:underline">
                   {configName(vt, locale)}
                 </Link>
                 <span className="block text-xs text-slate-400">{vt.code}</span>
@@ -193,9 +193,9 @@ export default async function VisaTypesConfigPage({
       </TableWrap>
 
       {pageCount > 1 ? (
-        <div className="mt-3 flex items-center justify-between text-xs">
+        <div className="mt-4 flex items-center justify-between text-xs">
           <span className="text-slate-500">{ct("Page")} {page} / {pageCount} — {total} {ct("total")}</span>
-          <span className="flex gap-1.5">
+          <span className="flex gap-2">
             {page > 1 ? <Link href={`/admin/config/visa-types?${new URLSearchParams({ ...filterQuery, ...(per !== 20 ? { per: String(per) } : {}), page: String(page - 1) }).toString()}`} className="btn-secondary btn-sm">{ct("← Prev")}</Link> : null}
             {page < pageCount ? <Link href={`/admin/config/visa-types?${new URLSearchParams({ ...filterQuery, ...(per !== 20 ? { per: String(per) } : {}), page: String(page + 1) }).toString()}`} className="btn-secondary btn-sm">{ct("Next →")}</Link> : null}
           </span>

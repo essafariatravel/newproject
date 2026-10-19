@@ -26,13 +26,28 @@ import {
   recordApplicationDecision,
   submitApplication,
 } from "@/lib/applications";
-import { getDocumentForUser, uploadDocument } from "@/lib/documents";
+import { getDocumentForUser, reviewDocument, uploadDocument } from "@/lib/documents";
 import { adjustWallet } from "@/lib/wallet";
 import { storageProvider } from "@/lib/storage";
 
 suiteSetup();
 
 const PDF = Buffer.from("%PDF-1.7 decision letter stub content");
+
+describe("official final documents retain their decision record", () => {
+  for (const outcome of ["APPROVED", "REJECTED"] as const) {
+    it.each(["UNDER_REVIEW", "REJECTED", "RESUBMISSION_REQUIRED"] as const)(`generic %s review cannot alter an official ${outcome} document`, async (reviewStatus) => {
+      const { app, staff } = await appAt();
+      const recorded = await recordApplicationDecision({ applicationId: app.id, actor: staff, outcome, file: { name: "official.pdf", type: "application/pdf", size: PDF.length, data: PDF } });
+      const [before] = await db.select().from(documents).where(eq(documents.id, recorded.documentId));
+      await expect(reviewDocument({ documentId: recorded.documentId, actor: staff, status: reviewStatus, rejectionReason: "Generic review must not invalidate a decision." })).rejects.toMatchObject({ code: "DECISION_DOCUMENT_LOCKED" });
+      const [after] = await db.select().from(documents).where(eq(documents.id, recorded.documentId));
+      expect(after).toEqual(before);
+      expect(await currentStatus(app.id)).toBe(outcome);
+      expect((await getDocumentForUser(recorded.documentId, staff)).doc.status).toBe("ACCEPTED");
+    });
+  }
+});
 
 async function particularStaff(role: "ADMIN" | "VISA_AGENT" = "ADMIN") {
   return userByEmail(role === "ADMIN" ? "admin@test.example" : "agent@test.example");
@@ -159,15 +174,15 @@ describe("decision workflow — direct final outcomes are locked", () => {
 });
 
 describe("decision workflow — audit-proof success paths", () => {
-  it("records an optional note without a document and permits exactly one concurrent final decision", async () => {
+  it("records an official document and optional note for exactly one concurrent final decision", async () => {
     const { app, staff } = await appAt("IN_PROCESS");
     const results = await Promise.allSettled([
-      recordApplicationDecision({ applicationId: app.id, outcome: "APPROVED", actor: staff, note: "The visa is ready." }),
-      recordApplicationDecision({ applicationId: app.id, outcome: "REJECTED", actor: staff, note: "The embassy declined." }),
+      recordApplicationDecision({ applicationId: app.id, outcome: "APPROVED", actor: staff, note: "The visa is ready.", file: { name: "visa.pdf", type: "application/pdf", size: PDF.length, data: PDF } }),
+      recordApplicationDecision({ applicationId: app.id, outcome: "REJECTED", actor: staff, note: "The embassy declined.", file: { name: "refusal.pdf", type: "application/pdf", size: PDF.length, data: PDF } }),
     ]);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
-    expect(await getDecisionDocuments(app.id)).toHaveLength(0);
+    expect(await getDecisionDocuments(app.id)).toHaveLength(1);
     const messages = await db.execute(sql`select body from communications where application_id=${app.id} and visibility='AGENCY'`);
     expect(messages.rows).toHaveLength(1);
     const audits = await db.select().from(auditLogs).where(and(eq(auditLogs.entityId, app.id), eq(auditLogs.action, "APPLICATION_DECISION_RECORDED")));

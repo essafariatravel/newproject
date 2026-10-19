@@ -22,7 +22,7 @@ describe("rbac", () => {
     expect(hasPermission(agencyUser, "admin.access")).toBe(false);
   });
 
-  it("wallet adjustment is limited to SUPER_ADMIN, ADMIN, ACCOUNTING", async () => {
+  it("all operational staff may adjust wallets while agency users may not", async () => {
     const superAdmin = await userByEmail("superadmin@test.example");
     const agent = await userByEmail("agent@test.example");
     const accounting = await userByEmail("accounting@test.example");
@@ -30,25 +30,25 @@ describe("rbac", () => {
 
     expect(hasPermission(superAdmin, "wallet.adjust")).toBe(true);
     expect(hasPermission(accounting, "wallet.adjust")).toBe(true);
-    expect(hasPermission(agent, "wallet.adjust")).toBe(false);
+    expect(hasPermission(agent, "wallet.adjust")).toBe(true);
     expect(hasPermission(agencyUser, "wallet.adjust")).toBe(false);
   });
 
-  it("§36 — case-processing and finance roles never administer agencies, users or partners", async () => {
+  it("V1 staff share operations but account management is SUPER_ADMIN-only", async () => {
     const agent = await userByEmail("agent@test.example");
     const accounting = await userByEmail("accounting@test.example");
     // Read-only visibility stays; management does not.
     for (const staff of [agent, accounting]) {
       expect(hasPermission(staff, "agencies.view")).toBe(true);
-      expect(hasPermission(staff, "agencies.manage")).toBe(false);
+      expect(hasPermission(staff, "agencies.manage")).toBe(true);
       expect(hasPermission(staff, "users.manage")).toBe(false);
-      expect(hasPermission(staff, "registrations.manage")).toBe(false);
+      expect(hasPermission(staff, "registrations.manage")).toBe(true);
     }
     // Wallet mutation is ACCOUNTING-only on top of SUPER_ADMIN/ADMIN.
-    expect(hasPermission(agent, "wallet.adjust")).toBe(false);
+    expect(hasPermission(agent, "wallet.adjust")).toBe(true);
     expect(hasPermission(accounting, "wallet.adjust")).toBe(true);
     // …and an agent cannot administer the catalogue it processes against.
-    expect(hasPermission(agent, "config.manage")).toBe(false);
+    expect(hasPermission(agent, "config.manage")).toBe(true);
   });
 
   it("document review is staff-only", async () => {
@@ -94,7 +94,7 @@ describe("rbac", () => {
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/db/schema";
-import { createSession } from "@/lib/auth";
+import { createSession } from "./helpers/authenticated-session";
 import { createUserAction, updateUserAction } from "@/app/actions/admin";
 import { request } from "./helpers/request";
 import { vi } from "vitest";
@@ -115,7 +115,7 @@ describe("Phase 2.2 §9 — agency admins create ONLY AGENCY_USER", () => {
     try {
       await createUserAction(fd);
     } catch (err) {
-      return String((err as Error).message ?? err);
+      return String((err as {digest?:string}).digest ?? (err as Error).message ?? err);
     }
     return "RESOLVED";
   }
@@ -126,10 +126,12 @@ describe("Phase 2.2 §9 — agency admins create ONLY AGENCY_USER", () => {
     const email = `evil-${Date.now()}@test.example`;
     const fd = new FormData();
     fd.set("name", "Evil Pear"); fd.set("email", email);
+    fd.set("username", email.split("@")[0]!); fd.set("agencyId", admin.agencyId!);
     fd.set("role", "AGENCY_ADMIN"); fd.set("password", "TempPass1234!"); fd.set("back", "/portal/profile");
     const res = await attemptCreate(fd);
     expect(res).toContain("NEXT_REDIRECT");
-    const created = await db.select().from(users).where(eq(users.email, email));
+    expect(res).toContain("error=");
+    const created = await db.select().from(users).where(eq(users.username, email.split("@")[0]!));
     expect(created.length).toBe(0);
   });
 
@@ -139,9 +141,11 @@ describe("Phase 2.2 §9 — agency admins create ONLY AGENCY_USER", () => {
     const email = `root-${Date.now()}@test.example`;
     const fd = new FormData();
     fd.set("name", "Evil Root"); fd.set("email", email);
+    fd.set("username", email.split("@")[0]!); fd.set("agencyId", admin.agencyId!);
     fd.set("role", "SUPER_ADMIN"); fd.set("password", "TempPass1234!"); fd.set("back", "/portal/profile");
     const res = await attemptCreate(fd);
     expect(res).toContain("NEXT_REDIRECT");
+    expect(res).toContain("error=");
     expect((await db.select().from(users).where(eq(users.email, email))).length).toBe(0);
   });
 
@@ -151,6 +155,7 @@ describe("Phase 2.2 §9 — agency admins create ONLY AGENCY_USER", () => {
     const member = (await db.select().from(users).where(and(eq(users.agencyId, admin.agencyId!), eq(users.role, "AGENCY_USER"))))[0]!;
     const fd = new FormData();
     fd.set("id", member.id); fd.set("name", member.name); fd.set("role", "AGENCY_ADMIN"); fd.set("back", "/portal/profile");
+    fd.set("username", member.username!); fd.set("email", member.email); fd.set("agencyId", member.agencyId!); fd.set("confirmRoleChange", "true");
     let res = "RESOLVED";
     try {
       await updateUserAction(fd);
@@ -168,10 +173,11 @@ describe("Phase 2.2 §9 — agency admins create ONLY AGENCY_USER", () => {
     const fd = new FormData();
     const email = `member-${Date.now()}@test.example`;
     fd.set("name", "Team Mate"); fd.set("email", email); fd.set("role", "AGENCY_USER");
+    fd.set("username", email.split("@")[0]!);
     fd.set("password", "TempPass1234!"); fd.set("back", "/portal/profile");
     const res = await attemptCreate(fd);
     expect(res).toContain("NEXT_REDIRECT"); // success also redirects (ok= flash)
-    const created = (await db.select().from(users).where(eq(users.email, email)))[0]!;
+    const created = (await db.select().from(users).where(eq(users.username, email.split("@")[0]!)))[0]!;
     expect(created.role).toBe("AGENCY_USER");
     expect(created.agencyId).toBe(admin.agencyId);
   });

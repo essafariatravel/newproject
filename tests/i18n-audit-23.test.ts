@@ -148,8 +148,8 @@ describe("Phase 2.3 — Bug 1 localization audit (hard guards)", () => {
     expect(fr).not.toBe(en);
     expect(ar).not.toBe(en);
     expect(fr.toLowerCase()).toContain("mars");
-    expect(formatAmount(1234.5, "DZD", "en")).toBe("1,234.5 DZD");
-    expect(formatAmount(1234.5, "DZD", "fr")).not.toBe("1,234.5 DZD");
+    expect(formatAmount(1234.5, "DZD", "en")).toBe("1 234.5 DZD");
+    expect(formatAmount(1234.5, "DZD", "fr")).toBe("1 234.5 DZD");
     for (const out of [formatAmount(1234.5, "DZD", "en"), formatAmount(1234.5, "DZD", "fr"), formatAmount(1234.5, "DZD", "ar")]) {
       expect(out).toContain("DZD");
       expect(out).not.toMatch(/(€|EUR|\$|USD)/);

@@ -16,7 +16,8 @@
  */
 import { pool } from "@/lib/db";
 import { qualifiedTable } from "@/lib/database-schema";
-import { recordAudit } from "@/lib/audit";
+import { currentOperationActorPg } from "@/lib/operation-identity";
+import { recordAuditPg, type AuditInput } from "@/lib/audit";
 import { requirePermission } from "@/lib/rbac";
 import { AppError, type AuthUser } from "@/lib/types";
 
@@ -154,20 +155,26 @@ export async function applyPriceAdjustment(params: {
   const key = params.idempotencyKey?.trim() || null;
 
   const client = await pool.connect();
+  let result: ApplyPriceAdjustmentResult;
+  let auditInput: AuditInput;
   try {
     await client.query("begin");
+    params = { ...params, actor: await currentOperationActorPg(client,params.actor) };
 
     // ---- idempotent replay: same key → return the original adjustment ----
     if (key) {
       const existing = await client.query<{
-        id: string; effective_before: string; effective_after: string; wallet_transaction_id: string;
+        id: string; application_id: string; effective_before: string; effective_after: string; wallet_transaction_id: string;
       }>(
-        `select id, effective_before::text, effective_after::text, wallet_transaction_id
+        `select id, application_id, effective_before::text, effective_after::text, wallet_transaction_id
            from ${qualifiedTable("application_price_adjustments")} where idempotency_key = $1 for update`,
         [key],
       );
       const found = existing.rows[0];
       if (found) {
+        if (found.application_id !== params.applicationId) {
+          throw new AppError("IDEMPOTENCY_CONFLICT", "This correction reference belongs to a different application.");
+        }
         await client.query("commit");
         return {
           adjustmentId: found.id,
@@ -272,11 +279,7 @@ export async function applyPriceAdjustment(params: {
     );
     const adjustmentId = adjRes.rows[0]!.id;
 
-    await client.query("commit");
-
-    // Audit AFTER the commit (same pattern as submitApplication): a writing
-    // failure here never produces a phantom wallet reversal.
-    await recordAudit({
+    auditInput = {
       actor: params.actor,
       action: "PRICE_ADJUSTED",
       entity: "application",
@@ -294,9 +297,12 @@ export async function applyPriceAdjustment(params: {
         adjustmentId,
         idempotencyKey: key,
       },
-    });
+    };
 
-    return {
+    await recordAuditPg(client, auditInput);
+    await client.query("commit");
+
+    result = {
       adjustmentId,
       replayed: false,
       effectiveBefore: before.toFixed(2),
@@ -313,4 +319,6 @@ export async function applyPriceAdjustment(params: {
   } finally {
     client.release();
   }
+
+  return result;
 }

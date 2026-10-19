@@ -2,8 +2,14 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
+      "codex/master-go-live-rc-2026-10-17": false,
+      "codex/legal-readiness-rc-2026-10-15": false,
+      "codex/isolated-clean-preview-2026-10-15": false,
+      "codex/essafaria-autonomous-completion-2026-10-13": false,
+      "release/essafaria-prod-candidate-2026-10-10": false,
       "codex/essafaria-product-excellence": false,
-      "release/essafaria-rc-2026-09": false
+      "release/essafaria-rc-2026-09": false,
+      "security/pre-codex-gate-2026-10-03": false
     }
   }
 }

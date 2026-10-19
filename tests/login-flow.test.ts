@@ -23,16 +23,17 @@ function loginForm() {
 }
 
 describe("staff login flow (isolated local database, not live verification)", () => {
-  it("authenticates, creates and resolves a session, updates last login and audits", async () => {
+  it("authenticates into a restricted pending session and audits password verification without claiming completed login", async () => {
     await expect(loginAction({}, loginForm())).rejects.toThrow("NEXT_REDIRECT");
     expect(request.set).toHaveBeenCalledWith("evos_session", expect.any(String), expect.objectContaining({ httpOnly: true, sameSite: "lax", path: "/" }));
-    const user = await getSessionUser();
+    expect(await getSessionUser()).toBeNull();
+    const user = await getSessionUser({ allowMfaPending: true });
     expect(user?.email).toBe("admin@test.example");
     const saved = await pool.query("select token_hash from sessions where user_id = $1", [user!.id]);
     expect(saved.rows.some((row) => row.token_hash === hashToken(request.cookie))).toBe(true);
     const login = await pool.query("select last_login_at from users where id = $1", [user!.id]);
-    expect(login.rows[0].last_login_at).toBeInstanceOf(Date);
-    const audit = await pool.query("select action from audit_logs where actor_id = $1 and action = 'USER_LOGIN'", [user!.id]);
+    expect(login.rows[0].last_login_at).toBeNull();
+    const audit = await pool.query("select action from audit_logs where actor_id = $1 and action = 'STAFF_PASSWORD_VERIFIED'", [user!.id]);
     expect(audit.rowCount).toBe(1);
   });
 

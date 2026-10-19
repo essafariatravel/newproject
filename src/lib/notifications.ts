@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { notifications, users } from "@/db/schema";
+import { sendOperationalNotificationEmail } from "@/lib/transactional-email";
 
 type NotificationType =
   | "APPLICATION_SUBMITTED"
@@ -37,6 +38,7 @@ export async function notifyUsers(
     link?: string | null;
     agencyId?: string | null;
     applicationId?: string | null;
+    documentRequestId?: string | null;
   },
 ): Promise<void> {
   const unique = [...new Set(userIds)];
@@ -46,11 +48,28 @@ export async function notifyUsers(
       userId,
       agencyId: payload.agencyId ?? null,
       applicationId: payload.applicationId ?? null,
+      documentRequestId: payload.documentRequestId ?? null,
       type: payload.type,
       title: payload.title,
       body: payload.body,
       link: payload.link ?? null,
     })),
+  );
+
+  const recipients = await db
+    .select({ email: users.email, name: users.name })
+    .from(users)
+    .where(and(inArray(users.id, unique), eq(users.status, "ACTIVE")));
+
+  await Promise.allSettled(
+    recipients.map((recipient) =>
+      sendOperationalNotificationEmail({
+        type: payload.type,
+        to: recipient.email,
+        name: recipient.name,
+        link: payload.link ?? null,
+      }),
+    ),
   );
 }
 

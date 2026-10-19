@@ -63,6 +63,13 @@ async function submittedApp(n: number) {
 const staff = () => userByEmail("admin@test.example");
 
 describe("Phase 2.2 §17 — staff price adjustment core", () => {
+  it("rejects a commercial correction key reused for a different dossier without changing its wallet or price",async()=>{
+    const a=await submittedApp(900),b=await submittedApp(901),actor=await staff(),key=crypto.randomUUID();
+    await applyPriceAdjustment({applicationId:a.app.id,actor,type:"DISCOUNT",amount:10,reason:"Synthetic approved correction",idempotencyKey:key});
+    const before=await getBalance(b.agency.id),price=await getApplicationPricing(b.app.id);
+    await expect(applyPriceAdjustment({applicationId:b.app.id,actor,type:"DISCOUNT",amount:10,reason:"Synthetic second correction",idempotencyKey:key})).rejects.toMatchObject({code:"IDEMPOTENCY_CONFLICT"});
+    expect(await getBalance(b.agency.id)).toEqual(before);expect(await getApplicationPricing(b.app.id)).toEqual(price);
+  });
   it("#66 happy path: 120 DZD charge + 25 DZD staff discount → effective 95, original debit untouched, wallet compensated", async () => {
     const { app, agency } = await submittedApp(66);
     const admin = await staff();

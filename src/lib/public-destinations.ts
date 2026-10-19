@@ -1,9 +1,11 @@
 import { and, asc, eq } from "drizzle-orm";
 import { countries, visaCategories, visaTypes } from "@/db/schema";
+import { requireAgencyUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-/** Public coverage exposes country names only; programmes and partner fees stay private. */
+/** Legacy loader for authenticated Agency coverage; no public callers. */
 export async function publicDestinations() {
+  await requireAgencyUser();
   return db
     .selectDistinct({
       id: countries.id,

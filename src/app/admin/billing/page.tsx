@@ -4,7 +4,7 @@ import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
 import { listAgencies, listWalletTransactions } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
-import { adjustWalletAction } from "@/app/actions/admin";
+import { WalletAdjustmentForm } from "@/components/wallet-adjustment-form";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
@@ -12,7 +12,7 @@ import { FilterBar, Pagination } from "@/components/app-widgets";
 import { TopupProcessForm } from "@/components/topup";
 import { processTopupAction } from "@/app/actions/topup";
 import { listTopupRequests } from "@/lib/topup";
-import { SubmitButton } from "@/components/forms";
+
 import { EmptyState, Flash, PageHeader, StatCard, TableWrap } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +42,7 @@ export default async function AdminBillingPage({
     listAgencies(),
     listTopupRequests({ status: "PENDING", limit: 50 }),
   ]);
-  const canAdjust = ["SUPER_ADMIN", "ADMIN", "ACCOUNTING"].includes(staff.role);
+  const canAdjust = hasPermission(staff,"wallet.adjust");
   const totalBalance = agencies.reduce((sum, a) => sum + Number(a.agency.balance), 0);
   const balanceByAgency = new Map(agencies.map((a) => [a.agency.id, a.agency.balance]));
 
@@ -51,7 +51,7 @@ export default async function AdminBillingPage({
       <PageHeader title={ct("Wallets & Billing")} subtitle={ct("Prepaid agency wallets. No online gateway — balances are funded manually and every movement is a ledger entry. DZD only.")} />
       <Flash {...flash} />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label={ct("Agencies")} value={agencies.length} href="/admin/agencies" />
         <StatCard label={ct("Combined balances")} value={formatAmount(totalBalance.toFixed(2), "DZD", uiLocale)} tone="gold" />
         <StatCard label={ct("Ledger entries")} value={txs.total} />
@@ -59,8 +59,8 @@ export default async function AdminBillingPage({
       </div>
 
       <div className="mt-8">
-        <h2 className="mb-1 font-serif text-xl text-navy-900">{ct("Pending top-up requests")}</h2>
-        <p className="mb-3 max-w-3xl text-sm text-slate-500">
+        <h2 className="mb-1 font-serif text-lg text-navy-900">{ct("Pending top-up requests")}</h2>
+        <p className="mb-4 max-w-3xl text-base text-slate-500">
           {ct("The ledger entry is created by the normal wallet credit: no money is invented here.")}
         </p>
         {topups.length === 0 ? (
@@ -68,28 +68,30 @@ export default async function AdminBillingPage({
             <EmptyState title={ct("No pending top-up requests.")} />
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {topups.map((t) => (
-              <div key={t.id} className="card p-4">
+              <div key={t.id} id={`topup-${t.id}`} className="card p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="font-mono text-xs text-slate-500">{t.reference}</p>
-                    <p className="text-sm font-semibold text-navy-900">
+                    <p className="text-base font-semibold text-navy-900">
                       <Link href={`/admin/agencies/${t.agencyId}`} className="hover:underline">
                         {t.agencyName}
                       </Link>{" "}
-                      · {formatAmount(t.amount, "DZD", uiLocale)}
+                      · <bdi dir="ltr">{formatAmount(t.amount, "DZD", uiLocale)}</bdi>
                     </p>
-                    {t.note ? <p className="mt-0.5 text-xs text-slate-500">{t.note}</p> : null}
+                    {t.note ? <p className="mt-1 text-xs text-slate-500">{t.note}</p> : null}
+                    {t.proofFilename ? <Link className="text-base underline" href={`/api/topups/${t.id}/proof`}>{ct("Open bank transfer receipt")}</Link> : <p className="text-base text-red-700">{ct("A receipt is required before approval. Reject this request with instructions to send a new request and receipt.")}</p>}
                   </div>
                   <p className="text-xs text-slate-400">{formatDateTime(t.createdAt, uiLocale)}</p>
                 </div>
                 {canAdjust ? (
-                  <div className="mt-3 max-w-2xl">
+                  <div className="mt-4 max-w-2xl">
                     <TopupProcessForm
                       action={processTopupAction}
                       back="/admin/billing"
                       requestId={t.id}
+                      proofAvailable={Boolean(t.proofFilename)}
                       requestedAmount={t.amount}
                       agencyBalance={balanceByAgency.get(t.agencyId) ?? "0"}
                       locale={uiLocale}
@@ -157,9 +159,9 @@ export default async function AdminBillingPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {txs.rows.map(({ tx, agencyName, applicationReference }) => (
+                {txs.rows.map(({ tx, agencyName, applicationReference, topupRequestId, topupReference }) => (
                   <tr key={tx.id} className="tr-hover">
-                    <td className="td whitespace-nowrap text-xs font-mono">{(tx as { reference?: string | null }).reference ?? tx.id.slice(0, 8)}</td>
+                    <td className="td whitespace-nowrap text-xs font-mono">{tx.reference ?? tx.id.slice(0, 8)}{topupRequestId?<Link href={`/api/topups/${topupRequestId}/proof`} className="mt-1 block underline">{topupReference} · {ct("View receipt")}</Link>:null}</td>
                     <td className="td whitespace-nowrap text-xs">{formatDateTime(tx.createdAt, uiLocale)}</td>
                     <td className="td max-w-[160px] truncate">
                       <Link href={`/admin/agencies/${tx.agencyId}`} className="text-navy-800 hover:underline">
@@ -171,7 +173,7 @@ export default async function AdminBillingPage({
                         {businessLabel(tx.type, uiLocale)}
                       </span>
                     </td>
-                    <td className={`td whitespace-nowrap font-medium tabular-nums ${tx.type === "CREDIT" || tx.type === "COMMERCIAL_DISCOUNT" ? "text-emerald-700" : "text-red-700"}`}>
+                    <td className={`td whitespace-nowrap font-semibold tabular-nums ${tx.type === "CREDIT" || tx.type === "COMMERCIAL_DISCOUNT" ? "text-emerald-700" : "text-red-700"}`}>
                       {tx.type === "CREDIT" || tx.type === "COMMERCIAL_DISCOUNT" ? "+" : "−"}{formatAmount(tx.amount, "DZD", uiLocale)}
                     </td>
                     <td className="td whitespace-nowrap tabular-nums text-xs">
@@ -198,38 +200,8 @@ export default async function AdminBillingPage({
 
       {canAdjust ? (
         <div className="mt-8">
-          <h2 className="mb-3 font-serif text-xl text-navy-900">{ct("Manual wallet adjustment")}</h2>
-          <form action={adjustWalletAction} className="card grid grid-cols-1 gap-4 p-5 sm:grid-cols-5">
-            <input type="hidden" name="back" value="/admin/billing" />
-            <div>
-              <label className="label" htmlFor="agencyId">{ct("Agency")} *</label>
-              <select id="agencyId" name="agencyId" required className="input">
-                {agencies.map((a) => (
-                  <option key={a.agency.id} value={a.agency.id}>
-                    {a.agency.tradingName ?? a.agency.legalName}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label" htmlFor="operation">{ct("Operation")} *</label>
-              <select id="operation" name="operation" required className="input" defaultValue="CREDIT">
-                <option value="CREDIT">{ct("Credit wallet")}</option>
-                <option value="DEBIT">{ct("Debit wallet")}</option>
-              </select>
-            </div>
-            <div>
-              <label className="label" htmlFor="amount">{ct("Amount (DZD)")} *</label>
-              <input id="amount" name="amount" type="number" step="0.01" min="0.01" required className="input" placeholder="50000" />
-            </div>
-            <div>
-              <label className="label" htmlFor="reason">{ct("Reason (mandatory)")} *</label>
-              <input id="reason" name="reason" required minLength={5} className="input" placeholder={ct("Bank transfer #1234, refund…")} />
-            </div>
-            <div className="flex items-end">
-              <SubmitButton className="btn-primary" pendingLabel={ct("Adjusting…")}>{ct("Apply adjustment")}</SubmitButton>
-            </div>
-          </form>
+          <h2 className="mb-4 font-serif text-lg text-navy-900">{ct("Manual wallet adjustment")}</h2>
+          <WalletAdjustmentForm agencies={agencies.map(({agency})=>({id:agency.id,name:agency.tradingName??agency.legalName,balance:agency.balance}))} back="/admin/billing" locale={uiLocale}/>
         </div>
       ) : null}
     </>

@@ -31,7 +31,7 @@ export default async function AdminSearchPage({
     <>
       <PageHeader title={ct("Search")} subtitle={ct("Find a dossier, an agency, an applicant or a catalogue entry.")} />
 
-      <form action="/admin/search" method="get" className="card mb-5 p-4" role="search">
+      <form action="/admin/search" method="get" className="card mb-6 p-4" role="search">
         <label className="label" htmlFor="global-search">
           {ct("Search")}
         </label>
@@ -47,7 +47,7 @@ export default async function AdminSearchPage({
             placeholder={ct("Reference, applicant, agency, country or visa")}
             className="input flex-1"
           />
-          <button type="submit" className="btn-primary px-5">
+          <button type="submit" className="btn-primary px-6">
             {ct("Search")}
           </button>
         </div>
@@ -70,18 +70,18 @@ export default async function AdminSearchPage({
           />
         </div>
       ) : (
-        <div className="space-y-5" data-testid="search-results">
+        <div className="space-y-6" data-testid="search-results">
           {groups.map((group) => (
             <section key={group.key} className="card overflow-hidden">
-              <header className="flex items-center justify-between border-b border-slate-100 bg-ivory-50/60 px-4 py-2.5">
+              <header className="flex items-center justify-between border-b border-slate-100 bg-ivory-50/60 px-4 py-2">
                 <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{ct(group.title)}</h2>
                 <span className="text-xs tabular-nums text-slate-400">{group.items.length}</span>
               </header>
               <ul className="divide-y divide-slate-100">
                 {group.items.map((item) => (
                   <li key={`${group.key}-${item.href}`}>
-                    <Link href={item.href} className="flex flex-col gap-0.5 px-4 py-3 transition-colors hover:bg-ivory-50/70">
-                      <span className="text-sm font-medium text-navy-900">{item.label}</span>
+                    <Link href={item.href} className="flex flex-col gap-1 px-4 py-4 transition-colors hover:bg-ivory-50/70">
+                      <span className="text-base font-semibold text-navy-900">{item.label}</span>
                       {item.hint ? <span className="text-xs text-slate-400">{item.hint}</span> : null}
                     </Link>
                   </li>

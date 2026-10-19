@@ -3,21 +3,24 @@
 /**
  * Admin — Agency Registration decision actions.
  * Every action requires staff authentication AND the registrations.manage
- * permission (SUPER_ADMIN / ADMIN). Approve / reject are decision-level
+ * permission (all ESSAFARIA staff roles). Approve / reject are decision-level
  * operations; start-review / info-request / notes share the same guard.
  */
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+
 import { revalidatePath } from "next/cache";
-import { z, ZodError } from "zod";
+import { z } from "zod";
 import { AppError, type AuthUser } from "@/lib/types";
 import { requireStaff } from "@/lib/auth";
 import { requirePermission } from "@/lib/rbac";
 import { runAction } from "@/lib/action-helpers";
+import { createRegistrationFollowup } from "@/lib/registration-followup";
+import { registrationCopy, registrationReviewCopy, resolveLocale } from "@/lib/i18n";
+import { REGISTRATION_DOCUMENT_CATEGORIES } from "@/lib/registration-constants";
+import { getUiLocale } from "@/lib/ui-i18n";
 import {
   addInternalNote,
   approveRegistration,
-  createActivationTokenForRegistration,
   rejectRegistration,
   requestMoreInformation,
   startRegistrationReview,
@@ -30,6 +33,22 @@ async function requireDecisionMaker(): Promise<AuthUser> {
   const staff = await requireStaff();
   requirePermission(staff, "registrations.manage");
   return staff;
+}
+
+export interface RegistrationLinkState { link?: string; error?: string }
+export async function issueRegistrationDocumentLinkAction(_previous: RegistrationLinkState, form: FormData): Promise<RegistrationLinkState> {
+  const locale = resolveLocale(form.get("locale"));
+  const copy = registrationReviewCopy(locale);
+  try {
+    const actor = await requireDecisionMaker();
+    const registrationId = idSchema.parse(form.get("id"));
+    const slots = REGISTRATION_DOCUMENT_CATEGORIES.filter((category) => form.get(`request_${category}`) === "true").map((category) => ({ category, label: String(form.get(`label_${category}`) ?? registrationCopy(locale).docCategories[category]!.label) }));
+    const result = await createRegistrationFollowup({ actor, registrationId, note:String(form.get("note") ?? ""), slots });
+    refresh(registrationId);
+    return {link:`/agency/verification/${result.token}`};
+  } catch (error) {
+    return {error: error instanceof AppError && error.code === "INVALID_STATE" ? copy.start : copy.error};
+  }
 }
 
 async function ipOf(): Promise<string | null> {
@@ -47,100 +66,67 @@ function refresh(id: string): void {
   revalidatePath("/admin");
 }
 
+async function reviewAction(id:string, fn:(copy:ReturnType<typeof registrationReviewCopy>)=>Promise<string>):Promise<never> {
+  const copy=registrationReviewCopy(await getUiLocale());
+  return runAction(`/admin/registrations/${id}`,async()=>{
+    try {return await fn(copy);}
+    catch(error) {if(error instanceof AppError) throw new AppError(error.code,copy.actionError);throw error;}
+  });
+}
+
 export async function startRegistrationReviewAction(formData: FormData): Promise<void> {
   const id = idSchema.parse(formData.get("id"));
-  await runAction(`/admin/registrations/${id}`, async () => {
+  await reviewAction(id, async (copy) => {
     const staff = await requireDecisionMaker();
     await startRegistrationReview(id, staff, await ipOf());
     refresh(id);
-    return "Registration is now under review.";
+    return copy.reviewSaved;
   });
 }
 
 export async function requestRegistrationInfoAction(formData: FormData): Promise<void> {
   const id = idSchema.parse(formData.get("id"));
-  await runAction(`/admin/registrations/${id}`, async () => {
+  await reviewAction(id, async (copy) => {
     const staff = await requireDecisionMaker();
     const note = String(formData.get("note") ?? "");
     await requestMoreInformation(id, staff, note, await ipOf());
     refresh(id);
-    return "More information requested from the applicant.";
+    return copy.infoSaved;
   });
 }
 
 export async function approveRegistrationAction(formData: FormData): Promise<void> {
   const id = idSchema.parse(formData.get("id"));
-  await runAction(`/admin/registrations/${id}`, async () => {
+  await reviewAction(id, async (copy) => {
     const staff = await requireDecisionMaker();
     const result = await approveRegistration({ registrationId: id, actor: staff, ipAddress: await ipOf() });
     refresh(id);
     revalidatePath("/admin/agencies");
     if (result.alreadyApproved) {
-      return "This registration was already approved — the existing agency and administrator are unchanged.";
+      return copy.alreadyApproved;
     }
-    return `Registration approved. "${result.legalName}" now has an agency and an Agency Admin (${result.contactEmail}). Generate the activation link below and share it with the partner.`;
+    return copy.approvalSaved;
   });
 }
 
 export async function rejectRegistrationAction(formData: FormData): Promise<void> {
   const id = idSchema.parse(formData.get("id"));
-  await runAction(`/admin/registrations/${id}`, async () => {
+  await reviewAction(id, async (copy) => {
     const staff = await requireDecisionMaker();
     const reason = String(formData.get("reason") ?? "");
     await rejectRegistration(id, staff, reason, await ipOf());
     refresh(id);
-    return "Registration rejected. No agency, portal access or wallet credit was created; the record remains for audit.";
+    return copy.rejectSaved;
   });
 }
 
 export async function addRegistrationNoteAction(formData: FormData): Promise<void> {
   const id = idSchema.parse(formData.get("id"));
-  await runAction(`/admin/registrations/${id}`, async () => {
+  await reviewAction(id, async (copy) => {
     const staff = await requireDecisionMaker();
     const note = String(formData.get("note") ?? "");
     await addInternalNote(id, staff, note, await ipOf());
     refresh(id);
-    return "Internal note added.";
+    return copy.noteSaved;
   });
-}
-
-/** Best-effort absolute base URL for the activation link (host-aware). */
-async function publicBaseUrl(): Promise<string | null> {
-  try {
-    const hdrs = await headers();
-    const host = hdrs.get("x-forwarded-host") ?? hdrs.get("host");
-    if (!host) return null;
-    const proto = hdrs.get("x-forwarded-proto") ?? "https";
-    return `${proto}://${host}`;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Generate a single-use activation link for the Agency Admin of an approved
- * registration. Rendering a new link revokes every previous unused one.
- * The link is returned ONCE in the flash area of the detail page to an
- * authorized administrator — it is never stored in plaintext.
- */
-export async function generateActivationLinkAction(formData: FormData): Promise<void> {
-  const id = idSchema.parse(formData.get("id"));
-  let link: string;
-  try {
-    const staff = await requireDecisionMaker();
-    const issued = await createActivationTokenForRegistration(id, staff);
-    const base = await publicBaseUrl();
-    link = base ? `${base}/activate/${issued.token}` : `/activate/${issued.token}`;
-    refresh(id);
-  } catch (err) {
-    const msg =
-      err instanceof AppError
-        ? err.message
-        : err instanceof ZodError
-          ? (err.issues[0]?.message ?? "Invalid request.")
-          : (console.error("[registrations] activation link failed", err), "Something went wrong. Please try again.");
-    redirect(`/admin/registrations/${id}?error=${encodeURIComponent(msg)}`);
-  }
-  const ok = "Single-use activation link generated (expires in 72 hours; previous links revoked). Copy it now and share it securely with the partner.";
-  redirect(`/admin/registrations/${id}?ok=${encodeURIComponent(ok)}&activation=${encodeURIComponent(link)}`);
 }

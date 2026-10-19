@@ -38,7 +38,7 @@ describe("§50 — public header at mobile", () => {
     expect(HEADER).toContain('aria-label={open ? labels.close : labels.menu}');
     // The panel is mobile/tablet only, the inline nav is desktop only.
     expect(HEADER).toContain("lg:hidden");
-    expect(HEADER).toContain("hidden items-center gap-1 lg:flex");
+    expect(HEADER).toContain("hidden items-center gap-2 lg:flex");
   });
 
   it("cannot overflow horizontally at 320px", () => {

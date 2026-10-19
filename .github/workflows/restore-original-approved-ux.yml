@@ -1,0 +1,197 @@
+name: Browser Original UX Verification
+
+on:
+  push:
+    branches:
+      - restore/original-approved-ux-ui
+    paths:
+      - .github/workflows/restore-original-approved-ux.yml
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    if: github.event.head_commit.message == 'Finalize restored UX browser verification with seeded username'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERCEL: "0"
+      VERCEL_ENV: ""
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/essafaria
+      DATABASE_SCHEMA: public
+      STORAGE_PROVIDER: db
+      BASE_URL: http://127.0.0.1:3011
+      PORT: "3011"
+
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup Node 22
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Optimized build — non-deploying
+        run: npm run build
+
+      - name: Browser responsive and RTL verification
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          export SEED_ADMIN_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"
+          export SEED_AGENCY_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"
+
+          npm run db:up > /tmp/ux-pg.log 2>&1 &
+          PG_PID=$!
+          APP_PID=""
+          cleanup() {
+            if [ -n "$APP_PID" ]; then kill "$APP_PID" 2>/dev/null || true; fi
+            kill "$PG_PID" 2>/dev/null || true
+            rm -f scripts/_ux-restoration-browser.cjs
+          }
+          trap cleanup EXIT
+
+          for i in $(seq 1 60); do
+            if (echo > /dev/tcp/127.0.0.1/5432) >/dev/null 2>&1; then break; fi
+            if [ "$i" = "60" ]; then cat /tmp/ux-pg.log; exit 1; fi
+            sleep 1
+          done
+
+          npm run db:migrate
+          npm run db:seed
+
+          export AGENCY_LOGIN="$(node <<'NODE'
+          const { Client } = require("pg");
+          (async () => {
+            const client = new Client({ connectionString: process.env.DATABASE_URL });
+            await client.connect();
+            const result = await client.query(
+              "select username from users where lower(email)=lower($1) and agency_id is not null limit 1",
+              ["admin@horizonvoyages.example"]
+            );
+            await client.end();
+            if (!result.rows[0]?.username) process.exit(2);
+            process.stdout.write(result.rows[0].username);
+          })().catch(() => process.exit(3));
+          NODE
+          )"
+          test -n "$AGENCY_LOGIN"
+
+          npm start > /tmp/ux-next.log 2>&1 &
+          APP_PID=$!
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 3 "$BASE_URL/" >/dev/null 2>&1; then break; fi
+            if [ "$i" = "60" ]; then cat /tmp/ux-next.log; exit 1; fi
+            sleep 1
+          done
+
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+          cat > scripts/_ux-restoration-browser.cjs <<'JS'
+          const { chromium } = require("playwright");
+
+          (async () => {
+            const base = process.env.BASE_URL;
+            const widths = [320, 390, 768, 1440];
+            const browser = await chromium.launch({ headless: true });
+            const failures = [];
+
+            const assert = (condition, message) => {
+              if (!condition) failures.push(message);
+            };
+
+            async function assertPage(page, route, width, label) {
+              await page.setViewportSize({ width, height: width <= 390 ? 844 : 1000 });
+              const response = await page.goto(base + route, { waitUntil: "networkidle" });
+              assert(response && response.ok(), `${label} ${route} ${width}px HTTP ${response && response.status()}`);
+              const metrics = await page.evaluate(() => ({
+                scrollWidth: document.documentElement.scrollWidth,
+                clientWidth: document.documentElement.clientWidth,
+                dir: document.documentElement.getAttribute("dir"),
+                lang: document.documentElement.getAttribute("lang"),
+                bodyText: document.body.innerText.slice(0, 2500),
+              }));
+              assert(metrics.scrollWidth <= metrics.clientWidth + 1,
+                `${label} ${route} ${width}px horizontal overflow: ${metrics.scrollWidth} > ${metrics.clientWidth}`);
+              assert(!metrics.bodyText.includes("Application error"),
+                `${label} ${route} ${width}px rendered application error`);
+              console.log(`PASS ${label} ${route} ${width}px dir=${metrics.dir} lang=${metrics.lang} width=${metrics.scrollWidth}/${metrics.clientWidth}`);
+            }
+
+            async function login(context, identifier, password) {
+              const page = await context.newPage();
+              await page.goto(base + "/login", { waitUntil: "networkidle" });
+              const identifierInput = page.locator('input[name="identifier"]');
+              const passwordInput = page.locator('input[name="password"]');
+              await identifierInput.fill(identifier);
+              await passwordInput.fill(password);
+              const loginForm = identifierInput.locator("xpath=ancestor::form");
+              await Promise.all([
+                page.waitForURL(url => !url.pathname.endsWith("/login"), { timeout: 20000 }),
+                loginForm.locator('button[type="submit"]').click(),
+              ]);
+              return page;
+            }
+
+            {
+              const context = await browser.newContext();
+              const page = await context.newPage();
+              for (const width of widths) {
+                await assertPage(page, "/", width, "PUBLIC");
+                await assertPage(page, "/login", width, "AUTH");
+              }
+              await context.close();
+            }
+
+            {
+              const context = await browser.newContext();
+              const page = await login(context, process.env.AGENCY_LOGIN, process.env.SEED_AGENCY_PASSWORD);
+              for (const width of widths) {
+                await assertPage(page, "/portal", width, "AGENCY");
+                await assertPage(page, "/portal/applications", width, "AGENCY");
+              }
+              await context.addCookies([{ name: "evos_ui_locale", value: "ar", url: base }]);
+              await assertPage(page, "/portal", 390, "AGENCY-AR");
+              assert(await page.evaluate(() => document.documentElement.dir) === "rtl", "Agency Arabic dir is not rtl");
+              await context.close();
+            }
+
+            {
+              const context = await browser.newContext();
+              const page = await login(context, "superadmin@essafaria.example", process.env.SEED_ADMIN_PASSWORD);
+              for (const width of widths) {
+                await assertPage(page, "/admin", width, "STAFF");
+                await assertPage(page, "/admin/applications", width, "STAFF");
+              }
+              await context.addCookies([{ name: "evos_ui_locale", value: "ar", url: base }]);
+              await assertPage(page, "/admin", 1440, "STAFF-AR");
+              assert(await page.evaluate(() => document.documentElement.dir) === "rtl", "Staff Arabic dir is not rtl");
+              await context.close();
+            }
+
+            await browser.close();
+            if (failures.length) {
+              console.error("UX validation failures:");
+              failures.forEach(f => console.error("- " + f));
+              process.exit(1);
+            }
+            console.log("Responsive/RTL browser verification PASS");
+          })().catch(err => {
+            console.error(err);
+            process.exit(1);
+          });
+          JS
+
+          node scripts/_ux-restoration-browser.cjs

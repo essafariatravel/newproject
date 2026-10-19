@@ -1,3 +1,5 @@
+> Historical report retained for traceability. Its branch, SHA, test counts, hosted evidence and readiness claims do not qualify the current Codex candidate. See [the current validation checkpoint](consolidation/VALIDATION-CHECKPOINT.md) and [operations review](consolidation/OPERATIONS-REVIEW.md). Exact-final-SHA CI and runtime/capacity qualification remain required.
+
 # ESSAFARIA VISA OS — Requirement Completion Matrix
 
 Scope: master directive (73 sections), staff back-office + agency portal + public site.

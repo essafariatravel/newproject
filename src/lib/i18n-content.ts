@@ -7,10 +7,54 @@
  * names, references, applicant names, free-text notes) are NEVER translated.
  */
 import type { UiLocale } from "@/lib/ui-i18n";
+import { PRODUCT_COPY } from "@/lib/product-copy";
+import { identityT } from "@/lib/identity-copy";
 
 type Entry = { fr: string; ar: string };
 
 const CONTENT: Record<string, Entry> = {
+  "Record the final decision with its official approval or refusal document.": {fr:"Enregistrez la décision finale avec son document officiel d’approbation ou de refus.",ar:"سجّل القرار النهائي مع وثيقة الموافقة أو الرفض الرسمية."},
+  "Official decision document (PDF/JPG/PNG, required, 2 MB)": {fr:"Document officiel de décision (PDF/JPG/PNG, obligatoire, 2 Mo)",ar:"وثيقة القرار الرسمية (PDF/JPG/PNG، مطلوبة، 2 ميغابايت)"},
+  "Edit": {fr:"Modifier",ar:"تعديل"},
+  "Agency profile": {fr:"Profil de l’agence",ar:"ملف الوكالة"},
+  "Change password": {fr:"Changer le mot de passe",ar:"تغيير كلمة المرور"},
+  "Sign out": {fr:"Se déconnecter",ar:"تسجيل الخروج"},
+  "Unread": {fr:"Non lu",ar:"غير مقروء"},
+  "My account": {fr:"Mon compte",ar:"حسابي"},
+  "Your Agency Admin manages wallet funding and transactions.": {fr:"Votre administrateur d’agence gère les approvisionnements et les transactions.",ar:"يتولى مسؤول وكالتك إدارة تمويل المحفظة والمعاملات."},
+  "Conversations attached to your travellers' dossiers.": {fr:"Conversations liées aux dossiers de vos voyageurs.",ar:"محادثات مرتبطة بملفات مسافريكم."},
+  "Traveller, agency or reference": {fr:"Voyageur, agence ou référence",ar:"المسافر أو الوكالة أو المرجع"},
+  "Needs reply": {fr:"Réponse attendue",ar:"بانتظار الرد"},
+  "Messages remain attached to each dossier.": {fr:"Les messages restent liés à chaque dossier.",ar:"تبقى الرسائل مرتبطة بكل ملف."},
+  "Bank transfer receipt": {fr:"Justificatif de virement",ar:"إيصال التحويل البنكي"},
+  "PDF, JPG or PNG, up to 2 MB. Your balance changes only after ESSAFARIA confirms the transfer.": {fr:"PDF, JPG ou PNG, jusqu’à 2 Mo. Votre solde change après confirmation du virement par ESSAFARIA.",ar:"PDF أو JPG أو PNG، حتى 2 ميغابايت. يتغير رصيدك بعد تأكيد ESSAFARIA للتحويل."},
+  "Balance after confirmation": {fr:"Solde après confirmation",ar:"الرصيد بعد التأكيد"},
+  "Open bank transfer receipt": {fr:"Ouvrir le justificatif de virement",ar:"فتح إيصال التحويل البنكي"},
+  "A receipt is required before approval. Reject this request with instructions to send a new request and receipt.": {fr:"Un justificatif est requis avant validation. Refusez cette demande en demandant un nouvel envoi avec justificatif.",ar:"يلزم إيصال قبل الموافقة. ارفض هذا الطلب مع تعليمات بإرسال طلب جديد مرفق بإيصال."},
+  "ESSAFARIA Team": {fr:"Équipe ESSAFARIA",ar:"فريق ESSAFARIA"},
+  "The server recalculates the final balance when applying the adjustment.": {fr:"Le solde final est recalculé lors de l’application de l’ajustement.",ar:"يُعاد حساب الرصيد النهائي عند تطبيق التعديل."},
+  "I confirm this agency, amount and resulting balance.": {fr:"Je confirme cette agence, ce montant et le solde résultant.",ar:"أؤكد هذه الوكالة والمبلغ والرصيد الناتج."},
+  "Actual publication date": {fr:"Date réelle de publication",ar:"تاريخ النشر الفعلي"},
+  "Approved effective date": {fr:"Date d’entrée en vigueur approuvée",ar:"تاريخ السريان المعتمد"},
+  "The system records the actual publication timestamp automatically.": {fr:"Le système enregistre automatiquement la date et l’heure réelles de publication.",ar:"يسجّل النظام تاريخ ووقت النشر الفعلي تلقائياً."},
+  "Only SUPER_ADMIN can publish approved legal content.": {fr:"Seul SUPER_ADMIN peut publier un contenu juridique approuvé.",ar:"يمكن لـ SUPER_ADMIN فقط نشر المحتوى القانوني المعتمد."},
+  "Approved legal versions published.": {fr:"Les versions juridiques approuvées ont été publiées.",ar:"تم نشر النسخ القانونية المعتمدة."},
+  "Every legal version requires approved content and an approved effective date.": {fr:"Chaque version juridique nécessite un contenu approuvé et une date d’entrée en vigueur approuvée.",ar:"تتطلب كل نسخة قانونية محتوى معتمداً وتاريخ سريان معتمداً."},
+  "Publish owner-approved text only. Each change creates an immutable legal version.": {fr:"Publiez uniquement un texte approuvé par le propriétaire. Chaque modification crée une version juridique immuable.",ar:"انشر فقط النص المعتمد من المالك. ينشئ كل تغيير نسخة قانونية غير قابلة للتعديل."},
+  "Protected workflow": {fr:"Processus protégé",ar:"مسار عمل محمي"},
+  "Used by visa programmes": {fr:"Utilisé par des programmes visa",ar:"تستخدمه برامج التأشيرات"},
+  "Home": { fr: "Accueil", ar: "الرئيسية" },
+  "Dossiers": { fr: "Dossiers", ar: "الملفات" },
+  "Updates": { fr: "Actualités", ar: "التحديثات" },
+  "Account access is managed per role and agency.": { fr: "Les accès sont gérés par rôle et par agence.", ar: "تُدار صلاحيات الحساب حسب الدور والوكالة." },
+  "Their next journey. Your visa partner.": { fr: "Leur prochain voyage. Votre partenaire visa.", ar: "رحلتهم القادمة. شريككم في التأشيرات." },
+  "Your next departure starts here.": { fr: "Le prochain départ commence ici.", ar: "رحلتهم القادمة تبدأ هنا." },
+  "Visa services for your travellers.": { fr: "Des visas pour vos voyageurs.", ar: "خدمات التأشيرات لمسافريكم." },
+  "Travel illustration": { fr: "Illustration de voyage", ar: "صورة توضيحية للسفر" },
+  "Start a visa dossier": { fr: "Ouvrir un dossier visa", ar: "فتح ملف تأشيرة" },
+  "Choose a destination": { fr: "Choisir une destination", ar: "اختيار الوجهة" },
+  "Continue": { fr: "Continuer", ar: "متابعة" },
+  "Open dossier": { fr: "Ouvrir le dossier", ar: "فتح الملف" },
   "Updating…": { fr: "Mise à jour…", ar: "جارٍ التحديث…" },
   "Requesting…": { fr: "Envoi de la demande…", ar: "جارٍ إرسال الطلب…" },
   "Active": { fr: "Actif", ar: "نشط" },
@@ -397,6 +441,9 @@ const CONTENT: Record<string, Entry> = {
   "Why is the status changing?": { fr: "Pourquoi ce changement de statut ?", ar: "لماذا تتغير الحالة؟" },
   "Update status": { fr: "Mettre à jour le statut", ar: "تحديث الحالة" },
   "No routine transitions available": { fr: "Aucune transition courante disponible", ar: "لا توجد انتقالات عادية متاحة" },
+  "Waiting for agency documents": { fr: "En attente des documents de l’agence", ar: "في انتظار مستندات الوكالة" },
+  "Review the requested documents when the agency uploads them.": { fr: "Vérifiez les documents demandés dès que l’agence les téléverse.", ar: "راجع المستندات المطلوبة عند قيام الوكالة برفعها." },
+  "No further staff action is available at this stage.": { fr: "Aucune autre action équipe n’est disponible à cette étape.", ar: "لا يوجد إجراء إضافي متاح للموظفين في هذه المرحلة." },
   "Submission gate override": { fr: "Contournement du pré-requis d'envoi", ar: "تجاوز شرط الإرسال" },
   "The agency cannot submit while documents are missing. Staff may override with a mandatory reason.": { fr: "L'agence ne peut pas soumettre tant que des documents manquent. Le personnel peut contourner avec un motif obligatoire.", ar: "لا تستطيع الوكالة الإرسال قبل استكمال المستندات. يمكن للموظفين التجاوز مع سبب إلزامي." },
   "Override reason (mandatory, min 10 chars)": { fr: "Motif du contournement (obligatoire, min. 10 caractères)", ar: "سبب التجاوز (إلزامي، 10 أحرف على الأقل)" },
@@ -433,6 +480,12 @@ const CONTENT: Record<string, Entry> = {
   "Your agency's visa files.": { fr: "Les dossiers visa de votre agence.", ar: "ملفات التأشيرات الخاصة بوكالتكم." },
   "+ New application": { fr: "+ Nouveau dossier", ar: "+ طلب جديد" },
   "No applications found": { fr: "Aucun dossier trouvé", ar: "لم يتم العثور على طلبات" },
+  "No applications match these filters.": { fr: "Aucun dossier ne correspond à ces filtres.", ar: "لا توجد طلبات تطابق عوامل التصفية هذه." },
+  "Clear filters": { fr: "Effacer les filtres", ar: "مسح عوامل التصفية" },
+  "Adjust or clear the filters to see other applications.": { fr: "Modifiez ou effacez les filtres pour afficher d’autres dossiers.", ar: "عدّل عوامل التصفية أو امسحها لعرض طلبات أخرى." },
+  "Next action": { fr: "Prochaine action", ar: "الإجراء التالي" },
+  "No action is required from your agency right now.": { fr: "Aucune action n’est requise de votre agence pour le moment.", ar: "لا يلزم أي إجراء من وكالتك في الوقت الحالي." },
+  "Review the dossier details and required documents.": { fr: "Vérifiez les informations du dossier et les documents requis.", ar: "راجع تفاصيل الملف والمستندات المطلوبة." },
 
   "Visa / Country": { fr: "Visa / Pays", ar: "التأشيرة / البلد" },
   "Fee": { fr: "Frais", ar: "الرسوم" },
@@ -679,7 +732,7 @@ const CONTENT: Record<string, Entry> = {
   /* enumerated submit-gate error strap (stable codes → localized copy) */
   "request.error.IDEMPOTENCY_KEY_REQUIRED": { fr: "Clé de soumission manquante. Rechargez la page et réessayez.", ar: "مفتاح الإرسال مفقود. أعد تحميل الصفحة وحاول مجددًا." },
   "request.error.VISA_TYPE_REQUIRED": { fr: "Choisissez un type de visa.", ar: "اختر نوع التأشيرة." },
-  "request.error.VISA_TYPE_INVALID": { fr: "Type de visa introuvable ou inactif.", ar: "نوع التأشيرة غير موجود أو غير نشط." },
+  "request.error.VISA_TYPE_INVALID": { fr: "Ce programme est indisponible. Actualisez le catalogue, choisissez un programme disponible et vérifiez à nouveau le prix et les documents.", ar: "هذا البرنامج غير متاح. حدّث الكتالوج واختر برنامجًا متاحًا وراجع السعر والوثائق مجددًا." },
   "request.error.PRIORITY_INVALID": { fr: "La priorité choisie n'est pas disponible.", ar: "الأولوية المختارة غير متاحة." },
   "request.error.TRAVELLER_REQUIRED": { fr: "Ajoutez au moins un voyageur.", ar: "أضف مسافرًا واحدًا على الأقل." },
   "request.error.TRAVELLER_LIMIT": { fr: "Une demande est limitée à 25 voyageurs.", ar: "الطلب الواحد محدود بـ 25 مسافرًا." },
@@ -1230,14 +1283,14 @@ const CONTENT: Record<string, Entry> = {
 };
 
 /** All registered content keys (guard-test target). */
-export const REGISTERED_CONTENT_KEYS: string[] = Object.keys(CONTENT);
+export const REGISTERED_CONTENT_KEYS: string[] = [...new Set([...Object.keys(CONTENT), ...Object.keys(PRODUCT_COPY)])];
 
 /** Translate registered page content; unknown strings pass through (EN). */
 export function contentT(locale: UiLocale): (s: string) => string {
   return (s: string) => {
     if (locale === "en") return s;
-    const entry = CONTENT[s];
-    if (!entry) return s;
+    const entry = PRODUCT_COPY[s] ?? CONTENT[s];
+    if (!entry) return identityT(locale)(s);
     return locale === "fr" ? entry.fr : entry.ar;
 };
 }
@@ -1251,5 +1304,12 @@ export function localizedGreeting(kind: "morning" | "afternoon" | "evening", loc
 
 /** True when a content key carries an explicit translation in both locales. */
 export function contentHas(key: string): boolean {
-  return key in CONTENT;
+  return key in CONTENT || key in PRODUCT_COPY;
+}
+
+/** Expected errors never leak untranslated schema or browser messages. */
+export function localizeError(locale: UiLocale, message: string): string {
+  const translated = contentT(locale)(message);
+  if (locale === "en" || translated !== message || contentHas(message)) return translated;
+  return contentT(locale)("Please check the form values and try again.");
 }

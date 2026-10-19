@@ -6,11 +6,29 @@
  * Database changes for these branches are handled explicitly outside build.
  */
 export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
+  "preprod/essafaria-final-hardening",
+  "release/final-rc-consolidation",
+  "security/pre-codex-gate-2026-10-03",
+  "design/essafaria-northstar",
   "codex/essafaria-premium-redesign",
   "codex/essafaria-product-excellence",
   "release/essafaria-rc-2026-09",
+  // Release assembly is intentionally migration-free until explicitly approved.
+  "arena/01a107e1-newproject",
+  "release/final-assembly-2026-10-04",
 ] as const;
 
 export function automaticDatabaseChangesForbidden(branch: string | null | undefined): boolean {
-  return (AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES as readonly string[]).includes(branch ?? "");
+  // The explicit authentication pause must never cause build-time DB writes,
+  // including when Vercel has not exposed the branch's system metadata.
+  if (process.env.MFA_ENFORCEMENT_ENABLED === "false") return true;
+  const ref = branch ?? "";
+  return ref.startsWith("codex/world-class-final-consolidation-") ||
+    ref.startsWith("codex/preview-mfa-enforcement-") ||
+    ref.startsWith("codex/isolated-clean-preview-") ||
+    ref.startsWith("codex/legal-readiness-rc-") ||
+    ref.startsWith("codex/master-go-live-rc-") ||
+    ref.startsWith("codex/essafaria-autonomous-completion-") ||
+    ref.startsWith("release/essafaria-prod-candidate-") ||
+    (AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES as readonly string[]).includes(ref);
 }

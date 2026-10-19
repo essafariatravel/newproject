@@ -1,0 +1,105 @@
+import {beforeAll,afterAll,beforeEach,afterEach,describe,it,expect} from "vitest";
+import {readFileSync,readdirSync} from "node:fs";
+import {createHash,randomUUID} from "node:crypto";
+import {suiteSetup} from "./helpers/global-state";
+import {agencyByEmail} from "./helpers/fixtures";
+import {pool} from "@/lib/db";
+import {AppError} from "@/lib/types";
+import {createLocalStorageOperations} from "@/lib/storage-operations";
+import {removeStorageProposal} from './helpers/storage-proposal';
+
+suiteSetup();
+const sqlPath="migrations/proposals/0036_storage_operations.sql";
+const digest=(data:Buffer)=>createHash("sha256").update(data).digest("hex");
+const objects=new Map<string,{data:Buffer;mimeType:string}>();
+let writes=0,deletes=0,deleteFault=false,falseDelete=false,uploadFault=false,corruptRead=false,readFault=false;
+let beforeDelete:(()=>Promise<void>)|null=null;
+const transport={
+ async put(key:string,data:Buffer,mimeType:string){writes++;if(objects.has(key))throw Error("immutable key exists");objects.set(key,{data:Buffer.from(data),mimeType});if(uploadFault)throw Error("synthetic secret provider diagnostic");},
+ async get(key:string){if(readFault)throw Error("synthetic secret response");const row=objects.get(key);if(!row)throw new AppError("NOT_FOUND","Absent");return {data:corruptRead?Buffer.from("corrupt"):Buffer.from(row.data),mimeType:row.mimeType};},
+ async delete(key:string){deletes++;if(beforeDelete)await beforeDelete();if(deleteFault)throw Error("synthetic secret delete");if(!falseDelete)objects.delete(key);},
+};
+const config={enabled:true,databaseUrl:"postgresql://postgres:postgres@127.0.0.1:5434/essafaria_test",origin:"http://127.0.0.1:49320",bucket:"synthetic-private",schema:"public"};
+let service:ReturnType<typeof createLocalStorageOperations>;
+let installed=false;
+beforeAll(async()=>{const client=await pool.connect();try{await client.query("begin");await client.query("set local search_path to public,pg_catalog");await client.query(readFileSync(sqlPath,"utf8"));await client.query("commit");installed=true;}catch(e){await client.query("rollback");throw e;}finally{client.release();}});
+beforeEach(async()=>{await pool.query("truncate storage_operation_events,storage_operations");objects.clear();writes=0;deletes=0;deleteFault=false;falseDelete=false;uploadFault=false;corruptRead=false;readFault=false;beforeDelete=null;service=createLocalStorageOperations(config,transport);});
+afterEach(async()=>{await service?.close();});
+afterAll(async()=>{if(installed)await removeStorageProposal(pool);});
+async function reserve(){const data=Buffer.from("%PDF-1.7 fictional content only"),key=`visa-documents/${randomUUID()}/${randomUUID()}`;const ticket=await service.reserve({key,mimeType:"application/pdf",sizeBytes:data.length,sha256:digest(data)});return{ticket,key,data};}
+async function uploaded(){const f=await reserve();await service.upload(f.ticket.id,f.data);return f;}
+async function agency(){return agencyByEmail("ops@agencya.example");}
+async function attach(f:Awaited<ReturnType<typeof reserve>>){const a=await agency();await service.adopt(f.ticket.id,client=>client.query("update agencies set logo_key=$1 where id=$2",[f.key,a.id]));return a;}
+
+describe("durable storage recovery protocol on isolated PostgreSQL",()=>{
+ it('reserves beside identity readers while remaining blocked by an exclusive retention writer',async()=>{
+  const gate=await pool.connect();let pending:ReturnType<typeof reserve>|undefined,timer:ReturnType<typeof setTimeout>|undefined;
+  try{
+   await gate.query('begin;select pg_advisory_xact_lock_shared(1163087699)');
+   pending=reserve();void pending.catch(()=>{});
+   expect(await Promise.race([pending.then(()=>true),new Promise<boolean>(resolve=>{timer=setTimeout(()=>resolve(false),750);})])).toBe(true);
+   clearTimeout(timer);await gate.query('rollback;begin;select pg_advisory_xact_lock(1163087699)');
+   pending=reserve();void pending.catch(()=>{});
+   expect(await Promise.race([pending.then(()=>true),new Promise<boolean>(resolve=>{timer=setTimeout(()=>resolve(false),150);})])).toBe(false);
+  }finally{if(timer)clearTimeout(timer);await gate.query('rollback');gate.release();await pending;}
+ });
+ it('retains single-writer ownership for concurrent starts and duplicate reservations',async()=>{
+  const f=await reserve();
+  const starts=await Promise.allSettled([service.upload(f.ticket.id,f.data),service.upload(f.ticket.id,f.data)]);
+  expect(starts.filter(result=>result.status==='fulfilled')).toHaveLength(1);expect(writes).toBe(1);
+  expect((await service.inspect(f.ticket.id)).state).toBe('UPLOADED');
+  const key=`visa-documents/${randomUUID()}/${randomUUID()}`,input={key,mimeType:'application/pdf',sizeBytes:f.data.length,sha256:digest(f.data)};
+  const reservations=await Promise.allSettled([service.reserve(input),service.reserve(input)]);
+  expect(reservations.filter(result=>result.status==='fulfilled')).toHaveLength(1);
+  expect((await pool.query('select count(*)::int n from storage_operations where object_key=$1',[key])).rows[0].n).toBe(1);
+ });
+ it('allows an unrelated object upload to finish while another object has a blocked journal transition',async()=>{
+  const first=await reserve(),second=await reserve(),gate=await pool.connect(),gateId=210181;
+  let firstUpload:Promise<unknown>|undefined,secondUpload:Promise<unknown>|undefined;
+  await gate.query('select pg_advisory_lock($1)',[gateId]);
+  await pool.query(`create function storage_upload_gate() returns trigger language plpgsql as $$begin if NEW.operation_id='${first.ticket.id}'::uuid and NEW.code='UPLOAD_BEGIN' then perform pg_advisory_xact_lock(${gateId});end if;return NEW;end$$; create trigger storage_upload_gate before insert on storage_operation_events for each row execute function storage_upload_gate()`);
+  try{
+   firstUpload=service.upload(first.ticket.id,first.data);void firstUpload.catch(()=>{});
+   const until=Date.now()+2000;let waiting=false;
+   while(Date.now()<until){waiting=(await pool.query("select exists(select 1 from pg_locks where locktype='advisory' and objid=$1 and not granted) waiting",[gateId])).rows[0].waiting;if(waiting)break;await new Promise(resolve=>setTimeout(resolve,10));}
+   expect(waiting).toBe(true);
+   secondUpload=service.upload(second.ticket.id,second.data);void secondUpload.catch(()=>{});
+   let timer:ReturnType<typeof setTimeout>|undefined;
+   try{expect(await Promise.race([secondUpload.then(()=>true),new Promise<boolean>(resolve=>{timer=setTimeout(()=>resolve(false),1000);})])).toBe(true);}
+   finally{if(timer)clearTimeout(timer);}
+   expect(objects.has(second.key)).toBe(true);expect(objects.has(first.key)).toBe(false);
+  }finally{
+   await gate.query('select pg_advisory_unlock($1)',[gateId]);gate.release();
+   await Promise.allSettled([firstUpload,secondUpload]);
+   await pool.query('drop trigger storage_upload_gate on storage_operation_events;drop function storage_upload_gate()');
+  }
+ });
+ it("reserves opaque integrity evidence before the first external write",async()=>{const f=await reserve();expect(writes).toBe(0);expect(await service.inspect(f.ticket.id)).toMatchObject({state:"STAGED",sha256:digest(f.data),size_bytes:f.data.length});expect((await service.events(f.ticket.id)).map(e=>e.state)).toEqual(["STAGED"]);});
+ it("verifies exact bytes and MIME before accepting upload",async()=>{const f=await uploaded();expect(await service.inspect(f.ticket.id)).toMatchObject({state:"UPLOADED"});expect(objects.get(f.key)?.data).toEqual(f.data);});
+ it("never loses an uploaded object when the provider loses its acknowledgment",async()=>{const f=await reserve();uploadFault=true;await expect(service.upload(f.ticket.id,f.data)).rejects.toMatchObject({code:"STORAGE_UPLOAD_UNCERTAIN"});expect(objects.has(f.key)).toBe(true);expect((await service.inspect(f.ticket.id)).state).toBe("UPLOAD_UNCERTAIN");expect(JSON.stringify(await service.events(f.ticket.id))).not.toMatch(/secret|provider diagnostic|PDF-/);});
+ it("does not mark mismatched verification as uploaded",async()=>{const f=await reserve();corruptRead=true;await expect(service.upload(f.ticket.id,f.data)).rejects.toMatchObject({code:"STORAGE_UPLOAD_UNCERTAIN"});expect((await service.inspect(f.ticket.id)).state).toBe("UPLOAD_UNCERTAIN");});
+ it('recovers an acknowledged upload after verification was interrupted, without re-uploading bytes',async()=>{const f=await reserve();readFault=true;await expect(service.upload(f.ticket.id,f.data)).rejects.toMatchObject({code:'STORAGE_UPLOAD_UNCERTAIN'});expect((await service.inspect(f.ticket.id)).upload_acknowledged_at).toBeTruthy();readFault=false;await service.close();service=createLocalStorageOperations(config,transport);await service.resumeUpload(f.ticket.id);expect((await service.inspect(f.ticket.id)).state).toBe('UPLOADED');expect(writes).toBe(1);await service.requestDeletion(f.ticket.id);expect((await service.retryDeletion(f.ticket.id)).state).toBe('DELETED');});
+ it('refuses automatic ownership reconciliation when the create acknowledgement was lost',async()=>{const f=await reserve();uploadFault=true;await expect(service.upload(f.ticket.id,f.data)).rejects.toThrow();await expect(service.resumeUpload(f.ticket.id)).rejects.toMatchObject({code:'STORAGE_RECONCILIATION_REQUIRED'});expect(objects.has(f.key)).toBe(true);expect(deletes).toBe(0);});
+ it("preserves pre-existing bytes if an immutable key collides outside the journal",async()=>{const f=await reserve(),old=Buffer.from("older object");objects.set(f.key,{data:old,mimeType:"application/pdf"});await expect(service.upload(f.ticket.id,f.data)).rejects.toMatchObject({code:"STORAGE_UPLOAD_UNCERTAIN"});expect(objects.get(f.key)?.data).toEqual(old);await expect(service.requestDeletion(f.ticket.id)).rejects.toMatchObject({code:"STORAGE_RECONCILIATION_REQUIRED"});expect(deletes).toBe(0);});
+ it("does not erase an uncertain upload until external writer drainage is qualified",async()=>{const f=await reserve();uploadFault=true;await expect(service.upload(f.ticket.id,f.data)).rejects.toThrow();await expect(service.requestDeletion(f.ticket.id)).rejects.toMatchObject({code:"STORAGE_RECONCILIATION_REQUIRED"});expect(objects.has(f.key)).toBe(true);});
+ it("bounds an adapter that never acknowledges an upload and leaves a durable uncertain operation",async()=>{await service.close();service=createLocalStorageOperations({...config,transportTimeoutMs:25},{...transport,put:async()=>new Promise<void>(()=>{})});const f=await reserve();await expect(service.upload(f.ticket.id,f.data)).rejects.toMatchObject({code:"STORAGE_UPLOAD_UNCERTAIN"});expect((await service.inspect(f.ticket.id)).state).toBe("UPLOAD_UNCERTAIN");},1000);
+ it("rejects wrong input bytes before sending anything",async()=>{const f=await reserve();await expect(service.upload(f.ticket.id,Buffer.from("wrong"))).rejects.toMatchObject({code:"STORAGE_INPUT_CHANGED"});expect(writes).toBe(0);});
+ it("never overwrites or reuses a reserved key",async()=>{const f=await uploaded();await expect(service.reserve({key:f.key,mimeType:"application/pdf",sizeBytes:f.data.length,sha256:digest(f.data)})).rejects.toMatchObject({code:"STORAGE_KEY_ALREADY_RESERVED"});await expect(service.upload(f.ticket.id,f.data)).rejects.toMatchObject({code:"STORAGE_STATE_INVALID"});expect(writes).toBe(1);});
+ it("never queues a merely reserved key that might belong to a pre-existing object",async()=>{const f=await reserve(),old=Buffer.from("unclaimed original");objects.set(f.key,{data:old,mimeType:"application/pdf"});await expect(service.requestDeletion(f.ticket.id)).rejects.toMatchObject({code:"STORAGE_RECONCILIATION_REQUIRED"});await expect(service.retryDeletion(f.ticket.id)).rejects.toMatchObject({code:"STORAGE_STATE_INVALID"});expect(objects.get(f.key)?.data).toEqual(old);expect(deletes).toBe(0);});
+ it("rolls reference creation and journal adoption back together",async()=>{const f=await uploaded(),a=await agency();await expect(service.adopt(f.ticket.id,async client=>{await client.query("update agencies set logo_key=$1 where id=$2",[f.key,a.id]);throw Error("synthetic metadata failure");})).rejects.toMatchObject({code:"STORAGE_TRANSACTION_FAILED"});expect((await pool.query("select logo_key from agencies where id=$1",[a.id])).rows[0].logo_key).toBeNull();expect((await service.inspect(f.ticket.id)).state).toBe("UPLOADED");expect(objects.has(f.key)).toBe(true);});
+ it("requires a real committed metadata reference before adoption",async()=>{const f=await uploaded();await expect(service.adopt(f.ticket.id,async()=>{})).rejects.toMatchObject({code:"STORAGE_REFERENCE_REQUIRED"});expect((await service.inspect(f.ticket.id)).state).toBe("UPLOADED");});
+ it("queues metadata removal and physical deletion intent atomically",async()=>{const f=await uploaded(),a=await attach(f);const result=await service.requestDeletion(f.ticket.id,client=>client.query("update agencies set logo_key=null where id=$1",[a.id]));expect(result.state).toBe("DELETE_PENDING");expect(objects.has(f.key)).toBe(true);expect(deletes).toBe(0);expect((await pool.query("select logo_key from agencies where id=$1",[a.id])).rows[0].logo_key).toBeNull();});
+ it("rolls detach back if its transaction cannot finish",async()=>{const f=await uploaded(),a=await attach(f);await expect(service.requestDeletion(f.ticket.id,async client=>{await client.query("update agencies set logo_key=null where id=$1",[a.id]);throw Error("synthetic detach failure");})).rejects.toMatchObject({code:"STORAGE_TRANSACTION_FAILED"});expect((await pool.query("select logo_key from agencies where id=$1",[a.id])).rows[0].logo_key).toBe(f.key);expect((await service.inspect(f.ticket.id)).state).toBe("REFERENCED");});
+ it("preserves an object still referenced by any supported metadata store",async()=>{const f=await uploaded();await attach(f);await service.requestDeletion(f.ticket.id);expect((await service.retryDeletion(f.ticket.id)).state).toBe("PRESERVED_REFERENCED");expect(deletes).toBe(0);expect(objects.has(f.key)).toBe(true);});
+ it("checks platform logo references as well as agency ownership",async()=>{const f=await uploaded();await pool.query("insert into site_settings(key,value) values('brand.logoKey',$1::jsonb) on conflict(key) do update set value=excluded.value",[JSON.stringify(f.key)]);await service.requestDeletion(f.ticket.id);expect((await service.retryDeletion(f.ticket.id)).state).toBe("PRESERVED_REFERENCED");expect(deletes).toBe(0);});
+ it("never reports a failed delete as successful and retries after restart",async()=>{const f=await uploaded();await service.requestDeletion(f.ticket.id);deleteFault=true;expect((await service.retryDeletion(f.ticket.id)).state).toBe("RETRY_REQUIRED");expect(objects.has(f.key)).toBe(true);await service.close();service=createLocalStorageOperations(config,transport);deleteFault=false;expect((await service.retryDeletion(f.ticket.id)).state).toBe("DELETED");expect(objects.has(f.key)).toBe(false);});
+ it("requires absence evidence even when the provider returned delete success",async()=>{const f=await uploaded();await service.requestDeletion(f.ticket.id);falseDelete=true;expect((await service.retryDeletion(f.ticket.id)).state).toBe("RETRY_REQUIRED");expect((await service.events(f.ticket.id)).some(e=>e.state==="DELETED")).toBe(false);});
+ it("does not mistake a permission/network failure for absence",async()=>{const f=await uploaded();await service.requestDeletion(f.ticket.id);readFault=true;expect((await service.retryDeletion(f.ticket.id)).state).toBe("RETRY_REQUIRED");readFault=false;expect((await service.retryDeletion(f.ticket.id)).state).toBe("DELETED");});
+ it("serializes concurrent workers and retains one immutable deletion receipt",async()=>{const f=await uploaded();await service.requestDeletion(f.ticket.id);const result=await Promise.all([service.retryDeletion(f.ticket.id),service.retryDeletion(f.ticket.id)]);expect(result.every(r=>r.state==="DELETED")).toBe(true);expect(deletes).toBe(1);expect((await service.events(f.ticket.id)).filter(e=>e.state==="DELETED")).toHaveLength(1);await expect(pool.query("delete from storage_operation_events where operation_id=$1",[f.ticket.id])).rejects.toThrow(/immutable/i);});
+ it("does not acknowledge deletion when its evidence transaction fails",async()=>{const f=await uploaded();await service.requestDeletion(f.ticket.id);await pool.query("create function storage_event_test_fail() returns trigger language plpgsql as $$begin if NEW.state='DELETED' then raise exception 'synthetic evidence failure'; end if; return NEW;end$$; create trigger storage_event_test_fail before insert on storage_operation_events for each row execute function storage_event_test_fail()");try{await expect(service.retryDeletion(f.ticket.id)).rejects.toMatchObject({code:"STORAGE_TRANSACTION_FAILED"});expect((await service.inspect(f.ticket.id)).state).toBe("DELETE_PENDING");expect((await service.events(f.ticket.id)).some(e=>e.state==="DELETED")).toBe(false);}finally{await pool.query("drop trigger storage_event_test_fail on storage_operation_events; drop function storage_event_test_fail()");}expect((await service.retryDeletion(f.ticket.id)).state).toBe("DELETED");});
+ it("cannot adopt a key while its deletion is in progress",async()=>{const f=await uploaded();await service.requestDeletion(f.ticket.id);let release!:()=>void,entered!:()=>void;const ready=new Promise<void>(r=>entered=r),pause=new Promise<void>(r=>release=r);beforeDelete=async()=>{entered();await pause;};const deleting=service.retryDeletion(f.ticket.id);await ready;let called=false;const adopting=service.adopt(f.ticket.id,async()=>{called=true;});release();await deleting;await expect(adopting).rejects.toMatchObject({code:"STORAGE_STATE_INVALID"});expect(called).toBe(false);});
+ it("binds retries to the original origin and bucket",async()=>{const f=await uploaded();await service.requestDeletion(f.ticket.id);const other=createLocalStorageOperations({...config,bucket:"different-private"},transport);try{await expect(other.retryDeletion(f.ticket.id)).rejects.toMatchObject({code:"STORAGE_TARGET_MISMATCH"});expect(deletes).toBe(0);}finally{await other.close();}});
+ it("denies anonymous/API access and identity/history tampering",async()=>{await pool.query("do $$begin if not exists(select 1 from pg_roles where rolname='anon') then create role anon nologin;end if; if not exists(select 1 from pg_roles where rolname='authenticated') then create role authenticated nologin;end if;end$$");for(const table of ["storage_operations","storage_operation_events"]){const row=(await pool.query("select c.relrowsecurity,has_table_privilege('anon',c.oid,'SELECT') a,has_table_privilege('authenticated',c.oid,'SELECT') b from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname=$1",[table])).rows[0];expect(row).toMatchObject({relrowsecurity:true,a:false,b:false});}const f=await reserve();await expect(pool.query("update storage_operations set object_key='different' where id=$1",[f.ticket.id])).rejects.toThrow(/immutable/i);});
+ it("does not include its proposal in automatic or approved candidate discovery",()=>{expect(readdirSync("migrations").filter(n=>n.endsWith('.sql'))).toHaveLength(33);expect(readdirSync("migrations/candidates").sort()).toEqual(["0034_document_retention.sql","0035_legal_document_kinds.sql"]);});
+ it.each([{...config,enabled:false},{...config,databaseUrl:"postgresql://u:synthetic@cloud.example/db"},{...config,schema:"visa_os"},{...config,origin:"https://cloud.example"},{...config,databaseUrl:"postgresql://u:synthetic@localhost:5432/another"}])("refuses unqualified execution before connection/transport",options=>{expect(()=>createLocalStorageOperations(options,transport)).toThrow();});
+});

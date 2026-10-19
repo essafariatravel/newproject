@@ -23,8 +23,9 @@ describe("shared entity-row navigation contract", () => {
   it("registration and visa-type rows use their existing detail/edit routes", () => {
     const registrations = read("src/app/admin/registrations/page.tsx");
     const visaTypes = read("src/app/admin/config/visa-types/page.tsx");
-    expect(registrations).toContain('<NavigableTableRow key={r.id} href={`/admin/registrations/${r.id}`}');
-    expect(registrations).toContain('href={`/admin/registrations/${r.id}`}');
+    expect(registrations).toContain('<NavigableTableRow key={reg.id} href={`/admin/registrations/${reg.id}`}');
+    expect(registrations).toContain('href={`/admin/registrations/${reg.id}`}');
+    for(const column of ["copy.company","copy.contact","copy.submitted","copy.status"]) expect(registrations).toContain(column);
     expect(visaTypes).toContain('<NavigableTableRow key={vt.id} href={`/admin/config/visa-types/${vt.id}`}');
     expect(visaTypes).toContain('href={`/admin/config/visa-types/${vt.id}`}');
   });

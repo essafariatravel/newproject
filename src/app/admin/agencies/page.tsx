@@ -4,7 +4,8 @@ import { listAgencies } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatAmount } from "@/lib/format";
 import { getUiLocale } from "@/lib/ui-i18n";
-import { createAgencyAction, createAgencyWithAdminAction } from "@/app/actions/admin";
+import { createAgencyWithAdminAction } from "@/app/actions/admin";
+import { identityT } from "@/lib/identity-copy";
 import { FilterBar } from "@/components/app-widgets";
 import { PasswordField, SubmitButton } from "@/components/forms";
 import { ActiveBadge, EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
@@ -26,6 +27,7 @@ export default async function AdminAgenciesPage({
   const user = await pageUser();
   const uiLocale = await getUiLocale(sp);
   const ct = contentT(uiLocale);
+  const it = identityT(uiLocale);
   if (!hasPermission(user, "agencies.view")) {
     return (
       <>
@@ -37,7 +39,6 @@ export default async function AdminAgenciesPage({
   const flash = flashFrom(sp);
   const q = typeof sp.q === "string" ? sp.q : undefined;
   const rows = await listAgencies(q);
-  const canManage = hasPermission(user, "agencies.manage");
 
   return (
     <>
@@ -66,7 +67,7 @@ export default async function AdminAgenciesPage({
             {rows.map(({ agency, userCount, applicationCount }) => (
               <NavigableTableRow key={agency.id} href={`/admin/agencies/${agency.id}`} className="tr-hover">
                 <td className="td">
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2">
                     <BrandMark className="h-8 w-8 shrink-0" src={agencyLogoUrl(agency)} alt={agencyPrimaryLabel(agency)} />
                     <AgencyListIdentity
                       id={agency.id}
@@ -80,46 +81,29 @@ export default async function AdminAgenciesPage({
                 <td className="td"><ActiveBadge active={agency.status === "ACTIVE"} /></td>
                 <td className="td tabular-nums">{userCount}</td>
                 <td className="td tabular-nums">{applicationCount}</td>
-                <td className="td whitespace-nowrap font-medium tabular-nums">{formatAmount(agency.balance, "DZD", uiLocale)}</td>
+                <td className="td whitespace-nowrap font-semibold tabular-nums">{formatAmount(agency.balance, "DZD", uiLocale)}</td>
               </NavigableTableRow>
             ))}
           </tbody>
         </TableWrap>
       )}
 
-      {canManage ? (
-        <div className="mt-8">
-          <h2 className="mb-3 font-serif text-xl text-navy-900">{ct("Create agency (DZD only)")}</h2>
-          <form action={createAgencyAction} className="card grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
-            <div><label className="label">{ct("Legal name")} *</label><input name="legalName" required className="input" placeholder="Horizon Voyages SARL" /></div>
-            <div><label className="label">{ct("Trading name")}</label><input name="tradingName" className="input" /></div>
-            <div><label className="label">{ct("Email")} *</label><input name="email" type="email" required className="input" /></div>
-            <div><label className="label">{ct("Phone")}</label><input name="phone" className="input" /></div>
-            <div><label className="label">{ct("City")}</label><input name="city" className="input" /></div>
-            <div><label className="label">{ct("Country")}</label><input name="country" className="input" /></div>
-            <input type="hidden" name="currency" value="DZD" />
-            <div><label className="label">{ct("Billing tax ID")}</label><input name="billingTaxId" className="input" /></div>
-            <div className="flex items-end lg:col-span-3"><SubmitButton className="btn-primary" pendingLabel={ct("Creating…")}>{ct("Create agency")}</SubmitButton></div>
-          </form>
-        </div>
-      ) : null}
-
       {user.role === "SUPER_ADMIN" ? (
         <div className="mt-8">
-          <h2 className="mb-1 font-serif text-xl text-navy-900">{ct("Onboard agency + first administrator")}</h2>
-          <p className="mb-3 text-xs text-slate-500">{ct("One step: agency + AGENCY_ADMIN with temporary password (forced change at first login). DZD wallet.")}</p>
-          <form action={createAgencyWithAdminAction} className="card grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
-            <div><label className="label">{ct("Legal name")} *</label><input name="legalName" required className="input" /></div>
-            <div><label className="label">{ct("Trading name")}</label><input name="tradingName" className="input" /></div>
-            <div><label className="label">{ct("Agency email")} *</label><input name="email" type="email" required className="input" /></div>
-            <div><label className="label">{ct("Phone")}</label><input name="phone" className="input" /></div>
-            <div><label className="label">{ct("City")}</label><input name="city" className="input" /></div>
-            <div><label className="label">{ct("Country")}</label><input name="country" className="input" /></div>
+          <h2 className="mb-1 font-serif text-lg text-navy-900">{ct("Onboard agency + first administrator")}</h2>
+          <p className="mb-4 text-xs text-slate-500">{ct("One step: agency + AGENCY_ADMIN with temporary password (forced change at first login). DZD wallet.")}</p>
+          <form action={createAgencyWithAdminAction} className="card grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
+            <div><label className="label" htmlFor="agency-onboard-legal-name">{ct("Legal name")} *</label><input id="agency-onboard-legal-name" name="legalName" required className="input" /></div>
+            <div><label className="label" htmlFor="agency-onboard-trading-name">{ct("Trading name")}</label><input id="agency-onboard-trading-name" name="tradingName" className="input" /></div>
+            <div><label className="label" htmlFor="agency-onboard-email">{ct("Agency email")} *</label><input id="agency-onboard-email" name="email" type="email" required className="input" /></div>
+            <div><label className="label" htmlFor="agency-onboard-phone">{ct("Phone")}</label><input id="agency-onboard-phone" name="phone" className="input" /></div>
+            <div><label className="label" htmlFor="agency-onboard-city">{ct("City")}</label><input id="agency-onboard-city" name="city" className="input" /></div>
+            <div><label className="label" htmlFor="agency-onboard-country">{ct("Country")}</label><input id="agency-onboard-country" name="country" className="input" /></div>
             <input type="hidden" name="currency" value="DZD" />
-            <div><label className="label">{ct("Billing tax ID")}</label><input name="billingTaxId" className="input" /></div>
-            <div className="sm:col-span-2 lg:col-span-3 mt-2 border-t border-ivory-200 pt-4"><p className="mb-3 text-sm font-medium text-navy-800">{ct("First administrator")}</p></div>
-            <div><label className="label">{ct("Administrator name")} *</label><input name="adminName" required className="input" /></div>
-            <div><label className="label">{ct("Administrator email")} *</label><input name="adminEmail" type="email" required className="input" /></div>
+            <div><label className="label" htmlFor="agency-onboard-tax-id">{ct("Billing tax ID")}</label><input id="agency-onboard-tax-id" name="billingTaxId" className="input" /></div>
+            <div className="sm:col-span-2 lg:col-span-3 mt-2 border-t border-ivory-200 pt-4"><p className="mb-4 text-base font-semibold text-navy-800">{ct("First administrator")}</p></div>
+            <div><label className="label" htmlFor="agency-onboard-admin-name">{ct("Administrator name")} *</label><input id="agency-onboard-admin-name" name="adminName" required className="input" /></div>
+            <div><label className="label" htmlFor="agency-onboard-username">{it("Username")} *</label><input id="agency-onboard-username" name="adminUsername" type="text" required minLength={3} maxLength={48} className="input" dir="ltr" /></div>
                         <PasswordField
               id="a-admin-password"
               name="adminPassword"

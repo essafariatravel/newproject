@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - release/essafaria-rc-2026-09
+      - release/final-rc-consolidation
+      - release/go-live-final-2026-10-06
+      - codex/world-class-final-consolidation-*
+      - preprod/essafaria-final-hardening
+      - security/pre-codex-gate-2026-10-03
   workflow_dispatch:
 
 concurrency:
@@ -18,7 +23,7 @@ permissions:
 jobs:
   verify:
     name: Typecheck, lint, tests, build
-    if: github.ref == 'refs/heads/release/essafaria-rc-2026-09'
+    if: github.ref == 'refs/heads/release/final-rc-consolidation' || github.ref == 'refs/heads/release/essafaria-rc-2026-09' || github.ref == 'refs/heads/release/go-live-final-2026-10-06' || startsWith(github.ref, 'refs/heads/codex/world-class-final-consolidation-') || github.ref == 'refs/heads/preprod/essafaria-final-hardening' || github.ref == 'refs/heads/security/pre-codex-gate-2026-10-03'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -32,10 +37,11 @@ jobs:
 
     steps:
       - name: Checkout exact commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Verify checkout
         shell: bash
@@ -43,14 +49,29 @@ jobs:
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           echo "Verified commit: $GITHUB_SHA"
 
-      - name: Setup Node 22 with npm cache
-        uses: actions/setup-node@v4
+      - name: Setup Node 24 with npm cache
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Install dependencies from package-lock
         run: npm ci --no-audit --no-fund
+
+      - name: Tracked secret and credential artifact gate
+        run: npx tsx scripts/security-static-gate.ts
+
+      - name: Historical secret and credential gate
+        run: npx tsx scripts/security-history-gate.ts
+
+      - name: Immutable third-party GitHub Actions gate
+        run: npx tsx scripts/security-actions-gate.ts
+
+      - name: Dangerous source construct gate
+        run: npx tsx scripts/security-source-gate.ts
+
+      - name: Production dependency vulnerability gate
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Typecheck
         run: npm run typecheck
@@ -58,11 +79,76 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Shell harness syntax
+        run: bash -n scripts/hosted-verify.sh scripts/privacy-runtime-smoke.sh
+
       - name: Targeted build-preview guard
         run: npm test -- tests/build-preview-guard.test.ts
 
       - name: Broader deterministic test suite
+        env:
+          # The suite owns a disposable embedded PostgreSQL instance. Keep the
+          # build guard above/below database-free, but do not import database
+          # modules with the workflow's intentionally blank DATABASE_URL.
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5434/essafaria_test
+          DATABASE_SCHEMA: public
+          STORAGE_PROVIDER: db
         run: npm test
 
       - name: Build without deployment or database access
         run: npm run build
+
+      - name: Reverse-order suite isolation verification
+        env:
+          ESSAFARIA_TEST_REVERSE: '1'
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5434/essafaria_test
+          DATABASE_SCHEMA: public
+          STORAGE_PROVIDER: db
+        run: npm test
+
+      - name: Generate production dependency SBOM
+        run: npm sbom --sbom-format cyclonedx --omit=dev > /tmp/essafaria-sbom.cdx.json
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dependency-sbom-${{ github.sha }}
+          path: /tmp/essafaria-sbom.cdx.json
+          retention-days: 30
+
+      - name: Local legal/privacy runtime smoke
+        shell: bash
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/essafaria
+          DATABASE_SCHEMA: public
+          STORAGE_PROVIDER: db
+          BASE_URL: http://127.0.0.1:3011
+          PORT: "3011"
+        run: |
+          set -euo pipefail
+          npm run db:up > /tmp/privacy-pg.log 2>&1 &
+          PG_PID=$!
+          APP_PID=""
+          cleanup() {
+            if [ -n "$APP_PID" ]; then kill "$APP_PID" 2>/dev/null || true; fi
+            kill "$PG_PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for i in $(seq 1 60); do
+            if (echo > /dev/tcp/127.0.0.1/5432) >/dev/null 2>&1; then break; fi
+            if [ "$i" = "60" ]; then cat /tmp/privacy-pg.log; exit 1; fi
+            sleep 1
+          done
+
+          npm run db:migrate
+          npm run db:seed
+
+          npm start > /tmp/privacy-next.log 2>&1 &
+          APP_PID=$!
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 3 "$BASE_URL/" >/dev/null 2>&1; then break; fi
+            if [ "$i" = "60" ]; then cat /tmp/privacy-next.log; exit 1; fi
+            sleep 1
+          done
+
+          bash scripts/privacy-runtime-smoke.sh

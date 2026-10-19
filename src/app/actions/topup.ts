@@ -16,7 +16,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireStaff, requireUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/rbac";
-import { AppError } from "@/lib/types";
+import { AppError, MAX_UPLOAD_BYTES } from "@/lib/types";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { runAction } from "@/lib/action-helpers";
@@ -27,24 +27,31 @@ const idSchema = z.string().uuid("Invalid identifier.");
 const requestSchema = z.object({
   amount: z.coerce.number().positive("Enter an amount greater than zero."),
   note: z.string().trim().max(500).optional().or(z.literal("")),
+  idempotencyKey: z.string().uuid("Refresh this form before submitting."),
 });
 
 export async function requestTopupAction(formData: FormData): Promise<void> {
   const back = String(formData.get("back") ?? "/portal/wallet");
   await runAction(back, async () => {
     const user = await requireUser();
-    if (!user.agencyId) {
-      throw new AppError("FORBIDDEN", "Only agency users can request a wallet top-up.");
+    if (!user.agencyId || user.role !== "AGENCY_ADMIN") {
+      throw new AppError("FORBIDDEN", "Only your agency administrator can request a wallet top-up.");
     }
     const data = requestSchema.parse({
       amount: formData.get("amount"),
       note: formData.get("note") ?? "",
+      idempotencyKey: formData.get("idempotencyKey"),
     });
+    const file = formData.get("proof");
+    if (!(file instanceof File) || file.size <= 0) throw new AppError("NO_FILE", "Upload your bank transfer receipt.");
+    if (file.size > MAX_UPLOAD_BYTES) throw new AppError("FILE_TOO_LARGE", "Files must be 2 MB or smaller.");
     await createTopupRequest({
       agencyId: user.agencyId,
       amount: data.amount,
       note: data.note || null,
       actor: user,
+      idempotencyKey: data.idempotencyKey,
+      proof: { name: file.name, type: file.type, size: file.size, data: Buffer.from(await file.arrayBuffer()) },
     });
     revalidatePath("/portal/wallet");
     revalidatePath("/admin/billing");

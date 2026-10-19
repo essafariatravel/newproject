@@ -1,0 +1,72 @@
+name: Master RC verification (exact branch, no deployment)
+
+on:
+  push:
+    branches:
+      - codex/master-go-live-rc-2026-10-17
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: master-rc-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/codex/master-go-live-rc-2026-10-17'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      VERCEL: ''
+      VERCEL_ENV: ''
+      DATABASE_URL: ''
+      ALLOW_DEMO_SEED: 'false'
+      STORAGE_PROVIDER: db
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Checkout exact requested SHA
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify immutable checkout
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsx scripts/security-static-gate.ts
+      - run: npx tsx scripts/security-history-gate.ts
+      - run: npx tsx scripts/security-actions-gate.ts
+      - run: npx tsx scripts/security-source-gate.ts
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: bash -n scripts/hosted-verify.sh scripts/privacy-runtime-smoke.sh
+      - name: Install native PostgreSQL 17 tools on the disposable runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install --yes --no-install-recommends postgresql-17 postgresql-client-17
+      - name: Disposable local PostgreSQL test suite
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5434/essafaria_test
+          DATABASE_SCHEMA: public
+          DR_LOCAL_PG_BIN: /usr/lib/postgresql/17/bin
+        run: |
+          # Fail rather than silently skip the independent recovery drill when
+          # the runner image lacks its native local PostgreSQL tools.
+          for tool in initdb pg_ctl pg_dump pg_restore; do
+            test -x "$DR_LOCAL_PG_BIN/$tool"
+          done
+          npm test
+      - name: Offline build
+        run: npm run build
