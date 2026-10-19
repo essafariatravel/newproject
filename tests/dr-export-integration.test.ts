@@ -190,6 +190,8 @@ it.skipIf(!bin)("restores a restricted encrypted real 0019 archive and detects r
     if(targetStarted)command('pg_ctl',['--pgdata',targetData,'--wait','stop','--mode=fast']);
     if (started) command("pg_ctl", ["--pgdata", data, "--wait", "stop", "--mode=fast"]);
     if(path.dirname(path.resolve(root))!==path.resolve(os.tmpdir())||!path.basename(root).startsWith('dr-export-real-'))throw new Error('LOCAL_RETIREMENT_PATH_UNSAFE');
-    await rm(root, { recursive: true, force: true });
+    // Windows may briefly retain filesystem handles after pg_ctl --wait.
+    // Match the existing local drill's bounded retries; persistent failure still fails.
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 }, 120_000);
