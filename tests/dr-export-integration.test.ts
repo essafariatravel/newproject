@@ -159,10 +159,22 @@ it.skipIf(!bin)("restores a restricted encrypted real 0019 archive and detects r
       await operator.query('rollback');
       expect((await operator.query("select count(*)::int n from pg_roles where rolname='essafaria_recovery_export'")).rows[0].n).toBe(0);
       await operator.query('begin');
+      await operator.query("create function visa_os.recovery_definer_probe() returns integer language sql security definer as 'select 1'");
+      // PUBLIC cannot currently use this schema; the proposed USAGE grant must
+      // not turn its PUBLIC EXECUTE into a new callable definer capability.
+      await expect(operator.query(proposal)).rejects.toThrow('RECOVERY_EFFECTIVE_CALLABLE_DEFINER');
+      await operator.query('rollback');
+      await operator.query('begin');
       await operator.query(proposal);
       const role=(await operator.query("select rolcanlogin,rolsuper,rolcreaterole,rolcreatedb,rolreplication,rolbypassrls,rolinherit,rolconfig from pg_roles where rolname='essafaria_recovery_export'")).rows[0];
       expect(role).toMatchObject({rolcanlogin:false,rolsuper:false,rolcreaterole:false,rolcreatedb:false,rolreplication:false,rolbypassrls:false,rolinherit:false,rolconfig:['default_transaction_read_only=on']});
       expect((await operator.query("select has_table_privilege('essafaria_recovery_export','visa_os.recovery_auxiliary','SELECT') readable,has_table_privilege('essafaria_recovery_export','visa_os.recovery_auxiliary','UPDATE') writable")).rows[0]).toEqual({readable:true,writable:false});
+      const retire=await readFile('docs/operations/sql/production-recovery-export-retire.sql','utf8').catch(()=> 'select 1');
+      await operator.query('alter role essafaria_recovery_export login');
+      await operator.query(retire);
+      expect((await operator.query("select rolcanlogin from pg_roles where rolname='essafaria_recovery_export'")).rows[0].rolcanlogin).toBe(false);
+      expect((await operator.query("select has_table_privilege('essafaria_recovery_export','visa_os.recovery_auxiliary','SELECT') readable")).rows[0].readable).toBe(false);
+      expect((await operator.query("select count(*)::int n from pg_policy where polname='essafaria_recovery_export_read'")).rows[0].n).toBe(0);
       await expect(operator.query(proposal)).rejects.toThrow('RECOVERY_ROLE_COLLISION');
       await operator.query('rollback');
       expect((await operator.query("select count(*)::int n from pg_roles where rolname='essafaria_recovery_export'")).rows[0].n).toBe(0);

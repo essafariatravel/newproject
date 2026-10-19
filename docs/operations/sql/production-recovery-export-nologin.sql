@@ -77,6 +77,11 @@ BEGIN
       END IF;
     END IF;
   END LOOP;
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname !~ '^pg_' AND n.nspname<>'information_schema' AND p.prosecdef
+      AND has_schema_privilege(target_role,n.oid,'USAGE') AND has_function_privilege(target_role,p.oid,'EXECUTE')
+  ) THEN RAISE EXCEPTION 'RECOVERY_EFFECTIVE_CALLABLE_DEFINER'; END IF;
   -- These checks run before the atomic statement can commit. New-role effective
   -- privileges include PUBLIC, without changing or granting any application role.
   IF EXISTS (
