@@ -43,10 +43,13 @@ export async function qualifyRecoveryExportSession(client: PoolClient, expected:
     exists(select 1 from pg_auth_members m join pg_roles r on r.oid=m.member where r.rolname=current_user) as membership,
     has_database_privilege(current_database(),'CREATE') or has_database_privilege(current_database(),'TEMP') as database_write,
     has_function_privilege('pg_catalog.lo_create(oid)','EXECUTE') or has_function_privilege('pg_catalog.lo_creat(integer)','EXECUTE')
-      or has_function_privilege('pg_catalog.lo_from_bytea(oid,bytea)','EXECUTE') as large_object_create,
+      or has_function_privilege('pg_catalog.lo_from_bytea(oid,bytea)','EXECUTE')
+      or has_function_privilege('pg_catalog.lo_import(text)','EXECUTE')
+      or has_function_privilege('pg_catalog.lo_import(text,oid)','EXECUTE') as large_object_create,
     exists(select 1 from pg_namespace n where n.nspname !~ '^pg_' and n.nspname<>'information_schema' and has_schema_privilege(n.oid,'CREATE')) as schema_write,
     exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname !~ '^pg_' and n.nspname<>'information_schema'
-      and c.relkind in ('r','p','v','m','f') and (pg_get_userbyid(c.relowner)=current_user or has_table_privilege(c.oid,'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'))) as relation_write,
+      and c.relkind in ('r','p','v','m','f') and (pg_get_userbyid(c.relowner)=current_user or has_table_privilege(c.oid,'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+        or has_any_column_privilege(c.oid,'INSERT,UPDATE,REFERENCES'))) as relation_write,
     exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname !~ '^pg_' and case when c.relkind='S' then has_sequence_privilege(c.oid,'USAGE,UPDATE') else false end) as sequence_write,
     exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname !~ '^pg_' and n.nspname<>'information_schema'
       and p.prosecdef and has_schema_privilege(n.oid,'USAGE') and has_function_privilege(p.oid,'EXECUTE')) as callable_definer,
@@ -133,7 +136,7 @@ export async function captureRecoverySnapshot(client: PoolClient, schema: string
         (select jsonb_agg(a::text order by a::text) from unnest(coalesce(d.datacl,acldefault('d',d.datdba))) a)) from pg_database d where d.datname=current_database()
       union all select 'core_function_acl',p.proname||'('||pg_get_function_identity_arguments(p.oid)||')',jsonb_build_array(pg_get_userbyid(p.proowner),
         (select jsonb_agg(a::text order by a::text) from unnest(coalesce(p.proacl,acldefault('f',p.proowner))) a))
-        from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='pg_catalog' and p.proname in ('lo_create','lo_creat','lo_from_bytea')
+        from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='pg_catalog' and p.proname in ('lo_create','lo_creat','lo_from_bytea','lo_import')
     ) definitions order by kind collate "C",identity collate "C"`, [schema])).rows;
   const extensions = (await client.query("select e.extname as name,n.nspname as schema,e.extversion as version from pg_extension e join pg_namespace n on n.oid=e.extnamespace order by e.extname collate \"C\"")).rows;
   const roles = (await client.query(`select rolname as name,rolsuper as superuser,rolcreaterole as "createRole",rolcreatedb as "createDatabase",rolreplication as replication,rolbypassrls as "bypassRls",rolinherit as inherit,rolcanlogin as "canLogin",rolconfig as configuration

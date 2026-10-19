@@ -5,6 +5,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import {performance} from 'node:perf_hooks';
 import {Pool} from 'pg';
 import {assertSafePerfTarget} from './perf-safety';
+import {verifyPerfWalletSubmission} from './lib/perf-wallet-evidence';
 
 /** Bounded changed-path qualification, not a replacement for the historical
  * mixed k6 gate. Concurrent requests use genuinely authenticated fixture actors;
@@ -77,12 +78,13 @@ async function main(){
     const actor=participants[worker%participants.length]!;
     try{const call=await request(actor,'/api/agency/requests',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(cohort.length?actor.submissions[stageIndex]:submission)});wallet.push(call.ms);if(call.response.status!==200)critical='WALLET_HTTP_'+call.response.status;return {actorId:actor.id,value:JSON.parse(call.bytes.toString('utf8'))};}catch{critical='WALLET_TRANSPORT_OR_RESPONSE_FAILURE';return {actorId:actor.id,value:null};}
    }));
-   let charges=0;
+   let charges=0;const seenApplications=new Set<string>();
    for(const actor of participants){
     const responses=submissions.filter(value=>value.actorId===actor.id),ids=new Set(responses.map(value=>value.value?.applicationId).filter(Boolean));
     if(ids.size!==1||responses.some(value=>!value.value?.applicationId))critical??='WALLET_IDEMPOTENCY_FAILED';
     const applicationId=[...ids][0];if(!applicationId)continue;
-    const ledger=(await pool.query("select count(*)::int n,coalesce(sum(amount),0)::text amount from public.wallet_transactions where application_id=$1 and type='APPLICATION_CHARGE'",[applicationId])).rows[0];
+    const expected=cohort.length?actor.submissions[stageIndex]:submission;
+    const ledger=await verifyPerfWalletSubmission(pool,{applicationId,agencyId:actor.agencyId!,actorId:actor.id,attempt:expected.attempt,seen:seenApplications});
     const after=(await pool.query('select balance::text from public.agencies where id=$1',[actor.agencyId])).rows[0].balance;
     const balanced=(await pool.query('select $1::numeric-$2::numeric=abs($3::numeric) matches',[before.get(actor.agencyId!),after,ledger.amount])).rows[0].matches;
     if(ledger.n!==1||!balanced)critical??='WALLET_LEDGER_OR_BALANCE_MISMATCH';

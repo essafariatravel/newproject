@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { copyFile, mkdtemp, mkdir, readdir, rm } from "node:fs/promises";
+import { copyFile, mkdtemp, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
@@ -65,6 +65,10 @@ it.skipIf(!bin)("restores a restricted encrypted real 0019 archive and detects r
     const key = randomBytes(32);
     try {
       await expect(qualifyRecoveryExportSession(controller, { database: "wrong", role: "recovery_export_fixture", schema: "visa_os", requireTls: false })).rejects.toThrow("IDENTITY");
+      await source.query('grant update(payload) on visa_os.recovery_auxiliary to public');
+      expect((await controller.query("select has_table_privilege('visa_os.recovery_auxiliary','UPDATE') table_write,has_column_privilege('visa_os.recovery_auxiliary','payload','UPDATE') column_write")).rows[0]).toEqual({table_write:false,column_write:true});
+      await expect(qualifyRecoveryExportSession(controller, { database: "dr_source", role: "recovery_export_fixture", schema: "visa_os", requireTls: false })).rejects.toThrow('relation_write');
+      await source.query('revoke update(payload) on visa_os.recovery_auxiliary from public');
       // Table grants alone do not rule out persistent writes through core LO APIs.
       await controller.query('set default_transaction_read_only=off');
       const object=(await controller.query("select pg_catalog.lo_from_bytea(0,decode('001122','hex')) oid")).rows[0].oid;
@@ -73,6 +77,10 @@ it.skipIf(!bin)("restores a restricted encrypted real 0019 archive and detects r
       await controller.query('set default_transaction_read_only=on');
       await expect(qualifyRecoveryExportSession(controller, { database: "dr_source", role: "recovery_export_fixture", schema: "visa_os", requireTls: false })).rejects.toThrow('large_object_create');
       await source.query('revoke execute on function pg_catalog.lo_create(oid),pg_catalog.lo_creat(integer),pg_catalog.lo_from_bytea(oid,bytea) from public');
+      // Do not invoke server-file APIs: the EXECUTE capability alone must block.
+      await source.query('grant execute on function pg_catalog.lo_import(text),pg_catalog.lo_import(text,oid) to recovery_export_fixture');
+      await expect(qualifyRecoveryExportSession(controller, { database: "dr_source", role: "recovery_export_fixture", schema: "visa_os", requireTls: false })).rejects.toThrow('large_object_create');
+      await source.query('revoke execute on function pg_catalog.lo_import(text),pg_catalog.lo_import(text,oid) from recovery_export_fixture');
       await qualifyRecoveryExportSession(controller, { database: "dr_source", role: "recovery_export_fixture", schema: "visa_os", requireTls: false });
       await expect(qualifyRecoveryExportSession(controller,{database:'dr_source',role:'recovery_export_fixture',schema:'visa_os',requireTls:true})).rejects.toThrow('TLS');
       await expect(controller.query("delete from visa_os.recovery_auxiliary")).rejects.toMatchObject({ code: "25006" });
@@ -111,6 +119,9 @@ it.skipIf(!bin)("restores a restricted encrypted real 0019 archive and detects r
       await restored.query("begin isolation level repeatable read read only");
       expect(compareRecoverySnapshots(original!, await captureRecoverySnapshot(restored, "visa_os"))).toEqual([]);
       await restored.query('rollback');
+      await restored.query('grant execute on function pg_catalog.lo_import(text),pg_catalog.lo_import(text,oid) to recovery_export_fixture');
+      expect(compareRecoverySnapshots(original!,await captureRecoverySnapshot(restored,'visa_os')).join(' ')).toContain('core_function_acl');
+      await restored.query('revoke execute on function pg_catalog.lo_import(text),pg_catalog.lo_import(text,oid) from recovery_export_fixture');
       await targetAdmin.query('revoke anon from authenticated');
       expect(compareRecoverySnapshots(original!,await captureRecoverySnapshot(restored,'visa_os')).join(' ')).toContain('ROLE_MEMBERSHIP');
       await targetAdmin.query('grant anon to authenticated');
@@ -137,6 +148,25 @@ it.skipIf(!bin)("restores a restricted encrypted real 0019 archive and detects r
       expect(compareRecoverySnapshots(original!,await captureRecoverySnapshot(restored,'visa_os')).join(' ')).toContain('ROLE_ATTRIBUTES');
       await restored.query('alter role recovery_export_fixture nobypassrls');
     } finally { await restored.query("rollback"); restored.release(); }
+    // Rehearse the exact NOLOGIN proposal on the disposable source, rolling back
+    // every role/grant/policy change. It must not repair inherited PUBLIC grants.
+    const proposal=await readFile('docs/operations/sql/production-recovery-export-nologin.sql','utf8').catch(()=> 'select 1');
+    const operator=await source.connect();
+    try {
+      await operator.query('begin');
+      await operator.query('grant temporary on database dr_source to public');
+      await expect(operator.query(proposal)).rejects.toThrow('RECOVERY_PUBLIC_DATABASE_WRITE');
+      await operator.query('rollback');
+      expect((await operator.query("select count(*)::int n from pg_roles where rolname='essafaria_recovery_export'")).rows[0].n).toBe(0);
+      await operator.query('begin');
+      await operator.query(proposal);
+      const role=(await operator.query("select rolcanlogin,rolsuper,rolcreaterole,rolcreatedb,rolreplication,rolbypassrls,rolinherit,rolconfig from pg_roles where rolname='essafaria_recovery_export'")).rows[0];
+      expect(role).toMatchObject({rolcanlogin:false,rolsuper:false,rolcreaterole:false,rolcreatedb:false,rolreplication:false,rolbypassrls:false,rolinherit:false,rolconfig:['default_transaction_read_only=on']});
+      expect((await operator.query("select has_table_privilege('essafaria_recovery_export','visa_os.recovery_auxiliary','SELECT') readable,has_table_privilege('essafaria_recovery_export','visa_os.recovery_auxiliary','UPDATE') writable")).rows[0]).toEqual({readable:true,writable:false});
+      await expect(operator.query(proposal)).rejects.toThrow('RECOVERY_ROLE_COLLISION');
+      await operator.query('rollback');
+      expect((await operator.query("select count(*)::int n from pg_roles where rolname='essafaria_recovery_export'")).rows[0].n).toBe(0);
+    } finally { await operator.query('rollback');operator.release(); }
     // Unknown external dependencies must block a schema-only backup.
     await source.query("create schema external_fixture; create table external_fixture.parent(id int primary key); create table visa_os.external_child(id int references external_fixture.parent)");
     const external = await source.connect();
