@@ -106,6 +106,24 @@ describe("Supabase storage protocol", () => {
     await expect(provider.delete(objectKey)).resolves.toBeUndefined();
   });
 
+  it.each([400,404])('recognizes the hosted object-not-found envelope at HTTP %s',async(status)=>{
+    override=(_req,res)=>{res.writeHead(status,{'content-type':'application/json'});res.end(JSON.stringify({statusCode:'404',error:'not_found',message:'Object not found'}));return true;};
+    await expect(storageProvider().get(objectKey)).rejects.toMatchObject({code:'NOT_FOUND'});
+    await expect(storageProvider().delete(objectKey)).resolves.toBeUndefined();
+  });
+
+  it.each([
+    {status:400,body:{statusCode:'404',error:'not_found',message:'Bucket not found'}},
+    {status:400,body:{error:'not_found',message:'Object not found'}},
+    {status:400,body:{statusCode:'403',error:'not_found',message:'Object not found'}},
+    {status:400,body:{statusCode:'404',error:'AccessDenied',message:'Object not found'}},
+    ...[401,403,429,500,503].map(status=>({status,body:{statusCode:'404',error:'not_found',message:'Object not found'}})),
+  ])('does not turn HTTP $status / $body.message into false object absence',async({status,body})=>{
+    override=(_req,res)=>{res.writeHead(status,{'content-type':'application/json'});res.end(JSON.stringify(body));return true;};
+    await expect(storageProvider().get(objectKey)).rejects.toMatchObject({code:'STORAGE_READ_FAILED'});
+    await expect(storageProvider().delete(objectKey)).rejects.toMatchObject({code:'STORAGE_DELETE_FAILED'});
+  });
+
   it("cannot overwrite immutable bytes by uploading the same key twice", async () => {
     const provider = storageProvider();
     await provider.put(objectKey, Buffer.from("original"), "application/pdf");

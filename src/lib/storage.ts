@@ -86,8 +86,14 @@ async function boundedBody(res: Response, limit: number): Promise<Buffer> {
   } finally { reader.releaseLock(); }
 }
 async function missingObject(res: Response): Promise<boolean> {
-  if (res.status !== 404) { await res.body?.cancel().catch(() => {}); return false; }
-  try { const body = JSON.parse((await boundedBody(res, 64 * 1024)).toString("utf8")); return body?.code === "NoSuchKey" || body?.error === "NoSuchKey"; }
+  if (res.status !== 400 && res.status !== 404) { await res.body?.cancel().catch(() => {}); return false; }
+  try {
+    const body = JSON.parse((await boundedBody(res, 64 * 1024)).toString("utf8"));
+    // Hosted Storage also wraps a genuine missing object in HTTP 400.
+    // Require the complete object-specific envelope, never just a generic 404.
+    return res.status === 404 && (body?.code === "NoSuchKey" || body?.error === "NoSuchKey") ||
+      String(body?.statusCode) === "404" && body?.error === "not_found" && body?.message === "Object not found";
+  }
   catch { return false; }
 }
 
