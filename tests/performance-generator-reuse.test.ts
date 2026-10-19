@@ -76,15 +76,15 @@ describe.each(files)("reused generator initialization without I/O: %s", (file) =
     expect(acquired).toEqual([]);
   });
 
-  it("contains no authentication, migration, cloud, or destructive data writes", () => {
+  it("limits synthetic writes to declared fixture tables without sessions, migrations or destructive operations", () => {
     const text = source(file);
     expect(text).not.toBe("");
     const allowed = file === "perf-seed-identities.ts"
       ? ["agencies", "users"]
-      : ["agencies", "applications", "applicants", "checklist_items", "documents", "notifications", "communications", "audit_logs", "application_status_history", "wallet_transactions"];
-    const writes = [...text.matchAll(/\b(?:insert\s+into|update)\s+\$\{perfTable\("([a-z_]+)"\)\}/gi)];
+      : ["agencies", "users", "applications", "applicants", "checklist_items", "documents", "notifications", "communications", "audit_logs", "application_status_history", "wallet_transactions"];
+    const writes = [...text.matchAll(/\b(?:insert\s+into|update)\s+\$\{perfTable\((["'])([a-z_]+)\1\)\}/gi)];
     expect(writes.length).toBeGreaterThan(0);
-    for (const write of writes) expect(allowed).toContain(write[1]);
+    for (const write of writes) expect(allowed).toContain(write[2]);
     expect(text).not.toMatch(/\b(?:delete\s+from|truncate|alter\s+table|disable\s+trigger|set\s+session_replication_role)\b/i);
     expect(text).not.toMatch(/mfa_verified_at|mfa_credentials|mfa_enrollment_authorizations|\.\/lib\/load-env|PERF_ALLOW_(?:LARGE_)?REMOTE_BULK/);
   });
@@ -94,21 +94,26 @@ describe.each(files)("reused generator initialization without I/O: %s", (file) =
       schema.checklistItems, schema.documents, schema.notifications, schema.communications,
       schema.auditLogs, schema.applicationStatusHistory, schema.walletTransactions];
     const configs = new Map(tables.map(table => { const config = getTableConfig(table); return [config.name, config]; }));
-    const inserts = [...source(file).matchAll(/insert\s+into\s+\$\{perfTable\("([a-z_]+)"\)\}\s*\(([^)]+)\)/gi)];
+    const inserts = [...source(file).matchAll(/insert\s+into\s+\$\{perfTable\((["'])([a-z_]+)\1\)\}\s*\(([^)]+)\)/gi)];
     expect(inserts.length).toBeGreaterThan(0);
     for (const insert of inserts) {
-      const table = configs.get(insert[1]!);
-      expect(table, insert[1]).toBeDefined();
-      const columns = insert[2]!.split(",").map(column => column.trim());
+      const table = configs.get(insert[2]!);
+      expect(table, insert[2]).toBeDefined();
+      const columns = insert[3]!.split(",").map(column => column.trim());
       for (const column of columns) expect(table!.columns.map(value => value.name)).toContain(column);
       for (const column of table!.columns.filter(value => value.notNull && !value.hasDefault)) {
-        expect(columns, `${insert[1]}.${column.name}`).toContain(column.name);
+        expect(columns, `${insert[2]}.${column.name}`).toContain(column.name);
       }
     }
   });
 });
 
 describe("synthetic volume fixture semantics", () => {
+  it('rejects invalid cohort metadata settings before acquiring the password hashing dependency',async()=>{
+    const run=scaleInitialization({PERF_AGENCY_IDENTITIES:'2',PERF_SYNTHETIC_PASSWORD:'synthetic-local-only-password',PERF_DOCS_PER_APP:'1'});
+    await expect(run.main()).rejects.toThrow('PERF_QUERY_ONLY_DOCUMENT_METADATA');
+    expect(run.acquiredPools).toEqual([]);
+  });
   it("defaults to zero document references and stops at the mocked pool boundary", async () => {
     const run = scaleInitialization({});
     await expect(run.main()).rejects.toThrow("POOL_BOUNDARY");

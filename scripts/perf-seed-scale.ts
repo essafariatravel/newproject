@@ -2,7 +2,6 @@ import "./lib/perf-local-env";
 import { Pool, type PoolClient } from "pg";
 import { databasePoolConfig } from "../src/lib/database-config";
 import { assertSafePerfTarget, perfTable, safeTargetSummary } from "./perf-safety";
-import {hashPassword} from '../src/lib/crypto';
 
 function intEnv(name: string, fallback: number, min: number, max: number): number {
   const value = Number(process.env[name] ?? fallback);
@@ -55,7 +54,6 @@ async function main() {
   const agencyIdentities=intEnv('PERF_AGENCY_IDENTITIES',0,0,1000);
   if(agencyIdentities>=agencyCount)throw new Error('Agency identities require dedicated generated tenants.');
   if(agencyIdentities>0&&(process.env.PERF_SYNTHETIC_PASSWORD??'').length<16)throw new Error('Private synthetic password required.');
-  const identityHash=agencyIdentities>0?await hashPassword(process.env.PERF_SYNTHETIC_PASSWORD!):null;
   const docsPerApp = intEnv("PERF_DOCS_PER_APP", 0, 0, 10);
   const notificationsPerApp = intEnv("PERF_NOTIFICATIONS_PER_APP", 3, 0, 10);
   const messagesPerApp = intEnv("PERF_MESSAGES_PER_APP", 1, 0, 5);
@@ -65,6 +63,10 @@ async function main() {
   if (docsPerApp > 0 && process.env.PERF_QUERY_ONLY_DOCUMENT_METADATA !== "YES") {
     throw new Error("PERF_QUERY_ONLY_DOCUMENT_METADATA=YES is required for metadata-only rows. They are query-only and excluded from document integrity or capacity proofs.");
   }
+
+  // The default volume-only path does not need authentication dependencies.
+  // Resolve hashing only after every target, size and metadata guard passed.
+  const identityHash=agencyIdentities>0?await (await import('../src/lib/crypto')).hashPassword(process.env.PERF_SYNTHETIC_PASSWORD!):null;
 
 
   const marker = `PERF_DATASET:${datasetId}`;
