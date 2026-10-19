@@ -48,6 +48,14 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: bash -n scripts/hosted-verify.sh scripts/privacy-runtime-smoke.sh
+      - name: Install native PostgreSQL 17 tools on the disposable runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install --yes --no-install-recommends postgresql-17 postgresql-client-17
       - name: Disposable local PostgreSQL test suite
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5434/essafaria_test
