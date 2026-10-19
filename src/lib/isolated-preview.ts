@@ -1,8 +1,14 @@
 type Environment = Record<string, string | undefined>;
 
 export const ISOLATED_PREVIEW_BRANCH = "codex/isolated-clean-preview-2026-10-15";
+export const ISOLATED_RC_PREVIEW_BRANCH = "codex/master-go-live-rc-2026-10-17";
 export const ISOLATED_SUPABASE_PROJECT = "nqudhszgodmzckautrby";
 const VERCEL_PROJECT = "prj_0WOxlorbYiljjjBvZ1Cm6M9JmPdp";
+
+/** Exact prepared branches only; this does not authorize a deployment. */
+export function isIsolatedPreviewBranch(branch:string|undefined):boolean {
+  return branch===ISOLATED_PREVIEW_BRANCH||branch===ISOLATED_RC_PREVIEW_BRANCH;
+}
 
 export function targetsIsolatedPreview(value: string): boolean {
   try {
@@ -29,7 +35,7 @@ export function isolatedPreviewContext(env: Environment): boolean {
   return env.VERCEL === "1" && env.VERCEL_ENV === "preview" &&
     (!env.VERCEL_TARGET_ENV || env.VERCEL_TARGET_ENV === "preview") &&
     env.VERCEL_PROJECT_ID === VERCEL_PROJECT &&
-    env.VERCEL_GIT_COMMIT_REF === ISOLATED_PREVIEW_BRANCH &&
+    isIsolatedPreviewBranch(env.VERCEL_GIT_COMMIT_REF) &&
     env.DATABASE_SCHEMA === "visa_os_preview";
 }
 

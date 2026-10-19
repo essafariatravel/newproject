@@ -12,6 +12,23 @@ const preview={VERCEL:"1",VERCEL_ENV:"preview",VERCEL_PROJECT_ID:"prj_0WOxlorbYi
 afterEach(()=>vi.unstubAllEnvs());
 
 describe("independent clean Preview boundary",()=>{
+  it("prepares the exact master RC for the same isolated Preview without automatic DB writes",()=>{
+    const env={...preview,VERCEL_GIT_COMMIT_REF:'codex/master-go-live-rc-2026-10-17'};
+    expect(databaseUrl(env)).toBe(url);
+    expect(mfaEnforcementEnabled(env)).toBe(false);
+    expect(mfaEnforcementEnabled({...env,MFA_ENFORCEMENT_ENABLED:'true'})).toBe(true);
+    expect(automaticDatabaseChangesForbidden(env.VERCEL_GIT_COMMIT_REF)).toBe(true);
+    const config=JSON.parse(readFileSync('vercel.json','utf8'));
+    expect(config.git.deploymentEnabled[env.VERCEL_GIT_COMMIT_REF]).toBe(false);
+  });
+  it.each([
+    {DATABASE_URL:source},{VERCEL_ENV:'production'},{VERCEL_PROJECT_ID:'other'},
+    {DATABASE_SCHEMA:'visa_os'},{VERCEL_GIT_COMMIT_REF:'codex/master-go-live-rc-2026-10-18'},
+  ])("never broadens the prepared RC Preview to another scope %j",patch=>{
+    const env={...preview,VERCEL_GIT_COMMIT_REF:'codex/master-go-live-rc-2026-10-17',...patch};
+    expect(()=>databaseUrl(env)).toThrow(/boundary mismatch/i);
+    expect(mfaEnforcementEnabled(env)).toBe(true);
+  });
   it("uses the independently approved project with verified TLS and the Preview search path",()=>{
     expect(databaseUrl(preview)).toBe(url);
     expect(databasePoolConfig(preview)).toMatchObject({options:"-c search_path=pg_catalog,visa_os_preview",ssl:{rejectUnauthorized:true}});

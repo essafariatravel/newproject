@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { startNotificationPolling } from "@/lib/notification-polling";
 
 type Event = { id: string; title: string; link: string | null; createdAt: string };
 export function LiveNotifications({ initialCount, href, label, soundLabel, closeLabel }: {
@@ -17,16 +18,9 @@ export function LiveNotifications({ initialCount, href, label, soundLabel, close
   useEffect(() => { setCount(initialCount); }, [initialCount]);
   useEffect(() => {
     try { const enabled = localStorage.getItem("essafaria.notification-sound") === "on"; soundEnabled.current = enabled; setSound(enabled); } catch { /* Storage may be disabled. */ }
-    let stopped = false;
     let seen: Set<string> | null = null;
     const onlineSince = Date.now();
-    async function poll() {
-      if (document.visibilityState !== "visible") return;
-      try {
-        const response = await fetch("/api/notifications", { cache: "no-store" });
-        if (!response.ok || stopped) return;
-        const data = await response.json() as { unread: number; events: Event[] };
-        if (stopped) return;
+    return startNotificationPolling<{ unread: number; events: Event[] }>((data) => {
         setCount(data.unread);
         window.dispatchEvent(new CustomEvent("essafaria-notifications", { detail: data.unread }));
         const fresh = seen && data.events.find((n) => !seen!.has(n.id) && Date.parse(n.createdAt) > onlineSince);
@@ -41,11 +35,7 @@ export function LiveNotifications({ initialCount, href, label, soundLabel, close
             tone.connect(gain); gain.connect(ctx.destination); tone.start(); tone.stop(ctx.currentTime + .2);
           }
         }
-      } catch { /* Keep current state during temporary network failures. */ }
-    }
-    void poll(); const timer = setInterval(poll, 15_000);
-    document.addEventListener("visibilitychange", poll);
-    return () => { stopped = true; clearInterval(timer); document.removeEventListener("visibilitychange", poll); };
+    });
   }, [router]);
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(null), 7000); return () => clearTimeout(timer); }, [toast]);
   return <>

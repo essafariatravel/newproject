@@ -1,5 +1,5 @@
 import { targetsSupabaseProject } from "./database-config";
-import { ISOLATED_PREVIEW_BRANCH, isolatedPreviewConnection, isolatedPreviewContext } from "./isolated-preview";
+import { isIsolatedPreviewBranch, isolatedPreviewConnection, isolatedPreviewContext } from "./isolated-preview";
 
 type Environment = Record<string, string | undefined>;
 const PREVIEW_PROJECT = "prj_0WOxlorbYiljjjBvZ1Cm6M9JmPdp";
@@ -8,7 +8,7 @@ const SUPABASE_PROJECT = "xgetzgixalrsmuvfthpf";
 
 /** Server-only, evaluated per request. Missing or ambiguous scope enforces MFA. */
 export function mfaEnforcementEnabled(env: Environment = process.env): boolean {
-  if (env.VERCEL_GIT_COMMIT_REF === ISOLATED_PREVIEW_BRANCH) {
+  if (isIsolatedPreviewBranch(env.VERCEL_GIT_COMMIT_REF)) {
     return env.MFA_ENFORCEMENT_ENABLED !== "false" || !isolatedPreviewContext(env) ||
       !env.DATABASE_URL || !isolatedPreviewConnection(env.DATABASE_URL);
   }
