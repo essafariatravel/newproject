@@ -53,4 +53,16 @@ describe("recovered generators on a disposable local PostgreSQL database",()=>{
     expect(run("perf-seed-identities",{PERF_SYNTHETIC_PASSWORD:`wrong-local-only-${randomUUID()}`}).status).toBe(1);
     expect(await counts()).toEqual(before);
   },60_000);
+  it('adds explicitly requested independent agency identities without sessions or MFA evidence',async()=>{
+    expect(run('perf-seed-scale',{PERF_DATASET_ID:'cohort_qualification',PERF_AGENCIES:'25',PERF_APPLICATIONS:'25',PERF_AGENCY_IDENTITIES:'20',PERF_LEDGER_ROWS:'0'}).status).toBe(0);
+    const row=(await pool.query("select count(*)::int n,count(distinct agency_id)::int tenants,bool_and(role in ('AGENCY_ADMIN','AGENCY_USER') and status='ACTIVE' and not activation_pending and not must_change_password) valid from users where username like 'perf_cohort_qualification_%'")).rows[0];
+    expect(row).toEqual({n:20,tenants:20,valid:true});
+    expect((await pool.query("select count(*)::int n from sessions s join users u on u.id=s.user_id where u.username like 'perf_cohort_qualification_%'")).rows[0].n).toBe(0);
+    expect((await pool.query("select count(*)::int n from mfa_credentials m join users u on u.id=m.user_id where u.username like 'perf_cohort_qualification_%'")).rows[0].n).toBe(0);
+  },60_000);
+  it('rejects more agency identities than dedicated synthetic tenants before changing rows',async()=>{
+    const before=(await pool.query('select count(*)::int n from agencies')).rows[0].n;
+    expect(run('perf-seed-scale',{PERF_DATASET_ID:'cohort_overflow',PERF_AGENCIES:'25',PERF_APPLICATIONS:'25',PERF_AGENCY_IDENTITIES:'26',PERF_LEDGER_ROWS:'0'}).status).toBe(1);
+    expect((await pool.query('select count(*)::int n from agencies')).rows[0].n).toBe(before);
+  },60_000);
 });

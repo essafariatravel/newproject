@@ -18,6 +18,7 @@ import { documentBlobs } from "@/db/schema";
 import { AppError } from "@/lib/types";
 import {createLocalStorageOperations} from "./storage-operations";
 import {assertLocalHttpOrigin,assertLocalPostgresUrl} from "../../perf/local-safety.js";
+import {ISOLATED_SUPABASE_PROJECT,isolatedPreviewConnection,isolatedPreviewContext,targetsIsolatedPreview} from './isolated-preview';
 
 export interface StorageProvider {
   put(key: string, data: Buffer, mimeType: string): Promise<void>;
@@ -92,7 +93,9 @@ async function missingObject(res: Response): Promise<boolean> {
 
 function supabaseConfig() {
   const rawUrl = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const secret=process.env.SUPABASE_SECRET_KEY;
+  if(secret&&!/^sb_secret_[A-Za-z0-9_-]{10,}$/.test(secret))throw new AppError('STORAGE_MISCONFIGURED','The server storage credential is invalid.');
+  const key = secret||process.env.SUPABASE_SERVICE_ROLE_KEY;
   const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? "visa-documents";
   if(storageOperationsEnabled()){
     const url=localJournalTarget();
@@ -111,9 +114,15 @@ function supabaseConfig() {
   } catch {
     throw new AppError("STORAGE_MISCONFIGURED", "Supabase storage URL is invalid.");
   }
+  let expectedHost=EXPECTED_SUPABASE_STORAGE_HOST;
+  const isolatedContext=isolatedPreviewContext(process.env),isolatedTarget=targetsIsolatedPreview(process.env.DATABASE_URL??'');
+  if(isolatedContext||isolatedTarget){
+    if(!isolatedContext||!isolatedPreviewConnection(process.env.DATABASE_URL??''))throw new AppError('STORAGE_MISCONFIGURED','Storage and database isolation do not match.');
+    expectedHost=`${ISOLATED_SUPABASE_PROJECT}.supabase.co`;
+  }
   if (
     parsed.protocol !== "https:" ||
-    parsed.hostname !== EXPECTED_SUPABASE_STORAGE_HOST ||
+    parsed.hostname !== expectedHost ||
     parsed.username ||
     parsed.password ||
     (parsed.port && parsed.port !== "443") ||
@@ -135,6 +144,10 @@ function supabaseConfig() {
   return { url: `https://${parsed.hostname}`, key, bucket };
 }
 
+function serverStorageHeaders(key:string):Record<string,string>{
+  return key.startsWith('sb_secret_')?{apikey:key}:{apikey:key,Authorization:`Bearer ${key}`};
+}
+
 const supabaseProvider: StorageProvider = {
   async put(key, data, mimeType) {
     validStorageKey(key);
@@ -145,7 +158,7 @@ const supabaseProvider: StorageProvider = {
     const res = await storageRequest(`${url}/storage/v1/object/${bucket}/${encodeURIComponent(key)}`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${serviceKey}`,
+        ...serverStorageHeaders(serviceKey),
         "Content-Type": mimeType,
         "x-upsert": "false", // Each version has a new key; never replace immutable bytes.
       },
@@ -160,7 +173,7 @@ const supabaseProvider: StorageProvider = {
     validStorageKey(key);
     const { url, key: serviceKey, bucket } = supabaseConfig();
     const res = await storageRequest(`${url}/storage/v1/object/${bucket}/${encodeURIComponent(key)}`, {
-      headers: { Authorization: `Bearer ${serviceKey}` },
+      headers: serverStorageHeaders(serviceKey),
     }, "READ");
     if (!res.ok) {
       if (await missingObject(res)) throw new AppError("NOT_FOUND", "Stored file not found.");
@@ -175,7 +188,7 @@ const supabaseProvider: StorageProvider = {
     const { url, key: serviceKey, bucket } = supabaseConfig();
     const res = await storageRequest(`${url}/storage/v1/object/${bucket}/${encodeURIComponent(key)}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${serviceKey}` },
+      headers: serverStorageHeaders(serviceKey),
     }, "DELETE");
     if (!res.ok && !await missingObject(res)) throw storageFailure("DELETE");
     await res.body?.cancel().catch(() => {});

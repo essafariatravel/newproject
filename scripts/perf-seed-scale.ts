@@ -2,6 +2,7 @@ import "./lib/perf-local-env";
 import { Pool, type PoolClient } from "pg";
 import { databasePoolConfig } from "../src/lib/database-config";
 import { assertSafePerfTarget, perfTable, safeTargetSummary } from "./perf-safety";
+import {hashPassword} from '../src/lib/crypto';
 
 function intEnv(name: string, fallback: number, min: number, max: number): number {
   const value = Number(process.env[name] ?? fallback);
@@ -51,6 +52,10 @@ async function main() {
 
   const applicationCount = intEnv("PERF_APPLICATIONS", 1000, 1, 100000);
   const agencyCount = intEnv("PERF_AGENCIES", Math.min(100, Math.max(10, Math.ceil(applicationCount / 100))), 2, 1000);
+  const agencyIdentities=intEnv('PERF_AGENCY_IDENTITIES',0,0,1000);
+  if(agencyIdentities>=agencyCount)throw new Error('Agency identities require dedicated generated tenants.');
+  if(agencyIdentities>0&&(process.env.PERF_SYNTHETIC_PASSWORD??'').length<16)throw new Error('Private synthetic password required.');
+  const identityHash=agencyIdentities>0?await hashPassword(process.env.PERF_SYNTHETIC_PASSWORD!):null;
   const docsPerApp = intEnv("PERF_DOCS_PER_APP", 0, 0, 10);
   const notificationsPerApp = intEnv("PERF_NOTIFICATIONS_PER_APP", 3, 0, 10);
   const messagesPerApp = intEnv("PERF_MESSAGES_PER_APP", 1, 0, 5);
@@ -106,6 +111,13 @@ async function main() {
         agencies.push(...createdIds);
         ledgerAgencyIds.push(...createdIds);
       }
+
+      if(agencyIdentities>0)await client.query(`insert into ${perfTable('users')}
+        (email,username,name,password_hash,role,agency_id,status,activation_pending,must_change_password,credential_version)
+        select a.email,'perf_'||$2||'_'||x.ordinality,'PERF Tenant '||x.ordinality,$3,
+          case when x.ordinality%2=0 then 'AGENCY_ADMIN' else 'AGENCY_USER' end,a.id,'ACTIVE',false,false,0
+        from unnest($1::uuid[]) with ordinality x(id,ordinality) join ${perfTable('agencies')} a on a.id=x.id
+        where a.notes=$4`,[agencies.slice(1,agencyIdentities+1),datasetId,identityHash,marker]);
 
       for (let offset = 0; offset < applicationCount; offset += batchSize) {
         const n = Math.min(batchSize, applicationCount - offset);
@@ -277,6 +289,7 @@ async function main() {
         datasetId,
         marker,
         agencies: agencyCount,
+        agencyIdentities,
         applications: applicationCount,
         documentMetadataQueryOnly: docsPerApp > 0,
         documentIntegrityVerified: false,

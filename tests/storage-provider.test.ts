@@ -9,6 +9,8 @@ const realFetch = globalThis.fetch;
 const realTimeout = AbortSignal.timeout.bind(AbortSignal);
 const approvedOrigin = "https://xgetzgixalrsmuvfthpf.supabase.co";
 const fakeServiceKey = "synthetic-storage-test-key";
+const fakeSecretKey = ['sb', 'secret', 'synthetic_private_qualification'].join('_');
+let expectedOrigin=approvedOrigin;
 const objectKey = "visa-documents/app-1/doc-1";
 const objects = new Map<string, { data: Buffer; mimeType: string }>();
 let override: ((req: IncomingMessage, res: ServerResponse) => boolean) | undefined;
@@ -24,7 +26,7 @@ function json(res: ServerResponse, status: number, code: string) {
 
 const service = createServer(async (req, res) => {
   requests++;
-  if (req.headers.authorization !== `Bearer ${fakeServiceKey}`) return json(res, 401, "InvalidJWT");
+  if (!(req.headers.authorization === `Bearer ${fakeServiceKey}` || (req.headers.apikey===fakeSecretKey&&!req.headers.authorization))) return json(res, 401, "InvalidJWT");
   if (override?.(req, res)) return;
   const key = decodeURIComponent((req.url ?? "").replace("/storage/v1/object/visa-documents-preview/", ""));
   if (req.method === "POST") {
@@ -61,6 +63,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   objects.clear(); requests = 0; sinkRequests = 0; override = undefined;
+  expectedOrigin=approvedOrigin;
   vi.stubEnv("STORAGE_PROVIDER", "supabase");
   vi.stubEnv("SUPABASE_URL", approvedOrigin);
   vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", fakeServiceKey);
@@ -68,7 +71,7 @@ beforeEach(() => {
   vi.stubEnv("VERCEL_ENV", "preview");
   vi.stubGlobal("fetch", (input: string | URL | Request, init?: RequestInit) => {
     const target = new URL(String(input));
-    if (target.origin !== approvedOrigin) throw new Error("Test refuses non-approved outbound origin");
+    if (target.origin !== expectedOrigin) throw new Error("Test refuses non-approved outbound origin");
     return realFetch(`${serviceOrigin}${target.pathname}${target.search}`, init);
   });
 });
@@ -80,6 +83,20 @@ afterAll(async () => {
 });
 
 describe("Supabase storage protocol", () => {
+  it('uses a server secret as apikey without treating it as a JWT',async()=>{
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY','');vi.stubEnv('SUPABASE_SECRET_KEY',fakeSecretKey);
+    const data=Buffer.from('only synthetic bytes'),provider=storageProvider();
+    await provider.put(objectKey,data,'application/pdf');expect((await provider.get(objectKey)).data).toEqual(data);await provider.delete(objectKey);
+  });
+  it('pins isolated Preview storage to its verified existing database/deployment context',async()=>{
+    expectedOrigin='https://nqudhszgodmzckautrby.supabase.co';vi.stubEnv('SUPABASE_URL',expectedOrigin);
+    vi.stubEnv('VERCEL','1');vi.stubEnv('VERCEL_ENV','preview');vi.stubEnv('VERCEL_TARGET_ENV','preview');vi.stubEnv('VERCEL_PROJECT_ID','prj_0WOxlorbYiljjjBvZ1Cm6M9JmPdp');vi.stubEnv('VERCEL_GIT_COMMIT_REF','codex/isolated-clean-preview-2026-10-15');vi.stubEnv('DATABASE_SCHEMA','visa_os_preview');vi.stubEnv('DATABASE_URL','postgresql://postgres.nqudhszgodmzckautrby:synthetic@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=verify-full');
+    await storageProvider().put(objectKey,Buffer.from('fictional'),'application/pdf');
+    vi.stubEnv('VERCEL_ENV','production');const before=requests;
+    await expect(storageProvider().get(objectKey)).rejects.toMatchObject({code:'STORAGE_MISCONFIGURED'});expect(requests).toBe(before);
+    vi.stubEnv('VERCEL_ENV','preview');vi.stubEnv('DATABASE_URL','postgresql://postgres.xgetzgixalrsmuvfthpf:synthetic@aws-1-us-east-1.pooler.supabase.com:5432/postgres?sslmode=verify-full');
+    await expect(storageProvider().get(objectKey)).rejects.toMatchObject({code:'STORAGE_MISCONFIGURED'});expect(requests).toBe(before);
+  });
   it("roundtrips exact bytes and MIME then reports a deleted object as missing", async () => {
     const provider = storageProvider(), data = Buffer.from([0, 1, 128, 255]);
     await provider.put(objectKey, data, "application/pdf");

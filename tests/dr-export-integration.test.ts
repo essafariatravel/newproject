@@ -65,6 +65,14 @@ it.skipIf(!bin)("restores a restricted encrypted real 0019 archive and detects r
     const key = randomBytes(32);
     try {
       await expect(qualifyRecoveryExportSession(controller, { database: "wrong", role: "recovery_export_fixture", schema: "visa_os", requireTls: false })).rejects.toThrow("IDENTITY");
+      // Table grants alone do not rule out persistent writes through core LO APIs.
+      await controller.query('set default_transaction_read_only=off');
+      const object=(await controller.query("select pg_catalog.lo_from_bytea(0,decode('001122','hex')) oid")).rows[0].oid;
+      expect((await controller.query('select octet_length(pg_catalog.lo_get($1)) bytes',[object])).rows[0].bytes).toBe(3);
+      await controller.query('select pg_catalog.lo_unlink($1)',[object]);
+      await controller.query('set default_transaction_read_only=on');
+      await expect(qualifyRecoveryExportSession(controller, { database: "dr_source", role: "recovery_export_fixture", schema: "visa_os", requireTls: false })).rejects.toThrow('large_object_create');
+      await source.query('revoke execute on function pg_catalog.lo_create(oid),pg_catalog.lo_creat(integer),pg_catalog.lo_from_bytea(oid,bytea) from public');
       await qualifyRecoveryExportSession(controller, { database: "dr_source", role: "recovery_export_fixture", schema: "visa_os", requireTls: false });
       await expect(qualifyRecoveryExportSession(controller,{database:'dr_source',role:'recovery_export_fixture',schema:'visa_os',requireTls:true})).rejects.toThrow('TLS');
       await expect(controller.query("delete from visa_os.recovery_auxiliary")).rejects.toMatchObject({ code: "25006" });
@@ -92,6 +100,14 @@ it.skipIf(!bin)("restores a restricted encrypted real 0019 archive and detects r
     expect((await target.query("select has_table_privilege('anon','visa_os.recovery_auxiliary','SELECT') allowed")).rows[0].allowed).toBe(false);
     const restored = await target.connect();
     try {
+      await restored.query("begin isolation level repeatable read read only");
+      const defaultTarget=compareRecoverySnapshots(original!,await captureRecoverySnapshot(restored,'visa_os'));
+      expect(defaultTarget.some(finding=>finding.includes('source_database_acl'))).toBe(true);
+      expect(defaultTarget.some(finding=>finding.includes('core_function_acl'))).toBe(true);
+      await restored.query('rollback');
+      // Bootstrap only this disposable target; never mutate shared PUBLIC grants.
+      await restored.query('revoke temporary on database dr_target from public;grant connect on database dr_target to recovery_export_fixture');
+      await restored.query('revoke execute on function pg_catalog.lo_create(oid),pg_catalog.lo_creat(integer),pg_catalog.lo_from_bytea(oid,bytea) from public');
       await restored.query("begin isolation level repeatable read read only");
       expect(compareRecoverySnapshots(original!, await captureRecoverySnapshot(restored, "visa_os"))).toEqual([]);
       await restored.query('rollback');
