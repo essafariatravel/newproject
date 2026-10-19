@@ -13,7 +13,10 @@ function verify(kind="TIER",vus=50,overrides:Record<string,unknown>={},premature
   for(const name of ["db-before.json","db-after.json","k6-summary.json"])writeFileSync(join(dir,name),'{}');
   writeFileSync(join(dir,"evaluation.json"),JSON.stringify({checks:[{pass:true}]}));
   writeFileSync(join(dir,"db-monitor.json"),JSON.stringify({intervalMs:1000,samplingFailed:false,samples:[{at:"2026-10-07T09:59:59Z"},{at:premature?"2026-10-07T10:22:00Z":"2026-10-07T10:25:59Z"}]}));
-  return spawnSync(process.execPath,[resolve("scripts/verify-previous-performance.cjs"),dir],{env:{...process.env,PERF_RUN_KIND:kind,PERF_VUS:String(vus),GITHUB_SHA:"a".repeat(40),BASE_URL:tier.baseUrl},encoding:"utf8",shell:false});
+  // The offline proof fixture must not inherit runner proxy/cloud credentials.
+  // The real verifier still rejects them; only this caller supplies a clean lab.
+  const runtime={NODE_ENV:process.env.NODE_ENV,...Object.fromEntries(Object.entries(process.env).filter(([key])=>/^(PATH|SystemRoot|WINDIR|COMSPEC|PATHEXT|TEMP|TMP|HOME|USERPROFILE)$/i.test(key)))};
+  return spawnSync(process.execPath,[resolve("scripts/verify-previous-performance.cjs"),dir],{env:{...runtime,PERF_RUN_KIND:kind,PERF_VUS:String(vus),GITHUB_SHA:"a".repeat(40),BASE_URL:tier.baseUrl},encoding:"utf8",shell:false});
 }
 describe("preceding capacity evidence",()=>{
   it("accepts a same-SHA stable tier with monitoring through the complete workload",()=>{expect(verify().status).toBe(0);});

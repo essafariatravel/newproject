@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      VERCEL: '0'
+      VERCEL: ''
       VERCEL_ENV: ''
       DATABASE_URL: ''
       ALLOW_DEMO_SEED: 'false'

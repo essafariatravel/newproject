@@ -33,9 +33,11 @@ it.skipIf(!bin)("restores a restricted encrypted real 0019 archive and detects r
     await mkdir(baseline);
     for (const name of (await readdir("migrations")).filter(name => /^\d{4}_.+\.sql$/.test(name)).sort().slice(0, 19)) await copyFile(path.join("migrations", name), path.join(baseline, name));
     command("initdb", ["--pgdata", data, "--username=postgres", "--auth=trust", "--encoding=UTF8", "--no-locale"]);
-    command("pg_ctl", ["--pgdata", data, "--log", path.join(root, "postgres.log"), "--options", `-p ${port} -h 127.0.0.1`, "--wait", "start"]); started = true;
+    // Distribution builds may default Unix sockets to a postgres-owned directory.
+    // These disposable fixtures use only loopback TCP on their dedicated ports.
+    command("pg_ctl", ["--pgdata", data, "--log", path.join(root, "postgres.log"), "--options", `-p ${port} -h 127.0.0.1 -c unix_socket_directories=`, "--wait", "start"]); started = true;
     command('initdb',['--pgdata',targetData,'--username=postgres','--auth=trust','--encoding=UTF8','--no-locale']);
-    command('pg_ctl',['--pgdata',targetData,'--log',path.join(root,'target-postgres.log'),'--options','-p 55463 -h 127.0.0.1','--wait','start']);targetStarted=true;
+    command('pg_ctl',['--pgdata',targetData,'--log',path.join(root,'target-postgres.log'),'--options','-p 55463 -h 127.0.0.1 -c unix_socket_directories=','--wait','start']);targetStarted=true;
     await admin.query("create role anon nologin; create role authenticated nologin; grant anon to authenticated");
     await admin.query("create database dr_source");
     await targetAdmin.query("create role anon nologin; create role authenticated nologin; grant anon to authenticated; create role recovery_export_fixture login nosuperuser nocreatedb nocreaterole noinherit noreplication nobypassrls;alter role recovery_export_fixture set default_transaction_read_only=on");
