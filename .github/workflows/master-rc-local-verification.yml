@@ -1,6 +1,9 @@
-name: Master RC local verification (manual, no deployment)
+name: Master RC verification (exact branch, no deployment)
 
 on:
+  push:
+    branches:
+      - codex/master-go-live-rc-2026-10-17
   workflow_dispatch:
 
 permissions:
@@ -12,7 +15,7 @@ concurrency:
 
 jobs:
   verify:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/master-go-live-rc-2026-10-17'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/codex/master-go-live-rc-2026-10-17'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
