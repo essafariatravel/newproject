@@ -30,9 +30,9 @@ function verifiedActor(actor: AuthUser, current: CurrentIdentity | undefined): A
     credentialVersion: current.credentialVersion };
 }
 
-/** Take this guard BEFORE tenant/dossier locks; identity mutations use the same lock. */
-export async function currentOperationActor(tx: IdentityTransaction, actor: AuthUser): Promise<AuthUser> {
-  await lockIdentityState(tx);
+/** Only qualified readers opt in; existing callers remain exclusive by default. */
+export async function currentOperationActor(tx: IdentityTransaction, actor: AuthUser,mode:'read'|'write'='write'): Promise<AuthUser> {
+  await lockIdentityState(tx,mode);
   const [row] = await tx.select({ user: users, agencyStatus: agencies.status, agencyName: agencies.legalName })
     .from(users).leftJoin(agencies, eq(users.agencyId, agencies.id)).where(eq(users.id, actor.id)).limit(1);
   return verifiedActor(actor, row ? { id: row.user.id, name: row.user.name, email: row.user.email,
@@ -43,8 +43,8 @@ export async function currentOperationActor(tx: IdentityTransaction, actor: Auth
 }
 
 /** Native PostgreSQL operations keep identity validation on their existing client. */
-export async function currentOperationActorPg(client: PoolClient, actor: AuthUser): Promise<AuthUser> {
-  await client.query("select pg_advisory_xact_lock(1163087699)");
+export async function currentOperationActorPg(client: PoolClient, actor: AuthUser,mode:'read'|'write'='write'): Promise<AuthUser> {
+  await client.query(mode==='write'?"select pg_advisory_xact_lock(1163087699)":"select pg_advisory_xact_lock_shared(1163087699)");
   const result = await client.query<CurrentIdentity>(`select u.id, u.name, u.email, u.username, u.role,
     u.agency_id as "agencyId", u.status as "userStatus", a.status as "agencyStatus", a.legal_name as "agencyName",
     u.activation_pending as "activationPending", u.must_change_password as "mustChangePassword",

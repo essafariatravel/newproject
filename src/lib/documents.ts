@@ -238,7 +238,7 @@ export async function uploadDocument(input: UploadDocumentInput, resubmittedDocu
   let fulfilledRequest = false;
   try {
     doc = await db.transaction(async (tx) => {
-      input = { ...input, actor: await currentOperationActor(tx,input.actor) };
+      input = { ...input, actor: await currentOperationActor(tx,input.actor,'read') };
       // Lock the dossier across request validation, version allocation and insert.
       // A concurrent replacement waits, then sees the request already fulfilled.
       await tx.select({ id: applications.id }).from(applications)

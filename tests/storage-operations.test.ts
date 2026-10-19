@@ -32,6 +32,17 @@ async function agency(){return agencyByEmail("ops@agencya.example");}
 async function attach(f:Awaited<ReturnType<typeof reserve>>){const a=await agency();await service.adopt(f.ticket.id,client=>client.query("update agencies set logo_key=$1 where id=$2",[f.key,a.id]));return a;}
 
 describe("durable storage recovery protocol on isolated PostgreSQL",()=>{
+ it('reserves beside identity readers while remaining blocked by an exclusive retention writer',async()=>{
+  const gate=await pool.connect();let pending:ReturnType<typeof reserve>|undefined,timer:ReturnType<typeof setTimeout>|undefined;
+  try{
+   await gate.query('begin;select pg_advisory_xact_lock_shared(1163087699)');
+   pending=reserve();void pending.catch(()=>{});
+   expect(await Promise.race([pending.then(()=>true),new Promise<boolean>(resolve=>{timer=setTimeout(()=>resolve(false),750);})])).toBe(true);
+   clearTimeout(timer);await gate.query('rollback;begin;select pg_advisory_xact_lock(1163087699)');
+   pending=reserve();void pending.catch(()=>{});
+   expect(await Promise.race([pending.then(()=>true),new Promise<boolean>(resolve=>{timer=setTimeout(()=>resolve(false),150);})])).toBe(false);
+  }finally{if(timer)clearTimeout(timer);await gate.query('rollback');gate.release();await pending;}
+ });
  it('retains single-writer ownership for concurrent starts and duplicate reservations',async()=>{
   const f=await reserve();
   const starts=await Promise.allSettled([service.upload(f.ticket.id,f.data),service.upload(f.ticket.id,f.data)]);

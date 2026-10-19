@@ -34,7 +34,7 @@ export async function GET(
     const { data } = await storageProvider().get(row.doc.storageKey);
     assertStoredFileIntegrity({ data, expectedSizeBytes: row.doc.sizeBytes, expectedSha256: row.doc.sha256 });
     await db.transaction(async tx => {
-      const actor = await currentOperationActor(tx, user);
+      const actor = await currentOperationActor(tx, user,'read');
       await recordAuditStrict({
         actor,
         action: "DOCUMENT_DOWNLOADED",

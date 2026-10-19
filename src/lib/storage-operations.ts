@@ -160,7 +160,7 @@ export function createLocalStorageOperations(config:Configuration,backend:Storag
          !/^[a-f0-9]{64}$/.test(input.sha256)||!Number.isSafeInteger(input.sizeBytes)||input.sizeBytes<1||input.sizeBytes>2*1024*1024||
          !/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/.test(input.mimeType))throw failure("STORAGE_RESERVATION_INVALID");
       return transaction(async client=>{
-        await client.query('select pg_advisory_xact_lock(1163087699)');
+        await client.query('select pg_advisory_xact_lock_shared(1163087699)');
         if(await pendingRetention(client,input.key))throw failure('STORAGE_RETENTION_PENDING');
         const row=(await client.query<Operation>(`insert into ${table("storage_operations")}(provider_origin,bucket,object_key,mime_type,size_bytes,sha256,state)
           values($1,$2,$3,$4,$5,$6,'STAGED') returning *`,[origin,bucket,input.key,input.mimeType,input.sizeBytes,input.sha256])).rows[0]!;

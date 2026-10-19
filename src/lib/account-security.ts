@@ -16,9 +16,10 @@ export async function recordIdentityAudit(tx: IdentityTransaction, input: Parame
     metadata: input.actor ? { ...input.metadata, actorName: input.actor.name, actorUsername: input.actor.username } : input.metadata ?? null, ipAddress: input.ipAddress ?? null });
 }
 
-/** Small V1 identity population: serialize credential changes and login minting. */
-export async function lockIdentityState(tx: IdentityTransaction): Promise<void> {
-  await tx.execute(sql`select pg_advisory_xact_lock(1163087699)`);
+/** Identity readers overlap; credential/session mutations retain exclusivity. */
+export async function lockIdentityState(tx: IdentityTransaction,mode:'write'|'read'='write'): Promise<void> {
+  if(mode==='read')await tx.execute(sql`select pg_advisory_xact_lock_shared(1163087699)`);
+  else await tx.execute(sql`select pg_advisory_xact_lock(1163087699)`);
 }
 
 export async function currentAccountActor(tx: IdentityTransaction, actor: AuthUser): Promise<AuthUser> {
