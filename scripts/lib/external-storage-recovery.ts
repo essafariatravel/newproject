@@ -81,11 +81,34 @@ export function verifyRecoveryAttestation(value:unknown,signer:KeyObject):Signed
  rsaKey(signer);const e=value as SignedRecoveryAttestation;
  if(!e||e.signerSha256!==recipientFingerprint(signer)||typeof e.signature!=='string'||!verify('sha256',Buffer.from(canonical(e.proof)),{key:signer,padding:constants.RSA_PKCS1_PSS_PADDING,saltLength:32},Buffer.from(e.signature,'base64')))throw Error('AUTHENTICATED_OWNER_RECOVERY_ATTESTATION_REQUIRED');return e.proof;
 }
-export async function downloadExternalObjects(objects:ExternalObject[],token:string,fetcher:typeof fetch=fetch):Promise<Buffer[]> {
- checkedObjects(objects);if(!token||token.length>16384||/[\r\n]/.test(token))throw Error('PRIVATE_READ_CREDENTIAL_REQUIRED');const payloads:Buffer[]=[];
+export type ExternalReadCredential=string|{signedUrls:readonly string[]};
+/** Short-lived links are bearer credentials: validate every link before the first GET. */
+function signedObjectLinks(objects:ExternalObject[],links:readonly string[]):Map<string,string> {
+ try {
+  if(!Array.isArray(links)||links.length!==objects.length)throw Error();
+  const expected=new Set(objects.map(o=>o.name)),mapped=new Map<string,string>(),now=Date.now()/1000;
+  for(const link of links){
+   if(typeof link!=='string'||link.length>16384||/[\x00-\x20\x7f]/.test(link))throw Error();
+   const u=new URL(link),prefix='/storage/v1/object/sign/documents/';
+   if(u.protocol!=='https:'||u.hostname!==`${project}.supabase.co`||u.port||u.username||u.password||u.hash||!u.pathname.startsWith(prefix)||[...u.searchParams].length!==1||!u.searchParams.has('token'))throw Error();
+   const name=decodeURIComponent(u.pathname.slice(prefix.length)),token=u.searchParams.get('token')!,parts=token.split('.');
+   if(!expected.has(name)||mapped.has(name)||parts.length!==3||parts.some(p=>!p||!/^[a-zA-Z0-9_-]+$/.test(p)))throw Error();
+   // Claims restrict scope/TTL locally; the provider still verifies the signature on GET.
+   const claims=JSON.parse(Buffer.from(parts[1]!,'base64url').toString('utf8'));
+   if(claims.url!=='documents/'+name||!Number.isSafeInteger(claims.iat)||!Number.isSafeInteger(claims.exp)||claims.iat>now+30||claims.exp<=now+90||claims.exp<=claims.iat||claims.exp-claims.iat>900||claims.exp>now+930)throw Error();
+   mapped.set(name,u.href);
+  }
+  return mapped;
+ }catch{throw Error('SIGNED_OBJECT_LINKS_SCOPE_OR_EXPIRY_INVALID');}
+}
+export async function downloadExternalObjects(objects:ExternalObject[],credential:ExternalReadCredential,fetcher:typeof fetch=fetch):Promise<Buffer[]> {
+ checkedObjects(objects);
+ const links=typeof credential==='string'?null:signedObjectLinks(objects,credential?.signedUrls);
+ const token=typeof credential==='string'?credential:'';
+ if(!links&&(!token||token.length>16384||/[\r\n]/.test(token)))throw Error('PRIVATE_READ_CREDENTIAL_REQUIRED');const payloads:Buffer[]=[];
  try{for(const o of objects){
-  const headers:Record<string,string>={apikey:token};if(!token.startsWith('sb_secret_'))headers.Authorization=`Bearer ${token}`;
-  const url=`https://${project}.supabase.co/storage/v1/object/authenticated/documents/${o.name.split('/').map(encodeURIComponent).join('/')}`;
+  const headers:Record<string,string>=links?{}:{apikey:token};if(!links&&!token.startsWith('sb_secret_'))headers.Authorization=`Bearer ${token}`;
+  const url=links?links.get(o.name)!:`https://${project}.supabase.co/storage/v1/object/authenticated/documents/${o.name.split('/').map(encodeURIComponent).join('/')}`;
   const r=await fetcher(url,{method:'GET',headers,redirect:'error',signal:AbortSignal.timeout(15000)});
   if(r.status!==200){await r.body?.cancel().catch(()=>{});throw Error('EXTERNAL_OBJECT_READ_FAILED');}
   const declared=r.headers.get('content-length');if(declared!==null&&(!/^\d+$/.test(declared)||Number(declared)!==o.declaredBytes)){await r.body?.cancel().catch(()=>{});throw Error('EXTERNAL_OBJECT_READ_FAILED');}

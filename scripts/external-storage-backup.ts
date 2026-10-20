@@ -8,14 +8,18 @@ import {assertCleanReleaseCheckout} from './lib/release-safeguards';
 import {privateArtifactPath} from './lib/dr-private-path';
 import {recipientFingerprint} from './lib/key-custody';
 import {readManagedStorageInventory} from './managed-backup-evidence';
-import {readExternalObjectInventory,objectSetDigest,downloadExternalObjects,buildObjectArchive,encryptObjectArchive,verifyObjectArchive,attestObjectRecovery,assertAgeIdentityRecipient} from './lib/external-storage-recovery';
+import {readExternalObjectInventory,objectSetDigest,downloadExternalObjects,buildObjectArchive,encryptObjectArchive,verifyObjectArchive,attestObjectRecovery,assertAgeIdentityRecipient,type ExternalReadCredential} from './lib/external-storage-recovery';
 
 const hash=(b:Buffer)=>createHash('sha256').update(b).digest('hex');
 async function main(){
  if(process.env.EXTERNAL_STORAGE_AUTHORIZATION!=='OWNER_PHASE2B0')throw Error('BLOCKED_EXTERNAL_ARCHIVE_AUTHORIZATION');
  const existing=process.env.EXTERNAL_STORAGE_EXISTING_ARCHIVE;
  const token=process.env.EXTERNAL_STORAGE_READ_TOKEN;
- if(!token)throw Error('BLOCKED_PRIVATE_STORAGE_READ_CREDENTIAL');
+ const signed=process.env.EXTERNAL_STORAGE_SIGNED_URLS_JSON;
+ if(token&&signed)throw Error('BLOCKED_AMBIGUOUS_PRIVATE_STORAGE_READ_CREDENTIAL');
+ if(!token&&!signed)throw Error('BLOCKED_PRIVATE_STORAGE_READ_CREDENTIAL');
+ let credential:ExternalReadCredential=token??'';
+ if(signed){try{const urls:unknown=JSON.parse(signed);if(!Array.isArray(urls)||urls.length!==4||!urls.every(u=>typeof u==='string'))throw Error();credential={signedUrls:urls};}catch{throw Error('BLOCKED_PRIVATE_SIGNED_LINKS_FORMAT');}}
  if(process.env.EXTERNAL_STORAGE_PROJECT_REF!=='xgetzgixalrsmuvfthpf'||process.env.EXTERNAL_STORAGE_APPROVAL_REFERENCE!=='github-pr20-comment6292040915')throw Error('BLOCKED_EXACT_EXTERNAL_ARCHIVE_SCOPE');
  const operatorSha=process.env.EXTERNAL_STORAGE_OPERATOR_SHA??'';assertCleanReleaseCheckout(operatorSha);
  const config=guardedProductionPoolConfig();
@@ -44,11 +48,12 @@ async function main(){
     const id=(await client.query("select current_database() db,to_regnamespace('visa_os') is not null present,(select count(*)::int from storage.objects where created_at>=timestamptz '2026-08-05 00:00:00+00' and created_at<timestamptz '2026-08-06 00:00:00+00') approved_creation_day_count")).rows[0];
     if(id.db!=='postgres'||!id.present||id.approved_creation_day_count!==4)throw Error('BLOCKED_SOURCE_IDENTITY_OR_OBJECT_SCOPE_DRIFT');
     const inventory=await readManagedStorageInventory(client),objects=await readExternalObjectInventory(client);
-    if(inventory.status!=='BLOCKED_EXTERNAL_STORAGE_COVERAGE'||inventory.externalStorage.referenceCount!==0||objects.length!==4||objects.reduce((s,o)=>s+o.declaredBytes,0)!==744452||objectSetDigest(objects)!==inventory.externalStorage.objectSetSha256)throw Error('BLOCKED_SOURCE_IDENTITY_OR_OBJECT_SCOPE_DRIFT');
+    inventory.tlsVerified=true;
+    if(inventory.status!=='BLOCKED_EXTERNAL_STORAGE_COVERAGE'||inventory.externalStorage.referenceCount!==0||objects.length!==4||objects.reduce((s,o)=>s+o.declaredBytes,0)!==744452||objectSetDigest(objects)!==inventory.externalStorage.objectSetSha256||objectSetDigest(objects)!=='e12461f7c4a715206f27ce725c51daabc2cf87b5248d8caa12c12637a2c515fe')throw Error('BLOCKED_SOURCE_IDENTITY_OR_OBJECT_SCOPE_DRIFT');
     return {inventory,objects};
    }finally{await client.query('rollback');}
   };
-  const before=await capture();const payloads=await downloadExternalObjects(before.objects,token);
+  const before=await capture();const payloads=await downloadExternalObjects(before.objects,credential);
   try{let cipher:Buffer;
    const raw=buildObjectArchive(before.objects,payloads);
    try{
@@ -65,8 +70,9 @@ async function main(){
   if(after.inventory.externalStorage.inventorySha256!==before.inventory.externalStorage.inventorySha256||objectSetDigest(after.objects)!==objectSetDigest(before.objects))throw Error('BLOCKED_SOURCE_CHANGED_DURING_ARCHIVE');
   const local=verifyObjectArchive(disk,identity,before.objects,binary);
   const evidence=signer?attestObjectRecovery({ciphertext:disk,identity,objects:before.objects,binary,signer,operatorSha,inventorySha256:before.inventory.externalStorage.inventorySha256,recipientFileSha256,sourceObservedAt:before.inventory.externalStorage.checkedAt,sourcePayloads:payloads,recipient}):{status:'UNSIGNED_LOCAL_RECOVERY_NOT_RELEASE_COVERAGE',proof:local};
+  const sourceInventoryFile=archiveFile+'.source-inventory.json';writeFileSync(sourceInventoryFile,JSON.stringify(before.inventory,null,2)+'\n',{flag:'wx',mode:0o600});
   const receipt=archiveFile+'.'+randomUUID()+'.recovery.json';writeFileSync(receipt,JSON.stringify(evidence,null,2)+'\n',{flag:'wx',mode:0o600});
-  console.log(JSON.stringify({status:signer?'SIGNED_LOCAL_OBJECT_RECOVERY_PASS':'UNSIGNED_LOCAL_RECOVERY_NOT_RELEASE_COVERAGE',objectCount:4,recoveredBytes:local.recoveredBytes,ciphertextSha256:local.ciphertextSha256,archiveFile,receipt,offsiteVerified:false,independentRestoreStatus:'NOT_PERFORMED',productionWrites:0,objectDeletions:0}));
+  console.log(JSON.stringify({status:signer?'SIGNED_LOCAL_OBJECT_RECOVERY_PASS':'UNSIGNED_LOCAL_RECOVERY_NOT_RELEASE_COVERAGE',objectCount:4,recoveredBytes:local.recoveredBytes,ciphertextSha256:local.ciphertextSha256,archiveFile,sourceInventoryFile,receipt,offsiteVerified:false,independentRestoreStatus:'NOT_PERFORMED',productionWrites:0,objectDeletions:0}));
   }finally{for(const bytes of payloads)bytes.fill(0);}
  }finally{await client.query('rollback').catch(()=>{});client.release();}}finally{await pool.end();}
 }
