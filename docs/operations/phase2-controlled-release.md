@@ -22,7 +22,7 @@ Use only an existing authorized Production connection through a private operator
 2. Privately supply `SUPABASE_MANAGEMENT_READ_TOKEN` with `backups_read`, `MANAGED_STORAGE_INVENTORY_FILE` pointing to that inventory and a new private `MANAGED_BACKUP_OUTPUT`. Run `node --import tsx scripts/managed-backup-evidence.ts`. Exactly one GET to the pinned backup-list endpoint is permitted; no restore/backup POST, account or billing action occurs. Missing IDs, pending/failed backups and a bare timestamp/PITR range cannot become successful physical-backup evidence.
 3. Independently review the observation and bind its raw file SHA256 to the owner's exact version-2 approval. Never hand-author a successful provider observation, unverified zero-object inventory or approval from the old owner-reported date alone.
 
-The 19 October owner-reported row (`08:35:14 UTC`, physical) lacks the complete API reference/status observation. It is historical context, not a current gate PASS. The current session has no Management read token configured; no secret is requested in chat.
+The 19 October owner-reported row (`08:35:14 UTC`, physical) lacks the complete API reference/status observation. It is historical context, not a current gate PASS. Private access and observations are execution-time facts: reuse the owner-configured DPAPI profiles and current official evidence where available. Never infer a missing credential from an older preparation report or request a token in chat.
 
 ## Two independent migration batches
 
