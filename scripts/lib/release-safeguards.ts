@@ -3,6 +3,7 @@ import {readFileSync} from "node:fs";
 import path from "node:path";
 import type {PoolClient} from "pg";
 import {execFileSync} from "node:child_process";
+import {validateRecoverySelection, type RecoveryPolicy} from "./release-recovery-policy";
 
 /** Qualified locally; authorization is a separate, exact-content owner decision. */
 export const QUALIFIED_RELEASE_SCOPE = [
@@ -18,6 +19,11 @@ export interface ReleaseApproval {
  migrations:Record<string,string>; verifiedManifestSha256:string; evidenceBundleSha256:string; custodyReceiptSha256:string;
  authorizedDataChanges:string[];
 }
+export const QUALIFIED_BATCH_B_SCOPE=["0034_document_retention.sql","0035_legal_document_kinds.sql"] as const;
+export interface Phase2ReleaseApproval extends Omit<ReleaseApproval,"version"|"verifiedManifestSha256"|"evidenceBundleSha256"|"custodyReceiptSha256"> {
+ version:2; batch:"A"|"B"; recoveryPolicy:RecoveryPolicy; batchAPostflightSha256?:string; batchACandidateSha?:string;
+}
+export type ReleaseAuthorization=ReleaseApproval|Phase2ReleaseApproval;
 export const EXPECTED_HARDENING_UPDATES=["0020_LEGACY_SESSION_POLICY","0021_OBSOLETE_DOCUMENT_REQUEST_CANCELLATION"];
 export function validateIndependentCustodyReceipt(value:unknown):void {
  const r=value as Record<string,unknown>;
@@ -35,7 +41,8 @@ export async function discoverProtectedTables(client:PoolClient):Promise<string[
  if(!tables.length||tables.some(table=>!/^[a-z_]+$/.test(table)||table.length>35))throw new Error("Protected source table inventory is invalid.");
  return tables;
 }
-export function validateReleaseApproval(value:unknown,context:{sha:string;ref:string;now?:number;directory?:string}):ReleaseApproval {
+export function validateReleaseApproval(value:unknown,context:{sha:string;ref:string;now?:number;directory?:string}):ReleaseAuthorization {
+ if((value as {version?:number})?.version===2)return validatePhase2ReleaseApproval(value,context);
  const a=value as ReleaseApproval;
  const now=context.now??Date.now();
  if(!a||a.version!==1||a.status!=="APPROVED"||typeof a.approvedBy!=="string"||!a.approvedBy.trim()||typeof a.reason!=="string"||a.reason.trim().length<10)throw new Error("Explicit owner release approval is required.");
@@ -48,6 +55,21 @@ export function validateReleaseApproval(value:unknown,context:{sha:string;ref:st
  if(JSON.stringify(a.authorizedDataChanges)!==JSON.stringify(EXPECTED_HARDENING_UPDATES))throw new Error("Exact legacy hardening transitions must be explicitly approved.");
  if(!a.migrations||JSON.stringify(Object.keys(a.migrations).sort())!==JSON.stringify([...QUALIFIED_RELEASE_SCOPE]))throw new Error("Approval must contain exactly migrations 0020–0033.");
  for(const name of QUALIFIED_RELEASE_SCOPE)if(digest(readFileSync(path.join(context.directory??path.join(process.cwd(),"migrations"),name)))!==a.migrations[name])throw new Error("Approved migration digest differs from the candidate.");
+ return a;
+}
+
+function validatePhase2ReleaseApproval(value:unknown,context:{sha:string;ref:string;now?:number;directory?:string}):Phase2ReleaseApproval {
+ const a=value as Phase2ReleaseApproval,now=context.now??Date.now();
+ if(!a||a.status!=="APPROVED"||typeof a.approvedBy!=="string"||!a.approvedBy.trim()||typeof a.reason!=="string"||a.reason.trim().length<10)throw new Error("Explicit owner release approval is required.");
+ if(!/^[a-f0-9]{40}$/.test(a.candidateSha)||a.candidateSha!==context.sha||a.releaseRef!==context.ref||!/^refs\/heads\/release\/essafaria-prod-candidate-[0-9-]+$/.test(a.releaseRef)||!/^[a-f0-9]{40}$/.test(a.sourceReleaseSha)||a.projectRef!=="xgetzgixalrsmuvfthpf"||a.schema!=="visa_os"||a.trafficDrained!==true||!/^[a-f0-9]{32}$/.test(a.authorizationId))throw new Error("Exact protected release identity and maintenance approval are required.");
+ const expires=Date.parse(a.expiresAt);if(!Number.isFinite(expires)||expires<=now||expires>now+24*3600000)throw new Error("Release approval is expired or exceeds the 24-hour window.");
+ validateRecoverySelection(a.recoveryPolicy,a.approvedBy,now);
+ const scope=a.batch==="A"?QUALIFIED_RELEASE_SCOPE:a.batch==="B"?QUALIFIED_BATCH_B_SCOPE:null;
+ const changes=a.batch==="A"?["0020_LEGACY_AGENCY_USERNAME_ASSIGNMENT",...EXPECTED_HARDENING_UPDATES]:["0034_RETENTION_POLICY_DISABLED_DEFAULT"];
+ if(!scope||!a.migrations||JSON.stringify(Object.keys(a.migrations).sort())!==JSON.stringify(scope)||JSON.stringify(a.authorizedDataChanges)!==JSON.stringify(changes))throw new Error("The exact independently approved migration batch and data transitions are required.");
+ if(a.batch==="B"&&(!/^[a-f0-9]{64}$/.test(a.batchAPostflightSha256??"")||!/^[a-f0-9]{40}$/.test(a.batchACandidateSha??"")))throw new Error("Batch B must bind its successful Batch A postflight and candidate SHA.");
+ const directory=context.directory??path.join(process.cwd(),"migrations",...(a.batch==="B"?["candidates"]:[]));
+ for(const name of scope)if(digest(readFileSync(path.join(directory,name)))!==a.migrations[name])throw new Error("Approved migration digest differs from the candidate.");
  return a;
 }
 
@@ -72,12 +94,12 @@ export async function createRestorePoints(client:PoolClient,tables:readonly stri
  return created;
 }
 
-export async function sourceColumnProjection(client:PoolClient,tables:readonly string[]):Promise<Record<string,string[]>> {
+export async function sourceColumnProjection(client:PoolClient,tables:readonly string[],hardeningTransitions=true):Promise<Record<string,string[]>> {
  const projection:Record<string,string[]>={};
  for(const table of tables){
   if(!/^[a-z_]+$/.test(table))throw new Error("Invalid integrity table identifier.");
   const columns=await client.query("select column_name from information_schema.columns where table_schema='visa_os' and table_name=$1 order by ordinal_position",[table]);
-  const allowed:Record<string,string[]>={sessions:["expires_at","last_activity_at"],document_requests:["status","updated_at"]};
+  const allowed:Record<string,string[]>=hardeningTransitions?{sessions:["expires_at","last_activity_at"],document_requests:["status","updated_at"]}:{};
   if(columns.rowCount)projection[table]=columns.rows.map(r=>String(r.column_name)).filter(column=>!allowed[table]?.includes(column));
  }
  return projection;

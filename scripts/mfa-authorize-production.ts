@@ -4,7 +4,7 @@ import {readFileSync} from "node:fs";
 import {writeFile} from "node:fs/promises";
 import {randomBytes,publicEncrypt,constants,createPublicKey} from "node:crypto";
 import {Pool} from "pg";
-import {guardedProductionPoolConfig} from "./prod-release";
+import {guardedProductionPoolConfig,validateBatchPostflight} from "./prod-release";
 import {digest,assertCleanReleaseCheckout} from "./lib/release-safeguards";
 import {privateArtifactPath} from "./lib/dr-private-path";
 import {encryptMfaSecret} from "../src/lib/mfa-crypto";
@@ -19,6 +19,12 @@ async function main(){
  const approval=validateMfaActivationApproval(JSON.parse(raw.toString("utf8")),process.env.MFA_ACTIVATION_CANDIDATE_SHA??"");
  assertCleanReleaseCheckout(approval.candidateSha);
  const poolConfig=guardedProductionPoolConfig();
+ let activation;
+ if(approval.version===2){
+  const raw=readFileSync(privateArtifactPath(process.env.MFA_BATCH_B_POSTFLIGHT_FILE??"","Batch B postflight",{requireAbsolute:true}));
+  if(digest(raw)!==approval.batchBPostflightSha256)throw new Error("Batch B receipt differs from exact MFA owner approval.");
+  activation={candidateSha:approval.candidateSha,batchBPostflight:validateBatchPostflight(JSON.parse(raw.toString("utf8")),"B",approval.candidateSha)};
+ }
  // Validate the canonical 32-byte key without publishing or storing a factor.
  encryptMfaSecret("configuration-validation-only",approval.userId);
  const output=privateArtifactPath(process.env.MFA_BOOTSTRAP_SEALED_FILE??"","Sealed MFA code",{requireAbsolute:true});
@@ -29,7 +35,7 @@ async function main(){
  const sealed=publicEncrypt({key:recipient,padding:constants.RSA_PKCS1_OAEP_PADDING,oaepHash:"sha256"},Buffer.from(code));
  const pool=new Pool({...poolConfig,max:1});
  try{
-  await issueFirstMfaAuthorization(pool,"visa_os",approval.userId,code,approval.approvedBy,async()=>{await writeFile(output,sealed,{mode:0o600,flag:"wx"});});
+  await issueFirstMfaAuthorization(pool,"visa_os",approval.userId,code,approval.approvedBy,async()=>{await writeFile(output,sealed,{mode:0o600,flag:"wx"});},activation);
   console.log("PASS first administrator enrollment authorization issued; sealed code delivered privately, expires in 30 minutes. Enrollment is not yet completed.");
  }finally{await pool.end();}
 }

@@ -12,6 +12,12 @@ describe("guarded first privileged MFA activation",()=>{
   expect(validateMfaActivationApproval(a,sha).userId).toBe(userId);
   for(const bad of [{...a,status:"REVIEW_REQUIRED"},{...a,candidateSha:"b".repeat(40)},{...a,userId:null},{...a,recipientSha256:null},{...a,expiresAt:new Date(0).toISOString()}])expect(()=>validateMfaActivationApproval(bad,sha)).toThrow();
  });
+ it("never silently extends first-MFA activation to another migration ledger",()=>{
+  const a={kind:"ESSAFARIA_FIRST_MFA_ACTIVATION",status:"APPROVED",approvedBy:"Owner",candidateSha:"a".repeat(40),userId:"11111111-1111-4111-8111-111111111111",recipientSha256:"b".repeat(64),projectRef:"xgetzgixalrsmuvfthpf",schema:"visa_os",expiresAt:new Date(Date.now()+3600000).toISOString()};
+  expect(()=>validateMfaActivationApproval({...a,ledgerStage:"POST_BATCH_B_0035"},a.candidateSha)).toThrow();
+  expect(()=>validateMfaActivationApproval({...a,version:2,ledgerStage:"POST_BATCH_B_0035",batchBPostflightSha256:"c".repeat(64),ownerEmail:"admin@essafariavoyages.com"},a.candidateSha)).not.toThrow();
+  expect(()=>validateMfaActivationApproval({...a,version:2,ledgerStage:"0036",batchBPostflightSha256:"c".repeat(64)},a.candidateSha)).toThrow();
+ });
  it("stores only a hashed 30-minute code and refuses replay or already-enrolled staff",async()=>{
   const pool=new Pool({connectionString:testConnectionString()});
   const code=randomBytes(16).toString("hex");

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - codex/master-go-live-rc-2026-10-17
+      - codex/phase2a-release-qualification-2026-10-20
   workflow_dispatch:
 
 permissions:
@@ -15,7 +16,7 @@ concurrency:
 
 jobs:
   verify:
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/codex/master-go-live-rc-2026-10-17'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/codex/master-go-live-rc-2026-10-17' || github.ref == 'refs/heads/codex/phase2a-release-qualification-2026-10-20')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
