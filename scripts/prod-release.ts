@@ -61,7 +61,7 @@ import { safeErrorCode, safeErrorText } from "../src/lib/safe-error";
 import { applyMigrations } from "./lib/migrations";
 import { spawnSync } from "node:child_process";
 import { createRestorePoints, protectedContentDigests, sourceColumnProjection, discoverProtectedTables, assertCleanReleaseCheckout, verifyHardeningUpdates, digest, validateReleaseApproval, validateIndependentCustodyReceipt, QUALIFIED_RELEASE_SCOPE, QUALIFIED_BATCH_B_SCOPE, type ReleaseAuthorization } from "./lib/release-safeguards";
-import {validateManagedBackupEvidence} from "./lib/release-recovery-policy";
+import {validateManagedBackupEvidence,validateManagedExternalBackupEvidence} from "./lib/release-recovery-policy";
 import { privateArtifactPath } from "./lib/dr-private-path";
 import { rootCertificates } from "node:tls";
 import { SUPABASE_CA } from "../src/lib/supabase-ca";
@@ -812,10 +812,15 @@ function loadApplyAuthorization(): ReleaseAuthorization {
     if(digest(raw)!==approval.batchAPostflightSha256)throw new Error("Batch A postflight digest differs from owner approval.");
     validateBatchPostflight(JSON.parse(raw.toString("utf8")),"A",approval.batchACandidateSha!);
   }
-  if(approval.version===2&&approval.recoveryPolicy.kind==="SUPABASE_MANAGED_PHYSICAL_V1"){
+  if(approval.version===2&&(approval.recoveryPolicy.kind==="SUPABASE_MANAGED_PHYSICAL_V1"||approval.recoveryPolicy.kind==='SUPABASE_MANAGED_PHYSICAL_SIGNED_OBJECTS_V2')){
     const evidence=fs.readFileSync(privateArtifactPath(process.env.RELEASE_MANAGED_BACKUP_EVIDENCE??"","Managed physical backup evidence",{requireAbsolute:true}));
     if(digest(evidence)!==approval.recoveryPolicy.evidenceSha256)throw new Error("Managed backup evidence differs from the owner-selected policy.");
-    const result=validateManagedBackupEvidence(JSON.parse(evidence.toString("utf8")),approval.recoveryPolicy);
+    let result;
+    if(approval.recoveryPolicy.kind==='SUPABASE_MANAGED_PHYSICAL_SIGNED_OBJECTS_V2'){
+      const signed=fs.readFileSync(privateArtifactPath(process.env.RELEASE_EXTERNAL_STORAGE_EVIDENCE??'','Signed external byte recovery evidence',{requireAbsolute:true}));
+      if(digest(signed)!==approval.recoveryPolicy.externalRecoveryEvidenceSha256)throw Error('Signed external recovery evidence differs from owner approval.');
+      result=validateManagedExternalBackupEvidence(JSON.parse(evidence.toString('utf8')),approval.recoveryPolicy,JSON.parse(signed.toString('utf8')));
+    }else result=validateManagedBackupEvidence(JSON.parse(evidence.toString("utf8")),approval.recoveryPolicy);
     console.log(`${result.status}; independent restoration NOT_PERFORMED; no RESTORE_PASS claimed.`);
     return approval;
   }

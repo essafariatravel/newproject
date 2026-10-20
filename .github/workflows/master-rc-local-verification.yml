@@ -56,7 +56,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-          sudo apt-get install --yes --no-install-recommends postgresql-17 postgresql-client-17
+          sudo apt-get install --yes --no-install-recommends postgresql-17 postgresql-client-17 age
       - name: Disposable local PostgreSQL test suite
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5434/essafaria_test
@@ -68,6 +68,8 @@ jobs:
           for tool in initdb pg_ctl pg_dump pg_restore; do
             test -x "$DR_LOCAL_PG_BIN/$tool"
           done
+          command -v age
+          command -v age-keygen
           npm test
       - name: Offline build
         run: npm run build

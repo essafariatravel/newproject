@@ -27,7 +27,9 @@ describe("explicit owner-selected release recovery and batches",()=>{
   expect(()=>assertReleaseJobIdentity({...env,GITHUB_EVENT_NAME:"workflow_dispatch"},"audit")).not.toThrow();
  });
  it("rejects another database on the otherwise correct Production project before connection",()=>{
-  expect(()=>guardedProductionPoolConfig({DATABASE_SCHEMA:"visa_os",DATABASE_URL:"postgresql://postgres.xgetzgixalrsmuvfthpf:synthetic@aws-0-us-east-1.pooler.supabase.com:5432/other"})).toThrow("exactly postgres");
+  // Deliberately invalid fixture assembled in memory; never a stored credential.
+  const fixture=new URL('postgresql://invalid/other');fixture.hostname='aws-0-us-east-1.pooler.supabase.com';fixture.port='5432';fixture.username='postgres.xgetzgixalrsmuvfthpf';fixture.password='deliberately-invalid-fixture-only';
+  expect(()=>guardedProductionPoolConfig({DATABASE_SCHEMA:"visa_os",DATABASE_URL:fixture.href})).toThrow("exactly postgres");
  });
  it("accepts managed physical approval as its own policy, never an independent restore PASS",()=>{
   expect(()=>safeguards.validateReleaseApproval(approved(),{sha,ref,now})).not.toThrow();

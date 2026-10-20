@@ -6,6 +6,7 @@ import type {ManagedBackupEvidence} from "./lib/release-recovery-policy";
 import {Pool,type PoolClient} from "pg";
 import {guardedProductionPoolConfig} from "./prod-release";
 import {safeErrorCode} from "../src/lib/safe-error";
+import {readExternalObjectInventory,objectSetDigest} from './lib/external-storage-recovery';
 const project="xgetzgixalrsmuvfthpf",requestPath=`/v1/projects/${project}/database/backups`;
 let operationStage="CONFIGURATION";
 /** Reuses the existing portal writer-reference inventory, without reading any object bytes. */
@@ -31,7 +32,11 @@ export async function readManagedStorageInventory(client:PoolClient,schema="visa
  const blobQueries=blobTables.map(t=>`select key,encode(pg_catalog.sha256(data),'hex') sha from "${schema}"."${t}"`).join(' union all ');
  const result=(await client.query(`with refs as (${refs}), blobs as(${blobQueries}), objects as(select bucket_id,name from "${providerSchema}".objects) select (select count(*)::int from refs where not exists(select 1 from blobs where blobs.key=refs.key)) external_references,(select count(*)::int from objects) external_objects,(select count(*)::int from(select key from blobs group by key having count(distinct sha)>1) ambiguous) ambiguous_keys,encode(pg_catalog.sha256(convert_to(concat_ws('|',(select coalesce(string_agg(key||':'||sha,'|' order by key,sha),'') from blobs),(select coalesce(string_agg(encode(pg_catalog.sha256(convert_to(key,'UTF8')),'hex'),'|' order by key),'') from refs),(select coalesce(string_agg(encode(pg_catalog.sha256(convert_to(bucket_id||':'||name,'UTF8')),'hex'),'|' order by bucket_id,name),'') from objects)),'UTF8')),'hex') inventory_sha256`)).rows[0];
  const covered=result.external_references===0&&result.external_objects===0&&result.ambiguous_keys===0;
- return {kind:"ESSAFARIA_PRODUCTION_STORAGE_INVENTORY",status:result.ambiguous_keys?'BLOCKED_DB_BLOB_GENERATION_AMBIGUITY':covered?"VERIFIED_READ_ONLY":"BLOCKED_EXTERNAL_STORAGE_COVERAGE",projectRef:project,database:"postgres",schema,tlsVerified:false,transactionReadOnly:true,coveredReferenceColumns:columns.length,coveredBlobTables:blobTables.length,externalStorage:{kind:covered?"NO_EXTERNAL_OBJECTS_VERIFIED":"EXTERNAL_OBJECT_RECOVERY_REQUIRED",checkedAt:new Date().toISOString(),inventorySha256:result.inventory_sha256,objectCount:result.external_objects,referenceCount:result.external_references}};
+ const objects=result.external_objects?await readExternalObjectInventory(client,providerSchema):[];
+ if(objects.length!==result.external_objects)throw Error('EXACT_OBJECT_SET_COUNT_MISMATCH');
+ const objectSetSha256=objects.length?objectSetDigest(objects):undefined;
+ const inventorySha256=objectSetSha256?createHash('sha256').update(result.inventory_sha256+'|'+objectSetSha256).digest('hex'):result.inventory_sha256;
+ return {kind:"ESSAFARIA_PRODUCTION_STORAGE_INVENTORY",status:result.ambiguous_keys?'BLOCKED_DB_BLOB_GENERATION_AMBIGUITY':covered?"VERIFIED_READ_ONLY":"BLOCKED_EXTERNAL_STORAGE_COVERAGE",projectRef:project,database:"postgres",schema,tlsVerified:false,transactionReadOnly:true,coveredReferenceColumns:columns.length,coveredBlobTables:blobTables.length,externalStorage:{kind:covered?"NO_EXTERNAL_OBJECTS_VERIFIED":"EXTERNAL_OBJECT_RECOVERY_REQUIRED",checkedAt:new Date().toISOString(),inventorySha256,objectCount:result.external_objects,referenceCount:result.external_references,...(objectSetSha256?{objectSetSha256,declaredBytes:objects.reduce((s,o)=>s+o.declaredBytes,0)}:{})}};
 }
 export function physicalBackupObservation(value:unknown,observedAt:string){
  const response=value as {backups?:Array<{id:number;is_physical_backup:boolean;status:string;inserted_at:string}>};
@@ -53,7 +58,8 @@ async function main(){
  if(!token?.trim())throw new Error("Private Supabase Management API token with backups_read permission is required.");
  const output=privateArtifactPath(process.env.MANAGED_BACKUP_OUTPUT??"","Managed backup evidence output",{requireAbsolute:true});
  const inventory=JSON.parse(readFileSync(privateArtifactPath(process.env.MANAGED_STORAGE_INVENTORY_FILE??"","Read-only Storage inventory",{requireAbsolute:true}),"utf8"));
- if(inventory.kind!=="ESSAFARIA_PRODUCTION_STORAGE_INVENTORY"||inventory.status!=="VERIFIED_READ_ONLY"||inventory.projectRef!==project||inventory.database!=="postgres"||inventory.schema!=="visa_os"||inventory.tlsVerified!==true||inventory.transactionReadOnly!==true)throw new Error("A separately verified exact Production read-only Storage/reference inventory is required.");
+ const sourceValid=inventory.status==='VERIFIED_READ_ONLY'||(inventory.status==='BLOCKED_EXTERNAL_STORAGE_COVERAGE'&&inventory.externalStorage?.kind==='EXTERNAL_OBJECT_RECOVERY_REQUIRED'&&inventory.externalStorage.referenceCount===0&&inventory.externalStorage.objectCount>0&&/^[a-f0-9]{64}$/.test(inventory.externalStorage.objectSetSha256??''));
+ if(inventory.kind!=="ESSAFARIA_PRODUCTION_STORAGE_INVENTORY"||!sourceValid||inventory.projectRef!==project||inventory.database!=="postgres"||inventory.schema!=="visa_os"||inventory.tlsVerified!==true||inventory.transactionReadOnly!==true)throw new Error("A separately verified exact Production read-only Storage/reference inventory is required.");
  const observedAt=new Date().toISOString();
  const response=await fetch("https://api.supabase.com"+requestPath,{method:"GET",headers:{Authorization:`Bearer ${token}`},redirect:"error",signal:AbortSignal.timeout(15000)});
  if(!response.ok)throw new Error(`Backup observation refused (HTTP ${response.status}); no retry or mutation attempted.`);

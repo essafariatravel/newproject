@@ -69,6 +69,7 @@ jobs:
       RELEASE_DR_EVIDENCE_BUNDLE: ${{ runner.temp }}/release-dr-bundle.json
       RELEASE_KEY_CUSTODY_RECEIPT: ${{ runner.temp }}/release-custody-receipt.json
       RELEASE_MANAGED_BACKUP_EVIDENCE: ${{ runner.temp }}/release-managed-backup.json
+      RELEASE_EXTERNAL_STORAGE_EVIDENCE: ${{ runner.temp }}/release-external-recovery.json
       RELEASE_BATCH_A_POSTFLIGHT_FILE: ${{ runner.temp }}/release-batch-a-postflight.json
       RELEASE_BATCH_POSTFLIGHT_FILE: ${{ runner.temp }}/release-batch-postflight.json
     steps:
@@ -143,6 +144,7 @@ jobs:
           RELEASE_DR_BUNDLE_JSON: ${{ vars.RELEASE_DR_BUNDLE_JSON }}
           RELEASE_KEY_CUSTODY_JSON: ${{ vars.RELEASE_KEY_CUSTODY_JSON }}
           RELEASE_MANAGED_BACKUP_JSON: ${{ vars.RELEASE_MANAGED_BACKUP_JSON }}
+          RELEASE_EXTERNAL_STORAGE_RECOVERY_JSON: ${{ vars.RELEASE_EXTERNAL_STORAGE_RECOVERY_JSON }}
           RELEASE_BATCH_A_POSTFLIGHT_JSON: ${{ vars.RELEASE_BATCH_A_POSTFLIGHT_JSON }}
         run: node scripts/stage-release-approval.cjs
 
@@ -207,6 +209,7 @@ jobs:
       RELEASE_DR_EVIDENCE_BUNDLE: ${{ runner.temp }}/release-dr-bundle.json
       RELEASE_KEY_CUSTODY_RECEIPT: ${{ runner.temp }}/release-custody-receipt.json
       RELEASE_MANAGED_BACKUP_EVIDENCE: ${{ runner.temp }}/release-managed-backup.json
+      RELEASE_EXTERNAL_STORAGE_EVIDENCE: ${{ runner.temp }}/release-external-recovery.json
       RELEASE_BATCH_A_POSTFLIGHT_FILE: ${{ runner.temp }}/release-batch-a-postflight.json
       RELEASE_BATCH_POSTFLIGHT_FILE: ${{ runner.temp }}/release-batch-postflight.json
     steps:
@@ -270,6 +273,7 @@ jobs:
           RELEASE_DR_BUNDLE_JSON: ${{ vars.RELEASE_DR_BUNDLE_JSON }}
           RELEASE_KEY_CUSTODY_JSON: ${{ vars.RELEASE_KEY_CUSTODY_JSON }}
           RELEASE_MANAGED_BACKUP_JSON: ${{ vars.RELEASE_MANAGED_BACKUP_JSON }}
+          RELEASE_EXTERNAL_STORAGE_RECOVERY_JSON: ${{ vars.RELEASE_EXTERNAL_STORAGE_RECOVERY_JSON }}
           RELEASE_BATCH_A_POSTFLIGHT_JSON: ${{ vars.RELEASE_BATCH_A_POSTFLIGHT_JSON }}
         run: node scripts/stage-release-approval.cjs
 
