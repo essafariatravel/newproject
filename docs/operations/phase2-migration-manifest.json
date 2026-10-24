@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "status": "PREPARATION_NOT_PRODUCTION_AUTHORIZATION",
+  "projectRef": "xgetzgixalrsmuvfthpf",
+  "database": "postgres",
+  "schema": "visa_os",
+  "batchA": {
+    "0020_identity_security.sql": "8512d68cf0dba0290d4fd003aea325ae6134929222992b06f6eb8d2fa0a07527",
+    "0021_business_invariants.sql": "7a9a5ccb2c26a3b3906e375f3fc16233d1cf84437b57bb9591f430264c882ec9",
+    "0022_registration_review.sql": "dd906ac3594538784e6a17b29fd4eafdebb3169ecc5526895f80215df223597b",
+    "0023_operations_legal.sql": "b5bff1fb15218426849dfb7aa23b765e1c89ea477b86465b5064f7b3c5a95f69",
+    "0024_preview_api_lockdown.sql": "5d4e54fe2bfdd3b40af6be86c9b9dc29626cf39c407904911daad5d925a3de6f",
+    "0025_legal_privacy_readiness.sql": "81c788724e1c934b2ec130a074fd458032fefcca0f548411a4666915e71089b2",
+    "0026_function_privilege_hardening.sql": "664c7fbb2ad394366f79aff2d39facedd79a306dcc3930e8e6000a076922aabe",
+    "0027_document_integrity.sql": "f4ccde325175c2ca0944f43f395021c052d6157b9ce847b64862499c58fb56a0",
+    "0028_file_identity_hardening.sql": "166bb2cc69cbd9bd26c1f8e7e26d0d09d3ba9ed2ef862e79950ec487a773700f",
+    "0029_legacy_reconciliation.sql": "ecc9ce4a32c31ebd17ab7cc3a59142600c31d051f3eab449d077d1c63a50505e",
+    "0030_reconciliation_api_lockdown.sql": "7f8edfa8d52e55c30a398f26d962d9712529e8780b5083721698a6943dca50c3",
+    "0031_reconciliation_event_sequence_repair.sql": "c30811a90d0caa71668895e4e2921bb5a336cd1e19e31c6a0f03ea83a95d8e81",
+    "0032_privileged_mfa.sql": "9ed8b4681ce2d86aee00d7ed6306626285cb94db54d3a2ee0456fdf841d12705",
+    "0033_rule_provenance_and_bounded_history.sql": "97100b4e6394aee5725d7b54facd77c13dc640e7f019d10d104f3bb43c0e23cb"
+  },
+  "batchB": {
+    "0034_document_retention.sql": "947ca0008cf057faf112f4d5afb7053a51c95308429452477713d7ce3a3c7504",
+    "0035_legal_document_kinds.sql": "1d1bfb66ab881ec35053e8241573b03d835c790d8647f4daf3594c018b7c6dae"
+  },
+  "excluded": [
+    "migrations/proposals/0036_storage_operations.sql"
+  ],
+  "baselineUsersBeforeEachMigrationBatch": 6,
+  "ownerProvisioningAfterBothBatches": true
+}

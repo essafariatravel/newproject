@@ -98,7 +98,7 @@ const WEBSITE_RE = /^(https?:\/\/)?[\w-]+(\.[\w-]+)+(:\d{1,5})?([/?#]\S*)?$/i;
  * mass-assigned from the public request.
  */
 export function registrationFormSchema(msg: ErrorCopy) {
-  const req = { required_error: msg.required, invalid_type_error: msg.required };
+  const req = { error: msg.required };
   const text = (min: number, max: number) =>
     z.preprocess(
       scrubControlChars,
@@ -119,10 +119,10 @@ export function registrationFormSchema(msg: ErrorCopy) {
   );
   const consent = z.preprocess(
     (v) => (v === "on" || v === "1" ? "true" : v),
-    z.literal("true", { errorMap: () => ({ message: msg.consentRequired }) }),
+    z.literal("true", { error: msg.consentRequired }),
   );
   const choice = <T extends readonly [string, ...string[]]>(values: T) =>
-    z.enum(values, { errorMap: () => ({ message: msg.invalidChoice }) });
+    z.enum(values, { error: msg.invalidChoice });
 
   return z.preprocess((input) => {
     if (!input || typeof input !== "object") return input;

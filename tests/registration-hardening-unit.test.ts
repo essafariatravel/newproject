@@ -21,3 +21,24 @@ describe("minimal partnership application", () => {
     expect(result.error.issues.map((issue) => issue.path[0])).toEqual(expect.arrayContaining(["email", "phone", "terms", "privacy", "accuracy"]));
   });
 });
+
+describe.each(["en", "fr", "ar"] as const)("localized registration errors (%s)", (locale) => {
+  it("preserves required, choice and consent messages", () => {
+    const messages = registrationCopy(locale).errors;
+    const result = registrationFormSchema(messages).safeParse({
+      legalName: 42,
+      contactFirstName: "Synthetic contact",
+      email: "contact@example.test",
+      phone: "+213 550 000 000",
+      businessType: "NOT_A_BUSINESS_TYPE",
+    });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    const issues = new Map(result.error.issues.map((issue) => [issue.path[0], issue.message]));
+    expect(issues.get("legalName")).toBe(messages.required);
+    expect(issues.get("businessType")).toBe(messages.invalidChoice);
+    for (const field of ["terms", "privacy", "accuracy"]) {
+      expect(issues.get(field)).toBe(messages.consentRequired);
+    }
+  });
+});
