@@ -13,6 +13,20 @@ import { identityT } from "@/lib/identity-copy";
 type Entry = { fr: string; ar: string };
 
 const CONTENT: Record<string, Entry> = {
+  "Effective-date policy": {fr:"Politique de date d’entrée en vigueur",ar:"سياسة تاريخ السريان"},
+  "Supply owner-approved content and one approved effective-date policy.": {fr:"Fournissez le contenu approuvé et une seule politique de date d’entrée en vigueur approuvée.",ar:"قدّم المحتوى المعتمد وسياسة واحدة معتمدة لتاريخ السريان."},
+  "Complete the approved factual fields before publication.": {fr:"Complétez les champs factuels approuvés avant la publication.",ar:"أكمل البيانات الواقعية المعتمدة قبل النشر."},
+  "Use the actual recording time": {fr:"Utiliser l’instant réel d’enregistrement",ar:"استخدام وقت التسجيل الفعلي"},
+  "Use explicit approved dates": {fr:"Utiliser les dates explicites approuvées",ar:"استخدام التواريخ الصريحة المعتمدة"},
+  "Owner approval reference": {fr:"Référence de l’accord du propriétaire",ar:"مرجع موافقة المالك"},
+  "I confirm these exact texts and factual fields are ready for publication.": {fr:"Je confirme que ces textes précis et leurs champs factuels sont prêts à être publiés.",ar:"أؤكد أن هذه النصوص المحددة والبيانات الواقعية جاهزة للنشر."},
+  "Recording-time publication requires the owner approval reference. Leave explicit dates empty for this policy.": {fr:"La publication à l’instant d’enregistrement exige la référence de l’accord du propriétaire. Laissez les dates explicites vides pour cette politique.",ar:"يتطلب النشر بوقت التسجيل مرجع موافقة المالك. اترك التواريخ الصريحة فارغة عند استخدام هذه السياسة."},
+  "Additional legal documents": {fr:"Autres documents juridiques",ar:"المستندات القانونية الأخرى"},
+  "Legal notice": {fr:"Mentions légales",ar:"الإشعار القانوني"},
+  "Cookie notice": {fr:"Politique des cookies",ar:"سياسة ملفات تعريف الارتباط"},
+  "Commercial terms": {fr:"Conditions commerciales",ar:"الشروط التجارية"},
+  "Staff confidentiality": {fr:"Confidentialité du personnel",ar:"سرية الموظفين"},
+  "Traveller submission declaration": {fr:"Déclaration de soumission du voyageur",ar:"إقرار تقديم طلب المسافر"},
   "Record the final decision with its official approval or refusal document.": {fr:"Enregistrez la décision finale avec son document officiel d’approbation ou de refus.",ar:"سجّل القرار النهائي مع وثيقة الموافقة أو الرفض الرسمية."},
   "Official decision document (PDF/JPG/PNG, required, 2 MB)": {fr:"Document officiel de décision (PDF/JPG/PNG, obligatoire, 2 Mo)",ar:"وثيقة القرار الرسمية (PDF/JPG/PNG، مطلوبة، 2 ميغابايت)"},
   "Edit": {fr:"Modifier",ar:"تعديل"},

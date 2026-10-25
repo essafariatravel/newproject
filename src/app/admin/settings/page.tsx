@@ -14,7 +14,7 @@ import { BrandStudio } from "@/components/brand-studio";
 import { Card, CardHeader, EmptyState, Flash, PageHeader } from "@/components/ui";
 import { contentT } from "@/lib/i18n-content";
 import { getUiLocale } from "@/lib/ui-i18n";
-import { readLatestLegal, readPublishedLegal } from "@/lib/legal";
+import { LEGAL_KINDS, readLatestLegal, readPublishedLegal, type LegalKind } from "@/lib/legal";
 import { db } from "@/lib/db";
 import { countries, visaTypes, visaCategories } from "@/db/schema";
 import { launchContentReadiness } from "@/lib/launch-readiness";
@@ -43,7 +43,8 @@ export default async function AdminSettingsPage({
   const branding = await readBranding();
   const logoUrl = brandLogoUrl(branding);
   const publishedLegal = Object.fromEntries(await Promise.all((["en","fr","ar"] as const).flatMap(locale => (["terms","privacy"] as const).map(async kind => [`legal.${kind}.${locale}`,await readPublishedLegal(kind,locale)] as const))));
-  const latestLegal = Object.fromEntries(await Promise.all((["en","fr","ar"] as const).flatMap(locale => (["terms","privacy"] as const).map(async kind => [`legal.${kind}.${locale}`,await readLatestLegal(kind,locale)] as const))));
+  const latestLegal = Object.fromEntries(await Promise.all((["en","fr","ar"] as const).flatMap(locale => LEGAL_KINDS.map(async kind => [`legal.${kind}.${locale}`,await readLatestLegal(kind,locale)] as const))));
+  const legalTitles: Record<LegalKind,string> = {terms:"Terms of service",privacy:"Privacy notice",legal_notice:"Legal notice",cookies:"Cookie notice",commercial:"Commercial terms",staff_confidentiality:"Staff confidentiality",traveller_submission_declaration:"Traveller submission declaration"};
   const [countryRows, programmeRows, categoryRows] = await Promise.all([db.select().from(countries),db.select().from(visaTypes),db.select().from(visaCategories)]);
   const readiness = launchContentReadiness(settings, publishedLegal, countryRows, programmeRows, categoryRows);
 
@@ -126,6 +127,12 @@ export default async function AdminSettingsPage({
             <input type="hidden" name="section" value="legal" />
             <p className="text-base text-slate-600">{ct("Publish owner-approved text only. Each change creates an immutable legal version.")}</p>
             <p className="text-base text-slate-600">{ct("The system records the actual publication timestamp automatically.")}</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div><label className="label" htmlFor="legal.datePolicy">{ct("Effective-date policy")}</label><select className="input" id="legal.datePolicy" name="legal.datePolicy" defaultValue="APPROVED_DATE"><option value="AT_RECORDING">{ct("Use the actual recording time")}</option><option value="APPROVED_DATE">{ct("Use explicit approved dates")}</option></select></div>
+              <div><label className="label" htmlFor="legal.ownerApprovalReference">{ct("Owner approval reference")}</label><input className="input" id="legal.ownerApprovalReference" name="legal.ownerApprovalReference" maxLength={128} autoComplete="off" /></div>
+            </div>
+            <label className="flex items-start gap-3 text-base"><input type="checkbox" name="legal.ownerConfirmed" value="yes" className="mt-1" /><span>{ct("I confirm these exact texts and factual fields are ready for publication.")}</span></label>
+            <p className="text-base text-slate-600">{ct("Recording-time publication requires the owner approval reference. Leave explicit dates empty for this policy.")}</p>
             <Card>
               <CardHeader title={ct("Legal content")} subtitle={ct("Rendered on the public Privacy and Terms pages in the selected language.")} />
               <div className="space-y-6 px-6 py-6">
@@ -133,23 +140,26 @@ export default async function AdminSettingsPage({
                   ["en", "English"],
                   ["fr", "Français"],
                   ["ar", "العربية"],
-                ] as const).map(([code, label]) => (
+                ] as const).map(([code, label]) => {
+                  const field = (kind: LegalKind) => {
+                    const legal = latestLegal[`legal.${kind}.${code}`];
+                    return <div key={kind} className="space-y-4">
+                      <label className="label" htmlFor={`legal.${kind}.${code}`}>{ct(legalTitles[kind])}</label>
+                      {legal ? <p className="text-xs text-slate-600"><bdi dir="ltr">v{legal.version} · {legal.effectiveAt.toISOString().slice(0,10)}</bdi></p> : <p className="text-xs text-slate-600">{ct("Not published")}</p>}
+                      <textarea id={`legal.${kind}.${code}`} name={`legal.${kind}.${code}`} rows={6} maxLength={50_000} dir={code === "ar" ? "rtl" : "ltr"} defaultValue={legal?.body ?? ""} className="input" />
+                      <label className="label" htmlFor={`legal.${kind}.${code}.effectiveAt`}>{ct("Approved effective date")}</label>
+                      <input id={`legal.${kind}.${code}.effectiveAt`} name={`legal.${kind}.${code}.effectiveAt`} type="date" className="input" />
+                    </div>;
+                  };
+                  return (
                   <div key={code} className="rounded-lg border border-ivory-200 p-4">
                     <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
                     <div className="grid gap-6 xl:grid-cols-2">
-                      {(["privacy","terms"] as const).map(kind => {
-                        const legal = latestLegal[`legal.${kind}.${code}`];
-                        return <div key={kind} className="space-y-4">
-                          <label className="label" htmlFor={`legal.${kind}.${code}`}>{ct(kind === "privacy" ? "Privacy notice" : "Terms of service")}</label>
-                          {legal ? <p className="text-xs text-slate-600"><bdi dir="ltr">v{legal.version} · {legal.effectiveAt.toISOString().slice(0,10)}</bdi></p> : <p className="text-xs text-slate-600">{ct("Not published")}</p>}
-                          <textarea id={`legal.${kind}.${code}`} name={`legal.${kind}.${code}`} rows={6} maxLength={50_000} dir={code === "ar" ? "rtl" : "ltr"} defaultValue={legal?.body ?? ""} className="input" />
-                          <label className="label" htmlFor={`legal.${kind}.${code}.effectiveAt`}>{ct("Approved effective date")}</label>
-                          <input id={`legal.${kind}.${code}.effectiveAt`} name={`legal.${kind}.${code}.effectiveAt`} type="date" defaultValue={legal?.effectiveAt.toISOString().slice(0,10) ?? ""} className="input" />
-                        </div>;
-                      })}
+                      {(["privacy","terms"] as const).map(field)}
                     </div>
+                    <details className="mt-4"><summary className="cursor-pointer font-semibold">{ct("Additional legal documents")}</summary><div className="mt-4 grid gap-6 xl:grid-cols-2">{LEGAL_KINDS.filter(kind => kind !== "terms" && kind !== "privacy").map(field)}</div></details>
                   </div>
-                ))}
+                );})}
               </div>
             </Card>
             <SubmitButton className="btn-primary" pendingLabel={ct("Saving.")}>{ct("Save legal content")}</SubmitButton>
