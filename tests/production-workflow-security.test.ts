@@ -17,7 +17,7 @@ describe("Production release workflow security", () => {
     )?.[1]?.replace(/\s+/g, " ").trim();
     expect(applyCondition).toBe([
       "github.event_name == 'push'",
-      "github.ref == 'refs/heads/release/essafaria-prod-candidate-2026-10-10'",
+      "(github.ref == 'refs/heads/release/essafaria-prod-candidate-2026-10-10' || github.ref == 'refs/heads/release/essafaria-prod-candidate-2026-10-20')",
       "needs.audit.outputs.go == 'true'",
       "needs.audit.result == 'success'",
     ].join(" && "));

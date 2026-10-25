@@ -120,7 +120,9 @@ describe("honest connected settings", () => {
     const html=renderToStaticMarkup(await SettingsPage({searchParams:Promise.resolve({})}));
     expect(html).toContain("TEST ONLY scheduled owner-approved notice");
     expect(html).toContain('name="legal.privacy.ar.effectiveAt"');
-    expect(html).toContain('value="2099-01-01"');
+    // Keep the scheduled version visible; both its date and recording-time
+    // activation require a deliberate choice for this new publication.
+    expect(html).toContain("v1 · 2099-01-01");
     expect(html).not.toContain('name="legal.publishedAt"');
     expect(await readPublishedLegal("privacy","ar")).toBeNull();
     expect(html).toContain("PRIVACY / AR");

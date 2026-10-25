@@ -17,7 +17,7 @@ import { hashPassword } from "@/lib/crypto";
 import { runAction } from "@/lib/action-helpers";
 import { updateSetting } from "@/lib/settings";
 import { adjustWallet } from "@/lib/wallet";
-import { publishLegalContents } from "@/lib/legal";
+import { legalPublicationsFromForm, publishLegalContents } from "@/lib/legal";
 import { normalizeOptionalAgencyName } from "@/lib/agency-display";
 import { createAccount, currentAccountActor, lockIdentityState, recordIdentityAudit, toggleAgencyAccess, updateAccount } from "@/lib/account-security";
 import { normalizeAgencyUsername } from "@/lib/identity-policy";
@@ -312,12 +312,10 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
     const section = String(formData.get("section") ?? "");
     if (section === "legal") {
       if (staff.role !== "SUPER_ADMIN") throw new AppError("FORBIDDEN", "Only SUPER_ADMIN can publish approved legal content.");
-      const publications = (["en","fr","ar"] as const).flatMap(locale => (["terms","privacy"] as const).map(kind => ({kind,locale,body:String(formData.get(`legal.${kind}.${locale}`)??"").trim(),effectiveAt:new Date(String(formData.get(`legal.${kind}.${locale}.effectiveAt`)??"")),actor:staff}))).filter(p => p.body);
-      if (!publications.length) throw new AppError("VALIDATION", "Supply owner-approved legal content before publishing.");
-      if (publications.some(p=>!Number.isFinite(p.effectiveAt.getTime()))) throw new AppError("VALIDATION", "Every legal version requires approved content and an approved effective date.");
-      if (publications.some(p=>p.body.length>50_000)) throw new AppError("VALIDATION", "Legal content is too long.");
+      const publications = legalPublicationsFromForm(formData, staff);
       await publishLegalContents(publications);
       revalidatePath("/admin/settings"); revalidatePath("/terms"); revalidatePath("/privacy"); revalidatePath("/agency/register");
+      revalidatePath("/legal"); revalidatePath("/legal/acceptances");
       return "Approved legal versions published.";
     }
     const entries: Array<[string, unknown]> = [];

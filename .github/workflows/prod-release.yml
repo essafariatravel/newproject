@@ -21,6 +21,7 @@ on:
       - release/essafaria-rc-2026-09
       - release/go-live-final-2026-10-06
       - release/essafaria-prod-candidate-2026-10-10
+      - release/essafaria-prod-candidate-2026-10-20
     paths:
       - .github/workflows/prod-release.yml
       - scripts/prod-release.ts
@@ -62,11 +63,7 @@ jobs:
       POSTGRES_URL_POSTGRES: ${{ secrets.POSTGRES_URL_POSTGRES }}
       DIRECT_DATABASE_URL: ${{ secrets.PRODUCTION_DIRECT_DATABASE_URL || secrets.DIRECT_DATABASE_URL }}
       DATABASE_SCHEMA: visa_os
-      RELEASE_APPROVAL_FILE: ${{ runner.temp }}/release-approval.json
       RELEASE_APPROVAL_SHA256: ${{ vars.RELEASE_APPROVAL_SHA256 }}
-      RELEASE_DR_VERIFIED_MANIFEST: ${{ runner.temp }}/release-dr-verified.json
-      RELEASE_DR_EVIDENCE_BUNDLE: ${{ runner.temp }}/release-dr-bundle.json
-      RELEASE_KEY_CUSTODY_RECEIPT: ${{ runner.temp }}/release-custody-receipt.json
     steps:
       - name: Checkout
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -114,6 +111,31 @@ jobs:
         with:
           node-version: 22
 
+      - name: Configure private release evidence paths
+        shell: node {0}
+        run: |
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const root = process.env.RUNNER_TEMP;
+          const destination = process.env.GITHUB_ENV;
+          if (!root || !path.isAbsolute(root) || /[\r\n]/.test(root) ||
+              !destination || !path.isAbsolute(destination) ||
+              !fs.statSync(root).isDirectory() || fs.lstatSync(root).isSymbolicLink()) {
+            throw new Error('Private runner paths are required.');
+          }
+          const files = {
+            RELEASE_APPROVAL_FILE: 'release-approval.json',
+            RELEASE_DR_VERIFIED_MANIFEST: 'release-dr-verified.json',
+            RELEASE_DR_EVIDENCE_BUNDLE: 'release-dr-bundle.json',
+            RELEASE_KEY_CUSTODY_RECEIPT: 'release-custody-receipt.json',
+            RELEASE_MANAGED_BACKUP_EVIDENCE: 'release-managed-backup.json',
+            RELEASE_EXTERNAL_STORAGE_EVIDENCE: 'release-external-recovery.json',
+            RELEASE_BATCH_A_POSTFLIGHT_FILE: 'release-batch-a-postflight.json',
+            RELEASE_BATCH_POSTFLIGHT_FILE: 'release-batch-postflight.json',
+          };
+          fs.appendFileSync(destination, Object.entries(files)
+            .map(([name, file]) => `${name}=${path.join(root, file)}\n`).join(''));
+
       - name: Dependencies from immutable package-lock
         run: |
           set +e
@@ -131,13 +153,16 @@ jobs:
           fi
           set -e
 
-      - name: Stage exact owner approval and verified DR evidence privately
+      - name: Stage exact owner approval and selected recovery evidence privately
         if: steps.sentinel.outputs.go == 'true'
         env:
           RELEASE_APPROVAL_JSON: ${{ vars.RELEASE_APPROVAL_JSON }}
           RELEASE_DR_VERIFIED_JSON: ${{ vars.RELEASE_DR_VERIFIED_JSON }}
           RELEASE_DR_BUNDLE_JSON: ${{ vars.RELEASE_DR_BUNDLE_JSON }}
           RELEASE_KEY_CUSTODY_JSON: ${{ vars.RELEASE_KEY_CUSTODY_JSON }}
+          RELEASE_MANAGED_BACKUP_JSON: ${{ vars.RELEASE_MANAGED_BACKUP_JSON }}
+          RELEASE_EXTERNAL_STORAGE_RECOVERY_JSON: ${{ vars.RELEASE_EXTERNAL_STORAGE_RECOVERY_JSON }}
+          RELEASE_BATCH_A_POSTFLIGHT_JSON: ${{ vars.RELEASE_BATCH_A_POSTFLIGHT_JSON }}
         run: node scripts/stage-release-approval.cjs
 
       - name: Run read-only Production audit / baseline candidate
@@ -180,7 +205,7 @@ jobs:
     needs: audit
     if: >-
       github.event_name == 'push' &&
-      github.ref == 'refs/heads/release/essafaria-prod-candidate-2026-10-10' &&
+      (github.ref == 'refs/heads/release/essafaria-prod-candidate-2026-10-10' || github.ref == 'refs/heads/release/essafaria-prod-candidate-2026-10-20') &&
       needs.audit.outputs.go == 'true' &&
       needs.audit.result == 'success'
 
@@ -195,11 +220,7 @@ jobs:
       POSTGRES_URL_POSTGRES: ${{ secrets.POSTGRES_URL_POSTGRES }}
       DIRECT_DATABASE_URL: ${{ secrets.PRODUCTION_DIRECT_DATABASE_URL || secrets.DIRECT_DATABASE_URL }}
       DATABASE_SCHEMA: visa_os
-      RELEASE_APPROVAL_FILE: ${{ runner.temp }}/release-approval.json
       RELEASE_APPROVAL_SHA256: ${{ vars.RELEASE_APPROVAL_SHA256 }}
-      RELEASE_DR_VERIFIED_MANIFEST: ${{ runner.temp }}/release-dr-verified.json
-      RELEASE_DR_EVIDENCE_BUNDLE: ${{ runner.temp }}/release-dr-bundle.json
-      RELEASE_KEY_CUSTODY_RECEIPT: ${{ runner.temp }}/release-custody-receipt.json
     steps:
       - name: Guard — resolve the Production database secret (masked)
         run: |
@@ -237,6 +258,31 @@ jobs:
         with:
           node-version: 22
 
+      - name: Configure private release evidence paths
+        shell: node {0}
+        run: |
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const root = process.env.RUNNER_TEMP;
+          const destination = process.env.GITHUB_ENV;
+          if (!root || !path.isAbsolute(root) || /[\r\n]/.test(root) ||
+              !destination || !path.isAbsolute(destination) ||
+              !fs.statSync(root).isDirectory() || fs.lstatSync(root).isSymbolicLink()) {
+            throw new Error('Private runner paths are required.');
+          }
+          const files = {
+            RELEASE_APPROVAL_FILE: 'release-approval.json',
+            RELEASE_DR_VERIFIED_MANIFEST: 'release-dr-verified.json',
+            RELEASE_DR_EVIDENCE_BUNDLE: 'release-dr-bundle.json',
+            RELEASE_KEY_CUSTODY_RECEIPT: 'release-custody-receipt.json',
+            RELEASE_MANAGED_BACKUP_EVIDENCE: 'release-managed-backup.json',
+            RELEASE_EXTERNAL_STORAGE_EVIDENCE: 'release-external-recovery.json',
+            RELEASE_BATCH_A_POSTFLIGHT_FILE: 'release-batch-a-postflight.json',
+            RELEASE_BATCH_POSTFLIGHT_FILE: 'release-batch-postflight.json',
+          };
+          fs.appendFileSync(destination, Object.entries(files)
+            .map(([name, file]) => `${name}=${path.join(root, file)}\n`).join(''));
+
       - name: Dependencies from immutable package-lock
         run: |
           set +e
@@ -254,16 +300,27 @@ jobs:
           fi
           set -e
 
-      - name: Stage exact owner approval and verified DR evidence privately
+      - name: Stage exact owner approval and selected recovery evidence privately
         env:
           RELEASE_APPROVAL_JSON: ${{ vars.RELEASE_APPROVAL_JSON }}
           RELEASE_DR_VERIFIED_JSON: ${{ vars.RELEASE_DR_VERIFIED_JSON }}
           RELEASE_DR_BUNDLE_JSON: ${{ vars.RELEASE_DR_BUNDLE_JSON }}
           RELEASE_KEY_CUSTODY_JSON: ${{ vars.RELEASE_KEY_CUSTODY_JSON }}
+          RELEASE_MANAGED_BACKUP_JSON: ${{ vars.RELEASE_MANAGED_BACKUP_JSON }}
+          RELEASE_EXTERNAL_STORAGE_RECOVERY_JSON: ${{ vars.RELEASE_EXTERNAL_STORAGE_RECOVERY_JSON }}
+          RELEASE_BATCH_A_POSTFLIGHT_JSON: ${{ vars.RELEASE_BATCH_A_POSTFLIGHT_JSON }}
         run: node scripts/stage-release-approval.cjs
 
       - name: Preflight + restore point + migrations + integrity postflight
         run: npx --no-install tsx scripts/prod-release.ts apply
+
+      - name: Preserve immutable aggregate batch postflight for the next explicit approval
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: migration-postflight-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/release-batch-postflight.json
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Publish report to Actions summary
         if: always()

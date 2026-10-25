@@ -79,6 +79,44 @@ export interface LegalPublication {
   actor: AuthUser;
 }
 
+/** Parse the existing owner CMS form; the database alone supplies recording time. */
+export function legalPublicationsFromForm(form: FormData, actor: AuthUser): LegalPublication[] {
+  requirePermission(actor, "cms.manage");
+  if (actor.role !== "SUPER_ADMIN" || actor.agencyId || actor.mfaPending) {
+    throw new AppError("FORBIDDEN", "Only SUPER_ADMIN can publish approved legal content.");
+  }
+  const fail = (): never => { throw new AppError("VALIDATION", "Supply owner-approved content and one approved effective-date policy."); };
+  const locales = ["en", "fr", "ar"] as const;
+  const supported = new Set(["legal.datePolicy", "legal.ownerApprovalReference", "legal.ownerConfirmed",
+    ...LEGAL_KINDS.flatMap(kind => locales.flatMap(locale => [`legal.${kind}.${locale}`, `legal.${kind}.${locale}.effectiveAt`]))]);
+  for (const key of form.keys()) if (key.startsWith("legal.") && (!supported.has(key) || form.getAll(key).length !== 1)) fail();
+  const text = (key: string): string => { const value = form.get(key); if (value !== null && typeof value !== "string") fail(); return (value as string | null)?.trim() ?? ""; };
+  const policy = text("legal.datePolicy") || "APPROVED_DATE";
+  if (policy !== "APPROVED_DATE" && policy !== "AT_RECORDING") fail();
+  const reference = text("legal.ownerApprovalReference");
+  if (policy === "AT_RECORDING" ? text("legal.ownerConfirmed") !== "yes" || !/^[A-Za-z0-9_-]{16,128}$/.test(reference) : Boolean(reference)) fail();
+  const publications: LegalPublication[] = [];
+  for (const locale of locales) for (const kind of LEGAL_KINDS) {
+    const body = text(`legal.${kind}.${locale}`);
+    if (!body) continue;
+    if (body.length > 50_000 || /\[[^\]]+\]/u.test(body)) {
+      throw new AppError("LEGAL_SOURCE_FIELDS_REQUIRED", "Complete the approved factual fields before publication.");
+    }
+    const suppliedDate = text(`legal.${kind}.${locale}.effectiveAt`);
+    if (policy === "AT_RECORDING") {
+      if (suppliedDate) fail();
+      publications.push({ kind, locale, body, effectiveAt: "AT_RECORDING", ownerApprovalReference: reference, actor });
+    } else {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(suppliedDate)) fail();
+      const effectiveAt = new Date(`${suppliedDate}T00:00:00.000Z`);
+      if (!Number.isFinite(effectiveAt.getTime()) || effectiveAt.toISOString().slice(0, 10) !== suppliedDate) fail();
+      publications.push({ kind, locale, body, effectiveAt, actor });
+    }
+  }
+  if (!publications.length) fail();
+  return publications;
+}
+
 export async function publishLegalContent(input: LegalPublication): Promise<PublishedLegal> {
   return (await publishLegalContents([input]))[0]!;
 }
