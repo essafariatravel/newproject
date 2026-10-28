@@ -6,7 +6,6 @@ import { LoginForm } from "./login-form";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { identityT } from "@/lib/identity-copy";
-import { mfaEnforcementEnabled } from "@/lib/mfa-policy";
 import { safeErrorCode } from "@/lib/safe-error";
 import type { Metadata } from "next";
 import { buildNoIndexMetadata } from "@/lib/seo";
@@ -19,7 +18,6 @@ export const dynamic = "force-dynamic";
 export default async function LoginPage({searchParams}: {searchParams: Promise<Record<string, string | string[] | undefined>>}) {
   const sp = await searchParams;
   const locale = await getUiLocale(sp), ct = contentT(locale), it = identityT(locale);
-  const previewPasswordOnly = !mfaEnforcementEnabled();
   // Already signed in → straight to the right workspace. Never 500 if DB is temporarily unavailable.
   let user: Awaited<ReturnType<typeof getSessionUser>> = null;
   try {
@@ -71,12 +69,14 @@ export default async function LoginPage({searchParams}: {searchParams: Promise<R
           {sp.reset === "complete" ? <p role="status" className="mt-4 border-s-2 border-emerald-600 ps-4 text-base text-slate-600">{ct("Your password has been updated. Sign in with your new password.")}</p> : null}
           <LoginForm
         copy={{
-          email: it(previewPasswordOnly ? "Email or username" : "Username or staff email"),
+          email: ct("Email"),
           password: ct("Password"),
           signIn: ct("Sign in"),
           signingIn: `${ct("Signing in")}…`,
-          footer: it(previewPasswordOnly ? "Use your unique account email or agency username. Shared emails require a username." : "Enter your agency username or your staff professional email."),
+          footer: it("Sign in with your registered account email."),
           forgotPassword: it("Forgot password?"),
+          showPassword: ct("Show"),
+          hidePassword: ct("Hide"),
         }} brandName={branding.name} />
         </div>
       </div>

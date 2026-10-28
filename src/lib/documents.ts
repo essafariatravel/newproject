@@ -1,3 +1,4 @@
+import { configuredStorageProvider } from "@/lib/storage-config";
 import { validateDocumentFormat } from "@/lib/upload-validation";
 import { sha256Hex } from "@/lib/file-integrity";
 import { qualifiedTable } from "./database-schema";
@@ -232,7 +233,7 @@ export async function uploadDocument(input: UploadDocumentInput, resubmittedDocu
   const documentId = randomUUID();
   const storageKey = buildStorageKey(input.applicationId, documentId);
   const provider = storageProvider();
-  const databaseStorage = process.env.STORAGE_PROVIDER !== "supabase";
+  const databaseStorage = configuredStorageProvider() !== "supabase";
   await provider.put(storageKey, input.file.data, input.file.type);
   let doc: typeof documents.$inferSelect;
   let fulfilledRequest = false;

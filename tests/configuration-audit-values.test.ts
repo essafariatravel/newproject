@@ -51,8 +51,9 @@ it("allows editing a programme with a historical code longer than 40 characters 
   const form = new FormData();
   for (const [key, value] of Object.entries({ id: row!.id, countryId: row!.countryId, categoryId: row!.categoryId,
     name: "Updated historical programme", processingMinDays: String(row!.processingMinDays), processingMaxDays: String(row!.processingMaxDays), fee: row!.fee })) form.set(key, value);
+  form.set("description", "Professional conditions. ".repeat(180));
   await expect(updateVisaTypeAction(form)).rejects.toMatchObject({ digest: expect.stringContaining("?ok=") });
-  expect((await db.select().from(visaTypes).where(eq(visaTypes.id, row!.id)))[0]).toMatchObject({ code, name: "Updated historical programme" });
+  expect((await db.select().from(visaTypes).where(eq(visaTypes.id, row!.id)))[0]).toMatchObject({ code, name: "Updated historical programme", description: String(form.get("description")).trim() });
 });
 
 it("accepts a longer new programme code but rejects unsafe code characters", async () => {

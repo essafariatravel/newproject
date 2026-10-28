@@ -1,3 +1,4 @@
+import { configuredStorageProvider } from "@/lib/storage-config";
 /** Configurable identity and artwork; approved product tokens are fixed. */
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
@@ -161,7 +162,7 @@ function validateLogoContent(upload: LogoUpload): void {
   if (!matches) throw new AppError("INVALID_FILE", "The logo content does not match its declared image format.");
 }
 
-const externalLogoStorage = () => process.env.STORAGE_PROVIDER === "supabase";
+const externalLogoStorage = () => configuredStorageProvider() === "supabase";
 async function putLogo(key: string, upload: LogoUpload, actor: AuthUser, mutate: (tx: SettingsTransaction) => Promise<string | null>): Promise<void> {
   validateLogoContent(upload);
   const external=externalLogoStorage();

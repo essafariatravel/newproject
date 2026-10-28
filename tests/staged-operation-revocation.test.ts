@@ -24,6 +24,7 @@ const revocations: Revocation[] = ["suspension", "forced sign-out", "suspension 
 
 async function capturedActor(email: string): Promise<CapturedActor> {
   const actor = await userByEmail(email);
+  if (actor.agencyId) await db.execute(sql`update users set status='SUSPENDED' where agency_id=${actor.agencyId} and id<>${actor.id}`);
   const [row] = await db.select({ version: users.credentialVersion }).from(users).where(eq(users.id, actor.id));
   return { ...actor, credentialVersion: row!.version };
 }

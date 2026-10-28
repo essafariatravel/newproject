@@ -72,15 +72,15 @@ describe("explicitly authorized Preview password login", () => {
     if (user.agencyId) { await expect(requireStaff()).rejects.toMatchObject({ code: "FORBIDDEN" }); expect((await requireAgencyUser()).agencyId).toBe(user.agencyId); }
     else { expect((await requireStaff()).id).toBe(user.id); await expect(requireAgencyUser()).rejects.toMatchObject({ code: "FORBIDDEN" }); }
   });
-  it("keeps the agency's unique username as a login identity", async () => {
-    expect((await authenticate("a-user", "Test-Password-123")).role).toBe("AGENCY_USER");
+  it("uses the agency registered email as the login identity", async () => {
+    expect((await authenticate("a-user@test.example", "Test-Password-123")).role).toBe("AGENCY_USER");
   });
   it("rejects an ambiguous email even if one matching password is known", async () => {
     const a = await userByEmail("a-user@test.example"), b = await userByEmail("b-user@test.example");
     await pool.query("update users set email='shared@test.example' where id=any($1::uuid[])", [[a.id,b.id]]);
     try {
-      await expect(authenticate("shared@test.example", "Test-Password-123")).rejects.toMatchObject({ code: "INVALID_CREDENTIALS", message: "Invalid username, email or password." });
-      expect((await authenticate("a-user", "Test-Password-123")).id).toBe(a.id);
+      await expect(authenticate("shared@test.example", "Test-Password-123")).rejects.toMatchObject({ code: "INVALID_CREDENTIALS", message: "Invalid email or password." });
+      await expect(authenticate("a-user", "Test-Password-123")).rejects.toMatchObject({code:"INVALID_CREDENTIALS"});
     } finally {
       await pool.query("update users set email=$2 where id=$1", [a.id, "a-user@test.example"]);
       await pool.query("update users set email=$2 where id=$1", [b.id, "b-user@test.example"]);
@@ -178,7 +178,7 @@ describe("explicitly authorized Preview password login", () => {
   });
   it("still applies the account login rate limit while MFA is paused", async () => {
     const form=new FormData();form.set("identifier","admin@test.example");form.set("password","Synthetic-Wrong-Password");
-    for(let i=0;i<10;i++)expect((await loginAction({},form)).error).toBe("Invalid username, email or password.");
+    for(let i=0;i<10;i++)expect((await loginAction({},form)).error).toBe("Invalid email or password.");
     expect((await loginAction({},form)).error).toBe("Sign-in is temporarily unavailable. Please try again later.");
   });
   it("accepts the authorized Supabase pooler metadata as well as the direct endpoint",async()=>{
@@ -212,10 +212,10 @@ describe("enforcement fails closed outside the exact Preview context", () => {
     expect(await getSessionUser()).toBeNull();
     expect((await notifications()).status).toBe(401);
   });
-  it("does not enable agency email login outside the approved Preview mode", async () => {
+  it("allows agency email login without changing MFA enforcement", async () => {
     vi.stubEnv("MFA_ENFORCEMENT_ENABLED", "true");
-    await expect(authenticate("a-user@test.example", "Test-Password-123")).rejects.toMatchObject({ code:"INVALID_CREDENTIALS" });
-    expect((await authenticate("a-user", "Test-Password-123")).role).toBe("AGENCY_USER");
+    expect((await authenticate("a-user@test.example", "Test-Password-123")).role).toBe("AGENCY_USER");
+    expect((await authenticate("a-user@test.example", "Test-Password-123")).role).toBe("AGENCY_USER");
   });
 });
 

@@ -20,10 +20,10 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   const email = String(formData.get("identifier") ?? formData.get("email") ?? "").trim().slice(0, 254);
   const password = String(formData.get("password") ?? "");
   if (!email || !password) {
-    return fail("Enter your username or staff email and password.");
+    return fail("Enter your registered email and password.");
   }
   if (password.length > 200) {
-    return fail("Invalid username, email or password.");
+    return fail("Invalid email or password.");
   }
   let user;
   try {

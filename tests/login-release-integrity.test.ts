@@ -28,7 +28,7 @@ describe("release login integrity",()=>{
     await db.execute(sql`create trigger login_audit_failure before insert on audit_logs for each row execute function login_audit_failure()`);
     const before=(await db.execute(sql`select count(*)::int n from sessions`)).rows[0]?.n;
     request.set.mockClear(); vi.spyOn(console,"error").mockImplementation(()=>undefined);
-    const result=await loginAction({},form("b-admin","Test-Password-123"));
+    const result=await loginAction({},form("b-admin@test.example","Test-Password-123"));
     expect(result.error).toContain("Service temporarily unavailable");
     expect((await db.execute(sql`select count(*)::int n from sessions`)).rows[0]?.n).toBe(before);
     expect(request.set).not.toHaveBeenCalled();

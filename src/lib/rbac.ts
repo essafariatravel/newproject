@@ -161,7 +161,6 @@ const PERMISSIONS: Record<Role, readonly Permission[]> = {
     "transactions.view.own",
     "communications.post.agency",
     "notifications.agency",
-    "users.manage",
   ],
   AGENCY_USER: [
     "applications.create",

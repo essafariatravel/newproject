@@ -10,8 +10,8 @@ export function RecoveryForm({ locale }: { locale: UiLocale }) {
   const [state, action] = useActionState(requestRecoveryAction, {});
   const t = identityT(locale);
   return <form action={action} className="card mt-6 space-y-4 p-6">
-    <label className="label" htmlFor="recovery-identifier">{t("Username or staff email")}</label>
-    <input id="recovery-identifier" name="identifier" className="input" type="text" required maxLength={254} autoComplete="username" dir="ltr" />
+    <label className="label" htmlFor="recovery-identifier">{t("Email")}</label>
+    <input id="recovery-identifier" name="identifier" className="input" type="email" required maxLength={254} autoComplete="username" dir="ltr" />
     <SubmitButton className="btn-primary w-full" pendingLabel="…">{t("Request access help")}</SubmitButton>
     {state.message ? <p className="text-base text-slate-600" role="status">{t(state.message)}</p> : null}
   </form>;

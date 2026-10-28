@@ -1,3 +1,4 @@
+import { configuredStorageProvider } from "@/lib/storage-config";
 /**
  * Document storage abstraction.
  *
@@ -204,7 +205,7 @@ const supabaseProvider: StorageProvider = {
 /* ------------------------------ selection -------------------------------- */
 
 export function storageProvider(): StorageProvider {
-  switch (process.env.STORAGE_PROVIDER) {
+  switch (configuredStorageProvider()) {
     case "supabase":
       return storageOperationsEnabled()?journaledProvider:supabaseProvider;
     case undefined:
@@ -223,7 +224,7 @@ export function storageOperationsEnabled(){
 }
 function localJournalTarget(){
   let uri:URL;try{uri=new URL(assertLocalPostgresUrl(process.env.DATABASE_URL??''));}catch{throw new AppError("STORAGE_MISCONFIGURED","Storage target is not qualified.");}
-  if(uri.port!=='5434'||uri.pathname!=='/essafaria_test'||process.env.DATABASE_SCHEMA!=='public'||process.env.STORAGE_PROVIDER!=='supabase'||
+  if(uri.port!=='5434'||uri.pathname!=='/essafaria_test'||process.env.DATABASE_SCHEMA!=='public'||configuredStorageProvider()!=='supabase'||
     process.env.VERCEL||process.env.VERCEL_ENV||process.env.VERCEL_TARGET_ENV||process.env.NETLIFY||process.env.RENDER||process.env.CF_PAGES)
     throw new AppError("STORAGE_MISCONFIGURED","Storage target is not qualified.");
   return assertLocalHttpOrigin(process.env.STORAGE_LOCAL_HTTP_ORIGIN??'');

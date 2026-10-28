@@ -1,3 +1,4 @@
+import { configuredStorageProvider } from "@/lib/storage-config";
 import { pool } from "@/lib/db";
 import { databaseSchema, qualifiedTable } from "@/lib/database-schema";
 import { qualifiedPurgedDecisionSql } from "@/lib/document-retention-receipts";
@@ -235,7 +236,7 @@ export async function runIntegrityChecks(): Promise<IntegrityReport> {
     const row = result.rows[0]!;
     let legacyMissingDocumentBlobs: number | null = null;
     let postCutoverMissingDocumentBlobs: number | null = null;
-    if ((process.env.STORAGE_PROVIDER ?? "db") === "db") {
+    if ((configuredStorageProvider() ?? "db") === "db") {
       const blobs = await pool.query<{
         legacy_missing: number | string;
         post_cutover_missing: number | string;

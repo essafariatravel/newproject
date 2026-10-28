@@ -167,7 +167,7 @@ describe("Phase 2.2 §9 — agency admins create ONLY AGENCY_USER", () => {
     expect(after.role).toBe("AGENCY_USER"); // unchanged
   });
 
-  it("agency admin CAN create an AGENCY_USER bound to their own agency (positive path)", async () => {
+  it("agency admin cannot create a secondary account even for their own agency", async () => {
     const admin = await userByEmail("a-admin@test.example");
     await setSessionFor(admin);
     const fd = new FormData();
@@ -178,7 +178,6 @@ describe("Phase 2.2 §9 — agency admins create ONLY AGENCY_USER", () => {
     const res = await attemptCreate(fd);
     expect(res).toContain("NEXT_REDIRECT"); // success also redirects (ok= flash)
     const created = (await db.select().from(users).where(eq(users.username, email.split("@")[0]!)))[0]!;
-    expect(created.role).toBe("AGENCY_USER");
-    expect(created.agencyId).toBe(admin.agencyId);
+    expect(created).toBeUndefined();
   });
 });

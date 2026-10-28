@@ -1,9 +1,10 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { agencies, accountAccessTokens, accountActivationTokens, auditLogs, sessions, users } from "@/db/schema";
 import { hashPassword, verifyPassword } from "@/lib/crypto";
 import { AppError, isAgencyRole, isStaffRole, type AuthUser, type Role } from "@/lib/types";
-import { assertAccountManager, assertAccountRole, normalizeAgencyUsername } from "@/lib/identity-policy";
+import { assertAccountManager, assertAccountRole, legacyAgencyUsername, normalizeAgencyUsername } from "@/lib/identity-policy";
 import type { recordAudit } from "@/lib/audit";
 
 export type IdentityTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -64,8 +65,10 @@ export async function createAccount(actor: AuthUser, input: {
     if (input.agencyId) {
       const [agency] = await tx.select().from(agencies).where(eq(agencies.id, input.agencyId)).limit(1);
       if (!agency || agency.status !== "ACTIVE") throw new AppError("NOT_FOUND", "Active agency not found.");
-      email = agency.email; // shared mailbox is contact data; never a human login key
-      username = normalizeAgencyUsername(input.username ?? "");
+      const [active] = await tx.select({id:users.id}).from(users).where(and(eq(users.agencyId,input.agencyId),eq(users.status,"ACTIVE"))).limit(1);
+      if (active) throw new AppError("AGENCY_ACCOUNT_EXISTS", "This agency already has an active account.");
+      email = input.email?.trim().toLowerCase() || agency.email.trim().toLowerCase();
+      username = input.username ? normalizeAgencyUsername(input.username) : legacyAgencyUsername(randomUUID());
       const [duplicate] = await tx.select({ id: users.id }).from(users).where(eq(users.username, username)).limit(1);
       if (duplicate) throw new AppError("DUPLICATE", "This username is unavailable.");
     } else {
@@ -74,6 +77,9 @@ export async function createAccount(actor: AuthUser, input: {
         .where(and(isNull(users.agencyId), sql`lower(btrim(${users.email}))=${email}`)).limit(1);
       if (duplicate) throw new AppError("DUPLICATE", "A staff account already uses this email.");
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) throw new AppError("VALIDATION", "Enter a valid professional email.");
+    const [emailOwner] = await tx.select({id:users.id}).from(users).where(and(eq(users.status,"ACTIVE"),sql`lower(btrim(${users.email}))=${email}`)).limit(1);
+    if (emailOwner) throw new AppError("DUPLICATE", "An active account already uses this email.");
     const created = (await tx.insert(users).values({ name: input.name, email, username, role: input.role,
       agencyId: input.agencyId, passwordHash, mustChangePassword: true }).returning())[0]!;
     await recordIdentityAudit(tx, { actor: current, action: "USER_CREATED", entity: "user", entityId: created.id, agencyId: created.agencyId,
@@ -95,6 +101,14 @@ export async function updateAccount(actor: AuthUser, userId: string, input: {
     assertAccountManager(current, target);
     if (input.role) assertAccountRole(current, target.agencyId, input.role);
     const nextStatus = input.toggleStatus ? (target.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE") : target.status;
+    if (target.status !== "ACTIVE" && nextStatus === "ACTIVE") {
+      if (target.agencyId) {
+        const [active] = await tx.select({id:users.id}).from(users).where(and(eq(users.agencyId,target.agencyId),eq(users.status,"ACTIVE"),ne(users.id,target.id))).limit(1);
+        if (active) throw new AppError("AGENCY_ACCOUNT_EXISTS", "This agency already has an active account.");
+      }
+      const [emailOwner] = await tx.select({id:users.id}).from(users).where(and(eq(users.status,"ACTIVE"),ne(users.id,target.id),sql`lower(btrim(${users.email}))=lower(btrim(${target.email}))`)).limit(1);
+      if (emailOwner) throw new AppError("DUPLICATE", "An active account already uses this email.");
+    }
     if (target.id === current.id && (input.toggleStatus || (input.role && input.role !== target.role))) {
       throw new AppError("VALIDATION", "You cannot suspend yourself or change your own role.");
     }

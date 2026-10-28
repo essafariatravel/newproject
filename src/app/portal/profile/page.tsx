@@ -112,7 +112,7 @@ export default async function PortalProfilePage({
                 { label: ct("Partner since"), value: formatDateTime(agency.createdAt, uiLocale) },
               ]}
             />
-            {canManageUsers ? <form action={updateOwnAgencyContactAction} className="grid gap-4 border-t border-slate-100 p-6 sm:grid-cols-3">
+            {user.role === "AGENCY_ADMIN" ? <form action={updateOwnAgencyContactAction} className="grid gap-4 border-t border-slate-100 p-6 sm:grid-cols-3">
               <div><label htmlFor="profile-phone" className="label">{ct("Phone")}</label><input id="profile-phone" name="phone" defaultValue={agency.phone ?? ""} className="input" maxLength={40} /></div>
               <div><label htmlFor="profile-city" className="label">{ct("City")}</label><input id="profile-city" name="city" defaultValue={agency.city ?? ""} className="input" maxLength={80} /></div>
               <div><label htmlFor="profile-address" className="label">{ct("Address")}</label><input id="profile-address" name="addressLine" defaultValue={agency.addressLine ?? ""} className="input" maxLength={300} /></div>
@@ -137,7 +137,7 @@ export default async function PortalProfilePage({
                   <tr key={u.id} className="tr-hover">
                     <td className="td">
                       <span className="block font-semibold text-navy-900">{u.name}</span>
-                      <span className="block text-xs text-slate-400" dir="ltr">{u.username}</span>
+                      <span className="block text-xs text-slate-400" dir="ltr">{u.email}</span>
                     </td>
                     <td className="td"><span className="badge bg-navy-900/5 text-navy-800">{businessLabel(u.role, uiLocale)}</span></td>
                     <td className="td">
@@ -219,7 +219,7 @@ export default async function PortalProfilePage({
             <CardHeader title={ct("Your account")} />
             <div className="px-4 py-4 text-base text-slate-700">
               <p>{user.name}</p>
-              <p className="text-xs text-slate-400" dir="ltr">{user.username}</p>
+              <p className="text-xs text-slate-400" dir="ltr">{user.email}</p>
               <Link href="/change-password" className="mt-4 inline-flex min-h-11 items-center text-base font-semibold text-iris-700 underline">{it("Change password")}</Link>
               <p className="mt-2 text-xs">
                 {ct("Role")}: <span className="badge bg-gold-100 text-navy-900">{businessLabel(user.role, uiLocale)}</span>

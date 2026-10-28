@@ -23,13 +23,13 @@ describe("profile financial visibility", () => {
     expect(html).not.toContain("PRIVATE-TAX-ID");
     expect(html).not.toContain("Add team member");
   });
-  it("allows Agency Admin to inspect their own billing details and presents fixed member role", async () => {
+  it("allows Agency Admin billing visibility without offering secondary accounts", async () => {
     const admin = await userByEmail("a-admin@test.example");
     request.cookie = (await createSession(admin.id)).token;
     const html = renderToStaticMarkup(await PortalProfilePage({ searchParams: Promise.resolve({}) }));
     expect(html).toContain("PRIVATE-BILLING-NAME");
-    expect(html).toContain("Add team member");
-    expect(html).toContain("p-role");
+    expect(html).not.toContain("Add team member");
+    expect(html).not.toContain("p-role");
   });
   it("never renders another agency's billing profile", async () => {
     const admin = await userByEmail("b-admin@test.example");

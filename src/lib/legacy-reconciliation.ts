@@ -1,3 +1,4 @@
+import { configuredStorageProvider } from "@/lib/storage-config";
 import type { Pool, PoolClient } from "pg";
 import { databaseSchema, qualifiedTable } from "@/lib/database-schema";
 import { AppError, type AuthUser } from "@/lib/types";
@@ -14,7 +15,7 @@ export function createLegacyReconciliationService(pool: Pool, schema = databaseS
   databaseSchema({ DATABASE_SCHEMA: schema });
   const table = (name: string) => qualifiedTable(name, schema);
   async function authorized(client: PoolClient, actor: AuthUser) {
-    if (process.env.STORAGE_PROVIDER && process.env.STORAGE_PROVIDER !== "db") throw new AppError("RECONCILIATION_STORAGE_UNVERIFIED", "Storage reconciliation requires a verified provider inventory.");
+    if (configuredStorageProvider() && configuredStorageProvider() !== "db") throw new AppError("RECONCILIATION_STORAGE_UNVERIFIED", "Storage reconciliation requires a verified provider inventory.");
     if (actor.agencyId || !["SUPER_ADMIN", "ADMIN"].includes(actor.role) || actor.mustChangePassword) throw new AppError("FORBIDDEN", "Not authorized.");
     const row = (await client.query(`select role,status,agency_id,must_change_password,activation_pending,credential_version from ${table("users")} where id=$1 for update`, [actor.id])).rows[0];
     if (!row || row.agency_id || row.status !== "ACTIVE" || row.must_change_password || row.activation_pending || row.role!==actor.role ||

@@ -114,7 +114,7 @@ export default async function AdminUsersPage({
               <tr key={u.id} className="tr-hover">
                 <td className="td">
                   <span className="block font-semibold text-navy-900">{u.name}</span>
-                  <span className="block text-xs text-slate-400" dir="ltr">{u.username ?? u.email}</span>
+                  <span className="block text-xs text-slate-400" dir="ltr">{u.email}</span>
                 </td>
                 <td className="td">
                   <span className="badge bg-navy-900/5 text-navy-800">{!u.agencyId && u.role !== "SUPER_ADMIN" ? it("Staff") : businessLabel(u.role, uiLocale)}</span>
@@ -156,7 +156,7 @@ export default async function AdminUsersPage({
         </TableWrap>
       )}
 
-      {canManage ? (
+      {canManage && view === "staff" ? (
         <div className="mt-8">
           <h2 className="mb-4 font-serif text-lg text-navy-900">{view === "staff" ? ct("Create staff user") : ct("Create agency user")}</h2>
           <form action={createUserAction} className="card grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-5">
@@ -166,8 +166,8 @@ export default async function AdminUsersPage({
               <input id="n-name" name="name" required className="input" />
             </div>
             <div>
-              <label className="label" htmlFor="n-identity">{view === "agency" ? it("Username") : ct("Email")} *</label>
-              <input id="n-identity" name={view === "agency" ? "username" : "email"} type={view === "agency" ? "text" : "email"} required className="input" maxLength={view === "agency" ? 48 : 254} dir="ltr" />
+              <label className="label" htmlFor="n-identity">{ct("Email")} *</label>
+              <input id="n-identity" name="email" type="email" required className="input" maxLength={254} dir="ltr" />
             </div>
             <div>
               <label className="label" htmlFor="n-role">{ct("Role")} *</label>
@@ -179,19 +179,6 @@ export default async function AdminUsersPage({
                 ))}
               </select>
             </div>
-            {view === "agency" ? (
-            <div>
-              <label className="label" htmlFor="n-agency">{ct("Agency")} *</label>
-              <select id="n-agency" name="agencyId" className="input" defaultValue="">
-                <option value="">— none (staff) —</option>
-                {agencies.map((a) => (
-                  <option key={a.agency.id} value={a.agency.id}>
-                    {a.agency.tradingName ?? a.agency.legalName}
-                  </option>
-                ))}
-              </select>
-            </div>
-            ) : null}
             <PasswordField
               id="n-password"
               name="password"

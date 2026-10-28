@@ -50,9 +50,9 @@ describe("Phase 2.2 §10 — SUPER_ADMIN agent + first admin onboarding", () => 
     expect(admin.passwordHash).not.toContain("TempOnboard42");
 
     // correct temp password authenticates; wrong one doesn't
-    const good = await authenticate(`admin-${suffix}`, "TempOnboard42");
+    const good = await authenticate(admin.email, "TempOnboard42");
     expect(good.username).toBe(`admin-${suffix}`);
-    await expect(authenticate(`admin-${suffix}`, "WrongPass999")).rejects.toThrow();
+    await expect(authenticate(admin.email, "WrongPass999")).rejects.toThrow();
 
     // audit records onboarding WITHOUT the password anywhere
     const audit = (await db.select().from(auditLogs).where(eq(auditLogs.action, "AGENCY_ONBOARDED"))).at(-1)!;
@@ -149,8 +149,8 @@ describe("Phase 2.2 §11 — mandatory first password change (server-authoritati
     const { token: token2 } = await (await import("./helpers/authenticated-session")).createSession(admin.id);
     request.cookie = token2;
     await expect(requireUser()).resolves.toMatchObject({ username: `admin-pc${suffix}` });
-    await expect(authenticate(`admin-pc${suffix}`, "ChosenPass77")).resolves.toBeTruthy();
-    await expect(authenticate(`admin-pc${suffix}`, "TempOnboard42")).rejects.toThrow();
+    await expect(authenticate(admin.email, "ChosenPass77")).resolves.toBeTruthy();
+    await expect(authenticate(admin.email, "TempOnboard42")).rejects.toThrow();
     const audit = (await db.select().from(auditLogs).where(eq(auditLogs.action, "PASSWORD_CHANGED"))).at(-1)!;
     expect(audit.entityId).toBe(admin.id);
     expect(JSON.stringify(audit.metadata ?? {})).not.toContain("ChosenPass77");

@@ -19,6 +19,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { automaticDatabaseChangesForbidden } from "./lib/build-policy";
+import { configuredStorageProvider } from "../src/lib/storage-config";
 
 function run(script: string, args: string[]): number {
   const result = spawnSync(process.execPath, [script, ...args], { stdio: "inherit" });
@@ -26,6 +27,10 @@ function run(script: string, args: string[]): number {
 }
 
 function main(): void {
+  console.log(`[build] Verified storage provider: ${configuredStorageProvider()}`);
+  if (process.env.VERCEL === "1" && process.env.VERCEL_ENV === "production") {
+    if (run("node_modules/tsx/dist/cli.mjs", ["essafaria-private-stage-readonly.mjs"]) !== 0) process.exit(1);
+  }
   const isVercelPreview = process.env.VERCEL === "1" && process.env.VERCEL_ENV === "preview";
   const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
   const databaseChangesForbidden = automaticDatabaseChangesForbidden(process.env.VERCEL_GIT_COMMIT_REF);

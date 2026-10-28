@@ -28,10 +28,7 @@ export function sessionPolicy(agencyId: string | null) {
 
 export function assertAccountManager(actor: AuthUser, target?: { id: string; agencyId: string | null; role: string }): void {
   if (actor.role === "SUPER_ADMIN" && !actor.agencyId) return;
-  if (actor.role === "AGENCY_ADMIN" && actor.agencyId) {
-    if (!target || (target.agencyId === actor.agencyId && target.role === "AGENCY_USER" && target.id !== actor.id)) return;
-    throw new AppError("NOT_FOUND", "User not found.");
-  }
+  if (actor.agencyId && target && target.agencyId !== actor.agencyId) throw new AppError("NOT_FOUND", "User not found.");
   throw new AppError("FORBIDDEN", "Only SUPER_ADMIN can manage staff accounts.");
 }
 

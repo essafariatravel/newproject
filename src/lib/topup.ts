@@ -1,3 +1,4 @@
+import { configuredStorageProvider } from "@/lib/storage-config";
 /**
  * Wallet top-up requests — §10.
  *
@@ -381,7 +382,7 @@ export async function processTopupRequest(params: {
         throw new AppError("PROOF_CHANGED", "The bank transfer receipt changed. Review the request again before crediting it.");
       }
       if (proofVerificationFailure) throw proofVerificationFailure.error;
-      if (process.env.STORAGE_PROVIDER !== "supabase") {
+      if (configuredStorageProvider() !== "supabase") {
         // Keep DB storage proof valid through the financial commit. Re-read on
         // this client; a second provider call while holding locks can deadlock
         // a small pool. The row lock also prevents concurrent blob deletion.

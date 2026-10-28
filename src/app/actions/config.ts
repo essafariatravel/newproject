@@ -58,9 +58,9 @@ const programmeCodeSchema = z.string().trim().min(2, "Code must be at least 2 ch
 
 const countryRegionSchema = z.enum(["Africa", "Asia", "Europe", "Middle East", "North America", "South America", "Oceania"]);
 const countrySchema = z.object({
-  name: z.string().trim().min(2, "Country name is required.").max(80),
-  nameFr: z.string().trim().max(120).optional().nullable(),
-  nameAr: z.string().trim().max(120).optional().nullable(),
+  name: z.string().trim().min(2, "Country name is required.").max(256),
+  nameFr: z.string().trim().max(256).optional().nullable(),
+  nameAr: z.string().trim().max(256).optional().nullable(),
   iso2: z
     .string()
     .trim()
@@ -136,13 +136,13 @@ export async function deleteCountryAction(formData: FormData): Promise<void> {
 /* --------------------------- visa categories --------------------------- */
 
 const categorySchema = z.object({
-  nameFr: z.string().trim().max(120).optional().nullable(),
-  nameAr: z.string().trim().max(120).optional().nullable(),
-  descriptionFr: z.string().trim().max(1000).optional().nullable(),
-  descriptionAr: z.string().trim().max(1000).optional().nullable(),
-  name: z.string().trim().min(2).max(60),
-  code: codeSchema,
-  description: z.string().trim().max(500).optional().nullable(),
+  nameFr: z.string().trim().max(256).optional().nullable(),
+  nameAr: z.string().trim().max(256).optional().nullable(),
+  descriptionFr: z.string().trim().max(10000).optional().nullable(),
+  descriptionAr: z.string().trim().max(10000).optional().nullable(),
+  name: z.string().trim().min(2).max(256),
+  code: programmeCodeSchema,
+  description: z.string().trim().max(10000).optional().nullable(),
   sortOrder: z.coerce.number().int().min(0).max(9999).default(0),
 });
 
@@ -198,15 +198,15 @@ export async function deleteVisaCategoryAction(formData: FormData): Promise<void
 }
 
 const visaTypeSchema = z.object({
-  nameFr: z.string().trim().max(120).optional().nullable(),
-  nameAr: z.string().trim().max(120).optional().nullable(),
-  descriptionFr: z.string().trim().max(1000).optional().nullable(),
-  descriptionAr: z.string().trim().max(1000).optional().nullable(),
+  nameFr: z.string().trim().max(256).optional().nullable(),
+  nameAr: z.string().trim().max(256).optional().nullable(),
+  descriptionFr: z.string().trim().max(10000).optional().nullable(),
+  descriptionAr: z.string().trim().max(10000).optional().nullable(),
   countryId: idSchema,
   categoryId: idSchema,
-  name: z.string().trim().min(2).max(120),
+  name: z.string().trim().min(2).max(256),
   code: programmeCodeSchema,
-  description: z.string().trim().max(1000).optional().nullable(),
+  description: z.string().trim().max(10000).optional().nullable(),
   processingMinDays: z.coerce.number().int().min(0).max(365),
   processingMaxDays: z.coerce.number().int().min(0).max(365),
   fee: z.coerce.number().min(0).max(100000),
@@ -223,6 +223,9 @@ const visaTypeSchema = z.object({
 export async function createVisaTypeAction(formData: FormData): Promise<void> {
   await runConfigAction("/admin/config/visa-types", async (tx, staff) => {
     const data = visaTypeSchema.parse(Object.fromEntries(formData));
+    await tx.execute(sql`select pg_advisory_xact_lock(1163087700)`);
+    const [conflict] = await tx.select({id:visaTypes.id}).from(visaTypes).where(sql`lower(btrim(${visaTypes.code}))=lower(btrim(${data.code}))`).limit(1);
+    if (conflict) throw new AppError("DUPLICATE", "A programme already uses this code.");
     const inserted = await tx
       .insert(visaTypes)
       .values({ ...data, fee: data.fee.toFixed(2), currency: "DZD", active: false })
@@ -260,7 +263,12 @@ export async function updateVisaTypeAction(formData: FormData): Promise<void> {
       if (!existing) throw new AppError("NOT_FOUND", "Visa type not found.");
       // The editor does not change codes. Validate the submitted fields without
       // rejecting a legacy code, then preserve the exact persisted value.
-      const data = { ...visaTypeSchema.parse({ ...Object.fromEntries(formData), code: "EXISTING" }), code: existing.code };
+      const submittedCode = formData.get("code");
+      const nextCode = typeof submittedCode === "string" && submittedCode !== existing.code ? programmeCodeSchema.parse(submittedCode) : existing.code;
+      await tx.execute(sql`select pg_advisory_xact_lock(1163087700)`);
+      const [conflict] = await tx.select({id:visaTypes.id}).from(visaTypes).where(and(ne(visaTypes.id,id),sql`lower(btrim(${visaTypes.code}))=lower(btrim(${nextCode}))`)).limit(1);
+      if (conflict) throw new AppError("DUPLICATE", "A programme already uses this code.");
+      const data = { ...visaTypeSchema.parse({ ...Object.fromEntries(formData), code: "EXISTING" }), code: nextCode };
       if (existing.active) {
         const country = (await tx.select().from(countries).where(eq(countries.id,data.countryId)))[0];
         const category = (await tx.select().from(visaCategories).where(eq(visaCategories.id,data.categoryId)))[0];
@@ -392,13 +400,13 @@ export async function removeRequirementAction(formData: FormData): Promise<void>
 /* ---------------------------- document types --------------------------- */
 
 const docTypeSchema = z.object({
-  nameFr: z.string().trim().max(120).optional().nullable(),
-  nameAr: z.string().trim().max(120).optional().nullable(),
-  descriptionFr: z.string().trim().max(1000).optional().nullable(),
-  descriptionAr: z.string().trim().max(1000).optional().nullable(),
-  name: z.string().trim().min(2).max(80),
-  code: codeSchema,
-  description: z.string().trim().max(500).optional().nullable(),
+  nameFr: z.string().trim().max(256).optional().nullable(),
+  nameAr: z.string().trim().max(256).optional().nullable(),
+  descriptionFr: z.string().trim().max(10000).optional().nullable(),
+  descriptionAr: z.string().trim().max(10000).optional().nullable(),
+  name: z.string().trim().min(2).max(256),
+  code: programmeCodeSchema,
+  description: z.string().trim().max(10000).optional().nullable(),
   sortOrder: z.coerce.number().int().min(0).max(9999).default(0),
   /**
    * "1" = checklist item the agency provides, "0" = issued by ESSAFARIA.

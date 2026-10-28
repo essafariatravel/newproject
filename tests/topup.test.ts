@@ -61,6 +61,16 @@ async function clearPending(agencyId: string) {
 }
 
 describe("§10 — agency raises a top-up request", () => {
+  it("stores a proof with the confirmed db provider despite surrounding environment whitespace", async () => {
+    const { aAdmin, agencyA } = await actors();
+    await clearPending(agencyA.id);
+    const previous = process.env.STORAGE_PROVIDER;
+    try {
+      process.env.STORAGE_PROVIDER = " db\r\n";
+      const created = await createTopupRequest({agencyId:agencyA.id,amount:11000,actor:aAdmin});
+      expect(created.amount).toBe("11000.00");
+    } finally { if (previous === undefined) delete process.env.STORAGE_PROVIDER; else process.env.STORAGE_PROVIDER = previous; await clearPending(agencyA.id); }
+  });
   it("does not create a request or change the ledger when storage is misconfigured", async () => {
     const { aAdmin, agencyA } = await actors();
     const beforeBalance = await getBalance(agencyA.id);

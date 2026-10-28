@@ -5,7 +5,6 @@ import { flashFrom } from "@/lib/action-helpers";
 import { formatAmount } from "@/lib/format";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { createAgencyWithAdminAction } from "@/app/actions/admin";
-import { identityT } from "@/lib/identity-copy";
 import { FilterBar } from "@/components/app-widgets";
 import { PasswordField, SubmitButton } from "@/components/forms";
 import { ActiveBadge, EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
@@ -27,7 +26,6 @@ export default async function AdminAgenciesPage({
   const user = await pageUser();
   const uiLocale = await getUiLocale(sp);
   const ct = contentT(uiLocale);
-  const it = identityT(uiLocale);
   if (!hasPermission(user, "agencies.view")) {
     return (
       <>
@@ -103,7 +101,7 @@ export default async function AdminAgenciesPage({
             <div><label className="label" htmlFor="agency-onboard-tax-id">{ct("Billing tax ID")}</label><input id="agency-onboard-tax-id" name="billingTaxId" className="input" /></div>
             <div className="sm:col-span-2 lg:col-span-3 mt-2 border-t border-ivory-200 pt-4"><p className="mb-4 text-base font-semibold text-navy-800">{ct("First administrator")}</p></div>
             <div><label className="label" htmlFor="agency-onboard-admin-name">{ct("Administrator name")} *</label><input id="agency-onboard-admin-name" name="adminName" required className="input" /></div>
-            <div><label className="label" htmlFor="agency-onboard-username">{it("Username")} *</label><input id="agency-onboard-username" name="adminUsername" type="text" required minLength={3} maxLength={48} className="input" dir="ltr" /></div>
+            <div><label className="label" htmlFor="agency-onboard-email">{ct("Email")} *</label><input id="agency-onboard-email" name="adminEmail" type="email" required maxLength={254} className="input" dir="ltr" /></div>
                         <PasswordField
               id="a-admin-password"
               name="adminPassword"

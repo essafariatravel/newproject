@@ -1,3 +1,4 @@
+import { configuredStorageProvider } from "@/lib/storage-config";
 import { createHash, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { databaseSchema, qualifiedTable } from "./database-schema";
@@ -32,7 +33,7 @@ export function createDocumentRetentionService(pool: Pool, options: Options = {}
   const schema = options.schema ?? databaseSchema();
   databaseSchema({ DATABASE_SCHEMA: schema });
   const q = (name: string) => qualifiedTable(name, schema);
-  const externalProvider=()=>process.env.STORAGE_PROVIDER==='supabase'&&storageOperationsEnabled();
+  const externalProvider=()=>configuredStorageProvider()==='supabase'&&storageOperationsEnabled();
 
   function executionGate() {
     requireRetentionExecutionTarget({ ...options, schema, databaseUrl: options.databaseUrl ?? process.env.DATABASE_URL ?? "", vercelEnvironment: options.vercelEnvironment || process.env.VERCEL_ENV });
@@ -144,7 +145,7 @@ export function createDocumentRetentionService(pool: Pool, options: Options = {}
     // until this transient inventory is reconciled; never purge it by guessing.
     const stagedCopies=(await client.query<{present:boolean}>(`select exists(select 1 from ${q("document_blobs")} where starts_with(key,'pending-request/')) present`)).rows[0]!.present;
     const receipt = (await client.query<{ id: string }>(`select id from ${q("document_retention_receipts")} where application_id=$1 and decision_at=$2`, [applicationId, app.decision_at])).rows[0];
-    const provider = process.env.STORAGE_PROVIDER ?? "db";
+    const provider = configuredStorageProvider() ?? "db";
     const coverage = (provider === "db"||external&&externalComplete) && !unknownStorage && !shared && !outsideCopy && !stagedCopies && documents.every(doc => doc.intact && doc.storage_key.startsWith(prefix)) &&
       Boolean(policy?.coverage_approved_at && policy.all_live_copies_covered && policy.coverage_fingerprint === coverageFingerprint && policy.storage_provider === provider);
     const evaluation = evaluateDocumentRetention({ statusCode: app.status_code, decisionAt: app.decision_at, genuineDecision: !!app.audit_id,

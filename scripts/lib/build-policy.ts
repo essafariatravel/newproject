@@ -24,6 +24,7 @@ export function automaticDatabaseChangesForbidden(branch: string | null | undefi
   if (process.env.MFA_ENFORCEMENT_ENABLED === "false") return true;
   const ref = branch ?? "";
   return ref.startsWith("codex/world-class-final-consolidation-") ||
+    ref.startsWith("codex/urgent-hotfix-") ||
     ref.startsWith("codex/preview-mfa-enforcement-") ||
     ref.startsWith("codex/isolated-clean-preview-") ||
     ref.startsWith("codex/legal-readiness-rc-") ||

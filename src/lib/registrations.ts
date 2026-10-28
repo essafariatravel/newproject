@@ -828,6 +828,8 @@ export async function approveRegistration(params: {
 
     // 1. Create the Agency with the existing agency model. The wallet is
     //    NOT touched: balance stays the platform default (0).
+    const emailConflict = await client.query(`select id from ${q("users")} where status='ACTIVE' and lower(btrim(email))=lower(btrim($1)) limit 1`, [reg.email]);
+    if (emailConflict.rows.length) throw new AppError("DUPLICATE", "An active account already uses this email.");
     const agencyRows = await client.query(
       `insert into ${q("agencies")}
          (legal_name, trading_name, email, phone, address_line, city, country,

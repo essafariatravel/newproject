@@ -15,6 +15,7 @@ export function PasswordField(props: {
   label: string;
   required?: boolean;
   minLength?: number;
+  maxLength?: number;
   autoComplete?: string;
   defaultValue?: string;
   hint?: string;
@@ -38,6 +39,7 @@ export function PasswordField(props: {
           type={visible ? "text" : "password"}
           required={props.required}
           minLength={props.required ? minLength : undefined}
+          maxLength={props.maxLength ?? 200}
           autoComplete={props.autoComplete ?? "new-password"}
           defaultValue={props.defaultValue}
           className="input pe-16"
@@ -47,9 +49,12 @@ export function PasswordField(props: {
           onClick={() => setVisible((v) => !v)}
           className="absolute end-0 top-1/2 inline-flex min-h-11 -translate-y-1/2 items-center px-2 text-xs font-semibold text-slate-500 hover:text-navy-900"
           aria-pressed={visible}
+          aria-label={visible ? (props.hideLabel ?? "Hide") : (props.showLabel ?? "Show")}
+          aria-controls={props.id}
           data-testid={`${props.id}-toggle`}
         >
-          {visible ? (props.hideLabel ?? "Hide") : (props.showLabel ?? "Show")}
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="h-5 w-5"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>{visible ? <path d="m3 3 18 18"/> : null}</svg>
+          <span className="sr-only">{visible ? (props.hideLabel ?? "Hide") : (props.showLabel ?? "Show")}</span>
         </button>
       </div>
       <p className="mt-1 text-xs text-slate-400">

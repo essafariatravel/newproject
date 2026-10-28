@@ -21,6 +21,8 @@ import { legalPublicationsFromForm, publishLegalContents } from "@/lib/legal";
 import { normalizeOptionalAgencyName } from "@/lib/agency-display";
 import { createAccount, currentAccountActor, lockIdentityState, recordIdentityAudit, toggleAgencyAccess, updateAccount } from "@/lib/account-security";
 import { normalizeAgencyUsername } from "@/lib/identity-policy";
+import { legacyAgencyUsername } from "@/lib/identity-policy";
+import { randomUUID } from "node:crypto";
 
 const idSchema = z.string().uuid("Invalid identifier.");
 const emailSchema = z.string().trim().toLowerCase().email("Enter a valid email address.");
@@ -121,7 +123,8 @@ export async function updateOwnAgencyContactAction(formData: FormData): Promise<
 
 const createAgencyWithAdminSchema = agencySchema.omit({ billingName: true, billingEmail: true, notes: true }).extend({
   adminName: z.string().trim().min(2, "Administrator name is required.").max(120),
-  adminUsername: z.string().transform(normalizeAgencyUsername),
+  adminUsername: z.string().transform(normalizeAgencyUsername).optional(),
+  adminEmail: emailSchema.optional(),
   adminPassword: z
     .string()
     .min(10, "Temporary password must be at least 10 characters.")
@@ -141,6 +144,8 @@ export async function createAgencyWithAdminAction(formData: FormData): Promise<v
     requirePermission(staff, "agencies.manage");
     requirePermission(staff, "users.manage");
     const data = createAgencyWithAdminSchema.parse(Object.fromEntries(formData));
+    const adminUsername = data.adminUsername ?? legacyAgencyUsername(randomUUID());
+    const adminEmail = data.adminEmail ?? data.email;
     if (staff.role !== "SUPER_ADMIN") {
       // §10 — this one-shot onboarding flow is reserved for SUPER_ADMIN;
       // delegated roles keep the separate agency/user dashboards.
@@ -153,7 +158,7 @@ export async function createAgencyWithAdminAction(formData: FormData): Promise<v
       if (current.role !== "SUPER_ADMIN") throw new AppError("FORBIDDEN", "Only SUPER_ADMIN can create an agency administrator.");
       const dupAgency = await tx.select({ id: agencies.id }).from(agencies).where(sql`lower(${agencies.legalName}) = lower(${data.legalName})`).limit(1);
       if (dupAgency[0]) throw new AppError("DUPLICATE", "An agency with this legal name already exists.");
-      const dupUser = await tx.select({ id: users.id }).from(users).where(eq(users.username, data.adminUsername)).limit(1);
+      const dupUser = await tx.select({ id: users.id }).from(users).where(sql`${users.username}=${adminUsername} or (${users.status}='ACTIVE' and lower(btrim(${users.email}))=${adminEmail})`).limit(1);
       if (dupUser[0]) throw new AppError("DUPLICATE", "This username is unavailable.");
       const agency = (
         await tx
@@ -171,8 +176,8 @@ export async function createAgencyWithAdminAction(formData: FormData): Promise<v
           .insert(users)
           .values({
             name: data.adminName,
-            email: data.email,
-            username: data.adminUsername,
+            email: adminEmail,
+            username: adminUsername,
             passwordHash,
             role: "AGENCY_ADMIN",
             agencyId: agency.id,
@@ -181,11 +186,11 @@ export async function createAgencyWithAdminAction(formData: FormData): Promise<v
           .returning()
       )[0]!;
       await recordIdentityAudit(tx, { actor: current, action: "AGENCY_ONBOARDED", entity: "agency", entityId: agency.id, agencyId: agency.id,
-        metadata: { legalName: data.legalName, adminUsername: data.adminUsername, firstAdminUserId: admin.id, mustChangePassword: true } });
+        metadata: { legalName: data.legalName, adminUsername, loginEmail: adminEmail, firstAdminUserId: admin.id, mustChangePassword: true } });
     });
     revalidatePath("/admin/agencies");
     revalidatePath("/admin");
-    return `Agency "${data.legalName}" created with administrator ${data.adminUsername} (password change required at first login).`;
+    return `Agency "${data.legalName}" created with administrator ${adminEmail} (password change required at first login).`;
   });
 }
 

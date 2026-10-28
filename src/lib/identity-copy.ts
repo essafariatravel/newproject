@@ -1,6 +1,9 @@
 import type { UiLocale } from "@/lib/ui-i18n";
 
 const copy: Record<string, readonly [string, string]> = {
+  "Invalid email or password.": ["E-mail ou mot de passe incorrect.", "البريد الإلكتروني أو كلمة المرور غير صحيحة."],
+  "Enter your registered email and password.": ["Saisissez votre e-mail de connexion et votre mot de passe.", "أدخل البريد الإلكتروني المسجل وكلمة المرور."],
+  "Sign in with your registered account email.": ["Connectez-vous avec l’e-mail enregistré pour votre compte.", "سجّل الدخول بالبريد الإلكتروني المسجل لحسابك."],
   "Email or username": ["E-mail ou nom d’utilisateur", "البريد الإلكتروني أو اسم المستخدم"],
   "Use your unique account email or agency username. Shared emails require a username.": ["Utilisez votre e-mail de compte unique ou votre nom d’utilisateur agence. Un e-mail partagé exige le nom d’utilisateur.", "استخدم البريد الفريد لحسابك أو اسم مستخدم الوكالة. البريد المشترك يتطلب اسم المستخدم."],
   "Username": ["Nom d’utilisateur", "اسم المستخدم"],

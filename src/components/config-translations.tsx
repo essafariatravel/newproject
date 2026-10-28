@@ -8,10 +8,10 @@ export function ConfigTranslations({ value, locale }: { value?: LocalizedConfig;
     <legend className="mb-4 text-lg font-semibold text-navy-900">{t("Translations")}</legend>
     {(["Fr", "Ar"] as const).map((language) => <div key={language} className="space-y-4">
       <label className="block text-base font-semibold text-slate-600">{t("Name")} · {language === "Fr" ? "Français" : "العربية"}
-        <input name={`name${language}`} maxLength={120} defaultValue={value?.[`name${language}`] ?? ""} dir={language === "Ar" ? "rtl" : "ltr"} className="input mt-1" />
+        <input name={`name${language}`} maxLength={256} defaultValue={value?.[`name${language}`] ?? ""} dir={language === "Ar" ? "rtl" : "ltr"} className="input mt-1" />
       </label>
       <label className="block text-base font-semibold text-slate-600">{t("Description")} · {language === "Fr" ? "Français" : "العربية"}
-        <textarea name={`description${language}`} maxLength={1000} rows={2} defaultValue={value?.[`description${language}`] ?? ""} dir={language === "Ar" ? "rtl" : "ltr"} className="input mt-1" />
+        <textarea name={`description${language}`} maxLength={10000} rows={2} defaultValue={value?.[`description${language}`] ?? ""} dir={language === "Ar" ? "rtl" : "ltr"} className="input mt-1" />
       </label>
     </div>)}
   </fieldset>;

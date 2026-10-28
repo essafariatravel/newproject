@@ -1,3 +1,4 @@
+import { configuredStorageProvider } from "@/lib/storage-config";
 import { qualifiedTable } from "./database-schema";
 import { officialDocumentIntegritySql } from "./decision-integrity";
 /**
@@ -675,8 +676,8 @@ function documentTypeForOutcome(outcome: DecisionOutcome): string {
 export async function getDecisionDocuments(applicationId: string) {
   // External storage needs a provider inventory before historical proof can be
   // vouched for. Preserve the dossier and show its reconciliation warning.
-  if (process.env.STORAGE_PROVIDER && process.env.STORAGE_PROVIDER !== "db") {
-    if(process.env.STORAGE_PROVIDER!=='supabase'||!storageOperationsEnabled())return [];
+  if (configuredStorageProvider() && configuredStorageProvider() !== "db") {
+    if(configuredStorageProvider()!=='supabase'||!storageOperationsEnabled())return [];
     const binding=storageOperationsBinding();
     const rows=await db.select({id:documents.id,originalFilename:documents.originalFilename,mimeType:documents.mimeType,sizeBytes:documents.sizeBytes,status:documents.status,createdAt:documents.createdAt,typeCode:documentTypes.code,typeName:documentTypes.name,storageKey:documents.storageKey,sha256:documents.sha256})
       .from(documents).innerJoin(documentTypes,eq(documentTypes.id,documents.documentTypeId)).innerJoin(applications,eq(applications.id,documents.applicationId)).innerJoin(statuses,eq(statuses.id,applications.statusId))

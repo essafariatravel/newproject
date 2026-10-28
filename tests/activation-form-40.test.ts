@@ -21,7 +21,7 @@ describe("activation form", () => {
     expect(html).toContain('data-testid="activation-password-confirm-toggle"');
     // Both fields reveal their affordance in the reader's language, and neither
     // field falls back to the English default hint.
-    expect(html.match(/Afficher/g) ?? []).toHaveLength(2);
+    expect(html.match(/aria-label="Afficher"/g) ?? []).toHaveLength(2);
     expect(html).not.toMatch(/>Show</);
     expect(html).not.toMatch(/At least 10 characters/);
     expect((html.match(/10 caractères minimum/g) ?? [])).toHaveLength(2);

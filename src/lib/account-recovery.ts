@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { accountAccessTokens, accountRecoveryRequests, agencies, users } from "@/db/schema";
 import { generateSessionToken, hashPassword, hashToken } from "@/lib/crypto";
 import { AppError, type AuthUser, type Role } from "@/lib/types";
-import { assertAccountManager, normalizeAgencyUsername } from "@/lib/identity-policy";
+import { assertAccountManager } from "@/lib/identity-policy";
 import { currentAccountActor, lockIdentityState, recordIdentityAudit, requireRecoveryManager, revokeUnusedAccessTokens, revokeUserAccess } from "@/lib/account-security";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import { sendSecureAccessEmail } from "@/lib/transactional-email";
@@ -23,17 +23,16 @@ export async function requestAccountRecovery(identifier: string, ipAddress: stri
     if (!ipAllowed) return RECOVERY_ACKNOWLEDGEMENT;
     const identifierAllowed = await consumeAuthRateLimit("recovery-identity", raw, 3, 60 * 60_000);
     if (!identifierAllowed) return RECOVERY_ACKNOWLEDGEMENT;
-    let normalized = raw;
-    if (!raw.includes("@")) {
-      try { normalized = normalizeAgencyUsername(raw); } catch { return RECOVERY_ACKNOWLEDGEMENT; }
-    }
+    const normalized = raw;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) return RECOVERY_ACKNOWLEDGEMENT;
     await db.transaction(async (tx) => {
       await lockIdentityState(tx);
       const [duplicate] = await tx.select({ id: accountRecoveryRequests.id }).from(accountRecoveryRequests)
         .where(and(eq(accountRecoveryRequests.identifier, normalized), eq(accountRecoveryRequests.status, "PENDING"))).limit(1);
       if (duplicate) return;
-      const [user] = await tx.select({ id: users.id }).from(users).where(raw.includes("@") ?
-        and(isNull(users.agencyId), sql`lower(btrim(${users.email}))=${normalized}`) : eq(users.username, normalized)).limit(1);
+      const matches = await tx.select({ id: users.id }).from(users)
+        .where(and(eq(users.status,"ACTIVE"),sql`lower(btrim(${users.email}))=${normalized}`)).limit(2);
+      const user = matches.length === 1 ? matches[0] : undefined;
       // Keep the public response indistinguishable, but do not persist attacker-
       // controlled unknown identifiers into the privileged recovery queue.
       if (!user) return;

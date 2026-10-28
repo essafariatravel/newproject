@@ -24,7 +24,7 @@ describe("operational presentation closure",()=>{
   it("associates each agency onboarding field with its visible label",async()=>{
     request.cookie=(await createSession((await userByEmail("superadmin@test.example")).id)).token;
     const html=renderToStaticMarkup(await AdminAgenciesPage({searchParams:Promise.resolve({q:"onboarding-labels-no-existing-fixture"})}));
-    for(const name of ["legalName","tradingName","email","phone","city","country","billingTaxId","adminName","adminUsername","adminPassword"]){
+    for(const name of ["legalName","tradingName","email","phone","city","country","billingTaxId","adminName","adminEmail","adminPassword"]){
       const control=html.match(new RegExp(`<input\\b[^>]*name="${name}"[^>]*>`))?.[0];
       expect(control).toBeDefined();
       const id=control?.match(/\bid="([^"]+)"/)?.[1];

@@ -4,7 +4,7 @@ import { suiteSetup } from "./helpers/global-state";
 import { request } from "./helpers/request";
 import { userByEmail } from "./helpers/fixtures";
 import { db } from "@/lib/db";
-import { accountAccessTokens, accountRecoveryRequests, sessions, users } from "@/db/schema";
+import { accountAccessTokens, accountRecoveryRequests, sessions, users, agencies } from "@/db/schema";
 import { authenticate, destroySession, getSessionUser, touchCurrentSession } from "@/lib/auth";
 import { createSession } from "./helpers/authenticated-session";
 import { createAccount, toggleAgencyAccess, updateAccount } from "@/lib/account-security";
@@ -18,16 +18,13 @@ afterEach(() => { request.cookie = ""; });
 const superAdmin = () => userByEmail("superadmin@test.example");
 
 describe("independent username identities and controlled recovery", () => {
-  it("normalizes usernames and permits independent users with the same agency mailbox", async () => {
-    const actor = await userByEmail("a-admin@test.example");
-    const first = await createAccount(actor, { name: "First Member", username: "  Team.Member  ", role: "AGENCY_USER", agencyId: actor.agencyId, password: "Member-Password-123" });
-    const second = await createAccount(actor, { name: "Second Member", username: "team-other", role: "AGENCY_USER", agencyId: actor.agencyId, password: "Other-Password-123" });
-    expect(first.email).toBe(second.email);
-    expect(first.id).not.toBe(second.id);
-    expect((await authenticate("TEAM.MEMBER", "Member-Password-123")).id).toBe(first.id);
-    await expect(authenticate(first.email, "Member-Password-123")).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
-    const other = await userByEmail("b-admin@test.example");
-    await expect(createAccount(other, { name: "Collision", username: "ＴＥＡＭ.MEMBER", role: "AGENCY_USER", agencyId: other.agencyId, password: "Member-Password-123" })).rejects.toMatchObject({ code: "DUPLICATE" });
+  it("creates one account for an empty agency and uses its registered email", async () => {
+    const owner=await superAdmin();
+    const [agency]=await db.insert(agencies).values({legalName:"Synthetic recovery agency",email:"contact-recovery@test.example"}).returning();
+    const first=await createAccount(owner,{name:"First Member",username:"team.member",email:"member@test.example",role:"AGENCY_USER",agencyId:agency!.id,password:"Member-Password-123"});
+    expect((await authenticate(first.email,"Member-Password-123")).id).toBe(first.id);
+    await expect(authenticate("team.member","Member-Password-123")).rejects.toMatchObject({code:"INVALID_CREDENTIALS"});
+    await expect(createAccount(owner,{name:"Second Member",email:"second-member@test.example",role:"AGENCY_USER",agencyId:agency!.id,password:"Other-Password-123"})).rejects.toMatchObject({code:"AGENCY_ACCOUNT_EXISTS"});
   });
 
   it("rejects tenant injection and account administration by Agency User", async () => {
@@ -39,13 +36,13 @@ describe("independent username identities and controlled recovery", () => {
   });
 
   it("responds generically, deduplicates recovery requests, and guards queue issuance", async () => {
-    const known = await requestAccountRecovery("team.member", "test-recovery-ip");
+    const known = await requestAccountRecovery("member@test.example", "test-recovery-ip");
     expect(known).toBe(RECOVERY_ACKNOWLEDGEMENT);
     expect(await requestAccountRecovery("missing-handle", "test-recovery-ip")).toBe(known);
     const unknown = await db.select().from(accountRecoveryRequests).where(eq(accountRecoveryRequests.identifier, "missing-handle"));
     expect(unknown).toHaveLength(0);
-    for (let i = 0; i < 5; i++) expect(await requestAccountRecovery("team.member", "test-recovery-ip")).toBe(known);
-    const queued = await db.select().from(accountRecoveryRequests).where(eq(accountRecoveryRequests.identifier, "team.member"));
+    for (let i = 0; i < 5; i++) expect(await requestAccountRecovery("member@test.example", "test-recovery-ip")).toBe(known);
+    const queued = await db.select().from(accountRecoveryRequests).where(eq(accountRecoveryRequests.identifier, "member@test.example"));
     expect(queued).toHaveLength(1);
     const admin = await userByEmail("admin@test.example");
     await expect(listRecoveryQueue(admin)).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -75,6 +72,8 @@ describe("independent username identities and controlled recovery", () => {
 
   it("rejects expired reset tokens and tokens invalidated by suspension/reactivation", async () => {
     const actor = await superAdmin(), target = await userByEmail("b-user@test.example");
+    const [soleAgency]=await db.insert(agencies).values({legalName:"Synthetic sole recovery",email:"sole-recovery@test.example"}).returning();
+    await db.update(users).set({agencyId:soleAgency!.id}).where(eq(users.id,target.id));
     const expired = await issueAccessToken(actor, target.id);
     await db.update(accountAccessTokens).set({ expiresAt: new Date(Date.now() - 1_000) }).where(eq(accountAccessTokens.tokenHash, hashToken(expired.token)));
     await expect(resetAccountFromToken(expired.token, "Reset-Password-333")).rejects.toMatchObject({ code: "INVALID_TOKEN" });
@@ -158,7 +157,7 @@ describe("replacement access links revoke both token generations", () => {
     expect(await resolveActivation(old.token)).toBeNull();
     await expect(activateAccount(old.token, "OldLink-Password-123")).rejects.toMatchObject({ code: "INVALID_TOKEN" });
     await resetAccountFromToken(replacement.token, "Replacement-Password-123");
-    expect((await authenticate(approved.username, "Replacement-Password-123")).id).toBe(approved.adminUserId);
+    expect((await authenticate((await db.select().from(users).where(eq(users.id,approved.adminUserId)))[0]!.email, "Replacement-Password-123")).id).toBe(approved.adminUserId);
   });
 
   it("a legacy replacement invalidates unused access tokens while remaining consumable", async () => {
@@ -169,6 +168,6 @@ describe("replacement access links revoke both token generations", () => {
     expect(await resolveAccessToken(old.token)).toBeNull();
     await expect(resetAccountFromToken(old.token, "OldLink-Password-123")).rejects.toMatchObject({ code: "INVALID_TOKEN" });
     await activateAccount(replacement.token, "LegacyReplacement-Password-123");
-    expect((await authenticate(approved.username, "LegacyReplacement-Password-123")).id).toBe(approved.adminUserId);
+    expect((await authenticate((await db.select().from(users).where(eq(users.id,approved.adminUserId)))[0]!.email, "LegacyReplacement-Password-123")).id).toBe(approved.adminUserId);
   });
 });

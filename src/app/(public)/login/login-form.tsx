@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { loginAction } from "@/app/actions/auth";
-import { SubmitButton } from "@/components/forms";
+import { PasswordField, SubmitButton } from "@/components/forms";
 import Link from "next/link";
 
 /**
@@ -17,6 +17,8 @@ export interface LoginCopy {
   signingIn: string;
   footer: string;
   forgotPassword: string;
+  showPassword: string;
+  hidePassword: string;
 }
 
 export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
@@ -34,7 +36,7 @@ export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
           <input
             id="email"
             name="identifier"
-            type="text"
+            type="email"
             autoComplete="username"
             maxLength={254}
             dir="ltr"
@@ -42,18 +44,7 @@ export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
             className="input"
           />
         </div>
-        <div>
-          <label htmlFor="password" className="label">{copy.password}</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            className="input"
-            placeholder="••••••••"
-          />
-        </div>
+        <PasswordField id="password" name="password" label={copy.password} autoComplete="current-password" required minLength={0} hint="" showLabel={copy.showPassword} hideLabel={copy.hidePassword}/>
         <SubmitButton className="btn-primary w-full py-2" pendingLabel={copy.signingIn}>
           {copy.signIn}
         </SubmitButton>

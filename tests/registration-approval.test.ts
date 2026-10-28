@@ -213,14 +213,11 @@ describe("registration submission — audit atomicity", () => {
 });
 
 describe("registration approval — failure safety", () => {
-  it("permits a shared mailbox across independent username identities", async () => {
+  it("refuses approval when an active account already uses the registered email", async () => {
     const {id,data}=await submitOne();
     await db.insert(users).values({email:data.email,passwordHash:await hashPassword("Existing!23456"),name:"Existing Staff",role:"VISA_AGENT"});
-    const approved=await approveRegistration({registrationId:id,actor:await userByEmail("admin@test.example")});
-    const agencyUsers=await db.select().from(users).where(eq(users.agencyId,approved.agencyId));
-    expect(agencyUsers).toHaveLength(1);
-    expect(agencyUsers[0]!.username).toBeTruthy();
-    expect(agencyUsers[0]!.email).toBe(data.email);
+    await expect(approveRegistration({registrationId:id,actor:await userByEmail("admin@test.example")})).rejects.toMatchObject({code:"DUPLICATE"});
+    expect(await db.select().from(agencies).where(eq(agencies.legalName,data.legalName))).toHaveLength(0);
   });
   it("shows an agency identity match while preserving the explicit Staff decision", async () => {
     const {id,data}=await submitOne();
@@ -323,7 +320,7 @@ describe("account activation — secure set-password flow", () => {
     await expect(activateAccount(issued.token, "NewSecure!2345")).rejects.toMatchObject({ code: "INVALID_TOKEN" });
 
     // the new password authenticates through the existing auth architecture
-    const authed = await authenticate(activated.username!, "NewSecure!2345");
+    const authed = await authenticate(activated.email, "NewSecure!2345");
     expect(authed.role).toBe("AGENCY_ADMIN");
 
     // audit trail of link issuance + activation

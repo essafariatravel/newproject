@@ -60,7 +60,7 @@ describe("critical recovery copy", () => {
     request.cookie = "fr";
     try {
       const result = await loginAction({}, new FormData());
-      expect(result.error).toBe("Saisissez votre nom d'utilisateur ou e-mail professionnel et votre mot de passe.");
+      expect(result.error).toBe("Saisissez votre e-mail de connexion et votre mot de passe.");
     } finally { request.cookie = ""; }
   });
   it.each(["fr", "ar"] as const)("gives actionable catalogue recovery in %s", locale => {

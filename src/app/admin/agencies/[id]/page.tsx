@@ -1,6 +1,5 @@
 import { WalletAdjustmentForm } from "@/components/wallet-adjustment-form";
 import { businessLabel } from "@/lib/business-labels";
-import { identityT } from "@/lib/identity-copy";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { pageUser } from "@/lib/page-auth";
@@ -250,7 +249,7 @@ export default async function AdminAgencyDetailPage({
             </Card>
           ) : null}
 
-          {canUsers ? (
+          {canUsers && !agencyUsers.some(user => user.status === "ACTIVE") ? (
             <Card>
               <CardHeader title={ct("Add agency user")} subtitle={ct("Agency Admin chooses password directly.")} />
               <form action={createUserAction} className="space-y-4 px-4 py-4">
@@ -261,8 +260,8 @@ export default async function AdminAgencyDetailPage({
                   <input id="u-name" name="name" required className="input" />
                 </div>
                 <div>
-                  <label className="label" htmlFor="u-username">{identityT(uiLocale)("Username")} *</label>
-                  <input id="u-username" name="username" type="text" required minLength={3} maxLength={48} className="input" dir="ltr" />
+                  <label className="label" htmlFor="u-email">{ct("Email")} *</label>
+                  <input id="u-email" name="email" type="email" required maxLength={254} className="input" dir="ltr" />
                 </div>
                 <div>
                   <label className="label" htmlFor="u-role">{ct("Role")} *</label>
@@ -292,7 +291,7 @@ export default async function AdminAgencyDetailPage({
                 <li key={u.id} className="flex items-center justify-between gap-2 py-2">
                   <div className="min-w-0">
                     <p className="truncate text-base font-semibold text-navy-900">{u.name}</p>
-                    <p className="truncate text-xs text-slate-400" dir="ltr">{u.username}</p>
+                    <p className="truncate text-xs text-slate-400" dir="ltr">{u.email}</p>
                   </div>
                   <div className="text-right">
                     <span className="badge bg-navy-900/5 text-navy-800">{businessLabel(u.role, uiLocale)}</span>

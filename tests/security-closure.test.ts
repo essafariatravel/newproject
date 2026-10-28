@@ -4,7 +4,7 @@ import { suiteSetup } from "./helpers/global-state";
 import { userByEmail } from "./helpers/fixtures";
 import { request } from "./helpers/request";
 import { db } from "@/lib/db";
-import { users, sessions } from "@/db/schema";
+import { agencies, users, sessions } from "@/db/schema";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import { requestAccountRecovery } from "@/lib/account-recovery";
 import { createAccount, updateAccount } from "@/lib/account-security";
@@ -26,9 +26,10 @@ describe("release identity regression coverage",()=>{
     const results=await Promise.all(Array.from({length:8},()=>consumeAuthRateLimit("closure-concurrent","one-subject",3,60000)));
     expect(results.filter(Boolean)).toHaveLength(3);
   });
-  it("allows only one concurrently created normalized username across tenants",async()=>{
-    const a=await userByEmail("a-admin@test.example"),b=await userByEmail("b-admin@test.example");
-    const results=await Promise.allSettled([createAccount(a,{name:"Unique A",username:" Concurrent.Member ",role:"AGENCY_USER",agencyId:a.agencyId,password:"Synthetic-Member-123"}),createAccount(b,{name:"Unique B",username:"ｃｏｎｃｕｒｒｅｎｔ．ｍｅｍｂｅｒ",role:"AGENCY_USER",agencyId:b.agencyId,password:"Synthetic-Member-123"})]);
+  it("allows only one concurrently created account for an empty agency",async()=>{
+    const a=await userByEmail("superadmin@test.example"),b=a;
+    const [agency]=await db.insert(agencies).values({legalName:"Concurrent single account fixture",email:"concurrent-fixture@test.example"}).returning();
+    const results=await Promise.allSettled([createAccount(a,{name:"Unique A",username:" Concurrent.Member ",role:"AGENCY_USER",agencyId:agency!.id,password:"Synthetic-Member-123"}),createAccount(b,{name:"Unique B",username:"ｃｏｎｃｕｒｒｅｎｔ．ｍｅｍｂｅｒ",role:"AGENCY_USER",agencyId:agency!.id,password:"Synthetic-Member-123"})]);
     expect(results.filter(row=>row.status==="fulfilled")).toHaveLength(1);
     expect(await db.select().from(users).where(eq(users.username,"concurrent.member"))).toHaveLength(1);
   });

@@ -19,6 +19,7 @@ const file = { name: "replay.pdf", type: "application/pdf", size: data.length, d
 
 async function capturedActor() {
   const actor = await userByEmail("a-admin@test.example");
+  if (actor.agencyId) await db.execute(sql`update users set status='SUSPENDED' where agency_id=${actor.agencyId} and id<>${actor.id}`);
   const [row] = await db.select({ credentialVersion: users.credentialVersion }).from(users).where(eq(users.id, actor.id));
   return { ...actor, credentialVersion: row!.credentialVersion };
 }

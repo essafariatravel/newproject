@@ -227,11 +227,11 @@ export default async function VisaTypeDetailPage({
                   <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Information")}</legend>
                   <div>
                     <label className="label" htmlFor="e-name">{ct("Name *")} · EN</label>
-                    <input id="e-name" name="name" required minLength={2} maxLength={120} dir="ltr" defaultValue={vt.name} className="input" />
+                    <input id="e-name" name="name" required minLength={2} maxLength={256} dir="ltr" defaultValue={vt.name} className="input" />
                   </div>
                   <div>
                     <label className="label" htmlFor="e-code">{ct("Code")}</label>
-                    <input id="e-code" name="code" readOnly dir="ltr" defaultValue={vt.code} className="input" />
+                    <input id="e-code" name="code" maxLength={128} dir="ltr" defaultValue={vt.code} className="input" />
                   </div>
                   <div>
                     <label className="label" htmlFor="e-country">{ct("Country *")}</label>
@@ -247,7 +247,7 @@ export default async function VisaTypeDetailPage({
                   </div>
                   <div>
                     <label className="label" htmlFor="e-desc">{ct("Description")} · EN</label>
-                    <textarea id="e-desc" name="description" rows={2} maxLength={1000} dir="ltr" defaultValue={vt.description ?? ""} className="input" />
+                    <textarea id="e-desc" name="description" rows={2} maxLength={10000} dir="ltr" defaultValue={vt.description ?? ""} className="input" />
                     <ConfigTranslations value={vt} locale={locale} />
                   </div>
                 </fieldset>

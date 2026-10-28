@@ -70,8 +70,9 @@ describe("account management rejects authorization captured before forced sign-o
 
   it("allows a current forced temporary-password identity to complete the authorized password change", async () => {
     const owner = await captured("superadmin@test.example");
+    const [soleAgency]=await db.insert(agencies).values({legalName:"Synthetic temporary account",email:"temp-revocation@test.example"}).returning();
     const account = await createAccount(owner, { name: "Temporary member", username: "temporary.revocation", role: "AGENCY_USER",
-      agencyId: (await captured("a-admin@test.example")).agencyId, password: "Synthetic-Temporary-123" });
+      agencyId: soleAgency!.id, password: "Synthetic-Temporary-123" });
     const actor = await captured(account.email);
     // Agency mailboxes are shared; resolve this human explicitly by its stable ID.
     const current = { ...actor, id: account.id, username: account.username, name: account.name, role: "AGENCY_USER" as const,

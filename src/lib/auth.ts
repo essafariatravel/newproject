@@ -12,7 +12,7 @@ import {
 } from "@/lib/types";
 import { generateSessionToken, hashToken } from "@/lib/crypto";
 import type { User } from "@/db/schema";
-import { normalizeAgencyUsername, sessionPolicy } from "@/lib/identity-policy";
+import { sessionPolicy } from "@/lib/identity-policy";
 import { lockIdentityState, recordIdentityAudit } from "@/lib/account-security";
 import { safeErrorCode } from "@/lib/safe-error";
 import { mfaEnforcementEnabled } from "@/lib/mfa-policy";
@@ -51,7 +51,7 @@ export async function createSession(
     if (!row || row.user.status !== "ACTIVE" || row.user.activationPending ||
       (row.user.agencyId && row.agencyStatus !== "ACTIVE") ||
       (options.expectedCredentialVersion !== undefined && row.user.credentialVersion !== options.expectedCredentialVersion)) {
-      throw new AppError("INVALID_CREDENTIALS", "Invalid username, email or password.");
+      throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
     }
     const expiresAt = new Date(Date.now() + sessionPolicy(row.user.agencyId).absoluteMs);
     await tx.insert(sessions).values({ userId, tokenHash: hashToken(token), expiresAt,
@@ -198,27 +198,21 @@ export async function destroySession(): Promise<void> {
   await clearSessionCookie();
 }
 
-/** Existing identities; paused Preview also accepts an unambiguous account email. */
+/** Registered account email only. Ambiguous active identities always fail closed. */
 export async function authenticate(identifier: string, password: string): Promise<User> {
   if (password.length === 0 || password.length > 200) {
-    throw new AppError("INVALID_CREDENTIALS", "Invalid username, email or password.");
+    throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
   }
   const { verifyPassword } = await import("@/lib/crypto");
   let user: User | undefined;
   try {
-    let normalized = identifier.trim().toLowerCase();
-    const staffEmail = normalized.includes("@");
-    if (!staffEmail) {
-      try { normalized = normalizeAgencyUsername(normalized); }
-      catch { normalized = ""; }
-    }
-    const previewEmail = staffEmail && !mfaEnforcementEnabled();
+    const candidate = identifier.trim().toLowerCase();
+    const normalized = candidate.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(candidate) ? candidate : "";
     const rows = await db
       .select()
       .from(users)
-      .where(staffEmail ? (previewEmail ? sql`lower(btrim(${users.email})) = ${normalized}` : and(sql`lower(btrim(${users.email})) = ${normalized}`, sql`${users.agencyId} IS NULL`)) :
-        and(eq(users.username, normalized), sql`${users.agencyId} IS NOT NULL`))
-      .limit(previewEmail ? 2 : 1);
+      .where(and(sql`lower(btrim(${users.email})) = ${normalized}`, eq(users.status,"ACTIVE")))
+      .limit(2);
     user = rows.length === 1 ? rows[0] as User : undefined;
   } catch (err) {
     // Hide raw database errors (e.g. missing table / connection failure) from the user.
@@ -228,11 +222,11 @@ export async function authenticate(identifier: string, password: string): Promis
   if (!user) {
     // Perform a dummy verification to keep timing uniform.
     await verifyPassword(password, `scrypt$${"0".repeat(32)}$${"0".repeat(128)}`);
-    throw new AppError("INVALID_CREDENTIALS", "Invalid username, email or password.");
+    throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
   }
   const ok = await verifyPassword(password, user.passwordHash);
   if (!ok || user.status !== "ACTIVE" || user.activationPending) {
-    throw new AppError("INVALID_CREDENTIALS", "Invalid username, email or password.");
+    throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
   }
   if (user.agencyId) {
     try {
@@ -242,7 +236,7 @@ export async function authenticate(identifier: string, password: string): Promis
         .where(eq(agencies.id, user.agencyId))
         .limit(1);
       if (agency[0]?.status !== "ACTIVE") {
-        throw new AppError("INVALID_CREDENTIALS", "Invalid username, email or password.");
+        throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
       }
     } catch (err) {
       if (err instanceof AppError) throw err;
