@@ -763,6 +763,7 @@ const CONTENT: Record<string, Entry> = {
   "request.error.INVALID_FILENAME": { fr: "Nom de fichier invalide.", ar: "اسم ملف غير صالح." },
   "request.error.INSUFFICIENT_FUNDS": { fr: "Le solde du portefeuille est insuffisant pour cette demande.", ar: "رصيد المحفظة غير كافٍ لهذا الطلب." },
   "request.error.INTERNAL": { fr: "Une erreur est survenue. Veuillez réessayer.", ar: "حدث خطأ. يرجى المحاولة مرة أخرى." },
+  "request.error.STORAGE_UNAVAILABLE": { fr: "Les documents sont temporairement indisponibles. Réessayez plus tard ou contactez ESSAFARIA.", ar: "الوثائق غير متاحة مؤقتًا. يرجى المحاولة لاحقًا أو التواصل مع ESSAFARIA." },
   "request.error.FORBIDDEN": { fr: "Seuls les utilisateurs d'agence peuvent soumettre des demandes.", ar: "يمكن لمستخدمي الوكالة فقط إرسال الطلبات." },
   "request.error.COUNTRY_REQUIRED": { fr: "Choisissez un pays de destination.", ar: "اختر بلد الوجهة." },
   "request.error.COUNTRY_INVALID": { fr: "Pays de destination invalide ou inactif.", ar: "بلد الوجهة غير صالح أو غير نشط." },

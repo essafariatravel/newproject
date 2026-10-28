@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { requestErrorMessage, readRequestResponse, requestFailureFeedback, registrationUploadProblem } from "@/lib/request-feedback";
 describe("actionable upload feedback", () => {
+  it("explains storage failures without exposing provider details in all supported languages", () => {
+    for (const locale of ["en", "fr", "ar"] as const) {
+      const message = requestErrorMessage("STORAGE_MISCONFIGURED", locale);
+      expect(message).not.toBe(requestErrorMessage("INTERNAL", locale));
+      expect(message).not.toContain("STORAGE_PROVIDER");
+      expect(message).not.toContain("SUPABASE");
+      expect(message).not.toContain("request.error.");
+      expect(requestErrorMessage("STORAGE_WRITE_FAILED", locale)).toBe(message);
+    }
+  });
   it("turns interrupted requests into retry guidance without raw browser errors", () => {
     expect(requestFailureFeedback(new TypeError("Failed to fetch"),"fr")).toMatchObject({catalogue:false});
     expect(requestFailureFeedback(new TypeError("Failed to fetch"),"fr").message).toContain("Vérifiez votre connexion");

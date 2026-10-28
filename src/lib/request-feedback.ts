@@ -19,8 +19,10 @@ const EN: Record<string, string> = {
   NETWORK:"The connection was interrupted. Check your connection and try again. Your selected files are kept on this page.",
 };
 const CATALOGUE = new Set(["VISA_TYPE_INVALID","COUNTRY_INVALID","PRIORITY_INVALID","COUNTRY_VISA_MISMATCH"]);
+const STORAGE_ERRORS = new Set(["STORAGE_MISCONFIGURED", "STORAGE_WRITE_FAILED", "STORAGE_READ_FAILED", "STORAGE_DELETE_FAILED"]);
 class RequestFailure extends Error { constructor(readonly code: string) {super(code);} }
 export function requestErrorMessage(code: string, locale: UiLocale): string {
+  if (STORAGE_ERRORS.has(code)) return locale === "en" ? "Documents are temporarily unavailable. Please try again later or contact ESSAFARIA." : contentT(locale)("request.error.STORAGE_UNAVAILABLE");
   const known = EN[code] ? code : "INTERNAL";
   const ct=contentT(locale);
   if (locale === "en") return EN[known]!;
