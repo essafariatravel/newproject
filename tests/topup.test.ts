@@ -61,6 +61,22 @@ async function clearPending(agencyId: string) {
 }
 
 describe("§10 — agency raises a top-up request", () => {
+  it("does not create a request or change the ledger when storage is misconfigured", async () => {
+    const { aAdmin, agencyA } = await actors();
+    const beforeBalance = await getBalance(agencyA.id);
+    const beforeLedger = await db.select().from(walletTransactions).where(eq(walletTransactions.agencyId,agencyA.id));
+    const beforeRequests = await db.select().from(walletTopupRequests).where(eq(walletTopupRequests.agencyId,agencyA.id));
+    const previous = process.env.STORAGE_PROVIDER;
+    try {
+      process.env.STORAGE_PROVIDER = "invalid-provider";
+      await expect(createTopupRequest({agencyId:agencyA.id,amount:11000,actor:aAdmin})).rejects.toMatchObject({code:"STORAGE_MISCONFIGURED"});
+    } finally {
+      if (previous === undefined) delete process.env.STORAGE_PROVIDER; else process.env.STORAGE_PROVIDER = previous;
+    }
+    expect(await getBalance(agencyA.id)).toEqual(beforeBalance);
+    expect(await db.select().from(walletTransactions).where(eq(walletTransactions.agencyId,agencyA.id))).toHaveLength(beforeLedger.length);
+    expect(await db.select().from(walletTopupRequests).where(eq(walletTopupRequests.agencyId,agencyA.id))).toHaveLength(beforeRequests.length);
+  });
   it("records a PENDING DZD request with a human reference, audit trail and staff notification", async () => {
     const { aAdmin, agencyA } = await actors();
     await clearPending(agencyA.id);

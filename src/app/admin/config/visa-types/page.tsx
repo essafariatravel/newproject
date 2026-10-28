@@ -101,7 +101,7 @@ export default async function VisaTypesConfigPage({
             </div>
             <div>
               <label className="label" htmlFor="new-visa-code">{ct("Code *")}</label>
-              <input id="new-visa-code" name="code" required className="input uppercase" placeholder="PT-SCH-TOUR" />
+              <input id="new-visa-code" name="code" required maxLength={128} className="input uppercase" placeholder="PT-SCH-TOUR" />
             </div>
             <div>
               <label className="label" htmlFor="new-visa-country">{ct("Country *")}</label>

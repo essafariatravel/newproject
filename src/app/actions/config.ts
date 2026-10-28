@@ -50,6 +50,9 @@ const codeSchema = z
   .max(40)
   .regex(/^[A-Z0-9_-]+$/i, "Code may only contain letters, numbers, dashes and underscores.")
   .transform((v) => v.toUpperCase());
+const programmeCodeSchema = z.string().trim().min(2, "Code must be at least 2 characters.")
+  .max(128).regex(/^[A-Z0-9_-]+$/i, "Code may only contain letters, numbers, dashes and underscores.")
+  .transform((v) => v.toUpperCase());
 
 /* ------------------------------ countries ------------------------------ */
 
@@ -202,7 +205,7 @@ const visaTypeSchema = z.object({
   countryId: idSchema,
   categoryId: idSchema,
   name: z.string().trim().min(2).max(120),
-  code: codeSchema,
+  code: programmeCodeSchema,
   description: z.string().trim().max(1000).optional().nullable(),
   processingMinDays: z.coerce.number().int().min(0).max(365),
   processingMaxDays: z.coerce.number().int().min(0).max(365),
@@ -255,7 +258,9 @@ export async function updateVisaTypeAction(formData: FormData): Promise<void> {
     } else {
       const existing = (await tx.select().from(visaTypes).where(eq(visaTypes.id, id)).limit(1))[0];
       if (!existing) throw new AppError("NOT_FOUND", "Visa type not found.");
-      const data = visaTypeSchema.parse({ ...Object.fromEntries(formData), code: existing.code });
+      // The editor does not change codes. Validate the submitted fields without
+      // rejecting a legacy code, then preserve the exact persisted value.
+      const data = { ...visaTypeSchema.parse({ ...Object.fromEntries(formData), code: "EXISTING" }), code: existing.code };
       if (existing.active) {
         const country = (await tx.select().from(countries).where(eq(countries.id,data.countryId)))[0];
         const category = (await tx.select().from(visaCategories).where(eq(visaCategories.id,data.categoryId)))[0];

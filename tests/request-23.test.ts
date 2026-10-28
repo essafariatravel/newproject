@@ -73,6 +73,22 @@ async function baseInput(key: string) {
 }
 
 describe("Phase 2-Final — atomic simplified request submission", () => {
+  it("fails closed without a dossier or charge when the storage provider is misconfigured", async () => {
+    const key = crypto.randomUUID();
+    const { agency, input } = await baseInput(key);
+    const before = await db.execute(sql`select balance::text as balance from agencies where id=${agency.id}`);
+    const ledgerBefore = await db.execute(sql`select count(*)::int as n from wallet_transactions where agency_id=${agency.id}`);
+    const previous = process.env.STORAGE_PROVIDER;
+    try {
+      process.env.STORAGE_PROVIDER = "invalid-provider";
+      await expect(submitVisaRequest(input)).rejects.toMatchObject({code:"STORAGE_MISCONFIGURED"});
+    } finally {
+      if (previous === undefined) delete process.env.STORAGE_PROVIDER; else process.env.STORAGE_PROVIDER = previous;
+    }
+    expect((await db.execute(sql`select balance::text as balance from agencies where id=${agency.id}`)).rows).toEqual(before.rows);
+    expect(await db.select().from(applications).where(eq(applications.idempotencyKey,key))).toHaveLength(0);
+    expect((await db.execute(sql`select count(*)::int as n from wallet_transactions where agency_id=${agency.id}`)).rows).toEqual(ledgerBefore.rows);
+  });
   it("never returns another agency's application for a reused submission key", async () => {
     const { input } = await baseInput(crypto.randomUUID());
     await submitVisaRequest(input);

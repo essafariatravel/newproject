@@ -3,7 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { auditLogs, countries, visaTypes } from "@/db/schema";
 import { createSession } from "./helpers/authenticated-session";
-import { createCountryAction, updateCountryAction, updateCurrencyAction, updatePriorityAction, updateStatusAction, updateVisaTypeAction } from "@/app/actions/config";
+import { createCountryAction, createVisaTypeAction, updateCountryAction, updateCurrencyAction, updatePriorityAction, updateStatusAction, updateVisaTypeAction } from "@/app/actions/config";
 import { suiteSetup } from "./helpers/global-state";
 import { userByEmail } from "./helpers/fixtures";
 import { request } from "./helpers/request";
@@ -41,6 +41,30 @@ describe("configuration audit change values", () => {
     expect(entries[0]!.actorId).toBe((await userByEmail("admin@test.example")).id);
     expect((await db.execute(sql.raw(`select name from ${table} where ${key}='${value}'`))).rows[0]?.name).toBe(fields.name);
   });
+});
+
+it("allows editing a programme with a historical code longer than 40 characters without changing the code", async () => {
+  request.cookie = (await createSession((await userByEmail("admin@test.example")).id)).token;
+  const [row] = await db.select().from(visaTypes).where(eq(visaTypes.code, "FR-SCH-TOUR"));
+  const code = `LEGACY-${"A".repeat(50)}`;
+  await db.update(visaTypes).set({ code, active: false }).where(eq(visaTypes.id, row!.id));
+  const form = new FormData();
+  for (const [key, value] of Object.entries({ id: row!.id, countryId: row!.countryId, categoryId: row!.categoryId,
+    name: "Updated historical programme", processingMinDays: String(row!.processingMinDays), processingMaxDays: String(row!.processingMaxDays), fee: row!.fee })) form.set(key, value);
+  await expect(updateVisaTypeAction(form)).rejects.toMatchObject({ digest: expect.stringContaining("?ok=") });
+  expect((await db.select().from(visaTypes).where(eq(visaTypes.id, row!.id)))[0]).toMatchObject({ code, name: "Updated historical programme" });
+});
+
+it("accepts a longer new programme code but rejects unsafe code characters", async () => {
+  request.cookie = (await createSession((await userByEmail("admin@test.example")).id)).token;
+  const [row] = await db.select().from(visaTypes).where(eq(visaTypes.code, "JP-BUS"));
+  const data = new FormData();
+  for (const [key, value] of Object.entries({ countryId: row!.countryId, categoryId: row!.categoryId, name: "Synthetic programme", code: `NEW-${"B".repeat(55)}`, processingMinDays: "2", processingMaxDays: "4", fee: "11000" })) data.set(key, value);
+  await expect(createVisaTypeAction(data)).rejects.toMatchObject({ digest: expect.stringContaining("?ok=") });
+  expect(await db.select().from(visaTypes).where(eq(visaTypes.code, data.get("code") as string))).toHaveLength(1);
+  data.set("code", "BAD/UNSAFE");
+  await expect(createVisaTypeAction(data)).rejects.toMatchObject({ digest: expect.stringContaining("?error=") });
+  expect(await db.select().from(visaTypes).where(eq(visaTypes.code, "BAD/UNSAFE"))).toHaveLength(0);
 });
 
 describe("country region preservation through the real action",()=>{
