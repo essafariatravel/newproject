@@ -49,7 +49,11 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["*.e2b.app"],
   // Individual 2 MB documents plus multipart overhead. The wizard sends files
   // separately so a complete dossier never exceeds the hosting payload limit.
-  experimental: { serverActions: { bodySizeLimit: "3mb" } },
+  experimental: {
+    serverActions: { bodySizeLimit: "3mb" },
+    // Vercel's adapter still reads the legacy flag; keep both opt-outs aligned.
+    ...(process.env.VERCEL_ENV === "preview" ? { supportsImmutableAssets: false } : {}),
+  },
   async headers() {
     return [
       {
