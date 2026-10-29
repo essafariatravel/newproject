@@ -4,6 +4,7 @@ import { assertApplicationAccess } from "@/lib/documents";
 import type { AuthUser } from "@/lib/types";
 import Link from "next/link";
 import { officialDocumentIntegritySql, storedDocumentIntegritySql } from "@/lib/decision-integrity";
+import { configuredStorageProvider } from "@/lib/storage-config";
 
 const copy = {
   en: "This historical file requires reconciliation. Missing original documents cannot prove a complete valid dossier. Contact ESSAFARIA to recover the genuine originals.",
@@ -13,7 +14,7 @@ const copy = {
 
 export async function ReconciliationWarning({ applicationId, user, locale }: { applicationId: string; user: AuthUser; locale: "en"|"fr"|"ar" }) {
   const access = await assertApplicationAccess(applicationId,user);
-  if (process.env.STORAGE_PROVIDER && process.env.STORAGE_PROVIDER !== "db") return <aside role="status" className="my-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" data-testid="reconciliation-unverified">
+  if (configuredStorageProvider() !== "db") return <aside role="status" className="my-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" data-testid="reconciliation-unverified">
     {{en:"The integrity of stored originals has not been verified. Contact ESSAFARIA before treating this dossier as complete.",fr:"L’intégrité des originaux stockés n’a pas été vérifiée. Contactez ESSAFARIA avant de considérer ce dossier comme complet.",ar:"لم يتم التحقق من سلامة الأصول المخزنة. تواصل مع ESSAFARIA قبل اعتبار هذا الملف مكتملًا."}[locale]}
   </aside>;
   const t=qualifiedTable;

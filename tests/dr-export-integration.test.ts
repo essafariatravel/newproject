@@ -13,7 +13,10 @@ import { captureRecoverySnapshot, compareRecoverySnapshots, qualifyRecoveryExpor
 // of the normal test cluster and must never inherit application/cloud URLs.
 const bin = process.env.DR_LOCAL_PG_BIN;
 it.skipIf(!bin)("restores a restricted encrypted real 0019 archive and detects row/ACL/sequence loss beyond critical tables", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "dr-export-real-")), port = 55462;
+  // This Windows host refuses binding 55462/55463. Keep the disposable servers
+  // on dedicated loopback ports, without changing any OS or firewall policy.
+  const root = await mkdtemp(path.join(os.tmpdir(), "dr-export-real-")), port = process.platform === "win32" ? 5439 : 55462;
+  const targetPort = process.platform === "win32" ? 5440 : 55463;
   const data = path.join(root, "pgdata"), targetData=path.join(root,'target-pgdata'), baseline = path.join(root, "baseline"), encrypted = path.join(root, "archive.enc");
   const env = pgEnvironmentFromUrl(`postgresql://postgres@127.0.0.1:${port}/postgres`);
   const command = (name: string, args: string[]) => {
@@ -23,7 +26,7 @@ it.skipIf(!bin)("restores a restricted encrypted real 0019 archive and detects r
   const url = (db: string, user = "postgres") => `postgresql://${user}@127.0.0.1:${port}/${db}`;
   const admin = new Pool({ connectionString: url("postgres"), max: 1 });
   const source = new Pool({ connectionString: url("dr_source"), max: 1 });
-  const targetUrl=(db:string,user='postgres')=>`postgresql://${user}@127.0.0.1:55463/${db}`;
+  const targetUrl=(db:string,user='postgres')=>`postgresql://${user}@127.0.0.1:${targetPort}/${db}`;
   const targetAdmin=new Pool({connectionString:targetUrl('postgres'),max:1});
   const target = new Pool({ connectionString: targetUrl("dr_target"), max: 1 });
   const targetReader=new Pool({connectionString:targetUrl('dr_target','recovery_export_fixture'),max:1});
@@ -37,7 +40,7 @@ it.skipIf(!bin)("restores a restricted encrypted real 0019 archive and detects r
     // These disposable fixtures use only loopback TCP on their dedicated ports.
     command("pg_ctl", ["--pgdata", data, "--log", path.join(root, "postgres.log"), "--options", `-p ${port} -h 127.0.0.1 -c unix_socket_directories=`, "--wait", "start"]); started = true;
     command('initdb',['--pgdata',targetData,'--username=postgres','--auth=trust','--encoding=UTF8','--no-locale']);
-    command('pg_ctl',['--pgdata',targetData,'--log',path.join(root,'target-postgres.log'),'--options','-p 55463 -h 127.0.0.1 -c unix_socket_directories=','--wait','start']);targetStarted=true;
+    command('pg_ctl',['--pgdata',targetData,'--log',path.join(root,'target-postgres.log'),'--options',`-p ${targetPort} -h 127.0.0.1 -c unix_socket_directories=`,'--wait','start']);targetStarted=true;
     await admin.query("create role anon nologin; create role authenticated nologin; grant anon to authenticated");
     await admin.query("create database dr_source");
     await targetAdmin.query("create role anon nologin; create role authenticated nologin; grant anon to authenticated; create role recovery_export_fixture login nosuperuser nocreatedb nocreaterole noinherit noreplication nobypassrls;alter role recovery_export_fixture set default_transaction_read_only=on");
@@ -150,9 +153,15 @@ it.skipIf(!bin)("restores a restricted encrypted real 0019 archive and detects r
       expect(compareRecoverySnapshots(original!,await captureRecoverySnapshot(restored,'visa_os')).join(' ')).toContain('ROLE_ATTRIBUTES');
       await restored.query('alter role recovery_export_fixture nobypassrls');
     } finally { await restored.query("rollback"); restored.release(); }
-    // Rehearse the exact NOLOGIN proposal on the disposable source, rolling back
-    // every role/grant/policy change. It must not repair inherited PUBLIC grants.
-    const proposal=await readFile('docs/operations/sql/production-recovery-export-nologin.sql','utf8').catch(()=> 'select 1');
+    // Rehearse the NOLOGIN proposal on the disposable source, rolling back
+    // every role/grant/policy change. Only its fixed loopback fixture port is
+    // adapted in memory; the Production SQL and every privilege guard stay intact.
+    const localProposal = async (file:string) => {
+      const sourceSql = await readFile(file,'utf8');
+      expect(sourceSql.match(/inet_server_port\(\)=55462/g)).toHaveLength(1);
+      return sourceSql.replace('inet_server_port()=55462',`inet_server_port()=${port}`);
+    };
+    const proposal=await localProposal('docs/operations/sql/production-recovery-export-nologin.sql');
     const operator=await source.connect();
     try {
       await operator.query('begin');
@@ -171,7 +180,7 @@ it.skipIf(!bin)("restores a restricted encrypted real 0019 archive and detects r
       const role=(await operator.query("select rolcanlogin,rolsuper,rolcreaterole,rolcreatedb,rolreplication,rolbypassrls,rolinherit,rolconfig from pg_roles where rolname='essafaria_recovery_export'")).rows[0];
       expect(role).toMatchObject({rolcanlogin:false,rolsuper:false,rolcreaterole:false,rolcreatedb:false,rolreplication:false,rolbypassrls:false,rolinherit:false,rolconfig:['default_transaction_read_only=on']});
       expect((await operator.query("select has_table_privilege('essafaria_recovery_export','visa_os.recovery_auxiliary','SELECT') readable,has_table_privilege('essafaria_recovery_export','visa_os.recovery_auxiliary','UPDATE') writable")).rows[0]).toEqual({readable:true,writable:false});
-      const retire=await readFile('docs/operations/sql/production-recovery-export-retire.sql','utf8').catch(()=> 'select 1');
+      const retire=await localProposal('docs/operations/sql/production-recovery-export-retire.sql');
       await operator.query('alter role essafaria_recovery_export login');
       await operator.query(retire);
       expect((await operator.query("select rolcanlogin from pg_roles where rolname='essafaria_recovery_export'")).rows[0].rolcanlogin).toBe(false);

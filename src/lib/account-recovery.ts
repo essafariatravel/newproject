@@ -73,7 +73,7 @@ export async function issueAccessToken(actor: AuthUser, userId: string, purpose:
     path: `/reset-access/${token}`,
     expiresAt,
   });
-  return { token, expiresAt, username: user.username, email: user.agencyId ? null : user.email, name: user.name };
+  return { token, expiresAt, username: user.username, email: user.email, name: user.name };
 }
 
 export async function resolveAccessToken(token: string) {
@@ -83,7 +83,7 @@ export async function resolveAccessToken(token: string) {
     .where(and(eq(accountAccessTokens.tokenHash, hashToken(token)), isNull(accountAccessTokens.usedAt), gt(accountAccessTokens.expiresAt, new Date()),
       eq(accountAccessTokens.credentialVersion, users.credentialVersion))).limit(1);
   if (!row || row.user.status !== "ACTIVE" || (row.user.agencyId && row.agencyStatus !== "ACTIVE")) return null;
-  return { name: row.user.name, username: row.user.username, email: row.user.agencyId ? null : row.user.email, expiresAt: row.token.expiresAt };
+  return { name: row.user.name, username: row.user.username, email: row.user.email, expiresAt: row.token.expiresAt };
 }
 
 /** Password replacement, token consumption and every revocation share one transaction. */

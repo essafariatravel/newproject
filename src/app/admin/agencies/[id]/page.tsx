@@ -249,7 +249,7 @@ export default async function AdminAgencyDetailPage({
             </Card>
           ) : null}
 
-          {canUsers && !agencyUsers.some(user => user.status === "ACTIVE") ? (
+          {canUsers && agencyUsers.length === 0 ? (
             <Card>
               <CardHeader title={ct("Add agency user")} subtitle={ct("Agency Admin chooses password directly.")} />
               <form action={createUserAction} className="space-y-4 px-4 py-4">

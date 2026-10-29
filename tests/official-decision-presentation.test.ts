@@ -155,6 +155,13 @@ describe("official decision presentation uses verified canonical documents", () 
     expect(await getDecisionDocuments(app.id)).toHaveLength(0);
   });
 
+  it("verifies healthy stored originals when the database provider has surrounding whitespace", async () => {
+    const { app, actor } = await decided();
+    vi.stubEnv("STORAGE_PROVIDER", " db\r\n");
+    expect(await getDecisionDocuments(app.id)).toHaveLength(1);
+    expect(await ReconciliationWarning({applicationId:app.id,user:actor,locale:"en"})).toBeNull();
+  });
+
   it.each(["review-time", "applicant-link", "checklist-link"] as const)("never certifies malformed %s proof as healthy in reconciliation or dossier warnings", async defect => {
     const { app, actor, doc } = await decided();
     if (defect === "review-time") await db.update(documents).set({ reviewedAt: null }).where(eq(documents.id, doc.id));

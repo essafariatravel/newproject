@@ -65,8 +65,8 @@ export async function createAccount(actor: AuthUser, input: {
     if (input.agencyId) {
       const [agency] = await tx.select().from(agencies).where(eq(agencies.id, input.agencyId)).limit(1);
       if (!agency || agency.status !== "ACTIVE") throw new AppError("NOT_FOUND", "Active agency not found.");
-      const [active] = await tx.select({id:users.id}).from(users).where(and(eq(users.agencyId,input.agencyId),eq(users.status,"ACTIVE"))).limit(1);
-      if (active) throw new AppError("AGENCY_ACCOUNT_EXISTS", "This agency already has an active account.");
+      const [existing] = await tx.select({id:users.id}).from(users).where(eq(users.agencyId,input.agencyId)).limit(1);
+      if (existing) throw new AppError("AGENCY_ACCOUNT_EXISTS", "This agency already has an account. Manage its existing access.");
       email = input.email?.trim().toLowerCase() || agency.email.trim().toLowerCase();
       username = input.username ? normalizeAgencyUsername(input.username) : legacyAgencyUsername(randomUUID());
       const [duplicate] = await tx.select({ id: users.id }).from(users).where(eq(users.username, username)).limit(1);

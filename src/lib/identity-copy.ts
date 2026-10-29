@@ -1,6 +1,7 @@
 import type { UiLocale } from "@/lib/ui-i18n";
 
 const copy: Record<string, readonly [string, string]> = {
+  "This agency already has an account. Manage its existing access.": ["Cette agence possède déjà un compte. Gérez son accès existant.", "لدى هذه الوكالة حساب بالفعل. قم بإدارة وصول الحساب الحالي."],
   "Invalid email or password.": ["E-mail ou mot de passe incorrect.", "البريد الإلكتروني أو كلمة المرور غير صحيحة."],
   "Enter your registered email and password.": ["Saisissez votre e-mail de connexion et votre mot de passe.", "أدخل البريد الإلكتروني المسجل وكلمة المرور."],
   "Sign in with your registered account email.": ["Connectez-vous avec l’e-mail enregistré pour votre compte.", "سجّل الدخول بالبريد الإلكتروني المسجل لحسابك."],

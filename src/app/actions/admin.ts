@@ -78,7 +78,6 @@ export async function updateAgencyAction(formData: FormData): Promise<void> {
       const [previous]=await tx.select().from(agencies).where(eq(agencies.id,id)).for("update");
       if(!previous)throw new AppError("NOT_FOUND","Agency not found.");
       await tx.update(agencies).set({ ...data, updatedAt: new Date() }).where(eq(agencies.id, id));
-      await tx.update(users).set({ email: data.email, updatedAt: new Date() }).where(eq(users.agencyId, id));
       const oldValues=Object.fromEntries(Object.keys(data).map(key=>[key,previous[key as keyof typeof previous]]));
       await recordIdentityAudit(tx, { actor: current, action: "AGENCY_UPDATED", entity: "agency", entityId: id, agencyId:id,
         metadata:{oldValues,newValues:data} });
