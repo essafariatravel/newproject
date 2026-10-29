@@ -36,6 +36,9 @@ const publicNoIndexHeaders = SEO_NOINDEX_PUBLIC_ENTRIES
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Keep hotfix Preview assets scoped to their deployment while qualifying
+  // the adapter's shared immutable-asset delivery. Production keeps its default.
+  ...(process.env.VERCEL_ENV === "preview" ? { supportsImmutableAssets: false } : {}),
   poweredByHeader: false,
   // Next 16 logs Server Function arguments in development by default. Passwords,
   // enrollment authorizations and TOTP/recovery codes must never enter logs.
