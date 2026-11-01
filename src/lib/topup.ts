@@ -206,7 +206,7 @@ export async function listTopupRequests(options?: {
   status?: TopupStatus | "ALL";
   agencyId?: string;
   limit?: number;
-}): Promise<TopupRequestRow[]> {
+}): Promise<(TopupRequestRow & { agencyStatus: string; agencyBalance: string })[]> {
   const conditions = [];
   if (options?.status && options.status !== "ALL") {
     conditions.push(eq(walletTopupRequests.status, options.status));
@@ -229,6 +229,8 @@ export async function listTopupRequests(options?: {
       walletReference: walletTransactions.reference,
       proofFilename: walletTopupRequests.proofFilename,
       agencyName: agencies.legalName,
+      agencyStatus: agencies.status,
+      agencyBalance: agencies.balance,
     })
     .from(walletTopupRequests)
     .innerJoin(agencies, eq(walletTopupRequests.agencyId, agencies.id))

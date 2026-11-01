@@ -2,7 +2,7 @@ import { businessLabel, businessReason } from "@/lib/business-labels";
 import Link from "next/link";
 import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
-import { listAgencies, listWalletTransactions } from "@/lib/queries";
+import { listAgencies, listWalletTransactions, totalWalletBalance } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
 import { WalletAdjustmentForm } from "@/components/wallet-adjustment-form";
 import { formatAmount, formatDateTime } from "@/lib/format";
@@ -12,6 +12,7 @@ import { FilterBar, Pagination } from "@/components/app-widgets";
 import { TopupProcessForm } from "@/components/topup";
 import { processTopupAction } from "@/app/actions/topup";
 import { listTopupRequests } from "@/lib/topup";
+import { agencyClosureCopy } from "@/lib/agency-closure-copy";
 
 import { EmptyState, Flash, PageHeader, StatCard, TableWrap } from "@/components/ui";
 
@@ -26,6 +27,7 @@ export default async function AdminBillingPage({
   const staff = await pageUser();
   const uiLocale = await getUiLocale();
   const ct = contentT(uiLocale);
+  const closureCopy = agencyClosureCopy(uiLocale);
   if (!hasPermission(staff, "wallet.view.all")) {
     return (
       <>
@@ -37,14 +39,13 @@ export default async function AdminBillingPage({
   const flash = flashFrom(sp);
   const agencyFilter = typeof sp.agency === "string" ? sp.agency : undefined;
   const page = Number(sp.page ?? "1") || 1;
-  const [txs, agencies, topups] = await Promise.all([
+  const [txs, agencies, topups, totalBalance] = await Promise.all([
     listWalletTransactions({ agencyId: agencyFilter, page }),
     listAgencies(),
     listTopupRequests({ status: "PENDING", limit: 50 }),
+    totalWalletBalance(),
   ]);
   const canAdjust = hasPermission(staff,"wallet.adjust");
-  const totalBalance = agencies.reduce((sum, a) => sum + Number(a.agency.balance), 0);
-  const balanceByAgency = new Map(agencies.map((a) => [a.agency.id, a.agency.balance]));
 
   return (
     <>
@@ -53,7 +54,7 @@ export default async function AdminBillingPage({
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label={ct("Agencies")} value={agencies.length} href="/admin/agencies" />
-        <StatCard label={ct("Combined balances")} value={formatAmount(totalBalance.toFixed(2), "DZD", uiLocale)} tone="gold" />
+        <StatCard label={ct("Combined balances")} value={formatAmount(totalBalance, "DZD", uiLocale)} tone="gold" />
         <StatCard label={ct("Ledger entries")} value={txs.total} />
         <StatCard label={ct("Pending top-up requests")} value={topups.length} tone="gold" />
       </div>
@@ -85,7 +86,13 @@ export default async function AdminBillingPage({
                   </div>
                   <p className="text-xs text-slate-400">{formatDateTime(t.createdAt, uiLocale)}</p>
                 </div>
-                {canAdjust ? (
+                {t.agencyStatus === 'CLOSED' ? (
+                  <div className="mt-4 space-y-2 text-base text-slate-600">
+                    <p>{closureCopy('closed')}</p>
+                    <p>{closureCopy('PENDING_TOPUPS')}</p>
+                    <p>{ct('Current balance')} : <bdi dir="ltr">{formatAmount(t.agencyBalance, 'DZD', uiLocale)}</bdi></p>
+                  </div>
+                ) : canAdjust ? (
                   <div className="mt-4 max-w-2xl">
                     <TopupProcessForm
                       action={processTopupAction}
@@ -93,7 +100,7 @@ export default async function AdminBillingPage({
                       requestId={t.id}
                       proofAvailable={Boolean(t.proofFilename)}
                       requestedAmount={t.amount}
-                      agencyBalance={balanceByAgency.get(t.agencyId) ?? "0"}
+                      agencyBalance={t.agencyBalance}
                       locale={uiLocale}
                       copy={{
                         amountLabel: ct("Amount to fund (DZD)"),

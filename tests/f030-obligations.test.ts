@@ -21,6 +21,10 @@ import {request} from './helpers/request';
 import {clearAgencyLogo} from '@/lib/branding';
 import {applyPriceAdjustment} from '@/lib/price-adjustments';
 import {postMessageAction} from '@/app/actions/communications';
+import {listTopupRequests} from '@/lib/topup';
+import AdminBillingPage from '@/app/admin/billing/page';
+import {renderToStaticMarkup} from 'react-dom/server';
+import {formatAmount} from '@/lib/format';
 
 suiteSetup();
 async function fixture(){
@@ -32,6 +36,20 @@ async function fixture(){
  return {actor,data,approved,input,ownerToken:minted.token};
 }
 describe('F030 outstanding obligations and trusted target',()=>{
+ it('shows the real retained balance for closed pending topups and offers no financial mutation',async()=>{
+  const {actor,approved,input,ownerToken}=await fixture();
+  const client=await pool.connect();try{await client.query('begin');await applyWalletMutation(client,{agencyId:approved.agencyId,operation:'CREDIT',amountAbs:'75.00',reason:'Synthetic retained balance display',actorId:actor.id});await client.query('commit');}finally{client.release();}
+  const [pending]=await db.insert(walletTopupRequests).values({agencyId:approved.agencyId,amount:'25.00',currency:'DZD'}).returning();
+  await closeAgency(actor,input);
+  const listed=await listTopupRequests({status:'PENDING',agencyId:approved.agencyId});
+  expect(listed.find(r=>r.id===pending!.id)).toMatchObject({agencyStatus:'CLOSED',agencyBalance:'75.00',status:'PENDING'});
+  request.cookie=ownerToken;let html:string;try{html=renderToStaticMarkup(await AdminBillingPage({searchParams:Promise.resolve({agency:approved.agencyId})}));}finally{request.cookie='';}
+  expect(html).toContain('75 DZD');expect(html).toContain('Pending top-ups and receipts are retained');
+  const total=(await pool.query('select sum(balance)::text as total from agencies')).rows[0].total;
+  const financialSummary=html.slice(html.indexOf('Combined balances'),html.indexOf('Ledger entries'));
+  expect(financialSummary).toContain(formatAmount(total,'DZD','en'));
+  expect(html).not.toContain('Credit and close');expect(html).not.toContain('name="decision"');
+ });
  async function fundedDraft(){
   const state=await fixture(),[programme]=await db.select().from(visaTypes).limit(1);
   const app=await createDraftApplication({agencyId:state.approved.agencyId,visaTypeId:programme!.id,createdBy:state.actor});

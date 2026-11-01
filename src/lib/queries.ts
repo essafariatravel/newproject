@@ -789,6 +789,12 @@ export async function activeVisaOptions() {
     .orderBy(asc(countries.name), asc(visaTypes.name));
 }
 
+/** Financial obligations include archived wallets, in one database snapshot. */
+export async function totalWalletBalance(): Promise<string> {
+  const [row] = await db.select({ total: sql<string>`coalesce(sum(${agencies.balance}), 0)::text` }).from(agencies);
+  return row?.total ?? '0';
+}
+
 export async function listAgencies(q?: string, closed = false) {
   const conditions = [closed ? eq(agencies.status, "CLOSED") : sql`${agencies.status} <> 'CLOSED'`];
   if (q) {
