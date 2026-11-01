@@ -1,5 +1,7 @@
 # F-030 Targeted Reintroduction Implementation Plan
 
+> Execution ruling: the later explicit owner decision selects access closure with retained open/financial obligations and confirmed ESSAFARIA responsibility. It supersedes the old zero-balance/no-open-dossier prerequisite in this preparation plan. Implementation and 248 affected regression tests are complete; hosted Preview acceptance and the final owner Production GO remain pending. See docs/operations/f030-execution-ledger-20261101.md.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Reuse the V1.1 agency closure on published Staff 5139c8a, preserving archives and finance, with owner-only explicit confirmation and independent future re-registration.

@@ -13,6 +13,7 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   applicants,
+  agencies,
   applications,
   checklistItems,
   documentRequests,
@@ -34,6 +35,7 @@ import {
 import { buildStorageKey, storageProvider, storageReferenceCommitted,storageDeletionQueued,storageOperationsEnabled } from "@/lib/storage";
 import { recordAudit } from "@/lib/audit";
 import { currentOperationActor } from "@/lib/operation-identity";
+import { assertAgencyOperational } from "@/lib/agency-identity";
 import { agencyUserIds, staffUserIds, notifyUsers } from "@/lib/notifications";
 import { getStatusByCode } from "@/lib/applications";
 
@@ -61,14 +63,16 @@ export async function assertApplicationAccess(
       statusCode: statuses.code,
       isDraft: statuses.isDraft,
       isTerminal: statuses.isTerminal,
+      agencyStatus: agencies.status,
     })
     .from(applications)
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
+    .innerJoin(agencies, eq(applications.agencyId, agencies.id))
     .where(eq(applications.id, applicationId))
     .limit(1);
   const app = rows[0];
   if (!app) throw new AppError("NOT_FOUND", "Application not found.");
-  if (user.agencyId && app.agencyId !== user.agencyId) {
+  if (user.agencyId && (app.agencyId !== user.agencyId || app.agencyStatus !== "ACTIVE")) {
     throw new AppError("NOT_FOUND", "Application not found.");
   }
   return {
@@ -105,14 +109,16 @@ export async function getDocumentForUser(documentId: string, user: AuthUser) {
       doc: documents,
       appAgencyId: applications.agencyId,
       applicationReference: applications.reference,
+      agencyStatus: agencies.status,
     })
     .from(documents)
     .innerJoin(applications, eq(documents.applicationId, applications.id))
+    .innerJoin(agencies, eq(applications.agencyId, agencies.id))
     .where(eq(documents.id, documentId))
     .limit(1);
   const row = rows[0];
   if (!row) throw new AppError("NOT_FOUND", "Document not found.");
-  if (user.agencyId && row.appAgencyId !== user.agencyId) {
+  if (user.agencyId && (row.appAgencyId !== user.agencyId || row.agencyStatus !== "ACTIVE")) {
     throw new AppError("NOT_FOUND", "Document not found.");
   }
   return row;
@@ -240,6 +246,7 @@ export async function uploadDocument(input: UploadDocumentInput, resubmittedDocu
   try {
     doc = await db.transaction(async (tx) => {
       input = { ...input, actor: await currentOperationActor(tx,input.actor,'read') };
+      await assertAgencyOperational(tx, access.agencyId,input.applicationId);
       // Lock the dossier across request validation, version allocation and insert.
       // A concurrent replacement waits, then sees the request already fulfilled.
       await tx.select({ id: applications.id }).from(applications)
@@ -378,6 +385,7 @@ export async function reviewDocument(input: ReviewInput) {
 
   await db.transaction(async (tx) => {
   input = { ...input, actor: await currentOperationActor(tx,input.actor) };
+  await assertAgencyOperational(tx, row.appAgencyId,row.doc.applicationId);
   await tx
     .update(documents)
     .set({

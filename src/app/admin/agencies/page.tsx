@@ -14,6 +14,8 @@ import { contentT } from "@/lib/i18n-content";
 import { agencyPrimaryLabel } from "@/lib/agency-display";
 import { AgencyListIdentity } from "@/components/agency-list-identity";
 import { NavigableTableRow } from "@/components/navigable-table-row";
+import Link from "next/link";
+import { agencyClosureCopy } from "@/lib/agency-closure-copy";
 
 export const dynamic = "force-dynamic";
 
@@ -36,14 +38,17 @@ export default async function AdminAgenciesPage({
   }
   const flash = flashFrom(sp);
   const q = typeof sp.q === "string" ? sp.q : undefined;
-  const rows = await listAgencies(q);
+  const closed = sp.closed === "1";
+  const closureT = agencyClosureCopy(uiLocale);
+  const rows = await listAgencies(q, closed);
 
   return (
     <>
       <PageHeader title={ct("Agencies")} subtitle={ct("Partner agencies — DZD wallets, immutable ledger.")} />
       <Flash {...flash} />
+      <Link className="btn-secondary mb-4" href={closed ? "/admin/agencies" : "/admin/agencies?closed=1"}>{closureT(closed ? "current" : "archives")}</Link>
 
-      <FilterBar locale={uiLocale} action="/admin/agencies" fields={[{ name: "q", label: ct("Search"), type: "text", value: q, placeholder: ct("Name or email…") }]} />
+      {closed ? <form method="get" action="/admin/agencies" className="mb-6 flex flex-wrap items-end gap-3"><input type="hidden" name="closed" value="1" /><div><label htmlFor="closed-agency-search" className="label">{ct("Search")}</label><input id="closed-agency-search" name="q" defaultValue={q} className="input" /></div><button className="btn-secondary" type="submit">{ct("Search")}</button></form> : <FilterBar locale={uiLocale} action="/admin/agencies" fields={[{ name: "q", label: ct("Search"), type: "text", value: q, placeholder: ct("Name or email…") }]} />}
 
       {rows.length === 0 ? (
         <div className="card">
@@ -76,8 +81,8 @@ export default async function AdminAgenciesPage({
                   </div>
                 </td>
                 <td className="td">{agency.country ?? "—"}</td>
-                <td className="td"><ActiveBadge active={agency.status === "ACTIVE"} /></td>
-                <td className="td tabular-nums">{userCount}</td>
+                <td className="td">{closed ? closureT("closedLabel") : <ActiveBadge active={agency.status === "ACTIVE"} />}</td>
+                <td className="td tabular-nums">{userCount}{userCount === 0 ? <p className="mt-1 text-sm text-slate-600">{ct("No user configured")}</p> : null}</td>
                 <td className="td tabular-nums">{applicationCount}</td>
                 <td className="td whitespace-nowrap font-semibold tabular-nums">{formatAmount(agency.balance, "DZD", uiLocale)}</td>
               </NavigableTableRow>

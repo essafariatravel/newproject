@@ -10,6 +10,7 @@ import { storageDeletionQueued, storageProvider, storageReferenceCommitted } fro
 import { getSiteSettings, updateSetting, type SettingsTransaction } from "@/lib/settings";
 import { recordAudit } from "@/lib/audit";
 import { currentOperationActor } from "@/lib/operation-identity";
+import { assertAgencyOperational } from '@/lib/agency-identity';
 
 export const BRAND_LOGO_KEY = "branding/logo";
 export const AGENCY_LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
@@ -221,6 +222,7 @@ export async function setAgencyLogo(agencyId: string, upload: LogoUpload, actor:
   const key=externalLogoStorage() ? `${agencyLogoKey(agencyId)}/${randomUUID()}` : agencyLogoKey(agencyId);
   let previous: string | null=null;
   await putLogo(key,upload,actor,async tx => {
+    await assertAgencyOperational(tx,agencyId);
     const [row]=await tx.select({logoKey:agencies.logoKey}).from(agencies).where(eq(agencies.id,agencyId)).for("update");
     if (!row) throw new AppError("NOT_FOUND","Agency not found.");
     previous=row.logoKey;
@@ -236,6 +238,7 @@ export async function clearAgencyLogo(agencyId: string, actor: AuthUser): Promis
   let previous: string | null=null;
   await db.transaction(async tx => {
     actor=await currentOperationActor(tx,actor);
+    await assertAgencyOperational(tx,agencyId);
     const [row]=await tx.select({logoKey:agencies.logoKey}).from(agencies).where(eq(agencies.id,agencyId)).for("update");
     if (!row) throw new AppError("NOT_FOUND","Agency not found.");
     previous=row.logoKey;

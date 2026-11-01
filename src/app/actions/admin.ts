@@ -78,6 +78,7 @@ export async function updateAgencyAction(formData: FormData): Promise<void> {
       requirePermission(current, "agencies.manage");
       const [previous]=await tx.select().from(agencies).where(eq(agencies.id,id)).for("update");
       if(!previous)throw new AppError("NOT_FOUND","Agency not found.");
+      if(previous.status==='CLOSED')throw new AppError('INVALID_STATE','This agency is closed. Its archived identity is preserved.');
       await tx.update(agencies).set({ ...data, updatedAt: new Date() }).where(eq(agencies.id, id));
       const oldValues=Object.fromEntries(Object.keys(data).map(key=>[key,previous[key as keyof typeof previous]]));
       await recordIdentityAudit(tx, { actor: current, action: "AGENCY_UPDATED", entity: "agency", entityId: id, agencyId:id,

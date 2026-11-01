@@ -22,8 +22,10 @@ export function automaticDatabaseChangesForbidden(branch: string | null | undefi
   // The explicit authentication pause must never cause build-time DB writes,
   // including when Vercel has not exposed the branch's system metadata.
   if (process.env.MFA_ENFORCEMENT_ENABLED === "false") return true;
+  if(process.env.ESSAFARIA_READONLY_BUILD==='true')return true;
   const ref = branch ?? "";
   if(ref.startsWith('codex/staff-administration-'))return true;
+  if(ref.startsWith('codex/f030-'))return true;
   return ref.startsWith("codex/world-class-final-consolidation-") ||
     ref.startsWith("codex/urgent-hotfix-") ||
     ref.startsWith("codex/preview-mfa-enforcement-") ||

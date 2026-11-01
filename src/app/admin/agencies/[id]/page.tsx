@@ -23,6 +23,9 @@ import { WALLET_MANAGE_ROLES } from "@/lib/types";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { agencyPrimaryLabel } from "@/lib/agency-display";
+import { AgencyClosureForm } from '@/components/agency-closure-form';
+import { agencyClosurePreview, requireAgencyClosureTarget } from '@/lib/agency-closure';
+import { agencyClosureCopy } from '@/lib/agency-closure-copy';
 
 export const dynamic = "force-dynamic";
 
@@ -46,9 +49,12 @@ export default async function AdminAgencyDetailPage({
 
   const flash = flashFrom(sp);
   const agencyLabel = agencyPrimaryLabel(agency);
-  const canManage = hasPermission(staff, "agencies.manage");
-  const canAdjust = WALLET_MANAGE_ROLES.includes(staff.role);
-  const canUsers = hasPermission(staff, "users.manage");
+  const canManage = agency.status!=='CLOSED'&&hasPermission(staff, "agencies.manage");
+  const canAdjust = agency.status!=='CLOSED'&&WALLET_MANAGE_ROLES.includes(staff.role);
+  const canUsers = agency.status!=='CLOSED'&&hasPermission(staff, "users.manage");
+  const closure=staff.role==='SUPER_ADMIN'?await agencyClosurePreview(staff,id):null;
+  let closureExecutionAllowed=false;
+  try{requireAgencyClosureTarget();closureExecutionAllowed=true;}catch{/* Fail closed; retain the read-only owner summary. */}
 
   const [agencyUsers, txs, apps, activity, verificationDocuments] = await Promise.all([
     db.select().from(users).where(eq(users.agencyId, id)),
@@ -67,12 +73,13 @@ export default async function AdminAgencyDetailPage({
         subtitle={`${agency.legalName.trim() || agencyLabel} · ${agency.city ?? ""} ${agency.country ?? ""} · DZD wallet`}
         actions={
           <>
-            <ActiveBadge active={agency.status === "ACTIVE"} />
+            {agency.status==='CLOSED'?<span>{agencyClosureCopy(uiLocale)('closedLabel')}</span>:<ActiveBadge active={agency.status === "ACTIVE"} />}
             <Link href="/admin/agencies" className="btn-secondary btn-sm">← All agencies</Link>
           </>
         }
       />
       <Flash {...flash} />
+      {closure?<AgencyClosureForm summary={closure} locale={uiLocale} executionAllowed={closureExecutionAllowed}/>:null}
       <div className="my-4 grid gap-4 lg:grid-cols-2">
         <Card><CardHeader title={ct("Verification documents")}/><div className="space-y-4 p-6">
           {verificationDocuments.length?verificationDocuments.map(({document,registrationId})=><div key={document.id}><Link href={`/api/registrations/${registrationId}/documents/${document.id}`} className="block underline">{document.originalFilename}</Link><Link href={`/admin/registrations/${registrationId}`} className="inline-flex min-h-11 items-center text-base underline">{ct("View registration")}</Link></div>):<p className="text-base text-slate-500">{ct("No verification documents are linked to this agency.")}</p>}

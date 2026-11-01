@@ -789,8 +789,8 @@ export async function activeVisaOptions() {
     .orderBy(asc(countries.name), asc(visaTypes.name));
 }
 
-export async function listAgencies(q?: string) {
-  const conditions = [];
+export async function listAgencies(q?: string, closed = false) {
+  const conditions = [closed ? eq(agencies.status, "CLOSED") : sql`${agencies.status} <> 'CLOSED'`];
   if (q) {
     const term = `%${q.trim()}%`;
     conditions.push(

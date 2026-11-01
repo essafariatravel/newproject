@@ -334,6 +334,7 @@ export async function getApplicationForUser(applicationId: string, user: AuthUse
       app: applications,
       status: statuses,
       priority: priorities,
+      agencyStatus: sql<string>`(select status from ${sql.raw(qualifiedTable("agencies"))} where id = ${applications.agencyId})`,
       agencyName: sql<string>`(select coalesce(trading_name, legal_name) from ${sql.raw(qualifiedTable("agencies"))} where agencies.id = ${applications.agencyId})`,
     })
     .from(applications)
@@ -343,6 +344,7 @@ export async function getApplicationForUser(applicationId: string, user: AuthUse
     .limit(1);
   const row = rows[0];
   if (!row) throw new AppError("NOT_FOUND", "Application not found.");
+  if (user.agencyId && row.agencyStatus !== "ACTIVE") throw new AppError("NOT_FOUND", "Application not found.");
   if (user.agencyId && row.app.agencyId !== user.agencyId) {
     throw new AppError("NOT_FOUND", "Application not found."); // tenant isolation
   }

@@ -122,6 +122,8 @@ export async function updateAccount(actor: AuthUser, userId: string, input: {
     const nextStatus = input.toggleStatus ? (target.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE") : target.status;
     if (target.status !== "ACTIVE" && nextStatus === "ACTIVE") {
       if (target.agencyId) {
+        const [agency]=await tx.select({status:agencies.status}).from(agencies).where(eq(agencies.id,target.agencyId));
+        if(agency?.status==='CLOSED')throw new AppError('INVALID_STATE','A closed agency account cannot be reactivated.');
         const [active] = await tx.select({id:users.id}).from(users).where(and(eq(users.agencyId,target.agencyId),eq(users.status,"ACTIVE"),ne(users.id,target.id))).limit(1);
         if (active) throw new AppError("AGENCY_ACCOUNT_EXISTS", "This agency already has an active account.");
       }
@@ -168,6 +170,7 @@ export async function toggleAgencyAccess(actor: AuthUser, agencyId: string) {
     if (!isStaffRole(current.role) || current.agencyId) throw new AppError("FORBIDDEN", "Only staff can change agency access.");
     const [agency] = await tx.select().from(agencies).where(eq(agencies.id, agencyId)).for("update").limit(1);
     if (!agency) throw new AppError("NOT_FOUND", "Agency not found.");
+    if(agency.status==='CLOSED')throw new AppError('INVALID_STATE','A closed agency cannot be reactivated. Submit a new partnership request.');
     const next = agency.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
     await tx.update(agencies).set({ status: next, updatedAt: new Date() }).where(eq(agencies.id, agencyId));
     const members = await tx.select({ id: users.id }).from(users).where(eq(users.agencyId, agencyId));

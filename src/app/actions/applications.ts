@@ -24,6 +24,7 @@ import {
 } from "@/lib/applications";
 import { runAction } from "@/lib/action-helpers";
 import { recordAudit, type AuditTransaction } from "@/lib/audit";
+import { assertAgencyOperational } from "@/lib/agency-identity";
 
 const idSchema = z.string().uuid("Invalid identifier.");
 
@@ -206,6 +207,7 @@ export async function assignOfficerAction(formData: FormData): Promise<void> {
       const [app] = await tx.select({ id: applications.id, reference: applications.reference, agencyId: applications.agencyId, assignedTo: applications.assignedTo })
         .from(applications).where(eq(applications.id, applicationId)).limit(1).for("update");
       if (!app) throw new AppError("NOT_FOUND", "Application not found.");
+      await assertAgencyOperational(tx, app.agencyId,app.id);
       await writeAssignment(tx, app, await activeOfficer(tx, assignedTo), user, false);
     });
     revalidatePath(back);
@@ -308,6 +310,7 @@ export async function updateInternalNotesAction(formData: FormData): Promise<voi
       const [app] = await tx.select({ id: applications.id, reference: applications.reference, agencyId: applications.agencyId, internalNotes: applications.internalNotes })
         .from(applications).where(eq(applications.id, applicationId)).limit(1).for("update");
       if (!app) throw new AppError("NOT_FOUND", "Application not found.");
+      await assertAgencyOperational(tx, app.agencyId,app.id);
       if (app.internalNotes === notes) return;
       await tx.update(applications).set({ internalNotes: notes, updatedAt: new Date() }).where(eq(applications.id, applicationId));
       await recordAudit({ actor: user, action: "APPLICATION_NOTES_UPDATED", entity: "application", entityId: applicationId, agencyId: app.agencyId,

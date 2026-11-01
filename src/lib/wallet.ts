@@ -92,20 +92,21 @@ export async function applyWalletMutation(
     credit
       ? `update ${qualifiedTable("agencies")}
            set balance = balance + $2::numeric, updated_at = now()
-         where id = $1
+         where id = $1 and status <> 'CLOSED'
          returning balance::text as balance_after, (balance - $2::numeric)::text as balance_before`
       : `update ${qualifiedTable("agencies")}
            set balance = balance - $2::numeric, updated_at = now()
-         where id = $1 and balance >= $2::numeric
+         where id = $1 and status <> 'CLOSED' and balance >= $2::numeric
          returning balance::text as balance_after, (balance + $2::numeric)::text as balance_before`,
     [params.agencyId, params.amountAbs],
   );
   if (!upd.rows[0]) {
-    const agency = await client.query<{ balance: string }>(
-      `select balance::text as balance from ${qualifiedTable("agencies")} where id = $1`,
+    const agency = await client.query<{ balance: string; status: string }>(
+      `select balance::text as balance,status from ${qualifiedTable("agencies")} where id = $1`,
       [params.agencyId],
     );
     if (!agency.rows[0]) throw new AppError("NOT_FOUND", "Agency not found.");
+    if (agency.rows[0].status === "CLOSED") throw new AppError("INVALID_STATE", "This agency is closed. Its historical wallet is read-only.");
     throw new AppError(
       "INSUFFICIENT_FUNDS",
       `Insufficient funds: current balance is ${agency.rows[0].balance} DZD.`,
@@ -273,16 +274,17 @@ export async function chargeApplicationSubmission(params: {
     const upd = await client.query<{ balance_after: string; balance_before: string }>(
       `update ${qualifiedTable("agencies")}
          set balance = balance - $2::numeric, updated_at = now()
-       where id = $1 and balance >= $2::numeric
+       where id = $1 and status <> 'CLOSED' and balance >= $2::numeric
        returning balance::text as balance_after, (balance + $2::numeric)::text as balance_before`,
       [app.agency_id, app.fee],
     );
     if (!upd.rows[0]) {
       await client.query("rollback");
-      const _bal = await client.query<{ balance: string; currency: string }>(
-        `select balance::text as balance, currency from ${qualifiedTable("agencies")} where id = $1`,
+      const _bal = await client.query<{ balance: string; currency: string;status:string }>(
+        `select balance::text as balance, currency,status from ${qualifiedTable("agencies")} where id = $1`,
         [app.agency_id],
       );
+      if(_bal.rows[0]?.status==='CLOSED')throw new AppError('INVALID_STATE','This agency is closed. Its historical wallet is read-only.');
       throw new AppError(
         "INSUFFICIENT_FUNDS",
         `Wallet balance is too low for this application (${app.fee} DZD required).`,

@@ -225,15 +225,17 @@ export async function applyPriceAdjustment(params: {
       isCredit
         ? `update ${qualifiedTable("agencies")}
               set balance = balance + $2::numeric, updated_at = now()
-            where id = $1
+            where id = $1 and status <> 'CLOSED'
             returning balance::text as balance_after, (balance - $2::numeric)::text as balance_before`
         : `update ${qualifiedTable("agencies")}
               set balance = balance - $2::numeric, updated_at = now()
-            where id = $1 and balance >= $2::numeric
+            where id = $1 and status <> 'CLOSED' and balance >= $2::numeric
             returning balance::text as balance_after, (balance + $2::numeric)::text as balance_before`,
       [app.agency_id, amountStr],
     );
     if (!walletUpd.rows[0]) {
+      const closed=await client.query(`select status from ${qualifiedTable('agencies')} where id=$1`,[app.agency_id]);
+      if(closed.rows[0]?.status==='CLOSED')throw new AppError('INVALID_STATE','This agency is closed. Its historical wallet is read-only.');
       throw new AppError(
         "INSUFFICIENT_FUNDS",
         `The agency wallet cannot cover this surcharge of ${amountStr} ${app.submitted_currency}.`,

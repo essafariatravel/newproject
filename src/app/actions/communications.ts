@@ -1,5 +1,6 @@
 "use server";
 import { currentOperationActor } from "@/lib/operation-identity";
+import { assertAgencyOperational } from '@/lib/agency-identity';
 
 /**
  * Communication + notification actions.
@@ -65,6 +66,7 @@ export async function postMessageAction(formData: FormData): Promise<void> {
 
     await db.transaction(async (tx) => {
     await currentOperationActor(tx,user);
+    await assertAgencyOperational(tx,app.agencyId,app.id);
     const [message] = await tx.insert(communications).values({
       applicationId: app.id,
       authorId: user.id,
