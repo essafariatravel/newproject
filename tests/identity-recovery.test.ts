@@ -1,3 +1,4 @@
+import { legacyOwnerFixture } from './helpers/fixtures';
 import { afterEach, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { suiteSetup } from "./helpers/global-state";
@@ -85,7 +86,7 @@ describe("independent username identities and controlled recovery", () => {
 
   it("prevents concurrent demotions from removing the last active SUPER_ADMIN", async () => {
     const first = await superAdmin();
-    const second = await createAccount(first, { name: "Second Super", email: "second-super@test.example", role: "SUPER_ADMIN", agencyId: null, password: "Super-Password-123" });
+    const second = await legacyOwnerFixture( { name: "Second Super", email: "second-super@test.example", role: "SUPER_ADMIN", agencyId: null, password: "Super-Password-123" });
     await db.update(users).set({ mustChangePassword: false }).where(eq(users.id, second.id));
     const secondActor = { ...first, id: second.id, email: second.email };
     const results = await Promise.allSettled([updateAccount(first, second.id, { role: "ADMIN" }), updateAccount(secondActor, first.id, { role: "ADMIN" })]);

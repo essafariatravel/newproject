@@ -1,3 +1,4 @@
+import { legacyOwnerFixture } from './helpers/fixtures';
 import { afterEach, describe, expect, it } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
 import { suiteSetup } from "./helpers/global-state";
@@ -35,7 +36,7 @@ describe("release identity regression coverage",()=>{
   });
   it("prevents concurrent suspensions from removing the last active SUPER_ADMIN",async()=>{
     const first=await userByEmail("superadmin@test.example");
-    const second=await createAccount(first,{name:"Second authorized admin",email:"second-closure@test.example",role:"SUPER_ADMIN",agencyId:null,password:"Synthetic-Admin-123"});
+    const second=await legacyOwnerFixture({name:"Second authorized admin",email:"second-closure@test.example",role:"SUPER_ADMIN",agencyId:null,password:"Synthetic-Admin-123"});
     await db.update(users).set({mustChangePassword:false}).where(eq(users.id,second.id));
     const secondActor={...first,id:second.id,email:second.email};
     const results=await Promise.allSettled([updateAccount(first,second.id,{toggleStatus:true}),updateAccount(secondActor,first.id,{toggleStatus:true})]);

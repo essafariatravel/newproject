@@ -16,6 +16,7 @@ import { sessionPolicy } from "@/lib/identity-policy";
 import { lockIdentityState, recordIdentityAudit } from "@/lib/account-security";
 import { safeErrorCode } from "@/lib/safe-error";
 import { mfaEnforcementEnabled } from "@/lib/mfa-policy";
+import { readStaffProfile } from '@/lib/staff-profile';
 
 function preferredSessionCookieName(): string {
   return process.env.NODE_ENV === "production" ? PRODUCTION_SESSION_COOKIE : SESSION_COOKIE;
@@ -105,10 +106,11 @@ export async function getSessionUser(options: { allowMfaPending?: boolean } = {}
     const mfaPending = !row.user.agencyId && ["SUPER_ADMIN", "ADMIN", "VISA_AGENT", "ACCOUNTING"].includes(row.user.role) && !row.mfaVerifiedAt;
     // Preserve real verification state so resuming MFA challenges these sessions.
     if (mfaPending && mfaEnforcementEnabled() && (!options.allowMfaPending || Date.now() - row.sessionCreatedAt.getTime() > 10 * 60_000)) return null;
+    const profile=row.user.agencyId?null:await readStaffProfile(db,row.user.id);
     return {
       id: row.user.id,
       email: row.user.email,
-      username: row.user.username,
+      username: profile?.username??row.user.username,
       name: row.user.name,
       role: row.user.role as Role,
       agencyId: row.user.agencyId,
@@ -119,6 +121,7 @@ export async function getSessionUser(options: { allowMfaPending?: boolean } = {}
       credentialVersion: row.user.credentialVersion,
       mfaPending,
       sessionId: row.sessionId,
+      staffPermissions: profile?.staffPermissions??null,
     };
   } catch (err) {
     // Database temporarily unavailable (e.g. missing migrations on Preview) must not become a 500.

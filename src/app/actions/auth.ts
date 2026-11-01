@@ -73,9 +73,8 @@ const changePasswordSchema = z.object({
   current: z.string().min(1, "Enter your current password."),
   password: z
     .string()
-    .min(10, "Password must be at least 10 characters.")
-    .max(200)
-    .refine((v) => /[a-z]/i.test(v) && /\d/.test(v), "Use letters AND digits in the new password."),
+    .min(12, "Use at least 12 characters, preferably a unique passphrase.")
+    .max(200),
   confirm: z.string(),
 });
 

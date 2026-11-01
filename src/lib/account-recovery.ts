@@ -7,6 +7,8 @@ import { assertAccountManager } from "@/lib/identity-policy";
 import { currentAccountActor, lockIdentityState, recordIdentityAudit, requireRecoveryManager, revokeUnusedAccessTokens, revokeUserAccess } from "@/lib/account-security";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import { sendSecureAccessEmail } from "@/lib/transactional-email";
+import { assertSafePassword } from '@/lib/password-policy';
+import { readStaffProfile } from '@/lib/staff-profile';
 
 export const RECOVERY_ACKNOWLEDGEMENT = "If this account is eligible, your access request will be reviewed. Contact your account manager if you need help.";
 export const RESET_TOKEN_TTL_HOURS = 2;
@@ -53,7 +55,8 @@ export async function issueAccessToken(actor: AuthUser, userId: string, purpose:
     const [row] = await tx.select({ user: users, agencyStatus: agencies.status }).from(users)
       .leftJoin(agencies, eq(users.agencyId, agencies.id)).where(eq(users.id, userId)).limit(1);
     if (!row) throw new AppError("NOT_FOUND", "User not found.");
-    assertAccountManager(current, row.user);
+    const profile=row.user.agencyId?null:await readStaffProfile(tx,row.user.id);
+    assertAccountManager(current, {...row.user,staffPermissions:profile?.staffPermissions??null});
     if (row.user.status !== "ACTIVE" || (row.user.agencyId && row.agencyStatus !== "ACTIVE")) throw new AppError("VALIDATION", "Reactivate this account and agency before issuing access.");
     if (requestId) {
       const [request] = await tx.select().from(accountRecoveryRequests).where(eq(accountRecoveryRequests.id, requestId)).limit(1);
@@ -89,7 +92,7 @@ export async function resolveAccessToken(token: string) {
 /** Password replacement, token consumption and every revocation share one transaction. */
 export async function resetAccountFromToken(token: string, password: string): Promise<void> {
   if (!tokenShape.test(token)) throw new AppError("INVALID_TOKEN", "This access link is invalid or has expired.");
-  if (password.length < 10 || password.length > 200 || !/[a-z]/i.test(password) || !/\d/.test(password)) throw new AppError("VALIDATION", "Use at least 10 characters with letters and digits.");
+  assertSafePassword(password);
   const passwordHash = await hashPassword(password);
   await db.transaction(async (tx) => {
     await lockIdentityState(tx);

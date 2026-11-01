@@ -63,9 +63,9 @@ it("accepts a longer new programme code but rejects unsafe code characters", asy
   for (const [key, value] of Object.entries({ countryId: row!.countryId, categoryId: row!.categoryId, name: "Synthetic programme", code: `NEW-${"B".repeat(55)}`, processingMinDays: "2", processingMaxDays: "4", fee: "11000" })) data.set(key, value);
   await expect(createVisaTypeAction(data)).rejects.toMatchObject({ digest: expect.stringContaining("?ok=") });
   expect(await db.select().from(visaTypes).where(eq(visaTypes.code, data.get("code") as string))).toHaveLength(1);
-  data.set("code", "BAD/UNSAFE");
+  data.set("code", "BAD\u202EUNSAFE");
   await expect(createVisaTypeAction(data)).rejects.toMatchObject({ digest: expect.stringContaining("?error=") });
-  expect(await db.select().from(visaTypes).where(eq(visaTypes.code, "BAD/UNSAFE"))).toHaveLength(0);
+  expect(await db.select().from(visaTypes).where(eq(visaTypes.code, "BAD\u202EUNSAFE"))).toHaveLength(0);
 });
 
 describe("country region preservation through the real action",()=>{
@@ -91,16 +91,17 @@ describe("country region preservation through the real action",()=>{
     await expect(updateCountryAction(form(row,""))).rejects.toMatchObject({digest:expect.stringContaining("?ok=")});
     expect((await db.select().from(countries).where(eq(countries.id,row.id)))[0]!.region).toBeNull();
   });
-  it.each(["Europe","Existing synthetic legacy region"])("rejects a new unapproved region for an existing %s row without a mutation or update audit",async(region)=>{
+  it.each(["Europe","Existing synthetic legacy region"])("accepts a custom business region for an existing %s row and audits the change",async(region)=>{
     const row=await fixture(region==="Europe"?"XY":"XX",region);
-    await expect(updateCountryAction(form(row,"Unapproved synthetic region"))).rejects.toMatchObject({digest:expect.stringContaining("?error=")});
-    expect((await db.select().from(countries).where(eq(countries.id,row.id)))[0]).toMatchObject({name:row.name,region:row.region});
-    expect(await db.select().from(auditLogs).where(and(eq(auditLogs.entityId,row.id),eq(auditLogs.action,"CONFIG_COUNTRY_UPDATED")))).toHaveLength(0);
+    await expect(updateCountryAction(form(row,"Custom synthetic region"))).rejects.toMatchObject({digest:expect.stringContaining("?ok=")});
+    expect((await db.select().from(countries).where(eq(countries.id,row.id)))[0]).toMatchObject({name:'Updated synthetic region fixture',region:'Custom synthetic region'});
+    const audits=await db.select().from(auditLogs).where(and(eq(auditLogs.entityId,row.id),eq(auditLogs.action,'CONFIG_COUNTRY_UPDATED')));
+    expect(audits).toHaveLength(1);expect(audits[0]?.metadata).toMatchObject({oldValues:{region},newValues:{region:'Custom synthetic region'}});
   });
-  it("rejects an unapproved region when creating a new country",async()=>{
+  it("accepts a custom business region when creating a new country",async()=>{
     request.cookie=(await createSession((await userByEmail("superadmin@test.example")).id)).token;
     const data=new FormData();for(const [key,value]of Object.entries({name:"Synthetic rejected country",iso2:"ZY",region:"Synthetic legacy region"}))data.set(key,value);
-    await expect(createCountryAction(data)).rejects.toMatchObject({digest:expect.stringContaining("?error=")});
-    expect(await db.select().from(countries).where(eq(countries.iso2,"ZY"))).toHaveLength(0);
+    await expect(createCountryAction(data)).rejects.toMatchObject({digest:expect.stringContaining("?ok=")});
+    expect((await db.select().from(countries).where(eq(countries.iso2,'ZY')))[0]?.region).toBe('Synthetic legacy region');
   });
 });

@@ -183,6 +183,10 @@ PERMISSIONS.VISA_AGENT = OPERATIONAL_STAFF_PERMISSIONS;
 PERMISSIONS.ACCOUNTING = OPERATIONAL_STAFF_PERMISSIONS;
 
 export function hasPermission(user: AuthUser, permission: Permission): boolean {
+  if(!user.agencyId && user.role!=='SUPER_ADMIN' && ['ADMIN','VISA_AGENT','ACCOUNTING'].includes(user.role)){
+    if(permission==='config.manage' && user.staffPermissions!=null)return user.staffPermissions.catalogManage===true;
+    if(permission==='users.manage')return user.staffPermissions?.staffManage===true;
+  }
   return PERMISSIONS[user.role]?.includes(permission) ?? false;
 }
 

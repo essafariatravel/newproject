@@ -34,12 +34,14 @@ import {
   notifications,
   priorities,
   statuses,
+  siteSettings,
   users,
   visaCategories,
   visaTypes,
   walletTransactions,
 } from "@/db/schema";
 import { STAFF_ROLES, type AuthUser } from "@/lib/types";
+import { resolveStaffProfile, STAFF_PROFILE_PREFIX } from '@/lib/staff-profile';
 
 export const PAGE_SIZE = 20;
 
@@ -820,19 +822,22 @@ export async function listUsers(
   const conditions = [];
   if (q) {
     const term = `%${q.trim()}%`;
-    conditions.push(or(ilike(users.name, term), ilike(users.email, term), ilike(users.username, term))!);
+    conditions.push(or(ilike(users.name, term), ilike(users.email, term), ilike(users.username, term),sql`${siteSettings.value}->>'username' ilike ${term}`)!);
   }
   if (scope === "staff") conditions.push(isNull(users.agencyId));
   if (scope === "agency") conditions.push(isNotNull(users.agencyId));
   if (agencyId) conditions.push(eq(users.agencyId, agencyId));
-  return db
+  const rows=await db
     .select({
       user: users,
+      profile:siteSettings.value,
       agencyName: sql<string | null>`(select coalesce(a.trading_name, a.legal_name) from ${sql.raw(qualifiedTable("agencies"))} a where a.id = users.agency_id)`,
     })
     .from(users)
+    .leftJoin(siteSettings,and(isNull(users.agencyId),eq(siteSettings.key,sql`${STAFF_PROFILE_PREFIX}||${users.id}::text`)))
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(asc(users.role), asc(users.name));
+  return rows.map(({user,agencyName,profile})=>({user:{...user,...(user.agencyId?{staffPermissions:null}:resolveStaffProfile(profile))},agencyName}));
 }
 
 export async function listAuditLogs(filters: { q?: string; agencyId?: string; actorId?: string; action?: string; entity?: string; from?: string; to?: string; page?: number; pageSize?: number }) {
@@ -857,7 +862,7 @@ export async function listAuditLogs(filters: { q?: string; agencyId?: string; ac
   const conditions = [];
   if (filters.q) {
     const term = `%${filters.q.trim()}%`;
-    conditions.push(or(ilike(auditLogs.action, term), ilike(auditLogs.entity, term), ilike(auditLogs.actorEmail, term))!);
+    conditions.push(or(ilike(auditLogs.action, term), ilike(auditLogs.entity, term), ilike(auditLogs.actorEmail, term),ilike(auditLogs.entityId,term))!);
   }
   // Never send malformed UUIDs/dates to PostgreSQL or silently broaden an invalid search.
   if (filterError) conditions.push(sql`false`);

@@ -227,11 +227,11 @@ export default async function VisaTypeDetailPage({
                   <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Information")}</legend>
                   <div>
                     <label className="label" htmlFor="e-name">{ct("Name *")} · EN</label>
-                    <input id="e-name" name="name" required minLength={2} maxLength={256} dir="ltr" defaultValue={vt.name} className="input" />
+                    <input id="e-name" name="name" required minLength={1} maxLength={512} dir="auto" defaultValue={vt.name} className="input" />
                   </div>
                   <div>
                     <label className="label" htmlFor="e-code">{ct("Code")}</label>
-                    <input id="e-code" name="code" maxLength={128} dir="ltr" defaultValue={vt.code} className="input" />
+                    <input id="e-code" name="code" maxLength={256} dir="auto" defaultValue={vt.code} className="input" />
                   </div>
                   <div>
                     <label className="label" htmlFor="e-country">{ct("Country *")}</label>
@@ -247,7 +247,7 @@ export default async function VisaTypeDetailPage({
                   </div>
                   <div>
                     <label className="label" htmlFor="e-desc">{ct("Description")} · EN</label>
-                    <textarea id="e-desc" name="description" rows={2} maxLength={10000} dir="ltr" defaultValue={vt.description ?? ""} className="input" />
+                    <textarea id="e-desc" name="description" rows={2} maxLength={50000} dir="auto" defaultValue={vt.description ?? ""} className="input" />
                     <ConfigTranslations value={vt} locale={locale} />
                   </div>
                 </fieldset>
@@ -258,7 +258,7 @@ export default async function VisaTypeDetailPage({
                     <input id="e-fee" name="fee" type="number" step="0.01" min="0" required defaultValue={vt.fee} className="input" />
                     <input name="currency" value="DZD" type="hidden" />
                     <p className="mt-2 text-xs text-slate-500">
-                      <bdi dir="ltr">{formatAmount(vt.fee, "DZD", locale)}</bdi> — {ct("Charged in Algerian dinar from the agency prepaid balance at submission. Applications already submitted keep the price they were charged at.")}
+                      <bdi dir="auto">{formatAmount(vt.fee, "DZD", locale)}</bdi> — {ct("Charged in Algerian dinar from the agency prepaid balance at submission. Applications already submitted keep the price they were charged at.")}
                     </p>
                   </div>
                 </fieldset>

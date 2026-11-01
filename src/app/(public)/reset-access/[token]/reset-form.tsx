@@ -12,7 +12,7 @@ export function ResetAccessForm({ token, locale }: { token: string; locale: UiLo
   const t = identityT(locale), ct = contentT(locale);
   return <form action={action} className="card mt-6 space-y-4 p-6">
     <input type="hidden" name="token" value={token} />
-    <PasswordField id="reset-password" name="password" label={ct("New password")} required autoComplete="new-password" hint={t("Use at least 10 characters with letters and digits.")} showLabel={ct("Show")} hideLabel={ct("Hide")} />
+    <PasswordField id="reset-password" name="password" label={ct("New password")} required minLength={12} autoComplete="new-password" hint={t('Use at least 12 characters, preferably a unique passphrase.')} showLabel={ct("Show")} hideLabel={ct("Hide")} />
     <PasswordField id="reset-confirm" name="confirm" label={ct("Confirm the new password")} required autoComplete="new-password" showLabel={ct("Show")} hideLabel={ct("Hide")} />
     {state.error ? <p className="text-base text-red-700" role="alert">{t(state.error)}</p> : null}
     <SubmitButton className="btn-primary w-full" pendingLabel="…">{t("Save password")}</SubmitButton>

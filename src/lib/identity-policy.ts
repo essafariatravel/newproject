@@ -1,4 +1,4 @@
-import { AppError, isAgencyRole, isStaffRole, type AuthUser } from "@/lib/types";
+import { AppError, isAgencyRole, isStaffRole, type AuthUser, type StaffPermissions } from "@/lib/types";
 
 /** ASCII login handles avoid confusable identities and staff-email ambiguity. */
 export function normalizeAgencyUsername(value: string): string {
@@ -26,14 +26,21 @@ export function sessionPolicy(agencyId: string | null) {
   return agencyId ? SESSION_POLICIES.agency : SESSION_POLICIES.staff;
 }
 
-export function assertAccountManager(actor: AuthUser, target?: { id: string; agencyId: string | null; role: string }): void {
+export function assertAccountManager(actor: AuthUser, target?: { id: string; agencyId: string | null; role: string;staffPermissions?:StaffPermissions|null }): void {
   if (actor.role === "SUPER_ADMIN" && !actor.agencyId) return;
+  if(target?.role==='SUPER_ADMIN')throw new AppError('FORBIDDEN','Owner accounts are managed separately.');
+  if(target?.role==='ADMIN'&&actor.role!=='ADMIN')throw new AppError('FORBIDDEN','Delegation cannot grant ADMIN-only business capabilities.');
+  if(!actor.agencyId && isStaffRole(actor.role) && actor.staffPermissions?.staffManage===true && !target?.agencyId && !target?.staffPermissions?.staffManage &&
+      (!target || actor.staffPermissions.catalogManage || target.staffPermissions?.catalogManage===false))return;
   if (actor.agencyId && target && target.agencyId !== actor.agencyId) throw new AppError("NOT_FOUND", "User not found.");
   throw new AppError("FORBIDDEN", "Only SUPER_ADMIN can manage staff accounts.");
 }
 
 export function assertAccountRole(actor: AuthUser, targetAgencyId: string | null, role: string): void {
   assertAccountManager(actor);
+  if(role==='SUPER_ADMIN'&&actor.role!=='SUPER_ADMIN')throw new AppError('FORBIDDEN','Owner privileges cannot be delegated.');
+  if(role==='ADMIN'&&actor.role!=='SUPER_ADMIN'&&actor.role!=='ADMIN')throw new AppError('FORBIDDEN','Delegation cannot grant ADMIN-only business capabilities.');
+  if(actor.role!=='SUPER_ADMIN' && targetAgencyId)throw new AppError('FORBIDDEN','Staff delegation does not grant agency account administration.');
   if (actor.role === "AGENCY_ADMIN" && role !== "AGENCY_USER") {
     throw new AppError("FORBIDDEN", "Agency administrators can only create AGENCY_USER accounts.");
   }

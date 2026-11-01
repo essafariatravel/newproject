@@ -14,6 +14,7 @@ import { FilterBar } from "@/components/app-widgets";
 import { contentT } from "@/lib/i18n-content";
 import { ConfirmButton, PasswordField, SubmitButton } from "@/components/forms";
 import { EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
+import { StaffPermissionFields } from '@/components/staff-permission-fields';
 
 export const dynamic = "force-dynamic";
 
@@ -45,13 +46,13 @@ export default async function AdminUsersPage({
     listUsers(undefined, undefined, "staff"),
     listUsers(undefined, undefined, "agency"),
   ]);
-  const canManage = hasPermission(staff, "users.manage");
+  const canManage = hasPermission(staff, "users.manage") && (view==='staff'||staff.role==='SUPER_ADMIN');
   const ct = contentT(uiLocale);
   const it = identityT(uiLocale);
   // §privilege escalation — the role picker only ever offers roles that belong to
   // the population being edited. An agency account is never presented with a
   // staff role, even though the action would reject it anyway.
-  const roleOptions = view === "staff" ? ["ADMIN", "SUPER_ADMIN"] as const : AGENCY_ROLES;
+  const roleOptions = view === "staff" ? [staff.role==='SUPER_ADMIN'?'ADMIN':staff.role] : AGENCY_ROLES;
 
   return (
     <>
@@ -79,7 +80,7 @@ export default async function AdminUsersPage({
         </Link>
       </nav>
 
-      <FilterBar action="/admin/users" fields={[
+      <FilterBar action="/admin/users" locale={uiLocale} fields={[
         { name: "q", label: ct("Search"), type: "text", value: q, placeholder: ct("Name or email…") },
         ...(view === "agency" ? [{
           name: "agency",
@@ -115,11 +116,12 @@ export default async function AdminUsersPage({
                 <td className="td">
                   <span className="block font-semibold text-navy-900">{u.name}</span>
                   <span className="block text-xs text-slate-400" dir="ltr">{u.email}</span>
+                  {!u.agencyId && u.username ? <span className="block break-words text-sm" dir="auto">{u.username}</span> : null}
                 </td>
                 <td className="td">
                   <span className="badge bg-navy-900/5 text-navy-800">{!u.agencyId && u.role !== "SUPER_ADMIN" ? it("Staff") : businessLabel(u.role, uiLocale)}</span>
                 </td>
-                <td className="td max-w-[160px] truncate">{agencyName ?? <span className="text-slate-400">staff</span>}</td>
+                <td className="td max-w-[160px] truncate">{agencyName ?? <span className="text-slate-400">{it('Staff')}</span>}</td>
                 <td className="td">
                   <span className={`badge ${u.status === "ACTIVE" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}`}>{businessLabel(u.status, uiLocale)}</span>
                   {u.activationPending ? <p className="mt-1 text-xs text-slate-500">{it("Pending activation")}</p> : u.mustChangePassword ? <p className="mt-1 text-xs text-slate-500">{it("Pending first password change")}</p> : null}
@@ -127,7 +129,7 @@ export default async function AdminUsersPage({
                 <td className="td whitespace-nowrap text-xs text-slate-500">{u.lastLoginAt ? formatDateTime(u.lastLoginAt, uiLocale) : ct("never")}</td>
                 {canManage ? (
                   <td className="td text-end">
-                    {u.id !== staff.id ? (
+                    {u.id !== staff.id && u.role!=='SUPER_ADMIN' && (staff.role==='SUPER_ADMIN'||((u.role!=='ADMIN'||staff.role==='ADMIN')&&!u.staffPermissions?.staffManage && (staff.staffPermissions?.catalogManage!==false||u.staffPermissions?.catalogManage===false))) ? (
                       <div className="flex flex-col items-end gap-2">
                       <form action={updateUserAction} className="inline">
                         <input type="hidden" name="id" value={u.id} />
@@ -144,9 +146,21 @@ export default async function AdminUsersPage({
                       </form>
                       {u.status === "ACTIVE" ? <AccessLinkForm userId={u.id} locale={uiLocale} /> : null}
                       <form action={updateUserAction}><input type="hidden" name="id" value={u.id} /><input type="hidden" name="back" value={`/admin/users?view=${view}`} /><input type="hidden" name="forceSignOut" value="1" /><SubmitButton className="btn-secondary btn-sm" pendingLabel="…">{it("Force sign-out")}</SubmitButton></form>
+                      {!u.agencyId && hasPermission(staff,'audit.view')?<Link href={`/admin/audit?entity=user&q=${encodeURIComponent(u.id)}`} className="btn-secondary btn-sm">{it('Access history')}</Link>:null}
+                      {!u.agencyId ? <details className="w-full max-w-xl text-start">
+                        <summary className="cursor-pointer py-3 font-semibold">{it('Edit Staff access')}</summary>
+                        <form action={updateUserAction} className="mt-3 grid gap-4 sm:grid-cols-2">
+                          <input type="hidden" name="id" value={u.id} /><input type="hidden" name="back" value="/admin/users?view=staff" /><input type="hidden" name="role" value={u.role} />
+                          <label className="label" htmlFor={`staff-name-${u.id}`}>{ct('Full name')}<input id={`staff-name-${u.id}`} name="name" required maxLength={512} dir="auto" defaultValue={u.name} className="input" /></label>
+                          <label className="label" htmlFor={`staff-username-${u.id}`}>{it('Internal username (optional)')}<input id={`staff-username-${u.id}`} name="username" maxLength={128} dir="auto" defaultValue={u.username??''} className="input" /></label>
+                          <label className="label sm:col-span-2" htmlFor={`staff-email-${u.id}`}>{ct('Email')}<input id={`staff-email-${u.id}`} name="email" type="email" required maxLength={254} dir="ltr" defaultValue={u.email} className="input" /></label>
+                          {staff.role==='SUPER_ADMIN'?<StaffPermissionFields prefix={`edit-${u.id}`} value={u.staffPermissions} locale={uiLocale}/>:null}
+                          <div className="sm:col-span-2"><SubmitButton className="btn-primary" pendingLabel="…">{it('Save Staff access')}</SubmitButton></div>
+                        </form>
+                      </details>:null}
                       </div>
                     ) : (
-                      <span className="text-xs text-slate-400">{ct("you")}</span>
+                      <span className="text-xs text-slate-400">{u.id===staff.id?ct('you'):it(u.role==='SUPER_ADMIN'?'Owner account':'Owner approval required')}</span>
                     )}
                   </td>
                 ) : null}
@@ -163,7 +177,11 @@ export default async function AdminUsersPage({
             <input type="hidden" name="back" value="/admin/users" />
             <div>
               <label className="label" htmlFor="n-name">{ct("Full name")} *</label>
-              <input id="n-name" name="name" required className="input" />
+              <input id="n-name" name="name" required maxLength={512} dir="auto" className="input" />
+            </div>
+            <div>
+              <label className="label" htmlFor="n-username">{it('Internal username (optional)')}</label>
+              <input id="n-username" name="username" maxLength={128} dir="auto" className="input" />
             </div>
             <div>
               <label className="label" htmlFor="n-identity">{ct("Email")} *</label>
@@ -171,10 +189,10 @@ export default async function AdminUsersPage({
             </div>
             <div>
               <label className="label" htmlFor="n-role">{ct("Role")} *</label>
-              <select id="n-role" name="role" required className="input" defaultValue={view === "staff" ? "VISA_AGENT" : "AGENCY_USER"}>
+              <select id="n-role" name="role" required className="input" defaultValue={roleOptions[0]}>
                 {roleOptions.map((r) => (
                   <option key={r} value={r}>
-                    {view === "staff" && r === "ADMIN" ? it("Staff") : businessLabel(r, uiLocale)}
+                    {view === "staff" ? it("Staff") : businessLabel(r, uiLocale)}
                   </option>
                 ))}
               </select>
@@ -184,10 +202,12 @@ export default async function AdminUsersPage({
               name="password"
               label={ct("Temporary password")}
               required
-              hint={ct("At least 10 characters. The user must change it at first sign-in.")}
+              minLength={12}
+              hint={it('Use at least 12 characters, preferably a unique passphrase.')}
               showLabel={ct("Show")}
               hideLabel={ct("Hide")}
             />
+            {staff.role==='SUPER_ADMIN'?<StaffPermissionFields prefix="create-staff" locale={uiLocale}/>:null}
             <div className="lg:col-span-5">
               <SubmitButton className="btn-primary" pendingLabel={ct("Creating…")}>{ct("Create user")}</SubmitButton>
             </div>

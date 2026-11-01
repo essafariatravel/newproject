@@ -1,0 +1,11 @@
+# Staff administration — separate from Production hotfix 412a5db
+
+The owner explicitly requested implementation without another design interview. Preserve the existing administration shell and styling. Work only on codex/staff-administration-2026-11-01 from the now-published 412a5db; no second Production publication is implied.
+
+Implement bounded plain-text business codes (256), names (512) and descriptions (50000), preserving case, accents, Arabic and punctuation. Keep normalized ISO/currency/workflow identifiers, reserved decision document kinds, parameterized SQL, UUID relationships, audits, historical snapshots, financial validation and upload restrictions. Permit audited category/document code edits with normalized uniqueness checks.
+
+Staff sign in by their professional email; optional internal username is separate metadata, unique among staff. Owner selects catalogue management and staff management independently. Preserve legacy access when no override exists, never grant owner/recovery privileges through delegation, and revoke sessions on permission changes. Reuse the existing settings table with a private internal.staff.UUID namespace, excluded from public CMS loading and all CMS write allowlists. Changes share the identity lock, live actor validation and audit transaction. No schema change or weakening of the agency username CHECK is necessary.
+
+Use the existing local disposable PostgreSQL fixtures for red/green integration tests, then the relevant regression suite, typecheck, lint and build. Qualify a secured test deployment with synthetic data only; preserve Production and the permanent Preview. The draft column migration was replaced before any hosted execution; no new migration belongs to this change. Existing migration discovery and release guards remain unchanged. No new service or subscription.
+
+Review also identified a legacy role boundary: ADMIN alone retains a reconciliation capability unavailable to VISA_AGENT/ACCOUNTING. A delegated non-ADMIN may neither create/promote an ADMIN nor change that identity or issue its access token. The creation UI offers the delegated creator's existing role. Both limits are tested against the live, reloaded account actor; owner permissions and MFA remain unchanged.

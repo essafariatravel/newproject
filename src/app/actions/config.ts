@@ -29,6 +29,7 @@ import { requirePermission } from "@/lib/rbac";
 import { recordAudit, type AuditTransaction } from "@/lib/audit";
 import type { AuthUser } from "@/lib/types";
 import { AppError } from "@/lib/types";
+import { businessCodeSchema, businessNameSchema } from '@/lib/business-fields';
 import { draftApplicationIdsForVisaType, resyncChecklist } from "@/lib/applications";
 import { runAction } from "@/lib/action-helpers";
 import { currentOperationActor } from "@/lib/operation-identity";
@@ -50,24 +51,28 @@ const codeSchema = z
   .max(40)
   .regex(/^[A-Z0-9_-]+$/i, "Code may only contain letters, numbers, dashes and underscores.")
   .transform((v) => v.toUpperCase());
-const programmeCodeSchema = z.string().trim().min(2, "Code must be at least 2 characters.")
-  .max(128).regex(/^[A-Z0-9_-]+$/i, "Code may only contain letters, numbers, dashes and underscores.")
-  .transform((v) => v.toUpperCase());
+const programmeCodeSchema = businessCodeSchema;
+
+async function uniqueBusinessCode(tx:AuditTransaction,table:typeof visaCategories|typeof documentTypes,code:string,excludeId?:string){
+  await tx.execute(sql`select pg_advisory_xact_lock(1163087700)`);
+  const duplicate=await tx.select({id:table.id}).from(table).where(and(sql`lower(btrim(${table.code}))=lower(btrim(${code}))`,excludeId?ne(table.id,excludeId):undefined)).limit(1);
+  if(duplicate.length)throw new AppError('DUPLICATE','This internal code is already in use.');
+}
 
 /* ------------------------------ countries ------------------------------ */
 
-const countryRegionSchema = z.enum(["Africa", "Asia", "Europe", "Middle East", "North America", "South America", "Oceania"]);
+const countryRegionSchema = z.string().trim().max(128);
 const countrySchema = z.object({
-  name: z.string().trim().min(2, "Country name is required.").max(256),
-  nameFr: z.string().trim().max(256).optional().nullable(),
-  nameAr: z.string().trim().max(256).optional().nullable(),
+  name: businessNameSchema,
+  nameFr: z.string().trim().max(512).optional().nullable(),
+  nameAr: z.string().trim().max(512).optional().nullable(),
   iso2: z
     .string()
     .trim()
     .length(2, "ISO code must be exactly 2 letters.")
     .regex(/^[A-Za-z]{2}$/)
     .transform((v) => v.toUpperCase()),
-  region: countryRegionSchema.optional().nullable(),
+  region: z.preprocess(value=>value===''?null:value,countryRegionSchema.optional().nullable()),
   sortOrder: z.coerce.number().int().min(0).max(9999).default(0),
 });
 
@@ -136,19 +141,20 @@ export async function deleteCountryAction(formData: FormData): Promise<void> {
 /* --------------------------- visa categories --------------------------- */
 
 const categorySchema = z.object({
-  nameFr: z.string().trim().max(256).optional().nullable(),
-  nameAr: z.string().trim().max(256).optional().nullable(),
-  descriptionFr: z.string().trim().max(10000).optional().nullable(),
-  descriptionAr: z.string().trim().max(10000).optional().nullable(),
-  name: z.string().trim().min(2).max(256),
+  nameFr: z.string().trim().max(512).optional().nullable(),
+  nameAr: z.string().trim().max(512).optional().nullable(),
+  descriptionFr: z.string().trim().max(50000).optional().nullable(),
+  descriptionAr: z.string().trim().max(50000).optional().nullable(),
+  name: businessNameSchema,
   code: programmeCodeSchema,
-  description: z.string().trim().max(10000).optional().nullable(),
+  description: z.string().trim().max(50000).optional().nullable(),
   sortOrder: z.coerce.number().int().min(0).max(9999).default(0),
 });
 
 export async function createVisaCategoryAction(formData: FormData): Promise<void> {
   await runConfigAction("/admin/config/visa-categories", async (tx, staff) => {
     const data = categorySchema.parse(Object.fromEntries(formData));
+    await uniqueBusinessCode(tx,visaCategories,data.code);
     const inserted = await tx.insert(visaCategories).values(data).onConflictDoNothing().returning();
     if (!inserted[0]) throw new AppError("DUPLICATE", `Category code ${data.code} already exists.`);
     await recordAudit({ actor: staff, action: "CONFIG_CATEGORY_CREATED", entity: "visa_category", entityId: inserted[0].id, metadata: { code: data.code } }, tx);
@@ -168,7 +174,10 @@ export async function updateVisaCategoryAction(formData: FormData): Promise<void
     } else {
       const existing = (await tx.select().from(visaCategories).where(eq(visaCategories.id, id)).limit(1))[0];
       if (!existing) throw new AppError("NOT_FOUND", "Category not found.");
-      const data = categorySchema.parse({ ...Object.fromEntries(formData), code: existing.code });
+      const submitted=formData.get('code');
+      const code=typeof submitted==='string'&&submitted!==existing.code?programmeCodeSchema.parse(submitted):existing.code;
+      await uniqueBusinessCode(tx,visaCategories,code,id);
+      const data = {...categorySchema.parse({ ...Object.fromEntries(formData), code:'EXISTING' }),code};
       await tx.update(visaCategories).set({ ...data, updatedAt: new Date() }).where(eq(visaCategories.id, id));
       await recordAudit({ actor: staff, action: "CONFIG_CATEGORY_UPDATED", entity: "visa_category", entityId: id, metadata: {oldValues:existing,newValues:data} }, tx);
     }
@@ -198,18 +207,18 @@ export async function deleteVisaCategoryAction(formData: FormData): Promise<void
 }
 
 const visaTypeSchema = z.object({
-  nameFr: z.string().trim().max(256).optional().nullable(),
-  nameAr: z.string().trim().max(256).optional().nullable(),
-  descriptionFr: z.string().trim().max(10000).optional().nullable(),
-  descriptionAr: z.string().trim().max(10000).optional().nullable(),
+  nameFr: z.string().trim().max(512).optional().nullable(),
+  nameAr: z.string().trim().max(512).optional().nullable(),
+  descriptionFr: z.string().trim().max(50000).optional().nullable(),
+  descriptionAr: z.string().trim().max(50000).optional().nullable(),
   countryId: idSchema,
   categoryId: idSchema,
-  name: z.string().trim().min(2).max(256),
+  name: businessNameSchema,
   code: programmeCodeSchema,
-  description: z.string().trim().max(10000).optional().nullable(),
+  description: z.string().trim().max(50000).optional().nullable(),
   processingMinDays: z.coerce.number().int().min(0).max(365),
   processingMaxDays: z.coerce.number().int().min(0).max(365),
-  fee: z.coerce.number().min(0).max(100000),
+  fee: z.coerce.number().min(0).max(999999999999.99),
   // DZD is the ONLY operational currency (§7): never client-controlled.
   // §18/§42 — the embassy step is a programme property, not a global default.
   embassyApplicability: z
@@ -318,7 +327,7 @@ export async function addRequirementAction(formData: FormData): Promise<void> {
   await runConfigAction(`/admin/config/visa-types/${visaTypeId}`, async (tx, staff) => {
     const documentTypeId = idSchema.parse(formData.get("documentTypeId"));
     const required = formData.get("required") === "on" || formData.get("required") === "true";
-    const notes = z.string().trim().max(500).optional().nullable().parse(formData.get("notes") || null);
+    const notes = z.string().trim().max(50000).optional().nullable().parse(formData.get("notes") || null);
     const sortOrder = z.coerce.number().int().min(0).max(999).default(0).parse(formData.get("sortOrder") ?? 0);
     const inserted = await tx.transaction(async (tx) => {
       const [visa] = await tx.select({ id: visaTypes.id }).from(visaTypes).where(eq(visaTypes.id, visaTypeId)).for("update");
@@ -400,13 +409,13 @@ export async function removeRequirementAction(formData: FormData): Promise<void>
 /* ---------------------------- document types --------------------------- */
 
 const docTypeSchema = z.object({
-  nameFr: z.string().trim().max(256).optional().nullable(),
-  nameAr: z.string().trim().max(256).optional().nullable(),
-  descriptionFr: z.string().trim().max(10000).optional().nullable(),
-  descriptionAr: z.string().trim().max(10000).optional().nullable(),
-  name: z.string().trim().min(2).max(256),
+  nameFr: z.string().trim().max(512).optional().nullable(),
+  nameAr: z.string().trim().max(512).optional().nullable(),
+  descriptionFr: z.string().trim().max(50000).optional().nullable(),
+  descriptionAr: z.string().trim().max(50000).optional().nullable(),
+  name: businessNameSchema,
   code: programmeCodeSchema,
-  description: z.string().trim().max(10000).optional().nullable(),
+  description: z.string().trim().max(50000).optional().nullable(),
   sortOrder: z.coerce.number().int().min(0).max(9999).default(0),
   /**
    * "1" = checklist item the agency provides, "0" = issued by ESSAFARIA.
@@ -421,6 +430,8 @@ const docTypeSchema = z.object({
 export async function createDocumentTypeAction(formData: FormData): Promise<void> {
   await runConfigAction("/admin/config/document-types", async (tx, staff) => {
     const data = docTypeSchema.parse(Object.fromEntries(formData));
+    if(/^DECISION_/i.test(data.code))throw new AppError('FORBIDDEN','Official decision codes are reserved. Choose a business code.');
+    await uniqueBusinessCode(tx,documentTypes,data.code);
     const inserted = await tx.insert(documentTypes).values(data).onConflictDoNothing().returning();
     if (!inserted[0]) throw new AppError("DUPLICATE", `Document type code ${data.code} already exists.`);
     await recordAudit({ actor: staff, action: "CONFIG_DOCUMENT_TYPE_CREATED", entity: "document_type", entityId: inserted[0].id }, tx);
@@ -466,7 +477,11 @@ export async function updateDocumentTypeAction(formData: FormData): Promise<void
     } else {
       const change=await tx.transaction(async (tx) => {
         const { type, programmes } = await lockDocumentTypeForChange(tx, id);
-        const data = docTypeSchema.parse({ ...Object.fromEntries(formData), code: type.code });
+        const submitted=formData.get('code');
+        const code=typeof submitted==='string'&&submitted!==type.code?programmeCodeSchema.parse(submitted):type.code;
+        if(code!==type.code){assertMutableDocumentType(type.code);if(/^DECISION_/i.test(code))throw new AppError('FORBIDDEN','Official decision codes are reserved. Choose a business code.');}
+        await uniqueBusinessCode(tx,documentTypes,code,id);
+        const data = {...docTypeSchema.parse({ ...Object.fromEntries(formData), code:'EXISTING' }),code};
         if (type.code.startsWith("DECISION_") && data.agencyUploadable) throw new AppError("FORBIDDEN", "Official decision types must remain Staff-issued.");
         if (type.active && type.agencyUploadable && !data.agencyUploadable) await keepAgencyRequirements(tx, programmes, id);
         await tx.update(documentTypes).set({ ...data, updatedAt: new Date() }).where(eq(documentTypes.id, id));
@@ -506,7 +521,7 @@ export async function deleteDocumentTypeAction(formData: FormData): Promise<void
 
 const currencySchema = z.object({
   code: z.string().trim().length(3, "Currency code must be 3 letters.").transform((v) => v.toUpperCase()),
-  name: z.string().trim().min(2).max(60),
+  name: businessNameSchema,
   symbol: z.string().trim().min(1).max(8),
   sortOrder: z.coerce.number().int().min(0).max(9999).default(0),
 });
@@ -547,10 +562,10 @@ export async function createStatusAction(formData: FormData): Promise<void> {
     const data = z
       .object({
         code: codeSchema,
-        name: z.string().trim().min(2).max(60),
-        nameFr: z.string().trim().max(80).optional().nullable(),
-        nameAr: z.string().trim().max(80).optional().nullable(),
-        description: z.string().trim().max(300).optional().nullable(),
+        name: businessNameSchema,
+        nameFr: z.string().trim().max(512).optional().nullable(),
+        nameAr: z.string().trim().max(512).optional().nullable(),
+        description: z.string().trim().max(50000).optional().nullable(),
         sortOrder: z.coerce.number().int().min(0).max(999).default(0),
         isTerminal: z.boolean().default(false),
         isDraft: z.boolean().default(false),
@@ -615,10 +630,10 @@ export async function updateStatusAction(formData: FormData): Promise<void> {
     }
     const data = z
       .object({
-        name: z.string().trim().min(2).max(60),
-        nameFr: z.string().trim().max(80).optional().nullable(),
-        nameAr: z.string().trim().max(80).optional().nullable(),
-        description: z.string().trim().max(300).optional().nullable(),
+        name: businessNameSchema,
+        nameFr: z.string().trim().max(512).optional().nullable(),
+        nameAr: z.string().trim().max(512).optional().nullable(),
+        description: z.string().trim().max(50000).optional().nullable(),
         sortOrder: z.coerce.number().int().min(0).max(999),
       })
       .parse({
@@ -706,7 +721,7 @@ export async function createPriorityAction(formData: FormData): Promise<void> {
     const data = z
       .object({
         code: codeSchema,
-        name: z.string().trim().min(2).max(40),
+        name: businessNameSchema,
         weight: z.coerce.number().int().min(0).max(100),
         sortOrder: z.coerce.number().int().min(0).max(999).default(0),
       })
@@ -730,7 +745,7 @@ export async function updatePriorityAction(formData: FormData): Promise<void> {
     } else {
       const data = z
         .object({
-          name: z.string().trim().min(2).max(40),
+          name: businessNameSchema,
           weight: z.coerce.number().int().min(0).max(100),
           sortOrder: z.coerce.number().int().min(0).max(999),
         })

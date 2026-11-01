@@ -310,3 +310,9 @@ export function nextIp(): string {
   ipSeq += 1;
   return `10.77.${Math.floor(ipSeq / 240)}.${ipSeq % 240}`;
 }
+
+/** Legacy multi-owner state for invariant tests only; never an account-management API. */
+export async function legacyOwnerFixture(input:{name:string;email:string;password:string;role?:'SUPER_ADMIN';agencyId?:null}){
+  if(process.env.DATABASE_URL!=='postgresql://postgres:postgres@localhost:5434/essafaria_test'||process.env.DATABASE_SCHEMA!=='public'||process.env.VERCEL==='1')throw Error('LOCAL_LEGACY_OWNER_FIXTURE_ONLY');
+  return (await db.insert(users).values({name:input.name,email:input.email,passwordHash:await hashPassword(input.password),role:'SUPER_ADMIN',agencyId:null,mustChangePassword:false}).returning())[0]!;
+}

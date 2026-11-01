@@ -97,11 +97,11 @@ export default async function VisaTypesConfigPage({
           <form action={createVisaTypeAction} className="card grid grid-cols-1 gap-4 p-6 sm:grid-cols-3">
             <div className="sm:col-span-2">
               <label className="label" htmlFor="new-visa-name">{ct("Name *")} · EN</label>
-              <input id="new-visa-name" name="name" required minLength={2} maxLength={256} dir="ltr" className="input" placeholder="Portugal Schengen Tourist Visa" />
+              <input id="new-visa-name" name="name" required minLength={1} maxLength={512} dir="auto" className="input" placeholder="Portugal Schengen Tourist Visa" />
             </div>
             <div>
               <label className="label" htmlFor="new-visa-code">{ct("Code *")}</label>
-              <input id="new-visa-code" name="code" required maxLength={128} className="input uppercase" placeholder="PT-SCH-TOUR" />
+              <input id="new-visa-code" name="code" required maxLength={256} className="input" placeholder="PT-SCH-TOUR" />
             </div>
             <div>
               <label className="label" htmlFor="new-visa-country">{ct("Country *")}</label>
@@ -134,7 +134,7 @@ export default async function VisaTypesConfigPage({
             </div>
             <div className="sm:col-span-3">
               <label className="label" htmlFor="new-visa-description">{ct("Description")} · EN</label>
-              <textarea id="new-visa-description" name="description" rows={2} maxLength={10000} dir="ltr" className="input" />
+              <textarea id="new-visa-description" name="description" rows={2} maxLength={50000} dir="auto" className="input" />
             </div>
             <div className="sm:col-span-3">
               <SubmitButton className="btn-primary" pendingLabel={ct("Saving…")}>{ct("Add visa type")}</SubmitButton>

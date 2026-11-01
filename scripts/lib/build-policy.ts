@@ -23,6 +23,7 @@ export function automaticDatabaseChangesForbidden(branch: string | null | undefi
   // including when Vercel has not exposed the branch's system metadata.
   if (process.env.MFA_ENFORCEMENT_ENABLED === "false") return true;
   const ref = branch ?? "";
+  if(ref.startsWith('codex/staff-administration-'))return true;
   return ref.startsWith("codex/world-class-final-consolidation-") ||
     ref.startsWith("codex/urgent-hotfix-") ||
     ref.startsWith("codex/preview-mfa-enforcement-") ||

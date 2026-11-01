@@ -56,7 +56,8 @@ export default async function ChangePasswordPage({
           label={ct("New password")}
           required
           autoComplete="new-password"
-          hint={ct("At least 10 characters. Avoid reusing a password you use elsewhere.")}
+          minLength={12}
+          hint={it('Use at least 12 characters, preferably a unique passphrase.')}
           showLabel={ct("Show")}
           hideLabel={ct("Hide")}
         />

@@ -24,13 +24,13 @@ function DocumentFields({ value, locale }: { value?: typeof documentTypes.$infer
   return <>
     {value ? <input type="hidden" name="id" value={value.id} /> : null}
     <label className="block text-base">{ct("Name *")} · EN
-      <input name="name" required minLength={2} maxLength={256} defaultValue={value?.name} dir="ltr" className="input mt-1" />
+      <input name="name" required minLength={1} maxLength={512} defaultValue={value?.name} dir="auto" className="input mt-1" />
     </label>
     <label className="block text-base">{ct("Code *")}
-      <input name="code" required minLength={2} maxLength={128} defaultValue={value?.code} readOnly={!!value} dir="ltr" className="input mt-1 uppercase" />
+      <input name="code" required minLength={1} maxLength={256} defaultValue={value?.code} readOnly={!!value?.code.startsWith("DECISION_")} dir="auto" className="input mt-1" />
     </label>
     <label className="block text-base sm:col-span-2">{ct("Description")} · EN
-      <textarea name="description" maxLength={10000} rows={2} defaultValue={value?.description ?? ""} dir="ltr" className="input mt-1" />
+      <textarea name="description" maxLength={50000} rows={2} defaultValue={value?.description ?? ""} dir="auto" className="input mt-1" />
     </label>
     <ConfigTranslations value={value} locale={locale} />
     <label className="block text-base">{ct("Provided by")}

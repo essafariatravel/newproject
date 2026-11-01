@@ -8,6 +8,8 @@ export type StaffRole = (typeof STAFF_ROLES)[number];
 export type AgencyRole = (typeof AGENCY_ROLES)[number];
 export type Role = StaffRole | AgencyRole;
 
+export interface StaffPermissions { catalogManage: boolean; staffManage: boolean }
+
 export function isStaffRole(role: string): role is StaffRole {
   return (STAFF_ROLES as readonly string[]).includes(role);
 }
@@ -87,6 +89,8 @@ export interface AuthUser {
   credentialVersion?: number;
   mfaPending?: boolean;
   sessionId?: string;
+  /** Owner-selected business capabilities. Null preserves existing Staff access. */
+  staffPermissions?: StaffPermissions | null;
 }
 
 /** Error carrying a user-safe message; never leaks internals. */

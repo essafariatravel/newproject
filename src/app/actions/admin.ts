@@ -23,6 +23,7 @@ import { createAccount, currentAccountActor, lockIdentityState, recordIdentityAu
 import { normalizeAgencyUsername } from "@/lib/identity-policy";
 import { legacyAgencyUsername } from "@/lib/identity-policy";
 import { randomUUID } from "node:crypto";
+import { businessNameSchema, staffUsernameSchema } from '@/lib/business-fields';
 
 const idSchema = z.string().uuid("Invalid identifier.");
 const emailSchema = z.string().trim().toLowerCase().email("Enter a valid email address.");
@@ -196,10 +197,10 @@ export async function createAgencyWithAdminAction(formData: FormData): Promise<v
 /* -------------------------------- users -------------------------------- */
 
 const createUserSchema = z.object({
-  name: z.string().trim().min(2, "Name is required.").max(120),
+  name: businessNameSchema,
   email: emailSchema.optional(),
   username: z.string().optional(),
-  password: z.string().min(10, "Password must be at least 10 characters.").max(200),
+  password: z.string().min(12, "Use at least 12 characters, preferably a unique passphrase.").max(200),
   role: z.enum(["SUPER_ADMIN", "ADMIN", "VISA_AGENT", "ACCOUNTING", "AGENCY_ADMIN", "AGENCY_USER"]),
 });
 
@@ -235,7 +236,8 @@ export async function createUserAction(formData: FormData): Promise<void> {
       agencyId = null;
     }
 
-    const inserted = await createAccount(staff, { ...data, agencyId });
+    const staffPermissions=formData.has('staffPermissionsPresent')?{catalogManage:formData.get('catalogManage')==='1',staffManage:formData.get('staffManage')==='1'}:undefined;
+    const inserted = await createAccount(staff, { ...data, agencyId,staffPermissions });
     revalidatePath(back);
     return `User ${inserted.username ?? inserted.email} created.`;
   });
@@ -260,7 +262,9 @@ export async function updateUserAction(formData: FormData): Promise<void> {
 
     const data = z
       .object({
-        name: z.string().trim().min(2).max(120),
+        name: businessNameSchema,
+        email: emailSchema.optional(),
+        username: staffUsernameSchema.or(z.literal('')).optional(),
         role: z.enum(["SUPER_ADMIN", "ADMIN", "VISA_AGENT", "ACCOUNTING", "AGENCY_ADMIN", "AGENCY_USER"]),
         password: z.string().max(200).optional().or(z.literal("")),
       })
@@ -268,6 +272,8 @@ export async function updateUserAction(formData: FormData): Promise<void> {
         name: formData.get("name"),
         role: formData.get("role"),
         password: formData.get("password") ?? "",
+        email:formData.has('email')?formData.get('email'):undefined,
+        username:formData.has('username')?formData.get('username'):undefined,
       });
     if (data.password) {
       if (data.password.length < 10) throw new AppError("VALIDATION", "Password must be at least 10 characters.");
@@ -276,7 +282,8 @@ export async function updateUserAction(formData: FormData): Promise<void> {
     if (target && target.role !== data.role && formData.get("confirmRoleChange") !== "1") {
       throw new AppError("VALIDATION", "Confirm the role change before saving.");
     }
-    await updateAccount(staff, id, data);
+    const staffPermissions=formData.has('staffPermissionsPresent')?{catalogManage:formData.get('catalogManage')==='1',staffManage:formData.get('staffManage')==='1'}:undefined;
+    await updateAccount(staff, id, {...data,staffPermissions});
     revalidatePath(back);
     return "User saved.";
   });

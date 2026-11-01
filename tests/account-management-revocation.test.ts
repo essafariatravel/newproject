@@ -1,3 +1,4 @@
+import { legacyOwnerFixture } from './helpers/fixtures';
 import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { suiteSetup } from "./helpers/global-state";
@@ -20,7 +21,7 @@ async function captured(email: string): Promise<AuthUser & { credentialVersion: 
 
 async function revokedOwner() {
   const oldActor = await captured("superadmin@test.example");
-  const second = await createAccount(oldActor, { name: "Independent authorized owner", email: "revocation-owner@test.example",
+  const second = await legacyOwnerFixture( { name: "Independent authorized owner", email: "revocation-owner@test.example",
     role: "SUPER_ADMIN", agencyId: null, password: "Synthetic-Owner-123" });
   await db.update(users).set({ mustChangePassword: false }).where(eq(users.id, second.id));
   await updateAccount(await captured(second.email), oldActor.id, { forceSignOut: true });
