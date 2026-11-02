@@ -41,8 +41,8 @@ export default async function LoginPage({searchParams}: {searchParams: Promise<R
   const logoUrl = brandLogoUrl(branding);
 
   return (
-    <div className="auth-entrance grid min-h-[calc(100vh-4rem)] grid-cols-1 lg:grid-cols-2">
-      <div className="auth-story relative hidden flex-col justify-between overflow-hidden border-e border-white/10 bg-navy-950 bg-[url('/images/departure-atelier.webp')] bg-cover bg-center p-8 text-white lg:flex">
+    <div className="auth-entrance public-access-interior grid min-h-[calc(100vh-4rem)] grid-cols-1 lg:grid-cols-2">
+      <div className="auth-story relative hidden flex-col justify-between overflow-hidden border-e border-white/10 bg-navy-950 bg-cover bg-center p-8 text-white lg:flex">
         <div aria-hidden className="pointer-events-none absolute inset-0 bg-navy-950/65" />
         <img className="relative h-20 w-28 rounded bg-white p-2 object-contain" src={logoUrl ?? "/images/essafaria-logo.png"} alt={branding.name} width="112" height="80" />
         <div className="relative">

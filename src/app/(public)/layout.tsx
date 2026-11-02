@@ -8,6 +8,7 @@ import { contentT } from "@/lib/i18n-content";
 import { PublicHeader } from "@/components/public-header";
 import { UiLanguageSwitcher } from "@/components/ui-language-switcher";
 import { PublicMotion } from "@/components/public-motion";
+import "../public-interiors.css";
 
 export const dynamic = "force-dynamic";
 

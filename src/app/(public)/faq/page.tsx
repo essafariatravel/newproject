@@ -131,17 +131,26 @@ export default async function FaqPage() {
   const copy = FAQ_COPY[locale];
 
   return (
-    <section className="ess-container public-reading public-faq">
-
-      <h1 className="mt-4 font-serif text-4xl text-navy-900 sm:text-5xl">{copy.title}</h1>
-      <p className="mt-4 max-w-2xl text-base leading-relaxed text-slate-600">{copy.intro}</p>
-      <div className="mt-8 divide-y divide-line border-y border-line">
-        {copy.items.map((item) => (
-          <article key={item.question} className="py-6">
-            <h2 className="font-serif text-xl text-navy-900">{item.question}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">{item.answer}</p>
-          </article>
-        ))}
+    <section className="public-interior faq-interior" aria-labelledby="faq-heading">
+      <div className="interior-width faq-spread">
+        <header className="faq-intro">
+          <h1 id="faq-heading">{copy.title}</h1>
+          <p className="interior-lede">{copy.intro}</p>
+          <figure className="interior-media faq-photo">
+            <img data-cinematic-frame src="/images/visa-file-cover-small.webp"
+              srcSet="/images/visa-file-cover-small.webp 720w, /images/visa-file-cover.webp 1672w"
+              sizes="(max-width: 767px) 90vw, (max-width: 1440px) 32vw, 460px"
+              alt="" width="1672" height="941" fetchPriority="high" />
+          </figure>
+        </header>
+        <div className="faq-register">
+          {copy.items.map((item, index) => (
+            <details key={item.question} open={index === 0}>
+              <summary><h2>{item.question}</h2></summary>
+              <p>{item.answer}</p>
+            </details>
+          ))}
+        </div>
       </div>
     </section>
   );

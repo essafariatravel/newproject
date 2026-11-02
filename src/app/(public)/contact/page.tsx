@@ -19,50 +19,47 @@ export default async function ContactPage() {
   const hasDetails = Boolean(email || phone || address);
 
   return (
-    <div className="ess-container max-w-4xl public-reading">
-
-      <h1 className="mt-2 font-serif text-[32px] text-navy-900">{ct("Contact ESSAFARIA")}</h1>
-      <p className="mt-2 max-w-2xl text-base leading-relaxed text-slate-600">
-        {ct(hasDetails
-          ? "Partner agencies can reach case officers through the portal. For partnership enquiries, use the contact details below."
-          : "Partner agencies can reach case officers through the portal. New agencies can apply for partnership online.")}
-      </p>
-
-      {hasDetails ? <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {email ? <div className="card p-6">
-          <h2 className="text-sm font-semibold text-slate-600">{ct("Email")}</h2>
-          <a href={`mailto:${email}`} className="mt-1 block font-serif text-lg text-navy-900 hover:text-navy-700">
-            {email}
-          </a>
-          <p className="mt-2 text-xs text-slate-500">{ct("Partnership, operations and billing enquiries.")}</p>
-        </div> : null}
-        {phone ? <div className="card p-6">
-          <h2 className="text-sm font-semibold text-slate-600">{ct("Phone")}</h2>
-          <a href={`tel:${phone.replace(/\s/g, "")}`} className="mt-1 block font-serif text-lg text-navy-900 hover:text-navy-700">
-            {phone}
-          </a>
-          {officeHours ? <p className="mt-2 text-xs text-slate-500">{officeHours}</p> : null}
-        </div> : null}
-        {address ? <div className="card p-6 sm:col-span-2">
-          <h2 className="text-sm font-semibold text-slate-600">{ct("Office")}</h2>
-          <p className="mt-1 font-serif text-lg text-navy-900">{address}</p>
-        </div> : null}
-      </div> : <div className="mt-8 flex flex-wrap gap-4">
-        <Link href="/agency/register" className="btn-gold px-6 py-2">{ct("Register your Agency")}</Link>
-        <Link href="/login" className="btn-secondary px-6 py-2">{ct("Sign in to your portal")}</Link>
-      </div>}
-
-      {Object.entries(social).filter(([, url]) => url).length > 0 ? (
-        <div className="mt-8 flex gap-4 text-base">
-          {Object.entries(social)
-            .filter(([, url]) => url)
-            .map(([name, url]) => (
-              <a key={name} href={url} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm capitalize">
-                {name}
-              </a>
-            ))}
+    <section className="public-interior contact-interior" aria-labelledby="contact-heading">
+      <div className="interior-width contact-spread">
+        <div className="contact-directory">
+          <h1 id="contact-heading">{ct("Contact ESSAFARIA")}</h1>
+          <p className="interior-lede">
+            {ct(hasDetails
+              ? "Partner agencies can reach case officers through the portal. For partnership enquiries, use the contact details below."
+              : "Partner agencies can reach case officers through the portal. New agencies can apply for partnership online.")}
+          </p>
+          {hasDetails ? (
+            <dl className="contact-records">
+              {email ? <div>
+                <dt>{ct("Email")}</dt>
+                <dd><a href={`mailto:${email}`}><bdi dir="ltr">{email}</bdi></a>
+                  <p className="interior-note">{ct("Partnership, operations and billing enquiries.")}</p></dd>
+              </div> : null}
+              {phone ? <div>
+                <dt>{ct("Phone")}</dt>
+                <dd><a href={`tel:${phone.replace(/\s/g, "")}`}><bdi dir="ltr">{phone}</bdi></a>
+                  {officeHours ? <p className="interior-note">{officeHours}</p> : null}</dd>
+              </div> : null}
+              {address ? <div><dt>{ct("Office")}</dt><dd>{address}</dd></div> : null}
+            </dl>
+          ) : (
+            <div className="interior-actions">
+              <Link href="/agency/register" className="interior-button">{ct("Register your Agency")}</Link>
+              <Link href="/login" className="interior-link">{ct("Sign in to your portal")}</Link>
+            </div>
+          )}
+          {Object.entries(social).some(([, url]) => url) ? (
+            <div className="contact-social">
+              {Object.entries(social).filter(([, url]) => url).map(([name, url]) => (
+                <a key={name} href={url} target="_blank" rel="noopener noreferrer" className="interior-link">{name}</a>
+              ))}
+            </div>
+          ) : null}
         </div>
-      ) : null}
-    </div>
+        <figure className="interior-media contact-photo">
+          <img data-cinematic-frame src="/images/essafaria-departure-editorial.webp" alt="" width="1672" height="941" fetchPriority="high" />
+        </figure>
+      </div>
+    </section>
   );
 }

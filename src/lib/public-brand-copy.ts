@@ -1,12 +1,63 @@
 import type { UiLocale } from "@/lib/ui-i18n";
+
 const copies = {
-  en: { eyebrow: "For travel agencies", hero: "Their next journey. Your visa partner.", intro: "A clear connection between your agency and the journeys ahead.", partner: "Become a partner", signIn: "Agency sign in", illustration: "Travel illustration", agenciesTitle: "Your agency. More possibilities.", agenciesBody: "Work with ESSAFARIA to prepare your travellers’ visa applications and stay connected throughout the journey.", applyTitle: "Start with a conversation", applyBody: "Tell us your agency name and how to reach you. Our team reviews your request and contacts you if further information is needed.", review: "Agency access follows review.", aboutTitle: "Travel is a shared ambition.", aboutBody: "ESSAFARIA connects travel agencies with visa application support. A professional partnership, built around your travellers.", legalMissing: "This information is awaiting publication. Please contact ESSAFARIA for the approved document before accepting it.", updated: "Effective date" },
-  fr: { eyebrow: "Pour les agences de voyage", hero: "Leur prochain voyage. Votre partenaire visa.", intro: "Un lien clair entre votre agence et les voyages à venir.", partner: "Devenir partenaire", signIn: "Connexion agence", illustration: "Illustration de voyage", agenciesTitle: "Votre agence. Plus de possibilités.", agenciesBody: "Avec ESSAFARIA, préparez les demandes de visa de vos voyageurs et restez en contact tout au long du parcours.", applyTitle: "Commençons par un échange", applyBody: "Indiquez le nom de votre agence et vos coordonnées. Notre équipe examine votre demande et vous contacte si des informations complémentaires sont nécessaires.", review: "L’accès agence est accordé après examen.", aboutTitle: "Le voyage, une ambition partagée.", aboutBody: "ESSAFARIA accompagne les agences de voyage dans les demandes de visa de leurs voyageurs. Un partenariat professionnel au service de leurs projets.", legalMissing: "Ces informations sont en attente de publication. Contactez ESSAFARIA pour obtenir le document approuvé avant de l’accepter.", updated: "Date d’entrée en vigueur" },
-  ar: { eyebrow: "لوكالات السفر", hero: "رحلتهم القادمة. شريككم للتأشيرات.", intro: "صلة واضحة بين وكالتكم والرحلات القادمة.", partner: "كن شريكاً", signIn: "دخول الوكالة", illustration: "صورة توضيحية للسفر", agenciesTitle: "وكالتكم. إمكانيات أوسع.", agenciesBody: "مع ESSAFARIA، حضّروا طلبات تأشيرات مسافريكم وابقوا على تواصل طوال الرحلة.", applyTitle: "لنبدأ بالتواصل", applyBody: "أخبرونا باسم وكالتكم وبيانات التواصل. يراجع فريقنا طلبكم ويتواصل معكم عند الحاجة إلى معلومات إضافية.", review: "يُمنح دخول الوكالة بعد المراجعة.", aboutTitle: "السفر طموح مشترك.", aboutBody: "تدعم ESSAFARIA وكالات السفر في طلبات تأشيرات مسافريها. شراكة مهنية تتمحور حول مشاريعهم.", legalMissing: "هذه المعلومات تنتظر النشر. يرجى التواصل مع ESSAFARIA للحصول على الوثيقة المعتمدة قبل قبولها.", updated: "تاريخ السريان" },
+  en: {
+    eyebrow: "For travel agencies",
+    hero: "Visa processing for travel agencies.",
+    intro: "Prepare each traveller’s file, submit the supporting documents and follow the application with ESSAFARIA.",
+    partner: "Become a partner",
+    signIn: "Agency sign in",
+    illustration: "Travel illustration",
+    agenciesTitle: "A visa desk for your agency.",
+    agenciesBody: "Work with ESSAFARIA on each traveller’s application. Your agency prepares the file, shares the requested documents and follows the case in its partner workspace.",
+    applyTitle: "Request partner access",
+    applyBody: "Tell us your agency name and how to reach you. Our team reviews your request and contacts you if further information is needed.",
+    review: "Agency access follows review.",
+    aboutTitle: "About ESSAFARIA Travel",
+    aboutBody: "ESSAFARIA supports travel agencies with their travellers’ visa applications.",
+    legalMissing: "This information is awaiting publication. Please contact ESSAFARIA for the approved document before accepting it.",
+    updated: "Effective date",
+  },
+  fr: {
+    eyebrow: "Pour les agences de voyages",
+    hero: "Traitement des visas pour les agences de voyages.",
+    intro: "Préparez le dossier de chaque voyageur, transmettez les justificatifs et suivez sa demande avec ESSAFARIA.",
+    partner: "Devenir partenaire",
+    signIn: "Connexion agence",
+    illustration: "Illustration de voyage",
+    agenciesTitle: "Un service visas pour votre agence.",
+    agenciesBody: "ESSAFARIA accompagne votre agence dans le traitement de chaque demande. Depuis votre espace partenaire, vous préparez le dossier, transmettez les pièces demandées et suivez son avancement.",
+    applyTitle: "Demander un accès partenaire",
+    applyBody: "Indiquez le nom de votre agence et vos coordonnées. Notre équipe examine votre demande et vous contacte si des informations complémentaires sont nécessaires.",
+    review: "L’accès agence est accordé après examen.",
+    aboutTitle: "À propos d’ESSAFARIA Travel",
+    aboutBody: "ESSAFARIA accompagne les agences de voyages dans les démarches de visa de leurs voyageurs.",
+    legalMissing: "Ces informations sont en attente de publication. Contactez ESSAFARIA pour obtenir le document approuvé avant de l’accepter.",
+    updated: "Date d’entrée en vigueur",
+  },
+  ar: {
+    eyebrow: "لوكالات السفر",
+    hero: "معالجة طلبات التأشيرة لوكالات السفر.",
+    intro: "أعدّوا ملف كل مسافر، وأرسلوا المستندات المطلوبة، وتابعوا طلب التأشيرة مع ESSAFARIA.",
+    partner: "كن شريكاً",
+    signIn: "دخول الوكالة",
+    illustration: "صورة توضيحية للسفر",
+    agenciesTitle: "خدمة التأشيرات لوكالتكم.",
+    agenciesBody: "ترافق ESSAFARIA وكالتكم في معالجة طلب كل مسافر. يمكنكم إعداد الملف وإرسال المستندات المطلوبة ومتابعة الطلب من مساحة الشركاء.",
+    applyTitle: "طلب الدخول كشريك",
+    applyBody: "أخبرونا باسم وكالتكم وبيانات التواصل. يراجع فريقنا طلبكم ويتواصل معكم عند الحاجة إلى معلومات إضافية.",
+    review: "يُمنح دخول الوكالة بعد المراجعة.",
+    aboutTitle: "عن ESSAFARIA Travel",
+    aboutBody: "تدعم ESSAFARIA وكالات السفر في إعداد طلبات التأشيرة لمسافريها.",
+    legalMissing: "هذه المعلومات تنتظر النشر. يرجى التواصل مع ESSAFARIA للحصول على الوثيقة المعتمدة قبل قبولها.",
+    updated: "تاريخ السريان",
+  },
 } as const;
 const legalChanged = {
   en: "The legal documents have changed. Refresh this page and review them before submitting.",
   fr: "Les documents juridiques ont changé. Actualisez cette page et relisez-les avant l’envoi.",
   ar: "تغيّرت الوثائق القانونية. حدّث هذه الصفحة وراجعها قبل الإرسال.",
 };
-export function publicBrandCopy(locale: UiLocale) { return { ...copies[locale], legalChanged: legalChanged[locale] }; }
+export function publicBrandCopy(locale: UiLocale) {
+  return { ...copies[locale], legalChanged: legalChanged[locale] };
+}
