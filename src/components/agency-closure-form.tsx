@@ -25,9 +25,7 @@ export function AgencyClosureForm({ summary, locale, executionAllowed }: { summa
         <input type="hidden" name="agencyId" value={summary.id} />
         <fieldset disabled={pending || !executionAllowed || summary.blockers.length > 0} className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2"><label htmlFor="closure-name" className="label">{t("confirmation")} : {summary.legalName}</label><input className="input" id="closure-name" name="confirmationName" required maxLength={512} autoComplete="off" /></div>
-          <div><label htmlFor="closure-policy" className="label">{t("policy")}</label><input className="input" id="closure-policy" name="retentionReference" required maxLength={300} /></div>
-          <div><label htmlFor="closure-until" className="label">{t("until")}</label><input className="input" id="closure-until" name="retainUntil" type="date" required /></div>
-          <p className="text-sm text-slate-600 sm:col-span-2">{t("policyHint")}</p>
+          <p className="text-sm text-slate-600 sm:col-span-2">{t("archiveNotice")}</p>
           {summary.obligations.length?<><label className="flex items-start gap-3 text-base sm:col-span-2"><input className="mt-1" name="acceptObligations" value="1" type="checkbox" required/>{t('acceptObligations')}</label><div className="sm:col-span-2"><label className="label" htmlFor="closure-responsibility">{t('responsibilityNote')}</label><textarea id="closure-responsibility" name="responsibilityNote" required maxLength={2000} rows={3} className="input"/></div></>:null}
           <div className="sm:col-span-2"><PasswordField id="closure-password" name="currentPassword" label={t('password')} required minLength={1} autoComplete="current-password" showLabel={t('showPassword')} hideLabel={t('hidePassword')}/></div>
           <button type="submit" className="btn-danger sm:col-span-2">{pending ? t("pending") : t("title")}</button>

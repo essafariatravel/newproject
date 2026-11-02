@@ -32,7 +32,7 @@ async function fixture(){
  const [session]=await db.select().from(sessions).where(eq(sessions.tokenHash,hashToken(minted.token)));
  const actor={...owner,sessionId:session!.id,mfaPending:false},data=registrationData();
  const reg=await submitAgencyRegistration({data,files:[],ipAddress:nextIp()}),approved=await approveRegistration({actor,registrationId:reg.id});
- const input={agencyId:approved.agencyId,confirmationName:data.legalName,currentPassword:'Test-Password-123',retentionReference:'QA APPROVED RETENTION',retainUntil:'2030-12-31',acceptObligations:true,responsibilityNote:'ESSAFARIA QA owner explicitly retains every open obligation.'};
+ const input={agencyId:approved.agencyId,confirmationName:data.legalName,currentPassword:'Test-Password-123',acceptObligations:true,responsibilityNote:'ESSAFARIA QA owner explicitly retains every open obligation.'};
  return {actor,data,approved,input,ownerToken:minted.token};
 }
 describe('F030 outstanding obligations and trusted target',()=>{
@@ -175,11 +175,30 @@ describe('F030 outstanding obligations and trusted target',()=>{
  it('serializes closure with an in-flight credit without losing retained money or accepting a post-closure movement',async()=>{
   const {actor,input,approved}=await fixture();
   const credit=async()=>{const client=await pool.connect();try{await client.query('begin');await applyWalletMutation(client,{agencyId:approved.agencyId,operation:'CREDIT',amountAbs:'15.00',reason:'Synthetic concurrent credit',actorId:actor.id});await client.query('commit');}catch(error){await client.query('rollback');throw error;}finally{client.release();}};
-  const [closed,credited]=await Promise.allSettled([closeAgency(actor,input),credit()]);expect(closed.status).toBe('fulfilled');
+  const [closed,credited]=await Promise.allSettled([closeAgency(actor,input),credit()]);expect(closed.status,closed.status==='rejected'?String(closed.reason):undefined).toBe('fulfilled');
   const actual=(await pool.query('select balance::text,status from agencies where id=$1',[approved.agencyId])).rows[0];expect(actual.status).toBe('CLOSED');
   const [audit]=await db.select().from(auditLogs).where(and(eq(auditLogs.action,'AGENCY_CLOSED'),eq(auditLogs.entityId,approved.agencyId)));
   expect(audit?.metadata?.balance).toBe(actual.balance);
   const movements=(await pool.query('select count(*)::int n from wallet_transactions where agency_id=$1',[approved.agencyId])).rows[0].n;
   expect(movements).toBe(credited.status==='fulfilled'?1:0);expect(actual.balance).toBe(credited.status==='fulfilled'?'15.00':'0.00');
+ });
+ it('reconciles a credit committed while closure waits for the agency row lock',async()=>{
+  const {actor,input,approved}=await fixture();
+  const credit=await pool.connect();let settled:Promise<Awaited<ReturnType<typeof closeAgency>>>|undefined;
+  try{
+   await credit.query('begin');
+   await applyWalletMutation(credit,{agencyId:approved.agencyId,operation:'CREDIT',amountAbs:'15.00',reason:'Synthetic credit held before closure',actorId:actor.id});
+   settled=closeAgency(actor,input);settled.catch(()=>undefined);
+   let waiting=false;const deadline=Date.now()+5000;
+   while(!waiting&&Date.now()<deadline){
+    // pg_stat_activity truncates long queries; match their leading lock/snapshot text.
+    waiting=(await pool.query("select exists(select 1 from pg_stat_activity where pid<>pg_backend_pid() and wait_event_type='Lock' and (query like 'select a.id,a.legal_name%' or query like 'select id from %agencies%for update%')) waiting")).rows[0].waiting;
+    if(!waiting)await new Promise(resolve=>setTimeout(resolve,10));
+   }
+   expect(waiting).toBe(true);
+   await credit.query('commit');
+   await expect(settled).resolves.toMatchObject({status:'CLOSED',balance:'15.00'});
+   expect((await pool.query('select count(*)::int n from wallet_transactions where agency_id=$1',[approved.agencyId])).rows[0].n).toBe(1);
+  }finally{await credit.query('rollback');credit.release();if(settled)await settled.catch(()=>undefined);}
  });
 });

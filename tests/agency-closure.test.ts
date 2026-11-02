@@ -17,6 +17,8 @@ import { createDraftApplication, getApplicationForUser } from "@/lib/application
 import { updateInternalNotesAction } from "@/app/actions/applications";
 import { request } from "./helpers/request";
 import { applyWalletMutation } from "@/lib/wallet";
+import { closeAgencyAction } from "@/app/actions/agency-closure";
+import { agencyClosureCopy } from "@/lib/agency-closure-copy";
 
 suiteSetup();
 
@@ -35,7 +37,7 @@ async function emptyAgency() {
   return { actor, data, reg, approved };
 }
 function input(agencyId: string, name: string) {
-  return { agencyId, confirmationName: name, currentPassword: "Test-Password-123", retentionReference: "OWNER-APPROVED-ARCHIVE-POLICY-TEST", retainUntil: "2030-12-31" };
+  return { agencyId, confirmationName: name, currentPassword: "Test-Password-123" };
 }
 
 describe("controlled agency closure target", () => {
@@ -47,6 +49,49 @@ describe("controlled agency closure target", () => {
 });
 
 describe("controlled agency closure", () => {
+  it.each([false, true])("accepts the native action without a retention instruction (legacy form: %s) and stays idempotent", async (legacyForm) => {
+    const { actor, data, approved } = await emptyAgency();
+    const form = new FormData();
+    for (const [key, value] of Object.entries(input(approved.agencyId, data.legalName))) form.set(key, value);
+    if (legacyForm) {
+      // A stale page cannot make closure approve erasure or change a retention policy.
+      form.set("retentionReference", "STALE FORM VALUE, NOT A NEW POLICY APPROVAL");
+      form.set("retainUntil", "2000-01-01");
+    }
+    request.cookie = actor.testToken;
+    try {
+      expect(await closeAgencyAction({}, form)).toEqual({ closed: true });
+      expect(await closeAgencyAction({}, form)).toEqual({ closed: true });
+    } finally { request.cookie = ""; }
+    const audit = (await db.select().from(auditLogs).where(eq(auditLogs.action, "AGENCY_CLOSED"))).filter(row => row.entityId === approved.agencyId);
+    expect(audit).toHaveLength(1);
+    expect(audit[0]?.metadata).toMatchObject({ closureScope: "OPERATIONAL_ACCESS", retentionPolicyChanged: false, archiveErasureAuthorized: false });
+    expect(audit[0]?.metadata).not.toHaveProperty("retainUntil");
+  });
+  it("returns explicit confirmation errors and makes no change on invalid form input", async () => {
+    const { actor, data, approved } = await emptyAgency();
+    const t = agencyClosureCopy("en");
+    request.cookie = actor.testToken;
+    try {
+      for (const [field, value, message] of [["agencyId", "bad-id", "inputError"], ["confirmationName", "", "nameError"], ["confirmationName", "Wrong agency", "nameError"], ["currentPassword", "", "verification"], ["currentPassword", "wrong-password", "verification"], ["responsibilityNote", "x".repeat(2001), "obligationError"]] as const) {
+        const form = new FormData();
+        for (const [key, entry] of Object.entries(input(approved.agencyId, data.legalName))) form.set(key, entry);
+        form.set(field, value);
+        expect(await closeAgencyAction({}, form)).toEqual({ error: t(message) });
+      }
+    } finally { request.cookie = ""; }
+    expect((await db.select().from(agencies).where(eq(agencies.id, approved.agencyId)))[0]?.status).toBe("ACTIVE");
+    expect((await db.select().from(auditLogs).where(eq(auditLogs.action, "AGENCY_CLOSED"))).some(row => row.entityId === approved.agencyId)).toBe(false);
+  });
+  it("closes operational access without inventing a retention policy or archive deletion date", async () => {
+    const { actor, data, approved } = await emptyAgency();
+    const closure = { agencyId: approved.agencyId, confirmationName: data.legalName, currentPassword: "Test-Password-123" };
+    await expect(closeAgency(actor, closure)).resolves.toMatchObject({ status: "CLOSED" });
+    const audit = (await db.select().from(auditLogs).where(eq(auditLogs.action, "AGENCY_CLOSED"))).find(row => row.entityId === approved.agencyId);
+    expect(audit?.metadata).toMatchObject({ closureScope: "OPERATIONAL_ACCESS", retentionPolicyChanged: false, archiveErasureAuthorized: false });
+    expect(audit?.metadata).not.toHaveProperty("retainUntil");
+    expect(audit?.metadata).not.toHaveProperty("retentionReference");
+  });
   it("blocks live dossiers and preserves terminal archives for Staff while denying the former agency", async () => {
     const { actor, data, approved } = await emptyAgency();
     const [programme] = await db.select().from(visaTypes).limit(1);
@@ -109,7 +154,7 @@ describe("controlled agency closure", () => {
     expect(reprovisioned.agencyId).not.toBe(approved.agencyId);
     expect(reprovisioned.adminUserId).not.toBe(approved.adminUserId);
     const audit = await db.select().from(auditLogs).where(eq(auditLogs.action, "AGENCY_CLOSED"));
-    expect(audit.find(row => row.entityId === approved.agencyId)?.metadata).toMatchObject({ retentionReference: "OWNER-APPROVED-ARCHIVE-POLICY-TEST", retainUntil: "2030-12-31" });
+    expect(audit.find(row => row.entityId === approved.agencyId)?.metadata).toMatchObject({ closureScope: "OPERATIONAL_ACCESS", retentionPolicyChanged: false, archiveErasureAuthorized: false });
   });
 
   it("rolls back revocation and agency status if its immutable audit cannot be written", async () => {

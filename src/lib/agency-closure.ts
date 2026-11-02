@@ -10,7 +10,6 @@ import { targetsSupabaseProject } from './database-config';
 type Environment = Record<string, string | undefined>;
 export interface ClosureInput {
   agencyId: string; confirmationName: string; currentPassword: string;
-  retentionReference: string; retainUntil: string;
   acceptObligations?: boolean; responsibilityNote?: string;
 }
 export interface ClosurePreview {
@@ -54,6 +53,10 @@ function requireOwner(actor: AuthUser): void {
 
 async function snapshot(client: PoolClient, agencyId: string, lock = false): Promise<ClosurePreview> {
   const q = qualifiedTable;
+  // Acquire the row lock before reading the ledger. If a credit commits while
+  // this waits, the following READ COMMITTED statement sees both its new
+  // balance and its ledger row, rather than mixing snapshots in one SELECT.
+  if (lock) await client.query(`select id from ${q("agencies")} where id=$1 for update`, [agencyId]);
   const { rows } = await client.query(`select a.id,a.legal_name as "legalName",a.status,a.balance::text,a.currency,
     (select count(*)::int from ${q("users")} u where u.agency_id=a.id) as "userCount",
     (select count(*)::int from ${q("applications")} app join ${q("statuses")} s on s.id=app.status_id where app.agency_id=a.id and not s.is_terminal) as "openApplications",
@@ -73,7 +76,7 @@ async function snapshot(client: PoolClient, agencyId: string, lock = false): Pro
         left join ${q("wallet_transactions")} w on w.id=r.wallet_transaction_id
         where r.agency_id=a.id and r.status='PROCESSED' and
           (w.id is null or w.agency_id<>a.id or w.type<>'CREDIT' or w.currency<>'DZD' or w.amount<=0 or w.amount>r.amount)) as reconciled
-    from ${q("agencies")} a where a.id=$1 ${lock ? "for update of a" : ""}`, [agencyId]);
+    from ${q("agencies")} a where a.id=$1`, [agencyId]);
   const row = rows[0];
   if (!row) throw new AppError("NOT_FOUND", "Agency not found.");
   const obligations = [
@@ -104,9 +107,6 @@ export async function closeAgency(actor: AuthUser, input: ClosureInput): Promise
   requireAgencyClosureTarget();
   requireOwner(actor);
   if (!actor.sessionId || actor.mfaPending) throw new AppError("UNAUTHENTICATED", "Verify your current session before closing an agency.");
-  if (!input.retentionReference.trim() || input.retentionReference.length > 300 || !/^\d{4}-\d{2}-\d{2}$/.test(input.retainUntil) ||
-      !Number.isFinite(Date.parse(input.retainUntil)) || new Date(input.retainUntil).toISOString().slice(0, 10) !== input.retainUntil ||
-      Date.parse(input.retainUntil) <= Date.now()) throw new AppError("VALIDATION", "Provide the approved retention policy reference and its future archive retention end date.");
   if (input.currentPassword.length > 200 || !await consumeAuthRateLimit("agency-closure", actor.id, 5, 15 * 60_000)) {
     throw new AppError("INVALID_CREDENTIALS", "Verification failed. Please try again.");
   }
@@ -141,7 +141,7 @@ export async function closeAgency(actor: AuthUser, input: ClosureInput): Promise
     await client.query(`update ${q("agencies")} set status='CLOSED',updated_at=now() where id=$1`, [input.agencyId]);
     await client.query(`insert into ${q("audit_logs")}(actor_id,actor_email,actor_role,agency_id,action,entity,entity_id,metadata)
       values($1,$2,$3,$4::uuid,'AGENCY_CLOSED','agency',$4::text,$5::jsonb)`, [current.id, current.email, current.role, input.agencyId,
-      JSON.stringify({ ...before, retentionReference: input.retentionReference.trim(), retainUntil: input.retainUntil,
+      JSON.stringify({ ...before, closureScope: "OPERATIONAL_ACCESS", retentionPolicyChanged: false, archiveErasureAuthorized: false,
         obligationsAccepted:before.obligations.length>0,responsibleStaffId:current.id,responsibilityNote:input.responsibilityNote?.trim()||null,
         userIds: ids, archiveAgencyId: before.id, actorName: current.name, actorUsername: current.username })]);
     await client.query("commit");
