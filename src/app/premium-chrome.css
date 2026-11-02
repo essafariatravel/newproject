@@ -1,0 +1,82 @@
+/* Hallmark v2 · ESSAFARIA brand · full redesign · public chrome and reading surfaces */
+/* Critique: clear editorial hierarchy and quiet working controls replace ornamental labels. */
+:root {
+  --premium-paper: #f8f7f3;
+  --premium-white: #ffffff;
+  --premium-ink: #071a33;
+  --premium-muted: #465b6e;
+  --premium-line: #d5dce0;
+  --premium-accent: #8b2935;
+  --premium-light-text: #dce5eb;
+  --premium-photo-shade: rgb(4 19 38 / .56);
+  --premium-nav-hover: rgb(255 255 255 / .09);
+}
+html, body { overflow-x: clip; }
+html { scroll-padding-top: 6rem; }
+:is(a,button,summary,input,select,textarea):focus-visible { outline: 2px solid var(--color-gold-600); outline-offset: 4px; }
+button, summary, a { -webkit-tap-highlight-color: transparent; }
+button:active, .btn-primary:active, .btn-secondary:active { opacity: .82; }
+.public-site { background: var(--premium-paper); }
+.public-site > .premium-public-header { background: var(--premium-white); color: var(--premium-ink); }
+.public-site > .premium-public-header .public-partner-action { background: var(--premium-ink); border-color: var(--premium-ink); color: var(--premium-white); }
+.public-site > .premium-public-header .public-partner-action:hover { background: var(--color-navy-700); }
+.public-site > .premium-public-header a > span > span:last-child { color: var(--premium-muted); }
+.premium-public-header > .ess-container { height: 5rem; max-width: 1536px; }
+.premium-public-header nav a { font-weight: 400; padding-inline: .75rem; border-radius: 0; }
+.public-partner-action { background: var(--premium-white); color: var(--premium-ink); border: 1px solid var(--premium-white); border-radius: 3px; }
+.public-partner-action:hover { background: var(--premium-light-text); }
+.public-site footer { padding-block: 2rem; }
+.public-site footer p { letter-spacing: 0; text-transform: none; }
+.public-site footer > .ess-container { max-width: 1440px; }
+.public-reading { padding-block: clamp(3rem,7vw,7rem); }
+.public-reading h1 { font-size: clamp(2.25rem,4.5vw,4.5rem); max-width: 18ch; line-height: 1.08; letter-spacing: -.035em; text-wrap: balance; overflow-wrap: break-word; min-width: 0; }
+.public-reading > p { max-width: 65ch; margin-block-start: 1.5rem; line-height: 1.8; }
+.public-reading .card { border: 0; border-radius: 0; border-top: 1px solid var(--premium-line); background: transparent; padding-inline: 0; }
+.public-reading h2 { font-family: var(--font-sans); text-transform: none; letter-spacing: 0; }
+.public-about { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,.8fr); gap: 5rem; align-items: start; max-width: 1280px; }
+.public-about h1 { margin: 0; }
+.public-about p { margin-block-start: .5rem; white-space: pre-line; font-size: 1.125rem; line-height: 1.85; }
+.public-about .btn-primary { margin-block-start: 2rem; }
+.public-partnership { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,.8fr); gap: clamp(2rem,6vw,6rem); align-items: start; }
+.public-partnership h1 { margin-top: 0; }
+.public-partnership figure { margin: 0; position: sticky; top: 7rem; }
+.public-partnership figure img { width: 100%; aspect-ratio: 4/5; object-fit: cover; object-position: 70% center; }
+.public-partnership figcaption { color: var(--premium-muted); font-size: .75rem; margin-top: .75rem; }
+.public-partnership #partner { padding-block-start: 2rem; margin-block-start: 3rem; }
+.public-faq { max-width: 1080px; }
+.public-faq article { display: grid; grid-template-columns: minmax(0,.9fr) minmax(0,1.2fr); gap: 2rem; padding-block: 2rem; }
+.public-faq article h2 { font-size: 1.25rem; font-weight: 600; line-height: 1.4; }
+.public-faq article p { margin: 0; font-size: 1rem; line-height: 1.75; }
+.public-site .auth-entrance { min-height: 700px; background: var(--premium-white); }
+.public-site .auth-story { background-image: url('/images/essafaria-departure-editorial.webp'); background-position: 65% center; padding: clamp(2rem,5vw,5rem); }
+.public-site .auth-story > div[aria-hidden] { background: var(--premium-photo-shade); }
+.public-site .auth-story h2 { font-size: clamp(2rem,3.5vw,3.75rem); line-height: 1.12; letter-spacing: -.025em; }
+.public-site .auth-story h2 span { color: inherit; font-style: normal; }
+.public-site .auth-story img { border-radius: 0; }
+.public-site .auth-entrance h1 { font-size: 2.25rem; letter-spacing: -.025em; }
+.public-site .input { border-radius: 4px; }
+.public-site .btn-primary, .public-site .btn-secondary { border-radius: 4px; }
+html[lang='ar'] .public-reading h1 { line-height: 1.4; letter-spacing: 0; max-width: 22ch; }
+@media(max-width:1279px) {
+  .premium-public-header .public-desktop-nav, .premium-public-header .public-desktop-controls { display: none; }
+  .premium-public-header .public-mobile-toggle { display: inline-flex; }
+}
+@media(min-width:1280px) {
+  .premium-public-header .public-desktop-nav { display: flex; }
+  .premium-public-header .public-desktop-controls { display: inline-flex; }
+  .premium-public-header .public-mobile-toggle, .premium-public-header .public-menu-panel { display: none; }
+}
+@media(max-width:767px) {
+  .premium-public-header > .ess-container { height: 4.5rem; gap: .5rem; }
+  .premium-public-header .public-partner-action { font-size: .875rem; padding-inline: .65rem; }
+  .premium-public-header > .ess-container > a img { max-width: 80px; }
+  .public-about, .public-partnership, .public-faq article { grid-template-columns: minmax(0,1fr); gap: 1.5rem; }
+  .public-partnership figure { position: static; }
+  .public-partnership figure img { aspect-ratio: 4/3; }
+  .public-site .auth-entrance { min-height: 0; padding-block: 2rem; }
+  .public-site footer { padding-block: 1rem; }
+}
+@media(prefers-reduced-motion:reduce) {
+  html { scroll-behavior: auto; }
+  .public-site *, .public-site *::before, .public-site *::after { animation: none !important; transition: none !important; }
+}

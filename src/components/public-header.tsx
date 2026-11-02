@@ -46,14 +46,14 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
   useEffect(() => {
     if (!open) return;
     const onResize = () => {
-      if (window.innerWidth >= 1024) setOpen(false);
+      if (window.innerWidth >= 1280) setOpen(false);
     };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [open]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-navy-950 text-white">
+    <header className="premium-public-header sticky top-0 z-40 border-b border-white/10 bg-navy-950 text-white">
       <div className="ess-container flex h-16 items-center justify-between gap-2">
         {/* Brand — logo artwork when uploaded, otherwise monogram + wordmark */}
         <Link href="/" className="flex min-w-0 shrink items-center gap-2" aria-label={brandName}>
@@ -67,8 +67,8 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
             <>
               <img src="/images/essafaria-logo.png" alt="" width="64" height="46" className="h-11 w-16 shrink-0 object-contain" />
               <span className="hidden min-w-0 leading-tight sm:block">
-                <span className="block truncate text-base font-semibold tracking-[0.04em] text-white">{brandName}</span>
-                <span className="block truncate text-xs font-semibold uppercase tracking-[0.14em] text-navy-700">
+                <span className="block truncate text-base font-semibold text-white">{brandName}</span>
+                <span className="block truncate text-xs text-white/75">
                   {labels.b2b}
                 </span>
               </span>
@@ -77,7 +77,7 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
         </Link>
 
         {/* Desktop navigation */}
-        <nav className="hidden items-center gap-2 lg:flex" aria-label={labels.menu}>
+        <nav className="public-desktop-nav hidden items-center gap-2 lg:flex" aria-label={labels.menu}>
           {nav.map((item) => (
             <Link
               key={item.href}
@@ -91,8 +91,8 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
 
         <div className="flex shrink-0 items-center gap-2">
           {/* Language switcher: desktop only — mobile gets it inside the menu */}
-          <span className="hidden lg:inline-flex">{localeSwitcher}</span>
-          <span className="hidden lg:inline-flex">
+          <span className="public-desktop-controls hidden xl:inline-flex">{localeSwitcher}</span>
+          <span className="public-desktop-controls hidden xl:inline-flex">
             <Link href="/login" className="btn btn-sm border border-white/35 bg-transparent text-white hover:bg-white/10">
               {labels.signIn}
             </Link>
@@ -101,7 +101,7 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
           <Link
             href="/agency/register"
             data-testid="public-register-cta"
-            className="btn-gold btn-sm whitespace-nowrap px-4 text-base"
+            className="btn-gold btn-sm public-partner-action whitespace-nowrap px-4 text-base"
           >
             {labels.register}
           </Link>
@@ -112,7 +112,7 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
             aria-controls={panelId}
             aria-label={open ? labels.close : labels.menu}
             data-testid="public-menu-toggle"
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-white/25 bg-transparent text-white transition-colors hover:bg-white/10 lg:hidden"
+            className="public-mobile-toggle inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-white/25 bg-transparent text-white transition-colors hover:bg-white/10 lg:hidden"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
               {open ? (
@@ -127,7 +127,7 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
 
       {/* Mobile / tablet navigation panel — no register CTA here (one only) */}
       {open ? (
-        <div id={panelId} className="public-menu-panel border-t border-white/10 bg-navy-950 lg:hidden">
+        <div id={panelId} className="public-menu-panel border-t border-white/10 bg-navy-950 xl:hidden">
           <nav className="ess-container flex flex-col py-2" aria-label={labels.menu}>
             {nav.map((item) => (
               <Link

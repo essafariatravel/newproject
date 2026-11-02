@@ -48,7 +48,7 @@ export default async function LoginPage({searchParams}: {searchParams: Promise<R
         <div className="relative">
           <h2 className="font-serif text-[32px] leading-snug text-white">
             {ct("One platform for your entire")}
-            <span className="italic text-gold-600"> {ct("visa operation")}</span>
+            <span> {ct("visa operation")}</span>
           </h2>
           <p className="mt-4 max-w-md text-base leading-relaxed text-white/80">
             {ct("Agency partners manage applications, documents and wallets. Staff process files from the central Back Office.")}

@@ -3,28 +3,24 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
-/** Progressive enhancement for editorial sections; content stays visible without JS. */
+/** One short editorial movement. Text and controls are always visible and usable. */
 export function PublicMotion() {
   const pathname = usePathname();
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) return;
-    document.documentElement.classList.add("public-motion-ready");
-    const nodes = document.querySelectorAll<HTMLElement>(".public-reveal");
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("is-visible");
-            observer.unobserve(entry.target);
-          }
-        }
-      },
-      { threshold: 0.12, rootMargin: "0px 0px -40px 0px" },
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const image = document.querySelector<HTMLElement>("[data-editorial-image]");
+    if (!image || preference.matches || typeof image.animate !== "function") return;
+    const animation = image.animate(
+      [{ transform: "scale(1.045)" }, { transform: "scale(1)" }],
+      { duration: 3600, easing: "cubic-bezier(0.16, 1, 0.3, 1)", iterations: 1 },
     );
-    nodes.forEach((node) => observer.observe(node));
+    const onPreferenceChange = () => {
+      if (preference.matches) animation.cancel();
+    };
+    preference.addEventListener("change", onPreferenceChange);
     return () => {
-      observer.disconnect();
-      document.documentElement.classList.remove("public-motion-ready");
+      animation.cancel();
+      preference.removeEventListener("change", onPreferenceChange);
     };
   }, [pathname]);
   return null;

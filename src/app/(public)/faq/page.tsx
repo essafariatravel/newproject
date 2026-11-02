@@ -131,8 +131,8 @@ export default async function FaqPage() {
   const copy = FAQ_COPY[locale];
 
   return (
-    <section className="ess-container max-w-4xl py-8 sm:py-8">
-      <p className="travel-eyebrow text-gold-700">ESSAFARIA</p>
+    <section className="ess-container public-reading public-faq">
+
       <h1 className="mt-4 font-serif text-4xl text-navy-900 sm:text-5xl">{copy.title}</h1>
       <p className="mt-4 max-w-2xl text-base leading-relaxed text-slate-600">{copy.intro}</p>
       <div className="mt-8 divide-y divide-line border-y border-line">

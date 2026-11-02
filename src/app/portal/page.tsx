@@ -34,7 +34,7 @@ export default async function PortalDashboardPage() {
             </span>
             <span className="travel-record-traveller"><strong>{row.applicantSummary}</strong><small><bdi>{row.app.reference}</bdi></small></span>
             <span className="travel-record-status"><StatusBadge code={row.statusCode} name={row.statusName} /><small>{formatDateTime(row.app.updatedAt, locale)}</small></span>
-            <span className="travel-record-action">{ct(attention ? "Upload requested documents" : "Open dossier")}<span aria-hidden="true" className="directional-arrow"> →</span></span>
+            <span className="travel-record-action">{ct(attention ? "Upload requested documents" : "Open dossier")}</span>
           </Link>
         </li>
       ))}
@@ -45,12 +45,11 @@ export default async function PortalDashboardPage() {
     <>
       <section className="agency-departure" aria-labelledby="agency-departure-heading">
         <div className="agency-departure-copy">
-          <p className="travel-eyebrow">{ct("Welcome")}, {user.agencyName ?? user.name}</p>
-          <h1 id="agency-departure-heading">{ct("Your next departure starts here.")}</h1>
+          <h1 id="agency-departure-heading">{ct("Create application")}</h1>
+          <p className="agency-welcome">{ct("Welcome")}, <strong>{user.agencyName ?? user.name}</strong></p>
           <p>{ct("Visa services for your travellers.")}</p>
         </div>
         <div className="agency-start">
-          <img src="/images/departure-atelier.webp" alt="" />
           <form action="/portal/applications/new" method="get" className="agency-start-form">
             <div className="agency-start-fields">
               <div>
@@ -60,9 +59,9 @@ export default async function PortalDashboardPage() {
                 {destinations.map((option) => <option key={option.countryId} value={option.countryId}>{countryName({ name: option.countryName, iso2: option.countryIso2 }, locale)}</option>)}
               </select>
               </div>
-              <button className="btn-primary" type="submit">{ct("Continue")} <span aria-hidden="true" className="directional-arrow">→</span></button>
+              <button className="btn-primary" type="submit">{ct("Continue")}</button>
             </div>
-            <p className="start-caption">{ct("Visa & Traveller")} <span aria-hidden="true"> / </span>{ct("Documents")} <span aria-hidden="true"> / </span>{ct("Review & Submit")}</p>
+            <ol className="start-caption agency-dossier-steps"><li>{ct("Visa & Traveller")}</li><li>{ct("Documents")}</li><li>{ct("Review & Submit")}</li></ol>
           </form>
         </div>
       </section>
@@ -75,16 +74,16 @@ export default async function PortalDashboardPage() {
       </nav>
 
       {data.needsAttention.length > 0 ? <section className="agency-record-section" aria-labelledby="attention-heading">
-        <div className="agency-section-header"><h2 id="attention-heading">{ct("Needs your attention")}</h2><Link href="/portal/applications?documents=requested">{ct("View all")} <span aria-hidden="true" className="directional-arrow">→</span></Link></div>
+        <div className="agency-section-header"><h2 id="attention-heading">{ct("Needs your attention")}</h2><Link href="/portal/applications?documents=requested">{ct("View all")}</Link></div>
         {data.needsAttention.length ? records(data.needsAttention, true) : <p className="quiet-empty">{ct("No action required — all your applications are in order.")}</p>}
       </section> : null}
 
       <section className="agency-record-section" aria-labelledby="recent-heading">
-        <div className="agency-section-header"><h2 id="recent-heading">{ct("Recent applications")}</h2><Link href="/portal/applications">{ct("View all")} <span aria-hidden="true" className="directional-arrow">→</span></Link></div>
+        <div className="agency-section-header"><h2 id="recent-heading">{ct("Recent applications")}</h2><Link href="/portal/applications">{ct("View all")}</Link></div>
         {data.recentApplications.length ? records(data.recentApplications) : <EmptyState title={ct("No applications yet")} body={ct("Submit your first visa application to see it tracked here.")} action={<Link href="/portal/applications/new" className="btn-primary">{ct("Create application")}</Link>} />}
       </section>
 
-      {hasPermission(user,"transactions.view.own") ? <Card>
+      {hasPermission(user,"transactions.view.own") ? <Card className="agency-wallet-ledger">
         <CardHeader title={ct("Recent wallet activity")} actions={<Link href="/portal/wallet" className="btn-secondary btn-sm">{ct("Ledger")}</Link>} />
         <ul className="divide-y divide-slate-100 px-4">
           {data.recentTx.length === 0 ? <li className="py-6 text-base text-slate-500">{ct("No transactions yet.")}</li> : data.recentTx.map((tx) => (

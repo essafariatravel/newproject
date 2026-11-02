@@ -29,8 +29,8 @@ export default async function AdminDashboardPage() {
     <>
       <PageHeader title={ct("Work queue")} subtitle={ct("Operational overview of the ESSAFARIA visa desk — work queue.")} />
 
-      <section aria-label={ct("Work queue")} className="border-y border-line">
-        <div className="grid grid-cols-2 gap-px bg-line lg:grid-cols-3 xl:grid-cols-6">
+      <section aria-label={ct("Work queue")} className="staff-queue-summary">
+        <div className="staff-queue-counters">
           {[
             [ct("New applications"), totals.newApps, ct("Submitted, awaiting intake"), "/admin/applications?status=SUBMITTED"],
             [ct("Documents to verify"), totals.docsChecking, ct("Documents checking"), "/admin/applications?status=DOCUMENTS_CHECKING"],
@@ -39,7 +39,7 @@ export default async function AdminDashboardPage() {
             [ct("Unassigned"), totals.unassigned, ct("No case officer"), "/admin/applications?assigned=unassigned"],
             [ct("Urgent"), totals.urgent, ct("Priority urgent"), "/admin/applications?priority=URGENT"],
           ].map(([label, value, hint, href]) => (
-            <Link key={String(href)} href={String(href)} className="min-h-[96px] bg-white px-4 py-4 hover:bg-ivory-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-navy-700">
+            <Link key={String(href)} href={String(href)} className="staff-queue-counter">
               <span className="block text-base font-semibold text-navy-900">{label}</span>
               <strong className="mt-1 block text-2xl font-semibold tabular-nums text-navy-900">{value}</strong>
               <span className="mt-1 block text-xs text-slate-500">{hint}</span>
@@ -48,13 +48,12 @@ export default async function AdminDashboardPage() {
         </div>
       </section>
 
-      <section className="mt-6" aria-labelledby="staff-work-queue">
+      <section className="staff-priority-queue" aria-labelledby="staff-work-queue">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h2 id="staff-work-queue" className="text-2xl font-semibold text-navy-900">{ct("Work queue")}</h2>
-            <p className="mt-1 text-base text-slate-500">{ct("Priority and oldest open files first")}</p>
+            <h2 id="staff-work-queue" className="text-2xl font-semibold text-navy-900">{ct("Priority and oldest open files first")}</h2>
           </div>
-          <Link href="/admin/applications" className="btn-secondary btn-sm">{ct("View all")} <span aria-hidden="true" className="directional-arrow">→</span></Link>
+          <Link href="/admin/applications" className="btn-secondary btn-sm">{ct("View all")}</Link>
         </div>
         {data.workQueue.length === 0 ? (
           <div className="border-y border-line">
@@ -90,7 +89,7 @@ export default async function AdminDashboardPage() {
                   <td className="td">{r.priorityName}</td>
                   <td className="td">
                     <Link href={`/admin/applications/${r.app.id}`} className="inline-flex min-h-11 items-center gap-2 font-semibold text-navy-900 hover:underline">
-                      {ct("Open dossier")} <span aria-hidden="true" className="directional-arrow">→</span>
+                      {ct("Open dossier")}
                     </Link>
                   </td>
                 </NavigableTableRow>
@@ -100,14 +99,14 @@ export default async function AdminDashboardPage() {
         )}
       </section>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
+      <div className="staff-secondary-workspace mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="xl:col-span-2">
           <Card>
             <CardHeader
               title={ct("Recent applications")}
               actions={
                 <Link href="/admin/applications" className="btn-secondary btn-sm">
-                  {ct("View all")} →
+                  {ct("View all")}
                 </Link>
               }
             />
@@ -152,22 +151,22 @@ export default async function AdminDashboardPage() {
         <div className="space-y-4">
           {canSeeBilling ? (
             <Card>
-              <CardHeader title={ct("Wallet activity")} actions={<Link href="/admin/billing" className="btn-secondary btn-sm">{ct("Ledger")} →</Link>} />
-              <div className="grid grid-cols-3 divide-x divide-slate-100 px-4 py-4 text-center">
+              <CardHeader title={ct("Wallet activity")} actions={<Link href="/admin/billing" className="btn-secondary btn-sm">{ct("Ledger")}</Link>} />
+              <div className="staff-wallet-summary">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Credited")}</p>
+                  <p className="staff-wallet-label">{ct("Credited")}</p>
                   <p className="mt-1 text-base font-semibold tabular-nums text-emerald-700">
                     {formatAmount(data.walletAgg.credits, "DZD", uiLocale)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Charged")}</p>
+                  <p className="staff-wallet-label">{ct("Charged")}</p>
                   <p className="mt-1 text-base font-semibold tabular-nums text-navy-900">
                     {formatAmount(data.walletAgg.charges, "DZD", uiLocale)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Balances")}</p>
+                  <p className="staff-wallet-label">{ct("Balances")}</p>
                   <p className="mt-1 text-base font-semibold tabular-nums text-teal-700">
                     {formatAmount(data.agencyAgg.walletTotal, "DZD", uiLocale)}
                   </p>
@@ -198,7 +197,7 @@ export default async function AdminDashboardPage() {
 
           {hasPermission(user, "audit.view") ? (
             <Card>
-              <CardHeader title={ct("Recent activity")} actions={<Link href="/admin/audit" className="btn-secondary btn-sm">{ct("Audit log")} →</Link>} />
+              <CardHeader title={ct("Recent activity")} actions={<Link href="/admin/audit" className="btn-secondary btn-sm">{ct("Audit log")}</Link>} />
               <ul className="divide-y divide-slate-100 px-4">
                 {data.recentAudit.map((a) => (
                   <li key={a.id} className="flex items-start justify-between gap-4 py-2">

@@ -1,0 +1,54 @@
+/* Hallmark · ESSAFARIA · full redesign · editorial · brand · signature: the departure window */
+/* Critique: the photographic opening gives way to a typographic partnership index. */
+:root {
+  --departure-navy: #071a33;
+  --departure-paper: #f8f7f3;
+  --departure-white: #fff;
+  --departure-muted: #465b6e;
+  --departure-line: #cbd3d9;
+  --departure-red: #8b2935;
+  --departure-scrim: rgb(4 16 30 / .67);
+  --departure-clear: rgb(4 16 30 / .06);
+}
+.premium-home { background: var(--departure-paper); color: var(--departure-navy); }
+.premium-home :is(h1,h2,h3) { min-width: 0; overflow-wrap: break-word; text-wrap: balance; }
+.premium-home .ess-container { max-width: 1320px; padding-inline: clamp(1.25rem,5vw,5rem); }
+.premium-hero { position: relative; isolation: isolate; display: grid; align-items: center; min-height: clamp(31rem,68svh,43rem); max-width: 1760px; margin-inline: auto; background: var(--departure-navy); color: var(--departure-white); }
+.premium-hero-media { position: absolute; inset: 0; z-index: -1; overflow: hidden; }
+.premium-hero-media img { width: 100%; height: 100%; object-fit: cover; object-position: center 59%; }
+.premium-hero-media::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to right,var(--departure-scrim),var(--departure-clear) 85%); }
+[dir='rtl'] .premium-hero-media::after { background: linear-gradient(to left,var(--departure-scrim),var(--departure-clear) 85%); }
+.premium-hero-media figcaption { position: absolute; inset-block-end: 1.25rem; inset-inline-end: 1.5rem; z-index: 1; font-size: .75rem; color: var(--departure-white); background: var(--departure-scrim); padding: .15rem .45rem; }
+.premium-hero-content { width: 100%; padding-block: 3.5rem; }
+.premium-hero-copy { max-width: 46rem; }
+.premium-hero h1 { margin: 0; font-weight: 600; font-size: clamp(2.8rem,5.4vw,5.75rem); line-height: 1.02; letter-spacing: -.035em; max-width: 16ch; color: var(--departure-white); }
+.premium-hero-copy > p { margin-block: 1.3rem 0; max-width: 39ch; font-size: clamp(1.05rem,1.5vw,1.25rem); line-height: 1.55; }
+.premium-hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1.5rem; margin-block-start: 1.8rem; }
+.premium-hero-actions a { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; font-weight: 600; }
+.premium-hero-actions .premium-primary { padding: .7rem 1.3rem; color: var(--departure-navy); background: var(--departure-white); border-radius: 3px; }
+.premium-hero-actions .premium-secondary { color: var(--departure-white); text-decoration: underline; text-underline-offset: .4em; }
+.premium-home a:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+.premium-introduction, .premium-closing, .premium-partnership-layout { display: grid; grid-template-columns: minmax(0,1.06fr) minmax(0,1fr); gap: clamp(2rem,7vw,8rem); padding-block: clamp(3.5rem,7.5vw,7rem); }
+.premium-home :is(.premium-introduction,.premium-partnership,.premium-closing) h2 { font-size: clamp(2rem,3.65vw,3.85rem); line-height: 1.08; font-weight: 600; letter-spacing: -.03em; max-width: 18ch; }
+.premium-introduction-copy p, .premium-closing-copy p, .premium-partnership-heading > p { max-width: 48ch; font-size: 1.15rem; line-height: 1.7; color: var(--departure-muted); }
+.premium-text-link { display: inline-flex; min-height: 44px; align-items: center; margin-top: .9rem; text-decoration: underline; text-underline-offset: .35em; font-weight: 600; color: var(--departure-navy); }
+.premium-partnership { border-block: 1px solid var(--departure-line); background: var(--departure-white); }
+.premium-partnership-heading > p { margin-top: 1.15rem; }
+.premium-partnership-heading .premium-review-note { font-size: .9rem; }
+.premium-partnership-steps { margin: 0; padding: 0; list-style: none; counter-reset: process; }
+.premium-partnership-steps li { display: grid; grid-template-columns: 2rem minmax(0,1fr); gap: .9rem; padding-block: 1.1rem; border-block-start: 1px solid var(--departure-line); }
+.premium-step-index { color: var(--departure-red); font-variant-numeric: tabular-nums; font-size: 1.15rem; }
+.premium-partnership-steps h3 { font-size: 1.3rem; font-weight: 600; line-height: 1.2; }
+.premium-partnership-steps p { color: var(--departure-muted); line-height: 1.6; margin-top: .4rem; }
+html[lang='ar'] .premium-home :is(h1,h2,h3) { letter-spacing: 0; line-height: 1.4; }
+@media(max-width:767px) {
+  .premium-hero { min-height: clamp(29rem,68svh,38rem); align-items: end; }
+  .premium-hero-media img { object-position: 66% center; }
+  .premium-hero-media::after, [dir='rtl'] .premium-hero-media::after { background: linear-gradient(to top,var(--departure-scrim) 25%,var(--departure-clear) 90%); }
+  .premium-hero-media figcaption { inset-block-end: auto; inset-block-start: 1rem; }
+  .premium-hero-content { padding-block: 3rem; }
+  .premium-hero h1 { font-size: clamp(2.5rem,9.3vw,3.75rem); max-width: 16ch; }
+  .premium-introduction, .premium-closing, .premium-partnership-layout { grid-template-columns: minmax(0,1fr); gap: 1.45rem; padding-block: 3rem; }
+}
+@media(max-width:639px) { .premium-hero-actions .premium-desktop-partner { display: none; } }
+@media(prefers-reduced-motion:reduce) { .premium-hero-media img { transform: none !important; } }

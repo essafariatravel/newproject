@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { publicBrandCopy } from "@/lib/public-brand-copy";
+import { registrationCopy } from "@/lib/i18n";
 import { buildPublicMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
@@ -9,24 +10,69 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata(): Promise<Metadata> {
   return buildPublicMetadata("home", await getUiLocale());
 }
+const editorialCopy = {
+  en: { process: "A partnership, step by step.", steps: ["Your request", "The right documents", "Your agency access"], about: "Discover ESSAFARIA", contact: "Contact our team" },
+  fr: { process: "Un partenariat, étape par étape.", steps: ["Votre demande", "Les documents utiles", "Votre accès agence"], about: "Découvrir ESSAFARIA", contact: "Contacter notre équipe" },
+  ar: { process: "شراكة، خطوة بخطوة.", steps: ["طلبكم", "الوثائق المطلوبة", "دخول وكالتكم"], about: "تعرّفوا على ESSAFARIA", contact: "تواصلوا مع فريقنا" },
+} as const;
+
 export default async function HomePage() {
-  const copy = publicBrandCopy(await getUiLocale());
-  return <>
-    <section className="travel-public-hero" aria-labelledby="public-hero-title">
-      <div className="travel-public-copy"><div>
-        <p className="travel-eyebrow">{copy.eyebrow}</p>
-        <h1 id="public-hero-title" className="editorial-reveal">{copy.hero}</h1>
-        <p className="editorial-reveal">{copy.intro}</p>
-        <div className="editorial-reveal mt-8 flex flex-wrap gap-4">
-          <Link href="/agency/register" className="public-cta btn-gold hidden px-6 py-4 sm:inline-flex">{copy.partner}<span className="directional-arrow" aria-hidden>→</span></Link>
-          <Link href="/login" className="public-cta btn border border-white/55 bg-transparent px-6 py-4 text-white hover:bg-white/10">{copy.signIn}</Link>
+  const locale = await getUiLocale();
+  const copy = publicBrandCopy(locale);
+  const editorial = editorialCopy[locale];
+  const registration = registrationCopy(locale);
+
+  return (
+    <div className="premium-home">
+      <section className="premium-hero" aria-labelledby="public-hero-title">
+        <figure className="premium-hero-media">
+          <img data-editorial-image src="/images/essafaria-departure-editorial.webp" alt="" width="1672" height="941" fetchPriority="high" />
+          <figcaption>{copy.illustration}</figcaption>
+        </figure>
+        <div className="ess-container premium-hero-content">
+          <div className="premium-hero-copy">
+            <h1 id="public-hero-title">{copy.hero}</h1>
+            <p>{copy.intro}</p>
+            <div className="premium-hero-actions">
+              <Link href="/agency/register" className="public-cta premium-primary premium-desktop-partner">{copy.partner}</Link>
+              <Link href="/login" className="public-cta premium-secondary">{copy.signIn}
+                <svg className="directional-arrow" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>
+              </Link>
+            </div>
+          </div>
         </div>
-      </div></div>
-      <figure className="travel-public-photo"><img src="/images/departure-atelier.webp" alt="" width="1536" height="1024" fetchPriority="high" /><figcaption>{copy.illustration}</figcaption></figure>
-    </section>
-    <section className="ess-container grid gap-8 py-8 sm:py-8 md:grid-cols-[1fr_.7fr]" aria-labelledby="partner-title">
-      <div><p className="travel-eyebrow text-navy-700">ESSAFARIA</p><h2 id="partner-title" className="mt-4 max-w-xl font-serif text-[32px] text-navy-900 sm:text-[32px]">{copy.agenciesTitle}</h2><p className="mt-6 max-w-xl text-base leading-relaxed text-slate-600">{copy.agenciesBody}</p></div>
-      <div className="border-s border-line ps-6 md:self-center"><p className="max-w-sm text-base leading-relaxed text-slate-600">{copy.applyBody}</p><Link href="/b2b" className="mt-6 inline-flex text-base font-semibold text-navy-900 underline underline-offset-8">{copy.partner} <span className="directional-arrow" aria-hidden> →</span></Link></div>
-    </section>
-  </>;
+      </section>
+
+      <section className="ess-container premium-introduction" aria-labelledby="partner-title">
+        <h2 id="partner-title">{copy.agenciesTitle}</h2>
+        <div className="premium-introduction-copy">
+          <p>{copy.agenciesBody}</p>
+          <Link href="/b2b" className="premium-text-link">{copy.partner}</Link>
+        </div>
+      </section>
+
+      <section className="premium-partnership" aria-labelledby="partnership-process-title">
+        <div className="ess-container premium-partnership-layout">
+          <div className="premium-partnership-heading">
+            <h2 id="partnership-process-title">{editorial.process}</h2>
+            <p>{copy.applyBody}</p>
+            <p className="premium-review-note">{copy.review}</p>
+          </div>
+          <ol className="premium-partnership-steps">
+            {registration.success.nextSteps.map((step, index) => (
+              <li key={step}>
+                <span className="premium-step-index" aria-hidden="true">{index + 1}</span>
+                <div><h3>{editorial.steps[index]}</h3><p>{step}</p></div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      <section className="ess-container premium-closing" aria-labelledby="public-about-title">
+        <div className="premium-closing-title"><h2 id="public-about-title">{copy.aboutTitle}</h2><Link href="/about" className="premium-text-link">{editorial.about}</Link></div>
+        <div className="premium-closing-copy"><p>{copy.aboutBody}</p><Link href="/contact" className="premium-text-link">{editorial.contact}</Link></div>
+      </section>
+    </div>
+  );
 }

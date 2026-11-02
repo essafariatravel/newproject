@@ -1,5 +1,8 @@
 @import "tailwindcss";
 @import "./travel-platform.css";
+@import "./public-premium.css";
+@import "./workspace-premium.css";
+@import "./premium-chrome.css";
 
 @theme {
   /* ESSAFARIA VISA: navy structure, warm ivory canvas, restrained gold accent. */
@@ -655,12 +658,12 @@ body {
 
 /* 320px reflow: preserve one primary CTA + menu without page overflow. */
 @media (max-width:359px) {
-  .public-site > header .ess-container > a[aria-label] { display:none; }
+  .public-site > header .ess-container > a[aria-label] { display:flex; flex:0 1 56px; }
+  .public-site > header .ess-container > a[aria-label] img { max-width:100%; }
   .public-site > header .ess-container > div:last-child {
-    width:100%;
     min-width:0;
     flex:1 1 auto;
-    justify-content:space-between;
+    justify-content:flex-end;
   }
   .public-site [data-testid="public-register-cta"] {
     min-width:0;

@@ -48,7 +48,7 @@ export function AppShell(props: {
         <div className="px-4 pb-4">
           <div className="border-t border-white/10 pt-4">
             <div className="flex items-center gap-2">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold-500 text-xs font-semibold text-navy-950">
+              <span className="workspace-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-xs font-semibold">
                 {initials(user.name)}
               </span>
               <div className="min-w-0 flex-1">
@@ -75,7 +75,7 @@ export function AppShell(props: {
             <form action={logoutAction} className="p-4"><button className="min-h-11 w-full rounded-lg border border-white/20 px-4 text-base text-white">{t("Sign out")}</button></form>
           </MobileNavigation>
           <div className="workspace-header-suffix hidden items-center gap-2 lg:flex">
-            <span className="text-xs font-semibold tracking-[0.04em] text-slate-500">
+            <span className="text-sm font-semibold text-slate-500">
               {props.brandSuffix}
             </span>
           </div>
@@ -131,7 +131,7 @@ function SidebarBrand({
           alt={brandName ?? "ESSAFARIA"}
           className="h-12 w-auto max-w-full self-start object-contain"
         />
-        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-gold-600">{suffix}</span>
+        <span className="workspace-brand-suffix text-xs font-semibold">{suffix}</span>
       </Link>
     );
   }
@@ -139,8 +139,8 @@ function SidebarBrand({
     <Link href="/" className="flex items-center gap-4 border-b border-white/10 px-4 py-4">
       <img src="/images/essafaria-logo.png" alt="" width="64" height="46" className="h-12 w-16 shrink-0 rounded bg-white p-1 object-contain" />
       <span className="leading-tight">
-        <span className="block text-base font-serif font-semibold tracking-[0.08em] text-white">{brandName ?? "ESSAFARIA"}</span>
-        <span className="block text-xs font-semibold uppercase tracking-[0.14em] text-gold-600">{suffix}</span>
+        <span className="block text-base font-semibold text-white">{brandName ?? "ESSAFARIA"}</span>
+        <span className="workspace-brand-suffix block text-xs font-semibold">{suffix}</span>
       </span>
     </Link>
   );

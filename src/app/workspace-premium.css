@@ -1,0 +1,246 @@
+/* Hallmark · ESSAFARIA · redesign: full · scope: app · theme: brand · signature: destination, traveller, status, next action */
+/* Critique: operational work belongs on stable paper surfaces; photography and staged motion stay on the public site. */
+:root {
+  --work-surface: #ffffff;
+  --work-canvas: #f5f6f5;
+  --work-soft: #f0f3f4;
+  --work-line: #dce2e5;
+  --work-ink: #071a33;
+  --work-muted: #536574;
+  --work-marker: #8b2935;
+  --work-nav-muted: #c0cbd5;
+  --work-nav-line: #2b3d51;
+  --work-nav-active: #20354a;
+  --work-radius: 6px;
+  --work-quick: 120ms;
+}
+
+.workspace-agency, .workspace-staff {
+  min-width: 0;
+  background: var(--work-canvas);
+  color: var(--work-ink);
+  font-variant-numeric: tabular-nums;
+}
+:is(.workspace-agency, .workspace-staff) :is(h1,h2,h3) { min-width: 0; overflow-wrap: break-word; }
+:is(.workspace-agency, .workspace-staff) :is(a,button,input,select,textarea,summary):focus-visible {
+  outline: 2px solid var(--work-marker);
+  outline-offset: 3px;
+  transition: none;
+}
+:is(.workspace-agency, .workspace-staff) .workspace-topbar {
+  background: var(--work-surface);
+  border-bottom-color: var(--work-line);
+  box-shadow: none;
+}
+:is(.workspace-agency, .workspace-staff) .workspace-sidebar { background: var(--work-ink); }
+:is(.workspace-agency, .workspace-staff) .workspace-sidebar nav { padding-inline: 12px; }
+:is(.workspace-agency, .workspace-staff) .workspace-sidebar nav > div > p {
+  color: var(--work-nav-muted);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  padding-inline: 12px;
+}
+:is(.workspace-agency, .workspace-staff) .workspace-nav-link {
+  border-inline-start-width: 1px;
+  border-radius: 4px;
+  padding-inline: 12px;
+  font-size: 14px;
+  transition: color var(--work-quick), background-color var(--work-quick);
+}
+:is(.workspace-agency, .workspace-staff) .workspace-sidebar .workspace-nav-link[aria-current="page"] {
+  background: var(--work-nav-active);
+  border-inline-start-color: var(--work-nav-muted);
+}
+:is(.workspace-agency, .workspace-staff) .workspace-nav-link :is(.workspace-nav-icon,.badge) { color: inherit; }
+:is(.workspace-agency, .workspace-staff) .workspace-nav-link .badge { background: var(--work-nav-active); }
+:is(.workspace-agency, .workspace-staff) .workspace-avatar { background: var(--work-nav-active); color: var(--work-surface); }
+:is(.workspace-agency, .workspace-staff) .workspace-brand-suffix { color: var(--work-nav-muted); margin-block-start: 5px; }
+:is(.workspace-agency, .workspace-staff) .page-header { margin-block-end: 24px; gap: 16px; }
+:is(.workspace-agency, .workspace-staff) .page-header-title { font-size: 28px; line-height: 1.25; letter-spacing: -.025em; }
+:is(.workspace-agency, .workspace-staff) .page-header-subtitle { color: var(--work-muted); font-size: 15px; max-width: 62ch; }
+:is(.workspace-agency, .workspace-staff) .card {
+  min-width: 0;
+  border-color: var(--work-line);
+  border-radius: var(--work-radius);
+  background: var(--work-surface);
+  box-shadow: none;
+}
+:is(.workspace-agency, .workspace-staff) .card-header { padding: 16px 20px; border-bottom-color: var(--work-line); }
+:is(.workspace-agency, .workspace-staff) .card-header h2 { font-size: 17px; line-height: 1.4; }
+:is(.workspace-agency, .workspace-staff) :is(.btn,.btn-primary,.btn-secondary,.btn-sm,.input) { border-radius: 4px; }
+:is(.workspace-agency, .workspace-staff) :is(.btn,.btn-primary,.btn-secondary,.btn-sm) { min-height: 44px; }
+:is(.workspace-agency, .workspace-staff) :is(.btn,.btn-primary,.btn-secondary):active { transform: none; box-shadow: none; }
+:is(.workspace-agency, .workspace-staff) .label { font-size: 14px; color: var(--work-muted); }
+:is(.workspace-agency, .workspace-staff) .th {
+  padding-block: 12px;
+  background: var(--work-soft);
+  color: var(--work-muted);
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 13px;
+  white-space: nowrap;
+}
+:is(.workspace-agency, .workspace-staff) .td { padding-block: 13px; font-size: 14px; line-height: 1.5; }
+:is(.workspace-agency, .workspace-staff) .tr-hover > .td:first-child { border-inline-start-width: 1px; }
+:is(.workspace-agency, .workspace-staff) .tr-hover:hover > .td:first-child { border-inline-start-color: var(--work-muted); }
+:is(.workspace-agency, .workspace-staff) .badge { border-radius: 4px; font-size: 12px; font-weight: 600; }
+:is(.workspace-agency, .workspace-staff) .workspace-tabs { gap: 24px; }
+:is(.workspace-agency, .workspace-staff) .workspace-tabs a[aria-current] { border-bottom-color: var(--work-marker); }
+:is(.workspace-agency, .workspace-staff) .stat-card:hover { border-bottom-color: var(--work-line); transform: none; }
+
+.workspace-agency main { max-width: 1360px; }
+.workspace-agency .agency-header-brand > span { letter-spacing: 0; }
+.workspace-agency .agency-header-brand small { letter-spacing: 0; color: var(--work-muted); }
+.workspace-agency .agency-departure {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+  align-items: center;
+  gap: 40px;
+  border: 0;
+  border-bottom: 1px solid var(--work-line);
+  border-radius: 0;
+  margin: 0 0 28px;
+  padding-block: 8px 28px;
+  overflow: visible;
+}
+.workspace-agency .agency-departure-copy { display: block; padding: 0; background: none; color: var(--work-ink); }
+.workspace-agency .agency-departure h1 { max-width: 24ch; color: var(--work-ink); font-size: 32px; line-height: 1.15; letter-spacing: -.025em; }
+.workspace-agency .agency-welcome { margin-block-start: 14px; color: var(--work-muted); font-size: 14px; }
+.workspace-agency .agency-welcome strong { color: var(--work-ink); font-weight: 600; }
+.workspace-agency .agency-departure-copy > p:last-child { margin-top: 6px; color: var(--work-muted); font-size: 15px; }
+.workspace-agency .agency-start { position: static; display: block; min-height: 0; padding: 0; background: none; }
+.workspace-agency .agency-start-form { margin: 0; padding: 0; background: none; border-radius: 0; }
+.workspace-agency .agency-start-fields { gap: 12px; }
+.workspace-agency .agency-start-form .label { margin-block-end: 9px; }
+.workspace-agency .agency-start-form .input { min-height: 48px; background: var(--work-surface); font-weight: 400; }
+.workspace-agency .agency-start-form .btn-primary { min-height: 48px; padding-inline: 24px; }
+.workspace-agency .agency-dossier-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  counter-reset: dossier-step;
+  margin-block-start: 14px;
+  font-size: 12px;
+  color: var(--work-muted);
+}
+.workspace-agency .agency-dossier-steps li { display: flex; gap: 6px; align-items: baseline; counter-increment: dossier-step; }
+.workspace-agency .agency-dossier-steps li::before { content: counter(dossier-step) "."; color: var(--work-ink); font-weight: 600; }
+.workspace-agency .agency-stats { border-block: 0; margin-block: 24px 36px; gap: 0; }
+.workspace-agency .agency-stats a { min-width: 0; padding: 8px 24px; border-inline-end-color: var(--work-line); border-bottom: 0; }
+.workspace-agency .agency-stats a:first-child { padding-inline-start: 0; }
+.workspace-agency .agency-stats strong { font-size: 30px; }
+.workspace-agency .agency-stats span { font-size: 14px; margin-top: 9px; color: var(--work-muted); }
+.workspace-agency .agency-stats .wallet-value { font-size: 24px; overflow-wrap: anywhere; }
+.workspace-agency .agency-record-section { margin-block: 0 32px; background: var(--work-surface); border: 1px solid var(--work-line); border-radius: var(--work-radius); padding: 0 20px; }
+.workspace-agency .agency-section-header { margin: 0; padding-block: 14px; min-height: 68px; gap: 16px; }
+.workspace-agency .agency-section-header h2 { font-size: 19px; letter-spacing: -.01em; }
+.workspace-agency .agency-section-header > a { min-height: 44px; display: inline-flex; align-items: center; font-size: 14px; text-decoration: underline; text-underline-offset: 4px; }
+.workspace-agency .travel-records { border-top-color: var(--work-line); }
+.workspace-agency .travel-record { grid-template-columns: minmax(0,1.05fr) minmax(0,1.2fr) minmax(0,1fr) minmax(0,.8fr); gap: 20px; padding: 18px 0; border-bottom-color: var(--work-line); }
+.workspace-agency .travel-records > li:last-child .travel-record { border-bottom: 0; }
+.workspace-agency .travel-record:hover { background: var(--work-soft); }
+.workspace-agency .destination-code { color: var(--work-muted); background: var(--work-soft); border: 1px solid var(--work-line); border-radius: 3px; font-size: 12px; letter-spacing: 0; }
+.workspace-agency .travel-record strong { font-size: 15px; }
+.workspace-agency .travel-record small { color: var(--work-muted); line-height: 1.5; }
+.workspace-agency .travel-record-action { justify-content: flex-end; font-size: 14px; text-align: end; text-decoration: underline; text-underline-offset: 4px; }
+.workspace-agency .agency-wallet-ledger { margin-block: 8px 24px; }
+.workspace-agency .agency-bottom-navigation { background: var(--work-surface); border-top-color: var(--work-line); box-shadow: none; }
+.workspace-agency .agency-bottom-navigation a[aria-current]::before { background: var(--work-marker); }
+
+.workspace-staff #workspace-main { padding-block: 28px 40px; }
+.workspace-staff .workspace-page { max-width: 1560px; }
+.workspace-staff .staff-queue-summary { border: 1px solid var(--work-line); border-radius: var(--work-radius); background: var(--work-surface); }
+.workspace-staff .staff-queue-counters { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); }
+.workspace-staff .staff-queue-counter { display: flex; flex-direction: column; padding: 18px 16px; border-inline-end: 1px solid var(--work-line); }
+.workspace-staff .staff-queue-counter:last-child { border-inline-end: 0; }
+.workspace-staff .staff-queue-counter:hover { background: var(--work-soft); }
+.workspace-staff .staff-queue-counter > span:first-child { font-size: 13px; font-weight: 400; color: var(--work-muted); }
+.workspace-staff .staff-queue-counter strong { font-size: 28px; line-height: 1.3; margin-block: 8px 4px; }
+.workspace-staff .staff-queue-counter > span:last-child { color: var(--work-muted); line-height: 1.5; }
+.workspace-staff .staff-priority-queue { margin-block-start: 28px; padding: 20px 20px 0; border: 1px solid var(--work-line); border-radius: var(--work-radius); background: var(--work-surface); }
+.workspace-staff .staff-priority-queue h2 { font-size: 20px; letter-spacing: -.015em; }
+.workspace-staff .staff-priority-queue h2 + p { color: var(--work-muted); font-size: 14px; }
+.workspace-staff .staff-priority-queue .card { border: 0; border-radius: 0; }
+.workspace-staff .staff-secondary-workspace { align-items: start; gap: 24px; }
+.workspace-staff .staff-secondary-workspace .space-y-4 > * + * { margin-top: 24px; }
+.workspace-staff .staff-wallet-summary { padding: 4px 20px 12px; }
+.workspace-staff .staff-wallet-summary > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding-block: 12px; border-bottom: 1px solid var(--work-line); }
+.workspace-staff .staff-wallet-summary > div:last-child { border-bottom: 0; }
+.workspace-staff .staff-wallet-summary > div > p:last-child { text-align: end; overflow-wrap: anywhere; }
+.workspace-staff .staff-wallet-label { color: var(--work-muted); font-size: 14px; }
+.workspace-staff .staff-secondary-workspace .card .space-y-2 > a { min-height: 44px; }
+
+@media (min-width: 1280px) {
+  .workspace-agency .agency-desktop-navigation { justify-content: center; gap: 8px; background: var(--work-surface); border-bottom: 1px solid var(--work-line); padding: 0 24px; }
+  .workspace-agency .agency-desktop-navigation .workspace-nav-link { color: var(--work-muted); padding: 14px 16px; border-radius: 0; }
+  .workspace-agency .agency-desktop-navigation .workspace-nav-link[aria-current] { color: var(--work-ink); background: none; border-bottom-color: var(--work-marker); }
+  .workspace-agency .agency-desktop-navigation .workspace-nav-link:hover { background: var(--work-soft); color: var(--work-ink); }
+  .workspace-agency .agency-desktop-navigation .workspace-nav-icon { color: inherit; }
+  .workspace-agency .agency-desktop-navigation .badge { color: var(--work-ink); background: var(--work-soft); }
+}
+@media (max-width: 1439px) {
+  .workspace-staff .staff-queue-counters { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .workspace-staff .staff-queue-counter:nth-child(3) { border-inline-end: 0; }
+  .workspace-staff .staff-queue-counter:nth-child(-n+3) { border-bottom: 1px solid var(--work-line); }
+}
+@media (max-width: 900px) {
+  .workspace-agency .agency-departure { grid-template-columns: minmax(0,1fr); gap: 24px; }
+  .workspace-agency .agency-departure h1 { max-width: none; }
+  .workspace-agency .agency-start { max-width: 600px; width: 100%; }
+  .workspace-agency .travel-record { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; }
+  .workspace-agency .travel-record-destination { grid-column: 1; }
+  .workspace-agency .travel-record-traveller { grid-column: 2; }
+  .workspace-agency .travel-record-status { grid-column: 1; }
+  .workspace-agency .travel-record-action { grid-column: 2; grid-row: 2; max-width: none; }
+}
+@media (max-width: 639px) {
+  :is(.workspace-agency, .workspace-staff) .page-header-title { font-size: 25px; }
+  :is(.workspace-agency, .workspace-staff) .card-header { padding-inline: 16px; }
+  .workspace-agency #workspace-main { padding-top: 24px; }
+  .workspace-agency .agency-departure { margin: 0 0 20px; padding-block: 0 24px; }
+  .workspace-agency .agency-departure h1 { font-size: 28px; max-width: 24ch; }
+  .workspace-agency .agency-start-form { padding: 0; margin: 0; }
+  .workspace-agency .agency-start-form .btn-primary { padding-inline: 16px; }
+  .workspace-agency .agency-dossier-steps { gap: 8px 12px; }
+  .workspace-agency .agency-stats { margin-block: 12px 24px; }
+  .workspace-agency .agency-stats a { padding: 16px; border-bottom: 1px solid var(--work-line); }
+  .workspace-agency .agency-stats a:nth-child(odd) { padding-inline-start: 0; }
+  .workspace-agency .agency-stats a:nth-child(n+3) { border-bottom: 0; }
+  .workspace-agency .agency-stats strong { font-size: 26px; }
+  .workspace-agency .agency-stats .wallet-value { font-size: 21px; }
+  .workspace-agency .agency-record-section { padding-inline: 16px; margin-block-end: 24px; }
+  .workspace-agency .agency-section-header h2 { font-size: 17px; }
+  .workspace-agency .travel-record { padding-block: 18px; gap: 12px; }
+  .workspace-agency .travel-record-destination { grid-column: 1 / -1; }
+  .workspace-agency .travel-record-traveller { grid-column: 1; }
+  .workspace-agency .travel-record-status { grid-column: 1; }
+  .workspace-agency .travel-record-action { grid-column: 2; grid-row: 2 / span 2; max-width: 110px; }
+  .workspace-agency .travel-record-traveller strong { font-size: 16px; }
+  .workspace-staff .staff-queue-counters { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .workspace-staff .staff-queue-counter { padding: 16px; }
+  .workspace-staff .staff-queue-counter:nth-child(3) { border-inline-end: 1px solid var(--work-line); }
+  .workspace-staff .staff-queue-counter:nth-child(even) { border-inline-end: 0; }
+  .workspace-staff .staff-queue-counter:nth-child(-n+4) { border-bottom: 1px solid var(--work-line); }
+  .workspace-staff .staff-priority-queue { padding: 16px 12px 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.workspace-agency,.workspace-staff) :is(.workspace-nav-link,.tr-hover,.workspace-tabs a,.travel-record) { transition: none; }
+}
+[dir='rtl'] .staff-queue-counter strong { text-align: right; }
+@media (max-width: 639px) {
+  .workspace-agency .workspace-topbar {
+    display: grid;
+    grid-template-columns: minmax(44px,1fr) auto 44px;
+    gap: 6px;
+    padding-inline: 12px;
+  }
+  .workspace-agency .workspace-topbar .agency-header-brand { grid-column: 1; grid-row: 1; }
+  .workspace-agency .workspace-topbar .workspace-menu { grid-column: 3; grid-row: 1; }
+  .workspace-agency .workspace-topbar > div:last-child { grid-column: 2; grid-row: 1; gap: 4px; }
+  .workspace-agency .workspace-topbar .account-menu summary { min-width: 44px; justify-content: center; }
+  .workspace-agency .workspace-topbar .account-chevron { display: none; }
+}
+@media (max-width: 479px) {
+  .workspace-agency .agency-header-brand > span { display: none; }
+}

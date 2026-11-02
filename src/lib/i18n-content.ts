@@ -489,6 +489,7 @@ const CONTENT: Record<string, Entry> = {
   "Total files": { fr: "Total des dossiers", ar: "إجمالي الملفات" },
   "Notifications": { fr: "Notifications", ar: "الإشعارات" },
   "Create application": { fr: "Créer un dossier", ar: "إنشاء طلب" },
+  "No user configured": { fr: "Aucun utilisateur configuré", ar: "لم يتم إعداد أي مستخدم" },
   "Recent wallet activity": { fr: "Activité récente du portefeuille", ar: "أحدث حركات المحفظة" },
   "Applications": { fr: "Dossiers", ar: "الطلبات" },
   "Your agency's visa files.": { fr: "Les dossiers visa de votre agence.", ar: "ملفات التأشيرات الخاصة بوكالتكم." },
