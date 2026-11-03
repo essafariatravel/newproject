@@ -8,16 +8,17 @@ import { contentT } from "@/lib/i18n-content";
 import { PublicHeader } from "@/components/public-header";
 import { UiLanguageSwitcher } from "@/components/ui-language-switcher";
 import { PublicMotion } from "@/components/public-motion";
+import { TravelPhotoCredits } from "@/components/travel-photo-credits";
 import "../public-interiors.css";
 
 export const dynamic = "force-dynamic";
 
 const NAV = [
-  { href: "/", label: "Home" },
+  { href: "/", label: "Platform" },
   { href: "/b2b", label: "For Agencies" },
   { href: "/about", label: "About" },
-  { href: "/contact", label: "Contact" },
   { href: "/faq", label: "FAQ" },
+  { href: "/contact", label: "Contact" },
 ];
 
 export default async function PublicLayout({ children }: { children: ReactNode }) {
@@ -106,6 +107,9 @@ export default async function PublicLayout({ children }: { children: ReactNode }
           </div> : null}
         </div>
         <div className="border-t border-white/10">
+          <div className="ess-container">
+            <TravelPhotoCredits locale={locale} />
+          </div>
           <div className="ess-container flex flex-wrap items-center justify-between gap-2 py-4 text-xs text-white/50">
             <span>© {new Date().getFullYear()} {brandName}. {tr("All rights reserved.")}</span>
             <span>{ct("Professional B2B visa operations platform.")}</span>

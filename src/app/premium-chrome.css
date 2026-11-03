@@ -6,7 +6,7 @@
   --premium-ink: #071a33;
   --premium-muted: #465b6e;
   --premium-line: #d5dce0;
-  --premium-accent: #8b2935;
+  --premium-accent: var(--color-gold-700);
   --premium-light-text: #dce5eb;
   --premium-photo-shade: rgb(4 19 38 / .56);
   --premium-nav-hover: rgb(255 255 255 / .09);
@@ -17,17 +17,31 @@ html { scroll-padding-top: 6rem; }
 button, summary, a { -webkit-tap-highlight-color: transparent; }
 button:active, .btn-primary:active, .btn-secondary:active { opacity: .82; }
 .public-site { background: var(--premium-paper); }
-.public-site > .premium-public-header { background: var(--premium-white); color: var(--premium-ink); }
-.public-site > .premium-public-header .public-partner-action { background: var(--premium-ink); border-color: var(--premium-ink); color: var(--premium-white); }
-.public-site > .premium-public-header .public-partner-action:hover { background: var(--color-navy-700); }
+.public-site > .premium-public-header { background: var(--premium-white); color: var(--premium-ink); border-bottom-color: var(--premium-line); }
+.public-site .public-partner-action, .public-site .btn-primary, .public-site .public-interior .interior-button { background: var(--color-gold-500); border-color: var(--color-gold-500); color: var(--premium-ink); }
+.public-site .public-partner-action:hover, .public-site .btn-primary:hover, .public-site .public-interior .interior-button:hover { background: var(--color-gold-400); border-color: var(--color-gold-400); color: var(--premium-ink); }
+.public-site .btn-primary:disabled { background: var(--premium-line); border-color: var(--premium-line); color: var(--premium-muted); cursor: not-allowed; opacity: 1; }
 .public-site > .premium-public-header a > span > span:last-child { color: var(--premium-muted); }
-.premium-public-header > .ess-container { height: 5rem; max-width: 1536px; }
-.premium-public-header nav a { font-weight: 400; padding-inline: .75rem; border-radius: 0; }
-.public-partner-action { background: var(--premium-white); color: var(--premium-ink); border: 1px solid var(--premium-white); border-radius: 3px; }
-.public-partner-action:hover { background: var(--premium-light-text); }
+.premium-public-header > .ess-container { height: 5rem; max-width: 1440px; padding-inline: var(--edition-gutter); }
+.premium-public-header .platform-brand { gap: .8rem; }
+.premium-public-header .platform-mark { width: 80px; height: 57px; }
+.premium-public-header .platform-brand > span { border-inline-start: 1px solid var(--premium-line); padding-inline-start: .9rem; }
+.premium-public-header nav a { font-weight: 500; padding-inline: .8rem; border-radius: 0; }
+.premium-public-header .public-desktop-nav { align-self: stretch; gap: .3rem; }
+.premium-public-header .public-desktop-nav a { align-self: stretch; position: relative; }
+.premium-public-header .public-desktop-nav a[aria-current]::after { content: ""; position: absolute; inset: auto .8rem 0; height: 3px; background: var(--color-gold-500); }
+.premium-public-header .platform-sign-in { min-height: 44px; padding-inline: .9rem; color: var(--premium-ink); border: 1px solid var(--premium-line); border-radius: 4px; }
+.premium-public-header .platform-access { column-gap: .65rem; }
+.premium-public-header .public-partner-action { border: 1px solid var(--color-gold-500); border-radius: 4px; }
+.public-site .ui-locale-menu-panel { box-shadow: none; }
 .public-site footer { padding-block: 2rem; }
 .public-site footer p { letter-spacing: 0; text-transform: none; }
 .public-site footer > .ess-container { max-width: 1440px; }
+.travel-photo-credits { max-width: 74ch; padding-block-start: .5rem; color: var(--premium-light-text); font-size: .875rem; }
+.travel-photo-credits summary { cursor: pointer; min-height: 44px; line-height: 44px; width: fit-content; }
+.travel-photo-credits li { margin-block: .25rem; }
+.travel-photo-credits a { text-decoration: underline; text-underline-offset: .25em; white-space: nowrap; }
+.travel-photo-credits > p { margin-block: .75rem; line-height: 1.55; }
 .public-reading { padding-block: clamp(3rem,7vw,7rem); }
 .public-reading h1 { font-size: clamp(2.25rem,4.5vw,4.5rem); max-width: 18ch; line-height: 1.08; letter-spacing: -.035em; text-wrap: balance; overflow-wrap: break-word; min-width: 0; }
 .public-reading > p { max-width: 65ch; margin-block-start: 1.5rem; line-height: 1.8; }
@@ -48,7 +62,7 @@ button:active, .btn-primary:active, .btn-secondary:active { opacity: .82; }
 .public-faq article h2 { font-size: 1.25rem; font-weight: 600; line-height: 1.4; }
 .public-faq article p { margin: 0; font-size: 1rem; line-height: 1.75; }
 .public-site .auth-entrance { min-height: 700px; background: var(--premium-white); }
-.public-site .auth-story { background-image: url('/images/essafaria-departure-editorial.webp'); background-position: 65% center; padding: clamp(2rem,5vw,5rem); }
+.public-site .auth-story { background-image: url('/images/travel/st-gallen.webp'); background-position: 55% center; padding: clamp(2rem,5vw,5rem); }
 .public-site .auth-story > div[aria-hidden] { background: var(--premium-photo-shade); }
 .public-site .auth-story h2 { font-size: clamp(2rem,3.5vw,3.75rem); line-height: 1.12; letter-spacing: -.025em; }
 .public-site .auth-story h2 span { color: inherit; font-style: normal; }
@@ -67,7 +81,9 @@ html[lang='ar'] .public-reading h1 { line-height: 1.4; letter-spacing: 0; max-wi
   .premium-public-header .public-mobile-toggle, .premium-public-header .public-menu-panel { display: none; }
 }
 @media(max-width:767px) {
-  .premium-public-header > .ess-container { height: 4.5rem; gap: .5rem; }
+  .premium-public-header > .ess-container { height: 4.5rem; gap: .5rem; padding-inline: .75rem; }
+  .premium-public-header .platform-access { column-gap: .4rem; }
+  .premium-public-header .platform-mark { width: 68px; height: 49px; }
   .premium-public-header .public-partner-action { font-size: .875rem; padding-inline: .65rem; }
   .premium-public-header > .ess-container > a img { max-width: 80px; }
   .public-about, .public-partnership, .public-faq article { grid-template-columns: minmax(0,1fr); gap: 1.5rem; }

@@ -14,7 +14,8 @@
  * Desktop keeps the editorial layout: inline nav, language switcher, sign in.
  */
 import Link from "next/link";
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 export interface PublicHeaderProps {
   brandName: string;
@@ -40,6 +41,8 @@ export interface PublicHeaderProps {
 export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwitcher, nav, labels }: PublicHeaderProps) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
+  const pathname = usePathname();
+  const toggle = useRef<HTMLButtonElement>(null);
 
   // The menu never survives a route change/resize race: close it when the
   // viewport grows into the desktop layout.
@@ -49,14 +52,24 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
       if (window.innerWidth >= 1280) setOpen(false);
     };
     window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        toggle.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
   return (
     <header className="premium-public-header sticky top-0 z-40 border-b border-white/10 bg-navy-950 text-white">
       <div className="ess-container flex h-16 items-center justify-between gap-2">
         {/* Brand — logo artwork when uploaded, otherwise monogram + wordmark */}
-        <Link href="/" className="flex min-w-0 shrink items-center gap-2" aria-label={brandName}>
+        <Link href="/" className="platform-brand flex min-w-0 shrink items-center gap-2" aria-label={brandName}>
           {logoUrl ? (
             <img
               src={logoUrl}
@@ -65,7 +78,7 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
             />
           ) : (
             <>
-              <img src="/images/essafaria-logo.png" alt="" width="64" height="46" className="h-11 w-16 shrink-0 object-contain" />
+              <img src="/images/essafaria-logo.png" alt="" width="80" height="57" className="platform-mark shrink-0 object-contain" />
               <span className="hidden min-w-0 leading-tight sm:block">
                 <span className="block truncate text-base font-semibold text-white">{brandName}</span>
                 <span className="block truncate text-xs text-white/75">
@@ -82,6 +95,7 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
             <Link
               key={item.href}
               href={item.href}
+              aria-current={pathname === item.href ? "page" : undefined}
               className="inline-flex min-h-11 items-center rounded-lg px-4 text-base font-semibold text-white/75 transition-colors hover:bg-white/10 hover:text-white"
             >
               {item.label}
@@ -89,11 +103,11 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
           ))}
         </nav>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="platform-access flex shrink-0 items-center gap-2">
           {/* Language switcher: desktop only — mobile gets it inside the menu */}
           <span className="public-desktop-controls hidden xl:inline-flex">{localeSwitcher}</span>
           <span className="public-desktop-controls hidden xl:inline-flex">
-            <Link href="/login" className="btn btn-sm border border-white/35 bg-transparent text-white hover:bg-white/10">
+            <Link href="/login" className="btn btn-sm platform-sign-in">
               {labels.signIn}
             </Link>
           </span>
@@ -106,6 +120,7 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
             {labels.register}
           </Link>
           <button
+            ref={toggle}
             type="button"
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
@@ -133,6 +148,7 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
               <Link
                 key={item.href}
                 href={item.href}
+                aria-current={pathname === item.href ? "page" : undefined}
                 onClick={() => setOpen(false)}
                 className="inline-flex min-h-11 items-center rounded-lg px-2 text-base font-semibold text-white/80 transition-colors hover:bg-white/10 hover:text-white"
               >

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getSessionUser } from "@/lib/auth";
 import { isAgencyRole } from "@/lib/types";
 import { readBranding, brandLogoUrl, BRANDING_DEFAULTS } from "@/lib/branding";
@@ -44,18 +45,14 @@ export default async function LoginPage({searchParams}: {searchParams: Promise<R
     <div className="auth-entrance public-access-interior grid min-h-[calc(100vh-4rem)] grid-cols-1 lg:grid-cols-2">
       <div className="auth-story relative hidden flex-col justify-between overflow-hidden border-e border-white/10 bg-navy-950 bg-cover bg-center p-8 text-white lg:flex">
         <div aria-hidden className="pointer-events-none absolute inset-0 bg-navy-950/65" />
-        <img className="relative h-20 w-28 rounded bg-white p-2 object-contain" src={logoUrl ?? "/images/essafaria-logo.png"} alt={branding.name} width="112" height="80" />
-        <div className="relative">
-          <h2 className="font-serif text-[32px] leading-snug text-white">
-            {ct("One platform for your entire")}
-            <span> {ct("visa operation")}</span>
-          </h2>
+        <div className="relative auth-story-copy">
+          <h2>{ct("The ESSAFARIA visa desk")}</h2>
           <p className="mt-4 max-w-md text-base leading-relaxed text-white/80">
             {ct("Agency partners manage applications, documents and wallets. Staff process files from the central Back Office.")}
           </p>
         </div>
-        <p className="relative text-xs text-white/65">
-          {ct("Access is restricted to authorized users. All activity is logged and audited.")}
+        <p className="relative text-sm text-white">
+          {ct("Ostuni, Italy")}
         </p>
       </div>
       <div className="flex items-center justify-center p-6">
@@ -78,6 +75,8 @@ export default async function LoginPage({searchParams}: {searchParams: Promise<R
           showPassword: ct("Show"),
           hidePassword: ct("Hide"),
         }} brandName={branding.name} />
+          <p className="auth-partner-link"><Link href="/agency/register">{ct("Register your agency")}</Link></p>
+          <p className="text-center text-xs text-slate-600">{ct("Access is restricted to authorized users. All activity is logged and audited.")}</p>
         </div>
       </div>
     </div>

@@ -38,6 +38,7 @@ pnpm-workspace.yaml
 
 # agent screenshot scratch
 /.screenshots/
+/.hallmark/
 /.playwright-cli/
 /.superpowers/
 /.tmp/

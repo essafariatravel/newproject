@@ -43,25 +43,34 @@ export default async function PortalDashboardPage() {
 
   return (
     <>
-      <section className="agency-departure" aria-labelledby="agency-departure-heading">
-        <div className="agency-departure-copy">
-          <h1 id="agency-departure-heading">{ct("Create application")}</h1>
-          <p className="agency-welcome">{ct("Welcome")}, <strong>{user.agencyName ?? user.name}</strong></p>
-          <p>{ct("Visa services for your travellers.")}</p>
-        </div>
-        <div className="agency-start">
-          <form action="/portal/applications/new" method="get" className="agency-start-form">
-            <div className="agency-start-fields">
+      <section className="agency-desk" aria-labelledby="agency-desk-heading">
+        <header className="desk-heading">
+          <h1 id="agency-desk-heading">{ct("Agency dashboard")}</h1>
+          <p><bdi>{user.agencyName ?? user.name}</bdi></p>
+        </header>
+        <div className="desk-actions">
+          <form action="/portal/applications/new" method="get" aria-labelledby="new-file-title">
+            <h2 id="new-file-title">{ct("Create application")}</h2>
+            <div className="desk-fields">
               <div>
-              <label htmlFor="home-destination" className="label">{ct("Destination")}</label>
-              <select id="home-destination" name="destination" className="input" defaultValue="">
-                <option value="">{ct("Choose a destination")}</option>
-                {destinations.map((option) => <option key={option.countryId} value={option.countryId}>{countryName({ name: option.countryName, iso2: option.countryIso2 }, locale)}</option>)}
-              </select>
+                <label htmlFor="home-destination" className="label">{ct("Destination")}</label>
+                <select id="home-destination" name="destination" className="input" defaultValue="">
+                  <option value="">{ct("Choose a destination")}</option>
+                  {destinations.map((option) => <option key={option.countryId} value={option.countryId}>{countryName({ name: option.countryName, iso2: option.countryIso2 }, locale)}</option>)}
+                </select>
               </div>
               <button className="btn-primary" type="submit">{ct("Continue")}</button>
             </div>
-            <ol className="start-caption agency-dossier-steps"><li>{ct("Visa & Traveller")}</li><li>{ct("Documents")}</li><li>{ct("Review & Submit")}</li></ol>
+          </form>
+          <form action="/portal/applications" method="get" role="search" aria-labelledby="find-file-title">
+            <h2 id="find-file-title">{ct("Find an application")}</h2>
+            <div className="desk-fields">
+              <div>
+                <label htmlFor="home-reference" className="label">{ct("Reference or applicant")}</label>
+                <input id="home-reference" name="q" className="input" type="search" dir="auto" />
+              </div>
+              <button className="btn-secondary" type="submit">{ct("Search")}</button>
+            </div>
           </form>
         </div>
       </section>
@@ -69,13 +78,13 @@ export default async function PortalDashboardPage() {
       <nav className="agency-stats" aria-label={ct("Agency dashboard")}>
         <Link href="/portal/applications?queue=active"><strong>{totals.active}</strong><span>{ct("Active applications")}</span></Link>
         <Link href="/portal/applications?documents=requested"><strong>{(totals as { actionRequired?: number }).actionRequired ?? 0}</strong><span>{ct("Action required")}</span></Link>
-        <Link href="/portal/applications?status=APPROVED"><strong>{totals.completed}</strong><span>{ct("Completed")}</span></Link>
+        <Link href="/portal/applications?queue=completed"><strong>{totals.completed}</strong><span>{ct("Completed")}</span></Link>
         <Link href="/portal/wallet"><strong className="wallet-value tabular-nums">{formatAmount(wallet.balance, "DZD", locale)}</strong><span>{ct("Wallet balance")}</span></Link>
       </nav>
 
       {data.needsAttention.length > 0 ? <section className="agency-record-section" aria-labelledby="attention-heading">
         <div className="agency-section-header"><h2 id="attention-heading">{ct("Needs your attention")}</h2><Link href="/portal/applications?documents=requested">{ct("View all")}</Link></div>
-        {data.needsAttention.length ? records(data.needsAttention, true) : <p className="quiet-empty">{ct("No action required — all your applications are in order.")}</p>}
+        {records(data.needsAttention, true)}
       </section> : null}
 
       <section className="agency-record-section" aria-labelledby="recent-heading">

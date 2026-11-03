@@ -3,8 +3,8 @@ import type { UiLocale } from "@/lib/ui-i18n";
 const copies = {
   en: {
     eyebrow: "For travel agencies",
-    hero: "Visa processing for travel agencies.",
-    intro: "Prepare each traveller’s file, submit the supporting documents and follow the application with ESSAFARIA.",
+    hero: "The B2B visa platform for travel agencies.",
+    intro: "Open a traveller’s file, send documents for review and track the application from your agency workspace.",
     partner: "Become a partner",
     signIn: "Agency sign in",
     illustration: "Travel illustration",
@@ -20,8 +20,8 @@ const copies = {
   },
   fr: {
     eyebrow: "Pour les agences de voyages",
-    hero: "Traitement des visas pour les agences de voyages.",
-    intro: "Préparez le dossier de chaque voyageur, transmettez les justificatifs et suivez sa demande avec ESSAFARIA.",
+    hero: "La plateforme visa B2B des agences de voyages.",
+    intro: "Ouvrez le dossier d’un voyageur, transmettez ses pièces pour vérification et suivez sa demande depuis votre espace agence.",
     partner: "Devenir partenaire",
     signIn: "Connexion agence",
     illustration: "Illustration de voyage",
@@ -37,8 +37,8 @@ const copies = {
   },
   ar: {
     eyebrow: "لوكالات السفر",
-    hero: "معالجة طلبات التأشيرة لوكالات السفر.",
-    intro: "أعدّوا ملف كل مسافر، وأرسلوا المستندات المطلوبة، وتابعوا طلب التأشيرة مع ESSAFARIA.",
+    hero: "منصة التأشيرات المهنية لوكالات السفر.",
+    intro: "افتحوا ملف المسافر، وأرسلوا وثائقه للمراجعة، وتابعوا طلب التأشيرة من مساحة وكالتكم.",
     partner: "كن شريكاً",
     signIn: "دخول الوكالة",
     illustration: "صورة توضيحية للسفر",

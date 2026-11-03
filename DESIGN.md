@@ -1,17 +1,29 @@
-# ESSAFARIA travel editorial redesign
+# ESSAFARIA travel editorial design
 
-## Direction
-One agency identity, three densities. The public website is an editorial departure experience: original logo, expansive natural airport photography, deep navy, white/off-white, strong Barlow type, Arabic Plex, discreet warm accent. No artificial analytics, floating widgets, glass cards, giant rounded pills or repeated icon-feature grids. Gold remains an accent from the existing artwork, not a page fill.
+The public website serves travel agencies that prepare visa dossiers, submit supporting documents and follow applications. The original ESSAFARIA logo, Barlow and Plex Arabic connect the public pages with the agency and staff workspaces.
 
-The public hero pairs the headline “Visa processing for travel agencies” with an editorial photograph of a traveller’s file. A paper-colored service index lets agencies explore preparation, document review and status tracking. A photographic partner section explains how to request access. About and contact pages use the configured company content. Public imagery illustrates the work and carries no destination or approval promises.
+## Public cover
 
-Agency: destination selection and new dossier action, followed by action-required dossiers, recent records and wallet. Staff: compact queue counters, priority table, existing finance and activity. Both use stable white work surfaces, restrained navy chrome, quiet separators and readable tabular numerals. No travel wallpaper in operational tasks.
+The cover places the headline and partner actions over a wide documentary photograph of Washington Dulles International Airport at dusk. An ink shade protects the text; a separate photographic strip on narrow screens keeps the subject clear in French and Arabic. The caption credits Joe Ravi and links to his original photograph and licence. It also links to the visa services, partner access and visa desk. All of these actions are ordinary links.
 
-## Tokens and behavior
-Use existing navy (#071a33 / #102a45), ivory (#f8f7f3), slate and original logo. Use Barlow regular and semibold with Plex Arabic. Editorial headings scale between 40 and 80px. Operational headings use 24–32px. Controls keep 44px touch targets, visible focus and immediate pressed feedback. The public cover settles once in 3.2 seconds. Other editorial frames move once on entry, and the visa stage selector crossfades on selection. Reduced motion keeps these interactions static. The selector also works with JavaScript off.
+The product tour pairs a native keyboard selector with a labelled sample dossier. Intake uses localized desktop and mobile captures of the real visa form. The crop ends at the search input, before the private catalogue begins. Document review and activity use the portal’s document status badges, progress and timeline components. The example reads no agency or catalogue data. The partnership section uses a smaller Ostuni print beside the application instructions. About and Contact retain their owner-managed content.
 
-## Change plan
-Edit public home and public informational presentation, shared public header/footer, public motion, staff/agency dashboard markup and shared workspace styles. Preserve server logic, all handlers, routes, IDs and data-test hooks. Add scoped styles and one generated image. No deletions of routes or component trees. No changes to actions, queries, database, migrations, auth or accounting.
+## Photography
 
-## Evidence required
-Typecheck, lint, tests and build. Render public home and representative public forms, staff and agency on desktop/mobile/tablet; FR/EN/AR and Arabic mobile. Verify keyboard, mobile navigation, reduced motion and horizontal overflow. Operational captures require isolated synthetic data or existing authorized Preview access; no claim of role coverage without a rendered role.
+Use sourced documentary photography on the public site. The four subjects are Washington Dulles, Cape Greco, St. Gallen station and Ostuni. Their appearance is editorial and does not identify a visa offer, office location or agency affiliation. The footer credits the photographers and links to their original work and licence. The source records and exported dimensions live in `public/images/travel/credits.json`. The two earlier public image URLs are retained for existing links and now serve the credited airport photograph.
+
+## Motion and responsive layout
+
+The cover photograph settles once on entry. Other editorial images move only when they enter view. The selected sample dossier panel enters with a short transition. Reduced-motion preferences suppress these effects. The layout uses logical alignment in Arabic, capped reading widths and visible keyboard focus. Forms keep their existing actions and legal requirements.
+
+## Agency and staff
+
+Agency work starts with two tasks, creating a visa file by destination and finding a file by its reference or traveller. Both submit to the existing scoped application routes. Linked counts lead into matching queues. Document requests, recent files and the DZD balance are visible at a glance. The ledger appears only for authorized roles. The staff dashboard organizes its queue by priority and age. Mobile records show the traveller, destination, status and next action without requiring a seven-column table.
+
+## Identity and shared components
+
+The configured ESSAFARIA logo takes precedence over the bundled travel mark. The palette uses the existing deep navy for primary controls and workspace headings, warm paper for public reading, white for form surfaces, and gold for primary actions, selected controls and focus. Primary gold buttons use navy text. Status colors continue to communicate workflow meaning. Status badges retain the application's semantic colors. Barlow is the Latin text face and IBM Plex Sans Arabic carries Arabic UI.
+
+The public header groups information links separately from agency registration, sign-in and language selection. The agency shell uses horizontal navigation on desktop and a drawer and bottom navigation on phones. Staff use the grouped Back Office rail. Dossier details keep their overview, documents, messages and activity tabs. Shared application buttons, inputs, filter bars, data tables, status badges and empty states keep their established routes and component APIs.
+
+Controls have at least 44 pixels of touch height on the redesigned primary paths. Private surfaces use compact 4–6 pixel radii, 12–24 pixel spacing, visible focus and tabular amounts. Registration groups company, contact and consent fields and associates server errors with their fields. The service register, menu and forms support keyboard operation. Photography and motion belong to public pages.

@@ -13,6 +13,16 @@ import { identityT } from "@/lib/identity-copy";
 type Entry = { fr: string; ar: string };
 
 const CONTENT: Record<string, Entry> = {
+  "File": { fr: "Fichier", ar: "الملف" },
+  "Added": { fr: "Ajouté le", ar: "تاريخ الإضافة" },
+  "Passport": { fr: "Passeport", ar: "جواز السفر" },
+  "Size": { fr: "Taille", ar: "الحجم" },
+  "Review status": { fr: "État de vérification", ar: "حالة المراجعة" },
+  "Accepted": { fr: "Accepté", ar: "مقبول" },
+  "Filename or reference…": { fr: "Nom de fichier ou référence…", ar: "اسم الملف أو المرجع…" },
+  "Upload documents from an application's checklist.": { fr: "Joignez les pièces depuis la liste des justificatifs du dossier.", ar: "أرفقوا المستندات من قائمة الوثائق المطلوبة في الطلب." },
+  "No applicants found": { fr: "Aucun voyageur trouvé", ar: "لم يتم العثور على مسافرين" },
+  "Name or passport…": { fr: "Nom ou numéro de passeport…", ar: "الاسم أو رقم جواز السفر…" },
   "Effective-date policy": {fr:"Politique de date d’entrée en vigueur",ar:"سياسة تاريخ السريان"},
   "Supply owner-approved content and one approved effective-date policy.": {fr:"Fournissez le contenu approuvé et une seule politique de date d’entrée en vigueur approuvée.",ar:"قدّم المحتوى المعتمد وسياسة واحدة معتمدة لتاريخ السريان."},
   "Complete the approved factual fields before publication.": {fr:"Complétez les champs factuels approuvés avant la publication.",ar:"أكمل البيانات الواقعية المعتمدة قبل النشر."},
@@ -480,6 +490,10 @@ const CONTENT: Record<string, Entry> = {
   "No applicants on this application yet.": { fr: "Aucun voyageur sur ce dossier pour l'instant.", ar: "لا يوجد مسافرون في هذا الطلب حتى الآن." },
   /* --------------------------- portal dashboard -------------------------- */
   "Agency dashboard": { fr: "Tableau de bord de l'agence", ar: "لوحة تحكم الوكالة" },
+  "The ESSAFARIA visa desk": { fr: "Le service visas ESSAFARIA", ar: "مكتب ESSAFARIA للتأشيرات" },
+  "Ostuni, Italy": { fr: "Ostuni, Italie", ar: "أوستوني، إيطاليا" },
+  "Find an application": { fr: "Retrouver un dossier", ar: "البحث عن طلب" },
+  "Reference or applicant": { fr: "Référence ou nom du voyageur", ar: "مرجع الطلب أو اسم المسافر" },
   "Active applications": { fr: "Dossiers actifs", ar: "الطلبات النشطة" },
   "Submitted and in progress": { fr: "Soumis et en cours", ar: "مقدَّمة وقيد المعالجة" },
   "Completed": { fr: "Terminés", ar: "المكتملة" },

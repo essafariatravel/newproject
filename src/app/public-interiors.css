@@ -1,11 +1,11 @@
-/* Hallmark · ESSAFARIA · partner desk, coastal panorama and field guide · brand typography */
-/* Critique: vary the frame to suit the visitor’s task and keep forms on reading surfaces. */
+/* Hallmark · ESSAFARIA · editorial · railway departure, Mediterranean coast, agency desk */
+/* Critique: caption the places that carry the travel story. Give questions, contact details and forms the page when they are the visitor’s task. */
 :root {
   --interior-width: 90rem;
   --interior-gutter: clamp(1.25rem, 5vw, 5rem);
   --interior-space: clamp(3rem, 6vw, 5.5rem);
   --interior-gap: clamp(2rem, 5.5vw, 5.5rem);
-  --interior-login-shade: rgb(4 19 38 / .73);
+  --interior-login-shade: rgb(4 19 38 / .88);
 }
 .public-site .public-interior {
   background: var(--premium-paper);
@@ -84,8 +84,11 @@
 .partner-lead .interior-lede { color: var(--premium-light-text); }
 .partner-lead .interior-button { background: var(--premium-white); color: var(--premium-ink); }
 .partner-lead .interior-button:hover { background: var(--premium-light-text); }
-.partner-photo { aspect-ratio: 1.24; }
-.partner-photo img { object-position: 62% center; }
+.partner-plate, .about-plate { min-width: 0; margin: 0; }
+.interior-caption { padding-block-start: .65rem; color: var(--premium-muted); font-size: .875rem; line-height: 1.5; }
+.partner-plate .interior-caption { color: var(--premium-light-text); }
+.partner-photo { aspect-ratio: 1.4; }
+.partner-photo img { object-position: 35% 62%; }
 .partner-desk, .partner-invitation-grid {
   display: grid;
   grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
@@ -102,21 +105,21 @@
 
 .about-heading { padding-block: var(--interior-space) clamp(1.5rem, 4vw, 4rem); }
 .about-heading h1 { max-width: 22ch; }
-.public-interior .about-panorama { max-width: var(--interior-width); margin-inline: auto; height: clamp(14rem, 30vw, 30rem); }
-.about-panorama img { object-position: center 58%; }
+.public-interior .about-panorama { height: clamp(14rem, 32vw, 31rem); }
+.about-panorama img { object-position: center 54%; }
 .about-letter { display: grid; grid-template-columns: minmax(0, .65fr) minmax(0, 1.35fr); gap: var(--interior-gap); padding-block: var(--interior-space); align-items: start; }
 .about-mark { align-self: start; width: 7.5rem; height: auto; }
 .about-owner-copy { white-space: pre-line; max-width: 62ch; }
 .about-letter .interior-link { margin-block-start: 1rem; }
 
 .contact-spread, .faq-spread, .registration-spread { display: grid; padding-block: var(--interior-space); align-items: start; }
-.contact-spread { grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: var(--interior-gap); }
-.contact-directory { min-width: 0; }
-.contact-directory h1 { max-width: 15ch; }
-.contact-photo { aspect-ratio: 4/4.25; }
-.contact-photo img { object-position: 73% center; }
-.contact-records { margin-block-start: 2rem; }
+.contact-spread { grid-template-columns: minmax(0,.95fr) minmax(0,1.05fr); gap: var(--interior-gap); }
+.contact-intro h1 { max-width: 15ch; }
+.contact-directory { min-width: 0; border-block-start: 1px solid var(--premium-line); }
+.contact-directory .interior-actions { margin-block-start: 1rem; }
+.contact-records { margin: 0; }
 .contact-records > div { display: grid; grid-template-columns: minmax(5rem, .36fr) minmax(0, 1fr); gap: 1rem; padding-block: 1rem; border-block-start: 1px solid var(--premium-line); align-items: baseline; }
+.contact-records > div:first-child { border-block-start: 0; }
 .contact-records dt { color: var(--premium-muted); font-size: .95rem; }
 .contact-records dd { overflow-wrap: anywhere; font-weight: 600; }
 .contact-records a { display: inline-flex; align-items: center; min-height: 44px; max-width: 100%; }
@@ -127,8 +130,6 @@
 
 .faq-spread { grid-template-columns: minmax(0, .78fr) minmax(0, 1.22fr); gap: var(--interior-gap); }
 .faq-intro h1 { max-width: 15ch; }
-.public-interior .faq-photo { aspect-ratio: 2/1; margin-block-start: 2rem; }
-.faq-photo img { object-position: 75% 62%; }
 .faq-register { border-block-end: 1px solid var(--premium-line); }
 .faq-register details { border-block-start: 1px solid var(--premium-line); }
 .faq-register summary { position: relative; display: block; list-style: none; cursor: pointer; padding: 1.35rem 0; padding-inline-end: 2rem; }
@@ -145,10 +146,17 @@
 .registration-sign-in { margin-block-start: 1.55rem; border-block-start: 1px solid var(--premium-line); padding-block-start: .75rem; color: var(--premium-muted); }
 .registration-sign-in .interior-link { color: var(--premium-ink); }
 .registration-paper { min-width: 0; background: var(--premium-white); border-block-start: 2px solid var(--premium-ink); padding: clamp(1.25rem, 2.6vw, 2.75rem); }
+.registration-group { min-width: 0; }
+.registration-group legend { padding: 0 0 .75rem; color: var(--premium-ink); font-size: 1.125rem; font-weight: 600; }
+.registration-group + .registration-group { border-block-start: 1px solid var(--premium-line); }
+.registration-paper input[aria-invalid="true"] { border-color: var(--premium-accent); }
 .public-site .public-access-interior .auth-story { background-image: none; }
+.auth-partner-link { border-block-start: 1px solid var(--premium-line); margin-top: 1rem; padding-block-start: .5rem; text-align: center; }
+.auth-partner-link a { display: inline-flex; min-height: 44px; align-items: center; color: var(--premium-ink); font-weight: 600; text-decoration: underline; text-underline-offset: .3em; }
 @media(min-width: 1024px) {
-  .public-site .public-access-interior .auth-story { background-image: url('/images/visa-file-cover.webp'); background-position: 73% center; }
-  .public-site .public-access-interior .auth-story > div[aria-hidden] { background: var(--interior-login-shade); }
+  .public-site .public-access-interior .auth-story { background-image: url('/images/travel/ostuni.webp'); background-position: center 64%; }
+  .public-site .public-access-interior .auth-story > div[aria-hidden] { background: linear-gradient(0deg,var(--interior-login-shade) 12%,transparent 88%); }
+  .public-site .public-access-interior .auth-story-copy { margin-block: auto 1.5rem; max-width: 32rem; }
 }
 html[lang='ar'] .public-interior :is(h1,h2,dt) { letter-spacing: 0; line-height: 1.5; }
 @media(max-width: 900px) {
@@ -162,8 +170,6 @@ html[lang='ar'] .public-interior :is(h1,h2,dt) { letter-spacing: 0; line-height:
   .partner-photo { aspect-ratio: 1.75; }
   .about-letter { grid-template-columns: minmax(0, 1fr); }
   .about-mark { width: 5.5rem; }
-  .contact-photo { aspect-ratio: 2/1; }
-  .public-interior .faq-photo { aspect-ratio: 2.75; margin-block-start: 1.35rem; }
   .registration-paper { padding-inline: 1rem; }
   .faq-register summary { padding-block: 1.1rem; }
 }

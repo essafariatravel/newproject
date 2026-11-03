@@ -21,13 +21,15 @@ export default async function ContactPage() {
   return (
     <section className="public-interior contact-interior" aria-labelledby="contact-heading">
       <div className="interior-width contact-spread">
-        <div className="contact-directory">
+        <header className="contact-intro">
           <h1 id="contact-heading">{ct("Contact ESSAFARIA")}</h1>
           <p className="interior-lede">
             {ct(hasDetails
               ? "Partner agencies can reach case officers through the portal. For partnership enquiries, use the contact details below."
               : "Partner agencies can reach case officers through the portal. New agencies can apply for partnership online.")}
           </p>
+        </header>
+        <div className="contact-directory">
           {hasDetails ? (
             <dl className="contact-records">
               {email ? <div>
@@ -56,9 +58,6 @@ export default async function ContactPage() {
             </div>
           ) : null}
         </div>
-        <figure className="interior-media contact-photo">
-          <img data-cinematic-frame src="/images/essafaria-departure-editorial.webp" alt="" width="1672" height="941" fetchPriority="high" />
-        </figure>
       </div>
     </section>
   );

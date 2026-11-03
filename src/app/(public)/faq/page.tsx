@@ -136,12 +136,6 @@ export default async function FaqPage() {
         <header className="faq-intro">
           <h1 id="faq-heading">{copy.title}</h1>
           <p className="interior-lede">{copy.intro}</p>
-          <figure className="interior-media faq-photo">
-            <img data-cinematic-frame src="/images/visa-file-cover-small.webp"
-              srcSet="/images/visa-file-cover-small.webp 720w, /images/visa-file-cover.webp 1672w"
-              sizes="(max-width: 767px) 90vw, (max-width: 1440px) 32vw, 460px"
-              alt="" width="1672" height="941" fetchPriority="high" />
-          </figure>
         </header>
         <div className="faq-register">
           {copy.items.map((item, index) => (

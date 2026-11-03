@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ErrorView } from "@/components/error-view";
-import Loading from "@/app/loading";
+import PortalLoading from "@/app/portal/loading";
+import StaffLoading from "@/app/admin/loading";
 import { request } from "./helpers/request";
 describe("localized safe boundaries", () => {
   it("renders retry and home recovery in Arabic without showing server details", () => {
@@ -12,7 +13,7 @@ describe("localized safe boundaries", () => {
     expect(html).toContain("العودة إلى الرئيسية");
     expect(html).toContain('type="button"');
   });
-  it("announces loading in the current interface language", async () => {
+  it.each([PortalLoading, StaffLoading])("announces workspace loading in the current interface language", async (Loading) => {
     request.cookie="fr";
     try {
       const html=renderToStaticMarkup(await Loading());
