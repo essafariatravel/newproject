@@ -150,6 +150,7 @@
 .registration-group legend { padding: 0 0 .75rem; color: var(--premium-ink); font-size: 1.125rem; font-weight: 600; }
 .registration-group + .registration-group { border-block-start: 1px solid var(--premium-line); }
 .registration-paper input[aria-invalid="true"] { border-color: var(--premium-accent); }
+.registration-paper button[type="submit"] { padding-block: .65rem; }
 .public-site .public-access-interior .auth-story { background-image: none; }
 .auth-partner-link { border-block-start: 1px solid var(--premium-line); margin-top: 1rem; padding-block-start: .5rem; text-align: center; }
 .auth-partner-link a { display: inline-flex; min-height: 44px; align-items: center; color: var(--premium-ink); font-weight: 600; text-decoration: underline; text-underline-offset: .3em; }

@@ -88,6 +88,7 @@
 .proof-record > div { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 3.05rem; border-top: 1px solid var(--premium-line); }
 .proof-record dt { color: var(--edition-quiet); }
 .proof-record dd { text-align: end; font-weight: 600; }
+.proof-record .h-full { transition: none; }
 .proof-record .badge { border-radius: 4px; }
 .proof-pane .card { padding: .5rem 0; border: 0; box-shadow: none; background: transparent; }
 .partner-journal { background: var(--edition-navy); color: var(--edition-paper); }
@@ -124,7 +125,7 @@ html[lang='ar'] .travel-edition :is(h1,h2,h3) { letter-spacing: 0; line-height: 
   .tour-selector { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 0; }
   .tour-choice { grid-column: auto; grid-row: 1; border: 0; }
   .tour-choice:nth-of-type(3) { border-block-end: 0; }
-  .tour-choice label { display: flex; align-items: center; justify-content: center; min-height: 3.8rem; border-inline-start: 0; border-block-end: 3px solid transparent; padding: .6rem .3rem; text-align: center; }
+  .tour-choice label { display: flex; align-items: center; justify-content: center; min-height: 3.8rem; border-inline-start: 0; border-block-end: 1px solid transparent; padding: .6rem .3rem; text-align: center; }
   .tour-choice label strong { font-size: .94rem; }
   .tour-choice input:checked + label { border-block-end-color: var(--color-gold-500); }
   .tour-number, .tour-choice label small { display: none; }
