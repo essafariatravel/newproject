@@ -1,7 +1,5 @@
-/* Hallmark v2 · ESSAFARIA brand · full redesign · public chrome and reading surfaces */
-/* Critique: clear editorial hierarchy and quiet working controls replace ornamental labels. */
 :root {
-  --premium-paper: #f8f7f3;
+  --platform-gutter: clamp(1rem, 4.5vw, 4.5rem);
   --premium-white: #ffffff;
   --premium-ink: #071a33;
   --premium-muted: #465b6e;
@@ -16,13 +14,13 @@ html { scroll-padding-top: 6rem; }
 :is(a,button,summary,input,select,textarea):focus-visible { outline: 2px solid var(--color-gold-600); outline-offset: 4px; }
 button, summary, a { -webkit-tap-highlight-color: transparent; }
 button:active, .btn-primary:active, .btn-secondary:active { opacity: .82; }
-.public-site { background: var(--premium-paper); }
+.public-site { background: var(--premium-white); }
 .public-site > .premium-public-header { background: var(--premium-white); color: var(--premium-ink); border-bottom-color: var(--premium-line); }
 .public-site .public-partner-action, .public-site .btn-primary, .public-site .public-interior .interior-button { background: var(--color-gold-500); border-color: var(--color-gold-500); color: var(--premium-ink); }
 .public-site .public-partner-action:hover, .public-site .btn-primary:hover, .public-site .public-interior .interior-button:hover { background: var(--color-gold-400); border-color: var(--color-gold-400); color: var(--premium-ink); }
 .public-site .btn-primary:disabled { background: var(--premium-line); border-color: var(--premium-line); color: var(--premium-muted); cursor: not-allowed; opacity: 1; }
 .public-site > .premium-public-header a > span > span:last-child { color: var(--premium-muted); }
-.premium-public-header > .ess-container { height: 5rem; max-width: 1440px; padding-inline: var(--edition-gutter); }
+.premium-public-header > .ess-container { height: 5rem; max-width: 1440px; padding-inline: var(--platform-gutter); }
 .premium-public-header .platform-brand { gap: .8rem; }
 .premium-public-header .platform-mark { width: 80px; height: 57px; }
 .premium-public-header .platform-brand > span { border-inline-start: 1px solid var(--premium-line); padding-inline-start: .9rem; }

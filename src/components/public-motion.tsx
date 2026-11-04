@@ -24,7 +24,7 @@ export function PublicMotion() {
     const start = () => {
       stop();
       if (preference.matches || document.hidden) return;
-      const cover = main.querySelector("[data-editorial-image]");
+      const cover = main.querySelector("[data-hero-image]");
       if (cover) {
         play(cover, { transform: "scale(1.065)" }, { transform: "scale(1)" }, 3200);
         const title = main.querySelector("#public-hero-title");

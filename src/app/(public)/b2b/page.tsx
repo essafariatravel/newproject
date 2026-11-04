@@ -12,21 +12,18 @@ export async function generateMetadata(): Promise<Metadata> {
 const partnership = {
   en: {
     desk: "Working together on a visa file",
-    photo: "St. Gallen railway station, Switzerland",
     agency: "Your agency", agencyText: "Prepare the traveller’s application and send the documents requested for their file.",
     staff: "The ESSAFARIA team", staffText: "Our case officers review submitted files and request additional documents through the portal when needed.",
     finance: "Agency wallet", financeText: "Check your agency’s available balance in DZD before submitting a visa application.",
   },
   fr: {
     desk: "Le traitement d’un dossier de visa",
-    photo: "Gare de Saint-Gall, Suisse",
     agency: "Votre agence", agencyText: "Préparez la demande de votre voyageur et transmettez les justificatifs nécessaires à son dossier.",
     staff: "L’équipe ESSAFARIA", staffText: "Nos agents examinent les dossiers transmis et demandent, si nécessaire, des pièces complémentaires via le portail.",
     finance: "Portefeuille agence", financeText: "Consultez le solde disponible en dinars algériens avant de soumettre un dossier de visa.",
   },
   ar: {
     desk: "آلية التعاون في معالجة ملف التأشيرة",
-    photo: "محطة قطار سانت غالن، سويسرا",
     agency: "وكالتكم", agencyText: "تُعدّ وكالتكم طلب المسافر وترسل المستندات المطلوبة لملفه.",
     staff: "فريق ESSAFARIA", staffText: "يراجع موظفونا الملفات المقدّمة ويطلبون مستندات إضافية عبر البوابة عند الحاجة.",
     finance: "محفظة الوكالة", financeText: "اطّلعوا على الرصيد المتاح بالدينار الجزائري قبل تقديم طلب التأشيرة.",
@@ -49,15 +46,12 @@ export default async function B2BPage() {
               <Link href="/login" className="interior-link">{copy.signIn}</Link>
             </div>
           </div>
-          <figure className="partner-plate">
-            <div className="interior-media partner-photo">
-              <img data-cinematic-frame src="/images/travel/st-gallen.webp"
-                srcSet="/images/travel/st-gallen-small.webp 720w, /images/travel/st-gallen.webp 1680w"
-                sizes="(max-width: 767px) 90vw, (max-width: 1440px) 48vw, 685px"
-                alt="" width="1680" height="1121" fetchPriority="high" />
-            </div>
-            <figcaption className="interior-caption">{desk.photo}</figcaption>
-          </figure>
+          <div className="interior-media partner-photo">
+            <img data-cinematic-frame src="/images/travel/st-gallen.webp"
+              srcSet="/images/travel/st-gallen-small.webp 720w, /images/travel/st-gallen.webp 1680w"
+              sizes="(max-width: 767px) 90vw, (max-width: 1440px) 48vw, 685px"
+              alt="" width="1680" height="1121" fetchPriority="high" />
+          </div>
         </div>
       </section>
       <section className="interior-width partner-desk" aria-labelledby="desk-title">

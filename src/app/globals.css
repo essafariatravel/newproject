@@ -5,7 +5,7 @@
 @import "./premium-chrome.css";
 
 @theme {
-  /* ESSAFARIA VISA: navy structure, warm ivory canvas, restrained gold accent. */
+  /* ESSAFARIA VISA: navy structure, cool neutral surfaces and a gold action accent. */
 
   --color-navy-950: #041326;
   --color-navy-900: #071a33;
@@ -24,9 +24,10 @@
   --color-iris-100: #e7edf0;
   --color-iris-50: #f4f7f7;
 
-  --color-ivory-50: #f8f7f3;
-  --color-ivory-100: #f1f0eb;
-  --color-ivory-200: #e5e2d9;
+  /* Older components use these utility names for neutral surfaces and dividers. */
+  --color-ivory-50: var(--color-slate-50);
+  --color-ivory-100: var(--color-slate-100);
+  --color-ivory-200: var(--color-slate-200);
 
   --color-line: #e5e8eb;
   --color-control-border: #8a8f98;
