@@ -10,11 +10,16 @@ import { closeRecoveryRequest, issueAccessToken, requestAccountRecovery, resetAc
 import { runAction } from "@/lib/action-helpers";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { localizeError } from "@/lib/i18n-content";
+import { assertPublicBotProtection, publicClientIp } from "@/lib/bot-protection";
+import { botProtectionError } from "@/lib/bot-protection-copy";
 
 export interface RecoveryState { message?: string; error?: string; link?: string; expiresAt?: string }
 
 export async function requestRecoveryAction(_previous: RecoveryState, form: FormData): Promise<RecoveryState> {
-  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  const hdrs = await headers();
+  try { await assertPublicBotProtection(form, "account_recovery", hdrs); }
+  catch (error) { return { error: botProtectionError(await getUiLocale(), error) }; }
+  const ip = publicClientIp(hdrs);
   return { message: await requestAccountRecovery(String(form.get("identifier") ?? ""), ip) };
 }
 
@@ -35,6 +40,8 @@ export async function generateAccessLinkAction(_previous: RecoveryState, form: F
 
 export async function resetAccessAction(_previous: RecoveryState, form: FormData): Promise<RecoveryState> {
   const locale = await getUiLocale();
+  try { await assertPublicBotProtection(form, "access_reset", await headers()); }
+  catch (error) { return { error: botProtectionError(locale, error) }; }
   const password = String(form.get("password") ?? "");
   if (password !== String(form.get("confirm") ?? "")) return { error: localizeError(locale,"The confirmation does not match the new password.") };
   try { await resetAccountFromToken(String(form.get("token") ?? ""), password); }

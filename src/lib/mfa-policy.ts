@@ -1,5 +1,5 @@
 import { targetsSupabaseProject } from "./database-config";
-import { isIsolatedPreviewBranch, isolatedPreviewConnection, isolatedPreviewContext } from "./isolated-preview";
+import { BOT_PROTECTION_PREVIEW_BRANCH, isIsolatedPreviewBranch, isolatedPreviewConnection, isolatedPreviewContext } from "./isolated-preview";
 
 type Environment = Record<string, string | undefined>;
 const PREVIEW_PROJECT = "prj_0WOxlorbYiljjjBvZ1Cm6M9JmPdp";
@@ -8,6 +8,8 @@ const SUPABASE_PROJECT = "xgetzgixalrsmuvfthpf";
 
 /** Server-only, evaluated per request. Missing or ambiguous scope enforces MFA. */
 export function mfaEnforcementEnabled(env: Environment = process.env): boolean {
+  // Bot protection does not inherit the historical MFA pause on older Preview branches.
+  if (env.VERCEL_GIT_COMMIT_REF === BOT_PROTECTION_PREVIEW_BRANCH) return true;
   if (isIsolatedPreviewBranch(env.VERCEL_GIT_COMMIT_REF)) {
     return env.MFA_ENFORCEMENT_ENABLED !== "false" || !isolatedPreviewContext(env) ||
       !env.DATABASE_URL || !isolatedPreviewConnection(env.DATABASE_URL);

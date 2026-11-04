@@ -2,12 +2,13 @@ type Environment = Record<string, string | undefined>;
 
 export const ISOLATED_PREVIEW_BRANCH = "codex/isolated-clean-preview-2026-10-15";
 export const ISOLATED_RC_PREVIEW_BRANCH = "codex/master-go-live-rc-2026-10-17";
+export const BOT_PROTECTION_PREVIEW_BRANCH = "codex/essafaria-bot-protection-v2";
 export const ISOLATED_SUPABASE_PROJECT = "nqudhszgodmzckautrby";
 const VERCEL_PROJECT = "prj_0WOxlorbYiljjjBvZ1Cm6M9JmPdp";
 
 /** Exact prepared branches only; this does not authorize a deployment. */
 export function isIsolatedPreviewBranch(branch:string|undefined):boolean {
-  return branch===ISOLATED_PREVIEW_BRANCH||branch===ISOLATED_RC_PREVIEW_BRANCH;
+  return branch===ISOLATED_PREVIEW_BRANCH||branch===ISOLATED_RC_PREVIEW_BRANCH||branch===BOT_PROTECTION_PREVIEW_BRANCH;
 }
 
 export function targetsIsolatedPreview(value: string): boolean {

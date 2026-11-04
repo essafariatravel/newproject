@@ -12,6 +12,17 @@ const preview={VERCEL:"1",VERCEL_ENV:"preview",VERCEL_PROJECT_ID:"prj_0WOxlorbYi
 afterEach(()=>vi.unstubAllEnvs());
 
 describe("independent clean Preview boundary",()=>{
+  it("pins the bot-protection branch to isolated Preview while always enforcing MFA",()=>{
+    const env={...preview,VERCEL_GIT_COMMIT_REF:'codex/essafaria-bot-protection-v2'};
+    expect(databaseUrl(env)).toBe(url);
+    expect(mfaEnforcementEnabled(env)).toBe(true);
+    for (const patch of [{DATABASE_URL:source},{VERCEL_ENV:'production'},{DATABASE_SCHEMA:'visa_os'},{VERCEL_PROJECT_ID:'other'}]) {
+      expect(()=>databaseUrl({...env,...patch})).toThrow(/boundary mismatch/i);
+    }
+    expect(automaticDatabaseChangesForbidden(env.VERCEL_GIT_COMMIT_REF)).toBe(true);
+    const config=JSON.parse(readFileSync('vercel.json','utf8'));
+    expect(config.git.deploymentEnabled[env.VERCEL_GIT_COMMIT_REF]).toBe(false);
+  });
   it("prepares the exact master RC for the same isolated Preview without automatic DB writes",()=>{
     const env={...preview,VERCEL_GIT_COMMIT_REF:'codex/master-go-live-rc-2026-10-17'};
     expect(databaseUrl(env)).toBe(url);

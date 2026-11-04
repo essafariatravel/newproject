@@ -4,6 +4,8 @@ import { vi } from "vitest";
 process.env.DATABASE_URL = "postgresql://postgres:postgres@localhost:5434/essafaria_test";
 process.env.STORAGE_PROVIDER = "db";
 process.env.DATABASE_SCHEMA = "public";
+// Explicit local-only bypass for suites outside the bot-protection integration.
+process.env.TURNSTILE_MODE = "off";
 // NODE_ENV stays as-is (vitest manages it)
 process.env.SEED_ADMIN_PASSWORD = "Test-Admin-123";
 process.env.SEED_AGENCY_PASSWORD = "Test-Agency-123";
@@ -24,6 +26,6 @@ vi.mock("next/headers", async () => {
       },
       delete: () => { request.cookie = ""; },
     }),
-    headers: async () => new Headers({ "user-agent": "isolated-login-test" }),
+    headers: async () => request.headers,
   };
 });

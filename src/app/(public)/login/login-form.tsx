@@ -1,7 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
 import { loginAction } from "@/app/actions/auth";
+import type { ActionState } from "@/components/forms";
+import type { UiLocale } from "@/lib/ui-i18n";
+import type { TurnstilePublicConfig } from "@/lib/turnstile-config";
+import { TurnstileField, useProtectedAction } from "@/components/turnstile-field";
 import { PasswordField, SubmitButton } from "@/components/forms";
 import Link from "next/link";
 
@@ -21,11 +24,11 @@ export interface LoginCopy {
   hidePassword: string;
 }
 
-export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
-  const [state, formAction] = useActionState(loginAction, {});
+export function LoginForm({ copy, locale, botConfig }: { brandName: string; copy: LoginCopy; locale: UiLocale; botConfig: TurnstilePublicConfig }) {
+  const { state, formAction, verified, setVerified, challenge } = useProtectedAction<ActionState>(loginAction, {}, botConfig, locale);
   return (
     <>
-      <form action={formAction} className="mt-8 space-y-4">
+      <form action={formAction} onReset={event => event.preventDefault()} className="mt-8 space-y-4">
         {state.error ? (
           <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-4 text-base text-red-700">
             {state.error}
@@ -45,7 +48,8 @@ export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
           />
         </div>
         <PasswordField id="password" name="password" label={copy.password} autoComplete="current-password" required minLength={0} hint="" showLabel={copy.showPassword} hideLabel={copy.hidePassword}/>
-        <SubmitButton className="btn-primary w-full py-2" pendingLabel={copy.signingIn}>
+        <TurnstileField ref={challenge} config={botConfig} action="agency_login" locale={locale} onVerified={setVerified} />
+        <SubmitButton disabled={!verified} className="btn-primary w-full py-2" pendingLabel={copy.signingIn}>
           {copy.signIn}
         </SubmitButton>
       </form>

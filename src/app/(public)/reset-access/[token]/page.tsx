@@ -3,6 +3,7 @@ import { getUiLocale } from "@/lib/ui-i18n";
 import { identityT } from "@/lib/identity-copy";
 import { resolveAccessToken } from "@/lib/account-recovery";
 import { ResetAccessForm } from "./reset-form";
+import { publicTurnstileConfig } from "@/lib/turnstile-config";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Set password", robots: { index: false, follow: false }, referrer: "no-referrer" as const };
@@ -15,7 +16,7 @@ export default async function ResetAccessPage({ params }: { params: Promise<{ to
     {account ? <>
       <p className="mt-4 text-base text-slate-500">{account.name} · <span dir="ltr">{account.email}</span></p>
       <p className="mt-2 text-base text-slate-500">{t("Existing sessions will be signed out. Sign in with your new password.")}</p>
-      <ResetAccessForm token={token} locale={locale} />
+      <ResetAccessForm token={token} locale={locale} botConfig={publicTurnstileConfig()} />
     </> : <p className="mt-4 text-base text-red-700" role="alert">{t("This access link is invalid or has expired.")}</p>}
     <Link href="/login" className="mt-6 block text-base text-iris-700 underline">{t("Back to sign in")}</Link>
   </div>;

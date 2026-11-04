@@ -10,6 +10,7 @@ import { identityT } from "@/lib/identity-copy";
 import { safeErrorCode } from "@/lib/safe-error";
 import type { Metadata } from "next";
 import { buildNoIndexMetadata } from "@/lib/seo";
+import { publicTurnstileConfig } from "@/lib/turnstile-config";
 
 export const metadata: Metadata = buildNoIndexMetadata("Sign in", {
   referrer: "no-referrer",
@@ -74,7 +75,7 @@ export default async function LoginPage({searchParams}: {searchParams: Promise<R
           forgotPassword: it("Forgot password?"),
           showPassword: ct("Show"),
           hidePassword: ct("Hide"),
-        }} brandName={branding.name} />
+        }} brandName={branding.name} locale={locale} botConfig={publicTurnstileConfig()} />
           <p className="auth-partner-link"><Link href="/agency/register">{ct("Register your agency")}</Link></p>
           <p className="text-center text-xs text-slate-600">{ct("Access is restricted to authorized users. All activity is logged and audited.")}</p>
         </div>

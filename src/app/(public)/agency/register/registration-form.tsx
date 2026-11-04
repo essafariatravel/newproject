@@ -1,12 +1,14 @@
 "use client";
-import { useActionState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
+import { TurnstileField, useProtectedAction } from "@/components/turnstile-field";
+import type { TurnstilePublicConfig } from "@/lib/turnstile-config";
 import Link from "next/link";
 import { submitRegistrationAction, type RegistrationFormState } from "@/app/actions/registrations";
 import type { RegistrationCopy, RegistrationLocale } from "@/lib/i18n";
 import { FieldError, Spinner } from "@/components/forms";
-export default function RegistrationForm(props: {locale: RegistrationLocale; copy: RegistrationCopy; renderedAt: number; legalVersions:{terms:{id:string;version:number};privacy:{id:string;version:number}}}) {
+export default function RegistrationForm(props: {locale: RegistrationLocale; copy: RegistrationCopy; renderedAt: number; botConfig: TurnstilePublicConfig; legalVersions:{terms:{id:string;version:number};privacy:{id:string;version:number}}}) {
   const {copy,locale} = props;
-  const [state,formAction,pending] = useActionState<RegistrationFormState,FormData>(submitRegistrationAction,{});
+  const { state, formAction, pending, verified, setVerified, challenge } = useProtectedAction<RegistrationFormState>(submitRegistrationAction, {}, props.botConfig, locale);
   const summary = useRef<HTMLParagraphElement>(null);
   useEffect(() => { if (state.error) summary.current?.focus(); }, [state]);
   const fieldGroups = [
@@ -45,7 +47,8 @@ export default function RegistrationForm(props: {locale: RegistrationLocale; cop
       <legend>{copy.sections.consent.title}</legend>
       {([ ["terms",copy.consent.terms,copy.termsLink,"/terms"], ["privacy",copy.consent.privacy,copy.privacyLink,"/privacy"], ["accuracy",copy.consent.accuracy,null,null] ] as const).map(([name,label,link,href]) => <div key={name}><label className="flex min-h-11 items-start gap-4 text-base leading-relaxed text-slate-600"><input type="checkbox" name={name} value="true" required aria-invalid={Boolean(state.fieldErrors?.[name])} aria-describedby={state.fieldErrors?.[name] ? `error-${name}` : undefined} className="mt-1 h-5 w-5 shrink-0 accent-navy-900"/><span>{link && href && label.includes(link) ? <>{label.split(link)[0]}<Link href={href} target="_blank" rel="noopener noreferrer" className="font-semibold text-navy-900 underline">{link}</Link>{label.split(link)[1]}</> : label}</span></label><FieldError id={`error-${name}`} message={state.fieldErrors?.[name]}/></div>)}
     </fieldset>
-    <button type="submit" disabled={pending} className="btn-primary min-h-11 w-full sm:w-auto">{pending ? <><Spinner/>{copy.submitPending}</> : copy.submitLabel}</button>
+    <TurnstileField ref={challenge} config={props.botConfig} action="agency_registration" locale={locale} onVerified={setVerified} />
+    <button type="submit" disabled={pending || !verified} className="btn-primary min-h-11 w-full sm:w-auto">{pending ? <><Spinner/>{copy.submitPending}</> : copy.submitLabel}</button>
     <p className="text-xs leading-relaxed text-slate-500">{copy.reviewNote}</p>
   </form>;
 }

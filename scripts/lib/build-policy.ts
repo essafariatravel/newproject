@@ -6,6 +6,7 @@
  * Database changes for these branches are handled explicitly outside build.
  */
 export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
+  "codex/essafaria-bot-protection-v2",
   "preprod/essafaria-final-hardening",
   "release/final-rc-consolidation",
   "security/pre-codex-gate-2026-10-03",
