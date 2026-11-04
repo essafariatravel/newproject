@@ -3,6 +3,7 @@
 @import "./public-premium.css";
 @import "./workspace-premium.css";
 @import "./premium-chrome.css";
+@import "./workspace-controls.css";
 
 @theme {
   /* ESSAFARIA VISA: navy structure, cool neutral surfaces and a gold action accent. */

@@ -1,0 +1,145 @@
+/* Shared Agency and Staff controls. Keep native form values and validation. */
+:is(.workspace-agency, .workspace-staff) {
+  --control-surface: var(--work-surface);
+  --control-soft: var(--color-slate-50);
+  --control-line: var(--work-line);
+  --control-ink: var(--work-ink);
+  --control-muted: var(--work-muted);
+  --control-gold: var(--work-gold);
+  --control-radius: 8px;
+}
+
+:is(.workspace-agency, .workspace-staff) .input {
+  min-height: 46px;
+  border-radius: var(--control-radius);
+  border-color: var(--color-slate-300);
+  background-color: var(--control-surface);
+  color: var(--control-ink);
+}
+:is(.workspace-agency, .workspace-staff) .input:hover:not(:disabled) { border-color: var(--color-navy-500); }
+:is(.workspace-agency, .workspace-staff) .input:focus {
+  border-color: var(--work-marker);
+  box-shadow: 0 0 0 3px rgb(201 154 50 / .13);
+}
+:is(.workspace-agency, .workspace-staff) .input:disabled { color: var(--control-muted); background: var(--control-soft); }
+:is(.workspace-agency, .workspace-staff) select.input { cursor: pointer; }
+
+/* Customizable native selects retain keyboard navigation, type-ahead and form reset. */
+@supports (appearance: base-select) {
+  :is(.workspace-agency, .workspace-staff) select.input,
+  :is(.workspace-agency, .workspace-staff) select.input::picker(select) { appearance: base-select; }
+  :is(.workspace-agency, .workspace-staff) select.input {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .65rem .85rem;
+    text-align: start;
+  }
+  :is(.workspace-agency, .workspace-staff) select.input:open { border-color: var(--work-marker); }
+  :is(.workspace-agency, .workspace-staff) select.input::picker-icon { color: var(--control-muted); font-size: .8rem; }
+  :is(.workspace-agency, .workspace-staff) select.input:open::picker-icon { rotate: 180deg; color: var(--work-marker); }
+  :is(.workspace-agency, .workspace-staff) select.input::picker(select) {
+    padding: .35rem;
+    margin-block: .4rem;
+    border: 1px solid var(--control-line);
+    border-radius: 10px;
+    background: var(--control-surface);
+    color: var(--control-ink);
+    box-shadow: 0 12px 32px rgb(7 26 51 / .14);
+    max-block-size: min(22rem, 65dvh);
+    max-inline-size: calc(100vw - 1.5rem);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    overscroll-behavior: contain;
+  }
+  :is(.workspace-agency, .workspace-staff) select.input option {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    min-block-size: 44px;
+    padding: .6rem .75rem;
+    border: 0;
+    border-radius: 5px;
+    color: var(--control-ink);
+    font: inherit;
+    line-height: 1.4;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  :is(.workspace-agency, .workspace-staff) select.input option:checked { background: var(--control-ink); color: white; font-weight: 600; }
+  :is(.workspace-agency, .workspace-staff) select.input option:hover:not(:checked):not(:disabled) { background: var(--control-soft); }
+  :is(.workspace-agency, .workspace-staff) select.input option:focus-visible { outline: 2px solid var(--control-gold); outline-offset: -2px; }
+  :is(.workspace-agency, .workspace-staff) select.input option::checkmark { order: 1; margin-inline-start: auto; color: var(--color-gold-400); }
+  :is(.workspace-agency, .workspace-staff) select.input option:disabled { color: var(--color-slate-400); }
+  :is(.workspace-agency, .workspace-staff) select.input optgroup { padding: .5rem; font-weight: 600; color: var(--control-muted); }
+}
+
+:is(.workspace-agency, .workspace-staff) .filter-bar {
+  gap: .85rem;
+  padding: 1rem;
+  border-color: var(--control-line);
+  background: var(--control-soft);
+}
+:is(.workspace-agency, .workspace-staff) .filter-bar > div { min-width: 0; }
+:is(.workspace-agency, .workspace-staff) .filter-bar > div:has(> input:not([type="hidden"])) { flex: 1.5 1 14rem; }
+:is(.workspace-agency, .workspace-staff) .filter-bar > div:has(> select) { flex: 1 1 11rem; }
+:is(.workspace-agency, .workspace-staff) .filter-bar > div:has(> .date-picker) { flex: 1 1 12rem; }
+:is(.workspace-agency, .workspace-staff) .filter-bar .label { margin-block-end: .4rem; font-size: .875rem; }
+:is(.workspace-agency, .workspace-staff) .filter-reset { padding-inline: .55rem; }
+:is(.workspace-agency, .workspace-staff) .filter-reset:hover { color: var(--control-ink); text-decoration: underline; text-underline-offset: .25em; }
+:is(.workspace-agency, .workspace-staff) .inbox-filters { padding: 1rem; background: var(--control-soft); border-block: 1px solid var(--control-line); }
+:is(.workspace-agency, .workspace-staff) .inbox-filters select { min-inline-size: 12rem; }
+
+/* The date input and its calendar trigger share one boundary. */
+.date-picker { position: relative; min-width: 0; }
+.date-picker-control { display: flex; align-items: stretch; border: 1px solid var(--color-slate-300); border-radius: 8px; background: white; overflow: hidden; }
+.date-picker-control:focus-within { border-color: var(--color-gold-600); box-shadow: 0 0 0 3px rgb(201 154 50 / .13); }
+.date-picker-control .input { min-width: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.date-picker-control .input:focus { border: 0; box-shadow: none; }
+.date-picker-control > button { width: 46px; height: 46px; flex: none; border: 0; border-inline-start: 1px solid var(--color-line); border-radius: 0; color: var(--color-navy-700); }
+.date-picker-control > button[aria-expanded="true"] { background: var(--color-navy-900); color: var(--color-gold-400); }
+.date-picker-panel {
+  position: absolute;
+  z-index: 45;
+  inset-inline-start: 0;
+  width: min(21rem, calc(100vw - 1.5rem));
+  max-height: calc(100dvh - 1.5rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-block-start: .5rem;
+  padding: 1rem;
+  border: 1px solid var(--color-slate-200);
+  border-radius: 12px;
+  background: white;
+  color: var(--color-navy-900);
+  box-shadow: 0 12px 32px rgb(7 26 51 / .14);
+  translate: var(--date-panel-offset, 0) var(--date-panel-offset-y, 0);
+}
+.date-picker-heading { display: flex; align-items: center; justify-content: space-between; gap: .25rem; margin: -1rem -1rem .75rem; padding: .5rem; border-radius: 11px 11px 0 0; background: var(--color-navy-900); color: white; }
+.date-picker-heading button { color: inherit; border-radius: 6px; }
+.date-picker-heading button:first-child, .date-picker-heading button:last-child { font-size: 1.5rem; color: var(--color-gold-400); }
+.date-picker-heading button:hover { background: var(--color-navy-700); }
+[dir="rtl"] .date-picker-heading button:first-child, [dir="rtl"] .date-picker-heading button:last-child { transform: scaleX(-1); }
+.date-picker-panel [role="columnheader"] { padding-block: .4rem; font-size: .8rem; color: var(--color-navy-600); }
+.date-picker-panel :is([data-day],[data-month],[data-year]) { min-height: 44px; border-radius: 6px; }
+.date-picker-panel button[aria-selected="true"], .date-picker-panel button[aria-pressed="true"] { background: var(--color-gold-500); color: var(--color-navy-900); font-weight: 600; }
+.date-picker-panel [aria-current="date"] { box-shadow: inset 0 0 0 1px var(--color-gold-600); }
+.date-picker-panel button:focus-visible { outline: 2px solid var(--color-gold-600); outline-offset: -2px; }
+.date-picker-panel button:disabled { opacity: .45; cursor: not-allowed; }
+.date-picker-footer { display: flex; align-items: center; justify-content: space-between; margin-block-start: .7rem; padding-block-start: .5rem; border-top: 1px solid var(--color-line); }
+
+:is(.workspace-agency, .workspace-staff) .table-scroll { border-color: var(--control-line); border-radius: 8px; box-shadow: none; }
+:is(.workspace-agency, .workspace-staff) thead { background: var(--color-navy-800); }
+:is(.workspace-agency, .workspace-staff) .table-scroll .th { background: transparent; color: white; font-size: .875rem; font-weight: 600; padding-block: .9rem; white-space: nowrap; }
+:is(.workspace-agency, .workspace-staff) .td { padding-block: 1rem; border-bottom: 1px solid var(--color-slate-200); }
+:is(.workspace-agency, .workspace-staff) tbody tr:last-child > td { border-block-end: 0; }
+:is(.workspace-agency, .workspace-staff) .tr-hover:hover { background: var(--control-soft); }
+:is(.workspace-agency, .workspace-staff) tbody tr:focus-within { background: var(--control-soft); }
+.workspace-staff .td { padding-block: .75rem; }
+
+@media (max-width: 639px) {
+  :is(.workspace-agency, .workspace-staff) .filter-bar { padding: .85rem; }
+  :is(.workspace-agency, .workspace-staff) .filter-bar > div { flex: 1 1 100% !important; }
+  :is(.workspace-agency, .workspace-staff) .inbox-filters select { min-inline-size: 0; }
+}

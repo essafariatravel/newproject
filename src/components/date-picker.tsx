@@ -103,6 +103,25 @@ export function DatePicker(props: DatePickerProps) {
   const gridRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const focusRequested = useRef(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open || !panelRef.current) return;
+    const positionPanel = () => {
+      const panel = panelRef.current;
+      if (!panel) return;
+      panel.style.setProperty("--date-panel-offset", "0px");
+      panel.style.setProperty("--date-panel-offset-y", "0px");
+      const rect = panel.getBoundingClientRect();
+      const offset = Math.max(12 - rect.left, Math.min(0, window.innerWidth - 12 - rect.right));
+      panel.style.setProperty("--date-panel-offset", `${offset}px`);
+      const offsetY = Math.max(12 - rect.top, Math.min(0, window.innerHeight - 12 - rect.bottom));
+      panel.style.setProperty("--date-panel-offset-y", `${offsetY}px`);
+    };
+    positionPanel();
+    window.addEventListener("resize", positionPanel);
+    return () => window.removeEventListener("resize", positionPanel);
+  }, [open, view]);
 
   useEffect(() => {
     if (!open || !focusRequested.current || !gridRef.current) return;
@@ -206,7 +225,7 @@ export function DatePicker(props: DatePickerProps) {
     : "";
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="date-picker">
       <input
         type="hidden"
         name={props.name}
@@ -214,7 +233,7 @@ export function DatePicker(props: DatePickerProps) {
         required={props.required}
         aria-hidden="true"
       />
-      <div className="flex items-center gap-2">
+      <div className="date-picker-control">
         <input
           id={props.id}
           type="text"
@@ -246,12 +265,13 @@ export function DatePicker(props: DatePickerProps) {
 
       {open ? (
         <div
+          ref={panelRef}
           role="dialog"
           aria-label={fmtMonth.format(new Date(viewYear, viewMonth, 1))}
           onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closePicker(); } }}
-          className="surface-popover absolute z-40 mt-2 w-72 rounded-lg border border-line bg-white p-4 shadow-[var(--shadow-pop)]"
+          className="surface-popover date-picker-panel"
         >
-          <div className="flex items-center justify-between pb-2">
+          <div className="date-picker-heading">
             <button
               type="button"
               onClick={() => (view === "days" ? moveMonth(-1) : view === "months" ? setViewYear((y) => y - 1) : setPivotYear((y) => y - 12))}
@@ -311,9 +331,10 @@ export function DatePicker(props: DatePickerProps) {
                     onClick={() => select(cell)}
                     onFocus={() => setFocusedDay(day)}
                     aria-pressed={isSel}
+                    aria-current={isToday ? "date" : undefined}
                     aria-label={fmtDate.format(new Date(viewYear, viewMonth, day))}
                     className={[
-                      "mx-auto flex h-8 w-8 items-center justify-center rounded-lg text-base transition-colors",
+                      "mx-auto flex h-11 w-full items-center justify-center rounded-lg text-base transition-colors",
                       isSel
                         ? "bg-iris-600 font-semibold text-white"
                         : disabled
@@ -394,7 +415,7 @@ export function DatePicker(props: DatePickerProps) {
               })}
             </div>
           )}
-          <div className="flex items-center justify-between border-t border-ivory-100 pt-2">
+          <div className="date-picker-footer">
             <button
               type="button"
               className="inline-flex min-h-11 items-center text-base font-semibold text-iris-700 hover:underline"
