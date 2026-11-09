@@ -641,7 +641,7 @@ export async function listNotificationsForUser(userId: string, limit = 50, filte
   return db
     .select({
       ...getTableColumns(notifications),
-      travellerName: sql<string | null>`(select coalesce(traveller.full_name, concat_ws(' ',traveller.first_name,traveller.last_name)) from ${table("applicants")} traveller where traveller.application_id = ${notifications.applicationId} limit 1)`,
+      travellerName: sql<string | null>`(select coalesce(traveller.full_name, concat_ws(' ',traveller.first_name,traveller.last_name)) from ${table("applicants")} traveller where traveller.application_id = ${table("notifications")}.application_id limit 1)`,
       destination: sql<string | null>`(select dossier.country_name from ${table("applications")} dossier where dossier.id = ${notifications.applicationId})`,
       visaName: sql<string | null>`(select dossier.visa_type_name from ${table("applications")} dossier where dossier.id = ${notifications.applicationId})`,
       reference: sql<string | null>`(select dossier.reference from ${table("applications")} dossier where dossier.id = ${notifications.applicationId})`,
