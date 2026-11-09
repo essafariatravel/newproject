@@ -184,7 +184,9 @@
   min-height: 49px;
   margin-block-start: 3px;
   border-radius: 6px;
-  background: #102e4c;
+  background: var(--color-gold-500);
+  color: var(--color-navy-900);
+  border-color: var(--color-gold-500);
   box-shadow: 0 3px 7px rgba(19, 49, 74, .13);
   font-family: var(--font-sans);
   font-size: 15px;
@@ -193,7 +195,9 @@
 }
 
 .public-site .login-sky-screen .login-sky-submit:hover {
-  background: #173b5f;
+  background: var(--color-gold-400);
+  color: var(--color-navy-900);
+  border-color: var(--color-gold-400);
   box-shadow: 0 4px 11px rgba(19, 49, 74, .17);
 }
 
