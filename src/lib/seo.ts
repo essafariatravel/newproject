@@ -2,9 +2,10 @@ import type { Metadata, MetadataRoute } from "next";
 import type { UiLocale } from "@/lib/ui-i18n";
 import {
   SEO_INDEXABLE_PUBLIC_ENTRIES,
+  SEO_PUBLIC_LOCALES,
   SEO_PRODUCTION_ORIGIN,
   isSearchIndexableEnvironment,
-  seoPublicRoutePath,
+  seoLocalizedPublicPath,
   type IndexablePublicSeoPage,
   type SeoRuntimeEnv,
 } from "@/lib/seo-manifest";
@@ -33,89 +34,101 @@ const PUBLIC_COPY: Record<
 > = {
   en: {
     home: {
-      title: "B2B Visa Platform for Travel Agencies",
+      title: "B2B Visa Platform for Travel Agencies in Algeria",
       description:
-        "ESSAFARIA provides travel agencies with a secure B2B platform for visa requests, document handling and operational follow-up.",
+        "ESSAFARIA helps travel agencies in Algeria manage B2B visa requests, client documents and case follow-up through a secure partner platform.",
     },
     b2b: {
-      title: "Visa Services for Travel Agencies",
+      title: "B2B Visa Services for Travel Agencies in Algeria",
       description:
-        "Discover how travel agencies can work with ESSAFARIA for visa request processing, document handling, account access and support.",
+        "Partner with ESSAFARIA for professional visa request handling, document review and secure case tracking for travel agencies in Algeria.",
     },
     about: {
-      title: "About ESSAFARIA",
+      title: "About ESSAFARIA TRAVEL in Algeria",
       description:
-        "Learn about ESSAFARIA and its B2B approach to supporting travel professionals with visa operations and related services.",
+        "Discover ESSAFARIA TRAVEL, an Algiers-based travel agency supporting professional partners with organized B2B visa operations.",
     },
     contact: {
-      title: "Contact ESSAFARIA",
+      title: "Contact ESSAFARIA for B2B Visa Partnerships",
       description:
-        "Contact ESSAFARIA for information about agency partnerships, account access and B2B visa services.",
+        "Contact ESSAFARIA in Algiers about travel agency partnerships, professional visa services and access to the secure B2B portal.",
     },
     faq: {
-      title: "Agency FAQ",
+      title: "B2B Visa Services FAQ for Travel Agencies",
       description:
-        "Find answers about agency onboarding, account access, visa requests, document requirements and ESSAFARIA support.",
+        "Answers for travel agencies in Algeria about becoming an ESSAFARIA partner, account access, visa request workflows and documents.",
     },
   },
   fr: {
     home: {
-      title: "Plateforme visa B2B pour agences de voyages",
+      title: "Plateforme visa B2B pour agences en Algérie",
       description:
-        "ESSAFARIA met à disposition des agences de voyages une plateforme B2B sécurisée pour les demandes de visa, les documents et le suivi opérationnel.",
+        "ESSAFARIA accompagne les agences de voyages en Algérie avec une plateforme visa B2B sécurisée : demandes, documents et suivi des dossiers.",
     },
     b2b: {
-      title: "Services visa B2B pour agences de voyages",
+      title: "Services visa B2B pour agences de voyages en Algérie",
       description:
-        "Découvrez comment les agences de voyages peuvent travailler avec ESSAFARIA pour le traitement des demandes de visa, la gestion des documents, l’accès au compte et l’assistance.",
+        "Partenariat visa B2B en Algérie : ESSAFARIA accompagne les agences dans le traitement des demandes, le contrôle documentaire et le suivi sécurisé.",
     },
     about: {
-      title: "À propos d’ESSAFARIA",
+      title: "ESSAFARIA TRAVEL — Solutions visa B2B à Alger",
       description:
-        "Découvrez ESSAFARIA et son approche B2B pour accompagner les professionnels du voyage dans leurs opérations visa et services associés.",
+        "Découvrez ESSAFARIA TRAVEL, agence basée à Alger, et son accompagnement professionnel des agences partenaires pour les opérations visa B2B.",
     },
     contact: {
-      title: "Contacter ESSAFARIA",
+      title: "Contact ESSAFARIA — Partenariats agences en Algérie",
       description:
-        "Contactez ESSAFARIA pour toute demande concernant les partenariats agences, l’accès au compte et les services visa B2B.",
+        "Contactez ESSAFARIA à Alger pour un partenariat agence, l'accès au portail professionnel ou des informations sur les services visa B2B.",
     },
     faq: {
-      title: "FAQ agences partenaires",
+      title: "FAQ visas B2B pour agences de voyages en Algérie",
       description:
-        "Retrouvez les réponses concernant l’intégration des agences, l’accès au compte, les demandes de visa, les documents et l’assistance ESSAFARIA.",
+        "Réponses aux questions des agences algériennes sur le partenariat ESSAFARIA, l’accès B2B, les dossiers visa et la transmission des documents.",
     },
   },
   ar: {
     home: {
-      title: "منصة تأشيرات B2B لوكالات السفر",
+      title: "منصة تأشيرات B2B لوكالات السفر في الجزائر",
       description:
-        "توفر ESSAFARIA لوكالات السفر منصة B2B آمنة لإدارة طلبات التأشيرات والوثائق والمتابعة التشغيلية.",
+        "توفر ESSAFARIA لوكالات السفر في الجزائر منصة B2B آمنة لإدارة طلبات التأشيرات والوثائق ومتابعة الملفات.",
     },
     b2b: {
-      title: "خدمات التأشيرات لوكالات السفر",
+      title: "خدمات التأشيرات B2B لوكالات السفر في الجزائر",
       description:
-        "تعرّف على كيفية عمل وكالات السفر مع ESSAFARIA في معالجة طلبات التأشيرات وإدارة الوثائق والوصول إلى الحساب والدعم.",
+        "تعاون مع ESSAFARIA لخدمات التأشيرات المهنية في الجزائر، ومراجعة الوثائق ومتابعة طلبات العملاء عبر بوابة آمنة.",
     },
     about: {
-      title: "عن ESSAFARIA",
+      title: "عن ESSAFARIA TRAVEL في الجزائر",
       description:
-        "تعرّف على ESSAFARIA ونهجها في دعم مهنيي السفر من خلال خدمات B2B لعمليات التأشيرات والخدمات المرتبطة بها.",
+        "تعرّف على ESSAFARIA TRAVEL، وكالة سفر في الجزائر العاصمة تقدم خدمات تأشيرات B2B للشركاء المهنيين.",
     },
     contact: {
-      title: "اتصل بـ ESSAFARIA",
+      title: "اتصل بـ ESSAFARIA لشراكات وكالات السفر",
       description:
-        "تواصل مع ESSAFARIA للاستفسار عن شراكات الوكالات والوصول إلى الحساب وخدمات التأشيرات B2B.",
+        "تواصل مع ESSAFARIA في الجزائر العاصمة للاستفسار عن شراكات الوكالات وخدمات التأشيرات المهنية والوصول إلى البوابة.",
     },
     faq: {
-      title: "الأسئلة الشائعة للوكالات",
+      title: "أسئلة شائعة عن خدمات التأشيرات B2B في الجزائر",
       description:
-        "اطّلع على الإجابات المتعلقة بانضمام الوكالات والوصول إلى الحساب وطلبات التأشيرات والوثائق ودعم ESSAFARIA.",
+        "إجابات لوكالات السفر في الجزائر حول التسجيل كشريك والوصول إلى الحساب وطلبات التأشيرات والوثائق.",
     },
   },
 };
 
-export function publicCanonicalUrl(page: IndexablePublicSeoPage): string {
-  return new URL(seoPublicRoutePath(page), SEO_PRODUCTION_ORIGIN).toString();
+export function publicCanonicalUrl(
+  page: IndexablePublicSeoPage,
+  locale: UiLocale = "en",
+): string {
+  return new URL(seoLocalizedPublicPath(page, locale), SEO_PRODUCTION_ORIGIN).toString();
+}
+
+export function publicLanguageAlternates(page: IndexablePublicSeoPage): Record<string, string> {
+  return {
+    en: publicCanonicalUrl(page, "en"),
+    fr: publicCanonicalUrl(page, "fr"),
+    ar: publicCanonicalUrl(page, "ar"),
+    "x-default": publicCanonicalUrl(page, "en"),
+  };
 }
 
 export function buildNoIndexMetadata(
@@ -135,14 +148,14 @@ export function buildPublicMetadata(
   env: SeoRuntimeEnv = process.env,
 ): Metadata {
   const copy = PUBLIC_COPY[locale][page];
-  const canonical = publicCanonicalUrl(page);
+  const canonical = publicCanonicalUrl(page, locale);
   const fullTitle = `${copy.title} | ${SEO_SITE_NAME}`;
   const production = isSearchIndexableEnvironment(env);
 
   return {
     title: copy.title,
     description: copy.description,
-    ...(production ? { alternates: { canonical } } : {}),
+    ...(production ? { alternates: { canonical, languages: publicLanguageAlternates(page) } } : {}),
     openGraph: {
       type: "website",
       siteName: SEO_SITE_NAME,
@@ -173,9 +186,10 @@ export function buildPublicSitemap(
 
   return SEO_INDEXABLE_PUBLIC_ENTRIES
     .filter((entry) => entry.sitemap)
-    .map((entry) => ({
-      url: publicCanonicalUrl(entry.key),
-    }));
+    .flatMap((entry) => SEO_PUBLIC_LOCALES.map((locale) => ({
+      url: publicCanonicalUrl(entry.key, locale),
+      alternates: { languages: publicLanguageAlternates(entry.key) },
+    })));
 }
 
 export function buildRobots(
@@ -207,7 +221,5 @@ export function serializeJsonLd(value: unknown): string {
   return JSON.stringify(value).replace(/</g, "\\u003c");
 }
 
-// International SEO note:
-// the current product locale architecture is cookie/query based rather than
-// one stable public URL per locale. Do not emit hreflang until distinct,
-// crawlable EN/FR/AR URLs exist; contradictory hreflang would be worse.
+// Only the approved public pages have localized URLs. Operational screens
+// retain the existing cookie-based UI locale and private noindex guarantees.

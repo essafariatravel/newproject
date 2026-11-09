@@ -19,6 +19,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 export interface PublicHeaderProps {
   brandName: string;
+  homeHref?: string;
   /** Reserved for the marketing lockup — not rendered inside the app chrome. */
   tagline: string;
   logoUrl: string | null;
@@ -38,7 +39,7 @@ export interface PublicHeaderProps {
   };
 }
 
-export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwitcher, nav, labels }: PublicHeaderProps) {
+export function PublicHeader({ brandName, homeHref = "/", tagline: _tagline, logoUrl, localeSwitcher, nav, labels }: PublicHeaderProps) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const pathname = usePathname();
@@ -69,7 +70,7 @@ export function PublicHeader({ brandName, tagline: _tagline, logoUrl, localeSwit
     <header className="premium-public-header sticky top-0 z-40 border-b border-white/10 bg-navy-950 text-white">
       <div className="ess-container flex h-16 items-center justify-between gap-2">
         {/* Brand — logo artwork when uploaded, otherwise monogram + wordmark */}
-        <Link href="/" className="platform-brand flex min-w-0 shrink items-center gap-2" aria-label={brandName}>
+        <Link href={homeHref} className="platform-brand flex min-w-0 shrink items-center gap-2" aria-label={brandName}>
           {logoUrl ? (
             <img
               src={logoUrl}

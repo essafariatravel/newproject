@@ -1,5 +1,6 @@
 import { pickUiLocale, UI_LOCALES, UI_LOCALE_NAMES, type UiLocale } from "@/lib/ui-i18n";
 import { setUiLocaleAction } from "@/app/actions/ui-locale";
+import { seoLocalizedPublicPath, type IndexablePublicSeoPage } from "@/lib/seo-manifest";
 
 /**
  * Global language switcher (EN / FR / AR). Pure server component: one small
@@ -10,11 +11,13 @@ import { setUiLocaleAction } from "@/app/actions/ui-locale";
 export function UiLanguageSwitcher({
   locale,
   nextPath,
+  publicPage,
   onDark = false,
   compact = false,
 }: {
   locale: UiLocale | string;
   nextPath?: string;
+  publicPage?: IndexablePublicSeoPage;
   onDark?: boolean;
   compact?: boolean;
 }) {
@@ -27,7 +30,9 @@ export function UiLanguageSwitcher({
   const options = UI_LOCALES.map((l) => (
     <form key={l} action={setUiLocaleAction} className="contents">
       <input type="hidden" name="locale" value={l} />
-      {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
+      {publicPage || nextPath ? (
+        <input type="hidden" name="next" value={publicPage ? seoLocalizedPublicPath(publicPage, l) : nextPath} />
+      ) : null}
       <button
         type="submit"
         className={`min-h-11 min-w-11 rounded-md px-4 font-semibold transition-colors ${

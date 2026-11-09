@@ -7,11 +7,14 @@ import {
   buildPublicSitemap,
   buildRobots,
   isSearchIndexableEnvironment,
+  publicLanguageAlternates,
   publicCanonicalUrl,
 } from "@/lib/seo";
 import {
   SEO_INDEXABLE_PUBLIC_ENTRIES,
+  SEO_PUBLIC_LOCALES,
   SEO_PUBLIC_ROUTE_ENTRIES,
+  seoLocalizedPublicPath,
 } from "@/lib/seo-manifest";
 
 const production = { VERCEL: "1", VERCEL_ENV: "production" } as const;
@@ -39,14 +42,21 @@ describe("public metadata", () => {
     const prod = buildPublicMetadata("b2b", "fr", production);
     const pre = buildPublicMetadata("b2b", "fr", preview);
     expect(prod.alternates?.canonical).toBe(
-      `${SEO_PRODUCTION_ORIGIN}/b2b`,
+      `${SEO_PRODUCTION_ORIGIN}/fr/b2b`,
     );
     expect(pre.alternates?.canonical).toBeUndefined();
   });
 
-  it("never emits hreflang while locales are cookie/query based", () => {
+  it("emits reciprocal hreflang only for stable Production public URLs", () => {
     const meta = buildPublicMetadata("home", "ar", production);
-    expect(meta.alternates?.languages).toBeUndefined();
+    expect(meta.alternates?.canonical).toBe(`${SEO_PRODUCTION_ORIGIN}/ar`);
+    expect(meta.alternates?.languages).toEqual({
+      en: `${SEO_PRODUCTION_ORIGIN}/`,
+      fr: `${SEO_PRODUCTION_ORIGIN}/fr`,
+      ar: `${SEO_PRODUCTION_ORIGIN}/ar`,
+      "x-default": `${SEO_PRODUCTION_ORIGIN}/`,
+    });
+    expect(buildPublicMetadata("home", "ar", preview).alternates?.languages).toBeUndefined();
   });
 
   it("keeps private/auth metadata non-indexable and free of canonical/social data", () => {
@@ -62,16 +72,21 @@ describe("sitemap and robots", () => {
   it("advertises only the small intentional public allowlist in Production", () => {
     const map = buildPublicSitemap(production);
     expect(map.map((entry) => entry.url)).toEqual(
-      SEO_INDEXABLE_PUBLIC_ENTRIES.map((entry) =>
-        new URL(entry.path, SEO_PRODUCTION_ORIGIN).toString(),
+      SEO_INDEXABLE_PUBLIC_ENTRIES.flatMap((entry) =>
+        SEO_PUBLIC_LOCALES.map((locale) => publicCanonicalUrl(entry.key, locale)),
       ),
     );
+    expect(map).toHaveLength(15);
     for (const entry of map) {
       const url = new URL(entry.url);
       expect(url.protocol).toBe("https:");
       expect(url.host).toBe("visa.essafariavoyages.com");
       expect(url.search).toBe("");
       expect(url.hash).toBe("");
+      const page = SEO_INDEXABLE_PUBLIC_ENTRIES.find((candidate) =>
+        SEO_PUBLIC_LOCALES.some((locale) => publicCanonicalUrl(candidate.key, locale) === entry.url),
+      );
+      expect(entry.alternates?.languages).toEqual(publicLanguageAlternates(page!.key));
     }
   });
 
@@ -132,5 +147,10 @@ describe("safe public structured data", () => {
     expect(publicCanonicalUrl("contact")).toBe(
       `${SEO_PRODUCTION_ORIGIN}/contact`,
     );
+    expect(publicCanonicalUrl("contact", "fr")).toBe(
+      `${SEO_PRODUCTION_ORIGIN}/fr/contact`,
+    );
+    expect(seoLocalizedPublicPath("home", "ar")).toBe("/ar");
+    expect(seoLocalizedPublicPath("faq", "en")).toBe("/faq");
   });
 });

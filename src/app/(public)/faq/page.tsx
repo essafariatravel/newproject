@@ -18,7 +18,7 @@ const FAQ_COPY: Record<
 > = {
   en: {
     title: "Frequently asked questions",
-    intro: "Practical information for travel agencies considering or using ESSAFARIA's B2B services.",
+    intro: "Practical information for travel agencies in Algeria considering or using ESSAFARIA's B2B visa services.",
     items: [
       {
         question: "Who can use ESSAFARIA's services?",
@@ -54,7 +54,7 @@ const FAQ_COPY: Record<
   },
   fr: {
     title: "Questions fréquentes",
-    intro: "Informations pratiques pour les agences de voyages qui souhaitent travailler avec les services B2B d’ESSAFARIA.",
+    intro: "Informations pratiques pour les agences de voyages en Algérie qui souhaitent utiliser les services visa B2B d’ESSAFARIA.",
     items: [
       {
         question: "À qui s’adressent les services d’ESSAFARIA ?",
@@ -90,7 +90,7 @@ const FAQ_COPY: Record<
   },
   ar: {
     title: "الأسئلة الشائعة",
-    intro: "معلومات عملية لوكالات السفر التي ترغب في استخدام خدمات ESSAFARIA بنظام B2B.",
+    intro: "معلومات عملية لوكالات السفر في الجزائر التي ترغب في استخدام خدمات التأشيرات من ESSAFARIA بنظام B2B.",
     items: [
       {
         question: "لمن صُممت خدمات ESSAFARIA؟",

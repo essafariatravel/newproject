@@ -12,6 +12,7 @@ const steps: Step[] = [
       "test",
       "--",
       "tests/seo-indexation.test.ts",
+      "tests/seo-locale-routing.test.ts",
       "tests/seo-route-policy.test.ts",
       "tests/seo-private-resources.test.ts",
       "tests/seo-public-links.test.ts",

@@ -8,7 +8,7 @@
  * the architecture has no per-user preference column today, so user-level
  * persistence reuses the same cookie once signed in.
  */
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { DEFAULT_UI_LOCALE, UI_LOCALE_COOKIE, pickUiLocale, type UiLocale } from "./ui-locale-values";
 export * from "./ui-locale-values";
 
@@ -23,6 +23,10 @@ export function isUiRtl(locale: UiLocale): boolean {
 
 /** The current interface locale: ?lang= wins, then the cookie, then EN. */
 export async function getUiLocale(search?: Record<string, unknown>): Promise<UiLocale> {
+  // The public SEO proxy sets this only for the approved indexable routes.
+  // Their language must be determined by the URL, never by a visitor cookie.
+  const publicLocale = pickUiLocale((await headers()).get("x-essafaria-public-locale"));
+  if (publicLocale) return publicLocale;
   const viaQuery = getUiLocaleFromSearch(search);
   if (viaQuery) return viaQuery;
   const store = await cookies();

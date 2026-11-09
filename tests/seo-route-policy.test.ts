@@ -46,6 +46,7 @@ describe("SEO route classification contract", () => {
   it("keeps the filesystem public route set identical to the SEO manifest", () => {
     const filesystemRoutes = tsxFilesUnder("src/app/(public)")
       .filter((p) => p.endsWith("/page.tsx"))
+      .filter((p) => !p.includes("/[locale]/[[...segments]]/"))
       .map((path) => {
         const relative = path
           .replace(/^src\/app\/\(public\)/, "")

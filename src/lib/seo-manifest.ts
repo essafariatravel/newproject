@@ -1,4 +1,10 @@
+import type { UiLocale } from "@/lib/ui-locale-values";
+
 export const SEO_PRODUCTION_ORIGIN = "https://visa.essafariavoyages.com";
+
+// The existing English URLs are retained to preserve Google's indexed homepage.
+// French and Arabic receive separate, stable public URLs.
+export const SEO_PUBLIC_LOCALES = ["en", "fr", "ar"] as const satisfies readonly UiLocale[];
 
 export const SEO_PUBLIC_ROUTE_MANIFEST = {
   home: {
@@ -211,4 +217,17 @@ export function isSearchIndexableEnvironment(
 
 export function seoPublicRoutePath(key: SeoPublicRouteKey): string {
   return SEO_PUBLIC_ROUTE_MANIFEST[key].path;
+}
+
+export function seoLocalizedPublicPath(
+  page: IndexablePublicSeoPage,
+  locale: UiLocale,
+): string {
+  const path = seoPublicRoutePath(page);
+  if (locale === "en") return path;
+  return `/${locale}${path === "/" ? "" : path}`;
+}
+
+export function seoIndexablePageForPath(path: string): IndexablePublicSeoPage | null {
+  return SEO_INDEXABLE_PUBLIC_ENTRIES.find((entry) => entry.path === path)?.key ?? null;
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { headers } from "next/headers";
 import { getSiteSettings, settingString } from "@/lib/settings";
 import { publicContactDetails } from "@/lib/public-contact";
 import { readBranding, brandLogoUrl } from "@/lib/branding";
@@ -9,6 +10,11 @@ import { PublicHeader } from "@/components/public-header";
 import { UiLanguageSwitcher } from "@/components/ui-language-switcher";
 import { PublicMotion } from "@/components/public-motion";
 import { TravelPhotoCredits } from "@/components/travel-photo-credits";
+import {
+  SEO_INDEXABLE_PUBLIC_ENTRIES,
+  seoLocalizedPublicPath,
+  type IndexablePublicSeoPage,
+} from "@/lib/seo-manifest";
 import "../public-interiors.css";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +36,9 @@ export default async function PublicLayout({ children }: { children: ReactNode }
   const brandName = branding.name;
   const logoUrl = brandLogoUrl(branding);
   const locale = await getUiLocale();
+  const headerPage = (await headers()).get("x-essafaria-public-page");
+  const publicPage: IndexablePublicSeoPage | undefined =
+    SEO_INDEXABLE_PUBLIC_ENTRIES.find((entry) => entry.key === headerPage)?.key;
   const tr = chromeT(locale);
   const ct = contentT(locale);
   const legalLinks = {
@@ -44,11 +53,15 @@ export default async function PublicLayout({ children }: { children: ReactNode }
       <a className="public-skip" href="#public-main">{tr("Skip to content")}</a>
       <PublicHeader
         brandName={brandName}
+        homeHref={seoLocalizedPublicPath("home", locale)}
         tagline={tagline}
         logoUrl={logoUrl}
-        localeSwitcher={<UiLanguageSwitcher locale={locale} compact />}
+        localeSwitcher={<UiLanguageSwitcher locale={locale} publicPage={publicPage} compact />}
         nav={NAV.map((item) => ({
-          href: item.href,
+          href: seoLocalizedPublicPath(
+            (SEO_INDEXABLE_PUBLIC_ENTRIES.find((entry) => entry.path === item.href)?.key ?? "home"),
+            locale,
+          ),
           label: item.label === "FAQ" ? ct("FAQ") : tr(item.label),
         }))}
         labels={{
@@ -71,7 +84,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
           <div>
             <p className="text-base font-semibold text-white">{tr("Platform")}</p>
             <ul className="mt-4 space-y-2 text-base">
-              <li><Link className="text-white/70 transition-colors hover:text-white" href="/b2b">{tr("For Agencies")}</Link></li>
+              <li><Link className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("b2b", locale)}>{tr("For Agencies")}</Link></li>
               <li><Link className="text-white/70 transition-colors hover:text-white" href="/login">{tr("Sign in")}</Link></li>
               <li><Link className="text-white/70 transition-colors hover:text-white" href="/agency/register">{tr("Register your agency")}</Link></li>
             </ul>
@@ -79,8 +92,8 @@ export default async function PublicLayout({ children }: { children: ReactNode }
           <div>
             <p className="text-base font-semibold text-white">{tr("Company")}</p>
             <ul className="mt-4 space-y-2 text-base">
-              <li><Link className="text-white/70 transition-colors hover:text-white" href="/about">{ct("About ESSAFARIA VISA")}</Link></li>
-              <li><Link className="text-white/70 transition-colors hover:text-white" href="/contact">{ct("Contact")}</Link></li>
+              <li><Link className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("about", locale)}>{ct("About ESSAFARIA VISA")}</Link></li>
+              <li><Link className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("contact", locale)}>{ct("Contact")}</Link></li>
               <li><Link className="text-white/70 transition-colors hover:text-white" href="/privacy">{ct("Privacy Notice")}</Link></li>
               <li><Link className="text-white/70 transition-colors hover:text-white" href="/terms">{ct("Terms of Service")}</Link></li>
               {(["legal-notice", "cookies", "commercial"] as const).map((document, index) => <li key={document}><Link className="text-white/70 transition-colors hover:text-white" href={`/legal/${document}?lang=${locale}`}>{legalLinks[index]}</Link></li>)}

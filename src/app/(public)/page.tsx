@@ -5,6 +5,7 @@ import { publicBrandCopy } from "@/lib/public-brand-copy";
 import { registrationCopy } from "@/lib/i18n";
 import { buildPublicMetadata } from "@/lib/seo";
 import { PublicVisaChapters } from "@/components/public-visa-chapters";
+import { seoLocalizedPublicPath } from "@/lib/seo-manifest";
 
 export const dynamic = "force-dynamic";
 
@@ -50,14 +51,14 @@ export default async function HomePage() {
             <p>{copy.applyBody}</p>
             <div className="access-links">
               <Link href="/agency/register" className="public-cta platform-primary">{copy.partner}</Link>
-              <Link href="/b2b">{labels.details}</Link>
+              <Link href={seoLocalizedPublicPath("b2b", locale)}>{labels.details}</Link>
             </div>
           </div>
           <div className="access-process">
             <ol>
               {registration.success.nextSteps.map(step => <li key={step}>{step}</li>)}
             </ol>
-            <Link href="/contact">{labels.contact}</Link>
+            <Link href={seoLocalizedPublicPath("contact", locale)}>{labels.contact}</Link>
           </div>
         </div>
       </section>

@@ -1,7 +1,9 @@
 import {
   SEO_INDEXABLE_PUBLIC_ENTRIES,
   SEO_NOINDEX_PUBLIC_ENTRIES,
+  SEO_PUBLIC_LOCALES,
   SEO_PRODUCTION_ORIGIN,
+  seoLocalizedPublicPath,
 } from "../src/lib/seo-manifest";
 
 type Mode = "preview" | "production-sim";
@@ -60,6 +62,32 @@ function canonicalFromHtml(html: string): string | null {
   return match?.[1] ?? null;
 }
 
+function normalizedUrl(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).toString();
+  } catch {
+    return null;
+  }
+}
+
+function htmlAttribute(html: string, attribute: "lang" | "dir"): string | null {
+  const openingTag = html.match(/<html\b[^>]*>/i)?.[0] ?? "";
+  return openingTag.match(new RegExp(`\\b${attribute}=["']([^"']+)["']`, "i"))?.[1] ?? null;
+}
+
+function hreflangLinks(html: string): Record<string, string> {
+  const head = html.split("</head>", 1)[0] ?? "";
+  const result: Record<string, string> = {};
+  for (const tag of head.match(/<link\b[^>]*>/gi) ?? []) {
+    if (!/\brel=["']alternate["']/i.test(tag)) continue;
+    const locale = tag.match(/\bhreflang=["']([^"']+)["']/i)?.[1];
+    const href = tag.match(/\bhref=["']([^"']+)["']/i)?.[1];
+    if (locale && href) result[locale] = href;
+  }
+  return result;
+}
+
 function ogUrlFromHtml(html: string): string | null {
   const match =
     html.match(/<meta[^>]+property=["']og:url["'][^>]+content=["']([^"']+)["']/i) ??
@@ -84,24 +112,43 @@ function forbiddenMetadataHost(html: string): string | null {
 
 async function verifyPublicPages() {
   for (const entry of SEO_INDEXABLE_PUBLIC_ENTRIES) {
-    const { response, body } = await request(entry.path);
-    assert(response.status === 200, `${entry.path} returned ${response.status}, expected 200`);
+    for (const locale of SEO_PUBLIC_LOCALES) {
+    const path = seoLocalizedPublicPath(entry.key, locale);
+    const { response, body } = await request(path);
+    assert(response.status === 200, `${path} returned ${response.status}, expected 200`);
+    assert(htmlAttribute(body, "lang") === locale, `${path} served the wrong html language`);
+    assert(htmlAttribute(body, "dir") === (locale === "ar" ? "rtl" : "ltr"), `${path} has the wrong text direction`);
+    const localizedB2b = seoLocalizedPublicPath("b2b", locale);
+    assert(body.includes(`href="${localizedB2b}"`), `${path} navigation does not preserve its public locale`);
     const forbidden = forbiddenMetadataHost(body);
-    assert(!forbidden, `${entry.path} leaked non-Production metadata host ${forbidden}`);
+    assert(!forbidden, `${path} leaked non-Production metadata host ${forbidden}`);
 
     if (mode === "preview") {
-      assert(xRobots(response).includes("noindex"), `${entry.path} Preview response lacks X-Robots-Tag noindex`);
-      assert(canonicalFromHtml(body) === null, `${entry.path} Preview must not emit a canonical`);
-      assert(ogUrlFromHtml(body) === null, `${entry.path} Preview must not emit og:url`);
+      assert(xRobots(response).includes("noindex"), `${path} Preview response lacks X-Robots-Tag noindex`);
+      assert(canonicalFromHtml(body) === null, `${path} Preview must not emit a canonical`);
+      assert(ogUrlFromHtml(body) === null, `${path} Preview must not emit og:url`);
+      assert(Object.keys(hreflangLinks(body)).length === 0, `${path} Preview must not emit hreflang`);
     } else {
-      const expectedCanonical = new URL(entry.path, SEO_PRODUCTION_ORIGIN).toString();
-      assert(!xRobots(response).includes("noindex"), `${entry.path} Production-sim public response is noindex`);
-      assert(!htmlHasNoindex(body), `${entry.path} Production-sim public HTML is noindex`);
-      assert(canonicalFromHtml(body) === expectedCanonical, `${entry.path} canonical mismatch`);
-      assert(ogUrlFromHtml(body) === expectedCanonical, `${entry.path} og:url mismatch`);
+      const expectedCanonical = new URL(path, SEO_PRODUCTION_ORIGIN).toString();
+      assert(!xRobots(response).includes("noindex"), `${path} Production-sim public response is noindex`);
+      assert(!htmlHasNoindex(body), `${path} Production-sim public HTML is noindex`);
+      assert(normalizedUrl(canonicalFromHtml(body)) === expectedCanonical, `${path} canonical mismatch`);
+      assert(normalizedUrl(ogUrlFromHtml(body)) === expectedCanonical, `${path} og:url mismatch`);
+      const expectedHreflang = Object.fromEntries([
+        ...SEO_PUBLIC_LOCALES.map((language) => [
+          language,
+          new URL(seoLocalizedPublicPath(entry.key, language), SEO_PRODUCTION_ORIGIN).toString(),
+        ]),
+        ["x-default", new URL(seoLocalizedPublicPath(entry.key, "en"), SEO_PRODUCTION_ORIGIN).toString()],
+      ]);
+      const actualHreflang = Object.fromEntries(
+        Object.entries(hreflangLinks(body)).map(([language, url]) => [language, normalizedUrl(url)]),
+      );
+      assert(JSON.stringify(actualHreflang) === JSON.stringify(expectedHreflang), `${path} hreflang mismatch`);
     }
 
-    console.log(`PASS public ${entry.path}`);
+    console.log(`PASS public ${path}`);
+    }
   }
 }
 
@@ -117,8 +164,10 @@ async function verifySitemapAndRobots() {
     assert(locs.length === 0, `Preview sitemap exposed ${locs.length} URL(s)`);
     assert(!/\bSitemap:/i.test(robots.body), "Preview robots.txt must not advertise a sitemap");
   } else {
-    const expected = SEO_INDEXABLE_PUBLIC_ENTRIES.map((entry) =>
-      new URL(entry.path, SEO_PRODUCTION_ORIGIN).toString(),
+    const expected = SEO_INDEXABLE_PUBLIC_ENTRIES.flatMap((entry) =>
+      SEO_PUBLIC_LOCALES.map((locale) =>
+        new URL(seoLocalizedPublicPath(entry.key, locale), SEO_PRODUCTION_ORIGIN).toString(),
+      ),
     );
     assert(JSON.stringify(locs) === JSON.stringify(expected), `Production-sim sitemap mismatch: ${JSON.stringify(locs)}`);
     assert(
