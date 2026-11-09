@@ -179,7 +179,7 @@
   color: #071a33;
 }
 
-.login-sky-submit {
+.public-site .login-sky-screen .login-sky-submit {
   width: 100%;
   min-height: 49px;
   margin-block-start: 3px;
@@ -192,7 +192,7 @@
   transition: background-color 160ms ease-out, box-shadow 160ms ease-out;
 }
 
-.login-sky-submit:hover {
+.public-site .login-sky-screen .login-sky-submit:hover {
   background: #173b5f;
   box-shadow: 0 4px 11px rgba(19, 49, 74, .17);
 }
