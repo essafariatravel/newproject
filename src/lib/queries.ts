@@ -613,6 +613,20 @@ export async function reportData(filters: ReportFilters = {}) {
 /* ------------------------------ notifications --------------------------- */
 
 export type NotificationFilter = "all" | "action" | "applications" | "messages" | "wallet";
+/** The live bell needs only lightweight, recipient-scoped event headings. */
+export function notificationBellEventsForUser(userId: string) {
+  return db.select({
+    id: notifications.id,
+    type: notifications.type,
+    link: notifications.link,
+    createdAt: notifications.createdAt,
+  })
+    .from(notifications)
+    .where(eq(notifications.userId, userId))
+    .orderBy(desc(notifications.createdAt), desc(notifications.id))
+    .limit(20);
+}
+
 export async function listNotificationsForUser(userId: string, limit = 50, filter: NotificationFilter = "all") {
   const conditions = [eq(notifications.userId, userId)];
   const table = (name: string) => sql.raw(qualifiedTable(name));
