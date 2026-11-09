@@ -46,7 +46,7 @@ export default async function LoginPage({searchParams}: {searchParams: Promise<R
       <div className="auth-story relative hidden flex-col justify-between overflow-hidden border-e border-white/10 bg-navy-950 bg-cover bg-center p-8 text-white lg:flex">
         <div aria-hidden className="pointer-events-none absolute inset-0 bg-navy-950/65" />
         <div className="relative auth-story-copy">
-          <h2>{ct("The ESSAFARIA visa desk")}</h2>
+          <h2 className="text-white">{ct("The ESSAFARIA visa desk")}</h2>
           <p className="mt-4 max-w-md text-base leading-relaxed text-white/80">
             {ct("Agency partners manage applications, documents and wallets. Staff process files from the central Back Office.")}
           </p>
