@@ -16,6 +16,8 @@ export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
   // Release assembly is intentionally migration-free until explicitly approved.
   "arena/01a107e1-newproject",
   "release/final-assembly-2026-10-04",
+  // SEO Preview must never run migrations against a configured Supabase DB.
+  "seo/from-live-production-2026-11-09",
 ] as const;
 
 export function automaticDatabaseChangesForbidden(branch: string | null | undefined): boolean {

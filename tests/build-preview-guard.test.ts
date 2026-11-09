@@ -7,6 +7,10 @@ import {
 } from "../scripts/lib/build-policy";
 
 describe("Preview build database-change guard", () => {
+  it("protects the SEO branch from migrations and demo seed", () => {
+    expect(AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES).toContain("seo/from-live-production-2026-11-09");
+    expect(automaticDatabaseChangesForbidden("seo/from-live-production-2026-11-09")).toBe(true);
+  });
   it("holds the Master RC against automatic deployment, migrations and seeds", () => {
     expect(automaticDatabaseChangesForbidden("codex/master-go-live-rc-2026-10-17")).toBe(true);
     expect(automaticDatabaseChangesForbidden("codex/master-go-live-rc-2026-11-01")).toBe(true);
