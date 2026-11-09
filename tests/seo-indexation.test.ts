@@ -9,7 +9,12 @@ import {
   isSearchIndexableEnvironment,
   publicLanguageAlternates,
   publicCanonicalUrl,
+  publicOrganizationJsonLd,
+  serializeJsonLd,
 } from "@/lib/seo";
+import { renderToStaticMarkup } from "react-dom/server";
+import { createElement } from "react";
+import { PublicOrganizationData } from "@/components/public-organization-data";
 import {
   SEO_INDEXABLE_PUBLIC_ENTRIES,
   SEO_PUBLIC_LOCALES,
@@ -38,6 +43,22 @@ describe("SEO environment safety", () => {
 });
 
 describe("public metadata", () => {
+  it("explains B2B electronic-visa intent in the main marketing pages for all three languages", () => {
+    const terms = {
+      en: /evisa/i,
+      fr: /evisa/i,
+      ar: /التأشيرات الإلكترونية/,
+    } as const;
+    for (const locale of ["en", "fr", "ar"] as const) {
+      for (const page of ["home", "b2b"] as const) {
+        const metadata = buildPublicMetadata(page, locale, production);
+        expect(`${metadata.title} ${metadata.description}`).toMatch(terms[locale]);
+        expect(`${metadata.title} ${metadata.description}`).toMatch(/B2B/i);
+        expect(`${metadata.title} ${metadata.description}`).not.toMatch(/\b\d+[,. ]*\s*(DA|DZD|EUR|USD)\b/i);
+      }
+    }
+  });
+
   it("uses the canonical Production host only in Production", () => {
     const prod = buildPublicMetadata("b2b", "fr", production);
     const pre = buildPublicMetadata("b2b", "fr", preview);
@@ -137,10 +158,27 @@ describe("safe public structured data", () => {
     expect(buildOrganizationJsonLd()).toEqual({
       "@context": "https://schema.org",
       "@type": "Organization",
-      name: "ESSAFARIA",
-      url: SEO_PRODUCTION_ORIGIN,
+      name: "ESSAFARIA TRAVEL",
+      url: "https://www.essafariavoyages.com/",
       logo: `${SEO_PRODUCTION_ORIGIN}/images/essafaria-logo.png`,
+      sameAs: [SEO_PRODUCTION_ORIGIN + "/", "https://www.instagram.com/essafaria.travel/"],
     });
+  });
+
+  it("renders organization JSON-LD on Production home routes only", () => {
+    const expected = publicOrganizationJsonLd("home", production);
+    expect(expected).toBeTruthy();
+    const markup = renderToStaticMarkup(createElement(PublicOrganizationData, { page: "home", env: production }));
+    expect(markup).toContain('<script type="application/ld+json">');
+    expect(markup).toContain('"ESSAFARIA TRAVEL"');
+    expect(renderToStaticMarkup(createElement(PublicOrganizationData, { page: "home", env: preview }))).toBe("");
+    expect(renderToStaticMarkup(createElement(PublicOrganizationData, { page: "b2b", env: production }))).toBe("");
+  });
+
+  it("escapes HTML-significant text when serializing public structured data", () => {
+    const serialized = serializeJsonLd({ text: "</script><script>alert(1)</script>" });
+    expect(serialized).not.toContain("</script>");
+    expect(serialized).toContain("\\u003c/script>");
   });
 
   it("builds deterministic canonical URLs", () => {

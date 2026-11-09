@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { publicBrandCopy } from "@/lib/public-brand-copy";
 import { getSiteSettings, settingString } from "@/lib/settings";
+import { publicContactDetails } from "@/lib/public-contact";
+import { PublicCompanyIdentity } from "@/components/public-company-identity";
 import { buildPublicMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +15,9 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AboutPage() {
   const locale = await getUiLocale();
   const copy = publicBrandCopy(locale);
-  const ownerCopy = settingString(await getSiteSettings(), `public.about.${locale}`).trim();
+  const settings = await getSiteSettings();
+  const ownerCopy = settingString(settings, `public.about.${locale}`).trim();
+  const { address } = publicContactDetails(settings);
   return (
     <section className="public-interior about-interior" aria-labelledby="about-heading">
       <header className="interior-width about-heading">
@@ -34,6 +38,7 @@ export default async function AboutPage() {
           <Link href="/agency/register" className="interior-link">{copy.partner}</Link>
         </div>
       </div>
+      <PublicCompanyIdentity locale={locale} address={address} />
     </section>
   );
 }
