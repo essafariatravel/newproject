@@ -67,6 +67,11 @@ describe("Preview build database-change guard", () => {
   it("forbids automatic database changes during North Star design Preview builds", () => {
     expect(automaticDatabaseChangesForbidden("design/essafaria-northstar")).toBe(true);
   });
+  it("keeps the cloud-sky login design Preview read-only", () => {
+    const branch = "design/login-cloud-sky-preview-2026-11-09";
+    expect(AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES).toContain(branch);
+    expect(automaticDatabaseChangesForbidden(branch)).toBe(true);
+  });
   it("forbids automatic database changes on the authoritative RC branch", () => {
     expect(automaticDatabaseChangesForbidden("release/essafaria-rc-2026-09")).toBe(true);
   });

@@ -20,6 +20,8 @@ export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
   "seo/from-live-production-2026-11-09",
   "seo/agency-content-2026-11-09",
   "seo/v1-2-deep-2026-11-09",
+  // Login visual preview: no database changes under any circumstances.
+  "design/login-cloud-sky-preview-2026-11-09",
 ] as const;
 
 export function automaticDatabaseChangesForbidden(branch: string | null | undefined): boolean {

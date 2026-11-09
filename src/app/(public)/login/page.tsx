@@ -8,8 +8,10 @@ import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { identityT } from "@/lib/identity-copy";
 import { safeErrorCode } from "@/lib/safe-error";
+import { UiLanguageSwitcher } from "@/components/ui-language-switcher";
 import type { Metadata } from "next";
 import { buildNoIndexMetadata } from "@/lib/seo";
+import "./login-sky.css";
 
 export const metadata: Metadata = buildNoIndexMetadata("Sign in", {
   referrer: "no-referrer",
@@ -42,43 +44,67 @@ export default async function LoginPage({searchParams}: {searchParams: Promise<R
   const logoUrl = brandLogoUrl(branding);
 
   return (
-    <div className="auth-entrance public-access-interior grid min-h-[calc(100vh-4rem)] grid-cols-1 lg:grid-cols-2">
-      <div className="auth-story relative hidden flex-col justify-between overflow-hidden border-e border-white/10 bg-navy-950 bg-cover bg-center p-8 text-white lg:flex">
-        <div aria-hidden className="pointer-events-none absolute inset-0 bg-navy-950/65" />
-        <div className="relative auth-story-copy">
-          <h2 className="text-white">{ct("The ESSAFARIA visa desk")}</h2>
-          <p className="mt-4 max-w-md text-base leading-relaxed text-white/80">
-            {ct("Agency partners manage applications, documents and wallets. Staff process files from the central Back Office.")}
-          </p>
-        </div>
-        <p className="relative text-sm text-white">
-          {ct("Ostuni, Italy")}
-        </p>
-      </div>
-      <div className="flex items-center justify-center p-6">
-        <div className="w-full max-w-sm">
-          <div className="mb-8 flex justify-center lg:hidden">
-            <img className="h-20 w-28 object-contain" src={logoUrl ?? "/images/essafaria-logo.png"} alt={branding.name} width="112" height="80" />
+    <div className="login-sky-screen">
+      <div className="login-sky-photo" aria-hidden="true" />
+      <div className="login-sky-wash" aria-hidden="true" />
+      <div className="login-sky-panel-outer">
+        <section className="login-sky-panel" aria-labelledby="login-title">
+          <div className="login-sky-brand">
+            <img
+              className="login-sky-logo"
+              src={logoUrl ?? "/images/essafaria-logo.png"}
+              alt={branding.name}
+              width="128"
+              height="91"
+            />
+            <div className="login-sky-brand-copy" aria-hidden="true">
+              <span>ESSAFARIA</span>
+              <small>VISA OS</small>
+            </div>
           </div>
-          <h1 className="font-serif text-2xl text-navy-900">{ct("Sign in")}</h1>
-          <p className="mt-1 text-base text-slate-500">{ct("Partner access")}</p>
-          {sp.reason === "session-expired" ? <p role="status" className="mt-4 border-s-2 border-gold-500 ps-4 text-base text-slate-600">{ct("Your session has expired. Sign in again to continue.")}</p> : null}
-          {sp.reset === "complete" ? <p role="status" className="mt-4 border-s-2 border-emerald-600 ps-4 text-base text-slate-600">{ct("Your password has been updated. Sign in with your new password.")}</p> : null}
+
+          <div className="login-sky-intro">
+            <h1 id="login-title">{ct("Sign in")}</h1>
+            <p>{ct("Partner access")}</p>
+          </div>
+
+          {sp.reason === "session-expired" ? (
+            <p role="status" className="login-sky-notice login-sky-notice-warning">
+              {ct("Your session has expired. Sign in again to continue.")}
+            </p>
+          ) : null}
+          {sp.reset === "complete" ? (
+            <p role="status" className="login-sky-notice login-sky-notice-success">
+              {ct("Your password has been updated. Sign in with your new password.")}
+            </p>
+          ) : null}
+
           <LoginForm
-        copy={{
-          email: ct("Email"),
-          password: ct("Password"),
-          signIn: ct("Sign in"),
-          signingIn: `${ct("Signing in")}…`,
-          footer: it("Sign in with your registered account email."),
-          forgotPassword: it("Forgot password?"),
-          showPassword: ct("Show"),
-          hidePassword: ct("Hide"),
-        }} brandName={branding.name} />
-          <p className="auth-partner-link"><Link href="/agency/register">{ct("Register your agency")}</Link></p>
-          <p className="text-center text-xs text-slate-600">{ct("Access is restricted to authorized users. All activity is logged and audited.")}</p>
-        </div>
+            brandName={branding.name}
+            copy={{
+              email: ct("Email"),
+              password: ct("Password"),
+              signIn: ct("Sign in"),
+              signingIn: `${ct("Signing in")}…`,
+              footer: it("Sign in with your registered account email."),
+              forgotPassword: it("Forgot password?"),
+              showPassword: ct("Show"),
+              hidePassword: ct("Hide"),
+            }}
+          />
+
+          <div className="login-sky-bottom">
+            <div className="login-sky-links">
+              <Link href="/">{ct("Home")}</Link>
+              <Link href="/agency/register">{ct("Register your agency")}</Link>
+            </div>
+            <UiLanguageSwitcher locale={locale} nextPath="/login" />
+          </div>
+        </section>
       </div>
+      <p className="login-sky-disclosure">
+        {ct("Access is restricted to authorized users. All activity is logged and audited.")}
+      </p>
     </div>
   );
 }

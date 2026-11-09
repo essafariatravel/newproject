@@ -25,13 +25,13 @@ export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
   const [state, formAction] = useActionState(loginAction, {});
   return (
     <>
-      <form action={formAction} className="mt-8 space-y-4">
+      <form action={formAction} className="login-sky-form">
         {state.error ? (
-          <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-4 text-base text-red-700">
+          <div role="alert" className="login-sky-error">
             {state.error}
           </div>
         ) : null}
-        <div>
+        <div className="login-sky-field">
           <label htmlFor="email" className="label">{copy.email}</label>
           <input
             id="email"
@@ -44,13 +44,13 @@ export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
             className="input"
           />
         </div>
-        <PasswordField id="password" name="password" label={copy.password} autoComplete="current-password" required minLength={0} hint="" showLabel={copy.showPassword} hideLabel={copy.hidePassword}/>
-        <SubmitButton className="btn-primary w-full py-2" pendingLabel={copy.signingIn}>
+        <PasswordField id="password" name="password" label={copy.password} autoComplete="current-password" required minLength={0} hint="" className="login-sky-field" showLabel={copy.showPassword} hideLabel={copy.hidePassword}/>
+        <Link href="/forgot-password" className="login-sky-forgot">{copy.forgotPassword}</Link>
+        <SubmitButton className="btn-primary login-sky-submit" pendingLabel={copy.signingIn}>
           {copy.signIn}
         </SubmitButton>
       </form>
-      <Link href="/forgot-password" className="mt-4 block text-center text-base text-iris-700 underline">{copy.forgotPassword}</Link>
-      <p className="mt-6 text-center text-xs text-slate-500">
+      <p className="login-sky-form-caption">
         {copy.footer}
       </p>
     </>
