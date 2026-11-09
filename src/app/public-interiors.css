@@ -98,6 +98,23 @@
 .partner-invitation { border-block-start: 1px solid var(--premium-line); background: var(--premium-white); }
 .partner-invitation .interior-link { margin-block-start: .75rem; }
 .partner-invitation .interior-note { margin: .25rem 0 0; }
+.partner-guide { border-block-start: 1px solid var(--premium-line); background: var(--premium-white); }
+.partner-guide-intro, .partner-guide-process, .partner-guide-limits {
+  display: grid; grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr);
+  gap: var(--interior-gap); padding-block: clamp(2rem,4vw,4rem);
+}
+.partner-guide-intro h2, .partner-guide-process h2, .partner-guide-limits h2 { max-width: 22ch; }
+.partner-guide-intro > p, .partner-guide-limits p, .partner-guide-steps p {
+  max-width: 70ch; color: var(--premium-muted); line-height: 1.75;
+}
+.partner-guide-process, .partner-guide-limits { border-block-start: 1px solid var(--premium-line); }
+.partner-guide-steps { margin: 0; padding-inline-start: 1.75rem; }
+.partner-guide-steps li { padding-block: .25rem 1.25rem; padding-inline-start: .45rem; }
+.partner-guide-steps li + li { border-block-start: 1px solid var(--premium-line); padding-block-start: 1.25rem; }
+.partner-guide-steps li::marker { font-variant-numeric: tabular-nums; color: var(--premium-muted); }
+.partner-guide-steps h3 { font-size: 1.15rem; font-weight: 600; line-height: 1.4; }
+.partner-guide-steps p { margin-block-start: .4rem; }
+.partner-guide-limits .interior-actions { margin-block-start: 1rem; }
 
 .about-heading { padding-block: var(--interior-space) clamp(1.5rem, 4vw, 4rem); }
 .about-heading h1 { max-width: 22ch; }
@@ -162,7 +179,7 @@ html[lang='ar'] .public-interior :is(h1,h2,dt) { letter-spacing: 0; line-height:
   .registration-sign-in { margin-block-start: 1rem; }
 }
 @media(max-width: 767px) {
-  .partner-lead-grid, .partner-desk, .partner-invitation-grid, .about-letter, .contact-spread, .faq-spread { grid-template-columns: minmax(0, 1fr); gap: 1.75rem; }
+  .partner-lead-grid, .partner-desk, .partner-invitation-grid, .partner-guide-intro, .partner-guide-process, .partner-guide-limits, .about-letter, .contact-spread, .faq-spread { grid-template-columns: minmax(0, 1fr); gap: 1.75rem; }
   .partner-lead-copy { padding-block: 1rem 0; }
   .partner-photo { aspect-ratio: 1.75; }
   .about-letter { grid-template-columns: minmax(0, 1fr); }

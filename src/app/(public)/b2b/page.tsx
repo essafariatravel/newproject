@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { publicBrandCopy } from "@/lib/public-brand-copy";
 import { buildPublicMetadata } from "@/lib/seo";
+import { seoLocalizedPublicPath } from "@/lib/seo-manifest";
+import { PARTNER_PUBLIC_GUIDE } from "@/lib/public-partner-guide";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +36,7 @@ export default async function B2BPage() {
   const locale = await getUiLocale();
   const copy = publicBrandCopy(locale);
   const desk = partnership[locale];
+  const guide = PARTNER_PUBLIC_GUIDE[locale];
   return (
     <div className="public-interior partner-interior">
       <section className="partner-lead" aria-labelledby="partner-heading">
@@ -61,6 +64,33 @@ export default async function B2BPage() {
           <div><dt>{desk.staff}</dt><dd>{desk.staffText}</dd></div>
           <div><dt>{desk.finance}</dt><dd>{desk.financeText}</dd></div>
         </dl>
+      </section>
+      <section className="partner-guide" aria-labelledby="partner-guide-title">
+        <div className="interior-width partner-guide-intro">
+          <h2 id="partner-guide-title">{guide.audienceTitle}</h2>
+          <p>{guide.audienceBody}</p>
+        </div>
+        <div className="interior-width partner-guide-process">
+          <h2>{guide.stepsTitle}</h2>
+          <ol className="partner-guide-steps">
+            {guide.steps.map((step) => (
+              <li key={step.title}>
+                <h3>{step.title}</h3>
+                <p>{step.body}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+        <div className="interior-width partner-guide-limits">
+          <h2>{guide.limitationsTitle}</h2>
+          <div>
+            <p>{guide.limitationsBody}</p>
+            <nav className="interior-actions" aria-label={guide.stepsTitle}>
+              <Link href={seoLocalizedPublicPath("faq", locale)} className="interior-link">{guide.faqLink}</Link>
+              <Link href={seoLocalizedPublicPath("contact", locale)} className="interior-link">{guide.contactLink}</Link>
+            </nav>
+          </div>
+        </div>
       </section>
       <section id="partner" className="partner-invitation">
         <div className="interior-width partner-invitation-grid">

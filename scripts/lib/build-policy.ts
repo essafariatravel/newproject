@@ -18,6 +18,7 @@ export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
   "release/final-assembly-2026-10-04",
   // SEO Preview must never run migrations against a configured Supabase DB.
   "seo/from-live-production-2026-11-09",
+  "seo/agency-content-2026-11-09",
 ] as const;
 
 export function automaticDatabaseChangesForbidden(branch: string | null | undefined): boolean {
