@@ -20,6 +20,9 @@ export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
   "seo/from-live-production-2026-11-09",
   "seo/agency-content-2026-11-09",
   "seo/v1-2-deep-2026-11-09",
+  // The isolated hosted capacity campaign provisions its schema explicitly.
+  // Its Preview build must never connect to or modify any database.
+  "codex/isolated-capacity-test-20261109",
 ] as const;
 
 export function automaticDatabaseChangesForbidden(branch: string | null | undefined): boolean {
