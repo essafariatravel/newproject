@@ -34,14 +34,14 @@ const PUBLIC_COPY: Record<
 > = {
   en: {
     home: {
-      title: "B2B Visa Platform for Travel Agencies in Algeria",
+      title: "B2B Visa & eVisa Platform for Travel Agencies in Algeria",
       description:
-        "ESSAFARIA helps travel agencies in Algeria manage B2B visa requests, client documents and case follow-up through a secure partner platform.",
+        "ESSAFARIA helps travel agencies in Algeria coordinate B2B visa and eVisa requests, documents and case follow-up in a secure partner platform.",
     },
     b2b: {
-      title: "B2B Visa Services for Travel Agencies in Algeria",
+      title: "B2B Visa & eVisa Services for Travel Agencies in Algeria",
       description:
-        "Partner with ESSAFARIA for professional visa request handling, document review and secure case tracking for travel agencies in Algeria.",
+        "Partner with ESSAFARIA for professional visa and eVisa case coordination, document review and secure follow-up for travel agencies in Algeria.",
     },
     about: {
       title: "About ESSAFARIA TRAVEL in Algeria",
@@ -61,14 +61,14 @@ const PUBLIC_COPY: Record<
   },
   fr: {
     home: {
-      title: "Plateforme visa B2B pour agences en Algérie",
+      title: "Plateforme visa et eVisa B2B pour agences en Algérie",
       description:
-        "ESSAFARIA accompagne les agences de voyages en Algérie avec une plateforme visa B2B sécurisée : demandes, documents et suivi des dossiers.",
+        "ESSAFARIA accompagne les agences de voyages en Algérie avec une plateforme visa et eVisa B2B sécurisée : dossiers, documents et suivi des demandes.",
     },
     b2b: {
-      title: "Services visa B2B pour agences de voyages en Algérie",
+      title: "Services visa et eVisa B2B pour agences en Algérie",
       description:
-        "Partenariat visa B2B en Algérie : ESSAFARIA accompagne les agences dans le traitement des demandes, le contrôle documentaire et le suivi sécurisé.",
+        "Partenariat visa et eVisa B2B en Algérie : ESSAFARIA accompagne les agences dans la préparation des dossiers, le contrôle documentaire et le suivi sécurisé.",
     },
     about: {
       title: "ESSAFARIA TRAVEL — Solutions visa B2B à Alger",
@@ -88,14 +88,14 @@ const PUBLIC_COPY: Record<
   },
   ar: {
     home: {
-      title: "منصة تأشيرات B2B لوكالات السفر في الجزائر",
+      title: "منصة B2B للتأشيرات الإلكترونية لوكالات السفر في الجزائر",
       description:
-        "توفر ESSAFARIA لوكالات السفر في الجزائر منصة B2B آمنة لإدارة طلبات التأشيرات والوثائق ومتابعة الملفات.",
+        "توفر ESSAFARIA لوكالات السفر في الجزائر منصة B2B آمنة لتنسيق طلبات التأشيرات الإلكترونية والتأشيرات الأخرى ومراجعة الوثائق ومتابعة الملفات.",
     },
     b2b: {
-      title: "خدمات التأشيرات B2B لوكالات السفر في الجزائر",
+      title: "خدمات التأشيرات الإلكترونية B2B لوكالات السفر في الجزائر",
       description:
-        "تعاون مع ESSAFARIA لخدمات التأشيرات المهنية في الجزائر، ومراجعة الوثائق ومتابعة طلبات العملاء عبر بوابة آمنة.",
+        "تعاون مع ESSAFARIA لتنسيق طلبات التأشيرات الإلكترونية والتأشيرات الأخرى لوكالات السفر في الجزائر ومراجعة الوثائق ومتابعة الملفات بأمان.",
     },
     about: {
       title: "عن ESSAFARIA TRAVEL في الجزائر",
@@ -211,14 +211,28 @@ export function buildOrganizationJsonLd(): Record<string, unknown> {
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: SEO_SITE_NAME,
-    url: SEO_PRODUCTION_ORIGIN,
+    name: "ESSAFARIA TRAVEL",
+    url: "https://www.essafariavoyages.com/",
     logo: `${SEO_PRODUCTION_ORIGIN}/images/essafaria-logo.png`,
+    sameAs: [
+      `${SEO_PRODUCTION_ORIGIN}/`,
+      "https://www.instagram.com/essafaria.travel/",
+    ],
   };
 }
 
 export function serializeJsonLd(value: unknown): string {
   return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
+/** Only the approved Production home pages emit the public operator's identity. */
+export function publicOrganizationJsonLd(
+  page: IndexablePublicSeoPage | undefined,
+  env: SeoRuntimeEnv = process.env,
+): string | null {
+  return page === "home" && isSearchIndexableEnvironment(env)
+    ? serializeJsonLd(buildOrganizationJsonLd())
+    : null;
 }
 
 // Only the approved public pages have localized URLs. Operational screens

@@ -124,6 +124,15 @@
 .about-mark { align-self: start; width: 7.5rem; height: auto; }
 .about-owner-copy { white-space: pre-line; max-width: 62ch; }
 .about-letter .interior-link { margin-block-start: 1rem; }
+.about-identity { display: grid; grid-template-columns: minmax(0,.65fr) minmax(0,1.35fr); gap: var(--interior-gap); padding-block: clamp(2rem,4vw,4rem) var(--interior-space); border-top: 1px solid var(--premium-line); }
+.about-identity-intro h2 { max-width: 20ch; }
+.about-identity-intro p, .about-identity-note { margin-block-start: 1rem; max-width: 54ch; line-height: 1.7; color: var(--premium-muted); }
+.about-identity-facts > div { display: grid; grid-template-columns: minmax(8rem,.55fr) minmax(0,1fr); gap: .75rem 1rem; padding-block: 1rem; border-block-start: 1px solid var(--premium-line); }
+.about-identity-facts dt { color: var(--premium-muted); font-size: .95rem; }
+.about-identity-facts dd { color: var(--premium-ink); font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.about-identity-facts a { text-decoration: underline; text-underline-offset: .25em; }
+.about-identity-facts a:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+.about-identity-note { font-size: .92rem; }
 
 .contact-spread, .faq-spread, .registration-spread { display: grid; padding-block: var(--interior-space); align-items: start; }
 .contact-spread { grid-template-columns: minmax(0,.95fr) minmax(0,1.05fr); gap: var(--interior-gap); }
@@ -179,7 +188,7 @@ html[lang='ar'] .public-interior :is(h1,h2,dt) { letter-spacing: 0; line-height:
   .registration-sign-in { margin-block-start: 1rem; }
 }
 @media(max-width: 767px) {
-  .partner-lead-grid, .partner-desk, .partner-invitation-grid, .partner-guide-intro, .partner-guide-process, .partner-guide-limits, .about-letter, .contact-spread, .faq-spread { grid-template-columns: minmax(0, 1fr); gap: 1.75rem; }
+  .partner-lead-grid, .partner-desk, .partner-invitation-grid, .partner-guide-intro, .partner-guide-process, .partner-guide-limits, .about-letter, .about-identity, .contact-spread, .faq-spread { grid-template-columns: minmax(0, 1fr); gap: 1.75rem; }
   .partner-lead-copy { padding-block: 1rem 0; }
   .partner-photo { aspect-ratio: 1.75; }
   .about-letter { grid-template-columns: minmax(0, 1fr); }

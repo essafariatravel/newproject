@@ -9,6 +9,7 @@ import { contentT } from "@/lib/i18n-content";
 import { PublicHeader } from "@/components/public-header";
 import { UiLanguageSwitcher } from "@/components/ui-language-switcher";
 import { PublicMotion } from "@/components/public-motion";
+import { PublicOrganizationData } from "@/components/public-organization-data";
 import { TravelPhotoCredits } from "@/components/travel-photo-credits";
 import {
   SEO_INDEXABLE_PUBLIC_ENTRIES,
@@ -49,6 +50,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
 
   return (
     <div className="public-site flex min-h-screen flex-col">
+      <PublicOrganizationData page={publicPage} />
       <PublicMotion />
       <a className="public-skip" href="#public-main">{tr("Skip to content")}</a>
       <PublicHeader

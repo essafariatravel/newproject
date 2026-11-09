@@ -11,6 +11,8 @@ describe("Preview build database-change guard", () => {
     expect(AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES).toContain("seo/from-live-production-2026-11-09");
     expect(automaticDatabaseChangesForbidden("seo/from-live-production-2026-11-09")).toBe(true);
     expect(automaticDatabaseChangesForbidden("seo/agency-content-2026-11-09")).toBe(true);
+    expect(AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES).toContain("seo/v1-2-deep-2026-11-09");
+    expect(automaticDatabaseChangesForbidden("seo/v1-2-deep-2026-11-09")).toBe(true);
   });
   it("holds the Master RC against automatic deployment, migrations and seeds", () => {
     expect(automaticDatabaseChangesForbidden("codex/master-go-live-rc-2026-10-17")).toBe(true);

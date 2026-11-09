@@ -51,6 +51,18 @@ describe("public SEO performance guardrails", () => {
     }
   });
 
+  it("serves a right-sized WebP for the repeated header brand mark", () => {
+    const asset = "public/images/essafaria-logo-header.webp";
+    const bytes = readFileSync(resolve(process.cwd(), asset));
+    expect(bytes.subarray(0, 4).toString()).toBe("RIFF");
+    expect(bytes.subarray(8, 12).toString()).toBe("WEBP");
+    expect(bytes.length, "header logo should not ship the full-resolution original").toBeLessThan(20_000);
+
+    const header = source("src/components/public-header.tsx");
+    expect(header).toContain('src="/images/essafaria-logo-header.webp"');
+    expect(header).toMatch(/width="80"\s+height="57"/);
+  });
+
   it("does not embed base64 media or autoplay video in core indexable pages", () => {
     for (const path of INDEXABLE_PAGE_FILES) {
       const body = source(path);

@@ -3,8 +3,23 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { PARTNER_PUBLIC_GUIDE } from "@/lib/public-partner-guide";
 import { SEO_PUBLIC_LOCALES } from "@/lib/seo-manifest";
+import { publicBrandCopy } from "@/lib/public-brand-copy";
 
 describe("public B2B visa partnership content", () => {
+  it("clarifies eVisa workflows to agencies without revealing private commercial offers", () => {
+    const terms = {
+      en: /evisa/i,
+      fr: /evisa/i,
+      ar: /التأشيرات الإلكترونية/,
+    } as const;
+    for (const locale of SEO_PUBLIC_LOCALES) {
+      const intro = publicBrandCopy(locale).intro;
+      const guide = PARTNER_PUBLIC_GUIDE[locale].audienceBody;
+      expect(intro + " " + guide).toMatch(terms[locale]);
+      expect(intro + " " + guide).not.toMatch(/\b\d+[,. ]*\s*(?:DA|DZD|EUR|USD)\b/i);
+    }
+  });
+
   it("offers substantive, locally relevant guidance in every public language", () => {
     for (const locale of SEO_PUBLIC_LOCALES) {
       const guide = PARTNER_PUBLIC_GUIDE[locale];

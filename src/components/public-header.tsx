@@ -79,7 +79,7 @@ export function PublicHeader({ brandName, homeHref = "/", tagline: _tagline, log
             />
           ) : (
             <>
-              <img src="/images/essafaria-logo.png" alt="" width="80" height="57" className="platform-mark shrink-0 object-contain" />
+              <img src="/images/essafaria-logo-header.webp" alt="" width="80" height="57" className="platform-mark shrink-0 object-contain" />
               <span className="hidden min-w-0 leading-tight sm:block">
                 <span className="block truncate text-base font-semibold text-white">{brandName}</span>
                 <span className="block truncate text-xs text-white/75">

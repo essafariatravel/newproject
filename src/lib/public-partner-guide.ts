@@ -16,7 +16,7 @@ export const PARTNER_PUBLIC_GUIDE: Record<UiLocale, PublicPartnerGuide> = {
   en: {
     audienceTitle: "Visa operations for professional travel agencies in Algeria",
     audienceBody:
-      "ESSAFARIA VISA OS is a B2B workspace for travel agencies that arrange visa services for their clients in Algeria. Agencies can coordinate applications with the ESSAFARIA team, share case documents and follow the progress of submitted requests from one professional account. It is not an individual traveller visa application website.",
+      "ESSAFARIA VISA OS is a B2B workspace for travel agencies that arrange visa and electronic visa (eVisa) services for their clients in Algeria. Agencies can coordinate applications with the ESSAFARIA team, share case documents and follow the progress of submitted requests from one professional account. Available services are presented only inside the approved partner workspace; this is not an individual traveller visa application website.",
     stepsTitle: "How an agency partnership works",
     steps: [
       {
@@ -45,7 +45,7 @@ export const PARTNER_PUBLIC_GUIDE: Record<UiLocale, PublicPartnerGuide> = {
   fr: {
     audienceTitle: "Un accompagnement visa B2B pour les agences de voyages en Algérie",
     audienceBody:
-      "ESSAFARIA VISA OS est un espace professionnel destiné aux agences de voyages qui prennent en charge les démarches de visa de leurs clients en Algérie. La plateforme permet de coordonner les demandes avec l’équipe ESSAFARIA, de transmettre les pièces du dossier et de suivre les étapes de traitement depuis un compte agence. Ce service B2B n’est pas un formulaire de visa destiné aux voyageurs particuliers.",
+      "ESSAFARIA VISA OS est un espace professionnel destiné aux agences de voyages qui prennent en charge les démarches de visa et de visa électronique (eVisa) de leurs clients en Algérie. La plateforme permet de coordonner les demandes avec l’équipe ESSAFARIA, de transmettre les pièces et de suivre les dossiers depuis un compte agence. Les services disponibles sont présentés uniquement aux partenaires approuvés : ce portail B2B n’est pas un formulaire de visa destiné aux voyageurs particuliers.",
     stepsTitle: "Comment fonctionne le partenariat agence",
     steps: [
       {
@@ -74,7 +74,7 @@ export const PARTNER_PUBLIC_GUIDE: Record<UiLocale, PublicPartnerGuide> = {
   ar: {
     audienceTitle: "خدمات التأشيرات المهنية لوكالات السفر في الجزائر",
     audienceBody:
-      "ESSAFARIA VISA OS مساحة عمل مهنية مخصصة لوكالات السفر التي تتولى ملفات تأشيرات زبائنها في الجزائر. تتيح المنصة تنسيق الطلبات مع فريق ESSAFARIA وإرسال وثائق الملف ومتابعة مراحل المعالجة من حساب الوكالة. هذه خدمة موجهة للشركاء المهنيين وليست موقعاً لتقديم طلبات التأشيرة الفردية مباشرة.",
+      "ESSAFARIA VISA OS مساحة عمل مهنية مخصصة لوكالات السفر التي تتولى ملفات التأشيرات الإلكترونية والتأشيرات الأخرى لزبائنها في الجزائر. تتيح المنصة تنسيق الطلبات مع فريق ESSAFARIA وإرسال الوثائق ومتابعة مراحل المعالجة من حساب الوكالة. تُعرض الخدمات المتاحة للشركاء المعتمدين فقط، وهذه البوابة ليست موقعاً لتقديم طلبات التأشيرة الفردية مباشرة.",
     stepsTitle: "كيف تعمل الشراكة مع الوكالات؟",
     steps: [
       {
