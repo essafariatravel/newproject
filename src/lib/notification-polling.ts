@@ -31,7 +31,10 @@ export function startNotificationPolling<T>(publish:(payload:T)=>void):()=>void 
   }catch{if(!stopped&&document.visibilityState==='visible')failures++;}
   finally{
    clearTimeout(timeout);controller=undefined;inFlight=false;
-   retryAt=Date.now()+15_000*2**Math.min(failures,3);schedule();
+   // Spread active tabs across time instead of forming a synchronous DB spike.
+   // Failures keep bounded backoff; successful bells stay within 30–33 seconds.
+   const delay=failures?Math.min(120_000,30_000*2**Math.min(failures,2)):30_000+Math.floor(Math.random()*3_000);
+   retryAt=Date.now()+delay;schedule();
   }
  }
  document.addEventListener('visibilitychange',visibilityChanged);void poll();return stop;
