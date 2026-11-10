@@ -2,10 +2,8 @@
  * Build entry point (Vercel and local `npm run build`).
  *
  * Guarantees:
- * - `next build` NEVER requires DATABASE_URL. Vercel Preview environment
- *   variables can be missing or scoped to other branches, and every route is
- *   dynamic with graceful database fallbacks — a missing variable must fail
- *   queries at runtime, never the build.
+ * - The authentication Preview artifact verifies its isolated database
+ *   configuration before building. Local loopback builds remain supported.
  * - On Vercel PREVIEW builds only, when DATABASE_URL is present, the
  *   repository's existing idempotent migrations are applied first
  *   (ledger-guarded, advisory-lock serialized, no reset, no data deletion), so
@@ -20,6 +18,7 @@
 import { spawnSync } from "node:child_process";
 import { automaticDatabaseChangesForbidden } from "./lib/build-policy";
 import { configuredStorageProvider } from "../src/lib/storage-config";
+import { assertAuthPreviewArtifact } from "../src/lib/auth-test-lab";
 
 function run(script: string, args: string[]): number {
   const result = spawnSync(process.execPath, [script, ...args], { stdio: "inherit" });
@@ -27,6 +26,7 @@ function run(script: string, args: string[]): number {
 }
 
 function main(): void {
+  assertAuthPreviewArtifact();
   console.log(`[build] Verified storage provider: ${configuredStorageProvider()}`);
   if (process.env.VERCEL === "1" && process.env.VERCEL_ENV === "production") {
     if (run("node_modules/tsx/dist/cli.mjs", ["essafaria-private-stage-readonly.mjs"]) !== 0) process.exit(1);

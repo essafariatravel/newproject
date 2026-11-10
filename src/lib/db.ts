@@ -2,6 +2,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "@/db/schema";
 import { databasePoolConfig } from "./database-config";
+import { assertAuthPreviewArtifact } from "./auth-test-lab";
 import { logErrorOnce } from "./observability";
 
 declare global {
@@ -23,6 +24,7 @@ function createPool(): Pool {
 }
 
 /** Shared pg pool (survives HMR in dev). */
+assertAuthPreviewArtifact();
 export const pool: Pool = globalThis.__evosPool ?? createPool();
 if (process.env.NODE_ENV !== "production") globalThis.__evosPool = pool;
 

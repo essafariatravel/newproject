@@ -2,12 +2,14 @@
 import "./lib/load-env";
 import path from "node:path";
 import { Pool } from "pg";
+import { assertAuthPreviewArtifact } from "../src/lib/auth-test-lab";
 import { databasePoolConfig } from "../src/lib/database-config";
 import { safeErrorCode, safeErrorText } from "../src/lib/safe-error";
 import { applyMigrations } from "./lib/migrations";
 
 
 async function main() {
+  assertAuthPreviewArtifact();
   // Optional direct/session connection for DDL; DATABASE_URL remains canonical at runtime.
   const pool = new Pool(databasePoolConfig(process.env, true));
   try {

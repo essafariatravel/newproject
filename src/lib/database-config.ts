@@ -2,6 +2,7 @@ import type { PoolConfig } from "pg";
 import { rootCertificates } from "node:tls";
 import { SUPABASE_CA } from "./supabase-ca";
 import { databaseSchema } from "./database-schema";
+import { authTestLabUrl, usesAuthTestLab } from "./auth-test-lab";
 import { isIsolatedPreviewBranch, isolatedPreviewConnection, isolatedPreviewContext, targetsIsolatedPreview } from "./isolated-preview";
 
 type Environment = Record<string, string | undefined>;
@@ -15,6 +16,7 @@ const UNCONFIGURED_DATABASE_URL = "postgresql://127.0.0.1:1/essafaria";
 
 /** Shared by the server and CLI tools. Never import into a client component. */
 export function databaseUrl(env: Environment = process.env, migration = false): string {
+  if (usesAuthTestLab(env)) return authTestLabUrl(env, migration);
   const value = (migration ? env.MIGRATION_DATABASE_URL : undefined) || env.DATABASE_URL;
   if (!value) {
     if (env.NODE_ENV === "production" || env.VERCEL) {
