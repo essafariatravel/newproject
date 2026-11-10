@@ -24,19 +24,14 @@ import { AppError } from "@/lib/types";
 import { readPublishedLegal } from "@/lib/legal";
 import { publicBrandCopy } from "@/lib/public-brand-copy";
 import { safeErrorCode } from "@/lib/safe-error";
+import { assertPublicBotProtection, publicClientIp } from "@/lib/bot-protection";
+import { botProtectionError } from "@/lib/bot-protection-copy";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 
 
 export interface RegistrationFormState {
   error?: string;
   fieldErrors?: Record<string, string>;
-}
-
-function clientIp(hdrs: Headers): string | null {
-  return (
-    hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    hdrs.get("x-real-ip")?.trim() ??
-    null
-  );
 }
 
 /** Pull ONE whitelisted scalar field; never spread FormData into models. */
@@ -78,7 +73,9 @@ export async function submitRegistrationAction(
   } catch {
     // outside a request scope (tests) — IP-based heuristics degrade gracefully
   }
-  const ip = hdrs ? clientIp(hdrs) : null;
+  try { await assertPublicBotProtection(formData, "agency_registration", hdrs ?? new Headers()); }
+  catch (error) { return { error: botProtectionError(locale, error) }; }
+  const ip = hdrs ? publicClientIp(hdrs) : null;
 
   // Anti-automation 1 — honeypot: invisible to humans, filled by bots.
   // Silently "accepted" so bots learn nothing; nothing is persisted.
@@ -121,6 +118,9 @@ export async function submitRegistrationAction(
 
   let reference: string;
   try {
+    if (!await consumeAuthRateLimit("registration-identity", parsed.data.email.normalize("NFKC").toLowerCase(), 5, 60 * 60_000)) {
+      return { error: copy.errors.rateLimited };
+    }
     const [terms, privacy] = await Promise.all([readPublishedLegal("terms",locale),readPublishedLegal("privacy",locale)]);
     if (!terms || !privacy) return {error:publicBrandCopy(locale).legalMissing};
     const acceptedTermsId = field(formData, "termsVersionId");

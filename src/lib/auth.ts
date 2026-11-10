@@ -17,6 +17,7 @@ import { lockIdentityState, recordIdentityAudit } from "@/lib/account-security";
 import { safeErrorCode } from "@/lib/safe-error";
 import { mfaEnforcementEnabled } from "@/lib/mfa-policy";
 import { readStaffProfile } from '@/lib/staff-profile';
+import { assertPasswordLoginAllowed, clearPasswordFailures, lockPasswordLogin, normalizedLoginEmail, passwordLoginKey, recordPasswordFailure } from "@/lib/login-lockout";
 
 function preferredSessionCookieName(): string {
   return process.env.NODE_ENV === "production" ? PRODUCTION_SESSION_COOKIE : SESSION_COOKIE;
@@ -33,7 +34,7 @@ async function readSessionToken(): Promise<string | undefined> {
 /** Create a session and return the opaque cookie token. */
 export async function createSession(
   userId: string,
-  options: { expectedCredentialVersion?: number; auditLogin?: boolean } = {},
+  options: { expectedCredentialVersion?: number; auditLogin?: boolean; passwordLoginKey?: string } = {},
 ): Promise<{ token: string; expiresAt: Date }> {
   const token = generateSessionToken();
   let ipAddress: string | null = null;
@@ -54,6 +55,10 @@ export async function createSession(
       (options.expectedCredentialVersion !== undefined && row.user.credentialVersion !== options.expectedCredentialVersion)) {
       throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
     }
+    if (options.passwordLoginKey) {
+      await lockPasswordLogin(tx, options.passwordLoginKey);
+      await assertPasswordLoginAllowed(tx, options.passwordLoginKey);
+    }
     const expiresAt = new Date(Date.now() + sessionPolicy(row.user.agencyId).absoluteMs);
     await tx.insert(sessions).values({ userId, tokenHash: hashToken(token), expiresAt,
       lastActivityAt: new Date(), credentialVersion: row.user.credentialVersion, ipAddress, userAgent });
@@ -65,7 +70,12 @@ export async function createSession(
         agencyName: null }, action: row.user.agencyId || passwordOnlyPreview ? "USER_LOGIN" : "STAFF_PASSWORD_VERIFIED", entity: "user", entityId: userId,
         agencyId: row.user.agencyId, ipAddress,
         ...(!row.user.agencyId && passwordOnlyPreview ? { metadata: { authentication: "password", mfaEnforcement: "preview-paused" } } : {}) });
-      if(row.user.agencyId || passwordOnlyPreview)await tx.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id,userId));
+      if (row.user.agencyId || passwordOnlyPreview) {
+        await tx.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id,userId));
+      }
+    }
+    if (options.passwordLoginKey && (row.user.agencyId || (options.auditLogin && !mfaEnforcementEnabled()))) {
+      await clearPasswordFailures(tx, options.passwordLoginKey);
     }
     return expiresAt;
   });
@@ -201,6 +211,29 @@ export async function destroySession(): Promise<void> {
   await clearSessionCookie();
 }
 
+class PasswordMismatch extends AppError {
+  constructor() {
+    super("INVALID_CREDENTIALS", "Invalid email or password.");
+  }
+}
+
+/** Only a classified password mismatch contributes to the counter. */
+export async function signInWithPassword(identifier: string, password: string) {
+  const key = passwordLoginKey(identifier);
+  await assertPasswordLoginAllowed(db, key);
+  let user: User;
+  try {
+    user = await authenticate(identifier, password);
+  } catch (error) {
+    if (error instanceof PasswordMismatch) await recordPasswordFailure(key);
+    throw error;
+  }
+  const session = await createSession(user.id, {
+    expectedCredentialVersion: user.credentialVersion, auditLogin: true, passwordLoginKey: key,
+  });
+  return { user, ...session };
+}
+
 /** Registered account email only. Ambiguous active identities always fail closed. */
 export async function authenticate(identifier: string, password: string): Promise<User> {
   if (password.length === 0 || password.length > 200) {
@@ -209,8 +242,7 @@ export async function authenticate(identifier: string, password: string): Promis
   const { verifyPassword } = await import("@/lib/crypto");
   let user: User | undefined;
   try {
-    const candidate = identifier.trim().toLowerCase();
-    const normalized = candidate.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(candidate) ? candidate : "";
+    const normalized = normalizedLoginEmail(identifier);
     const rows = await db
       .select()
       .from(users)
@@ -222,13 +254,15 @@ export async function authenticate(identifier: string, password: string): Promis
     console.error("[auth] authenticate query failed", safeErrorCode(err) ?? "unknown");
     throw new AppError("SERVICE_UNAVAILABLE", "Service temporarily unavailable. Please try again.");
   }
-  if (!user) {
-    // Perform a dummy verification to keep timing uniform.
-    await verifyPassword(password, `scrypt$${"0".repeat(32)}$${"0".repeat(128)}`);
+  const usableHash = user && /^scrypt\$[0-9a-f]{32}\$[0-9a-f]{128}$/i.test(user.passwordHash);
+  if (!user || !usableHash) {
+    // Dummy verification for unknown identifiers and unusable stored hashes.
+    await verifyPassword(password, `scrypt${"0".repeat(32)}${"0".repeat(128)}`);
+    if (!user) throw new PasswordMismatch();
     throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
   }
-  const ok = await verifyPassword(password, user.passwordHash);
-  if (!ok || user.status !== "ACTIVE" || user.activationPending) {
+  if (!await verifyPassword(password, user.passwordHash)) throw new PasswordMismatch();
+  if (user.status !== "ACTIVE" || user.activationPending) {
     throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
   }
   if (user.agencyId) {

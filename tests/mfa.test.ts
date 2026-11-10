@@ -8,6 +8,8 @@ import { beginMfaEnrollment, completeMfa } from "@/lib/mfa";
 import { db,pool } from "@/lib/db";
 import { sql } from "drizzle-orm";
 import { hashToken } from "@/lib/crypto";
+import { loginAction } from "@/app/actions/auth";
+import { passwordLoginKey } from "@/lib/login-lockout";
 
 suiteSetup();
 beforeEach(async()=>{await pool.query("truncate mfa_credentials,mfa_enrollment_authorizations,sessions,session_presence,auth_rate_limits");});
@@ -29,6 +31,36 @@ describe("mandatory Staff MFA", () => {
     expect((await getSessionUser({allowMfaPending:true}))?.mfaPending).toBe(true);
     const {requireStaff}=await import("@/lib/auth");
     await expect(requireStaff()).rejects.toThrow();
+  });
+  it("retains password failures until Staff MFA completes and blocks a pending login at the threshold", async () => {
+    const { user, code } = await enrollmentFixture();
+    await completeMfa(code, true);
+    request.cookie = "";
+    request.set.mockClear();
+    const key = passwordLoginKey(user.email);
+    const form = new FormData();
+    form.set("identifier", user.email);
+    form.set("password", "Wrong-Synthetic-Password");
+    await loginAction({}, form);
+    await loginAction({}, form);
+    form.set("password", "Test-Password-123");
+    await expect(loginAction({}, form)).rejects.toMatchObject({ digest: expect.stringContaining(";/mfa;") });
+    expect((await pool.query("select attempts from auth_rate_limits where key=$1", [key])).rows[0]?.attempts).toBe(2);
+    const recovery = (await pool.query("select recovery_hashes from mfa_credentials where user_id=$1", [user.id])).rows[0];
+    expect(recovery.recovery_hashes).toHaveLength(10);
+    // The earlier enrollment used the current TOTP step. Use a new test recovery
+    // code to exercise the pending login without waiting for the next step.
+    const recoveryCode = "a".repeat(32);
+    await pool.query("update mfa_credentials set recovery_hashes=$2::jsonb where user_id=$1", [user.id, JSON.stringify([hashToken(recoveryCode)])]);
+    form.set("password", "Wrong-Synthetic-Password");
+    await loginAction({}, form);
+    await expect(completeMfa(recoveryCode)).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
+    expect((await pool.query("select recovery_hashes from mfa_credentials where user_id=$1", [user.id])).rows[0].recovery_hashes).toEqual([hashToken(recoveryCode)]);
+    await pool.query("update auth_rate_limits set window_start=now()-interval '10 minutes' where key=$1", [key]);
+    const completed = await completeMfa(recoveryCode);
+    request.cookie = completed.token;
+    expect((await getSessionUser())?.id).toBe(user.id);
+    expect((await pool.query("select key from auth_rate_limits where key=$1", [key])).rowCount).toBe(0);
   });
   it("rolls back factor consumption when session minting fails",async()=>{
     const {user,code}=await enrollmentFixture();

@@ -57,7 +57,7 @@ describe("Task 2/3 — CTA + registration submit button share the polished butto
     expect(form).toContain('className="btn-primary');
     expect(form).toContain("copy.submitPending");
     expect(form).toContain("<Spinner/>");
-    expect(form).toContain("disabled={pending}");
+    expect(form).toContain("disabled={pending || !verified}");
   });
 });
 

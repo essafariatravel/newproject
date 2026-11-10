@@ -13,6 +13,7 @@ import { qualifiedTable } from "@/lib/database-schema";
 import { AppError, type AuthUser } from "@/lib/types";
 import { decryptMfaSecret, encryptMfaSecret, verifyMfaCode } from "./mfa-crypto";
 import { mfaEnforcementEnabled } from "./mfa-policy";
+import { assertPasswordLoginAllowed, clearPasswordFailures, lockPasswordLogin, passwordLoginKey } from "./login-lockout";
 
 const table = () => sql.raw(qualifiedTable("mfa_credentials"));
 type Credential = { encrypted_secret: string; confirmed_at: Date | null; enrollment_expires_at: Date; last_epoch: string | null; recovery_hashes: string[] };
@@ -101,6 +102,11 @@ export async function completeMfa(code: string, enrollment = false) {
     const recoveryHash = hashToken(code);
     const recovery = !enrollment && /^[a-f0-9]{32}$/.test(code) && row.recovery_hashes.includes(recoveryHash);
     if (epoch === null && !recovery) throw denied();
+    const loginKey = current.mfaPending ? passwordLoginKey(current.email) : undefined;
+    if (loginKey) {
+      await lockPasswordLogin(tx, loginKey);
+      await assertPasswordLoginAllowed(tx, loginKey);
+    }
     const hashes = enrollment ? recoveryCodes.map(hashToken) : row.recovery_hashes.filter(h => h !== recoveryHash);
     await tx.execute(sql`update ${table()} set confirmed_at=coalesce(confirmed_at,now()),last_epoch=${epoch ?? last},recovery_hashes=${JSON.stringify(hashes)}::jsonb where user_id=${actor.id}`);
     const version = enrollment || recovery ? await revokeUserAccess(tx, actor.id) : actor.credentialVersion!;
@@ -110,6 +116,7 @@ export async function completeMfa(code: string, enrollment = false) {
     await tx.insert(sessions).values({userId:actor.id,tokenHash:hashToken(token),expiresAt,lastActivityAt:new Date(),credentialVersion:version,mfaVerifiedAt:new Date(),ipAddress:current.sessionIpAddress,userAgent:current.sessionUserAgent});
     await tx.update(users).set({lastLoginAt:new Date()}).where(eq(users.id,actor.id));
     await recordIdentityAudit(tx,{actor,action:"USER_LOGIN",entity:"user",entityId:actor.id,metadata:{secondFactor:true}});
+    if (loginKey) await clearPasswordFailures(tx, loginKey);
     return {token,expiresAt};
   });
   return {...session,recoveryCodes};

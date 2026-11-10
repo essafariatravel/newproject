@@ -1,9 +1,12 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { suiteSetup } from "./helpers/global-state";
 import { request } from "./helpers/request";
 import { userByEmail } from "./helpers/fixtures";
 import { authenticate, createSession, getSessionUser, requireAgencyUser, requireStaff, requireUser } from "@/lib/auth";
 import { loginAction } from "@/app/actions/auth";
+import { SITEVERIFY_URL } from "@/lib/bot-protection";
+import { passwordLoginKey } from "@/lib/login-lockout";
 import MfaPage from "@/app/(public)/mfa/page";
 import { beginMfaEnrollment, authorizeMfaEnrollment, resetMfa } from "@/lib/mfa";
 import { GET as notifications } from "@/app/api/notifications/route";
@@ -45,6 +48,11 @@ const roles = [
 function configure(overrides: Record<string, string | undefined> = {}) {
   for (const [key, value] of Object.entries({ ...preview, ...overrides })) vi.stubEnv(key, value);
 }
+const hostname = "mfa-preview.example.test";
+async function managedLogin(form: FormData) {
+  form.set("cf-turnstile-response", randomUUID());
+  return loginAction({}, form);
+}
 async function passwordSession(email = "admin@test.example") {
   const user = await userByEmail(email);
   request.cookie = (await createSession(user.id)).token;
@@ -54,16 +62,24 @@ beforeEach(async () => {
   await pool.query("truncate sessions,session_presence,auth_rate_limits");
   await pool.query("truncate visa_os_preview.auth_rate_limits");
   request.cookie = "";
-  configure();
+  configure({
+    TURNSTILE_MODE: "managed", TURNSTILE_HOSTNAMES: hostname,
+    TURNSTILE_SITE_KEY: "synthetic_public_site_key", TURNSTILE_SECRET: "synthetic_test_secret",
+  });
+  request.headers = new Headers({ origin: `https://${hostname}`, host: hostname, "x-vercel-forwarded-for": "192.0.2.40" });
+  vi.stubGlobal("fetch", async (url: string) => {
+    expect(url).toBe(SITEVERIFY_URL);
+    return Response.json({ success: true, hostname, action: "password_login", challenge_ts: new Date().toISOString() });
+  });
 });
-afterEach(() => { request.cookie = ""; request.set.mockClear(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
+afterEach(() => { request.cookie = ""; request.set.mockClear(); request.headers = new Headers({ "user-agent": "isolated-login-test" }); vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("explicitly authorized Preview password login", () => {
   it.each(roles)("lets %s use its existing unique email without granting MFA verification", async (role, email, path) => {
     const user = await userByEmail(email);
     const before = (await pool.query("select password_hash,role,agency_id,credential_version from users where id=$1", [user.id])).rows[0];
     const form = new FormData(); form.set("identifier", email); form.set("password", "Test-Password-123");
-    await expect(loginAction({}, form)).rejects.toMatchObject({ digest: expect.stringContaining(`;${path};`) });
+    await expect(managedLogin(form)).rejects.toMatchObject({ digest: expect.stringContaining(`;${path};`) });
     const actor = await getSessionUser();
     expect(actor).toMatchObject({ id: user.id, role, agencyId: user.agencyId, mfaPending: !user.agencyId });
     expect((await pool.query("select mfa_verified_at from sessions where token_hash=$1", [hashToken(request.cookie)])).rows[0].mfa_verified_at).toBeNull();
@@ -176,10 +192,16 @@ describe("explicitly authorized Preview password login", () => {
     expect(actor.agencyId).toBe(b.agencyId);
     await expect(getApplicationForUser(app.id,actor)).rejects.toMatchObject({code:"NOT_FOUND"});
   });
-  it("still applies the account login rate limit while MFA is paused", async () => {
-    const form=new FormData();form.set("identifier","admin@test.example");form.set("password","Synthetic-Wrong-Password");
-    for(let i=0;i<10;i++)expect((await loginAction({},form)).error).toBe("Invalid email or password.");
-    expect((await loginAction({},form)).error).toBe("Sign-in is temporarily unavailable. Please try again later.");
+  it("still locks the account while MFA is paused", async () => {
+    const identifier = "admin@test.example";
+    const form = new FormData();
+    form.set("identifier", identifier);
+    form.set("password", "Synthetic-Wrong-Password");
+    for (let i = 0; i < 3; i++) expect((await managedLogin(form)).error).toBe("Invalid email or password.");
+    form.set("password", "Test-Password-123");
+    expect((await managedLogin(form)).error).toBe("Invalid email or password.");
+    expect((await pool.query("select attempts from visa_os_preview.auth_rate_limits where key=$1", [passwordLoginKey(identifier)])).rows[0]?.attempts).toBe(3);
+    expect(request.set).not.toHaveBeenCalled();
   });
   it("accepts the authorized Supabase pooler metadata as well as the direct endpoint",async()=>{
     await passwordSession();
@@ -225,7 +247,7 @@ describe("password-only access in the independent clean Preview",()=>{
     const user=await userByEmail(email);
     const before=(await pool.query("select password_hash,role,agency_id,credential_version from users where id=$1",[user.id])).rows[0];
     const form=new FormData();form.set("identifier",email);form.set("password","Test-Password-123");
-    await expect(loginAction({},form)).rejects.toMatchObject({digest:expect.stringContaining(`;${path};`)});
+    await expect(managedLogin(form)).rejects.toMatchObject({digest:expect.stringContaining(`;${path};`)});
     expect(await getSessionUser()).toMatchObject({id:user.id,role,agencyId:user.agencyId});
     expect((await pool.query("select mfa_verified_at from sessions where token_hash=$1",[hashToken(request.cookie)])).rows[0].mfa_verified_at).toBeNull();
     expect((await pool.query("select password_hash,role,agency_id,credential_version from users where id=$1",[user.id])).rows[0]).toEqual(before);

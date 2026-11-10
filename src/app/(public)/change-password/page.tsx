@@ -1,7 +1,9 @@
 import { pageUserForPasswordChange } from "@/lib/page-auth";
 import { flashFrom } from "@/lib/action-helpers";
-import { changePasswordAction, logoutAction } from "@/app/actions/auth";
-import { PasswordField, SubmitButton } from "@/components/forms";
+import { logoutAction } from "@/app/actions/auth";
+import { PasswordField } from "@/components/forms";
+import { ChangePasswordForm } from "./change-password-form";
+import { publicTurnstileConfig } from "@/lib/turnstile-config";
 import { Flash } from "@/components/ui";
 import { chromeT, getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
@@ -39,7 +41,8 @@ export default async function ChangePasswordPage({
       <div className="mt-6">
         <Flash {...flash} />
       </div>
-      <form action={changePasswordAction} className="card mt-4 space-y-4 p-6">
+      <ChangePasswordForm config={publicTurnstileConfig()} locale={uiLocale} pendingLabel={ct("Saving…")}
+        label={user.mustChangePassword ? ct("Set password and continue") : it("Save password")}>
         <PasswordField
           id="cp-current"
           name="current"
@@ -71,10 +74,7 @@ export default async function ChangePasswordPage({
           showLabel={ct("Show")}
           hideLabel={ct("Hide")}
         />
-        <SubmitButton className="btn-primary w-full" pendingLabel={ct("Saving…")}>
-          {user.mustChangePassword ? ct("Set password and continue") : it("Save password")}
-        </SubmitButton>
-      </form>
+      </ChangePasswordForm>
       <div className="mt-4 flex items-center justify-between text-xs text-slate-400">
         <span dir="ltr">{user.username ?? user.email}</span>
         <form action={logoutAction}>
