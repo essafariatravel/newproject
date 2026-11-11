@@ -86,7 +86,7 @@ export const TurnstileField = forwardRef<TurnstileHandle, {
       if (!active || !container.current) return;
       api.current = loaded;
       widget.current = loaded.render(container.current, {
-        sitekey: config.siteKey, action, appearance: "interaction-only", theme: "light", language: locale,
+        sitekey: config.siteKey, action, appearance: "always", theme: "light", language: locale,
         size: container.current.clientWidth < 300 ? "compact" : "flexible", "response-field": false,
         "refresh-expired": "auto", "refresh-timeout": "auto", retry: "auto",
         callback: (value: string) => { if (active) { setToken(value); onVerified(true); setStatus("ready"); } },
