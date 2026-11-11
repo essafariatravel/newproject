@@ -656,12 +656,21 @@ export async function listNotificationsForUser(userId: string, limit = 50, filte
     .select({
       ...getTableColumns(notifications),
       travellerName: sql<string | null>`(select coalesce(traveller.full_name, concat_ws(' ',traveller.first_name,traveller.last_name)) from ${table("applicants")} traveller where traveller.application_id = ${table("notifications")}.application_id limit 1)`,
-      destination: sql<string | null>`(select dossier.country_name from ${table("applications")} dossier where dossier.id = ${notifications.applicationId})`,
-      visaName: sql<string | null>`(select dossier.visa_type_name from ${table("applications")} dossier where dossier.id = ${notifications.applicationId})`,
-      reference: sql<string | null>`(select dossier.reference from ${table("applications")} dossier where dossier.id = ${notifications.applicationId})`,
+      destination: applications.countryName,
+      countryIso2: countries.iso2,
+      visaName: applications.visaTypeName,
+      // Match the immutable snapshot before using today's catalogue translation.
+      // This mirrors applicationSelection and avoids relabelling an old programme
+      // with a materially different name after an administrator renames it.
+      visaNameFr: sql<string | null>`case when ${visaTypes.name} = ${applications.visaTypeName} then ${visaTypes.nameFr} else null end`,
+      visaNameAr: sql<string | null>`case when ${visaTypes.name} = ${applications.visaTypeName} then ${visaTypes.nameAr} else null end`,
+      reference: applications.reference,
       agencyName: sql<string | null>`(select coalesce(agency.trading_name,agency.legal_name) from ${table("agencies")} agency where agency.id = ${notifications.agencyId})`,
     })
     .from(notifications)
+    .leftJoin(applications, eq(notifications.applicationId, applications.id))
+    .leftJoin(countries, eq(applications.countryId, countries.id))
+    .leftJoin(visaTypes, eq(applications.visaTypeId, visaTypes.id))
     .where(and(...conditions))
     .orderBy(desc(notifications.createdAt),desc(notifications.id))
     .limit(Number.isFinite(limit)?Math.min(100,Math.max(1,Math.floor(limit))):50);

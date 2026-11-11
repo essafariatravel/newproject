@@ -257,7 +257,7 @@ export async function authenticate(identifier: string, password: string): Promis
   const usableHash = user && /^scrypt\$[0-9a-f]{32}\$[0-9a-f]{128}$/i.test(user.passwordHash);
   if (!user || !usableHash) {
     // Dummy verification for unknown identifiers and unusable stored hashes.
-    await verifyPassword(password, `scrypt${"0".repeat(32)}${"0".repeat(128)}`);
+    await verifyPassword(password, `scrypt$${"0".repeat(32)}$${"0".repeat(128)}`);
     if (!user) throw new PasswordMismatch();
     throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
   }

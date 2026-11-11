@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { suiteSetup } from "./helpers/global-state";
 
 suiteSetup();
@@ -9,6 +9,7 @@ import { eq, sql } from "drizzle-orm";
 import { authenticate } from "@/lib/auth";
 import { createSession } from "./helpers/authenticated-session";
 import { hashPassword, hashToken, verifyPassword } from "@/lib/crypto";
+import * as passwordCrypto from "@/lib/crypto";
 import { AppError } from "@/lib/types";
 
 describe("authentication", () => {
@@ -19,10 +20,19 @@ describe("authentication", () => {
     expect(await verifyPassword("wrong-password", hash)).toBe(false);
   });
 
-  it("rejects unknown emails without leaking timing", async () => {
-    await expect(authenticate("nobody@test.example", "whatever-123")).rejects.toMatchObject({
-      code: "INVALID_CREDENTIALS",
-    });
+  it("rejects unknown emails after a valid dummy scrypt verification", async () => {
+    const verifier = vi.spyOn(passwordCrypto, "verifyPassword");
+    try {
+      await expect(authenticate("nobody@test.example", "whatever-123")).rejects.toMatchObject({
+        code: "INVALID_CREDENTIALS",
+      });
+      expect(verifier).toHaveBeenCalledWith(
+        "whatever-123",
+        expect.stringMatching(/^scrypt\$[0-9a-f]{32}\$[0-9a-f]{128}$/i),
+      );
+    } finally {
+      verifier.mockRestore();
+    }
   });
 
   it("rejects oversized login secrets before expensive password verification", async () => {

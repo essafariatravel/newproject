@@ -8,6 +8,8 @@ import { formatDateTime } from "@/lib/format";
 import type { AuthUser } from "@/lib/types";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
+import { countryName } from "@/lib/country-names";
+import { configName } from "@/lib/config-localization";
 
 export async function NotificationsPage({
   user,
@@ -54,7 +56,16 @@ export async function NotificationsPage({
                   {n.link ? <Link href={n.link} className="hover:underline">{businessLabel(n.type, locale)}</Link> : businessLabel(n.type, locale)}
                   {!n.readAt ? <span className="badge ms-2 bg-gold-100 text-gold-600">{ct("New")}</span> : null}
                 </p>
-                <p className="mt-1 text-base text-navy-900">{[!user.agencyId ? n.agencyName : null, n.travellerName, n.destination, n.visaName].filter(Boolean).join(" · ")}</p>
+                <p className="mt-1 text-base text-navy-900">
+                  {[
+                    !user.agencyId ? n.agencyName : null,
+                    n.travellerName,
+                    n.destination ? countryName({ name: n.destination, iso2: n.countryIso2 }, locale) : null,
+                    n.visaName ? configName({ name: n.visaName, nameFr: n.visaNameFr, nameAr: n.visaNameAr }, locale) : null,
+                  ].filter(Boolean).map((detail, index) => (
+                    <span key={index}>{index > 0 ? " · " : null}<bdi>{detail}</bdi></span>
+                  ))}
+                </p>
                 {n.reference ? <p className="text-xs text-slate-500"><bdi>{n.reference}</bdi></p> : null}
                 <p className="mt-1 text-base text-slate-600">{["MESSAGE_POSTED", "DOCUMENT_REQUESTED"].includes(n.type) ? n.body : null}</p>
                 <p className="mt-1 text-xs text-slate-400">{formatDateTime(n.createdAt, locale)}</p>
