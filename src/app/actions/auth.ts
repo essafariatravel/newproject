@@ -14,7 +14,7 @@ import { getUiLocale } from "@/lib/ui-i18n";
 import { localizeError } from "@/lib/i18n-content";
 import { safeErrorCode } from "@/lib/safe-error";
 import { mfaEnforcementEnabled } from "@/lib/mfa-policy";
-import { passwordLoginKey, passwordLoginRetryAfterSeconds } from "@/lib/login-lockout";
+import { agencyPasswordLoginRetryAfterSeconds } from "@/lib/login-lockout";
 import { loginLockoutCopy } from "@/lib/login-lockout-copy";
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -39,7 +39,7 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
     if (err instanceof AppError) {
       if (err.code === "INVALID_CREDENTIALS") {
         try {
-          const retryAfterSeconds = await passwordLoginRetryAfterSeconds(passwordLoginKey(email));
+          const retryAfterSeconds = await agencyPasswordLoginRetryAfterSeconds(email);
           if (retryAfterSeconds > 0) {
             return { error: loginLockoutCopy(locale).locked, retryAfterSeconds };
           }
