@@ -156,7 +156,6 @@ export function RequestWizard(props: Props) {
   const [activeDestination,setActiveDestination]=useState(-1);
   const destinationChangeRef=useRef<HTMLButtonElement>(null);
   const keyboardSelectionRef=useRef(false);
-  const [natSearch, setNatSearch] = useState("");
   const [fileError, setFileError] = useState("");
   const [files, setFiles] = useState<Record<string, File[]>>({});
   const [pending, setPending] = useState(false);
@@ -182,12 +181,6 @@ export function RequestWizard(props: Props) {
       .filter((c) => normalize(c.name).includes(q) || c.visaTypes.some((v) => normalize(v.name).includes(q)))
       .slice(0, MAX_SUGGESTIONS);
   }, [props.countries, countrySearch]);
-
-  const filteredNationalities = useMemo(() => {
-    if (!natSearch.trim()) return props.nationalities;
-    const q = normalize(natSearch);
-    return props.nationalities.filter((n) => normalize(n.label).includes(q) || normalize(n.code).includes(q));
-  }, [props.nationalities, natSearch]);
 
   // Auto-select when the chosen destination has exactly one programme.
   useEffect(() => {
@@ -503,29 +496,19 @@ export function RequestWizard(props: Props) {
             </div>
             <div>
               <label className="label" htmlFor="t0_nationality">{t.nationality} *</label>
-              <div className="space-y-2">
-                <input
-                  type="search"
-                  placeholder={t.searchNationality}
-                  value={natSearch}
-                  onChange={(e) => setNatSearch(e.target.value)}
-                  className="input text-xs"
-                  aria-label={t.searchNationality}
-                />
-                <select
-                  id="t0_nationality"
-                  name="t0_nationality"
-                  required
-                  defaultValue={props.defaultNationality}
-                  className="input"
-                  data-testid="wizard-nationality"
-                  aria-label={t.nationality}
-                >
-                  {filteredNationalities.map((n) => (
-                    <option key={n.code} value={n.code}>{n.label}</option>
-                  ))}
-                </select>
-              </div>
+              <select
+                id="t0_nationality"
+                name="t0_nationality"
+                required
+                defaultValue={props.defaultNationality}
+                className="input"
+                data-testid="wizard-nationality"
+                aria-label={t.nationality}
+              >
+                {props.nationalities.map((n) => (
+                  <option key={n.code} value={n.code}>{n.label}</option>
+                ))}
+              </select>
             </div>
           </div>
           <div>
