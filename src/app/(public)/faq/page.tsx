@@ -41,6 +41,16 @@ const FAQ_COPY: Record<
           "Requested case documents are provided through the secure professional workspace. Client documents are not published on the public website.",
       },
       {
+        question: "What happens if a document needs clarification?",
+        answer:
+          "During document review, ESSAFARIA may ask the agency for a clarification or an additional supporting file. The agency checks the request and sends the relevant document in its authorized workspace.",
+      },
+      {
+        question: "Who makes the final visa decision?",
+        answer:
+          "The competent consular or immigration authority decides whether to grant a visa. ESSAFARIA coordinates preparation and follow-up but cannot guarantee approval or a fixed processing time.",
+      },
+      {
         question: "How can an agency follow a request?",
         answer:
           "Authorized users can review available status information in their professional workspace and use the communication channels provided by ESSAFARIA.",
@@ -77,6 +87,16 @@ const FAQ_COPY: Record<
           "Les documents demandés pour un dossier sont transmis dans l’espace professionnel sécurisé. Les documents clients ne sont pas publiés sur le site public.",
       },
       {
+        question: "Que se passe-t-il si une pièce nécessite une précision ?",
+        answer:
+          "Lors du contrôle du dossier, ESSAFARIA peut demander une précision ou un justificatif complémentaire. L’agence consulte cette demande et transmet la pièce adaptée depuis son espace professionnel autorisé.",
+      },
+      {
+        question: "Qui prend la décision finale pour un visa ?",
+        answer:
+          "Seule l’autorité consulaire ou migratoire compétente décide de la délivrance du visa. ESSAFARIA accompagne la préparation et le suivi, sans garantie d’obtention ni de délai fixe.",
+      },
+      {
         question: "Comment suivre une demande ?",
         answer:
           "Les utilisateurs autorisés peuvent consulter les informations de suivi disponibles dans leur espace professionnel et utiliser les canaux de communication prévus par ESSAFARIA.",
@@ -111,6 +131,16 @@ const FAQ_COPY: Record<
         question: "كيف يتم إرسال الوثائق؟",
         answer:
           "تُرسل الوثائق المطلوبة للملف عبر المساحة المهنية الآمنة، ولا يتم نشر وثائق العملاء على الموقع العام.",
+      },
+      {
+        question: "ماذا يحدث إذا كانت هناك حاجة لتوضيح وثيقة؟",
+        answer:
+          "قد يطلب فريق ESSAFARIA توضيحاً أو مستنداً داعماً إضافياً أثناء مراجعة الملف. تطّلع الوكالة على الطلب وترسل الوثيقة المناسبة من خلال مساحتها المهنية المصرّح بها.",
+      },
+      {
+        question: "من يتخذ القرار النهائي بشأن التأشيرة؟",
+        answer:
+          "تتخذ السلطات القنصلية أو المختصة بالهجرة وحدها قرار منح التأشيرة. تنسق ESSAFARIA إعداد الملف ومتابعته من دون ضمان الموافقة أو تحديد مدة معالجة ثابتة.",
       },
       {
         question: "كيف يمكن متابعة الطلب؟",

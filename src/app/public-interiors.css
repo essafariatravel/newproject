@@ -116,6 +116,31 @@
 .partner-guide-steps p { margin-block-start: .4rem; }
 .partner-guide-limits .interior-actions { margin-block-start: 1rem; }
 
+/* Factual B2B workflow proof: plain editorial grid, never a live client view. */
+.partner-evidence {
+  display: grid; grid-template-columns: minmax(0,1.1fr) minmax(0,.9fr);
+  gap: var(--interior-gap); align-items: start;
+  border-block-start: 1px solid var(--premium-line);
+  padding-block: clamp(2.5rem,5vw,5rem);
+}
+.partner-evidence-kicker { font-size: .85rem; font-weight: 600; letter-spacing: .025em; color: var(--premium-muted); }
+.partner-evidence h2 { margin-block-start: .7rem; max-width: 22ch; }
+.partner-evidence-lede { margin-block-start: 1.25rem; max-width: 65ch; color: var(--premium-muted); line-height: 1.75; }
+.partner-evidence-scenarios { margin-block-start: 1.5rem; }
+.partner-evidence-scenarios > div { padding-block: 1rem; border-block-start: 1px solid var(--premium-line); }
+.partner-evidence-scenarios dt { font-size: 1.08rem; line-height: 1.45; font-weight: 600; }
+.partner-evidence-scenarios dd { margin-block-start: .4rem; color: var(--premium-muted); line-height: 1.7; }
+.partner-evidence-limits { margin-block-start: 1.25rem; max-width: 67ch; color: var(--premium-muted); font-size: .95rem; line-height: 1.7; }
+.partner-evidence-figure { min-width: 0; margin: 0; padding: clamp(.75rem,2vw,1.5rem); background: var(--premium-white); border: 1px solid var(--premium-line); }
+.partner-evidence-figure picture, .partner-evidence-figure img { display: block; max-width: 100%; height: auto; }
+.partner-evidence-figure img { width: 100%; border: 1px solid var(--premium-line); }
+.partner-evidence-figure figcaption { margin-block-start: .9rem; color: var(--premium-muted); font-size: .86rem; line-height: 1.6; }
+.about-identity-method { margin-block-start: 1.75rem; padding-block-start: 1.5rem; border-block-start: 1px solid var(--premium-line); }
+.about-identity-method h3 { font-size: 1.15rem; font-weight: 600; }
+.about-identity-method p { margin-block-start: .5rem; color: var(--premium-muted); line-height: 1.7; }
+.about-identity-method a { display: inline-flex; align-items: center; min-height: 44px; margin-block-start: .65rem; font-weight: 600; text-decoration: underline; text-underline-offset: .3em; }
+
+
 .about-heading { padding-block: var(--interior-space) clamp(1.5rem, 4vw, 4rem); }
 .about-heading h1 { max-width: 22ch; }
 .public-interior .about-panorama { height: clamp(14rem, 32vw, 31rem); }
@@ -188,6 +213,7 @@ html[lang='ar'] .public-interior :is(h1,h2,dt) { letter-spacing: 0; line-height:
   .registration-sign-in { margin-block-start: 1rem; }
 }
 @media(max-width: 767px) {
+  .partner-evidence { grid-template-columns: minmax(0,1fr); gap: 1.75rem; }
   .partner-lead-grid, .partner-desk, .partner-invitation-grid, .partner-guide-intro, .partner-guide-process, .partner-guide-limits, .about-letter, .about-identity, .contact-spread, .faq-spread { grid-template-columns: minmax(0, 1fr); gap: 1.75rem; }
   .partner-lead-copy { padding-block: 1rem 0; }
   .partner-photo { aspect-ratio: 1.75; }

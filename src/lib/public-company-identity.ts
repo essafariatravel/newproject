@@ -19,6 +19,9 @@ export const PUBLIC_COMPANY_COPY: Record<UiLocale, {
   websiteLabel: string;
   websiteText: string;
   accreditationNote: string;
+  methodTitle: string;
+  methodBody: string;
+  methodLink: string;
 }> = {
   en: {
     heading: "The Algerian travel agency behind VISA OS",
@@ -30,6 +33,9 @@ export const PUBLIC_COMPANY_COPY: Record<UiLocale, {
     websiteLabel: "Company website",
     websiteText: "Visit ESSAFARIA TRAVEL",
     accreditationNote: "IATA accreditation concerns airline ticketing, not the issuance or approval of visas. Visa decisions remain with the relevant authorities.",
+    methodTitle: "A documented process, not a visa guarantee",
+    methodBody: "Our partner guide explains the agency account review, preparation of supporting documents, ESSAFARIA’s file checks and the status information available in the secure portal. Each visa decision belongs to the competent authority.",
+    methodLink: "See the agency workflow",
   },
   fr: {
     heading: "Une agence de voyages algérienne derrière VISA OS",
@@ -41,6 +47,9 @@ export const PUBLIC_COMPANY_COPY: Record<UiLocale, {
     websiteLabel: "Site de l’agence",
     websiteText: "Découvrir ESSAFARIA TRAVEL",
     accreditationNote: "L’accréditation IATA concerne la billetterie aérienne, pas la délivrance de visas. Les décisions de visa relèvent exclusivement des autorités compétentes.",
+    methodTitle: "Une méthode expliquée, sans promesse de visa",
+    methodBody: "Notre guide partenaires décrit la validation des comptes agences, la préparation des justificatifs, les contrôles effectués par ESSAFARIA et les informations de suivi accessibles dans le portail sécurisé. La décision de visa relève des autorités compétentes.",
+    methodLink: "Voir le parcours agence",
   },
   ar: {
     heading: "وكالة سفر جزائرية تدير منصة VISA OS",
@@ -52,5 +61,8 @@ export const PUBLIC_COMPANY_COPY: Record<UiLocale, {
     websiteLabel: "الموقع الرسمي للوكالة",
     websiteText: "زيارة موقع ESSAFARIA TRAVEL",
     accreditationNote: "يرتبط اعتماد إياتا بإصدار تذاكر الطيران، ولا يعني صلاحية إصدار التأشيرات أو الموافقة عليها. قرار التأشيرة يعود إلى السلطات المختصة.",
+    methodTitle: "إجراءات واضحة من دون ضمان منح التأشيرة",
+    methodBody: "يشرح دليل الشركاء مراجعة طلبات حسابات الوكالات، وإعداد الوثائق، والتحقق من الملفات لدى فريق ESSAFARIA، ومعلومات المتابعة المتاحة عبر البوابة الآمنة. ويبقى قرار منح التأشيرة من اختصاص السلطات المعنية.",
+    methodLink: "اطّلعوا على مسار عمل الوكالات",
   },
 };
