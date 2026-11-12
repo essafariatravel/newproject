@@ -38,7 +38,7 @@ export function AppShell(props: {
   return (
     <div className={`workspace-${props.surface ?? "agency"} flex min-h-screen`}>
       <WorkspaceNavigation />
-      <SessionActivity />
+      <SessionActivity agency={props.surface === "agency"} />
       <a className="workspace-skip" href="#workspace-main">{t("Skip to content")}</a>
       <aside className="fixed inset-y-0 start-0 z-40 hidden w-64 flex-col border-e border-white/10 bg-navy-950 text-white lg:flex workspace-sidebar">
         <SidebarBrand suffix={props.brandSuffix} platformLogoUrl={props.platformLogoUrl} brandName={props.brandName} />
