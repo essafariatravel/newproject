@@ -74,4 +74,19 @@ describe("Phase 2 Final — 3-step atomic request wizard + simplified dossier", 
     expect(WIZARD).toContain("disabled={pending || catalogueRecovery || sessionRecovery}");
     expect(WIZARD).toContain("missingAmount");
   });
+  it("renders a single nationality dropdown with Algeria preselected and all country options", () => {
+    const nationalityControl = WIZARD.match(/<label className="label" htmlFor="t0_nationality">[\s\S]*?<\/select>/)?.[0];
+    expect(nationalityControl).toBeDefined();
+    expect(nationalityControl).toContain('name="t0_nationality"');
+    expect(nationalityControl).toContain('data-testid="wizard-nationality"');
+    expect(nationalityControl).toContain("defaultValue={props.defaultNationality}");
+    expect(nationalityControl).toContain("props.nationalities.map");
+    expect(nationalityControl).not.toContain("<input");
+    expect(WIZARD).not.toContain("natSearch");
+    expect(NEW_PAGE).toContain("defaultNationality={DEFAULT_NATIONALITY}");
+    const nationalities = readFileSync(path.join(__dirname, "..", "src/lib/nationalities.ts"), "utf8");
+    expect(nationalities).toContain('DEFAULT_NATIONALITY = "DZ"');
+    expect(nationalities).toContain('code: "DZ", en: "Algeria"');
+    expect(WIZARD).toContain('nationality: String(fields.get("t0_nationality") ?? "")');
+  });
 });
