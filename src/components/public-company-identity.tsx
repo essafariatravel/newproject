@@ -1,5 +1,6 @@
 import type { UiLocale } from "@/lib/ui-i18n";
 import { PUBLIC_COMPANY_COPY, PUBLIC_COMPANY_FACTS } from "@/lib/public-company-identity";
+import { seoLocalizedPublicPath } from "@/lib/seo-manifest";
 
 /** Editorial credibility section; no partner pricing or private business data. */
 export function PublicCompanyIdentity({ locale, address }: { locale: UiLocale; address?: string | null }) {
@@ -21,6 +22,11 @@ export function PublicCompanyIdentity({ locale, address }: { locale: UiLocale; a
           <div><dt>{copy.websiteLabel}</dt><dd><a href={facts.website}>{copy.websiteText}</a></dd></div>
         </dl>
         <p className="about-identity-note">{copy.accreditationNote}</p>
+        <div className="about-identity-method">
+          <h3>{copy.methodTitle}</h3>
+          <p>{copy.methodBody}</p>
+          <a href={seoLocalizedPublicPath("b2b", locale)}>{copy.methodLink}</a>
+        </div>
       </div>
     </section>
   );
