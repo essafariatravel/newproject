@@ -212,7 +212,7 @@ export async function destroySession(): Promise<void> {
 }
 
 class PasswordMismatch extends AppError {
-  constructor() {
+  constructor(readonly agencyAccount: boolean = false) {
     super("INVALID_CREDENTIALS", "Invalid email or password.");
   }
 }
@@ -220,22 +220,22 @@ class PasswordMismatch extends AppError {
 /** Only a classified password mismatch contributes to the counter. */
 export async function signInWithPassword(identifier: string, password: string) {
   const key = passwordLoginKey(identifier);
-  await assertPasswordLoginAllowed(db, key);
   let user: User;
   try {
-    user = await authenticate(identifier, password);
+    user = await authenticate(identifier, password, key);
   } catch (error) {
-    if (error instanceof PasswordMismatch) await recordPasswordFailure(key);
+    if (error instanceof PasswordMismatch && error.agencyAccount) await recordPasswordFailure(key);
     throw error;
   }
   const session = await createSession(user.id, {
-    expectedCredentialVersion: user.credentialVersion, auditLogin: true, passwordLoginKey: key,
+    expectedCredentialVersion: user.credentialVersion, auditLogin: true,
+    ...(user.agencyId && isAgencyRole(user.role) ? { passwordLoginKey: key } : {}),
   });
   return { user, ...session };
 }
 
 /** Registered account email only. Ambiguous active identities always fail closed. */
-export async function authenticate(identifier: string, password: string): Promise<User> {
+export async function authenticate(identifier: string, password: string, loginKey?: string): Promise<User> {
   if (password.length === 0 || password.length > 200) {
     throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
   }
@@ -261,7 +261,11 @@ export async function authenticate(identifier: string, password: string): Promis
     if (!user) throw new PasswordMismatch();
     throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
   }
-  if (!await verifyPassword(password, user.passwordHash)) throw new PasswordMismatch();
+  const agencyAccount = Boolean(user.agencyId && isAgencyRole(user.role));
+  // Only agency identities are subject to the three-failure / ten-minute lock.
+  // Staff passwords remain protected by Turnstile and the existing staff MFA.
+  if (agencyAccount && loginKey) await assertPasswordLoginAllowed(db, loginKey);
+  if (!await verifyPassword(password, user.passwordHash)) throw new PasswordMismatch(agencyAccount);
   if (user.status !== "ACTIVE" || user.activationPending) {
     throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
   }
