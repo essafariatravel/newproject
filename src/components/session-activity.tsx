@@ -1,8 +1,9 @@
 "use client";
 import { useEffect } from "react";
 import { touchSessionAction } from "@/app/actions/auth";
+import { SESSION_POLICIES } from "@/lib/identity-policy";
 
-const AGENCY_IDLE_MS = 15 * 60_000;
+const AGENCY_IDLE_MS = SESSION_POLICIES.agency.idleMs;
 
 /** Only real interaction renews inactivity; background polls never do. */
 export function SessionActivity({ agency = false }: { agency?: boolean }) {
@@ -10,18 +11,20 @@ export function SessionActivity({ agency = false }: { agency?: boolean }) {
     let sentAt = 0;
     let pending = false;
     let expired = false;
+    let disposed = false;
     let idleCheck: ReturnType<typeof setTimeout> | undefined;
 
     const expire = () => {
-      if (expired) return;
+      if (expired || disposed) return;
       expired = true;
       window.location.replace("/login?reason=session-expired");
     };
 
     const check = async (): Promise<boolean> => {
-      if (expired) return false;
+      if (expired || disposed) return false;
       try {
         const response = await fetch("/api/session", { cache: "no-store" });
+        if (disposed) return false;
         if (response.status === 401) {
           expire();
           return false;
@@ -29,11 +32,11 @@ export function SessionActivity({ agency = false }: { agency?: boolean }) {
       } catch {
         // A transient network failure must not prolong server-side validity.
       }
-      return !expired;
+      return !expired && !disposed;
     };
 
     const scheduleAgencyCheck = (delayMs: number) => {
-      if (!agency) return;
+      if (!agency || disposed) return;
       if (idleCheck !== undefined) clearTimeout(idleCheck);
       idleCheck = setTimeout(() => {
         void check().then((active) => {
@@ -45,7 +48,7 @@ export function SessionActivity({ agency = false }: { agency?: boolean }) {
     };
 
     const activity = (event: Event) => {
-      if (!event.isTrusted || expired) return;
+      if (!event.isTrusted || expired || disposed) return;
       if (agency) scheduleAgencyCheck(AGENCY_IDLE_MS);
       if (pending || Date.now() - sentAt < 60_000) return;
       pending = true;
@@ -71,6 +74,7 @@ export function SessionActivity({ agency = false }: { agency?: boolean }) {
     }
 
     return () => {
+      disposed = true;
       window.clearInterval(timer);
       if (idleCheck !== undefined) clearTimeout(idleCheck);
       document.removeEventListener("visibilitychange", recheckOnReturn);
