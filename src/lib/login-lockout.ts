@@ -33,6 +33,21 @@ export async function assertPasswordLoginAllowed(executor: Executor, key: string
   if (result.rows.length) throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
 }
 
+/** Remaining temporary lock time, computed against the authoritative database clock. */
+export async function passwordLoginRetryAfterSeconds(key: string): Promise<number> {
+  const result = await db.execute<{ retry_after_seconds: number }>(sql`
+    select least(600, greatest(0, ceil(extract(epoch from (
+      window_start + interval '10 minutes' - clock_timestamp()
+    )))))::integer as retry_after_seconds
+    from ${counters()}
+    where key = ${key}
+      and attempts = 3
+      and window_start > clock_timestamp() - interval '10 minutes'
+    limit 1
+  `);
+  return Number(result.rows[0]?.retry_after_seconds ?? 0);
+}
+
 export async function clearPasswordFailures(tx: Executor, key: string): Promise<void> {
   await tx.execute(sql`delete from ${counters()} where key in (${key}, ${key + ":previous"})`);
 }
