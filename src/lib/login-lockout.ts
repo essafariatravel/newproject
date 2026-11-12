@@ -33,16 +33,28 @@ export async function assertPasswordLoginAllowed(executor: Executor, key: string
   if (result.rows.length) throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
 }
 
-/** Remaining temporary lock time, computed against the authoritative database clock. */
-export async function passwordLoginRetryAfterSeconds(key: string): Promise<number> {
+/** Show remaining time only for one active agency account, never Staff or unknown users. */
+export async function agencyPasswordLoginRetryAfterSeconds(identifier: string): Promise<number> {
+  const normalized = normalizedLoginEmail(identifier);
+  if (!normalized) return 0;
+  const key = passwordLoginKey(normalized);
+  const userTable = sql.raw(qualifiedTable("users"));
   const result = await db.execute<{ retry_after_seconds: number }>(sql`
     select least(600, greatest(0, ceil(extract(epoch from (
-      window_start + interval '10 minutes' - clock_timestamp()
+      locks.window_start + interval '10 minutes' - clock_timestamp()
     )))))::integer as retry_after_seconds
-    from ${counters()}
-    where key = ${key}
-      and attempts = 3
-      and window_start > clock_timestamp() - interval '10 minutes'
+    from ${counters()} locks
+    where locks.key = ${key}
+      and locks.attempts = 3
+      and locks.window_start > clock_timestamp() - interval '10 minutes'
+      and (
+        select count(*) from ${userTable} account
+        where lower(btrim(account.email)) = ${normalized}
+          and account.status = 'ACTIVE'
+          and account.activation_pending = false
+          and account.agency_id is not null
+          and account.role in ('AGENCY_ADMIN', 'AGENCY_USER')
+      ) = 1
     limit 1
   `);
   return Number(result.rows[0]?.retry_after_seconds ?? 0);
