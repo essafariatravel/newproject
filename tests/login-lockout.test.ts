@@ -11,6 +11,12 @@ const secret = Buffer.alloc(32, 21).toString("base64url");
 const key = (email: string) => "login-failure-v1:" + createHmac("sha256", Buffer.from(secret, "base64url")).update(email).digest("hex");
 const correct = "Test-Password-123";
 const invalid = { error: "Invalid email or password." };
+const lockedMessage = "Too many incorrect sign-in attempts. Access is temporarily locked.";
+function expectLocked(result: { error?: string; retryAfterSeconds?: number }) {
+  expect(result.error).toBe(lockedMessage);
+  expect(result.retryAfterSeconds).toBeGreaterThan(0);
+  expect(result.retryAfterSeconds).toBeLessThanOrEqual(600);
+}
 
 async function attempt(password: string, identifier = email) {
   const form = new FormData();
@@ -43,10 +49,10 @@ describe("password lockout via the shared login Server Action", () => {
     expect((await state())?.attempts).toBe(1);
     expect(await attempt("wrong two")).toEqual(invalid);
     expect((await state())?.attempts).toBe(2);
-    expect(await attempt("wrong three")).toEqual(invalid);
+    expectLocked(await attempt("wrong three"));
     const locked = await state();
     expect(locked.attempts).toBe(3);
-    expect(await attempt(correct)).toEqual(invalid);
+    expectLocked(await attempt(correct));
     expect(await state()).toEqual(locked);
     expect(request.set).not.toHaveBeenCalled();
   });
@@ -82,15 +88,19 @@ describe("password lockout via the shared login Server Action", () => {
 
   it("serializes simultaneous failures and does not create a session during the lock", async () => {
     const attempts = await Promise.all([attempt("wrong"), attempt("wrong"), attempt("wrong"), attempt("wrong")]);
-    expect(attempts).toEqual(Array(4).fill(invalid));
+    expect(attempts.filter(result => result.error === invalid.error)).toHaveLength(2);
+    for (const result of attempts.filter(result => result.retryAfterSeconds)) expectLocked(result);
     expect((await state()).attempts).toBe(3);
-    expect(await attempt(correct)).toEqual(invalid);
+    expectLocked(await attempt(correct));
     expect(request.set).not.toHaveBeenCalled();
   });
 
   it("returns the same rejection for a nonexistent identifier and keeps its counters separate", async () => {
     const missing = "missing@example.test";
-    for (let i = 0; i < 4; i++) expect(await attempt("wrong", missing)).toEqual(invalid);
+    expect(await attempt("wrong", missing)).toEqual(invalid);
+    expect(await attempt("wrong", missing)).toEqual(invalid);
+    expectLocked(await attempt("wrong", missing));
+    expectLocked(await attempt("wrong", missing));
     expect((await state(missing)).attempts).toBe(3);
     expect(await state()).toBeUndefined();
   });
