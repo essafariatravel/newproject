@@ -7,7 +7,7 @@ import type { TurnstilePublicConfig } from "@/lib/turnstile-config";
 import { TurnstileField, useProtectedAction } from "@/components/turnstile-field";
 import { PasswordField, SubmitButton } from "@/components/forms";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { loginLockoutCopy } from "@/lib/login-lockout-copy";
 
 /**
@@ -28,6 +28,8 @@ export interface LoginCopy {
 
 export function LoginForm({ copy, locale, botConfig }: { brandName: string; copy: LoginCopy; locale: UiLocale; botConfig: TurnstilePublicConfig }) {
   const { state, formAction, verified, setVerified, challenge } = useProtectedAction<ActionState>(loginAction, {}, botConfig, locale);
+  const submittedIdentifier = useRef("");
+  const [currentIdentifier, setCurrentIdentifier] = useState("");
   const [remaining, setRemaining] = useState<number | null>(null);
   useEffect(() => {
     const seconds = state.retryAfterSeconds;
@@ -42,7 +44,9 @@ export function LoginForm({ copy, locale, botConfig }: { brandName: string; copy
     return () => window.clearInterval(interval);
   }, [state]);
 
-  const lockedResult = typeof state.retryAfterSeconds === "number" && state.retryAfterSeconds > 0;
+  // A temporary agency lock must never disable login for a different identity (e.g. Staff).
+  const lockedResult = typeof state.retryAfterSeconds === "number" && state.retryAfterSeconds > 0 &&
+    currentIdentifier.trim().toLowerCase() === submittedIdentifier.current;
   const remainingSeconds = Math.max(0, remaining ?? state.retryAfterSeconds ?? 0);
   const stillLocked = lockedResult && remainingSeconds > 0;
   const countdown = `${String(Math.floor(remainingSeconds / 60)).padStart(2, "0")}:${String(remainingSeconds % 60).padStart(2, "0")}`;
@@ -50,7 +54,7 @@ export function LoginForm({ copy, locale, botConfig }: { brandName: string; copy
 
   return (
     <>
-      <form action={formAction} onReset={event => event.preventDefault()} className="mt-8 space-y-4">
+      <form action={formAction} onSubmit={event => { submittedIdentifier.current = String(new FormData(event.currentTarget).get("identifier") ?? "").trim().toLowerCase(); }} onReset={event => event.preventDefault()} className="mt-8 space-y-4">
         {state.error ? (
           <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-4 text-base text-red-700">
             {lockedResult ? (
@@ -74,6 +78,8 @@ export function LoginForm({ copy, locale, botConfig }: { brandName: string; copy
             id="email"
             name="identifier"
             type="email"
+            value={currentIdentifier}
+            onChange={event => setCurrentIdentifier(event.target.value)}
             autoComplete="username"
             maxLength={254}
             dir="ltr"
