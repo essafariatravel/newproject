@@ -4,7 +4,7 @@ import { suiteSetup } from "./helpers/global-state";
 import { request } from "./helpers/request";
 import { loginAction } from "@/app/actions/auth";
 import { db } from "@/lib/db";
-import { hashToken } from "@/lib/crypto";
+import { passwordLoginKey } from "@/lib/login-lockout";
 
 suiteSetup();
 afterEach(async()=>{
@@ -16,12 +16,12 @@ const form=(identifier:string,password="Incorrect-Synthetic-123")=>{
   const value=new FormData(); value.set("identifier",identifier); value.set("password",password); return value;
 };
 describe("release login integrity",()=>{
-  it("shares the account throttle across compatibility-equivalent Agency usernames",async()=>{
-    for(let i=0;i<10;i++) await loginAction({},form("a-admin"));
-    const result=await loginAction({},form("ａ－ａｄｍｉｎ"));
-    expect(result.error).toContain("Sign-in is temporarily unavailable");
-    const bucket=(await db.execute(sql`select attempts from auth_rate_limits where key=${hashToken("login-identity:a-admin")}`)).rows;
-    expect(bucket[0]?.attempts).toBe(11);
+  it("shares a rejection counter across compatibility-equivalent invalid identifiers", async () => {
+    for (const identifier of ["a-admin", "ａ－ａｄｍｉｎ", "A-ADMIN", "a-admin"]) {
+      expect(await loginAction({}, form(identifier))).toEqual({ error: "Invalid email or password." });
+    }
+    const bucket = (await db.execute(sql`select attempts from auth_rate_limits where key=${passwordLoginKey("a-admin")}`)).rows;
+    expect(bucket[0]?.attempts).toBe(3);
   });
   it("does not issue a usable login session or cookie when its mandatory audit fails",async()=>{
     await db.execute(sql`create function login_audit_failure() returns trigger language plpgsql as $$ begin if new.action='USER_LOGIN' then raise exception 'Synthetic audit failure'; end if; return new; end $$`);

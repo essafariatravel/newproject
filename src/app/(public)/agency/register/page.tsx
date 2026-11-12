@@ -5,6 +5,7 @@ import { registrationCopy, resolveLocale } from "@/lib/i18n";
 import { getUiLocale, pickUiLocale } from "@/lib/ui-i18n";
 import { readPublishedLegal } from "@/lib/legal";
 import { publicBrandCopy } from "@/lib/public-brand-copy";
+import { publicTurnstileConfig } from "@/lib/turnstile-config";
 export const dynamic = "force-dynamic";
 export async function generateMetadata({searchParams}: {searchParams: Promise<Record<string,string|string[]|undefined>>}): Promise<Metadata> {
   const sp = await searchParams;
@@ -25,7 +26,7 @@ export default async function AgencyRegisterPage({searchParams}: {searchParams: 
         </header>
         <div className="registration-paper">
           {legal.every(Boolean) ? (
-            <RegistrationForm locale={locale} copy={copy} renderedAt={Date.now()} legalVersions={{
+            <RegistrationForm locale={locale} copy={copy} botConfig={publicTurnstileConfig()} renderedAt={Date.now()} legalVersions={{
               terms:{id:legal[0]!.id,version:legal[0]!.version},
               privacy:{id:legal[1]!.id,version:legal[1]!.version},
             }} />

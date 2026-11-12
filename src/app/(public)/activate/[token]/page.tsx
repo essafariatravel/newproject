@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import ActivationForm from "./activation-form";
 import { resolveActivation } from "@/lib/registrations";
 import { registrationCopy, resolveLocale } from "@/lib/i18n";
+import { publicTurnstileConfig } from "@/lib/turnstile-config";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,7 @@ export default async function ActivateAccountPage({
               <ActivationForm
                 token={token}
                 locale={locale}
+                botConfig={publicTurnstileConfig()}
                 copy={copy}
                 showLabel={copy.activation.showPassword}
                 hideLabel={copy.activation.hidePassword}

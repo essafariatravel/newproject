@@ -1,9 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
 import { loginAction } from "@/app/actions/auth";
+import type { ActionState } from "@/components/forms";
+import type { UiLocale } from "@/lib/ui-i18n";
+import type { TurnstilePublicConfig } from "@/lib/turnstile-config";
+import { TurnstileField, useProtectedAction } from "@/components/turnstile-field";
 import { PasswordField, SubmitButton } from "@/components/forms";
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { loginLockoutCopy } from "@/lib/login-lockout-copy";
 
 /**
  * Form only. The page (src/app/(public)/login/page.tsx) owns the layout
@@ -21,14 +26,50 @@ export interface LoginCopy {
   hidePassword: string;
 }
 
-export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
-  const [state, formAction] = useActionState(loginAction, {});
+export function LoginForm({ copy, locale, botConfig }: { brandName: string; copy: LoginCopy; locale: UiLocale; botConfig: TurnstilePublicConfig }) {
+  const { state, formAction, verified, setVerified, challenge } = useProtectedAction<ActionState>(loginAction, {}, botConfig, locale);
+  const submittedIdentifier = useRef("");
+  const [currentIdentifier, setCurrentIdentifier] = useState("");
+  const [remaining, setRemaining] = useState<number | null>(null);
+  useEffect(() => {
+    const seconds = state.retryAfterSeconds;
+    if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds <= 0) {
+      setRemaining(null);
+      return;
+    }
+    const endAt = Date.now() + Math.min(600, Math.ceil(seconds)) * 1000;
+    const update = () => setRemaining(Math.max(0, Math.ceil((endAt - Date.now()) / 1000)));
+    update();
+    const interval = window.setInterval(update, 1000);
+    return () => window.clearInterval(interval);
+  }, [state]);
+
+  // A temporary agency lock must never disable login for a different identity (e.g. Staff).
+  const lockedResult = typeof state.retryAfterSeconds === "number" && state.retryAfterSeconds > 0 &&
+    currentIdentifier.trim().toLowerCase() === submittedIdentifier.current;
+  const remainingSeconds = Math.max(0, remaining ?? state.retryAfterSeconds ?? 0);
+  const stillLocked = lockedResult && remainingSeconds > 0;
+  const countdown = `${String(Math.floor(remainingSeconds / 60)).padStart(2, "0")}:${String(remainingSeconds % 60).padStart(2, "0")}`;
+  const lockedCopy = loginLockoutCopy(locale);
+
   return (
     <>
-      <form action={formAction} className="mt-8 space-y-4">
+      <form action={formAction} onSubmit={event => { submittedIdentifier.current = String(new FormData(event.currentTarget).get("identifier") ?? "").trim().toLowerCase(); }} onReset={event => event.preventDefault()} className="mt-8 space-y-4">
         {state.error ? (
           <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-4 text-base text-red-700">
-            {state.error}
+            {lockedResult ? (
+              <>
+                <p>{lockedCopy.locked}</p>
+                {stillLocked ? (
+                  <p className="mt-2 font-medium">
+                    {lockedCopy.remaining}{" "}
+                    <span role="timer" aria-live="off" dir="ltr" className="inline-block font-semibold tabular-nums" data-testid="login-lockout-countdown">
+                      {countdown}
+                    </span>
+                  </p>
+                ) : <p className="mt-2">{lockedCopy.ready}</p>}
+              </>
+            ) : state.error}
           </div>
         ) : null}
         <div>
@@ -37,6 +78,8 @@ export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
             id="email"
             name="identifier"
             type="email"
+            value={currentIdentifier}
+            onChange={event => setCurrentIdentifier(event.target.value)}
             autoComplete="username"
             maxLength={254}
             dir="ltr"
@@ -45,7 +88,8 @@ export function LoginForm({ copy }: { brandName: string; copy: LoginCopy }) {
           />
         </div>
         <PasswordField id="password" name="password" label={copy.password} autoComplete="current-password" required minLength={0} hint="" showLabel={copy.showPassword} hideLabel={copy.hidePassword}/>
-        <SubmitButton className="btn-primary w-full py-2" pendingLabel={copy.signingIn}>
+        <TurnstileField ref={challenge} config={botConfig} action="password_login" locale={locale} onVerified={setVerified} />
+        <SubmitButton disabled={!verified || stillLocked} className="btn-primary w-full py-2" pendingLabel={copy.signingIn}>
           {copy.signIn}
         </SubmitButton>
       </form>

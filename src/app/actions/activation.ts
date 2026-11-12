@@ -11,6 +11,10 @@ import { activateAccount } from "@/lib/registrations";
 import { createSession, setSessionCookie } from "@/lib/auth";
 import { registrationCopy, resolveLocale } from "@/lib/i18n";
 import { AppError, isAgencyRole, type Role } from "@/lib/types";
+import { assertPublicBotProtection, publicClientIp } from "@/lib/bot-protection";
+import { botProtectionError } from "@/lib/bot-protection-copy";
+import { passwordLoginKey } from "@/lib/login-lockout";
+import { safeErrorCode } from "@/lib/safe-error";
 
 export interface ActivationFormState {
   error?: string;
@@ -36,9 +40,10 @@ export async function activateAccountAction(
   let ip: string | null = null;
   try {
     const hdrs = await headers();
-    ip = hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-  } catch {
-    // outside a request scope (tests)
+    await assertPublicBotProtection(formData, "account_activation", hdrs);
+    ip = publicClientIp(hdrs);
+  } catch (error) {
+    return { error: botProtectionError(locale, error) };
   }
 
   let user;
@@ -53,15 +58,17 @@ export async function activateAccountAction(
             : copy.activation.invalidTitle,
       };
     }
-    console.error("[activation] activateAccount failed", err);
+    console.error("[activation] activateAccount failed", safeErrorCode(err) ?? "unknown");
     return { error: copy.errors.generic };
   }
 
   try {
-    const session = await createSession(user.id, { expectedCredentialVersion: user.credentialVersion });
+    const session = await createSession(user.id, {
+      expectedCredentialVersion: user.credentialVersion, passwordLoginKey: passwordLoginKey(user.email),
+    });
     await setSessionCookie(session.token, session.expiresAt);
   } catch (err) {
-    console.error("[activation] session creation failed", err);
+    if (!(err instanceof AppError)) console.error("[activation] session creation failed", safeErrorCode(err) ?? "unknown");
     redirect("/login");
   }
   redirect(isAgencyRole(user.role as Role) ? "/portal" : "/admin");

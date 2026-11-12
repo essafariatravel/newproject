@@ -67,6 +67,8 @@ export function PasswordField(props: {
 export interface ActionState {
   error?: string;
   success?: string;
+  /** Server-calculated remaining password lockout duration; never trusts browser time. */
+  retryAfterSeconds?: number;
 }
 
 export const initialActionState: ActionState = {};
