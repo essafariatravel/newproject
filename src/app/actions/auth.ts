@@ -14,6 +14,8 @@ import { getUiLocale } from "@/lib/ui-i18n";
 import { localizeError } from "@/lib/i18n-content";
 import { safeErrorCode } from "@/lib/safe-error";
 import { mfaEnforcementEnabled } from "@/lib/mfa-policy";
+import { passwordLoginKey, passwordLoginRetryAfterSeconds } from "@/lib/login-lockout";
+import { loginLockoutCopy } from "@/lib/login-lockout-copy";
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const locale = await getUiLocale();
@@ -34,7 +36,19 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
     user = session.user;
     await setSessionCookie(session.token, session.expiresAt);
   } catch (err) {
-    if (err instanceof AppError) return fail(err.message);
+    if (err instanceof AppError) {
+      if (err.code === "INVALID_CREDENTIALS") {
+        try {
+          const retryAfterSeconds = await passwordLoginRetryAfterSeconds(passwordLoginKey(email));
+          if (retryAfterSeconds > 0) {
+            return { error: loginLockoutCopy(locale).locked, retryAfterSeconds };
+          }
+        } catch {
+          // Avoid leaking internal counter details if the secondary read fails.
+        }
+      }
+      return fail(err.message);
+    }
     console.error("[auth] Authentication unavailable.", safeErrorCode(err) ?? "unknown");
     return fail("Service temporarily unavailable. Please try again.");
   }
