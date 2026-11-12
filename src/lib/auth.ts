@@ -55,7 +55,7 @@ export async function createSession(
       (options.expectedCredentialVersion !== undefined && row.user.credentialVersion !== options.expectedCredentialVersion)) {
       throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
     }
-    if (options.passwordLoginKey) {
+    if (options.passwordLoginKey && row.user.agencyId && isAgencyRole(row.user.role)) {
       await lockPasswordLogin(tx, options.passwordLoginKey);
       await assertPasswordLoginAllowed(tx, options.passwordLoginKey);
     }
@@ -74,7 +74,7 @@ export async function createSession(
         await tx.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id,userId));
       }
     }
-    if (options.passwordLoginKey && (row.user.agencyId || (options.auditLogin && !mfaEnforcementEnabled()))) {
+    if (options.passwordLoginKey && row.user.agencyId && isAgencyRole(row.user.role)) {
       await clearPasswordFailures(tx, options.passwordLoginKey);
     }
     return expiresAt;
@@ -222,9 +222,11 @@ export async function signInWithPassword(identifier: string, password: string) {
   const key = passwordLoginKey(identifier);
   let user: User;
   try {
-    user = await authenticate(identifier, password, key);
+    user = await authenticate(identifier, password);
   } catch (error) {
-    if (error instanceof PasswordMismatch && error.agencyAccount) await recordPasswordFailure(key);
+    if (error instanceof PasswordMismatch) {
+      await recordPasswordFailure(error.agencyAccount ? key : key + ":unverified");
+    }
     throw error;
   }
   const session = await createSession(user.id, {
@@ -235,57 +237,39 @@ export async function signInWithPassword(identifier: string, password: string) {
 }
 
 /** Registered account email only. Ambiguous active identities always fail closed. */
-export async function authenticate(identifier: string, password: string, loginKey?: string): Promise<User> {
+export async function authenticate(identifier: string, password: string): Promise<User> {
   if (password.length === 0 || password.length > 200) {
     throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
   }
   const { verifyPassword } = await import("@/lib/crypto");
   let user: User | undefined;
+  let agencyStatus: string | null | undefined;
   try {
     const normalized = normalizedLoginEmail(identifier);
     const rows = await db
-      .select()
+      .select({ user: users, agencyStatus: agencies.status })
       .from(users)
+      .leftJoin(agencies, eq(users.agencyId, agencies.id))
       .where(and(sql`lower(btrim(${users.email})) = ${normalized}`, eq(users.status,"ACTIVE")))
       .limit(2);
-    user = rows.length === 1 ? rows[0] as User : undefined;
+    user = rows.length === 1 ? rows[0]!.user as User : undefined;
+    agencyStatus = rows.length === 1 ? rows[0]!.agencyStatus : undefined;
   } catch (err) {
     // Hide raw database errors (e.g. missing table / connection failure) from the user.
     console.error("[auth] authenticate query failed", safeErrorCode(err) ?? "unknown");
     throw new AppError("SERVICE_UNAVAILABLE", "Service temporarily unavailable. Please try again.");
   }
-  const usableHash = user && /^scrypt\$[0-9a-f]{32}\$[0-9a-f]{128}$/i.test(user.passwordHash);
-  if (!user || !usableHash) {
-    // Dummy verification for unknown identifiers and unusable stored hashes.
-    await verifyPassword(password, `scrypt$${"0".repeat(32)}$${"0".repeat(128)}`);
-    if (!user) throw new PasswordMismatch();
-    throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
+  const usableHash = Boolean(user && /^scrypt\$[0-9a-fA-F]{32}\$[0-9a-fA-F]{128}$/.test(user.passwordHash));
+  // One full scrypt for every well-sized credential, even a locked account,
+  // unknown identity or unusable stored hash. No pre-password lock lookup.
+  const hash = usableHash ? user!.passwordHash : `scrypt$${"0".repeat(32)}$${"0".repeat(128)}`;
+  const passwordMatches = await verifyPassword(password, hash);
+  const eligible = Boolean(user && usableHash && user.status === "ACTIVE" &&
+    !user.activationPending && (!user.agencyId || agencyStatus === "ACTIVE"));
+  if (!passwordMatches || !eligible) {
+    throw new PasswordMismatch(Boolean(eligible && user!.agencyId && isAgencyRole(user!.role)));
   }
-  const agencyAccount = Boolean(user.agencyId && isAgencyRole(user.role));
-  // Only agency identities are subject to the three-failure / ten-minute lock.
-  // Staff passwords remain protected by Turnstile and the existing staff MFA.
-  if (agencyAccount && loginKey) await assertPasswordLoginAllowed(db, loginKey);
-  if (!await verifyPassword(password, user.passwordHash)) throw new PasswordMismatch(agencyAccount);
-  if (user.status !== "ACTIVE" || user.activationPending) {
-    throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
-  }
-  if (user.agencyId) {
-    try {
-      const agency = await db
-        .select({ status: agencies.status })
-        .from(agencies)
-        .where(eq(agencies.id, user.agencyId))
-        .limit(1);
-      if (agency[0]?.status !== "ACTIVE") {
-        throw new AppError("INVALID_CREDENTIALS", "Invalid email or password.");
-      }
-    } catch (err) {
-      if (err instanceof AppError) throw err;
-      console.error("[auth] authenticate agency lookup failed", safeErrorCode(err) ?? "unknown");
-      throw new AppError("SERVICE_UNAVAILABLE", "Service temporarily unavailable. Please try again.");
-    }
-  }
-  return user;
+  return user!;
 }
 
 /** Only explicit human interaction calls this; reads and background polls never extend idle time. */

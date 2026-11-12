@@ -1,21 +1,21 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { AuthUser } from "@/lib/types";
 
-const mocks = vi.hoisted(() => ({
-  getUiLocale: vi.fn(async (sp?: Record<string, unknown>) => String(sp?.lang ?? "en")),
-  listNotificationsForUser: vi.fn(),
-}));
+import * as queries from "@/lib/queries";
+import * as uiI18n from "@/lib/ui-i18n";
+import { pickUiLocale } from "@/lib/ui-locale-values";
 
-vi.mock("@/lib/ui-i18n", async importOriginal => ({
-  ...(await importOriginal<typeof import("@/lib/ui-i18n")>()),
-  getUiLocale: mocks.getUiLocale,
-}));
-vi.mock("@/lib/queries", () => ({
-  listNotificationsForUser: mocks.listNotificationsForUser,
-  unreadNotificationCount: vi.fn(async () => 0),
-}));
-vi.mock("@/app/actions/communications", () => ({ markNotificationsReadAction: vi.fn() }));
+const mocks = { listNotificationsForUser: vi.fn() };
+
+// The suite shares a module registry. Scoped spies must not replace the real
+// queries/locale module for the following database-backed notification tests.
+beforeEach(() => {
+  vi.spyOn(uiI18n, "getUiLocale").mockImplementation(async sp => pickUiLocale(sp?.lang) ?? "en");
+  vi.spyOn(queries, "listNotificationsForUser").mockImplementation(mocks.listNotificationsForUser);
+  vi.spyOn(queries, "unreadNotificationCount").mockResolvedValue(0);
+});
+afterEach(() => vi.restoreAllMocks());
 
 import { NotificationsPage } from "@/components/notifications-page";
 

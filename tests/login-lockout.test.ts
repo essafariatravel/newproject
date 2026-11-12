@@ -49,7 +49,7 @@ describe("password lockout via the shared login Server Action", () => {
     expect((await state())?.attempts).toBe(1);
     expect(await attempt("wrong two")).toEqual(invalid);
     expect((await state())?.attempts).toBe(2);
-    expectLocked(await attempt("wrong three"));
+    expect(await attempt("wrong three")).toEqual(invalid);
     const locked = await state();
     expect(locked.attempts).toBe(3);
     expectLocked(await attempt(correct));
@@ -89,11 +89,13 @@ describe("password lockout via the shared login Server Action", () => {
   it("serializes simultaneous failures and does not create a session during the lock", async () => {
     const attempts = await Promise.all([attempt("wrong"), attempt("wrong"), attempt("wrong"), attempt("wrong")]);
     expect(attempts).toHaveLength(4);
-    // The last committed failure may become visible before earlier callers read
-    // the lock, so concurrent responses need not split 2 invalid / 2 locked.
-    expect(attempts.every(result => result.error === invalid.error || result.error === lockedMessage)).toBe(true);
-    expect(attempts.some(result => result.retryAfterSeconds)).toBe(true);
-    for (const result of attempts.filter(result => result.retryAfterSeconds)) expectLocked(result);
+    // Every concurrent request lacks password proof, even after the lock commits.
+    expect(attempts.every(result => result.error === invalid.error && result.retryAfterSeconds === undefined)).toBe(true);
+    expect(attempts.some(result => result.retryAfterSeconds)).toBe(false);
+    for (const result of attempts) {
+      expect(result).toEqual(invalid);
+      expect(result.retryAfterSeconds).toBeUndefined();
+    }
     expect((await state()).attempts).toBe(3);
     expectLocked(await attempt(correct));
     expect(request.set).not.toHaveBeenCalled();
@@ -127,7 +129,11 @@ describe("password lockout via the shared login Server Action", () => {
     const agencyAdmin = "a-admin@test.example";
     expect(await attempt("wrong", agencyAdmin)).toEqual(invalid);
     expect(await attempt("wrong", agencyAdmin)).toEqual(invalid);
-    expectLocked(await attempt("wrong", agencyAdmin));
+    // A third wrong password locks the account without revealing its identity.
+    expect(await attempt("wrong", agencyAdmin)).toEqual(invalid);
+    expect((await state(agencyAdmin))?.attempts).toBe(3);
+    expect(request.set).not.toHaveBeenCalled();
+    // The existing countdown assertion remains mandatory after password proof.
     expectLocked(await attempt(correct, agencyAdmin));
     expect((await state(agencyAdmin))?.attempts).toBe(3);
   });

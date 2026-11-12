@@ -5,7 +5,8 @@ import { headers } from "next/headers";
 import { z } from "zod";
 import { signInWithPassword, createSession, destroySession, requirePasswordChangeSession, setSessionCookie, touchCurrentSession } from "@/lib/auth";
 import { changeAccountPassword } from "@/lib/account-security";
-import { assertPublicBotProtection } from "@/lib/bot-protection";
+import { assertPublicBotProtection, publicClientIp } from "@/lib/bot-protection";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import { botProtectionError } from "@/lib/bot-protection-copy";
 import { AppError, isAgencyRole } from "@/lib/types";
 import type { ActionState } from "@/components/forms";
@@ -14,7 +15,7 @@ import { getUiLocale } from "@/lib/ui-i18n";
 import { localizeError } from "@/lib/i18n-content";
 import { safeErrorCode } from "@/lib/safe-error";
 import { mfaEnforcementEnabled } from "@/lib/mfa-policy";
-import { agencyPasswordLoginRetryAfterSeconds } from "@/lib/login-lockout";
+import { PasswordLoginLockedError } from "@/lib/login-lockout";
 import { loginLockoutCopy } from "@/lib/login-lockout-copy";
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -32,23 +33,24 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   catch (error) { return { error: botProtectionError(locale, error) }; }
   let user;
   try {
+    // These request budgets are independent of the agency password lock.
+    // Preserve the original Production scopes, subjects and thresholds.
+    const ip = publicClientIp(await headers());
+    if (!ip) return fail("Service temporarily unavailable. Please try again.");
+    const subject = email.includes("@") ? email.toLowerCase() : email.normalize("NFKC").toLowerCase();
+    const ipAllowed = await consumeAuthRateLimit("login-ip", ip, 40, 15 * 60_000);
+    const identityAllowed = await consumeAuthRateLimit("login-identity", subject, 10, 15 * 60_000);
+    if (!ipAllowed || !identityAllowed) return fail("Sign-in is temporarily unavailable. Please try again later.");
     const session = await signInWithPassword(email, password);
     user = session.user;
     await setSessionCookie(session.token, session.expiresAt);
   } catch (err) {
-    if (err instanceof AppError) {
-      if (err.code === "INVALID_CREDENTIALS") {
-        try {
-          const retryAfterSeconds = await agencyPasswordLoginRetryAfterSeconds(email);
-          if (retryAfterSeconds > 0) {
-            return { error: loginLockoutCopy(locale).locked, retryAfterSeconds };
-          }
-        } catch {
-          // Avoid leaking internal counter details if the secondary read fails.
-        }
-      }
-      return fail(err.message);
+    if (err instanceof PasswordLoginLockedError) {
+      // This error can only follow a correct password and an active agency
+      // identity rechecked inside the session transaction. Never infer it by email.
+      return { error: loginLockoutCopy(locale).locked, retryAfterSeconds: err.retryAfterSeconds };
     }
+    if (err instanceof AppError) return fail(err.message);
     console.error("[auth] Authentication unavailable.", safeErrorCode(err) ?? "unknown");
     return fail("Service temporarily unavailable. Please try again.");
   }

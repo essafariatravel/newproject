@@ -11,6 +11,7 @@ import { pool } from "@/lib/db";
 import { hashToken } from "@/lib/crypto";
 import { automaticDatabaseChangesForbidden } from "../scripts/lib/build-policy";
 import { createDraftApplication, getApplicationForUser } from "@/lib/applications";
+import { managedLoginChallenge, managedLoginForm } from "./helpers/turnstile";
 
 suiteSetup();
 beforeAll(async () => {
@@ -55,14 +56,15 @@ beforeEach(async () => {
   await pool.query("truncate visa_os_preview.auth_rate_limits");
   request.cookie = "";
   configure();
+  managedLoginChallenge();
 });
-afterEach(() => { request.cookie = ""; request.set.mockClear(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
+afterEach(() => { request.cookie = ""; request.set.mockClear(); request.headers = new Headers(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("explicitly authorized Preview password login", () => {
   it.each(roles)("lets %s use its existing unique email without granting MFA verification", async (role, email, path) => {
     const user = await userByEmail(email);
     const before = (await pool.query("select password_hash,role,agency_id,credential_version from users where id=$1", [user.id])).rows[0];
-    const form = new FormData(); form.set("identifier", email); form.set("password", "Test-Password-123");
+    const form = managedLoginForm(email, "Test-Password-123");
     await expect(loginAction({}, form)).rejects.toMatchObject({ digest: expect.stringContaining(`;${path};`) });
     const actor = await getSessionUser();
     expect(actor).toMatchObject({ id: user.id, role, agencyId: user.agencyId, mfaPending: !user.agencyId });
@@ -177,9 +179,9 @@ describe("explicitly authorized Preview password login", () => {
     await expect(getApplicationForUser(app.id,actor)).rejects.toMatchObject({code:"NOT_FOUND"});
   });
   it("still applies the account login rate limit while MFA is paused", async () => {
-    const form=new FormData();form.set("identifier","admin@test.example");form.set("password","Synthetic-Wrong-Password");
-    for(let i=0;i<10;i++)expect((await loginAction({},form)).error).toBe("Invalid email or password.");
-    expect((await loginAction({},form)).error).toBe("Sign-in is temporarily unavailable. Please try again later.");
+    const form=()=>managedLoginForm("admin@test.example","Synthetic-Wrong-Password");
+    for(let i=0;i<10;i++)expect((await loginAction({},form())).error).toBe("Invalid email or password.");
+    expect((await loginAction({},form())).error).toBe("Sign-in is temporarily unavailable. Please try again later.");
   });
   it("accepts the authorized Supabase pooler metadata as well as the direct endpoint",async()=>{
     await passwordSession();
@@ -224,7 +226,7 @@ describe("password-only access in the independent clean Preview",()=>{
     configure({VERCEL_GIT_COMMIT_REF:"codex/isolated-clean-preview-2026-10-15",DATABASE_URL:"postgresql://postgres.nqudhszgodmzckautrby:synthetic@aws-0-us-east-1.pooler.supabase.com:5432/postgres"});
     const user=await userByEmail(email);
     const before=(await pool.query("select password_hash,role,agency_id,credential_version from users where id=$1",[user.id])).rows[0];
-    const form=new FormData();form.set("identifier",email);form.set("password","Test-Password-123");
+    const form=managedLoginForm(email,"Test-Password-123");
     await expect(loginAction({},form)).rejects.toMatchObject({digest:expect.stringContaining(`;${path};`)});
     expect(await getSessionUser()).toMatchObject({id:user.id,role,agencyId:user.agencyId});
     expect((await pool.query("select mfa_verified_at from sessions where token_hash=$1",[hashToken(request.cookie)])).rows[0].mfa_verified_at).toBeNull();

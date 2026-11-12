@@ -149,6 +149,85 @@ async function main() {
       await page.locator('form:has([name="cf-turnstile-response"]) button[type="submit"]').click(); await page.waitForURL('**/portal'); await ctx.close();
     }
     {
+      await pool.query('truncate auth_rate_limits');
+      const { ctx, page } = await context('en');
+      await page.goto(origin + '/login'); await ready(page);
+      const manifest = JSON.parse(fs.readFileSync(path.join(repo, '.next/server/server-reference-manifest.json'), 'utf8'));
+      const login = Object.entries(manifest.node).find(([, value]) => value.exportedName === 'loginAction');
+      assert.ok(login);
+      let canonical;
+      for (let round = 0; round < 4; round++) {
+        for (const identifier of ['agent@example.test', 'unknown@example.test', 'staff@example.test']) {
+          const previous = await page.locator('[name="cf-turnstile-response"]').inputValue();
+          await page.evaluate(() => window.turnstile.reset('0'));
+          await page.waitForFunction(old => {
+            const token = document.querySelector('[name="cf-turnstile-response"]')?.value;
+            return Boolean(token && token !== old);
+          }, previous);
+          const token = await page.locator('[name="cf-turnstile-response"]').inputValue();
+          const data = new FormData();
+          data.set('_1_identifier', identifier); data.set('_1_password', 'Incorrect-Local-Password');
+          data.set('_1_cf-turnstile-response', token); data.set('0', '[{},"$K1"]');
+          const response = await fetch(origin + '/login', { method: 'POST', headers: {
+            'Next-Action': login[0], Origin: origin, Accept: 'text/x-component',
+          }, body: data, redirect: 'manual' });
+          const body = await response.text();
+          assert.equal(response.status, 200);
+          assert.ok(body.includes('Invalid email or password.'), 'Valid simulated challenge reaches credential verification');
+          assert.ok(!body.includes('retryAfterSeconds'), 'No unauthenticated HTTP countdown');
+          assert.ok(!response.headers.get('set-cookie'), 'No anonymous credential rejection cookie');
+          const result = { body, contentType: response.headers.get('content-type'), cacheControl: response.headers.get('cache-control') };
+          canonical ??= result;
+          assert.deepEqual(result, canonical, 'Identical HTTP/RSC response for unknown, Staff and locked agency');
+        }
+      }
+      evidence.push('anonymous-http-response-parity-12-probes');
+      await ctx.close();
+    }
+    for (const [locale, width] of [['en', 1440], ['fr', 768], ['ar', 375]]) {
+      // Independent synthetic scenario; no hosted data or counters are touched.
+      await pool.query('truncate auth_rate_limits');
+      const { ctx, page } = await context(locale, width);
+      await page.goto(origin + '/login'); await ready(page);
+      await page.locator('[name="identifier"]').fill('agent@example.test');
+      await page.locator('[name="password"]').fill('Incorrect-Local-Password');
+      const submit = page.locator('form:has([name="cf-turnstile-response"]) button[type="submit"]');
+      for (let index = 0; index < 3; index++) {
+        const token = await page.locator('[name="cf-turnstile-response"]').inputValue();
+        await submit.click(); await page.locator('form [role="alert"]').waitFor();
+        await page.waitForFunction(previous => {
+          const value = document.querySelector('[name="cf-turnstile-response"]')?.value;
+          return Boolean(value && value !== previous);
+        }, token);
+        assert.equal(await page.getByTestId('login-lockout-countdown').count(), 0, 'No countdown before password proof');
+        assert.ok(await submit.isEnabled());
+      }
+      await page.locator('[name="password"]').fill(password);
+      await submit.click(); await page.getByTestId('login-lockout-countdown').waitFor();
+      assert.match(await page.getByTestId('login-lockout-countdown').textContent(), /^(10:00|09:\d{2})$/);
+      assert.ok(await submit.isDisabled());
+      await checkLayout(page, `login-proof-only-countdown-${locale}-${width}`);
+      // A verified agency countdown must not block a different Staff identity.
+      await page.locator('[name="identifier"]').fill('staff@example.test'); await ready(page);
+      await submit.click(); await page.waitForURL('**/mfa'); await ctx.close();
+    }
+    for (const locale of ['fr', 'en', 'ar']) {
+      const { ctx, page } = await context(locale, locale === 'ar' ? 375 : 768);
+      for (const [pathname, action] of [
+        [`/agency/register?lang=${locale}`, 'agency_registration'],
+        ['/forgot-password', 'account_recovery'],
+        ['/reset-access/' + accessToken, 'access_reset'],
+        [`/activate/${activationToken}?lang=${locale}`, 'account_activation'],
+      ]) {
+        const response = await page.goto(origin + pathname); await ready(page);
+        assert.equal(response.status(), 200);
+        assert.deepEqual(await page.evaluate(() => ({ action: window.qaWidgets[0].opts.action, language: window.qaWidgets[0].opts.language })), { action, language: locale });
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+      }
+      await ctx.close();
+    }
+    evidence.push('authentication-forms-fr-en-ar-12-views');
+    {
       const { ctx, page } = await context('fr', 375); await page.goto(origin + '/agency/register?lang=fr'); await ready(page);
       await page.locator('[name="legalName"]').fill('Agence fictive de recette');
       await page.locator('[name="contactFirstName"]').fill('Lina'); await page.locator('[name="email"]').fill('partner@example.test');
@@ -215,4 +294,4 @@ async function main() {
     await fs.promises.rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 }
-main().catch(error => { console.error(error.stack); process.exitCode = 1; });
+main().catch(error => { console.error(error.stack); process.exit(1); });
