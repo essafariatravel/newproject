@@ -99,13 +99,45 @@ describe("password lockout via the shared login Server Action", () => {
     expect(request.set).not.toHaveBeenCalled();
   });
 
-  it("returns the same rejection for a nonexistent identifier and keeps its counters separate", async () => {
+  it("never applies the three-error lockout to internal Staff, who retain MFA", async () => {
+    for (const staffEmail of [
+      "superadmin@test.example", "admin@test.example",
+      "agent@test.example", "accounting@test.example",
+    ]) {
+      for (let i = 0; i < 4; i++) {
+        expect(await attempt("deliberately incorrect", staffEmail)).toEqual(invalid);
+      }
+      expect(await state(staffEmail)).toBeUndefined();
+      await expect(attempt(correct, staffEmail)).rejects.toThrow("NEXT_REDIRECT");
+    }
+  });
+
+  it("ignores pre-existing Staff counters and does not show a lockout countdown", async () => {
+    const staffEmail = "admin@test.example";
+    await pool.query(
+      "insert into auth_rate_limits (key, attempts, window_start) values ($1, 3, clock_timestamp())",
+      [key(staffEmail)],
+    );
+    expect(await attempt("wrong", staffEmail)).toEqual(invalid);
+    expect(await state(staffEmail)).toMatchObject({ attempts: 3 });
+    await expect(attempt(correct, staffEmail)).rejects.toThrow("NEXT_REDIRECT");
+  });
+
+  it("also protects agency administrators, not just agency members", async () => {
+    const agencyAdmin = "a-admin@test.example";
+    expect(await attempt("wrong", agencyAdmin)).toEqual(invalid);
+    expect(await attempt("wrong", agencyAdmin)).toEqual(invalid);
+    expectLocked(await attempt("wrong", agencyAdmin));
+    expectLocked(await attempt(correct, agencyAdmin));
+    expect((await state(agencyAdmin))?.attempts).toBe(3);
+  });
+
+  it("keeps unknown identifiers generic and never creates agency counters", async () => {
     const missing = "missing@example.test";
-    expect(await attempt("wrong", missing)).toEqual(invalid);
-    expect(await attempt("wrong", missing)).toEqual(invalid);
-    expectLocked(await attempt("wrong", missing));
-    expectLocked(await attempt("wrong", missing));
-    expect((await state(missing)).attempts).toBe(3);
+    for (let i = 0; i < 4; i++) {
+      expect(await attempt("wrong", missing)).toEqual(invalid);
+    }
+    expect(await state(missing)).toBeUndefined();
     expect(await state()).toBeUndefined();
   });
 
