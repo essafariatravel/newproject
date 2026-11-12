@@ -7,6 +7,8 @@ import type { TurnstilePublicConfig } from "@/lib/turnstile-config";
 import { TurnstileField, useProtectedAction } from "@/components/turnstile-field";
 import { PasswordField, SubmitButton } from "@/components/forms";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { loginLockoutCopy } from "@/lib/login-lockout-copy";
 
 /**
  * Form only. The page (src/app/(public)/login/page.tsx) owns the layout
@@ -26,12 +28,44 @@ export interface LoginCopy {
 
 export function LoginForm({ copy, locale, botConfig }: { brandName: string; copy: LoginCopy; locale: UiLocale; botConfig: TurnstilePublicConfig }) {
   const { state, formAction, verified, setVerified, challenge } = useProtectedAction<ActionState>(loginAction, {}, botConfig, locale);
+  const [remaining, setRemaining] = useState<number | null>(null);
+  useEffect(() => {
+    const seconds = state.retryAfterSeconds;
+    if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds <= 0) {
+      setRemaining(null);
+      return;
+    }
+    const endAt = Date.now() + Math.min(600, Math.ceil(seconds)) * 1000;
+    const update = () => setRemaining(Math.max(0, Math.ceil((endAt - Date.now()) / 1000)));
+    update();
+    const interval = window.setInterval(update, 1000);
+    return () => window.clearInterval(interval);
+  }, [state]);
+
+  const lockedResult = typeof state.retryAfterSeconds === "number" && state.retryAfterSeconds > 0;
+  const remainingSeconds = Math.max(0, remaining ?? state.retryAfterSeconds ?? 0);
+  const stillLocked = lockedResult && remainingSeconds > 0;
+  const countdown = `${String(Math.floor(remainingSeconds / 60)).padStart(2, "0")}:${String(remainingSeconds % 60).padStart(2, "0")}`;
+  const lockedCopy = loginLockoutCopy(locale);
+
   return (
     <>
       <form action={formAction} onReset={event => event.preventDefault()} className="mt-8 space-y-4">
         {state.error ? (
           <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-4 text-base text-red-700">
-            {state.error}
+            {lockedResult ? (
+              <>
+                <p>{lockedCopy.locked}</p>
+                {stillLocked ? (
+                  <p className="mt-2 font-medium">
+                    {lockedCopy.remaining}{" "}
+                    <span role="timer" aria-live="off" dir="ltr" className="inline-block font-semibold tabular-nums" data-testid="login-lockout-countdown">
+                      {countdown}
+                    </span>
+                  </p>
+                ) : <p className="mt-2">{lockedCopy.ready}</p>}
+              </>
+            ) : state.error}
           </div>
         ) : null}
         <div>
@@ -49,7 +83,7 @@ export function LoginForm({ copy, locale, botConfig }: { brandName: string; copy
         </div>
         <PasswordField id="password" name="password" label={copy.password} autoComplete="current-password" required minLength={0} hint="" showLabel={copy.showPassword} hideLabel={copy.hidePassword}/>
         <TurnstileField ref={challenge} config={botConfig} action="password_login" locale={locale} onVerified={setVerified} />
-        <SubmitButton disabled={!verified} className="btn-primary w-full py-2" pendingLabel={copy.signingIn}>
+        <SubmitButton disabled={!verified || stillLocked} className="btn-primary w-full py-2" pendingLabel={copy.signingIn}>
           {copy.signIn}
         </SubmitButton>
       </form>
