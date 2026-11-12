@@ -12,7 +12,7 @@ import {
 } from "@/lib/types";
 import { generateSessionToken, hashToken } from "@/lib/crypto";
 import type { User } from "@/db/schema";
-import { sessionPolicy } from "@/lib/identity-policy";
+import { sessionPolicy, SESSION_POLICIES } from "@/lib/identity-policy";
 import { lockIdentityState, recordIdentityAudit } from "@/lib/account-security";
 import { safeErrorCode } from "@/lib/safe-error";
 import { mfaEnforcementEnabled } from "@/lib/mfa-policy";
@@ -107,7 +107,7 @@ export async function getSessionUser(options: { allowMfaPending?: boolean } = {}
       .leftJoin(agencies, eq(users.agencyId, agencies.id))
       .where(and(eq(sessions.tokenHash, tokenHash), gt(sessions.expiresAt, new Date()),
         eq(sessions.credentialVersion, users.credentialVersion),
-        sql`${sessions.lastActivityAt} > now() - CASE WHEN ${users.agencyId} IS NULL THEN interval '30 minutes' ELSE interval '2 hours' END`))
+        sql`${sessions.lastActivityAt} > now() - CASE WHEN ${users.agencyId} IS NULL THEN ${SESSION_POLICIES.staff.idleMs} * interval '1 millisecond' ELSE ${SESSION_POLICIES.agency.idleMs} * interval '1 millisecond' END`))
       .limit(1);
     const row = rows[0];
     if (!row) return null;
