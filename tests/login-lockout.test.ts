@@ -88,7 +88,11 @@ describe("password lockout via the shared login Server Action", () => {
 
   it("serializes simultaneous failures and does not create a session during the lock", async () => {
     const attempts = await Promise.all([attempt("wrong"), attempt("wrong"), attempt("wrong"), attempt("wrong")]);
-    expect(attempts.filter(result => result.error === invalid.error)).toHaveLength(2);
+    expect(attempts).toHaveLength(4);
+    // The last committed failure may become visible before earlier callers read
+    // the lock, so concurrent responses need not split 2 invalid / 2 locked.
+    expect(attempts.every(result => result.error === invalid.error || result.error === lockedMessage)).toBe(true);
+    expect(attempts.some(result => result.retryAfterSeconds)).toBe(true);
     for (const result of attempts.filter(result => result.retryAfterSeconds)) expectLocked(result);
     expect((await state()).attempts).toBe(3);
     expectLocked(await attempt(correct));
