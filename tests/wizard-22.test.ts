@@ -89,17 +89,27 @@ describe("Phase 2 Final — 3-step atomic request wizard + simplified dossier", 
     expect(nationalities).toContain('code: "DZ", en: "Algeria"');
     expect(WIZARD).toContain('nationality: String(fields.get("t0_nationality") ?? "")');
   });
-  it("shows every bookable destination in a scrollable list without requiring typing", () => {
+  it("keeps the page compact and opens the complete visa list only when the country field is focused", () => {
     expect(WIZARD).toContain("const availableDestinations = useMemo");
     expect(WIZARD).toContain("c.visaTypes.length > 0");
     expect(WIZARD).toContain("if (!q) return availableDestinations;");
     expect(WIZARD).toContain("return availableDestinations.filter");
+    expect(WIZARD).toContain("useState(false)");
+    expect(WIZARD).toContain("onFocus={() => setDestinationOpen(true)}");
+    expect(WIZARD).toContain("onClick={() => setDestinationOpen(true)}");
+    expect(WIZARD).toContain("aria-expanded={destinationOpen}");
+    expect(WIZARD).toContain("{destinationOpen ? (");
+    expect(WIZARD).toContain('data-testid="wizard-destination-popover"');
     expect(WIZARD).toContain('data-testid="wizard-all-destinations"');
-    expect(WIZARD).toContain("max-h-60 overflow-y-auto");
+    expect(WIZARD).toContain("absolute inset-x-0 top-full");
+    expect(WIZARD).toContain("max-h-64 overflow-y-auto");
     expect(WIZARD).toContain("suggestions.map((c, index)");
+    expect(WIZARD).toContain("onOutsideClick");
+    expect(WIZARD).toContain('event.key === "Escape"');
+    expect(WIZARD).toContain("setDestinationOpen(false);");
+    expect(WIZARD).not.toContain('data-testid="wizard-popular-destination"');
     expect(WIZARD).not.toContain("MAX_SUGGESTIONS");
     expect(WIZARD).not.toContain("searchFocused");
-    expect(WIZARD).toContain('data-testid="wizard-popular-destination"');
     expect(WIZARD).toContain("country.visaTypes.map((v)");
   });
 });
