@@ -3,9 +3,9 @@
 /**
  * The 3-step visa request wizard — §12/§13/§14/§15.
  *
- *   1. DESTINATION  — search-first. No giant country list: type a destination,
- *      pick it from suggestions (only destinations with a bookable DZD
- *      programme), and the selection collapses to a compact summary.
+ *   1. DESTINATION  — browse every bookable DZD destination in a scrollable list
+ *      or filter by typing; selecting one reveals its visa programmes and
+ *      collapses the destination picker to a compact summary.
  *   2. DOCUMENTS    — requirement cards from the visa-type configuration,
  *      2 MB per file enforced here AND server-side.
  *   3. REVIEW       — VISA / APPLICANT / DOCUMENTS / PAYMENT SUMMARY, one
@@ -288,7 +288,6 @@ export function RequestWizard(props: Props) {
     return t.processingUnspecified;
   }
 
-  const totalDestinations = props.countries.filter((c) => c.visaTypes.length > 0).length;
 
   async function submit(form: HTMLFormElement) {
     if (pending || !validateStep(1) || !validateStep(2)) return;
@@ -419,7 +418,7 @@ export function RequestWizard(props: Props) {
                     setCountrySearch("");
                     setActiveDestination(-1);
                   }
-                }
+                }}
               />
               {!countrySearch && popularDestinations.length > 0 ? (
                 <div>
