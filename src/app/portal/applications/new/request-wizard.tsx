@@ -130,7 +130,6 @@ interface Props {
 }
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
-const MAX_SUGGESTIONS = 8;
 const POPULAR_COUNT = 6;
 
 /** Accent-insensitive, case-insensitive destination matching (§13). */
@@ -152,7 +151,6 @@ export function RequestWizard(props: Props) {
   });
   const [visaTypeId, setVisaTypeId] = useState("");
   const [countrySearch, setCountrySearch] = useState("");
-  const [searchFocused, setSearchFocused] = useState(true);
   const [activeDestination,setActiveDestination]=useState(-1);
   const destinationChangeRef=useRef<HTMLButtonElement>(null);
   const keyboardSelectionRef=useRef(false);
@@ -170,17 +168,36 @@ export function RequestWizard(props: Props) {
   const visa = useMemo(() => country?.visaTypes.find((v) => v.id === visaTypeId) ?? null, [country, visaTypeId]);
   const requirements = useMemo(() => (visaTypeId ? (props.requirementsByVisaType[visaTypeId] ?? []) : []), [props.requirementsByVisaType, visaTypeId]);
 
+  // All destinations with a bookable programme remain visible without typing.
+  const availableDestinations = useMemo(() =>
+    props.countries.filter((c) => c.visaTypes.length > 0)
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    [props.countries],
+  );
+
   const suggestions = useMemo(() => {
     const q = normalize(countrySearch);
-    const pool = props.countries.filter((c) => c.visaTypes.length > 0);
-    if (!q) {
-      // No query: a short, deliberate set of quick picks — never the full list.
-      return [...pool].sort((a, b) => b.visaTypes.length - a.visaTypes.length || a.name.localeCompare(b.name)).slice(0, POPULAR_COUNT);
-    }
-    return pool
-      .filter((c) => normalize(c.name).includes(q) || c.visaTypes.some((v) => normalize(v.name).includes(q)))
-      .slice(0, MAX_SUGGESTIONS);
-  }, [props.countries, countrySearch]);
+    if (!q) return availableDestinations;
+    return availableDestinations.filter((c) =>
+      normalize(c.name).includes(q) ||
+      c.visaTypes.some((v) => normalize(v.name).includes(q)),
+    );
+  }, [availableDestinations, countrySearch]);
+
+  const popularDestinations = useMemo(() =>
+    [...availableDestinations]
+      .sort((a, b) => b.visaTypes.length - a.visaTypes.length || a.name.localeCompare(b.name))
+      .slice(0, POPULAR_COUNT),
+    [availableDestinations],
+  );
+
+  function chooseDestination(selected: WizardCountry, keyboard = false) {
+    keyboardSelectionRef.current = keyboard;
+    setCountryId(selected.id);
+    setCountrySearch("");
+    setActiveDestination(-1);
+    if (selected.visaTypes.length !== 1) setVisaTypeId("");
+  }
 
   // Auto-select when the chosen destination has exactly one programme.
   useEffect(() => {
@@ -376,7 +393,7 @@ export function RequestWizard(props: Props) {
                 id="destination-search"
                 type="search"
                 role="combobox"
-                aria-expanded={searchFocused || countrySearch.length > 0}
+                aria-expanded={true}
                 aria-controls="destination-suggestions"
                 aria-autocomplete="list"
                 aria-activedescendant={suggestions[activeDestination]?`destination-${suggestions[activeDestination]!.id}`:undefined}
@@ -385,61 +402,80 @@ export function RequestWizard(props: Props) {
                 placeholder={t.searchDestination}
                 value={countrySearch}
                 data-testid="wizard-destination-search"
-                onFocus={() => setSearchFocused(true)}
-                onChange={(e) => {setCountrySearch(e.target.value);setSearchFocused(true);setActiveDestination(-1);}}
-                onKeyDown={(event)=>{
-                  if(event.key==="ArrowDown"||event.key==="ArrowUp"){
-                    event.preventDefault();setSearchFocused(true);
-                    setActiveDestination(index=>suggestions.length?event.key==="ArrowDown"?(index+1)%suggestions.length:(index<=0?suggestions.length-1:index-1):-1);
-                  }else if(event.key==="Enter"&&(searchFocused || countrySearch.length > 0)){
-                    const selected=suggestions[activeDestination>=0?activeDestination:0];
-                    if(selected){event.preventDefault();keyboardSelectionRef.current=true;setCountryId(selected.id);setCountrySearch("");setSearchFocused(false);setActiveDestination(-1);if(selected.visaTypes.length!==1)setVisaTypeId("");}
-                  }else if(event.key==="Escape"){event.preventDefault();setSearchFocused(false);setCountrySearch("");setActiveDestination(-1);}
-                }}
+                onChange={(e) => { setCountrySearch(e.target.value); setActiveDestination(-1); }}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setActiveDestination((index) => suggestions.length
+                      ? event.key === "ArrowDown"
+                        ? (index + 1) % suggestions.length
+                        : (index <= 0 ? suggestions.length - 1 : index - 1)
+                      : -1);
+                  } else if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                    const selected = suggestions[activeDestination >= 0 ? activeDestination : 0];
+                    if (selected) { event.preventDefault(); chooseDestination(selected, true); }
+                  } else if (event.key === "Escape" && countrySearch) {
+                    event.preventDefault();
+                    setCountrySearch("");
+                    setActiveDestination(-1);
+                  }
+                }
               />
-              <p className="text-xs text-slate-400">
-                {t.destinationsAvailable.replace("{count}", String(totalDestinations))}
-              </p>
-
-              {suggestions.length === 0 ? (
-                <p className="rounded-lg bg-ivory-50 px-4 py-2 text-base text-slate-500">{t.noDestinationMatch}</p>
-              ) : searchFocused||countrySearch.length>0 ? (
-                <div id="destination-suggestions" role="listbox" aria-label={t.searchDestination}>
-                  {!countrySearch ? (
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
-                      {t.popularDestinations}
-                    </p>
-                  ) : null}
+              {!countrySearch && popularDestinations.length > 0 ? (
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    {t.popularDestinations}
+                  </p>
                   <div className="flex flex-wrap gap-2">
-                    {suggestions.map((c,index) => (
-                      /* Real links: a destination is deep-linkable and the step
-                         still works without JavaScript (?destination=<id>). */
-                      <a
+                    {popularDestinations.map((c) => (
+                      <button
                         key={c.id}
-                        id={`destination-${c.id}`}
-                        role="option"
-                        aria-selected={activeDestination===index}
-                        href={`?destination=${c.id}`}
-                        data-testid="wizard-destination-option"
-                        data-country-id={c.id}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          keyboardSelectionRef.current = e.detail === 0;
-                          setCountryId(c.id);
-                          setCountrySearch("");
-                          setSearchFocused(false);
-                          setActiveDestination(-1);
-                          if (c.visaTypes.length !== 1) setVisaTypeId("");
-                        }}
-                        className={`wizard-choice inline-flex min-h-11 items-center rounded-lg border px-4 py-2 text-base font-semibold text-navy-900 hover:bg-iris-50 ${activeDestination===index?"border-iris-400 bg-iris-50":"border-slate-200 bg-white"}`}
+                        type="button"
+                        className="wizard-choice inline-flex min-h-11 items-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-base font-semibold text-navy-900 hover:bg-iris-50"
+                        data-testid="wizard-popular-destination"
+                        onClick={(event) => chooseDestination(c, event.detail === 0)}
                       >
                         {c.name}
                         <span className="ms-2 text-xs text-slate-400">{c.visaTypes.length}</span>
-                      </a>
+                      </button>
                     ))}
                   </div>
                 </div>
               ) : null}
+
+              <div id="destination-suggestions" role="listbox" aria-label={t.searchDestination}>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  {t.destinationsAvailable.replace("{count}", String(suggestions.length))}
+                </p>
+                <div className="max-h-60 overflow-y-auto overscroll-contain rounded-lg border border-slate-200 bg-white p-2" data-testid="wizard-all-destinations">
+                  {suggestions.length === 0 ? (
+                    <p className="rounded-md bg-ivory-50 px-4 py-3 text-base text-slate-500">{t.noDestinationMatch}</p>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {suggestions.map((c, index) => (
+                        /* Each destination remains deep-linkable without JavaScript. */
+                        <a
+                          key={c.id}
+                          id={`destination-${c.id}`}
+                          role="option"
+                          aria-selected={activeDestination === index}
+                          href={`?destination=${c.id}`}
+                          data-testid="wizard-destination-option"
+                          data-country-id={c.id}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            chooseDestination(c, event.detail === 0);
+                          }}
+                          className={`wizard-choice flex min-h-11 items-center justify-between rounded-md border px-4 py-2 text-base font-semibold text-navy-900 hover:bg-iris-50 ${activeDestination === index ? "border-iris-400 bg-iris-50" : "border-slate-200 bg-white"}`}
+                        >
+                          <span>{c.name}</span>
+                          <span className="ms-2 text-xs text-slate-500">{c.visaTypes.length}</span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
