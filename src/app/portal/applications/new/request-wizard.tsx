@@ -3,9 +3,9 @@
 /**
  * The 3-step visa request wizard — §12/§13/§14/§15.
  *
- *   1. DESTINATION  — browse every bookable DZD destination in a scrollable list
- *      or filter by typing; selecting one reveals its visa programmes and
- *      collapses the destination picker to a compact summary.
+ *   1. DESTINATION  — click a single compact field to browse all bookable
+ *      DZD destinations in a floating dropdown, or type to filter the list.
+ *      Choosing one reveals the visa programmes and closes the picker.
  *   2. DOCUMENTS    — requirement cards from the visa-type configuration,
  *      2 MB per file enforced here AND server-side.
  *   3. REVIEW       — VISA / APPLICANT / DOCUMENTS / PAYMENT SUMMARY, one
@@ -130,7 +130,6 @@ interface Props {
 }
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
-const POPULAR_COUNT = 6;
 
 /** Accent-insensitive, case-insensitive destination matching (§13). */
 function normalize(value: string): string {
@@ -151,6 +150,9 @@ export function RequestWizard(props: Props) {
   });
   const [visaTypeId, setVisaTypeId] = useState("");
   const [countrySearch, setCountrySearch] = useState("");
+  const [destinationOpen, setDestinationOpen] = useState(false);
+  const destinationPickerRef = useRef<HTMLDivElement>(null);
+  const destinationListRef = useRef<HTMLDivElement>(null);
   const [activeDestination,setActiveDestination]=useState(-1);
   const destinationChangeRef=useRef<HTMLButtonElement>(null);
   const keyboardSelectionRef=useRef(false);
@@ -184,18 +186,31 @@ export function RequestWizard(props: Props) {
     );
   }, [availableDestinations, countrySearch]);
 
-  const popularDestinations = useMemo(() =>
-    [...availableDestinations]
-      .sort((a, b) => b.visaTypes.length - a.visaTypes.length || a.name.localeCompare(b.name))
-      .slice(0, POPULAR_COUNT),
-    [availableDestinations],
-  );
+  // An outside click closes the floating list without changing the selected destination.
+  useEffect(() => {
+    if (!destinationOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!destinationPickerRef.current?.contains(event.target as Node)) {
+        setDestinationOpen(false);
+        setActiveDestination(-1);
+      }
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [destinationOpen]);
+
+  useEffect(() => {
+    if (!destinationOpen || activeDestination < 0) return;
+    destinationListRef.current?.querySelectorAll<HTMLElement>('[role="option"]')[activeDestination]
+      ?.scrollIntoView({ block: "nearest" });
+  }, [destinationOpen, activeDestination]);
 
   function chooseDestination(selected: WizardCountry, keyboard = false) {
     keyboardSelectionRef.current = keyboard;
     setCountryId(selected.id);
     setCountrySearch("");
     setActiveDestination(-1);
+    setDestinationOpen(false);
     if (selected.visaTypes.length !== 1) setVisaTypeId("");
   }
 
@@ -357,7 +372,7 @@ export function RequestWizard(props: Props) {
 
       {/* STEP 1 — destination search, then programmes, then applicant */}
       <section data-wizard-section="1" hidden={step !== 1} className="wizard-panel space-y-6" data-direction={wizardDirection}>
-        <div className="card space-y-4 p-6">
+        <div className="card relative z-10 space-y-4 p-6">
           <div>
             <h2 className="font-serif text-lg text-navy-900">{t.destinationQuestion}</h2>
             <p className="mt-1 text-xs text-slate-500">{t.destinationHint}</p>
@@ -384,75 +399,93 @@ export function RequestWizard(props: Props) {
               </button>
             </div>
           ) : (
-            <div className="space-y-4">
-              <label className="label sr-only" htmlFor="destination-search">
-                {t.searchDestination}
-              </label>
+            <div
+              ref={destinationPickerRef}
+              className="relative z-30"
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) {
+                  setDestinationOpen(false);
+                  setActiveDestination(-1);
+                }
+              }}
+            >
+              <label className="label sr-only" htmlFor="destination-search">{t.searchDestination}</label>
               <input
                 id="destination-search"
                 type="search"
                 role="combobox"
-                aria-expanded={true}
+                aria-haspopup="listbox"
+                aria-expanded={destinationOpen}
                 aria-controls="destination-suggestions"
                 aria-autocomplete="list"
-                aria-activedescendant={suggestions[activeDestination]?`destination-${suggestions[activeDestination]!.id}`:undefined}
+                aria-activedescendant={destinationOpen && suggestions[activeDestination] ? `destination-${suggestions[activeDestination]!.id}` : undefined}
                 autoComplete="off"
-                className="input text-base"
+                className="input pe-12 text-base"
                 placeholder={t.searchDestination}
                 value={countrySearch}
                 data-testid="wizard-destination-search"
-                onChange={(e) => { setCountrySearch(e.target.value); setActiveDestination(-1); }}
+                onFocus={() => setDestinationOpen(true)}
+                onClick={() => setDestinationOpen(true)}
+                onChange={(event) => {
+                  setCountrySearch(event.target.value);
+                  setActiveDestination(-1);
+                  setDestinationOpen(true);
+                }}
                 onKeyDown={(event) => {
                   if (event.key === "ArrowDown" || event.key === "ArrowUp") {
                     event.preventDefault();
+                    setDestinationOpen(true);
                     setActiveDestination((index) => suggestions.length
                       ? event.key === "ArrowDown"
                         ? (index + 1) % suggestions.length
                         : (index <= 0 ? suggestions.length - 1 : index - 1)
                       : -1);
                   } else if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-                    const selected = suggestions[activeDestination >= 0 ? activeDestination : 0];
-                    if (selected) { event.preventDefault(); chooseDestination(selected, true); }
-                  } else if (event.key === "Escape" && countrySearch) {
                     event.preventDefault();
+                    if (!destinationOpen) setDestinationOpen(true);
+                    else {
+                      const selected = suggestions[activeDestination >= 0 ? activeDestination : 0];
+                      if (selected) chooseDestination(selected, true);
+                    }
+                  } else if (event.key === "Escape") {
+                    event.preventDefault();
+                    setDestinationOpen(false);
                     setCountrySearch("");
                     setActiveDestination(-1);
                   }
                 }}
               />
-              {!countrySearch && popularDestinations.length > 0 ? (
-                <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                    {t.popularDestinations}
+              <button
+                type="button"
+                aria-label={t.searchDestination}
+                aria-expanded={destinationOpen}
+                aria-controls="destination-suggestions"
+                className="absolute end-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 hover:bg-slate-50 hover:text-navy-900"
+                onClick={() => {
+                  setDestinationOpen((open) => !open);
+                  setActiveDestination(-1);
+                }}
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className={`h-4 w-4 transition-transform ${destinationOpen ? "rotate-180" : ""}`}>
+                  <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              {destinationOpen ? (
+                <div
+                  id="destination-suggestions"
+                  role="listbox"
+                  aria-label={t.searchDestination}
+                  data-testid="wizard-destination-popover"
+                  className="absolute inset-x-0 top-full z-50 mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
+                >
+                  <p className="border-b border-slate-100 px-4 py-2 text-xs font-medium text-slate-500">
+                    {t.destinationsAvailable.replace("{count}", String(suggestions.length))}
                   </p>
-                  <div className="flex flex-wrap gap-2">
-                    {popularDestinations.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        className="wizard-choice inline-flex min-h-11 items-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-base font-semibold text-navy-900 hover:bg-iris-50"
-                        data-testid="wizard-popular-destination"
-                        onClick={(event) => chooseDestination(c, event.detail === 0)}
-                      >
-                        {c.name}
-                        <span className="ms-2 text-xs text-slate-400">{c.visaTypes.length}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              <div id="destination-suggestions" role="listbox" aria-label={t.searchDestination}>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  {t.destinationsAvailable.replace("{count}", String(suggestions.length))}
-                </p>
-                <div className="max-h-60 overflow-y-auto overscroll-contain rounded-lg border border-slate-200 bg-white p-2" data-testid="wizard-all-destinations">
-                  {suggestions.length === 0 ? (
-                    <p className="rounded-md bg-ivory-50 px-4 py-3 text-base text-slate-500">{t.noDestinationMatch}</p>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {suggestions.map((c, index) => (
-                        /* Each destination remains deep-linkable without JavaScript. */
+                  <div ref={destinationListRef} className="max-h-64 overflow-y-auto overscroll-contain p-1" data-testid="wizard-all-destinations">
+                    {suggestions.length === 0 ? (
+                      <p className="px-3 py-3 text-base text-slate-500">{t.noDestinationMatch}</p>
+                    ) : (
+                      suggestions.map((c, index) => (
                         <a
                           key={c.id}
                           id={`destination-${c.id}`}
@@ -465,16 +498,16 @@ export function RequestWizard(props: Props) {
                             event.preventDefault();
                             chooseDestination(c, event.detail === 0);
                           }}
-                          className={`wizard-choice flex min-h-11 items-center justify-between rounded-md border px-4 py-2 text-base font-semibold text-navy-900 hover:bg-iris-50 ${activeDestination === index ? "border-iris-400 bg-iris-50" : "border-slate-200 bg-white"}`}
+                          className={`flex min-h-11 items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-navy-900 hover:bg-slate-50 ${activeDestination === index ? "bg-slate-50" : ""}`}
                         >
                           <span>{c.name}</span>
-                          <span className="ms-2 text-xs text-slate-500">{c.visaTypes.length}</span>
+                          <span className="ms-3 text-xs tabular-nums text-slate-400">{c.visaTypes.length}</span>
                         </a>
-                      ))}
-                    </div>
-                  )}
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
+              ) : null}
             </div>
           )}
 
