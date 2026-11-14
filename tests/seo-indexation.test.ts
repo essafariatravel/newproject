@@ -111,6 +111,24 @@ describe("sitemap and robots", () => {
     }
   });
 
+  it("marks only verifiably updated public content with stable lastmod dates", () => {
+    const map = buildPublicSitemap(production);
+    for (const route of ["b2b", "about", "faq"] as const) {
+      for (const locale of SEO_PUBLIC_LOCALES) {
+        const url = publicCanonicalUrl(route, locale);
+        expect(map.find((page) => page.url === url)?.lastModified).toBe("2026-11-14");
+      }
+    }
+    // Do not invent dates for content without verified significant updates.
+    for (const route of ["home", "contact"] as const) {
+      for (const locale of SEO_PUBLIC_LOCALES) {
+        const url = publicCanonicalUrl(route, locale);
+        expect(map.find((page) => page.url === url)?.lastModified).toBeUndefined();
+      }
+    }
+    expect(map).toHaveLength(15);
+  });
+
   it("publishes no sitemap URLs outside Production", () => {
     expect(buildPublicSitemap(preview)).toEqual([]);
     expect(buildPublicSitemap(development)).toEqual([]);

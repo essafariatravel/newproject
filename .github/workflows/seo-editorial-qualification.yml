@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - seo/editorial-evidence-20261112
+      - seo/gsc-verified-lastmod-20261114
 
 permissions:
   contents: read

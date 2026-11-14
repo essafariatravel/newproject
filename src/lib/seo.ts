@@ -22,6 +22,15 @@ export const SEO_DEFAULT_OG_IMAGE =
 export const SEO_DEFAULT_OG_IMAGE_WIDTH = 1916;
 export const SEO_DEFAULT_OG_IMAGE_HEIGHT = 821;
 
+// Dates correspond to substantive public content first published on 2026-11-14.
+// Omit lastmod where a reliable content-update date is not established.
+// Update this allowlist ONLY after verified significant page changes.
+const VERIFIED_PUBLIC_LASTMOD: Partial<Record<IndexablePublicSeoPage, string>> = {
+  b2b: "2026-11-14",
+  about: "2026-11-14",
+  faq: "2026-11-14",
+};
+
 const OG_LOCALE: Record<UiLocale, string> = {
   en: "en_DZ",
   fr: "fr_DZ",
@@ -186,10 +195,14 @@ export function buildPublicSitemap(
 
   return SEO_INDEXABLE_PUBLIC_ENTRIES
     .filter((entry) => entry.sitemap)
-    .flatMap((entry) => SEO_PUBLIC_LOCALES.map((locale) => ({
-      url: publicCanonicalUrl(entry.key, locale),
-      alternates: { languages: publicLanguageAlternates(entry.key) },
-    })));
+    .flatMap((entry) => {
+      const verifiedLastmod = VERIFIED_PUBLIC_LASTMOD[entry.key];
+      return SEO_PUBLIC_LOCALES.map((locale) => ({
+        url: publicCanonicalUrl(entry.key, locale),
+        ...(verifiedLastmod ? { lastModified: verifiedLastmod } : {}),
+        alternates: { languages: publicLanguageAlternates(entry.key) },
+      }));
+    });
 }
 
 export function buildRobots(
