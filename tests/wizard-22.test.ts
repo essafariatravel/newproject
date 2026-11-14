@@ -89,4 +89,17 @@ describe("Phase 2 Final — 3-step atomic request wizard + simplified dossier", 
     expect(nationalities).toContain('code: "DZ", en: "Algeria"');
     expect(WIZARD).toContain('nationality: String(fields.get("t0_nationality") ?? "")');
   });
+  it("shows every bookable destination in a scrollable list without requiring typing", () => {
+    expect(WIZARD).toContain("const availableDestinations = useMemo");
+    expect(WIZARD).toContain("c.visaTypes.length > 0");
+    expect(WIZARD).toContain("if (!q) return availableDestinations;");
+    expect(WIZARD).toContain("return availableDestinations.filter");
+    expect(WIZARD).toContain('data-testid="wizard-all-destinations"');
+    expect(WIZARD).toContain("max-h-60 overflow-y-auto");
+    expect(WIZARD).toContain("suggestions.map((c, index)");
+    expect(WIZARD).not.toContain("MAX_SUGGESTIONS");
+    expect(WIZARD).not.toContain("searchFocused");
+    expect(WIZARD).toContain('data-testid="wizard-popular-destination"');
+    expect(WIZARD).toContain("country.visaTypes.map((v)");
+  });
 });
