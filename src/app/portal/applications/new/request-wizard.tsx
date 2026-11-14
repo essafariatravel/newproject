@@ -410,7 +410,7 @@ export function RequestWizard(props: Props) {
             <div className="space-y-4">
               <div
                 ref={destinationPickerRef}
-                className="relative z-30"
+                className="relative z-30 w-full sm:max-w-2xl"
                 onBlur={(event) => {
                   if (!event.currentTarget.contains(event.relatedTarget)) {
                     setDestinationOpen(false);
