@@ -3,9 +3,9 @@
 /**
  * The 3-step visa request wizard — §12/§13/§14/§15.
  *
- *   1. DESTINATION  — click a single compact field to browse all bookable
- *      DZD destinations in a floating dropdown, or type to filter the list.
- *      Choosing one reveals the visa programmes and closes the picker.
+ *   1. DESTINATION  — a nationality-style searchable selector with a compact
+ *      floating list (maximum six rows visible), plus popular quick picks.
+ *      All active DZD destinations remain browseable by scroll or typing.
  *   2. DOCUMENTS    — requirement cards from the visa-type configuration,
  *      2 MB per file enforced here AND server-side.
  *   3. REVIEW       — VISA / APPLICANT / DOCUMENTS / PAYMENT SUMMARY, one
@@ -130,6 +130,7 @@ interface Props {
 }
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
+const POPULAR_COUNT = 6;
 
 /** Accent-insensitive, case-insensitive destination matching (§13). */
 function normalize(value: string): string {
@@ -185,6 +186,13 @@ export function RequestWizard(props: Props) {
       c.visaTypes.some((v) => normalize(v.name).includes(q)),
     );
   }, [availableDestinations, countrySearch]);
+
+  const popularDestinations = useMemo(() =>
+    [...availableDestinations]
+      .sort((a, b) => b.visaTypes.length - a.visaTypes.length || a.name.localeCompare(b.name))
+      .slice(0, POPULAR_COUNT),
+    [availableDestinations],
+  );
 
   // An outside click closes the floating list without changing the selected destination.
   useEffect(() => {
@@ -399,112 +407,135 @@ export function RequestWizard(props: Props) {
               </button>
             </div>
           ) : (
-            <div
-              ref={destinationPickerRef}
-              className="relative z-30"
-              onBlur={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget)) {
-                  setDestinationOpen(false);
-                  setActiveDestination(-1);
-                }
-              }}
-            >
-              <label className="label sr-only" htmlFor="destination-search">{t.searchDestination}</label>
-              <input
-                id="destination-search"
-                type="search"
-                role="combobox"
-                aria-haspopup="listbox"
-                aria-expanded={destinationOpen}
-                aria-controls="destination-suggestions"
-                aria-autocomplete="list"
-                aria-activedescendant={destinationOpen && suggestions[activeDestination] ? `destination-${suggestions[activeDestination]!.id}` : undefined}
-                autoComplete="off"
-                className="input pe-12 text-base"
-                placeholder={t.searchDestination}
-                value={countrySearch}
-                data-testid="wizard-destination-search"
-                onFocus={() => setDestinationOpen(true)}
-                onClick={() => setDestinationOpen(true)}
-                onChange={(event) => {
-                  setCountrySearch(event.target.value);
-                  setActiveDestination(-1);
-                  setDestinationOpen(true);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                    event.preventDefault();
-                    setDestinationOpen(true);
-                    setActiveDestination((index) => suggestions.length
-                      ? event.key === "ArrowDown"
-                        ? (index + 1) % suggestions.length
-                        : (index <= 0 ? suggestions.length - 1 : index - 1)
-                      : -1);
-                  } else if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-                    event.preventDefault();
-                    if (!destinationOpen) setDestinationOpen(true);
-                    else {
-                      const selected = suggestions[activeDestination >= 0 ? activeDestination : 0];
-                      if (selected) chooseDestination(selected, true);
-                    }
-                  } else if (event.key === "Escape") {
-                    event.preventDefault();
+            <div className="space-y-4">
+              <div
+                ref={destinationPickerRef}
+                className="relative z-30"
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) {
                     setDestinationOpen(false);
-                    setCountrySearch("");
                     setActiveDestination(-1);
                   }
                 }}
-              />
-              <button
-                type="button"
-                aria-label={t.searchDestination}
-                aria-expanded={destinationOpen}
-                aria-controls="destination-suggestions"
-                className="absolute end-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 hover:bg-slate-50 hover:text-navy-900"
-                onClick={() => {
-                  setDestinationOpen((open) => !open);
-                  setActiveDestination(-1);
-                }}
               >
-                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className={`h-4 w-4 transition-transform ${destinationOpen ? "rotate-180" : ""}`}>
-                  <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-              {destinationOpen ? (
-                <div
-                  id="destination-suggestions"
-                  role="listbox"
+                <label className="label sr-only" htmlFor="destination-search">{t.searchDestination}</label>
+                <input
+                  id="destination-search"
+                  type="search"
+                  role="combobox"
+                  aria-haspopup="listbox"
+                  aria-expanded={destinationOpen}
+                  aria-controls="destination-suggestions"
+                  aria-autocomplete="list"
+                  aria-activedescendant={destinationOpen && suggestions[activeDestination] ? `destination-${suggestions[activeDestination]!.id}` : undefined}
+                  autoComplete="off"
+                  className="input pe-12"
+                  placeholder={t.searchDestination}
+                  value={countrySearch}
+                  data-testid="wizard-destination-search"
+                  onFocus={() => setDestinationOpen(true)}
+                  onClick={() => setDestinationOpen(true)}
+                  onChange={(event) => {
+                    setCountrySearch(event.target.value);
+                    setActiveDestination(-1);
+                    setDestinationOpen(true);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                      event.preventDefault();
+                      setDestinationOpen(true);
+                      setActiveDestination((index) => suggestions.length
+                        ? event.key === "ArrowDown"
+                          ? (index + 1) % suggestions.length
+                          : (index <= 0 ? suggestions.length - 1 : index - 1)
+                        : -1);
+                    } else if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                      event.preventDefault();
+                      if (!destinationOpen) setDestinationOpen(true);
+                      else {
+                        const selected = suggestions[activeDestination >= 0 ? activeDestination : 0];
+                        if (selected) chooseDestination(selected, true);
+                      }
+                    } else if (event.key === "Escape") {
+                      event.preventDefault();
+                      setDestinationOpen(false);
+                      setCountrySearch("");
+                      setActiveDestination(-1);
+                    }
+                  }}
+                />
+                <button
+                  type="button"
                   aria-label={t.searchDestination}
-                  data-testid="wizard-destination-popover"
-                  className="absolute inset-x-0 top-full z-50 mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
+                  aria-expanded={destinationOpen}
+                  aria-controls="destination-suggestions"
+                  className="absolute end-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 hover:text-navy-900"
+                  onClick={() => {
+                    setDestinationOpen((open) => !open);
+                    setActiveDestination(-1);
+                  }}
                 >
-                  <p className="border-b border-slate-100 px-4 py-2 text-xs font-medium text-slate-500">
-                    {t.destinationsAvailable.replace("{count}", String(suggestions.length))}
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className={`h-4 w-4 transition-transform ${destinationOpen ? "rotate-180" : ""}`}>
+                    <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                {destinationOpen ? (
+                  <div
+                    id="destination-suggestions"
+                    role="listbox"
+                    aria-label={t.searchDestination}
+                    data-testid="wizard-destination-popover"
+                    className="absolute inset-x-0 top-full z-50 mt-1 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+                  >
+                    <div ref={destinationListRef} className="max-h-52 overflow-y-auto overscroll-contain py-1" data-testid="wizard-all-destinations">
+                      {suggestions.length === 0 ? (
+                        <p className="px-4 py-3 text-sm text-slate-500">{t.noDestinationMatch}</p>
+                      ) : (
+                        suggestions.map((c, index) => (
+                          <a
+                            key={c.id}
+                            id={`destination-${c.id}`}
+                            role="option"
+                            aria-selected={activeDestination === index}
+                            href={`?destination=${c.id}`}
+                            data-testid="wizard-destination-option"
+                            data-country-id={c.id}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              chooseDestination(c, event.detail === 0);
+                            }}
+                            className={`flex min-h-9 items-center px-4 py-2 text-base font-normal text-navy-900 hover:bg-slate-50 ${activeDestination === index ? "bg-slate-50" : ""}`}
+                          >
+                            {c.name}
+                          </a>
+                        ))
+                      )}
+                    </div>
+                    <p className="border-t border-slate-100 px-4 py-2 text-xs text-slate-500">
+                      {t.destinationsAvailable.replace("{count}", String(suggestions.length))}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+
+              {!countrySearch && popularDestinations.length > 0 ? (
+                <div data-testid="wizard-popular-destinations">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    {t.popularDestinations}
                   </p>
-                  <div ref={destinationListRef} className="max-h-64 overflow-y-auto overscroll-contain p-1" data-testid="wizard-all-destinations">
-                    {suggestions.length === 0 ? (
-                      <p className="px-3 py-3 text-base text-slate-500">{t.noDestinationMatch}</p>
-                    ) : (
-                      suggestions.map((c, index) => (
-                        <a
-                          key={c.id}
-                          id={`destination-${c.id}`}
-                          role="option"
-                          aria-selected={activeDestination === index}
-                          href={`?destination=${c.id}`}
-                          data-testid="wizard-destination-option"
-                          data-country-id={c.id}
-                          onClick={(event) => {
-                            event.preventDefault();
-                            chooseDestination(c, event.detail === 0);
-                          }}
-                          className={`flex min-h-11 items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-navy-900 hover:bg-slate-50 ${activeDestination === index ? "bg-slate-50" : ""}`}
-                        >
-                          <span>{c.name}</span>
-                          <span className="ms-3 text-xs tabular-nums text-slate-400">{c.visaTypes.length}</span>
-                        </a>
-                      ))
-                    )}
+                  <div className="flex flex-wrap gap-2">
+                    {popularDestinations.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        data-testid="wizard-popular-destination"
+                        className="wizard-choice inline-flex min-h-11 items-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-base font-semibold text-navy-900 hover:bg-ivory-50"
+                        onClick={(event) => chooseDestination(c, event.detail === 0)}
+                      >
+                        {c.name}
+                        <span className="ms-2 text-xs text-slate-400">{c.visaTypes.length}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
               ) : null}
