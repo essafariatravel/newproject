@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { LEGAL_PUBLIC_DESCRIPTIONS } from "@/lib/legal-public-seo";
 import {
   SEO_PRODUCTION_ORIGIN,
   buildNoIndexMetadata,
@@ -26,6 +27,19 @@ const production = { VERCEL: "1", VERCEL_ENV: "production" } as const;
 const preview = { VERCEL: "1", VERCEL_ENV: "preview" } as const;
 const development = { VERCEL: "1", VERCEL_ENV: "development" } as const;
 const unknown = { VERCEL: undefined, VERCEL_ENV: undefined };
+
+describe("published legal metadata accuracy", () => {
+  it("provides unique, localized descriptions without altering legal texts", () => {
+    for (const locale of ["en", "fr", "ar"] as const) {
+      const privacy = LEGAL_PUBLIC_DESCRIPTIONS.privacy[locale];
+      const terms = LEGAL_PUBLIC_DESCRIPTIONS.terms[locale];
+      expect(privacy.length).toBeGreaterThanOrEqual(70);
+      expect(terms.length).toBeGreaterThanOrEqual(70);
+      expect(privacy).not.toBe(terms);
+      expect(`${privacy} ${terms}`).not.toMatch(/\\b\\d+[,. ]*\\s*(DA|DZD|EUR|USD)\\b/i);
+    }
+  });
+});
 
 describe("SEO environment safety", () => {
   it("allows indexing only on the explicit Vercel Production environment", () => {

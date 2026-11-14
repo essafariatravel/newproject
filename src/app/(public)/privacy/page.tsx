@@ -4,6 +4,7 @@ import { getUiLocale } from "@/lib/ui-i18n";
 import { formatDate } from "@/lib/format";
 import { contentT } from "@/lib/i18n-content";
 import { publicBrandCopy } from "@/lib/public-brand-copy";
+import { LEGAL_PUBLIC_DESCRIPTIONS } from "@/lib/legal-public-seo";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const legal = await readPublishedLegal("privacy", locale);
   return {
     title: {"en":"Privacy Notice","fr":"Avis de confidentialité","ar":"إشعار الخصوصية"}[locale],
+    description: legal ? LEGAL_PUBLIC_DESCRIPTIONS.privacy[locale] : undefined,
     robots: legal ? undefined : { index: false, follow: false },
   };
 }

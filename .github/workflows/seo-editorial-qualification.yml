@@ -4,6 +4,7 @@ on:
     branches:
       - seo/editorial-evidence-20261112
       - seo/gsc-verified-lastmod-20261114
+      - seo/legal-metadata-from-gsc-20261114
 
 permissions:
   contents: read
