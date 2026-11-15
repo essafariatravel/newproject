@@ -28,3 +28,8 @@ The following require account/vendor access or contractual documents not availab
 - any external corporate mailbox provider outside this repository.
 
 These are handoff items, not assumptions.
+
+
+## Pending third-party vendor — GA4 candidate (2026-11-15)
+
+Google Analytics 4 / Google tag (Google) is proposed for visits to public marketing pages after explicit consent. Identifier: `G-GZXQJW9ZHE`. Data potentially sent after consent include first-party analytics identifiers, public URL **without query**, coarse traffic/device signals and the public page title. No private dossier, Staff/Agency workspace, forms or applicant data are intentionally sent. Google's contractual terms, international transfers, cookie retention, data-sharing switches and approved EN/FR/AR legal disclosure remain for Owner/legal review. The GA4 tag must remain **unreleased to Production** until the review gate is completed. Google property automatic page-view/history-change settings require a separate check to prevent accidental private URL capture.

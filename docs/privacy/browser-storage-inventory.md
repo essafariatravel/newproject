@@ -68,3 +68,17 @@ Hosted Preview QA completed during this gate verified:
 The locale-cookie implementation is source/test guarded to require `SameSite=Lax`, `Path=/`, a 365-day max age and `Secure` in production. Recheck the deployed cookie after the next eligible Preview deployment containing that exact change.
 
 A future release that adds browser storage, third-party scripts or analytics must update this inventory before Production enablement.
+
+
+## GA4 integration candidate — 2026-11-15 (not yet active in Production)
+
+The candidate branch adds Google Analytics 4 for anonymous public-marketing page visits **only after explicit opt-in**. Verified non-secret Measurement ID: `G-GZXQJW9ZHE`. Production hostname gate: `visa.essafariavoyages.com`; no analytics requests in Preview.
+
+| Key / mechanism | Purpose | Scope and lifetime | Release requirement |
+| --- | --- | --- | --- |
+| `essafaria.analytics-consent.v1` (first-party localStorage) | Remember accepted/rejected analytics choice | Origin-scoped; until changed or local browser data is cleared | Consent notice in EN/FR/AR, equally accessible decline and persistent preference control |
+| `_ga`, `_ga_*` (Google Analytics cookies, only after accept) | GA4 visitation metrics and pseudonymous analytics identifiers | Browser-managed; actual expiry must be verified in DevTools and documented against approved retention | Google/ESSAFARIA controller-processor and transfer review; cookie policy and privacy notice approval |
+
+Analytics tag loads only when opt-in is persisted and the visitor is on public marketing routes. The explicit event sends a static title and an allowlisted pathname, with no query string, form fields, applicant/agency identity, password, dossier ID, registration reference or wallet data. No Staff or Agency workspace tracking is permitted. Google Analytics admin must disable automatic history-change page-view measurement before Production, otherwise the Google tag may collect extra URL views not governed by the allowlist. Verify the Google measurement settings and Tag Assistant after activation.
+
+**Release gate:** Update and approve published EN/FR/AR cookie/privacy notices (the application keeps immutable legal versions), verify Google's vendor terms and any international-transfer basis, verify cookie retention and withdrawal, and check browser network requests before and after consent. Do not enable this candidate in Production on the basis of this engineering inventory alone.
