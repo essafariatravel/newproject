@@ -2,6 +2,9 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { notifications, users } from "@/db/schema";
 import { sendOperationalNotificationEmail } from "@/lib/transactional-email";
+import { after } from "next/server";
+import { dispatchStaffPush } from "@/lib/push-service";
+import { vapidPublicKey } from "@/lib/web-push-crypto";
 
 type NotificationType =
   | "APPLICATION_SUBMITTED"
@@ -43,7 +46,7 @@ export async function notifyUsers(
 ): Promise<void> {
   const unique = [...new Set(userIds)];
   if (unique.length === 0) return;
-  await db.insert(notifications).values(
+  const inserted = await db.insert(notifications).values(
     unique.map((userId) => ({
       userId,
       agencyId: payload.agencyId ?? null,
@@ -54,7 +57,19 @@ export async function notifyUsers(
       body: payload.body,
       link: payload.link ?? null,
     })),
-  );
+  ).returning({ id: notifications.id });
+
+  // Best-effort background delivery: the application submit response must
+  // never wait for a remote push provider. Missing request context (e.g. tests)
+  // or a disabled feature never affects the existing notification rows.
+  if (vapidPublicKey() && inserted.length) {
+    try {
+      after(async () => {
+        try { await dispatchStaffPush(inserted.map(row => row.id)); }
+        catch { console.warn("[web-push] post-response dispatch unavailable"); }
+      });
+    } catch { /* no request context; in-app and email notifications still work */ }
+  }
 
   const recipients = await db
     .select({ email: users.email, name: users.name })

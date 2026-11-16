@@ -1,5 +1,7 @@
 import { pageUser } from "@/lib/page-auth";
 import { NotificationsPage } from "@/components/notifications-page";
+import { PushSettings } from "@/components/push-settings";
+import { getUiLocale } from "@/lib/ui-i18n";
 
 export const dynamic = "force-dynamic";
 
