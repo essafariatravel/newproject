@@ -10,5 +10,9 @@ export default async function AdminNotificationsPage({ searchParams }: {
 }) {
   const user = await pageUser();
   const sp = await (searchParams ?? Promise.resolve({}));
-  return <NotificationsPage user={user} sp={sp} basePath="/admin/notifications" />;
+  const locale = await getUiLocale(sp);
+  return <>
+    <PushSettings locale={locale} />
+    <NotificationsPage user={user} sp={sp} basePath="/admin/notifications" />
+  </>;
 }

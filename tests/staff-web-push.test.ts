@@ -40,7 +40,7 @@ describe("staff Web Push - encryption, identity and SSRF", () => {
     const keys = { p256dh: receiver.getPublicKey().toString("base64url"), auth: auth.toString("base64url") };
     const encrypted = encryptWebPush(keys, JSON.stringify({ kind: "TEST", url: "/admin/notifications" }));
     expect(encrypted.readUInt32BE(16)).toBe(4096);
-    const pub = encrypted.subarray(21, 21 + encrypted[20]);
+    const pub = encrypted.subarray(21, 21 + encrypted.readUInt8(20));
     const hkdf = (ikm: Buffer, salt: Buffer, info: Buffer, size: number) =>
       Buffer.from(hkdfSync("sha256", ikm, salt, info, size));
     const ikm = hkdf(receiver.computeSecret(pub), auth, Buffer.concat([
@@ -64,7 +64,8 @@ describe("staff Web Push - encryption, identity and SSRF", () => {
     const auth = vapidAuthorization("https://web.push.apple.com/xyz");
     const match = /^vapid t=([^,]+), k=(.+)$/.exec(auth);
     expect(match).not.toBeNull();
-    const [header, claims, signature] = match![1].split(".");
+    const parts = (match?.[1] ?? "").split(".");
+    const header = parts[0] ?? "", claims = parts[1] ?? "", signature = parts[2] ?? "";
     expect(JSON.parse(Buffer.from(claims, "base64url").toString()).aud).toBe("https://web.push.apple.com");
     const point = issuer.getPublicKey();
     const pub = createPublicKey({ key: {
