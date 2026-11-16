@@ -1,0 +1,43 @@
+name: Staff Web Push — isolated qualification
+on:
+  push:
+    branches:
+      - feature/staff-web-push-from-production-20261116
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staff-web-push-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  push-qualification:
+    name: Web Push typecheck, lint and focused tests (no production secrets)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: "true"
+      VERCEL: "0"
+      VERCEL_ENV: ""
+      NEXT_TELEMETRY_DISABLED: "1"
+      DATABASE_URL: ""
+      DATABASE_SCHEMA: "public"
+      STORAGE_PROVIDER: "db"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript typecheck
+        run: npm run typecheck
+      - name: ESLint
+        run: npm run lint
+      - name: Push crypto and staff-only policy tests
+        run: npm test -- tests/staff-web-push.test.ts
