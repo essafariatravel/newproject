@@ -1,0 +1,6 @@
+.env*
+!.env.example
+.embedded-pg
+tests/.pgdata-test
+node_modules
+.next

@@ -1,0 +1,838 @@
+"use client";
+
+/**
+ * The 3-step visa request wizard — §12/§13/§14/§15.
+ *
+ *   1. DESTINATION  — a nationality-style searchable selector with a compact
+ *      floating list (maximum six rows visible), plus popular quick picks.
+ *      All active DZD destinations remain browseable by scroll or typing.
+ *   2. DOCUMENTS    — requirement cards from the visa-type configuration,
+ *      2 MB per file enforced here AND server-side.
+ *   3. REVIEW       — VISA / APPLICANT / DOCUMENTS / PAYMENT SUMMARY, one
+ *      explicit money action with the exact amount on the button.
+ *
+ * Nothing is persisted before the final confirmation, so abandoning the flow
+ * can never leave a dossier behind.
+ */
+
+import { useMemo, useRef, useState, useEffect } from "react";
+import { contentT } from "@/lib/i18n-content";
+import { formatDZD } from "@/lib/format";
+import { readRequestResponse, requestFailureFeedback } from "@/lib/request-feedback";
+
+export interface WizardVisaOption {
+  id: string;
+  countryId: string;
+  name: string;
+  categoryName: string;
+  fee: string;
+  currency: string;
+  minDays: number;
+  maxDays: number;
+  description?: string | null;
+}
+
+export interface WizardCountry {
+  id: string;
+  name: string;
+  visaTypes: WizardVisaOption[];
+}
+
+export interface WizardNationality {
+  code: string;
+  label: string;
+}
+
+export interface WizardRequirement {
+  documentTypeId: string;
+  name: string;
+  code: string;
+  required: boolean;
+  notes: string | null;
+}
+
+export interface WizardLabels {
+  stepChoose: string;
+  stepUpload: string;
+  stepPreview: string;
+  destinationQuestion: string;
+  destinationHint: string;
+  searchDestination: string;
+  noDestinationMatch: string;
+  destinationsAvailable: string;
+  popularDestinations: string;
+  destination: string;
+  change: string;
+  chooseVisa: string;
+  selectVisa: string;
+  availableProgrammes: string;
+  fee: string;
+  processing: string;
+  days: string;
+  processingUnspecified: string;
+  notes: string;
+  notesPlaceholder: string;
+  applicant: string;
+  fullName: string;
+  fullNamePlaceholder: string;
+  nationality: string;
+  next: string;
+  back: string;
+  required: string;
+  optional: string;
+  uploadHint: string;
+  fileTooLarge: string;
+  chooseFile: string;
+  documents: string;
+  reviewTitle: string;
+  reviewSubtitle: string;
+  walletBalance: string;
+  balanceAfter: string;
+  chargeNote: string;
+  confirmSubmit: string;
+  submitApplication: string;
+  submitting: string;
+  missingPrefix: string;
+  summaryApplicant: string;
+  summaryDocuments: string;
+  noDocumentsRequired: string;
+  validationChooseCountry: string;
+  validationChooseVisa: string;
+  validationApplicant: string;
+  searchNationality: string;
+  sectionVisa: string;
+  programme: string;
+  sectionApplicant: string;
+  sectionPayment: string;
+  insufficientTitle: string;
+  requiredAmount: string;
+  currentBalance: string;
+  missingAmount: string;
+  requestTopup: string;
+  uploaded: string;
+  remove: string;
+}
+
+interface Props {
+  countries: WizardCountry[];
+  nationalities: WizardNationality[];
+  defaultNationality: string;
+  requirementsByVisaType: Record<string, WizardRequirement[]>;
+  walletBalance: string;
+  walletCurrency: string;
+  locale: "en" | "fr" | "ar";
+  labels: WizardLabels;
+  serverError: string | null;
+  /** Destination preselected from the ?destination=<countryId> deep link. */
+  initialCountryId?: string | null;
+  /** Deep link used by the insufficient-balance state. */
+  topupPath?: string;
+}
+
+const MAX_FILE_BYTES = 2 * 1024 * 1024;
+const POPULAR_COUNT = 6;
+
+/** Accent-insensitive, case-insensitive destination matching (§13). */
+function normalize(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+export function RequestWizard(props: Props) {
+  const { labels: t } = props;
+  const [step, setStep] = useState(1);
+  const [wizardDirection, setWizardDirection] = useState<"forward" | "back">("forward");
+  const [countryId, setCountryId] = useState(() => {
+    const initial = props.initialCountryId;
+    return initial && props.countries.some((c) => c.id === initial) ? initial : "";
+  });
+  const [visaTypeId, setVisaTypeId] = useState("");
+  const [countrySearch, setCountrySearch] = useState("");
+  const [destinationOpen, setDestinationOpen] = useState(false);
+  const destinationPickerRef = useRef<HTMLDivElement>(null);
+  const destinationListRef = useRef<HTMLDivElement>(null);
+  const [activeDestination,setActiveDestination]=useState(-1);
+  const destinationChangeRef=useRef<HTMLButtonElement>(null);
+  const keyboardSelectionRef=useRef(false);
+  const [fileError, setFileError] = useState("");
+  const [files, setFiles] = useState<Record<string, File[]>>({});
+  const [pending, setPending] = useState(false);
+  const [clientError, setClientError] = useState("");
+  const [catalogueRecovery, setCatalogueRecovery] = useState(false);
+  const [sessionRecovery, setSessionRecovery] = useState(false);
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const country = useMemo(() => props.countries.find((c) => c.id === countryId) ?? null, [props.countries, countryId]);
+  useEffect(()=>{if(countryId&&keyboardSelectionRef.current){keyboardSelectionRef.current=false;destinationChangeRef.current?.focus();}},[countryId]);
+  const visa = useMemo(() => country?.visaTypes.find((v) => v.id === visaTypeId) ?? null, [country, visaTypeId]);
+  const requirements = useMemo(() => (visaTypeId ? (props.requirementsByVisaType[visaTypeId] ?? []) : []), [props.requirementsByVisaType, visaTypeId]);
+
+  // All destinations with a bookable programme remain visible without typing.
+  const availableDestinations = useMemo(() =>
+    props.countries.filter((c) => c.visaTypes.length > 0)
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    [props.countries],
+  );
+
+  const suggestions = useMemo(() => {
+    const q = normalize(countrySearch);
+    if (!q) return availableDestinations;
+    return availableDestinations.filter((c) =>
+      normalize(c.name).includes(q) ||
+      c.visaTypes.some((v) => normalize(v.name).includes(q)),
+    );
+  }, [availableDestinations, countrySearch]);
+
+  const popularDestinations = useMemo(() =>
+    [...availableDestinations]
+      .sort((a, b) => b.visaTypes.length - a.visaTypes.length || a.name.localeCompare(b.name))
+      .slice(0, POPULAR_COUNT),
+    [availableDestinations],
+  );
+
+  // An outside click closes the floating list without changing the selected destination.
+  useEffect(() => {
+    if (!destinationOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!destinationPickerRef.current?.contains(event.target as Node)) {
+        setDestinationOpen(false);
+        setActiveDestination(-1);
+      }
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [destinationOpen]);
+
+  useEffect(() => {
+    if (!destinationOpen || activeDestination < 0) return;
+    destinationListRef.current?.querySelectorAll<HTMLElement>('[role="option"]')[activeDestination]
+      ?.scrollIntoView({ block: "nearest" });
+  }, [destinationOpen, activeDestination]);
+
+  function chooseDestination(selected: WizardCountry, keyboard = false) {
+    keyboardSelectionRef.current = keyboard;
+    setCountryId(selected.id);
+    setCountrySearch("");
+    setActiveDestination(-1);
+    setDestinationOpen(false);
+    if (selected.visaTypes.length !== 1) setVisaTypeId("");
+  }
+
+  // Auto-select when the chosen destination has exactly one programme.
+  useEffect(() => {
+    if (country && country.visaTypes.length === 1) {
+      const only = country.visaTypes[0];
+      if (only && visaTypeId !== only.id) setVisaTypeId(only.id);
+    }
+  }, [country, visaTypeId]);
+
+  function validateStep(n: number): boolean {
+    setClientError("");
+    if (n === 1) {
+      if (!countryId) {
+        setClientError(t.validationChooseCountry);
+        return false;
+      }
+      if (!visaTypeId) {
+        setClientError(t.validationChooseVisa);
+        return false;
+      }
+      const form = formRef.current;
+      if (form) {
+        const fullName = (form.elements.namedItem("t0_fullName") as HTMLInputElement | null)?.value?.trim() ?? "";
+        const nationality = (form.elements.namedItem("t0_nationality") as HTMLSelectElement | null)?.value?.trim() ?? "";
+        if (!fullName || !nationality) {
+          setClientError(t.validationApplicant);
+          return false;
+        }
+      }
+    }
+    if (n === 2) {
+      for (const r of requirements) {
+        if (r.required && (files[r.documentTypeId] ?? []).length === 0) {
+          setClientError(`${t.missingPrefix}: ${r.name}`);
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  function goNext() {
+    if (!validateStep(step)) return;
+    setWizardDirection("forward");
+    setStep(Math.min(3, step + 1));
+  }
+
+  function goBack() {
+    setWizardDirection("back");
+    setStep((s) => Math.max(1, s - 1));
+  }
+
+  function onFileChange(documentTypeId: string, list: FileList | null) {
+    if (!list) return;
+    const incoming = Array.from(list);
+    const tooBig = incoming.find((f) => f.size > MAX_FILE_BYTES);
+    if (tooBig) {
+      setFileError(`${t.fileTooLarge} (${tooBig.name})`);
+      return;
+    }
+    setFileError("");
+    setFiles((prev) => ({ ...prev, [documentTypeId]: incoming }));
+  }
+
+  function removeFile(documentTypeId: string, index: number) {
+    setFiles((prev) => ({ ...prev, [documentTypeId]: (prev[documentTypeId] ?? []).filter((_, i) => i !== index) }));
+  }
+
+  function applicantSummary(): string {
+    const form = formRef.current;
+    if (!form) return "—";
+    const fullName = (form.elements.namedItem("t0_fullName") as HTMLInputElement | null)?.value?.trim() ?? "";
+    const natSelect = form.elements.namedItem("t0_nationality") as HTMLSelectElement | null;
+    const nat = natSelect?.selectedOptions?.[0]?.textContent ?? natSelect?.value ?? "";
+    return [fullName, nat].filter(Boolean).join(" · ") || "—";
+  }
+
+  const feeNumber = visa ? Number(visa.fee) : 0;
+  const balanceNumber = Number(props.walletBalance);
+  const afterNum = balanceNumber - feeNumber;
+  const canAfford = visa ? afterNum >= 0 : false;
+  const missing = canAfford ? 0 : Math.max(0, feeNumber - balanceNumber);
+  const topupHref = `${props.topupPath ?? "/portal/wallet"}#topup`;
+
+  function processingLabel(v: { minDays: number; maxDays: number }): string {
+    if (v.minDays > 0 && v.maxDays > 0) return `${v.minDays}–${v.maxDays} ${t.days}`;
+    if (v.minDays === 0 && v.maxDays === 0) return t.processingUnspecified;
+    return t.processingUnspecified;
+  }
+
+
+  async function submit(form: HTMLFormElement) {
+    if (pending || !validateStep(1) || !validateStep(2)) return;
+    setPending(true);
+    try {
+      const tokens: string[] = [];
+      // Each file travels in its own bounded request. Only final confirmation
+      // starts uploading; navigating away from earlier steps persists nothing.
+      for (const requirement of requirements) {
+        const selected = files[requirement.documentTypeId] ?? [];
+        for (let slot = 0; slot < selected.length; slot++) {
+          const body = new FormData();
+          body.set("attempt", idempotencyKey); body.set("visaTypeId", visaTypeId);
+          body.set("documentTypeId", requirement.documentTypeId); body.set("slot", String(slot)); body.set("file", selected[slot]!);
+          const response = await fetch("/api/agency/requests", { method: "POST", body });
+          const data = await readRequestResponse<{token:string}>(response,props.locale);
+          tokens.push(data.token);
+        }
+      }
+      const fields = new FormData(form);
+      const response = await fetch("/api/agency/requests", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attempt: idempotencyKey, countryId, visaTypeId, tokens,
+          fullName: String(fields.get("t0_fullName") ?? ""), nationality: String(fields.get("t0_nationality") ?? ""), notes: String(fields.get("agencyNotes") ?? "") }) });
+      const data = await readRequestResponse<{applicationId:string}>(response,props.locale);
+      window.location.assign(`/portal/applications/${data.applicationId}?submitted=1`);
+    } catch (error) {
+      const feedback=requestFailureFeedback(error,props.locale);
+      setClientError(feedback.message);
+      setCatalogueRecovery(feedback.catalogue);
+      setSessionRecovery(feedback.session);
+      setPending(false);
+    }
+  }
+
+  return (
+    <form ref={formRef} className="space-y-6" onSubmit={(event) => { event.preventDefault(); void submit(event.currentTarget); }}>
+      <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+      {countryId ? <input type="hidden" name="countryId" value={countryId} /> : null}
+      <input type="hidden" name="locale" value={props.locale} />
+
+      {/* Step rail */}
+      <ol className="grid grid-cols-3 gap-2 text-base" data-testid="wizard-steps">
+        {[
+          { n: 1, label: t.stepChoose },
+          { n: 2, label: t.stepUpload },
+          { n: 3, label: t.stepPreview },
+        ].map((s) => (
+          <li
+            key={s.n}
+            className="wizard-step flex min-w-0 items-center gap-2 border-b pb-2"
+            data-state={step === s.n ? "active" : step > s.n ? "complete" : "pending"}
+          >
+            <span className={`flex h-7 w-7 items-center justify-center rounded-md text-xs font-semibold ${step === s.n ? "bg-navy-900 text-white" : step > s.n ? "bg-emerald-50 text-emerald-700" : "bg-ivory-100 text-slate-500"}`}>
+              {s.n}
+            </span>
+            <span className={step === s.n ? "font-semibold text-navy-900" : "text-slate-500"}>{s.label}</span>
+          </li>
+        ))}
+      </ol>
+
+      {props.serverError ? (
+        <p className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700">{props.serverError}</p>
+      ) : null}
+      {clientError ? (
+        <div role="alert" className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700"><p>{clientError}</p>{catalogueRecovery ? <button type="button" className="btn-secondary mt-4" onClick={() => window.location.reload()}>{contentT(props.locale)("Refresh catalogue and choose again")}</button> : null}{sessionRecovery ? <a className="btn-secondary mt-4" href="/login?reason=session-expired">{contentT(props.locale)("Sign in")}</a> : null}</div>
+      ) : null}
+
+      {/* STEP 1 — destination search, then programmes, then applicant */}
+      <section data-wizard-section="1" hidden={step !== 1} className="wizard-panel space-y-6" data-direction={wizardDirection}>
+        <div className="card relative z-10 space-y-4 p-6">
+          <div>
+            <h2 className="font-serif text-lg text-navy-900">{t.destinationQuestion}</h2>
+            <p className="mt-1 text-xs text-slate-500">{t.destinationHint}</p>
+          </div>
+
+          {country ? (
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-iris-200 bg-iris-50/50 px-4 py-4">
+              <p className="text-base">
+                <span className="text-slate-500">{t.destination}: </span>
+                <span className="font-semibold text-navy-900" data-testid="wizard-destination-selected">
+                  {country.name}
+                </span>
+              </p>
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                ref={destinationChangeRef}
+                onClick={() => {
+                  setCountryId("");
+                  setVisaTypeId("");
+                }}
+              >
+                {t.change}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div
+                ref={destinationPickerRef}
+                className="relative z-30 w-full sm:max-w-2xl"
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) {
+                    setDestinationOpen(false);
+                    setActiveDestination(-1);
+                  }
+                }}
+              >
+                <label className="label sr-only" htmlFor="destination-search">{t.searchDestination}</label>
+                <input
+                  id="destination-search"
+                  type="search"
+                  role="combobox"
+                  aria-haspopup="listbox"
+                  aria-expanded={destinationOpen}
+                  aria-controls="destination-suggestions"
+                  aria-autocomplete="list"
+                  aria-activedescendant={destinationOpen && suggestions[activeDestination] ? `destination-${suggestions[activeDestination]!.id}` : undefined}
+                  autoComplete="off"
+                  className="input pe-12"
+                  placeholder={t.searchDestination}
+                  value={countrySearch}
+                  data-testid="wizard-destination-search"
+                  onFocus={() => setDestinationOpen(true)}
+                  onClick={() => setDestinationOpen(true)}
+                  onChange={(event) => {
+                    setCountrySearch(event.target.value);
+                    setActiveDestination(-1);
+                    setDestinationOpen(true);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                      event.preventDefault();
+                      setDestinationOpen(true);
+                      setActiveDestination((index) => suggestions.length
+                        ? event.key === "ArrowDown"
+                          ? (index + 1) % suggestions.length
+                          : (index <= 0 ? suggestions.length - 1 : index - 1)
+                        : -1);
+                    } else if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                      event.preventDefault();
+                      if (!destinationOpen) setDestinationOpen(true);
+                      else {
+                        const selected = suggestions[activeDestination >= 0 ? activeDestination : 0];
+                        if (selected) chooseDestination(selected, true);
+                      }
+                    } else if (event.key === "Escape") {
+                      event.preventDefault();
+                      setDestinationOpen(false);
+                      setCountrySearch("");
+                      setActiveDestination(-1);
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  aria-label={t.searchDestination}
+                  aria-expanded={destinationOpen}
+                  aria-controls="destination-suggestions"
+                  className="absolute end-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 hover:text-navy-900"
+                  onClick={() => {
+                    setDestinationOpen((open) => !open);
+                    setActiveDestination(-1);
+                  }}
+                >
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className={`h-4 w-4 transition-transform ${destinationOpen ? "rotate-180" : ""}`}>
+                    <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                {destinationOpen ? (
+                  <div
+                    id="destination-suggestions"
+                    role="listbox"
+                    aria-label={t.searchDestination}
+                    data-testid="wizard-destination-popover"
+                    className="absolute inset-x-0 top-full z-50 mt-1 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+                  >
+                    <div ref={destinationListRef} className="max-h-52 overflow-y-auto overscroll-contain py-1" data-testid="wizard-all-destinations">
+                      {suggestions.length === 0 ? (
+                        <p className="px-4 py-3 text-sm text-slate-500">{t.noDestinationMatch}</p>
+                      ) : (
+                        suggestions.map((c, index) => (
+                          <a
+                            key={c.id}
+                            id={`destination-${c.id}`}
+                            role="option"
+                            aria-selected={activeDestination === index}
+                            href={`?destination=${c.id}`}
+                            data-testid="wizard-destination-option"
+                            data-country-id={c.id}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              chooseDestination(c, event.detail === 0);
+                            }}
+                            className={`flex min-h-9 items-center px-4 py-2 text-base font-normal text-navy-900 hover:bg-slate-50 ${activeDestination === index ? "bg-slate-50" : ""}`}
+                          >
+                            {c.name}
+                          </a>
+                        ))
+                      )}
+                    </div>
+                    <p className="border-t border-slate-100 px-4 py-2 text-xs text-slate-500">
+                      {t.destinationsAvailable.replace("{count}", String(suggestions.length))}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+
+              {!countrySearch && popularDestinations.length > 0 ? (
+                <div data-testid="wizard-popular-destinations">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    {t.popularDestinations}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {popularDestinations.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        data-testid="wizard-popular-destination"
+                        className="wizard-choice inline-flex min-h-11 items-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-base font-semibold text-navy-900 hover:bg-ivory-50"
+                        onClick={(event) => chooseDestination(c, event.detail === 0)}
+                      >
+                        {c.name}
+                        <span className="ms-2 text-xs text-slate-400">{c.visaTypes.length}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
+
+          {/* Programmes for the chosen destination only */}
+          {country ? (
+            <div className="space-y-4 border-t border-slate-100 pt-4">
+              <h3 className="text-base font-semibold text-navy-900">
+                {t.availableProgrammes}
+              </h3>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {country.visaTypes.map((v) => (
+                  <label
+                    key={v.id}
+                    data-testid="wizard-visa-type"
+                    className={`wizard-choice cursor-pointer rounded-lg border p-4 ${visaTypeId === v.id ? "border-gold-500 bg-gold-50/60 shadow-[inset_0_0_0_1px_rgb(201_154_50/0.12)]" : "border-slate-200"}`}
+                  >
+                    <input
+                      type="radio"
+                      name="visaTypeId"
+                      value={v.id}
+                      data-country-id={v.countryId}
+                      className="sr-only"
+                      checked={visaTypeId === v.id}
+                      onChange={() => setVisaTypeId(v.id)}
+                    />
+                    <span className="block font-semibold text-navy-900">{v.name}</span>
+                    <span className="mt-1 block text-xs text-slate-500">{v.categoryName}</span>
+                    <span className="mt-2 block text-base font-semibold text-navy-800 tabular-nums">
+                      {formatDZD(v.fee)} <span className="text-xs text-slate-400">· {t.processing} {processingLabel(v)}</span>
+                    </span>
+                    {v.description ? <span className="mt-1 block text-xs text-slate-500">{v.description}</span> : null}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        {/* Applicant — one traveler, minimal data (§12) */}
+        <div className="card space-y-4 p-6">
+          <h3 className="font-semibold text-navy-900">{t.applicant}</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="label" htmlFor="t0_fullName">{t.fullName} *</label>
+              <input
+                id="t0_fullName"
+                name="t0_fullName"
+                required
+                autoComplete="name"
+                className="input"
+                data-testid="wizard-full-name"
+                placeholder={t.fullNamePlaceholder}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="t0_nationality">{t.nationality} *</label>
+              <select
+                id="t0_nationality"
+                name="t0_nationality"
+                required
+                defaultValue={props.defaultNationality}
+                className="input"
+                data-testid="wizard-nationality"
+                aria-label={t.nationality}
+              >
+                {props.nationalities.map((n) => (
+                  <option key={n.code} value={n.code}>{n.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="label" htmlFor="agencyNotes">{t.notes}</label>
+            <textarea id="agencyNotes" name="agencyNotes" rows={2} className="input" placeholder={t.notesPlaceholder} />
+          </div>
+        </div>
+      </section>
+
+      {/* STEP 2 — documents */}
+      <section data-wizard-section="2" hidden={step !== 2} className="wizard-panel space-y-4" data-direction={wizardDirection}>
+        <div className="card p-6">
+          <dl className="grid grid-cols-1 gap-2 text-base sm:grid-cols-4">
+            <div className="flex flex-col gap-1">
+              <dt className="text-xs text-slate-400">{t.destination}</dt>
+              <dd className="font-semibold text-navy-900">{country?.name ?? "—"}</dd>
+            </div>
+            <div className="flex flex-col gap-1">
+              <dt className="text-xs text-slate-400">{t.stepChoose}</dt>
+              <dd className="font-semibold text-navy-900">{visa?.name ?? "—"}</dd>
+            </div>
+            <div className="flex flex-col gap-1">
+              <dt className="text-xs text-slate-400">{t.fee}</dt>
+              <dd className="font-semibold tabular-nums text-navy-900">{visa ? formatDZD(visa.fee) : "—"}</dd>
+            </div>
+            <div className="flex flex-col gap-1">
+              <dt className="text-xs text-slate-400">{t.processing}</dt>
+              <dd className="font-semibold text-navy-900">{visa ? processingLabel(visa) : "—"}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div className="card space-y-4 p-6">
+          <h2 className="font-serif text-lg text-navy-900">{t.documents}</h2>
+          {fileError ? (
+            <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700" data-testid="wizard-file-error">
+              {fileError}
+            </p>
+          ) : null}
+          {requirements.length === 0 ? (
+            <p className="text-base text-slate-500">{t.noDocumentsRequired}</p>
+          ) : (
+            <ul className="border-y border-line">
+              {requirements.map((r) => {
+                const picked = files[r.documentTypeId] ?? [];
+                return (
+                  <li key={r.documentTypeId} className="border-b border-line py-4 last:border-b-0">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <p className="font-semibold text-navy-900">
+                          {r.name}{" "}
+                          <span className={`ms-1 rounded-md px-2 py-1 text-xs font-semibold ${r.required ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-500"}`}>
+                            {r.required ? t.required : t.optional}
+                          </span>
+                        </p>
+                        {r.notes ? <p className="mt-1 text-xs text-slate-500">{r.notes}</p> : null}
+                        <p className="mt-1 text-xs text-slate-400">{t.uploadHint}</p>
+                      </div>
+                      <label className="btn-secondary btn-sm cursor-pointer">
+                        {t.chooseFile}
+                        <input
+                          type="file"
+                          aria-label={`${t.chooseFile}: ${r.name}`}
+                          name={`file_${r.documentTypeId}`}
+                          multiple
+                          accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+                          className="sr-only"
+                          data-required={r.required ? "1" : "0"}
+                          onChange={(e) => onFileChange(r.documentTypeId, e.currentTarget.files)}
+                        />
+                      </label>
+                    </div>
+                    {picked.length > 0 ? (
+                      <ul className="mt-2 space-y-1 text-xs text-slate-600">
+                        {picked.map((f, idx) => (
+                          <li key={idx} className="wizard-file-settle flex flex-wrap items-center gap-2">
+                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                            <span className="font-semibold text-navy-800">{f.name}</span>
+                            <span className="text-slate-400">{(f.size / 1024).toFixed(0)} KB</span>
+                            <span className="badge bg-emerald-100 text-emerald-800">{t.uploaded}</span>
+                            <button
+                              type="button"
+                              aria-label={`${t.remove}: ${f.name}`}
+                              onClick={() => removeFile(r.documentTypeId, idx)}
+                              className="inline-flex min-h-11 items-center px-2 text-xs font-semibold text-rose-700 underline"
+                            >
+                              {t.remove}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      {/* STEP 3 — review & submit */}
+      <section data-wizard-section="3" hidden={step !== 3} className="wizard-panel space-y-4" data-direction={wizardDirection}>
+        <div className="card space-y-6 p-6">
+          <div>
+            <h2 className="font-serif text-lg text-navy-900">{t.reviewTitle}</h2>
+            <p className="mt-1 text-base text-slate-500">{t.reviewSubtitle}</p>
+          </div>
+
+          {/* VISA */}
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{t.sectionVisa}</h3>
+            <dl className="grid grid-cols-1 gap-2 text-base sm:grid-cols-3">
+              <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
+                <dt className="text-slate-500">{t.destination}</dt>
+                <dd className="font-semibold text-navy-900">{country?.name ?? "—"}</dd>
+              </div>
+              <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
+                <dt className="text-slate-500">{t.programme}</dt>
+                <dd className="font-semibold text-navy-900">{visa?.name ?? "—"}</dd>
+              </div>
+              <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
+                <dt className="text-slate-500">{t.processing}</dt>
+                <dd className="font-semibold text-navy-900">{visa ? processingLabel(visa) : "—"}</dd>
+              </div>
+            </dl>
+          </div>
+
+          {/* APPLICANT */}
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{t.sectionApplicant}</h3>
+            <dl className="grid grid-cols-1 gap-2 text-base sm:grid-cols-2">
+              <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2 sm:col-span-2">
+                <dt className="text-slate-500">{t.summaryApplicant}</dt>
+                <dd className="font-semibold text-navy-900" data-testid="wizard-applicant-summary">{applicantSummary()}</dd>
+              </div>
+            </dl>
+          </div>
+
+          {/* DOCUMENTS */}
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{t.summaryDocuments}</h3>
+            <ul className="space-y-1 text-base">
+              {requirements.map((r) => {
+                const count = (files[r.documentTypeId] ?? []).length;
+                const missingHere = r.required && count === 0;
+                return (
+                  <li key={r.documentTypeId} className="flex items-center justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
+                    <span className="text-slate-600">{r.name}</span>
+                    <span className={missingHere ? "font-semibold text-rose-600" : "font-semibold text-emerald-700"}>
+                      {missingHere ? t.missingPrefix : `${count} × ${t.uploaded}`}
+                    </span>
+                  </li>
+                );
+              })}
+              {requirements.length === 0 ? <li className="text-slate-500">{t.noDocumentsRequired}</li> : null}
+            </ul>
+          </div>
+
+          {/* PAYMENT */}
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{t.sectionPayment}</h3>
+            <dl className="grid grid-cols-1 gap-2 text-base sm:grid-cols-3">
+              <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
+                <dt className="text-slate-500">{t.fee}</dt>
+                <dd className="font-semibold tabular-nums text-navy-900">{visa ? formatDZD(visa.fee) : "—"}</dd>
+              </div>
+              <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
+                <dt className="text-slate-500">{t.currentBalance}</dt>
+                <dd className="font-semibold tabular-nums text-navy-900">{formatDZD(props.walletBalance)}</dd>
+              </div>
+              <div className={`flex justify-between gap-4 rounded-lg px-4 py-2 ${canAfford ? "bg-emerald-50" : "bg-gold-50"}`}>
+                <dt className={canAfford ? "text-emerald-700" : "text-gold-800"}>{t.balanceAfter}</dt>
+                <dd className={`font-semibold tabular-nums ${canAfford ? "text-emerald-800" : "text-gold-800"}`}>
+                  {canAfford && visa ? formatDZD(afterNum) : "—"}
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          <p className="rounded-lg bg-iris-50 px-4 py-2 text-xs text-iris-800">{t.chargeNote}</p>
+
+          {canAfford ? (
+            <button
+              type="submit"
+              disabled={pending || catalogueRecovery || sessionRecovery}
+              className="btn-primary w-full sm:w-auto disabled:opacity-50"
+              data-testid="wizard-submit"
+            >
+              {pending ? t.submitting : <>{t.submitApplication} — <bdi dir="ltr">{visa ? formatDZD(visa.fee) : "—"}</bdi></>}
+            </button>
+          ) : (
+            <div className="space-y-4 rounded-lg border border-gold-200 bg-gold-50 p-4">
+              <p className="font-semibold text-gold-900">{t.insufficientTitle}</p>
+              <dl className="grid grid-cols-1 gap-1 text-base sm:grid-cols-3">
+                <div className="flex justify-between gap-2">
+                  <dt className="text-gold-800">{t.requiredAmount}</dt>
+                  <dd className="font-semibold tabular-nums text-gold-900">{formatDZD(feeNumber)}</dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt className="text-gold-800">{t.currentBalance}</dt>
+                  <dd className="font-semibold tabular-nums text-gold-900">{formatDZD(balanceNumber)}</dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt className="text-navy-700">{t.missingAmount}</dt>
+                  <dd className="font-semibold tabular-nums text-navy-700">{formatDZD(missing)}</dd>
+                </div>
+              </dl>
+              <a href={topupHref} className="btn-primary inline-flex w-full sm:w-auto" data-testid="wizard-topup-cta">
+                {t.requestTopup}
+              </a>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <div className="flex items-center justify-between">
+        <button type="button" onClick={goBack} disabled={step === 1 || pending} className="btn-secondary">
+          <span className="directional" aria-hidden>←</span> {t.back}
+        </button>
+        {step < 3 ? (
+          <button type="button" onClick={goNext} className="btn-primary">
+            {t.next} <span className="directional" aria-hidden>→</span>
+          </button>
+        ) : null}
+      </div>
+    </form>
+  );
+}

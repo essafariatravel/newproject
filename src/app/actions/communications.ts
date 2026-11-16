@@ -1,0 +1,146 @@
+"use server";
+import { currentOperationActor } from "@/lib/operation-identity";
+import { assertAgencyOperational } from '@/lib/agency-identity';
+
+/**
+ * Communication + notification actions.
+ */
+import { and, eq, isNull } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { redirect } from "next/navigation";
+import { db } from "@/lib/db";
+import { applications, communications, notifications, users } from "@/db/schema";
+import { requireUser } from "@/lib/auth";
+import { requirePermission } from "@/lib/rbac";
+import { AppError, STAFF_ROLES, type AuthUser } from "@/lib/types";
+import { agencyUserIds, notifyUsers, staffUserIds } from "@/lib/notifications";
+import { runAction } from "@/lib/action-helpers";
+import { recordAudit } from "@/lib/audit";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
+
+const idSchema = z.string().uuid("Invalid identifier.");
+
+async function appContextFor(applicationId: string, user: AuthUser) {
+  const rows = await db
+    .select({ id: applications.id, agencyId: applications.agencyId, reference: applications.reference })
+    .from(applications)
+    .where(eq(applications.id, applicationId))
+    .limit(1);
+  const app = rows[0];
+  if (!app) throw new AppError("NOT_FOUND", "Application not found.");
+  if (user.agencyId && app.agencyId !== user.agencyId) {
+    throw new AppError("NOT_FOUND", "Application not found.");
+  }
+  return app;
+}
+
+export async function postMessageAction(formData: FormData): Promise<void> {
+  const applicationId = idSchema.parse(formData.get("applicationId"));
+  const back = String(formData.get("back") ?? "/portal/communications");
+  await runAction(back, async () => {
+    const user = await requireUser();
+    const app = await appContextFor(applicationId, user);
+    const data = z
+      .object({
+        body: z.string().trim().min(2, "Write a message first.").max(4000),
+        visibility: z.enum(["AGENCY", "INTERNAL"]).optional(),
+      })
+      .parse({
+        body: formData.get("body"),
+        visibility: formData.get("visibility") || undefined,
+      });
+
+    let visibility: "AGENCY" | "INTERNAL";
+    if (user.agencyId) {
+      requirePermission(user, "communications.post.agency");
+      visibility = "AGENCY"; // agencies always write agency-visible messages
+    } else {
+      requirePermission(user, "communications.post.staff");
+      visibility = data.visibility === "INTERNAL" ? "INTERNAL" : "AGENCY";
+    }
+
+    const userAllowed = await consumeAuthRateLimit("message-user-minute", user.id, 20, 60_000);
+    const agencyAllowed = user.agencyId ? await consumeAuthRateLimit("message-agency-hour", user.agencyId, 100, 60 * 60_000) : true;
+    if (!userAllowed || !agencyAllowed) throw new AppError("RATE_LIMITED", "Too many messages. Please wait before posting again.");
+
+    await db.transaction(async (tx) => {
+    await currentOperationActor(tx,user);
+    await assertAgencyOperational(tx,app.agencyId,app.id);
+    const [message] = await tx.insert(communications).values({
+      applicationId: app.id,
+      authorId: user.id,
+      visibility,
+      body: data.body,
+    }).returning({ id: communications.id });
+    await recordAudit({
+      actor: user,
+      action: "MESSAGE_POSTED",
+      entity: "communication",
+      entityId: message!.id,
+      agencyId: app.agencyId,
+      metadata: { visibility, applicationId: app.id, reference: app.reference },
+    }, tx);
+    });
+    if (visibility === "AGENCY") {
+      const recipients = user.agencyId
+        ? (await staffUserIds()).concat()
+        : await agencyUserIds(app.agencyId);
+      await notifyUsers(recipients, {
+        type: "MESSAGE_POSTED",
+        title: `New message on ${app.reference}`,
+        body: data.body.slice(0, 140),
+        link: user.agencyId ? `/admin/applications/${app.id}?tab=communications` : `/portal/applications/${app.id}?tab=messages`,
+        agencyId: app.agencyId,
+        applicationId: app.id,
+      });
+    }
+    revalidatePath(back);
+    return "Message posted.";
+  });
+}
+
+export async function markNotificationsReadAction(formData: FormData): Promise<void> {
+  const back = String(formData.get("back") ?? "/portal/notifications");
+  await runAction(back, async () => {
+    const user = await requireUser();
+    const notificationId = formData.get("id");
+    if (notificationId && notificationId !== "") {
+      const id = idSchema.parse(notificationId);
+      await db
+        .update(notifications)
+        .set({ readAt: new Date() })
+        .where(and(eq(notifications.id, id), eq(notifications.userId, user.id), isNull(notifications.readAt)));
+    } else {
+      await db
+        .update(notifications)
+        .set({ readAt: new Date() })
+        .where(and(eq(notifications.userId, user.id), isNull(notifications.readAt)));
+    }
+    revalidatePath(back);
+    revalidatePath("/portal", "layout");
+    revalidatePath("/admin", "layout");
+    return "Notifications marked as read.";
+  });
+}
+
+export async function openConversationAction(formData: FormData): Promise<void> {
+  const user=await requireUser();
+  const id=idSchema.parse(formData.get("applicationId"));
+  await appContextFor(id,user);
+  requirePermission(user,user.agencyId?"communications.post.agency":"communications.view.all");
+  await db.update(notifications).set({readAt:new Date()}).where(and(eq(notifications.userId,user.id),eq(notifications.applicationId,id),eq(notifications.type,"MESSAGE_POSTED"),isNull(notifications.readAt)));
+  redirect(`${user.agencyId?"/portal":"/admin"}/applications/${id}?tab=communications`);
+}
+
+/** Resolve staff directory for assignment dropdowns. */
+export async function staffDirectory() {
+  const { requireStaff } = await import("@/lib/auth");
+  const staff = await requireStaff();
+  requirePermission(staff, "applications.assign");
+  const { inArray } = await import("drizzle-orm");
+  return db
+    .select({ id: users.id, name: users.name, role: users.role })
+    .from(users)
+    .where(and(isNull(users.agencyId), eq(users.status, "ACTIVE"), inArray(users.role, [...STAFF_ROLES])));
+}

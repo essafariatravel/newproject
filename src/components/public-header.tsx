@@ -1,0 +1,170 @@
+"use client";
+
+/**
+ * Public site header (§50).
+ *
+ * Mobile contract, verified by tests:
+ *   - EXACTLY ONE visible "Register your agency" CTA at mobile widths — the
+ *     CTA lives in the top bar only; the opened menu never repeats it,
+ *   - a single coherent responsive header: brand on one line, one compact
+ *     action group, and a hamburger that opens the navigation,
+ *   - NO horizontally scrolling nav strip: nothing at mobile is wider than
+ *     the viewport (no horizontal page overflow).
+ *
+ * Desktop keeps the editorial layout: inline nav, language switcher, sign in.
+ */
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+
+export interface PublicHeaderProps {
+  brandName: string;
+  homeHref?: string;
+  /** Reserved for the marketing lockup — not rendered inside the app chrome. */
+  tagline: string;
+  logoUrl: string | null;
+  /**
+   * The language switcher is a SERVER component (it reads cookies), so it is
+   * passed in as a pre-rendered node instead of being imported here — a client
+   * component must never pull `next/headers` into the browser bundle.
+   */
+  localeSwitcher: ReactNode;
+  nav: { href: string; label: string }[];
+  labels: {
+    register: string;
+    signIn: string;
+    menu: string;
+    close: string;
+    b2b: string;
+  };
+}
+
+export function PublicHeader({ brandName, homeHref = "/", tagline: _tagline, logoUrl, localeSwitcher, nav, labels }: PublicHeaderProps) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  const pathname = usePathname();
+  const toggle = useRef<HTMLButtonElement>(null);
+
+  // The menu never survives a route change/resize race: close it when the
+  // viewport grows into the desktop layout.
+  useEffect(() => {
+    if (!open) return;
+    const onResize = () => {
+      if (window.innerWidth >= 1280) setOpen(false);
+    };
+    window.addEventListener("resize", onResize);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        toggle.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <header className="premium-public-header sticky top-0 z-40 border-b border-white/10 bg-navy-950 text-white">
+      <div className="ess-container flex h-16 items-center justify-between gap-2">
+        {/* Brand — logo artwork when uploaded, otherwise monogram + wordmark */}
+        <Link href={homeHref} className="platform-brand flex min-w-0 shrink items-center gap-2" aria-label={brandName}>
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={brandName}
+              className="h-10 w-auto max-w-[46vw] object-contain object-left sm:h-14 sm:max-w-[280px] rtl:object-right"
+            />
+          ) : (
+            <>
+              <img src="/images/essafaria-logo-header.webp" alt="" width="80" height="57" className="platform-mark shrink-0 object-contain" />
+              <span className="hidden min-w-0 leading-tight sm:block">
+                <span className="block truncate text-base font-semibold text-white">{brandName}</span>
+                <span className="block truncate text-xs text-white/75">
+                  {labels.b2b}
+                </span>
+              </span>
+            </>
+          )}
+        </Link>
+
+        {/* Desktop navigation */}
+        <nav className="public-desktop-nav hidden items-center gap-2 lg:flex" aria-label={labels.menu}>
+          {nav.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={pathname === item.href ? "page" : undefined}
+              className="inline-flex min-h-11 items-center rounded-lg px-4 text-base font-semibold text-white/75 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="platform-access flex shrink-0 items-center gap-2">
+          {/* Language switcher: desktop only — mobile gets it inside the menu */}
+          <span className="public-desktop-controls hidden xl:inline-flex">{localeSwitcher}</span>
+          <span className="public-desktop-controls hidden xl:inline-flex">
+            <Link href="/login" className="btn btn-sm platform-sign-in">
+              {labels.signIn}
+            </Link>
+          </span>
+          {/* The ONE register CTA (visible on every viewport, mobile included) */}
+          <Link
+            href="/agency/register"
+            data-testid="public-register-cta"
+            className="btn-gold btn-sm public-partner-action whitespace-nowrap px-4 text-base"
+          >
+            {labels.register}
+          </Link>
+          <button
+            ref={toggle}
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-controls={panelId}
+            aria-label={open ? labels.close : labels.menu}
+            data-testid="public-menu-toggle"
+            className="public-mobile-toggle inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-white/25 bg-transparent text-white transition-colors hover:bg-white/10 lg:hidden"
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+              {open ? (
+                <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+              ) : (
+                <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
+              )}
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile / tablet navigation panel — no register CTA here (one only) */}
+      {open ? (
+        <div id={panelId} className="public-menu-panel border-t border-white/10 bg-navy-950 xl:hidden">
+          <nav className="ess-container flex flex-col py-2" aria-label={labels.menu}>
+            {nav.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={pathname === item.href ? "page" : undefined}
+                onClick={() => setOpen(false)}
+                className="inline-flex min-h-11 items-center rounded-lg px-2 text-base font-semibold text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                {item.label}
+              </Link>
+            ))}
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 px-2 pb-4 pt-4">
+              {localeSwitcher}
+              <Link href="/login" className="btn btn-sm border border-white/35 bg-transparent text-white" onClick={() => setOpen(false)}>
+                {labels.signIn}
+              </Link>
+            </div>
+          </nav>
+        </div>
+      ) : null}
+    </header>
+  );
+}

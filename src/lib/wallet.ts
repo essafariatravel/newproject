@@ -1,0 +1,378 @@
+import { qualifiedTable } from "./database-schema";
+/**
+ * Wallet service — the only code path that mutates an agency balance.
+ *
+ * Safety model (PostgreSQL):
+ *  - every mutation runs inside a transaction,
+ *  - the balance update uses a conditional atomic UPDATE on the locked row
+ *    (`balance >= amount`) which serializes concurrent spenders,
+ *  - every mutation writes an immutable ledger row with before/after balances,
+ *  - application charges are idempotent via a partial unique index
+ *    (one APPLICATION_CHARGE row per application).
+ *  - DZD-only: all operational amounts are DZD.
+ */
+import { and, eq, sql } from "drizzle-orm";
+import type { PoolClient } from "pg";
+import { db, pool } from "@/lib/db";
+import { agencies, applications, walletTransactions } from "@/db/schema";
+import { AppError, type AuthUser, isStaffRole, OVERRIDE_ROLES } from "@/lib/types";
+import { recordAuditPg } from "@/lib/audit";
+import { currentOperationActorPg } from "@/lib/operation-identity";
+import { agencyUserIds, notifyUsers } from "@/lib/notifications";
+
+export interface WalletMutationResult {
+  transactionId: string;
+  reference: string | null;
+  balanceBefore: string;
+  balanceAfter: string;
+}
+
+export interface WalletTx {
+  id: string;
+  reference?: string;
+  agencyId: string;
+  applicationId: string | null;
+  type: string;
+  amount: string;
+  currency: string;
+  balanceBefore: string;
+  balanceAfter: string;
+  reason: string;
+  createdAt: Date;
+}
+
+export function toNumber(money: string): number {
+  const n = Number(money);
+  if (!Number.isFinite(n)) throw new AppError("MONEY_FORMAT", "Invalid monetary amount.");
+  return n;
+}
+
+export function formatMoney(money: string, _currency?: string | null, locale: string = "en"): string {
+  const n = toNumber(money);
+  const nfLocale = locale === "fr" ? "fr-DZ" : locale === "ar" ? "ar-DZ" : "en-DZ";
+  try {
+    const formatted = new Intl.NumberFormat(nfLocale, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(n);
+    return `${formatted} DZD`;
+  } catch {
+    return `${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} DZD`;
+  }
+}
+
+/**
+ * The ONE place a balance moves. Runs on a caller-supplied transaction client
+ * so composed operations (manual adjustment, top-up processing) share exactly
+ * the same locking, ledger and currency rules.
+ *
+ * Mapping of the atomicity guarantees:
+ *  - DEBIT uses `where balance >= amount` → concurrent spenders serialize,
+ *  - the ledger row carries before/after balances and is never updated,
+ *  - currency is always DZD (operational currency, §7).
+ */
+export async function applyWalletMutation(
+  client: PoolClient,
+  params: {
+    agencyId: string;
+    operation: "CREDIT" | "DEBIT";
+    /** Positive absolute amount, already rounded to 2 decimals. */
+    amountAbs: string;
+    reason: string;
+    actorId: string;
+    applicationId?: string | null;
+    /** CREDIT | DEBIT | APPLICATION_CHARGE | COMMERCIAL_DISCOUNT | COMMERCIAL_SURCHARGE */
+    type?: string;
+  },
+): Promise<WalletMutationResult> {
+  const credit = params.operation === "CREDIT";
+  const type = params.type ?? (credit ? "CREDIT" : "DEBIT");
+
+  const upd = await client.query<{ balance_after: string; balance_before: string }>(
+    credit
+      ? `update ${qualifiedTable("agencies")}
+           set balance = balance + $2::numeric, updated_at = now()
+         where id = $1 and status <> 'CLOSED'
+         returning balance::text as balance_after, (balance - $2::numeric)::text as balance_before`
+      : `update ${qualifiedTable("agencies")}
+           set balance = balance - $2::numeric, updated_at = now()
+         where id = $1 and status <> 'CLOSED' and balance >= $2::numeric
+         returning balance::text as balance_after, (balance + $2::numeric)::text as balance_before`,
+    [params.agencyId, params.amountAbs],
+  );
+  if (!upd.rows[0]) {
+    const agency = await client.query<{ balance: string; status: string }>(
+      `select balance::text as balance,status from ${qualifiedTable("agencies")} where id = $1`,
+      [params.agencyId],
+    );
+    if (!agency.rows[0]) throw new AppError("NOT_FOUND", "Agency not found.");
+    if (agency.rows[0].status === "CLOSED") throw new AppError("INVALID_STATE", "This agency is closed. Its historical wallet is read-only.");
+    throw new AppError(
+      "INSUFFICIENT_FUNDS",
+      `Insufficient funds: current balance is ${agency.rows[0].balance} DZD.`,
+    );
+  }
+  const { balance_before, balance_after } = upd.rows[0];
+  const tx = await client.query<{ id: string; reference: string }>(
+    `insert into ${qualifiedTable("wallet_transactions")}
+       (agency_id, application_id, type, amount, currency, balance_before, balance_after, reason, actor_id)
+     values ($1, $2, $3, $4, 'DZD', $5, $6, $7, $8)
+     returning id, reference`,
+    [
+      params.agencyId,
+      params.applicationId ?? null,
+      type,
+      params.amountAbs,
+      balance_before,
+      balance_after,
+      params.reason,
+      params.actorId,
+    ],
+  );
+  return {
+    transactionId: tx.rows[0]!.id,
+    reference: tx.rows[0]!.reference,
+    balanceBefore: balance_before,
+    balanceAfter: balance_after,
+  };
+}
+
+/** Manual adjustment by an authorized staff member. Returns the ledger row id. */
+export async function adjustWallet(params: {
+  agencyId: string;
+  amount: number;
+  reason: string;
+  actor: AuthUser;
+  ipAddress?: string | null;
+  operation?: "CREDIT" | "DEBIT";
+}): Promise<string> {
+  if (!isStaffRole(params.actor.role) || params.actor.agencyId || params.actor.mustChangePassword) throw new AppError("FORBIDDEN", "Only ESSAFARIA staff can adjust wallets.");
+  let operation: "CREDIT" | "DEBIT";
+  let amountAbs: string;
+  if (params.operation) {
+    if (!Number.isFinite(params.amount) || params.amount <= 0) {
+      throw new AppError("INVALID_AMOUNT", "Amount must be a positive number.");
+    }
+    amountAbs = (Math.round(params.amount * 100) / 100).toFixed(2);
+    operation = params.operation;
+  } else {
+    if (!Number.isFinite(params.amount) || params.amount === 0) {
+      throw new AppError("INVALID_AMOUNT", "Amount must be a non-zero number.");
+    }
+    const rounded = Math.round(params.amount * 100) / 100;
+    amountAbs = Math.abs(rounded).toFixed(2);
+    operation = rounded > 0 ? "CREDIT" : "DEBIT";
+  }
+  if (Number(amountAbs) <= 0) throw new AppError("INVALID_AMOUNT", "Amount must be at least 0.01 DZD.");
+  const reason = params.reason?.trim();
+  if (!reason || reason.length < 5 || reason.length > 500) throw new AppError("REASON_REQUIRED", "Give a reason between 5 and 500 characters for this wallet adjustment.");
+
+  const client = await pool.connect();
+  let result: WalletMutationResult;
+  try {
+    await client.query("begin");
+    params = { ...params, actor: await currentOperationActorPg(client,params.actor) };
+    result = await applyWalletMutation(client, {
+      agencyId: params.agencyId,
+      operation,
+      amountAbs,
+      reason,
+      actorId: params.actor.id,
+    });
+    await recordAuditPg(client, {
+      actor: params.actor, action: operation === "CREDIT" ? "WALLET_CREDIT" : "WALLET_DEBIT",
+      entity: "wallet_transaction", entityId: result.transactionId, agencyId: params.agencyId,
+      metadata: { amount: amountAbs, reason, reference: result.reference, balanceBefore: result.balanceBefore,
+        balanceAfter: result.balanceAfter, currency: "DZD" }, ipAddress: params.ipAddress ?? null,
+    });
+    await client.query("commit");
+  } catch (err) {
+    await client.query("rollback").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  // §34 — a manual wallet movement is never silent: the agency is told what
+  // changed, by how much and what the balance is now, with a deep link to the
+  // ledger it happened in. (The submission charge is announced by the submission
+  // flow itself, so only manual adjustments notify from here.)
+  const recipients = await agencyUserIds(params.agencyId);
+  await notifyUsers(recipients, {
+    type: "WALLET_ADJUSTED",
+    title: `${operation === "CREDIT" ? "Wallet credited" : "Wallet debited"} — ${money(amountAbs)} DZD`,
+    body: `${params.reason}. New balance: ${money(result.balanceAfter)} DZD. Reference ${result.reference ?? result.transactionId}.`,
+    link: "/portal/wallet",
+    agencyId: params.agencyId,
+  });
+
+  return result.transactionId;
+}
+
+/** Deterministic DZD formatting for notifications (grouping + 2 decimals). */
+function money(value: string | number): string {
+  const n = typeof value === "string" ? Number(value) : value;
+  if (!Number.isFinite(n)) return String(value);
+  return new Intl.NumberFormat("en-DZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+}
+
+export interface ChargeResult {
+  transactionId: string;
+  balanceBefore: string;
+  balanceAfter: string;
+}
+
+export async function chargeApplicationSubmission(params: {
+  applicationId: string;
+  actorId: string;
+  submittedStatusId: string;
+  draftStatusId: string;
+  ipAddress?: string | null;
+  actor?: AuthUser;
+  overrideReason?: string | null;
+}): Promise<ChargeResult> {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const captured = params.actor ?? (await client.query<AuthUser>(`select id, email, username, name, role, agency_id as "agencyId" from ${qualifiedTable("users")} where id=$1`,[params.actorId])).rows[0];
+    if (!captured || captured.id !== params.actorId) throw new AppError("FORBIDDEN", "Submission actor not found.");
+    const actor = await currentOperationActorPg(client,captured);
+
+    const appRes = await client.query<{
+      id: string;
+      agency_id: string;
+      fee: string;
+      currency: string;
+      reference: string;
+      status_id: string;
+    }>(
+      `select id, agency_id, fee::text as fee, currency, reference, status_id
+         from ${qualifiedTable("applications")} where id = $1 for update`,
+      [params.applicationId],
+    );
+    const app = appRes.rows[0];
+    if (!app) {
+      await client.query("rollback");
+      throw new AppError("NOT_FOUND", "Application not found.");
+    }
+    if (app.status_id !== params.draftStatusId) {
+      await client.query("rollback");
+      throw new AppError(
+        "ALREADY_SUBMITTED",
+        `Application ${app.reference} has already been submitted and charged.`,
+      );
+    }
+
+    if (actor.agencyId && actor.agencyId !== app.agency_id) throw new AppError("NOT_FOUND", "Application not found.");
+    const applicantsPresent=(await client.query(`select exists(select 1 from ${qualifiedTable("applicants")} where application_id=$1) present`,[app.id])).rows[0]?.present;
+    if (!applicantsPresent) throw new AppError("NO_APPLICANTS", "Add at least one applicant before submitting.");
+    const missing=(await client.query(`select c.document_type_name from ${qualifiedTable("checklist_items")} c where c.application_id=$1 and c.required and c.active
+      and not exists(select 1 from ${qualifiedTable("documents")} d where d.checklist_item_id=c.id and d.status in ('UPLOADED','UNDER_REVIEW','ACCEPTED'))`,[app.id])).rows;
+    if (missing.length && (actor.agencyId || !OVERRIDE_ROLES.includes(actor.role) || (params.overrideReason?.trim().length ?? 0)<10)) {
+      throw new AppError("CHECKLIST_INCOMPLETE", "Required documents changed. Refresh the dossier before submitting.");
+    }
+    const upd = await client.query<{ balance_after: string; balance_before: string }>(
+      `update ${qualifiedTable("agencies")}
+         set balance = balance - $2::numeric, updated_at = now()
+       where id = $1 and status <> 'CLOSED' and balance >= $2::numeric
+       returning balance::text as balance_after, (balance + $2::numeric)::text as balance_before`,
+      [app.agency_id, app.fee],
+    );
+    if (!upd.rows[0]) {
+      await client.query("rollback");
+      const _bal = await client.query<{ balance: string; currency: string;status:string }>(
+        `select balance::text as balance, currency,status from ${qualifiedTable("agencies")} where id = $1`,
+        [app.agency_id],
+      );
+      if(_bal.rows[0]?.status==='CLOSED')throw new AppError('INVALID_STATE','This agency is closed. Its historical wallet is read-only.');
+      throw new AppError(
+        "INSUFFICIENT_FUNDS",
+        `Wallet balance is too low for this application (${app.fee} DZD required).`,
+      );
+    }
+    const { balance_before, balance_after } = upd.rows[0];
+
+    const txRes = await client.query<{ id: string }>(
+      `insert into ${qualifiedTable("wallet_transactions")}
+         (agency_id, application_id, type, amount, currency, balance_before, balance_after, reason, actor_id)
+       values ($1, $2, 'APPLICATION_CHARGE', $3, 'DZD', $4, $5, $6, $7)
+       returning id`,
+      [
+        app.agency_id,
+        app.id,
+        app.fee,
+        balance_before,
+        balance_after,
+        `Visa application ${app.reference}`,
+        params.actorId,
+      ],
+    );
+    const txId = txRes.rows[0]!.id;
+
+    await client.query(
+      `update ${qualifiedTable("applications")}
+         set status_id = $2, submitted_at = now(), updated_at = now(),
+             submitted_price = fee, submitted_currency = 'DZD', effective_price = fee,
+             override_reason = $3, override_by = case when $3::text is null then null else $4::uuid end
+       where id = $1`,
+      [app.id, params.submittedStatusId, params.overrideReason ?? null, params.actorId],
+    );
+    await client.query(
+      `insert into ${qualifiedTable("application_status_history")}
+         (application_id, from_status_id, to_status_id, changed_by, reason)
+       values ($1, $2, $3, $4, 'Application submitted')`,
+      [app.id, params.draftStatusId, params.submittedStatusId, params.actorId],
+    );
+    await recordAuditPg(client, { actor, action: params.overrideReason ? "APPLICATION_SUBMITTED_OVERRIDE" : "APPLICATION_SUBMITTED",
+      entity: "application", entityId: app.id, agencyId: app.agency_id,
+      metadata: { reference: app.reference, fee: app.fee, currency: "DZD", ...(params.overrideReason ? { overrideReason: params.overrideReason } : {}) }, ipAddress: params.ipAddress ?? null });
+    await client.query("commit");
+    return { transactionId: txId, balanceBefore: balance_before, balanceAfter: balance_after };
+  } catch (err) {
+    await client.query("rollback").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getTransactions(agencyId?: string, limit = 100) {
+  const q = db
+    .select({
+      tx: walletTransactions,
+      applicationReference: applications.reference,
+      topupRequestId: sql<string | null>`(select t.id from ${sql.raw(qualifiedTable("wallet_topup_requests"))} t where t.wallet_transaction_id = wallet_transactions.id)`,
+      topupReference: sql<string | null>`(select t.reference from ${sql.raw(qualifiedTable("wallet_topup_requests"))} t where t.wallet_transaction_id = wallet_transactions.id)`,
+    })
+    .from(walletTransactions)
+    .leftJoin(applications, eq(walletTransactions.applicationId, applications.id))
+    .orderBy(sql`${walletTransactions.createdAt} desc`)
+    .limit(limit);
+  const rows = agencyId ? await q.where(eq(walletTransactions.agencyId, agencyId)) : await q;
+  return rows;
+}
+
+export async function getBalance(agencyId: string): Promise<{ balance: string; currency: string }> {
+  const rows = await db
+    .select({ balance: agencies.balance, currency: agencies.currency })
+    .from(agencies)
+    .where(eq(agencies.id, agencyId))
+    .limit(1);
+  if (!rows[0]) throw new AppError("NOT_FOUND", "Agency not found.");
+  // Operational currency is always DZD
+  return { balance: rows[0].balance, currency: "DZD" };
+}
+
+export async function findTransactionByApplication(applicationId: string) {
+  const rows = await db
+    .select()
+    .from(walletTransactions)
+    .where(
+      and(
+        eq(walletTransactions.applicationId, applicationId),
+        eq(walletTransactions.type, "APPLICATION_CHARGE"),
+      ),
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}

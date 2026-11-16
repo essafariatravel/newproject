@@ -1,0 +1,198 @@
+/**
+ * Explicit permission matrix. Authorization is 100% server-side.
+ * `own` scopes are further narrowed by tenant checks at the service layer.
+ */
+import { AppError, type AuthUser, type Role } from "@/lib/types";
+
+export type Permission =
+  // admin back office
+  | "admin.access"
+  | "agencies.manage"
+  | "agencies.view"
+  | "registrations.view"
+  | "registrations.manage"
+  | "users.manage"
+  | "users.view"
+  | "recovery.manage"
+  | "config.manage"
+  | "config.view"
+  | "cms.manage"
+  | "audit.view"
+  | "reports.view"
+  // applications
+  | "applications.view.all"
+  | "applications.create"
+  | "applications.review"
+  | "applications.status.change"
+  | "applications.submit.override"
+  | "applications.assign"
+  | "applications.pricing.adjust"
+  // applicants
+  | "applicants.view.all"
+  // documents
+  | "documents.view.all"
+  | "documents.upload.own"
+  | "documents.review"
+  // wallet & billing
+  | "wallet.view.all"
+  | "wallet.view.own"
+  | "wallet.adjust"
+  | "transactions.view.all"
+  | "transactions.view.own"
+  // communications
+  | "communications.view.all"
+  | "communications.post.staff"
+  | "communications.post.agency"
+  // notifications
+  | "notifications.staff"
+  | "notifications.agency";
+
+const PERMISSIONS: Record<Role, readonly Permission[]> = {
+  SUPER_ADMIN: [
+    "admin.access",
+    "agencies.manage",
+    "agencies.view",
+    "registrations.view",
+    "registrations.manage",
+    "users.manage",
+    "users.view",
+    "recovery.manage",
+    "config.manage",
+    "config.view",
+    "cms.manage",
+    "audit.view",
+    "reports.view",
+    "applications.view.all",
+    "applications.review",
+    "applications.status.change",
+    "applications.submit.override",
+    "applications.assign",
+    "applications.pricing.adjust",
+    "applicants.view.all",
+    "documents.view.all",
+    "documents.review",
+    "wallet.view.all",
+    "wallet.adjust",
+    "transactions.view.all",
+    "communications.view.all",
+    "communications.post.staff",
+    "notifications.staff",
+  ],
+  ADMIN: [
+    "admin.access",
+    "agencies.manage",
+    "agencies.view",
+    "registrations.view",
+    "registrations.manage",
+    "users.manage",
+    "users.view",
+    "config.manage",
+    "config.view",
+    "cms.manage",
+    "audit.view",
+    "reports.view",
+    "applications.view.all",
+    "applications.review",
+    "applications.status.change",
+    "applications.submit.override",
+    "applications.assign",
+    "applications.pricing.adjust",
+    "applicants.view.all",
+    "documents.view.all",
+    "documents.review",
+    "wallet.view.all",
+    "wallet.adjust",
+    "transactions.view.all",
+    "communications.view.all",
+    "communications.post.staff",
+    "notifications.staff",
+  ],
+  VISA_AGENT: [
+    // §36 — case processing only. Agency administration (create/suspend) and
+    // partner-registration decisions belong to ADMIN/SUPER_ADMIN, so the
+    // agent keeps read access without the management permission.
+    "admin.access",
+    "agencies.view",
+    "registrations.view",
+    "users.view",
+    "config.view",
+    "reports.view",
+    "applications.view.all",
+    "applications.review",
+    "applications.status.change",
+    "applications.submit.override",
+    "applications.assign",
+    "applications.pricing.adjust",
+    "applicants.view.all",
+    "documents.view.all",
+    "documents.review",
+    "wallet.view.all",
+    "transactions.view.all",
+    "communications.view.all",
+    "communications.post.staff",
+    "notifications.staff",
+  ],
+  ACCOUNTING: [
+    // §36 — finance role: wallets, top-ups, invoices, reports. It may read the
+    // partner records it bills, but never administers agencies or users.
+    "admin.access",
+    "agencies.view",
+    "registrations.view",
+    "users.view",
+    "config.view",
+    "reports.view",
+    "applications.view.all",
+    "applications.pricing.adjust",
+    "applicants.view.all",
+    "documents.view.all",
+    "wallet.view.all",
+    "wallet.adjust",
+    "transactions.view.all",
+    "communications.view.all",
+    "notifications.staff",
+  ],
+  AGENCY_ADMIN: [
+    "applications.create",
+    "applications.review",
+    "applicants.view.all",
+    "documents.upload.own",
+    "documents.view.all",
+    "wallet.view.own",
+    "transactions.view.own",
+    "communications.post.agency",
+    "notifications.agency",
+  ],
+  AGENCY_USER: [
+    "applications.create",
+    "applicants.view.all",
+    "documents.upload.own",
+    "documents.view.all",
+    "wallet.view.own",
+    "communications.post.agency",
+    "notifications.agency",
+  ],
+};
+
+// Keep persisted legacy names and audit history. V1 has one operational Staff
+// permission set; only SUPER_ADMIN administers accounts and issues recovery.
+const OPERATIONAL_STAFF_PERMISSIONS = PERMISSIONS.SUPER_ADMIN.filter(
+  (permission) => permission !== "users.manage" && permission !== "recovery.manage",
+);
+PERMISSIONS.ADMIN = OPERATIONAL_STAFF_PERMISSIONS;
+PERMISSIONS.VISA_AGENT = OPERATIONAL_STAFF_PERMISSIONS;
+PERMISSIONS.ACCOUNTING = OPERATIONAL_STAFF_PERMISSIONS;
+
+export function hasPermission(user: AuthUser, permission: Permission): boolean {
+  if(!user.agencyId && user.role!=='SUPER_ADMIN' && ['ADMIN','VISA_AGENT','ACCOUNTING'].includes(user.role)){
+    if(permission==='config.manage' && user.staffPermissions!=null)return user.staffPermissions.catalogManage===true;
+    if(permission==='users.manage')return user.staffPermissions?.staffManage===true;
+  }
+  return PERMISSIONS[user.role]?.includes(permission) ?? false;
+}
+
+/** Throw unless the user holds the permission. */
+export function requirePermission(user: AuthUser, permission: Permission): void {
+  if (!hasPermission(user, permission)) {
+    throw new AppError("FORBIDDEN", "You are not authorized to perform this action.");
+  }
+}

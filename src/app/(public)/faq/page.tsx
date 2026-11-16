@@ -1,0 +1,181 @@
+import type { Metadata } from "next";
+import { getUiLocale, type UiLocale } from "@/lib/ui-i18n";
+import { buildPublicMetadata } from "@/lib/seo";
+
+export const dynamic = "force-dynamic";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return buildPublicMetadata("faq", await getUiLocale());
+}
+
+const FAQ_COPY: Record<
+  UiLocale,
+  {
+    title: string;
+    intro: string;
+    items: Array<{ question: string; answer: string }>;
+  }
+> = {
+  en: {
+    title: "Frequently asked questions",
+    intro: "Practical information for travel agencies in Algeria considering or using ESSAFARIA's B2B visa services.",
+    items: [
+      {
+        question: "Who can use ESSAFARIA's services?",
+        answer:
+          "ESSAFARIA's professional services are intended for travel agencies and authorized partners using its B2B services.",
+      },
+      {
+        question: "How can an agency request access?",
+        answer:
+          "An interested agency can use the agency registration process or contact ESSAFARIA. Account opening remains subject to the applicable professional partner review.",
+      },
+      {
+        question: "How is a visa request submitted?",
+        answer:
+          "After signing in to its secure workspace, an authorized agency can create a request and provide the information and documents required for the relevant service.",
+      },
+      {
+        question: "How are documents submitted?",
+        answer:
+          "Requested case documents are provided through the secure professional workspace. Client documents are not published on the public website.",
+      },
+      {
+        question: "What happens if a document needs clarification?",
+        answer:
+          "During document review, ESSAFARIA may ask the agency for a clarification or an additional supporting file. The agency checks the request and sends the relevant document in its authorized workspace.",
+      },
+      {
+        question: "Who makes the final visa decision?",
+        answer:
+          "The competent consular or immigration authority decides whether to grant a visa. ESSAFARIA coordinates preparation and follow-up but cannot guarantee approval or a fixed processing time.",
+      },
+      {
+        question: "How can an agency follow a request?",
+        answer:
+          "Authorized users can review available status information in their professional workspace and use the communication channels provided by ESSAFARIA.",
+      },
+      {
+        question: "Does the public website show every visa service currently available?",
+        answer:
+          "No. The public website presents ESSAFARIA and its services at a general level. Operational availability, commercial conditions and partner-only information remain inside the professional workspace.",
+      },
+    ],
+  },
+  fr: {
+    title: "Questions fréquentes",
+    intro: "Informations pratiques pour les agences de voyages en Algérie qui souhaitent utiliser les services visa B2B d’ESSAFARIA.",
+    items: [
+      {
+        question: "À qui s’adressent les services d’ESSAFARIA ?",
+        answer:
+          "ESSAFARIA Visa OS est destiné aux agences de voyages et partenaires professionnels autorisés qui utilisent les services B2B d’ESSAFARIA.",
+      },
+      {
+        question: "Comment une agence peut-elle demander un accès ?",
+        answer:
+          "Une agence intéressée peut utiliser le parcours d’inscription agence ou contacter ESSAFARIA. L’ouverture d’un compte reste soumise au processus de validation applicable aux partenaires professionnels.",
+      },
+      {
+        question: "Comment soumettre une demande de visa ?",
+        answer:
+          "Après connexion à son espace sécurisé, une agence autorisée peut créer une demande et fournir les informations et documents requis pour le service concerné.",
+      },
+      {
+        question: "Comment les documents sont-ils transmis ?",
+        answer:
+          "Les documents demandés pour un dossier sont transmis dans l’espace professionnel sécurisé. Les documents clients ne sont pas publiés sur le site public.",
+      },
+      {
+        question: "Que se passe-t-il si une pièce nécessite une précision ?",
+        answer:
+          "Lors du contrôle du dossier, ESSAFARIA peut demander une précision ou un justificatif complémentaire. L’agence consulte cette demande et transmet la pièce adaptée depuis son espace professionnel autorisé.",
+      },
+      {
+        question: "Qui prend la décision finale pour un visa ?",
+        answer:
+          "Seule l’autorité consulaire ou migratoire compétente décide de la délivrance du visa. ESSAFARIA accompagne la préparation et le suivi, sans garantie d’obtention ni de délai fixe.",
+      },
+      {
+        question: "Comment suivre une demande ?",
+        answer:
+          "Les utilisateurs autorisés peuvent consulter les informations de suivi disponibles dans leur espace professionnel et utiliser les canaux de communication prévus par ESSAFARIA.",
+      },
+      {
+        question: "Le site public présente-t-il tous les services visa actuellement disponibles ?",
+        answer:
+          "Non. Le site public présente ESSAFARIA et ses services de manière générale. Les disponibilités opérationnelles, conditions commerciales et informations réservées aux partenaires restent dans l’espace professionnel.",
+      },
+    ],
+  },
+  ar: {
+    title: "الأسئلة الشائعة",
+    intro: "معلومات عملية لوكالات السفر في الجزائر التي ترغب في استخدام خدمات التأشيرات من ESSAFARIA بنظام B2B.",
+    items: [
+      {
+        question: "لمن صُممت خدمات ESSAFARIA؟",
+        answer:
+          "صُممت ESSAFARIA Visa OS لوكالات السفر والشركاء المهنيين المعتمدين الذين يستخدمون خدمات ESSAFARIA بنظام B2B.",
+      },
+      {
+        question: "كيف يمكن للوكالة طلب الوصول إلى المنصة؟",
+        answer:
+          "يمكن للوكالة المهتمة استخدام مسار تسجيل الوكالات أو التواصل مع ESSAFARIA. ويظل فتح الحساب خاضعاً لإجراءات اعتماد الشركاء المهنيين المعمول بها.",
+      },
+      {
+        question: "كيف يتم تقديم طلب تأشيرة؟",
+        answer:
+          "بعد تسجيل الدخول إلى المساحة الآمنة، يمكن للوكالة المخولة إنشاء طلب وتقديم المعلومات والوثائق المطلوبة للخدمة المعنية.",
+      },
+      {
+        question: "كيف يتم إرسال الوثائق؟",
+        answer:
+          "تُرسل الوثائق المطلوبة للملف عبر المساحة المهنية الآمنة، ولا يتم نشر وثائق العملاء على الموقع العام.",
+      },
+      {
+        question: "ماذا يحدث إذا كانت هناك حاجة لتوضيح وثيقة؟",
+        answer:
+          "قد يطلب فريق ESSAFARIA توضيحاً أو مستنداً داعماً إضافياً أثناء مراجعة الملف. تطّلع الوكالة على الطلب وترسل الوثيقة المناسبة من خلال مساحتها المهنية المصرّح بها.",
+      },
+      {
+        question: "من يتخذ القرار النهائي بشأن التأشيرة؟",
+        answer:
+          "تتخذ السلطات القنصلية أو المختصة بالهجرة وحدها قرار منح التأشيرة. تنسق ESSAFARIA إعداد الملف ومتابعته من دون ضمان الموافقة أو تحديد مدة معالجة ثابتة.",
+      },
+      {
+        question: "كيف يمكن متابعة الطلب؟",
+        answer:
+          "يمكن للمستخدمين المخولين الاطلاع على معلومات المتابعة المتاحة داخل المساحة المهنية واستخدام قنوات التواصل التي توفرها ESSAFARIA.",
+      },
+      {
+        question: "هل يعرض الموقع العام جميع خدمات التأشيرات المتاحة حالياً؟",
+        answer:
+          "لا. يعرض الموقع العام ESSAFARIA وخدماتها بصورة عامة، بينما تبقى التوفرات التشغيلية والشروط التجارية والمعلومات المخصصة للشركاء داخل المساحة المهنية.",
+      },
+    ],
+  },
+};
+
+export default async function FaqPage() {
+  const locale = await getUiLocale();
+  const copy = FAQ_COPY[locale];
+
+  return (
+    <section className="public-interior faq-interior" aria-labelledby="faq-heading">
+      <div className="interior-width faq-spread">
+        <header className="faq-intro">
+          <h1 id="faq-heading">{copy.title}</h1>
+          <p className="interior-lede">{copy.intro}</p>
+        </header>
+        <div className="faq-register">
+          {copy.items.map((item, index) => (
+            <details key={item.question} open={index === 0}>
+              <summary><h2>{item.question}</h2></summary>
+              <p>{item.answer}</p>
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}

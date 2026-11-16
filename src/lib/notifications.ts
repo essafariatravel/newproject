@@ -1,0 +1,109 @@
+import { and, eq, inArray, isNull } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { notifications, users } from "@/db/schema";
+import { sendOperationalNotificationEmail } from "@/lib/transactional-email";
+import { after } from "next/server";
+import { dispatchStaffPush } from "@/lib/push-service";
+import { vapidPublicKey } from "@/lib/web-push-crypto";
+
+type NotificationType =
+  | "APPLICATION_SUBMITTED"
+  | "STATUS_CHANGED"
+  | "DOCUMENTS_REQUIRED"
+  | "DOCUMENT_REQUESTED"
+  | "DOCUMENT_REJECTED"
+  | "RESUBMISSION_REQUIRED"
+  | "DOCUMENT_ACCEPTED"
+  | "APPLICATION_COMPLETED"
+  | "APPLICATION_DECISION"
+  | "WALLET_ADJUSTED"
+  | "APPLICATION_CREATED"
+  | "APPLICATION_ASSIGNED"
+  | "MESSAGE_POSTED"
+  | "REGISTRATION_SUBMITTED"
+  | "REGISTRATION_APPROVED"
+  | "REGISTRATION_REJECTED"
+  | "AGENCY_ONBOARDED"
+  | "TOPUP_REQUESTED"
+  | "WALLET_TOPUP_DECIDED"
+  | "DOCUMENT_REQUEST_FULFILLED";
+
+/**
+ * Insert a notification row per recipient user.
+ * Notifications always originate from real server-side events.
+ */
+export async function notifyUsers(
+  userIds: string[],
+  payload: {
+    type: NotificationType;
+    title: string;
+    body: string;
+    link?: string | null;
+    agencyId?: string | null;
+    applicationId?: string | null;
+    documentRequestId?: string | null;
+  },
+): Promise<void> {
+  const unique = [...new Set(userIds)];
+  if (unique.length === 0) return;
+  const inserted = await db.insert(notifications).values(
+    unique.map((userId) => ({
+      userId,
+      agencyId: payload.agencyId ?? null,
+      applicationId: payload.applicationId ?? null,
+      documentRequestId: payload.documentRequestId ?? null,
+      type: payload.type,
+      title: payload.title,
+      body: payload.body,
+      link: payload.link ?? null,
+    })),
+  ).returning({ id: notifications.id });
+
+  // Best-effort background delivery: the application submit response must
+  // never wait for a remote push provider. Missing request context (e.g. tests)
+  // or a disabled feature never affects the existing notification rows.
+  if (vapidPublicKey() && inserted.length) {
+    try {
+      after(async () => {
+        try { await dispatchStaffPush(inserted.map(row => row.id)); }
+        catch { console.warn("[web-push] post-response dispatch unavailable"); }
+      });
+    } catch { /* no request context; in-app and email notifications still work */ }
+  }
+
+  const recipients = await db
+    .select({ email: users.email, name: users.name })
+    .from(users)
+    .where(and(inArray(users.id, unique), eq(users.status, "ACTIVE")));
+
+  await Promise.allSettled(
+    recipients.map((recipient) =>
+      sendOperationalNotificationEmail({
+        type: payload.type,
+        to: recipient.email,
+        name: recipient.name,
+        link: payload.link ?? null,
+      }),
+    ),
+  );
+}
+
+/** All active staff (ESSAFARIA internal) user ids, optionally limited to roles. */
+export async function staffUserIds(roles?: string[]): Promise<string[]> {
+  const conditions = [isNull(users.agencyId), eq(users.status, "ACTIVE")];
+  if (roles && roles.length > 0) conditions.push(inArray(users.role, roles));
+  const rows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(...conditions));
+  return rows.map((r) => r.id);
+}
+
+/** All active user ids belonging to an agency (the tenant). */
+export async function agencyUserIds(agencyId: string): Promise<string[]> {
+  const rows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.agencyId, agencyId), eq(users.status, "ACTIVE")));
+  return rows.map((r) => r.id);
+}

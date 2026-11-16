@@ -1,0 +1,90 @@
+[
+  {
+    "title": "Washington Dulles International Airport at Dusk.jpg",
+    "photographer": "Joe Ravi",
+    "source": "https://commons.wikimedia.org/wiki/File:Washington_Dulles_International_Airport_at_Dusk.jpg",
+    "license": "CC BY-SA 3.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0/",
+    "modifications": "Resized and converted to WebP. Layouts crop the frame and overlay a navy shade.",
+    "variants": [
+      {
+        "file": "dulles-terminal.webp",
+        "width": 1680,
+        "height": 998,
+        "bytes": 137766
+      },
+      {
+        "file": "dulles-terminal-small.webp",
+        "width": 720,
+        "height": 427,
+        "bytes": 35972
+      }
+    ]
+  },
+  {
+    "title": "Sea caves Cape Greco 2.jpg",
+    "photographer": "kallerna",
+    "source": "https://commons.wikimedia.org/wiki/File:Sea_caves_Cape_Greco_2.jpg",
+    "license": "CC BY-SA 4.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "modifications": "Resized and converted to WebP. Page layouts crop the displayed frames.",
+    "variants": [
+      {
+        "file": "cape-greco.webp",
+        "width": 1680,
+        "height": 1095,
+        "bytes": 316636
+      },
+      {
+        "file": "cape-greco-small.webp",
+        "width": 720,
+        "height": 469,
+        "bytes": 59438
+      }
+    ]
+  },
+  {
+    "title": "Re 460 058-1 + IC 2000 St. Gallen, 2014 (1).JPG",
+    "photographer": "Bahnfrend",
+    "source": "https://commons.wikimedia.org/wiki/File:Re_460_058-1_%2B_IC_2000_St._Gallen,_2014_(1).JPG",
+    "license": "CC BY-SA 4.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "modifications": "Resized and converted to WebP. Page layouts crop the displayed frames.",
+    "variants": [
+      {
+        "file": "st-gallen.webp",
+        "width": 1680,
+        "height": 1121,
+        "bytes": 167878
+      },
+      {
+        "file": "st-gallen-small.webp",
+        "width": 720,
+        "height": 481,
+        "bytes": 41240
+      }
+    ]
+  },
+  {
+    "title": "Ostuni - Borgo Antico Bistrot - 2.jpg",
+    "photographer": "Benjamin Smith",
+    "source": "https://commons.wikimedia.org/wiki/File:Ostuni_-_Borgo_Antico_Bistrot_-_2.jpg",
+    "license": "CC BY-SA 4.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "modifications": "Resized and converted to WebP. Page layouts crop the displayed frames.",
+    "variants": [
+      {
+        "file": "ostuni.webp",
+        "width": 1680,
+        "height": 2518,
+        "bytes": 249370
+      },
+      {
+        "file": "ostuni-small.webp",
+        "width": 720,
+        "height": 1079,
+        "bytes": 67418
+      }
+    ]
+  }
+]

@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "purpose": "ESSAFARIA VISA OS initial alert routing contract",
+  "notes": [
+    "Initial launch thresholds; recalibrate after 1-2 weeks of real baseline.",
+    "Expected business rejections and safe idempotency prevention never page by themselves.",
+    "Low-traffic signals use both absolute counts and rates.",
+    "Production integrity monitoring is unavailable until OBSERVABILITY_CUTOVER_AT is configured with the real activation timestamp.",
+    "Launch delivery is GitHub-native: scheduled watchdog + incident issue lifecycle + GitHub account notifications/email.",
+    "GitHub Actions schedules are best-effort and are not an SLA-grade external uptime service.",
+    "Scheduled workflows execute from the repository default branch; the recurring watchdog becomes active after this workflow reaches that branch through the normal release process."
+  ],
+  "sev1": {
+    "immediate_events": [
+      "integrity.violation"
+    ],
+    "conditions": [
+      "confirmed cross-tenant disclosure",
+      "confirmed private-document exposure",
+      "exposed production credential",
+      "global Production outage",
+      "database unavailable globally",
+      "authentication impossible globally"
+    ],
+    "delivery": "GitHub incident issue + GitHub notification/email; external push/phone can be added later"
+  },
+  "sev2": {
+    "event_families": [
+      "wallet.*.technical_failed",
+      "storage.*.failed",
+      "application.submission.technical_failed",
+      "application.decision.technical_failed",
+      "auth.login.technical_failed",
+      "auth.session.create_failed",
+      "database.pool.error",
+      "health.readiness.failed",
+      "integrity.configuration.invalid",
+      "release.protection_check.failed",
+      "release.protections.missing",
+      "next.request.unhandled_error",
+      "action.technical_failed",
+      "audit.persistence_failed",
+      "auth.authenticate.*_failed",
+      "auth.session.resolve_failed",
+      "database.observability_snapshot.failed",
+      "document.*.technical_failed",
+      "document.persistence.failed",
+      "integrity.check.failed",
+      "database.configuration.missing"
+    ],
+    "thresholds": {
+      "http_5xx_rate": {
+        "percent": 2,
+        "window_minutes": 5,
+        "min_requests": 20
+      },
+      "critical_route_technical_failures": {
+        "count": 5,
+        "window_minutes": 5
+      },
+      "critical_operation_p95_ms": {
+        "value": 3000,
+        "window_minutes": 10
+      },
+      "critical_operation_severe_p95_ms": {
+        "value": 5000,
+        "window_minutes": 10
+      },
+      "critical_timeouts": {
+        "count": 3,
+        "window_minutes": 5
+      },
+      "db_connection_utilization_warning_percent": {
+        "value": 70,
+        "window_minutes": 10
+      },
+      "db_connection_utilization_high_percent": {
+        "value": 85,
+        "window_minutes": 5
+      },
+      "deadlocks": {
+        "count": 3,
+        "window_minutes": 10
+      },
+      "upload_failure_rate": {
+        "percent": 10,
+        "window_minutes": 10,
+        "min_attempts": 10
+      },
+      "storage_failure_rate": {
+        "percent": 5,
+        "window_minutes": 10
+      },
+      "wallet_technical_failures": {
+        "count": 3,
+        "window_minutes": 5
+      }
+    },
+    "delivery": "GitHub incident issue + GitHub notification/email"
+  },
+  "sev3": {
+    "conditions": [
+      "noncritical latency regression",
+      "isolated recoverable dependency failure",
+      "historical integrity baseline only",
+      "unusual denied authorization burst",
+      "single deadlock or lock-wait event without sustained impact",
+      "isolated notification delivery/application-submission notification failure"
+    ],
+    "delivery": "GitHub Actions summary/artifact; business-hours review"
+  },
+  "sev4": {
+    "event_patterns": [
+      "*.succeeded",
+      "*.idempotency_prevented",
+      "*.prevented",
+      "auth.login.rejected",
+      "security.session.invalid_or_expired"
+    ],
+    "delivery": "GitHub Actions evidence/dashboard summary only"
+  },
+  "deduplication": {
+    "key": [
+      "environment",
+      "event_family",
+      "route_or_action",
+      "error_code"
+    ],
+    "sev2_cooldown_minutes": 15,
+    "sev3_cooldown_minutes": 60,
+    "recovery_requires": "multiple successful probes or a stable healthy condition"
+  },
+  "github_native_watchdog": {
+    "cadence": "every 30 minutes at minutes 07 and 37 (best effort)",
+    "preview_db_integrity": "always when scheduled/manual on default branch",
+    "preview_runtime": "runs when VERCEL_AUTOMATION_BYPASS_SECRET is configured",
+    "incident_issue": "open/update on SEV1/SEV2; comment and close on recovery",
+    "evidence_retention_days": 30
+  }
+}

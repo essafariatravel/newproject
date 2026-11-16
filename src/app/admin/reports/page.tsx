@@ -1,0 +1,242 @@
+import { listStatuses, listPriorities } from "@/lib/applications-exports";
+import { listCountries, listVisaTypesWithRelations, listUsers } from "@/lib/queries";
+import { countryName } from "@/lib/country-names";
+import { configName } from "@/lib/config-localization";
+import Link from "next/link";
+import { pageUser } from "@/lib/page-auth";
+import { hasPermission } from "@/lib/rbac";
+import { STAFF_ROLES } from "@/lib/types";
+import { reportData, listAgencies } from "@/lib/queries";
+import { parseReportFilters } from "@/lib/report-filters";
+import { FilterBar } from "@/components/app-widgets";
+import { formatAmount } from "@/lib/format";
+import { Card, CardHeader, EmptyState, PageHeader, StatCard, TableWrap } from "@/components/ui";
+import { StatusBadge } from "@/components/badges";
+import { getUiLocale, localizedStatusName, localizedPriority, localizedDocStatus } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
+
+export const dynamic = "force-dynamic";
+
+function Bar({ max, value }: { max: number; value: number }) {
+  const pct = max === 0 ? 0 : Math.round((value / max) * 100);
+  return (
+    <div className="h-1.5 w-full max-w-[220px] overflow-hidden rounded-full bg-slate-100">
+      <div className="h-full rounded-full bg-teal-600" style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
+export default async function AdminReportsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const staff = await pageUser();
+  const uiLocale = await getUiLocale();
+  const ct = contentT(uiLocale);
+  if (!hasPermission(staff, "reports.view")) {
+    return (
+      <>
+        <PageHeader title={ct("Reports")} />
+        <div className="card"><EmptyState title={ct("Not authorized")} /></div>
+      </>
+    );
+  }
+  const sp = await searchParams;
+  const query = Object.fromEntries(["from", "to", "agency", "country", "visa", "status", "priority", "officer"].map((key) => [key, typeof sp[key] === "string" ? sp[key] : undefined])) as Record<string, string | undefined>;
+  let filters;
+  try { filters = parseReportFilters(query); } catch {
+    return <><PageHeader title={ct("Reports")} /><EmptyState title={ct("Choose a valid date range.")} action={<Link href="/admin/reports" className="btn-secondary">{ct("Reset")}</Link>} /></>;
+  }
+  const [data, agencyOptions, countryOptions, visaOptions, statusOptions, priorityOptions, officerOptions] = await Promise.all([reportData(filters), listAgencies(), listCountries(), listVisaTypesWithRelations(), listStatuses(), listPriorities(), listUsers(undefined, undefined, "staff")]);
+  const exportQuery = new URLSearchParams({ lang: uiLocale });
+  for (const [key, value] of Object.entries(query)) if (value) exportQuery.set(key, value);
+  const walletFlow = data.walletFlow!;
+  const processing = data.processing;
+  const maxCountry = Math.max(1, ...data.byCountry.map((r) => Number(r.total)));
+  const maxVisa = Math.max(1, ...data.byVisaType.map((r) => Number(r.total)));
+  const maxStatus = Math.max(1, ...data.byStatus.map((r) => Number(r.total)));
+
+  return (
+    <>
+      <PageHeader
+        title={ct("Reports")}
+        subtitle={ct("Operational and financial reporting from live database data. DZD only.")}
+        actions={
+          <div className="flex items-center gap-2">
+            <a href={`/api/admin/reports/export?${exportQuery}`} className="btn-secondary btn-sm" data-testid="reports-export-csv">{ct("Download CSV")}</a>
+            <a href={`/api/admin/reports/export?${exportQuery}&format=xlsx`} className="btn-secondary btn-sm" data-testid="reports-export-xlsx">{ct("Download Excel")}</a>
+          </div>
+        }
+      />
+
+      <nav aria-label={ct("Period")} className="mb-4 flex flex-wrap gap-2">{["Today", "This week", "This month", "This year"].map((period) => {
+        const now = new Date(), from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+        if (period === "This week") from.setUTCDate(from.getUTCDate() - (from.getUTCDay() + 6) % 7);
+        if (period === "This month") from.setUTCDate(1);
+        if (period === "This year") { from.setUTCMonth(0); from.setUTCDate(1); }
+        const params = new URLSearchParams(exportQuery); params.set("from", from.toISOString().slice(0, 10)); params.set("to", now.toISOString().slice(0, 10));
+        return <Link key={period} href={`/admin/reports?${params}`} className="btn-secondary btn-sm">{ct(period)}</Link>;
+      })}</nav>
+      <FilterBar action="/admin/reports" locale={uiLocale} fields={[
+        { name: "from", label: ct("From"), type: "date", value: query.from },
+        { name: "to", label: ct("To"), type: "date", value: query.to },
+        { name: "agency", label: ct("Agency"), type: "select", value: query.agency, options: agencyOptions.map(({ agency }) => ({ value: agency.id, label: agency.tradingName ?? agency.legalName })) },
+        { name: "country", label: ct("Country"), type: "select", value: query.country, options: countryOptions.map((c) => ({ value: c.id, label: countryName(c, uiLocale) })) },
+        { name: "visa", label: ct("Visa type"), type: "select", value: query.visa, options: visaOptions.map(({ vt }) => ({ value: vt.id, label: configName(vt, uiLocale) })) },
+        { name: "status", label: ct("Status"), type: "select", value: query.status, options: statusOptions.map((s) => ({ value: s.id, label: localizedStatusName(s.code, s.name, uiLocale) })) },
+        { name: "priority", label: ct("Priority"), type: "select", value: query.priority, options: priorityOptions.map((p) => ({ value: p.id, label: localizedPriority(p.code, p.name, uiLocale) })) },
+        { name: "officer", label: ct("Case officer"), type: "select", value: query.officer, options: officerOptions.filter(({ user }) => user.status === "ACTIVE" && !user.agencyId && (STAFF_ROLES as readonly string[]).includes(user.role)).map(({ user }) => ({ value: user.id, label: user.name })) },
+      ]} />
+      <p className="mb-4 text-xs text-slate-500">{ct("Submission metrics use the submission date; decision metrics use the decision date; wallet totals use the transaction date. Exports use these same filters.")}</p>
+
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatCard label={ct("Created applications")} value={data.activity.created} hint={ct("Creation date in the selected period")} />
+        <StatCard label={ct("Submitted applications")} value={data.activity.submitted} hint={ct("Submission date in the selected period")} />
+        <StatCard label={ct("Decisions recorded")} value={data.activity.decisions} hint={ct("Decision date in the selected period")} />
+      </div>
+
+      <p className="mb-4 text-xs text-slate-500">{ct("Application filters include only linked wallet entries. Document review counts include rejected or replacement-required versions.")}</p>
+      <p className="mb-4 text-xs text-slate-500">{ct("Document review metrics use the review date.")}</p>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard label={ct("Wallet credits")} value={formatAmount(walletFlow.credits, "DZD", uiLocale)} tone="gold" />
+        <StatCard label={ct("Manual debits")} value={formatAmount(walletFlow.debits, "DZD", uiLocale)} />
+        <StatCard label={ct("Application charges")} value={formatAmount(walletFlow.charges, "DZD", uiLocale)} tone="navy" />
+        <StatCard
+          label={ct("Documents requiring review")}
+          value={data.docIssues.reduce((s, d) => s + Number(d.total), 0)}
+          hint={data.docIssues.map((d) => `${localizedDocStatus(d.status, uiLocale, d.status)}: ${d.total}`).join(" · ") || ct("None")}
+        />
+      </div>
+
+      {/* §"avg processing only real timestamps" — with no decided dossier the
+          metric is reported as unavailable rather than as a fabricated 0. */}
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card className="p-4">
+          <h3 className="text-lg font-semibold text-navy-900">{ct("Average processing time")}</h3>
+          <p className="mt-1 font-serif text-2xl text-navy-900" data-testid="avg-processing">
+            {processing.avgDays === null
+              ? ct("Not available yet")
+              : `${Number(processing.avgDays).toFixed(1)} ${ct("days")}`}
+          </p>
+          <p className="mt-1 text-xs text-slate-400">
+            {ct("Only dossiers that reached a decision are counted — submitted → decision, from real timestamps.")}
+          </p>
+        </Card>
+        <Card className="p-4">
+          <h3 className="text-lg font-semibold text-navy-900">{ct("Decided dossiers")}</h3>
+          <p className="mt-1 font-serif text-2xl text-navy-900">{Number(processing.decided ?? 0)}</p>
+          <p className="mt-1 text-xs text-slate-400">
+            {processing.fastestDays === null
+              ? ct("No decision has been recorded in this period yet.")
+              : `${ct("Fastest")} ${Number(processing.fastestDays).toFixed(1)} · ${ct("Slowest")} ${Number(processing.slowestDays).toFixed(1)} ${ct("days")}`}
+          </p>
+        </Card>
+        <Card className="p-4">
+          <h3 className="text-lg font-semibold text-navy-900">{ct("Wallet credits vs charges")}</h3>
+          <p className="mt-1 text-base text-slate-600">
+            <bdi dir="ltr">{formatAmount(walletFlow.credits, "DZD", uiLocale)}</bdi> {ct("credited")} · <bdi dir="ltr">{formatAmount(walletFlow.charges, "DZD", uiLocale)}</bdi> {ct("charged")}
+          </p>
+          <p className="mt-1 text-xs text-slate-400">{ct("All amounts are DZD. Correction entries appear as their own ledger rows.")}</p>
+        </Card>
+      </div>
+
+      <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <Card>
+          <CardHeader title={ct("Applications by agency")} subtitle={ct("Submissions in the selected period")} />
+          <TableWrap>
+            <thead className="border-b border-slate-100 bg-ivory-50/60">
+              <tr><th className="th">{ct("Agency")}</th><th className="th">{ct("Applications")}</th><th className="th">{ct("Charged volume (DZD)")}</th></tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {data.byAgency.map((r) => (
+                <tr key={r.agencyId} className="tr-hover">
+                  <td className="td font-semibold text-navy-900">{r.agencyName}</td>
+                  <td className="td tabular-nums">{Number(r.total)}</td>
+                  <td className="td tabular-nums">{formatAmount(r.charged, "DZD", uiLocale)}</td>
+                </tr>
+              ))}
+              {data.byAgency.length === 0 ? <tr><td colSpan={3} className="td py-6 text-center text-slate-500">{ct("No data.")}</td></tr> : null}
+            </tbody>
+          </TableWrap>
+        </Card>
+
+        <Card>
+          <CardHeader title={ct("Applications by country")} />
+          <div className="space-y-4 px-4 py-4">
+            {data.byCountry.map((r) => (
+              <div key={r.countryName} className="flex items-center justify-between gap-4">
+                <span className="w-40 truncate text-base text-slate-700">{r.countryName}</span>
+                <Bar max={maxCountry} value={Number(r.total)} />
+                <span className="w-24 text-right text-xs tabular-nums text-slate-500">
+                  {r.total} · {formatAmount(r.revenue, "DZD", uiLocale)}
+                </span>
+              </div>
+            ))}
+            {data.byCountry.length === 0 ? <p className="text-base text-slate-500">{ct("No data.")}</p> : null}
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader title={ct("Applications by status")} />
+          <div className="space-y-4 px-4 py-4">
+            {data.byStatus.map((r) => (
+              <div key={r.statusCode} className="flex items-center justify-between gap-4">
+                <StatusBadge code={r.statusCode} name={r.statusName} />
+                <Bar max={maxStatus} value={Number(r.total)} />
+                <span className="w-10 text-right text-xs tabular-nums text-slate-500">{r.total}</span>
+              </div>
+            ))}
+            {data.byStatus.length === 0 ? <p className="text-base text-slate-500">{ct("No data.")}</p> : null}
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader title={ct("Applications by visa type")} />
+          <div className="space-y-4 px-4 py-4">
+            {data.byVisaType.map((r) => (
+              <div key={`${r.visaTypeId}:${r.visaTypeName}`} className="flex items-center justify-between gap-4">
+                <span className="w-56 truncate text-base text-slate-700">{configName({name:r.visaTypeName,nameFr:r.visaTypeNameFr,nameAr:r.visaTypeNameAr},uiLocale)}</span>
+                <Bar max={maxVisa} value={Number(r.total)} />
+                <span className="w-10 text-right text-xs tabular-nums text-slate-500">{r.total}</span>
+              </div>
+            ))}
+            {data.byVisaType.length === 0 ? <p className="text-base text-slate-500">{ct("No data.")}</p> : null}
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader title={ct("Processing workload (assigned files)")} subtitle={ct("Current assignments; independent of the selected event period")} />
+          <TableWrap>
+            <thead className="border-b border-slate-100 bg-ivory-50/60">
+              <tr><th className="th">{ct("Case officer")}</th><th className="th">{ct("Assigned applications")}</th></tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {data.workload.map((r) => (
+                <tr key={r.officer} className="tr-hover">
+                  <td className="td">{r.officer}</td>
+                  <td className="td tabular-nums">{Number(r.assigned)}</td>
+                </tr>
+              ))}
+              {data.workload.length === 0 ? <tr><td colSpan={2} className="td py-6 text-center text-slate-500">{ct("No data.")}</td></tr> : null}
+            </tbody>
+          </TableWrap>
+        </Card>
+
+        <Card>
+          <CardHeader title={ct("By priority")} />
+          <TableWrap>
+            <thead className="border-b border-slate-100 bg-ivory-50/60">
+              <tr><th className="th">{ct("Priority")}</th><th className="th">{ct("Applications")}</th></tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {data.byPriority.map((r) => (
+                <tr key={r.priorityCode} className="tr-hover">
+                  <td className="td">{localizedPriority(r.priorityCode,r.priorityName,uiLocale)}</td>
+                  <td className="td tabular-nums">{Number(r.total)}</td>
+                </tr>
+              ))}
+              {data.byPriority.length === 0 ? <tr><td colSpan={2} className="td py-6 text-center text-slate-500">{ct("No data.")}</td></tr> : null}
+            </tbody>
+          </TableWrap>
+        </Card>
+      </div>
+    </>
+  );
+}

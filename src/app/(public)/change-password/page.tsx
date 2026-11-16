@@ -1,0 +1,87 @@
+import { pageUserForPasswordChange } from "@/lib/page-auth";
+import { flashFrom } from "@/lib/action-helpers";
+import { logoutAction } from "@/app/actions/auth";
+import { PasswordField } from "@/components/forms";
+import { ChangePasswordForm } from "./change-password-form";
+import { publicTurnstileConfig } from "@/lib/turnstile-config";
+import { Flash } from "@/components/ui";
+import { chromeT, getUiLocale } from "@/lib/ui-i18n";
+import { contentT } from "@/lib/i18n-content";
+import { identityT } from "@/lib/identity-copy";
+import Link from "next/link";
+
+export const dynamic = "force-dynamic";
+export const metadata = { title: "Set your password", robots: { index: false, follow: false }, referrer: "no-referrer" as const };
+
+/**
+ * Phase 2.2 §11 — mandatory first password change. Lives outside the
+ * portal/admin shells so it stays reachable while the §11 lock (pageUser()
+ * redirect + requireUser() block) seals every other authenticated surface.
+ * The action re-verifies the session AND the pending flag server-side, so a
+ * manual URL visit by a user with no pending change is harmless.
+ */
+export default async function ChangePasswordPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const user = await pageUserForPasswordChange();
+  const uiLocale = await getUiLocale();
+  const ct = contentT(uiLocale);
+  const it = identityT(uiLocale);
+  const cc = chromeT(uiLocale);
+  const flash = flashFrom(await searchParams);
+
+  return (
+    <div className="mx-auto max-w-md px-4 py-8">
+      <h1 className="font-serif text-[32px] text-navy-900">{user.mustChangePassword ? ct("Set your password") : it("Change password")}</h1>
+      <p className="mt-2 text-base text-slate-500">
+        {user.mustChangePassword ? ct("For security, you must choose a new password before you can continue.") : it("Keep your account secure with a password you do not use elsewhere.")}
+      </p>
+      <div className="mt-6">
+        <Flash {...flash} />
+      </div>
+      <ChangePasswordForm config={publicTurnstileConfig()} locale={uiLocale} pendingLabel={ct("Saving…")}
+        label={user.mustChangePassword ? ct("Set password and continue") : it("Save password")}>
+        <PasswordField
+          id="cp-current"
+          name="current"
+          label={user.mustChangePassword ? ct("Current (temporary) password") : it("Current password")}
+          required
+          autoComplete="current-password"
+          hint={user.mustChangePassword ? ct("The password you were given by ESSAFARIA.") : undefined}
+          showLabel={ct("Show")}
+          hideLabel={ct("Hide")}
+        />
+        <PasswordField
+          id="cp-new"
+          name="password"
+          label={ct("New password")}
+          required
+          autoComplete="new-password"
+          minLength={12}
+          hint={it('Use at least 12 characters, preferably a unique passphrase.')}
+          showLabel={ct("Show")}
+          hideLabel={ct("Hide")}
+        />
+        <PasswordField
+          id="cp-confirm"
+          name="confirm"
+          label={ct("Confirm the new password")}
+          required
+          autoComplete="new-password"
+          hint={ct("Type the same password again.")}
+          showLabel={ct("Show")}
+          hideLabel={ct("Hide")}
+        />
+      </ChangePasswordForm>
+      <div className="mt-4 flex items-center justify-between text-xs text-slate-400">
+        <span dir="ltr">{user.username ?? user.email}</span>
+        <form action={logoutAction}>
+          <button className="text-iris-600 hover:underline">{cc("Sign out")}</button>
+        </form>
+      </div>
+      {!user.mustChangePassword ? <Link href={user.agencyId ? "/portal/profile" : "/admin"} className="mt-4 block text-base text-iris-700 underline">{ct("Back")}</Link> : null}
+    </div>
+  );
+}

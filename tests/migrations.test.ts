@@ -1,0 +1,101 @@
+import { randomBytes } from "node:crypto";
+import { describe, expect, it } from "vitest";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { Pool } from "pg";
+import { suiteSetup } from "./helpers/global-state";
+import { testConnectionString } from "./helpers/pg";
+import { applyMigrations } from "../scripts/lib/migrations";
+import { readdirSync } from "node:fs";
+
+/** Every migration shipped on disk, in ledger order. */
+const isolatedSchema = `preview_test_${randomBytes(6).toString("hex")}`;
+const legacySchema = `legacy_test_${randomBytes(6).toString("hex")}`;
+const MIGRATION_FILES = readdirSync(path.join(__dirname, "..", "migrations"))
+  .filter((f) => f.endsWith(".sql"))
+  .sort();
+
+suiteSetup();
+
+describe("safe migrations against isolated test PostgreSQL", () => {
+  it("rolls back migration DDL, snapshots and ledger when transactional postflight fails", async () => {
+    const pool = new Pool({ connectionString: testConnectionString() });
+    const schema = `atomic_test_${randomBytes(6).toString("hex")}`;
+    const directory = await mkdtemp(path.join(tmpdir(), "essafaria-atomic-test-"));
+    try {
+      await writeFile(path.join(directory, "0001_probe.sql"), "create table atomic_probe (id integer)");
+      await expect(applyMigrations(pool, directory, schema, {
+        before: async client => { await client.query("create table restore_probe (id integer)"); },
+        after: async () => { throw new Error("postflight rejected"); },
+      })).rejects.toThrow("postflight rejected");
+      expect((await pool.query("select to_regnamespace($1) as name", [schema])).rows[0].name).toBeNull();
+    } finally { await pool.end(); await rm(directory, { recursive: true, force: true }); }
+  });
+  it("refuses a changed migration digest before running SQL", async () => {
+    const pool = new Pool({ connectionString: testConnectionString() });
+    const schema = `digest_test_${randomBytes(6).toString("hex")}`;
+    const directory = await mkdtemp(path.join(tmpdir(), "essafaria-digest-test-"));
+    try {
+      await writeFile(path.join(directory, "0001_probe.sql"), "create table digest_probe (id integer)");
+      await expect(applyMigrations(pool, directory, schema, { hashes: { "0001_probe.sql": "0".repeat(64) } }))
+        .rejects.toThrow("digest");
+      expect((await pool.query("select to_regnamespace($1) as name", [schema])).rows[0].name).toBeNull();
+    } finally { await pool.end(); await rm(directory, { recursive: true, force: true }); }
+  });
+  it("creates an isolated application without modifying public tables", async () => {
+    const pool = new Pool({ connectionString: testConnectionString() });
+    try {
+      const before = await pool.query("select id from public.users order by id");
+      const directory = path.join(process.cwd(), "migrations");
+      expect(await applyMigrations(pool, directory, isolatedSchema)).toEqual(MIGRATION_FILES);
+      expect(await applyMigrations(pool, directory, isolatedSchema)).toEqual([]);
+      await pool.query(`select password_hash, name, role from ${isolatedSchema}.users limit 0`);
+      expect((await pool.query("select id from public.users order by id")).rows).toEqual(before.rows);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it("refuses an unrelated users table and rolls back its ledger", async () => {
+    const pool = new Pool({ connectionString: testConnectionString() });
+    try {
+      await pool.query(`create schema ${legacySchema}; create table ${legacySchema}.users (id int); insert into ${legacySchema}.users values (1)`);
+      await expect(applyMigrations(pool, path.join(process.cwd(), "migrations"), legacySchema))
+        .rejects.toThrow("Existing users table");
+      expect((await pool.query(`select * from ${legacySchema}.users`)).rows).toEqual([{ id: 1 }]);
+      expect((await pool.query(`select to_regclass('${legacySchema}.schema_migrations') as name`)).rows[0].name).toBeNull();
+    } finally {
+      await pool.end();
+    }
+  });
+  it("repeated and concurrent runs skip applied migrations and preserve user data", async () => {
+    const pool = new Pool({ connectionString: testConnectionString() });
+    try {
+      const before = await pool.query("select id from users order by id");
+      const directory = path.join(process.cwd(), "migrations");
+      expect(await applyMigrations(pool, directory)).toEqual([]);
+      expect(await Promise.all([applyMigrations(pool, directory), applyMigrations(pool, directory)])).toEqual([[], []]);
+      expect((await pool.query("select id from users order by id")).rows).toEqual(before.rows);
+      expect((await pool.query("select name from schema_migrations order by name")).rows)
+        .toEqual(MIGRATION_FILES.map((name) => ({ name })));
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it("rolls back DDL and bookkeeping together on failure", async () => {
+    const pool = new Pool({ connectionString: testConnectionString() });
+    const directory = await mkdtemp(path.join(tmpdir(), "essafaria-migration-test-"));
+    try {
+      await writeFile(path.join(directory, "9998_probe.sql"), "create table migration_rollback_probe (id integer);");
+      await writeFile(path.join(directory, "9999_failure.sql"), "select * from intentionally_missing_migration_table;");
+      await expect(applyMigrations(pool, directory)).rejects.toThrow();
+      expect((await pool.query("select to_regclass('public.migration_rollback_probe') as name")).rows[0].name).toBeNull();
+      expect((await pool.query("select name from schema_migrations where name like '999%'")).rows).toEqual([]);
+    } finally {
+      await pool.end();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+});

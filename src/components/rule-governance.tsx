@@ -1,0 +1,16 @@
+import {saveRuleGovernanceAction} from "@/app/actions/rule-governance";
+import type {UiLocale} from "@/lib/ui-i18n";
+const words={
+  en:{title:"Rule source and review",source:"Official HTTPS source",from:"Effective from",to:"Effective to",verified:"Verification date",nationalities:"Applicable nationality codes (ISO, comma separated)",state:"Review state",unverified:"Unverified",active:"Reviewed",stale:"Stale",reviewed:"I checked this official source",save:"Record source review",note:"New dossiers capture this evidence and rule version; historical dossiers retain their snapshot."},
+  fr:{title:"Source et vérification de la règle",source:"Source officielle HTTPS",from:"Applicable à partir du",to:"Applicable jusqu’au",verified:"Date de vérification",nationalities:"Codes de nationalité applicables (ISO, séparés par des virgules)",state:"État de vérification",unverified:"Non vérifié",active:"Vérifié",stale:"Périmé",reviewed:"J’ai vérifié cette source officielle",save:"Enregistrer la vérification",note:"Les nouveaux dossiers conservent la version et sa source ; les dossiers historiques gardent leur instantané."},
+  ar:{title:"مصدر القاعدة ومراجعتها",source:"المصدر الرسمي عبر HTTPS",from:"سارية من",to:"سارية حتى",verified:"تاريخ التحقق",nationalities:"رموز الجنسيات المعنية (ISO مفصولة بفواصل)",state:"حالة المراجعة",unverified:"غير متحقق",active:"مراجع",stale:"قديم",reviewed:"راجعت هذا المصدر الرسمي",save:"حفظ مراجعة المصدر",note:"تحتفظ الملفات الجديدة بالمصدر والإصدار، وتبقى السجلات التاريخية دون تغيير."},
+};
+export function RuleGovernanceForm({id,version,evidence,locale}:{id:string;version:number;evidence:Record<string,unknown>;locale:UiLocale}){
+  const copy=words[locale];const text=(key:string)=>typeof evidence[key]==="string"?String(evidence[key]):"";
+  return <form action={saveRuleGovernanceAction} className="space-y-4 border-t p-4"><h2 className="text-lg font-semibold">{copy.title} · {version}</h2><p>{copy.note}</p><input type="hidden" name="id" value={id}/>
+    {[["source",copy.source,"url","officialSource"],["effectiveFrom",copy.from,"date","effectiveFrom"],["effectiveTo",copy.to,"date","effectiveTo"],["verifiedDate",copy.verified,"date","verificationDate"]].map(([name,label,type,key])=><div key={name}><label className="label" htmlFor={`rule-${name}`}>{label}</label><input id={`rule-${name}`} name={name} type={type} defaultValue={text(key!)} className="input" maxLength={2048}/></div>)}
+    <label className="label" htmlFor="rule-nationalities">{copy.nationalities}</label><input id="rule-nationalities" name="nationalities" defaultValue={Array.isArray(evidence.nationalityApplicability)?evidence.nationalityApplicability.join(", "):""} maxLength={1250} className="input"/>
+    <label className="label" htmlFor="rule-state">{copy.state}</label><select id="rule-state" name="state" defaultValue={text("state")||"UNVERIFIED"} className="input"><option value="UNVERIFIED">{copy.unverified}</option><option value="ACTIVE">{copy.active}</option><option value="STALE">{copy.stale}</option></select>
+    <label className="flex min-h-11 items-center gap-2"><input type="checkbox" name="reviewed" value="yes"/>{copy.reviewed}</label><button className="btn btn-primary">{copy.save}</button>
+  </form>;
+}
