@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   encryptWebPush, isTrustedPushEndpoint, isValidSubscription, vapidAuthorization, vapidPublicKey,
 } from "../src/lib/web-push-crypto";
+import { isPushEligible, safeStaffPushLink } from "../src/lib/push-policy";
 
 const previousPub = process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
 const previousPriv = process.env.WEB_PUSH_VAPID_PRIVATE_KEY;
@@ -14,6 +15,25 @@ afterEach(() => {
 });
 
 describe("staff Web Push - encryption, identity and SSRF", () => {
+  it("excludes agencies and MFA/password pending users", () => {
+    const user = { role: "SUPER_ADMIN", agencyId: null, mustChangePassword: false } as const;
+    expect(isPushEligible(user)).toBe(true);
+    expect(isPushEligible({ role: "VISA_AGENT", agencyId: null, mustChangePassword: false })).toBe(true);
+    expect(isPushEligible({ role: "ACCOUNTING", agencyId: null, mustChangePassword: false })).toBe(true);
+    expect(isPushEligible({ role: "AGENCY_ADMIN", agencyId: "partner-id", mustChangePassword: false })).toBe(false);
+    expect(isPushEligible({ role: "AGENCY_USER", agencyId: "partner-id", mustChangePassword: false })).toBe(false);
+    expect(isPushEligible({ role: "ADMIN", agencyId: "partner-id", mustChangePassword: false })).toBe(false);
+    expect(isPushEligible({ ...user, mustChangePassword: true })).toBe(false);
+  });
+
+  it("rejects external URLs in lock screen actions", () => {
+    expect(safeStaffPushLink("/admin/applications/123?tab=documents")).toBe("/admin/applications/123?tab=documents");
+    for (const link of ["https://evil.example/", "//evil.example/", "/portal/notifications",
+      "/admin/../../portal", "/admin\\evil", "/admin%2f..%2fportal"]) {
+      expect(safeStaffPushLink(link).startsWith("/portal")).toBe(false);
+    }
+  });
+
   it("allows known push services only", () => {
     expect(isTrustedPushEndpoint("https://web.push.apple.com/Q/example")).toBe(true);
     expect(isTrustedPushEndpoint("https://fcm.googleapis.com/fcm/send/example")).toBe(true);

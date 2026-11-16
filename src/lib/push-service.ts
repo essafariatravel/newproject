@@ -3,30 +3,12 @@ import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { notifications, pushSubscriptions, users } from "@/db/schema";
 import { deliverWebPush, isValidSubscription, vapidPublicKey, type PushSubscriptionInfo } from "@/lib/web-push-crypto";
-import type { AuthUser } from "@/lib/types";
+import { STAFF_PUSH_ROLES, safeStaffPushLink } from "@/lib/push-policy";
+export { isPushEligible } from "@/lib/push-policy";
 
-const STAFF_ROLES = ["SUPER_ADMIN", "ADMIN", "VISA_AGENT", "ACCOUNTING"] as const;
 const MAX_DEVICES = 5;
 
-/** All server entrypoints must verify BOTH internal role and null agency ownership. */
-export function isPushEligible(user: Pick<AuthUser, "role" | "agencyId" | "mustChangePassword">): boolean {
-  return !user.agencyId && !user.mustChangePassword &&
-    (STAFF_ROLES as readonly string[]).includes(user.role);
-}
-
 export const endpointHash = (endpoint: string) => createHash("sha256").update(endpoint).digest("hex");
-
-/** Never include personal data, external URLs, passport numbers or message bodies in a push. */
-export function safeStaffPushLink(link: string | null): string {
-  if (!link || !/^\/admin(?:\/|$)/.test(link) || link.startsWith("//") ||
-      link.includes("\\") || /[\r\n]/.test(link)) return "/admin/notifications";
-  try {
-    const u = new URL(link, "https://visa.essafariavoyages.com");
-    return u.origin === "https://visa.essafariavoyages.com" &&
-      /^\/admin(?:\/|$)/.test(u.pathname)
-      ? u.pathname + u.search + u.hash : "/admin/notifications";
-  } catch { return "/admin/notifications"; }
-}
 
 /** Replaces only the same browser endpoint; never creates agency subscriptions. */
 export async function saveStaffSubscription(userId: string, sub: PushSubscriptionInfo): Promise<void> {
@@ -72,7 +54,7 @@ export async function dispatchStaffPush(notificationIds: string[]): Promise<void
       inArray(notifications.id, notificationIds),
       isNull(users.agencyId),
       eq(users.status, "ACTIVE"),
-      inArray(users.role, [...STAFF_ROLES]),
+      inArray(users.role, [...STAFF_PUSH_ROLES]),
     ));
   if (!events.length) return;
   const subs = await db.select().from(pushSubscriptions)

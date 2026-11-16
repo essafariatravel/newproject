@@ -70,6 +70,11 @@ export function PushSettings({ locale }: { locale: Locale }) {
         const registration = await navigator.serviceWorker.getRegistration("/");
         const existing = await registration?.pushManager.getSubscription();
         if (live) {
+          // Prepare the worker before the user tap: Safari requires the actual
+          // PushManager.subscribe call to be initiated by a user gesture.
+          if (status.configured) {
+            void navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" }).catch(() => {});
+          }
           setConfigured(status.configured);
           setKey(status.publicKey || "");
           setActive(Boolean(existing));
