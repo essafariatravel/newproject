@@ -12,18 +12,14 @@ import { applyMigrations } from "../../scripts/lib/migrations";
 
 const PORT = 5434;
 
-/** Mirror Supabase's built-in API roles only inside the disposable local test cluster. */
+/** Mirror Supabase's built-in API roles only in the disposable local test cluster. */
 async function ensureLocalSupabaseRoles(pool: Pool): Promise<void> {
-  await pool.query(`do $
-  begin
-    if not exists (select 1 from pg_roles where rolname = 'anon') then
-      create role anon nologin;
-    end if;
-    if not exists (select 1 from pg_roles where rolname = 'authenticated') then
-      create role authenticated nologin;
-    end if;
-  end;
-  $;`);
+  const rows = await pool.query<{rolname: string}>(
+    "select rolname from pg_roles where rolname in ('anon', 'authenticated')",
+  );
+  const existing = new Set(rows.rows.map(row => row.rolname));
+  if (!existing.has("anon")) await pool.query("create role anon nologin");
+  if (!existing.has("authenticated")) await pool.query("create role authenticated nologin");
 }
 // Module resets must not create a second owner of the same running cluster.
 type ClusterState = { pg: EmbeddedPostgres | null; ready: Promise<void> | null; directory: string | null };
