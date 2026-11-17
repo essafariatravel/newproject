@@ -25,7 +25,7 @@ Copy the secret directly to Vercel environment settings; never to GitHub, logs, 
 
 ## Additional security and reliability controls
 - Staff users can revoke all registered devices in one click. Revocation is server-side and survives an old browser subscription; deactivated user roles receive no events.
-- An existing endpoint cannot be claimed by another staff account. The previous owner must revoke the device first.
+- An existing endpoint cannot be claimed by another staff account. On a shared device, a conflict resets only the local browser subscription; the staff member can explicitly retry enrollment with a fresh endpoint. The previous owner's server-side stale row is culled on provider expiry.
 - Test pushes are limited to 3 per minute per staff account and subscription changes to 12 per hour by the existing atomic DB counter.
 - Provider send failures retry once when transient, with bounded batches and aggregate redacted logs. This is **best effort**, not durable at-least-once delivery. In-app events remain authoritative and are preserved.
 - Migration 0035 enables RLS and revokes all Data API grants from the push subscription table. Verify the Preview app's Postgres role retains owner/BYPASSRLS access before Production.

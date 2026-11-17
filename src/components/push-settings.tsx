@@ -22,7 +22,7 @@ const words = {
     revoked: "Tous les appareils ont été révoqués.",
     confirmRevoke: "Révoquer les notifications de tous vos appareils ? Vous devrez les réactiver un par un.",
     rateLimited: "Trop de tests. Veuillez réessayer dans une minute.",
-    alreadyOwned: "Cet appareil est déjà lié à un autre compte. Révoquez-le depuis ce compte avant de le réactiver.",
+    alreadyOwned: "Ancien abonnement d’un autre compte détecté et réinitialisé. Appuyez de nouveau sur Activer.",
   },
   en: {
     title: "Phone notifications", intro: "Receive VISA OS alerts even while the portal is closed.",
@@ -41,7 +41,7 @@ const words = {
     revoked: "All devices have been revoked.",
     confirmRevoke: "Stop notifications on all devices? You will need to re-enable them individually.",
     rateLimited: "Too many tests. Try again in one minute.",
-    alreadyOwned: "This device belongs to another account. Revoke it from the previous account before enrolling.",
+    alreadyOwned: "A previous account subscription was reset on this device. Tap Enable again to subscribe.",
   },
   ar: {
     title: "إشعارات الهاتف", intro: "احصل على تنبيهات نظام التأشيرات حتى عند إغلاق الموقع.",
@@ -60,7 +60,7 @@ const words = {
     revoked: "تم إلغاء ربط جميع الأجهزة.",
     confirmRevoke: "هل تريد إلغاء ربط جميع الأجهزة؟ يجب تفعيلها مرة أخرى لاحقًا.",
     rateLimited: "اختبارات كثيرة. حاول مجددًا بعد دقيقة.",
-    alreadyOwned: "هذا الجهاز مرتبط بحساب آخر. ألغِ ربطه من الحساب السابق أولًا.",
+    alreadyOwned: "تمت إعادة ضبط اشتراك حساب سابق على هذا الجهاز. اضغط على التفعيل مرة أخرى.",
   },
 } satisfies Record<Locale, Record<string, string>>;
 
@@ -139,6 +139,7 @@ export function PushSettings({ locale }: { locale: Locale }) {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") throw new Error(t.blocked);
       const worker = await navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" });
+      const previous = await worker.pushManager.getSubscription();
       const subscription = await worker.pushManager.subscribe({
         userVisibleOnly: true, applicationServerKey: toBytes(key),
       });
@@ -147,7 +148,11 @@ export function PushSettings({ locale }: { locale: Locale }) {
         body: JSON.stringify(subscription.toJSON()),
       });
       if (!saved.ok) {
-        if (saved.status !== 409) await subscription.unsubscribe();
+        // A shared browser can still have an old user's subscription.
+        // Never steal the other account's endpoint; reset it locally and
+        // require a new user gesture for the next subscription.
+        if (saved.status === 409 || !previous) await subscription.unsubscribe();
+        // An existing valid subscription must survive a temporary API error.
         throw new Error(saved.status === 409 ? t.alreadyOwned : saved.status === 429 ? t.rateLimited : t.failed);
       }
       setActive(true);
