@@ -29,7 +29,9 @@ Copy the secret directly to Vercel environment settings; never to GitHub, logs, 
 - Test pushes are limited to 3 per minute per staff account and subscription changes to 12 per hour by the existing atomic DB counter.
 - Provider send failures retry once when transient, with bounded batches and aggregate redacted logs. This is **best effort**, not durable at-least-once delivery. In-app events remain authoritative and are preserved.
 - Migration 0035 enables RLS and revokes all Data API grants from the push subscription table. Verify the Preview app's Postgres role retains owner/BYPASSRLS access before Production.
-- Complete Preview test of an actual business notification event and agency HTTP 403 results before Production approval.
+- Preview-only simulation is protected by an exact environment/branch/schema guard, staff authentication, same-origin checks and a per-user rate limit. It creates a clearly marked fake notification in the Preview DB and invokes the actual background delivery engine. Never activate in Production.
+- Complete a real agency submission in the Preview environment and verify actual business notifications and HTTP 403 agency isolation before Production approval.
+- Push deep links exclude all query strings and fragments to avoid personal information appearing in notification metadata.
 
 ## Rollback
 Disable the `WEB_PUSH_VAPID_*` environment variables. Opt-in stops immediately; private in-app notifications and mail remain unchanged. Database rows can be cleaned after an approved retention assessment.

@@ -16,6 +16,6 @@ export function safeStaffPushLink(link: string | null): string {
     const url = new URL(link, "https://visa.essafariavoyages.com");
     return url.origin === "https://visa.essafariavoyages.com" &&
       /^\/admin(?:\/|$)/.test(url.pathname)
-      ? url.pathname + url.search + url.hash : "/admin/notifications";
+      ? url.pathname : "/admin/notifications";
   } catch { return "/admin/notifications"; }
 }

@@ -9,6 +9,7 @@ const copy = {
     REGISTRATION_SUBMITTED: "Une agence demande son inscription.",
     TOPUP_REQUESTED: "Une nouvelle demande de recharge est arrivée.",
     TEST: "Les notifications mobiles fonctionnent.",
+    PREVIEW_APPLICATION_SUBMITTED: "[TEST PREVIEW] Un faux dossier visa a été soumis pour vérifier les alertes.",
   },
   en: {
     DEFAULT: "New notification. Open VISA OS for details.",
@@ -19,6 +20,7 @@ const copy = {
     REGISTRATION_SUBMITTED: "A new agency registration is awaiting review.",
     TOPUP_REQUESTED: "A new wallet top-up request was submitted.",
     TEST: "Mobile notifications are working.",
+    PREVIEW_APPLICATION_SUBMITTED: "[PREVIEW TEST] A simulated visa application notification was sent.",
   },
   ar: {
     DEFAULT: "إشعار جديد. افتح نظام التأشيرات للاطلاع على التفاصيل.",
@@ -29,6 +31,7 @@ const copy = {
     REGISTRATION_SUBMITTED: "توجد وكالة جديدة تنتظر المراجعة.",
     TOPUP_REQUESTED: "تم تقديم طلب جديد لشحن الرصيد.",
     TEST: "إشعارات الهاتف تعمل بنجاح.",
+    PREVIEW_APPLICATION_SUBMITTED: "[اختبار المعاينة] إشعار تجريبي لطلب تأشيرة غير حقيقي.",
   },
 };
 function safePath(raw) {

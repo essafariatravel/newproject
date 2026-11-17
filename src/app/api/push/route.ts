@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/auth";
 import { listStaffSubscriptions, revokeStaffSubscription, revokeAllStaffSubscriptions, isPushEligible, removeStaffSubscription, saveStaffSubscription } from "@/lib/push-service";
 import { isValidSubscription, vapidPublicKey } from "@/lib/web-push-crypto";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
+import { isStaffPushPreview } from "@/lib/push-preview";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ export async function GET() {
   try {
     const rows = await listStaffSubscriptions(user.id);
     return reply({
-      configured: !!publicKey, publicKey,
+      configured: !!publicKey, publicKey, canSimulate: isStaffPushPreview(),
       devices: rows.length,
       registeredHashes: rows.map(row => row.endpointHash),
       deviceList: rows.map(row => ({ id: row.id, createdAt: row.createdAt.toISOString() })),

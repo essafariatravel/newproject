@@ -16,6 +16,8 @@ const words = {
     setup: "Le service push n'est pas encore configuré par l'administrateur.",
     sent: "Notification test envoyée.", failed: "Impossible d'activer les notifications. Vérifiez les autorisations et réessayez.",
     device: "Chaque membre du Staff doit activer son propre téléphone.",
+    eventTest: "Simuler une notification de dossier (Preview)",
+    simulated: "Événement de test créé. Vérifiez la réception sur votre téléphone.",
     revokeAll: "Révoquer tous les appareils",
     revoked: "Tous les appareils ont été révoqués.",
     confirmRevoke: "Révoquer les notifications de tous vos appareils ? Vous devrez les réactiver un par un.",
@@ -33,6 +35,8 @@ const words = {
     setup: "Push delivery is not yet configured by the administrator.",
     sent: "Test notification sent.", failed: "Notifications could not be enabled. Check permissions and try again.",
     device: "Every Staff member must enable their own phone.",
+    eventTest: "Simulate a visa notification (Preview)",
+    simulated: "Test event created. Check your phone for the notification.",
     revokeAll: "Revoke all devices",
     revoked: "All devices have been revoked.",
     confirmRevoke: "Stop notifications on all devices? You will need to re-enable them individually.",
@@ -50,6 +54,8 @@ const words = {
     setup: "خدمة الإشعارات لم تُجهّز بعد.",
     sent: "تم إرسال الإشعار التجريبي.", failed: "تعذر تفعيل الإشعارات. تحقق من الأذونات.",
     device: "يجب على كل موظف تفعيل هاتفه بشكل مستقل.",
+    eventTest: "محاكاة إشعار ملف (معاينة)",
+    simulated: "تم إنشاء إشعار تجريبي. تحقق من الهاتف.",
     revokeAll: "إلغاء ربط جميع الأجهزة",
     revoked: "تم إلغاء ربط جميع الأجهزة.",
     confirmRevoke: "هل تريد إلغاء ربط جميع الأجهزة؟ يجب تفعيلها مرة أخرى لاحقًا.",
@@ -73,6 +79,7 @@ export function PushSettings({ locale }: { locale: Locale }) {
   const [key, setKey] = useState("");
   const [active, setActive] = useState(false);
   const [deviceCount, setDeviceCount] = useState(0);
+  const [canSimulate, setCanSimulate] = useState(false);
   const [supported, setSupported] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -86,7 +93,7 @@ export function PushSettings({ locale }: { locale: Locale }) {
       try {
         const response = await fetch("/api/push", { cache: "no-store" });
         if (!response.ok) throw new Error("PUSH_UNAVAILABLE");
-        const status = await response.json() as { configured: boolean; publicKey: string | null; registeredHashes: string[]; devices: number };
+        const status = await response.json() as { configured: boolean; publicKey: string | null; registeredHashes: string[]; devices: number; canSimulate: boolean };
         const registration = await navigator.serviceWorker.getRegistration("/");
         const existing = await registration?.pushManager.getSubscription();
         let isRegistered = false;
@@ -105,6 +112,7 @@ export function PushSettings({ locale }: { locale: Locale }) {
           setKey(status.publicKey || "");
           setActive(isRegistered);
           setDeviceCount(status.devices);
+          setCanSimulate(status.canSimulate);
         }
       } catch { if (live) setMessage(t.failed); }
       finally { if (live) setReady(true); }
@@ -175,6 +183,14 @@ export function PushSettings({ locale }: { locale: Locale }) {
     finally { setBusy(false); }
   }
 
+  async function simulateEvent() {
+    setBusy(true); setMessage("");
+    try {
+      const response = await fetch("/api/push/test-event", { method: "POST" });
+      setMessage(response.status === 429 ? t.rateLimited : response.status === 202 ? t.simulated : t.failed);
+    } catch { setMessage(t.failed); }
+    finally { setBusy(false); }
+  }
   async function revokeAll() {
     if (!window.confirm(t.confirmRevoke)) return;
     setBusy(true); setMessage("");
@@ -208,6 +224,7 @@ export function PushSettings({ locale }: { locale: Locale }) {
             {active ? t.deactivate : t.activate}
           </button>
           {active ? <button type="button" className="btn-secondary btn-sm" disabled={busy} onClick={test}>{t.test}</button> : null}
+          {active && canSimulate ? <button type="button" className="btn-secondary btn-sm" disabled={busy} onClick={simulateEvent}>{t.eventTest}</button> : null}
           {deviceCount > 0 ? <button type="button" className="btn-secondary btn-sm" disabled={busy} onClick={revokeAll}>{t.revokeAll} ({deviceCount})</button> : null}
         </div>
       </>}

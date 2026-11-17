@@ -73,6 +73,8 @@ export async function dispatchStaffPush(notificationIds: string[]): Promise<void
       inArray(notifications.id, notificationIds),
       isNull(users.agencyId),
       eq(users.status, "ACTIVE"),
+      eq(users.activationPending, false),
+      eq(users.mustChangePassword, false),
       inArray(users.role, [...STAFF_PUSH_ROLES]),
     ));
   if (!events.length) return;

@@ -27,7 +27,7 @@ describe("staff Web Push - encryption, identity and SSRF", () => {
   });
 
   it("rejects external URLs in lock screen actions", () => {
-    expect(safeStaffPushLink("/admin/applications/123?tab=documents")).toBe("/admin/applications/123?tab=documents");
+    expect(safeStaffPushLink("/admin/applications/123?tab=documents")).toBe("/admin/applications/123");
     for (const link of ["https://evil.example/", "//evil.example/", "/portal/notifications",
       "/admin/../../portal", "/admin\\evil", "/admin%2f..%2fportal"]) {
       expect(safeStaffPushLink(link).startsWith("/portal")).toBe(false);
