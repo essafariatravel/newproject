@@ -11,6 +11,20 @@ import EmbeddedPostgres from "embedded-postgres";
 import { applyMigrations } from "../../scripts/lib/migrations";
 
 const PORT = 5434;
+
+/** Mirror Supabase's built-in API roles only inside the disposable local test cluster. */
+async function ensureLocalSupabaseRoles(pool: Pool): Promise<void> {
+  await pool.query(`do $
+  begin
+    if not exists (select 1 from pg_roles where rolname = 'anon') then
+      create role anon nologin;
+    end if;
+    if not exists (select 1 from pg_roles where rolname = 'authenticated') then
+      create role authenticated nologin;
+    end if;
+  end;
+  $;`);
+}
 // Module resets must not create a second owner of the same running cluster.
 type ClusterState = { pg: EmbeddedPostgres | null; ready: Promise<void> | null; directory: string | null };
 const globalState = globalThis as typeof globalThis & { __essafariaTestCluster?: ClusterState };
@@ -22,7 +36,7 @@ async function start(): Promise<void> {
   // The connection is deliberately fixed; this flag cannot target a remote DB.
   if (process.env.ESSAFARIA_LOCAL_TEST_PG === "1") {
     const admin = new Pool({ connectionString: `postgresql://postgres:postgres@localhost:${PORT}/essafaria_test` });
-    try { await applyMigrations(admin, path.join(process.cwd(), "migrations")); }
+    try { await ensureLocalSupabaseRoles(admin); await applyMigrations(admin, path.join(process.cwd(), "migrations")); }
     finally { await admin.end(); }
     return;
   }
@@ -39,7 +53,7 @@ async function start(): Promise<void> {
   await state.pg.start();
   await state.pg.createDatabase("essafaria_test");
   const admin = new Pool({ connectionString: `postgresql://postgres:postgres@localhost:${PORT}/essafaria_test` });
-  try { await applyMigrations(admin, path.join(process.cwd(), "migrations")); }
+  try { await ensureLocalSupabaseRoles(admin); await applyMigrations(admin, path.join(process.cwd(), "migrations")); }
   finally { await admin.end(); }
 }
 
