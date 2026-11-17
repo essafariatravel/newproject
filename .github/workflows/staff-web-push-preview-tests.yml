@@ -43,3 +43,5 @@ jobs:
         run: npm test -- tests/staff-web-push.test.ts tests/staff-web-push-mobile.test.ts tests/staff-web-push-hardening.test.ts tests/staff-web-push-preview.test.ts
       - name: Real route authorization and agency 403 integration tests
         run: npm test -- tests/staff-web-push-api.test.ts
+      - name: Exact Production ledger 37 safety gate tests
+        run: node --test tests/staff-web-push-production-ledger.test.mjs
