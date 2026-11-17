@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { pushAvailability, isIOSLikeDevice } from "@/lib/push-capabilities";
 
 type Locale = "fr" | "en" | "ar";
 const words = {
@@ -8,7 +9,8 @@ const words = {
     title: "Notifications sur téléphone", intro: "Recevez les alertes VISA OS même lorsque le portail est fermé.",
     enabled: "Notifications activées sur cet appareil", disabled: "Notifications non activées",
     activate: "Activer sur cet appareil", deactivate: "Désactiver sur cet appareil",
-    test: "Envoyer une notification test", unsupported: "Ce navigateur ne prend pas en charge Web Push.",
+    test: "Envoyer une notification test", unsupported: "Ce navigateur ne prend pas en charge Web Push. Sur Android, utilisez une version récente de Chrome hors navigateur intégré.",
+    iosUnsupported: "Web Push nécessite iOS 16.4 ou ultérieur et VISA OS installé comme application sur l’écran d’accueil. Vérifiez votre version iOS et ouvrez l’icône de VISA OS.",
     install: "Sur iPhone : ouvrez le portail dans Safari, puis Partager → Sur l'écran d'accueil. Lancez VISA OS depuis son icône et réessayez.",
     blocked: "Notifications refusées dans les réglages du téléphone ou du navigateur.",
     setup: "Le service push n'est pas encore configuré par l'administrateur.",
@@ -19,7 +21,8 @@ const words = {
     title: "Phone notifications", intro: "Receive VISA OS alerts even while the portal is closed.",
     enabled: "Notifications enabled on this device", disabled: "Notifications not enabled",
     activate: "Enable on this device", deactivate: "Disable on this device",
-    test: "Send a test notification", unsupported: "This browser does not support Web Push.",
+    test: "Send a test notification", unsupported: "This browser does not support Web Push. On Android, use an up-to-date Chrome browser instead of an in-app browser.",
+    iosUnsupported: "Web Push requires iOS 16.4 or later and VISA OS installed as a Home Screen web app. Check your iOS version and launch VISA OS from its icon.",
     install: "On iPhone: open in Safari, Share → Add to Home Screen; launch VISA OS from its icon and retry.",
     blocked: "Notification permission is blocked in your browser or phone settings.",
     setup: "Push delivery is not yet configured by the administrator.",
@@ -30,7 +33,8 @@ const words = {
     title: "إشعارات الهاتف", intro: "احصل على تنبيهات نظام التأشيرات حتى عند إغلاق الموقع.",
     enabled: "الإشعارات مفعلة على هذا الجهاز", disabled: "الإشعارات غير مفعلة",
     activate: "تفعيل على هذا الجهاز", deactivate: "إلغاء التفعيل على هذا الجهاز",
-    test: "إرسال إشعار تجريبي", unsupported: "هذا المتصفح لا يدعم إشعارات الويب.",
+    test: "إرسال إشعار تجريبي", unsupported: "هذا المتصفح لا يدعم إشعارات الويب. على أندرويد استخدم أحدث إصدار من Chrome خارج المتصفح المدمج.",
+    iosUnsupported: "تتطلب الإشعارات iOS 16.4 أو أحدث وتثبيت VISA OS على الشاشة الرئيسية. تحقق من إصدار iOS وافتح التطبيق من أيقونته.",
     install: "على iPhone: افتح الموقع في Safari ثم مشاركة ← إضافة إلى الشاشة الرئيسية وأعد المحاولة.",
     blocked: "إذن الإشعارات محظور من إعدادات الهاتف أو المتصفح.",
     setup: "خدمة الإشعارات لم تُجهّز بعد.",
@@ -85,17 +89,24 @@ export function PushSettings({ locale }: { locale: Locale }) {
     return () => { live = false; };
   }, [t.failed]);
 
-  const iPhone = typeof navigator !== "undefined" && /iP(hone|ad|od)/.test(navigator.userAgent);
+  const iPhone = typeof navigator !== "undefined" &&
+    isIOSLikeDevice(navigator.userAgent, navigator.maxTouchPoints);
   const standalone = typeof window !== "undefined" && (
     window.matchMedia("(display-mode: standalone)").matches ||
     ("standalone" in navigator && Boolean((navigator as Navigator & { standalone?: boolean }).standalone))
   );
-  const needsInstall = iPhone && !standalone;
+  // iOS Safari/Chrome tabs intentionally do not expose PushManager. Show the
+  // installation instructions BEFORE treating the browser as unsupported.
+  const availability = pushAvailability(iPhone, standalone, supported);
 
   async function enable() {
     setMessage(""); setBusy(true);
     try {
       if (Notification.permission === "denied") throw new Error(t.blocked);
+      // On iOS this request MUST start in the user's tap handler. Do not
+      // await service-worker registration or an API call before prompting.
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") throw new Error(t.blocked);
       const worker = await navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" });
       const subscription = await worker.pushManager.subscribe({
         userVisibleOnly: true, applicationServerKey: toBytes(key),
@@ -143,9 +154,9 @@ export function PushSettings({ locale }: { locale: Locale }) {
     <h2 id="phone-push-title" className="text-lg font-semibold text-navy-900">{t.title}</h2>
     <p className="mt-1 text-sm text-slate-600">{t.intro}</p>
     {!ready ? <p role="status" className="mt-3 text-sm">…</p> :
-      !supported ? <p className="mt-3 text-sm text-slate-600">{t.unsupported}</p> :
+      availability === "install" ? <p role="status" className="mt-3 text-sm text-slate-600">{t.install}</p> :
+      availability === "unsupported" ? <p role="status" className="mt-3 text-sm text-slate-600">{iPhone ? t.iosUnsupported : t.unsupported}</p> :
       !configured ? <p className="mt-3 text-sm text-slate-600">{t.setup}</p> :
-      needsInstall ? <p className="mt-3 text-sm text-slate-600">{t.install}</p> :
       <>
         <p className="mt-3 text-sm font-medium text-navy-900">{active ? t.enabled : t.disabled}</p>
         <div className="mt-3 flex flex-wrap gap-2">
