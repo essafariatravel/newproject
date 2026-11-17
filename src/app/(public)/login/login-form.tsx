@@ -54,9 +54,9 @@ export function LoginForm({ copy, locale, botConfig }: { brandName: string; copy
 
   return (
     <>
-      <form action={formAction} onSubmit={event => { submittedIdentifier.current = String(new FormData(event.currentTarget).get("identifier") ?? "").trim().toLowerCase(); }} onReset={event => event.preventDefault()} className="mt-8 space-y-4">
+      <form action={formAction} onSubmit={event => { submittedIdentifier.current = String(new FormData(event.currentTarget).get("identifier") ?? "").trim().toLowerCase(); }} onReset={event => event.preventDefault()} className="auth-access-form">
         {state.error ? (
-          <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-4 text-base text-red-700">
+          <div role="alert" className="auth-access-error">
             {lockedResult ? (
               <>
                 <p>{lockedCopy.locked}</p>
@@ -87,14 +87,16 @@ export function LoginForm({ copy, locale, botConfig }: { brandName: string; copy
             className="input"
           />
         </div>
-        <PasswordField id="password" name="password" label={copy.password} autoComplete="current-password" required minLength={0} hint="" showLabel={copy.showPassword} hideLabel={copy.hidePassword}/>
+        <PasswordField id="password" name="password" label={copy.password} autoComplete="current-password" required minLength={0} hint="" showLabel={copy.showPassword} hideLabel={copy.hidePassword} className="auth-access-password"/>
+        <div className="auth-access-recovery">
+          <Link href="/forgot-password">{copy.forgotPassword}</Link>
+        </div>
         <TurnstileField ref={challenge} config={botConfig} action="password_login" locale={locale} onVerified={setVerified} />
-        <SubmitButton disabled={!verified || stillLocked} className="btn-primary w-full py-2" pendingLabel={copy.signingIn}>
+        <SubmitButton disabled={!verified || stillLocked} className="btn-primary auth-access-submit" pendingLabel={copy.signingIn}>
           {copy.signIn}
         </SubmitButton>
       </form>
-      <Link href="/forgot-password" className="mt-4 block text-center text-base text-iris-700 underline">{copy.forgotPassword}</Link>
-      <p className="mt-6 text-center text-xs text-slate-500">
+      <p className="auth-access-caption">
         {copy.footer}
       </p>
     </>
