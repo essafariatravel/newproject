@@ -40,4 +40,4 @@ jobs:
       - name: ESLint
         run: npm run lint
       - name: Push crypto and staff-only policy tests
-        run: npm test -- tests/staff-web-push.test.ts tests/staff-web-push-mobile.test.ts
+        run: npm test -- tests/staff-web-push.test.ts tests/staff-web-push-mobile.test.ts tests/staff-web-push-hardening.test.ts

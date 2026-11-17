@@ -3,7 +3,7 @@
 ## Scope and architecture
 - Branch is based on the verified live Production SHA `b9e2abce8a83f96aa0b2ccf6c2db968458d66cd8` (2026-11-16).
 - Push opt-in is available to internal `SUPER_ADMIN`, `ADMIN`, `VISA_AGENT`, `ACCOUNTING` with `agency_id IS NULL`. Agency users retain in-app notifications only.
-- Browser subscribes with standard Push API; server stores up to 5 endpoints per staff user, hashed endpoint keys and encrypted delivery keys in private application DB.
+- Browser subscribes with standard Push API; server stores up to 5 endpoints per staff user. Endpoint hashes and Web Push encryption parameters remain restricted to a private application database schema.
 - Server never sends passport, traveler name, free-form message or sensitive document text to lock screens.
 - Apple iOS 16.4+ requires the PWA to be installed on Home Screen. Chrome/Firefox/desktop browsers supporting Web Push work normally.
 - No service worker caching: offline access to private records is NOT enabled.
@@ -22,6 +22,14 @@
 node -e "const c=require('node:crypto').createECDH('prime256v1');c.generateKeys();console.log('WEB_PUSH_VAPID_PUBLIC_KEY='+c.getPublicKey().toString('base64url'));console.log('WEB_PUSH_VAPID_PRIVATE_KEY='+c.getPrivateKey().toString('base64url'))"
 ```
 Copy the secret directly to Vercel environment settings; never to GitHub, logs, or chat.
+
+## Additional security and reliability controls
+- Staff users can revoke all registered devices in one click. Revocation is server-side and survives an old browser subscription; deactivated user roles receive no events.
+- An existing endpoint cannot be claimed by another staff account. The previous owner must revoke the device first.
+- Test pushes are limited to 3 per minute per staff account and subscription changes to 12 per hour by the existing atomic DB counter.
+- Provider send failures retry once when transient, with bounded batches and aggregate redacted logs. This is **best effort**, not durable at-least-once delivery. In-app events remain authoritative and are preserved.
+- Migration 0035 enables RLS and revokes all Data API grants from the push subscription table. Verify the Preview app's Postgres role retains owner/BYPASSRLS access before Production.
+- Complete Preview test of an actual business notification event and agency HTTP 403 results before Production approval.
 
 ## Rollback
 Disable the `WEB_PUSH_VAPID_*` environment variables. Opt-in stops immediately; private in-app notifications and mail remain unchanged. Database rows can be cleaned after an approved retention assessment.

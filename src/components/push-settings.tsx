@@ -16,6 +16,11 @@ const words = {
     setup: "Le service push n'est pas encore configuré par l'administrateur.",
     sent: "Notification test envoyée.", failed: "Impossible d'activer les notifications. Vérifiez les autorisations et réessayez.",
     device: "Chaque membre du Staff doit activer son propre téléphone.",
+    revokeAll: "Révoquer tous les appareils",
+    revoked: "Tous les appareils ont été révoqués.",
+    confirmRevoke: "Révoquer les notifications de tous vos appareils ? Vous devrez les réactiver un par un.",
+    rateLimited: "Trop de tests. Veuillez réessayer dans une minute.",
+    alreadyOwned: "Cet appareil est déjà lié à un autre compte. Révoquez-le depuis ce compte avant de le réactiver.",
   },
   en: {
     title: "Phone notifications", intro: "Receive VISA OS alerts even while the portal is closed.",
@@ -28,6 +33,11 @@ const words = {
     setup: "Push delivery is not yet configured by the administrator.",
     sent: "Test notification sent.", failed: "Notifications could not be enabled. Check permissions and try again.",
     device: "Every Staff member must enable their own phone.",
+    revokeAll: "Revoke all devices",
+    revoked: "All devices have been revoked.",
+    confirmRevoke: "Stop notifications on all devices? You will need to re-enable them individually.",
+    rateLimited: "Too many tests. Try again in one minute.",
+    alreadyOwned: "This device belongs to another account. Revoke it from the previous account before enrolling.",
   },
   ar: {
     title: "إشعارات الهاتف", intro: "احصل على تنبيهات نظام التأشيرات حتى عند إغلاق الموقع.",
@@ -40,6 +50,11 @@ const words = {
     setup: "خدمة الإشعارات لم تُجهّز بعد.",
     sent: "تم إرسال الإشعار التجريبي.", failed: "تعذر تفعيل الإشعارات. تحقق من الأذونات.",
     device: "يجب على كل موظف تفعيل هاتفه بشكل مستقل.",
+    revokeAll: "إلغاء ربط جميع الأجهزة",
+    revoked: "تم إلغاء ربط جميع الأجهزة.",
+    confirmRevoke: "هل تريد إلغاء ربط جميع الأجهزة؟ يجب تفعيلها مرة أخرى لاحقًا.",
+    rateLimited: "اختبارات كثيرة. حاول مجددًا بعد دقيقة.",
+    alreadyOwned: "هذا الجهاز مرتبط بحساب آخر. ألغِ ربطه من الحساب السابق أولًا.",
   },
 } satisfies Record<Locale, Record<string, string>>;
 
@@ -57,6 +72,7 @@ export function PushSettings({ locale }: { locale: Locale }) {
   const [configured, setConfigured] = useState(false);
   const [key, setKey] = useState("");
   const [active, setActive] = useState(false);
+  const [deviceCount, setDeviceCount] = useState(0);
   const [supported, setSupported] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -70,9 +86,15 @@ export function PushSettings({ locale }: { locale: Locale }) {
       try {
         const response = await fetch("/api/push", { cache: "no-store" });
         if (!response.ok) throw new Error("PUSH_UNAVAILABLE");
-        const status = await response.json() as { configured: boolean; publicKey: string | null };
+        const status = await response.json() as { configured: boolean; publicKey: string | null; registeredHashes: string[]; devices: number };
         const registration = await navigator.serviceWorker.getRegistration("/");
         const existing = await registration?.pushManager.getSubscription();
+        let isRegistered = false;
+        if (existing) {
+          const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(existing.endpoint));
+          const hash = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join("");
+          isRegistered = status.registeredHashes.includes(hash);
+        }
         if (live) {
           // Prepare the worker before the user tap: Safari requires the actual
           // PushManager.subscribe call to be initiated by a user gesture.
@@ -81,7 +103,8 @@ export function PushSettings({ locale }: { locale: Locale }) {
           }
           setConfigured(status.configured);
           setKey(status.publicKey || "");
-          setActive(Boolean(existing));
+          setActive(isRegistered);
+          setDeviceCount(status.devices);
         }
       } catch { if (live) setMessage(t.failed); }
       finally { if (live) setReady(true); }
@@ -116,10 +139,11 @@ export function PushSettings({ locale }: { locale: Locale }) {
         body: JSON.stringify(subscription.toJSON()),
       });
       if (!saved.ok) {
-        await subscription.unsubscribe();
-        throw new Error(t.failed);
+        if (saved.status !== 409) await subscription.unsubscribe();
+        throw new Error(saved.status === 409 ? t.alreadyOwned : saved.status === 429 ? t.rateLimited : t.failed);
       }
       setActive(true);
+      setDeviceCount(n => n + 1);
     } catch (error) { setMessage(error instanceof Error ? error.message : t.failed); }
     finally { setBusy(false); }
   }
@@ -137,6 +161,7 @@ export function PushSettings({ locale }: { locale: Locale }) {
         await subscription.unsubscribe();
       }
       setActive(false);
+      setDeviceCount(n => Math.max(0, n - 1));
     } catch { setMessage(t.failed); }
     finally { setBusy(false); }
   }
@@ -145,7 +170,26 @@ export function PushSettings({ locale }: { locale: Locale }) {
     try {
       const response = await fetch("/api/push/test", { method: "POST" });
       const data = await response.json() as { delivered?: number };
-      setMessage(response.ok && (data.delivered || 0) > 0 ? t.sent : t.failed);
+      setMessage(response.status === 429 ? t.rateLimited : response.ok && (data.delivered || 0) > 0 ? t.sent : t.failed);
+    } catch { setMessage(t.failed); }
+    finally { setBusy(false); }
+  }
+
+  async function revokeAll() {
+    if (!window.confirm(t.confirmRevoke)) return;
+    setBusy(true); setMessage("");
+    try {
+      const result = await fetch("/api/push", {
+        method: "DELETE", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ all: true }),
+      });
+      if (!result.ok) throw new Error(t.failed);
+      const registration = await navigator.serviceWorker.getRegistration("/");
+      const existing = await registration?.pushManager.getSubscription();
+      if (existing) await existing.unsubscribe();
+      setActive(false);
+      setDeviceCount(0);
+      setMessage(t.revoked);
     } catch { setMessage(t.failed); }
     finally { setBusy(false); }
   }
@@ -164,6 +208,7 @@ export function PushSettings({ locale }: { locale: Locale }) {
             {active ? t.deactivate : t.activate}
           </button>
           {active ? <button type="button" className="btn-secondary btn-sm" disabled={busy} onClick={test}>{t.test}</button> : null}
+          {deviceCount > 0 ? <button type="button" className="btn-secondary btn-sm" disabled={busy} onClick={revokeAll}>{t.revokeAll} ({deviceCount})</button> : null}
         </div>
       </>}
     <p className="mt-3 text-xs text-slate-500">{t.device}</p>
