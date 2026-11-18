@@ -227,17 +227,7 @@ html[lang='ar'] .public-interior :is(h1,h2,dt) { letter-spacing: 0; line-height:
   .public-interior [data-cinematic-frame] { transform: none !important; }
 }
 
-/* Descriptive public navigation and professional visa preparation; editorial, no animations. */
-.platform-discovery { padding-block: clamp(3rem, 6vw, 5.5rem); background: var(--premium-white); color: var(--premium-ink); border-block: 1px solid var(--premium-line); }
-.platform-discovery-heading { display: grid; grid-template-columns: minmax(0,.95fr) minmax(0,1.05fr); gap: clamp(1.25rem,4vw,4rem); align-items: start; }
-.platform-discovery-heading h2 { font-size: clamp(1.8rem,3vw,3rem); letter-spacing: -.025em; line-height: 1.16; font-weight: 600; max-width: 23ch; }
-.platform-discovery-heading p { font-size: clamp(1.04rem,1.35vw,1.2rem); color: var(--premium-muted); line-height: 1.75; max-width: 72ch; }
-.platform-discovery-links { list-style: none; margin: clamp(2rem,4vw,3.4rem) 0 0; padding: 0; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0 clamp(1.25rem,4vw,4rem); }
-.platform-discovery-links li { min-width: 0; border-block-start: 1px solid var(--premium-line); padding-block: 1.35rem 1.6rem; }
-.platform-discovery-links h3 { font-size: clamp(1.1rem,1.5vw,1.3rem); font-weight: 600; line-height: 1.45; }
-.platform-discovery-links h3 a { display: inline-flex; min-height: 44px; align-items: center; color: var(--premium-ink); text-decoration: underline; text-underline-offset: .3em; }
-.platform-discovery-links p { max-width: 66ch; margin-block-start: .55rem; color: var(--premium-muted); line-height: 1.7; }
-.platform-discovery a:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+/* Partner readiness on B2B, without repeated home navigation. */
 .agency-readiness { display: grid; grid-template-columns: minmax(0,.95fr) minmax(0,1.05fr); gap: var(--interior-gap); border-block-start: 1px solid var(--premium-line); padding-block: clamp(2rem,4.5vw,4.5rem); }
 .agency-readiness-heading h2 { max-width: 22ch; }
 .agency-readiness-heading p { color: var(--premium-muted); line-height: 1.7; margin-block-start: 1.1rem; max-width: 60ch; }
@@ -249,6 +239,6 @@ html[lang='ar'] .public-interior :is(h1,h2,dt) { letter-spacing: 0; line-height:
 .agency-readiness-list p { margin-block-start: .4rem; color: var(--premium-muted); line-height: 1.7; }
 html[lang='ar'] :is(.platform-discovery-heading h2,.agency-readiness h2,.platform-discovery-links h3) { letter-spacing: 0; line-height: 1.5; }
 @media(max-width: 767px) {
-  .platform-discovery-heading,.platform-discovery-links,.agency-readiness { grid-template-columns: minmax(0,1fr); }
+  .agency-readiness { grid-template-columns: minmax(0,1fr); }
   .agency-readiness { gap: 1.5rem; }
 }

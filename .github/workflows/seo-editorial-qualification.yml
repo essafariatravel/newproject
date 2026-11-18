@@ -6,6 +6,7 @@ on:
       - seo/gsc-verified-lastmod-20261114
       - seo/legal-metadata-from-gsc-20261114
       - seo/b2b-algeria-relevance-20261118
+      - design/agency-identity-home-20261118
 
 permissions:
   contents: read
