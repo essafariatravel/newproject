@@ -26,7 +26,8 @@ export const SEO_DEFAULT_OG_IMAGE_HEIGHT = 821;
 // Omit lastmod where a reliable content-update date is not established.
 // Update this allowlist ONLY after verified significant page changes.
 const VERIFIED_PUBLIC_LASTMOD: Partial<Record<IndexablePublicSeoPage, string>> = {
-  b2b: "2026-11-14",
+  home: "2026-11-18",
+  b2b: "2026-11-18",
   about: "2026-11-14",
   faq: "2026-11-14",
 };
@@ -48,7 +49,7 @@ const PUBLIC_COPY: Record<
         "ESSAFARIA helps travel agencies in Algeria coordinate B2B visa and eVisa requests, documents and case follow-up in a secure partner platform.",
     },
     b2b: {
-      title: "B2B Visa & eVisa Services for Travel Agencies in Algeria",
+      title: "B2B Visa Outsourcing for Agencies in Algeria",
       description:
         "Partner with ESSAFARIA for professional visa and eVisa case coordination, document review and secure follow-up for travel agencies in Algeria.",
     },
@@ -75,7 +76,7 @@ const PUBLIC_COPY: Record<
         "ESSAFARIA accompagne les agences de voyages en Algérie avec une plateforme visa et eVisa B2B sécurisée : dossiers, documents et suivi des demandes.",
     },
     b2b: {
-      title: "Services visa et eVisa B2B pour agences en Algérie",
+      title: "Sous-traitance visa B2B pour agences en Algérie",
       description:
         "Partenariat visa et eVisa B2B en Algérie : ESSAFARIA accompagne les agences dans la préparation des dossiers, le contrôle documentaire et le suivi sécurisé.",
     },
@@ -102,7 +103,7 @@ const PUBLIC_COPY: Record<
         "توفر ESSAFARIA لوكالات السفر في الجزائر منصة B2B آمنة لتنسيق طلبات التأشيرات الإلكترونية والتأشيرات الأخرى ومراجعة الوثائق ومتابعة الملفات.",
     },
     b2b: {
-      title: "خدمات التأشيرات الإلكترونية B2B لوكالات السفر في الجزائر",
+      title: "خدمات التأشيرات B2B لوكالات السفر في الجزائر",
       description:
         "تعاون مع ESSAFARIA لتنسيق طلبات التأشيرات الإلكترونية والتأشيرات الأخرى لوكالات السفر في الجزائر ومراجعة الوثائق ومتابعة الملفات بأمان.",
     },
