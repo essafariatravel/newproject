@@ -1,29 +1,7 @@
 import Link from "next/link";
 import type { UiLocale } from "@/lib/ui-i18n";
 import { seoLocalizedPublicPath } from "@/lib/seo-manifest";
-import { PUBLIC_AGENCY_DISCOVERY, PUBLIC_AGENCY_READINESS } from "@/lib/public-agency-discovery";
-
-export function PublicAgencyDiscovery({ locale }: { locale: UiLocale }) {
-  const copy = PUBLIC_AGENCY_DISCOVERY[locale];
-  return (
-    <section className="platform-discovery" aria-labelledby="agency-discovery-title">
-      <div className="platform-width">
-        <div className="platform-discovery-heading">
-          <h2 id="agency-discovery-title">{copy.title}</h2>
-          <p>{copy.intro}</p>
-        </div>
-        <ul className="platform-discovery-links">
-          {copy.items.map(item => (
-            <li key={item.page}>
-              <h3><Link href={seoLocalizedPublicPath(item.page, locale)}>{item.title}</Link></h3>
-              <p>{item.summary}</p>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </section>
-  );
-}
+import { PUBLIC_AGENCY_READINESS } from "@/lib/public-agency-discovery";
 
 export function PublicAgencyReadiness({ locale }: { locale: UiLocale }) {
   const copy = PUBLIC_AGENCY_READINESS[locale];
