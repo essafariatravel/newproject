@@ -24,6 +24,7 @@ export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
   "seo/editorial-evidence-20261112",
   "seo/gsc-verified-lastmod-20261114",
   "seo/legal-metadata-from-gsc-20261114",
+  "seo/b2b-algeria-relevance-20261118",
 ] as const;
 
 export function automaticDatabaseChangesForbidden(branch: string | null | undefined): boolean {

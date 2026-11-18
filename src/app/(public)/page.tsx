@@ -5,6 +5,7 @@ import { publicBrandCopy } from "@/lib/public-brand-copy";
 import { registrationCopy } from "@/lib/i18n";
 import { buildPublicMetadata } from "@/lib/seo";
 import { PublicVisaChapters } from "@/components/public-visa-chapters";
+import { PublicAgencyDiscovery } from "@/components/public-agency-discovery";
 import { seoLocalizedPublicPath } from "@/lib/seo-manifest";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +45,7 @@ export default async function HomePage() {
         </div>
       </section>
       <PublicVisaChapters locale={locale} />
+      <PublicAgencyDiscovery locale={locale} />
       <section id="agency-access" className="partner-access" aria-labelledby="partner-title">
         <div className="platform-width access-layout">
           <div>

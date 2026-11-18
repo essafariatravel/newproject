@@ -5,6 +5,7 @@ on:
       - seo/editorial-evidence-20261112
       - seo/gsc-verified-lastmod-20261114
       - seo/legal-metadata-from-gsc-20261114
+      - seo/b2b-algeria-relevance-20261118
 
 permissions:
   contents: read
@@ -35,6 +36,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Public SEO and isolation tests
         run: npx vitest run tests/seo-editorial-evidence.test.ts tests/seo-company-identity.test.ts tests/seo-indexation.test.ts tests/seo-partner-content.test.ts tests/seo-public-performance.test.ts tests/seo-route-policy.test.ts tests/build-preview-guard.test.ts
+      - name: B2B relevance, localized links and privacy tests
+        run: npx vitest run tests/seo-commercial-intent.test.ts
       - name: Typecheck
         run: npm run typecheck
       - name: Lint

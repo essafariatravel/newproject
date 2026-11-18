@@ -6,6 +6,7 @@ import { buildPublicMetadata } from "@/lib/seo";
 import { seoLocalizedPublicPath } from "@/lib/seo-manifest";
 import { PARTNER_PUBLIC_GUIDE } from "@/lib/public-partner-guide";
 import { PublicOperationalEvidence } from "@/components/public-operational-evidence";
+import { PublicAgencyReadiness } from "@/components/public-agency-discovery";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +83,7 @@ export default async function B2BPage() {
             ))}
           </ol>
         </div>
+        <PublicAgencyReadiness locale={locale} />
         <PublicOperationalEvidence locale={locale} />
         <div className="interior-width partner-guide-limits">
           <h2>{guide.limitationsTitle}</h2>
