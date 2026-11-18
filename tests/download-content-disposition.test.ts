@@ -15,7 +15,7 @@ describe("document download Content-Disposition", () => {
     expect(header).toMatch(/^attachment; filename="[^"]+"; filename\*=UTF-8''/);
     expect([...header].every(char => char.charCodeAt(0) <= 0x7f)).toBe(true);
     expect(() => new Headers({ "Content-Disposition": header })).not.toThrow();
-    expect(decodeURIComponent(header.split("filename*=UTF-8''")[1])).toBe(name);
+    expect(decodeURIComponent(header.split("filename*=UTF-8''")[1] ?? "")).toBe(name);
   });
 
   it("uses a readable ASCII fallback and the original Unicode name", () => {
