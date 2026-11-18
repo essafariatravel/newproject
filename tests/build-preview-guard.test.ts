@@ -7,6 +7,11 @@ import {
 } from "../scripts/lib/build-policy";
 
 describe("Preview build database-change guard", () => {
+  it("prevents automatic database writes on the dedicated premium redesign Preview", () => {
+    expect(automaticDatabaseChangesForbidden("design/essafaria-premium-redesign")).toBe(true);
+    expect(automaticDatabaseChangesForbidden("design/unrelated-page")).toBe(false);
+  });
+
   it("protects the SEO branch from migrations and demo seed", () => {
     expect(AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES).toContain("seo/from-live-production-2026-11-09");
     expect(automaticDatabaseChangesForbidden("seo/from-live-production-2026-11-09")).toBe(true);
