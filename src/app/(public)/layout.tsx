@@ -9,6 +9,7 @@ import { contentT } from "@/lib/i18n-content";
 import { PublicHeader } from "@/components/public-header";
 import { UiLanguageSwitcher } from "@/components/ui-language-switcher";
 import { PublicMotion } from "@/components/public-motion";
+import { Ga4Consent } from "@/components/ga4-consent";
 import { PublicOrganizationData } from "@/components/public-organization-data";
 import { TravelPhotoCredits } from "@/components/travel-photo-credits";
 import {
@@ -124,6 +125,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
         <div className="border-t border-white/10">
           <div className="ess-container">
             <TravelPhotoCredits locale={locale} />
+            <Ga4Consent locale={locale} />
           </div>
           <div className="ess-container flex flex-wrap items-center justify-between gap-2 py-4 text-xs text-white/50">
             <span>© {new Date().getFullYear()} {brandName}. {tr("All rights reserved.")}</span>

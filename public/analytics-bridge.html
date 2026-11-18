@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Analytics transport</title>
+</head>
+<body>
+<script>
+(function () {
+  "use strict";
+  // This document is intentionally blank: Google code is never loaded until a
+  // trusted Production parent explicitly sends a valid public-only pageview.
+  var ORIGIN = "https://visa.essafariavoyages.com";
+  var ID = "G-GZXQJW9ZHE";
+  var initialized = false;
+
+  function allowedPath(value) {
+    if (typeof value !== "string" || !value.startsWith("/") || value.includes("?") ||
+        value.includes("#") || value.length > 100) return false;
+    var parts = value.split("/").filter(Boolean);
+    if (["en", "fr", "ar"].includes(parts[0])) parts.shift();
+    return parts.length === 0 ||
+      (parts.length === 1 && ["b2b", "about", "faq", "contact"].includes(parts[0]));
+  }
+
+  window.addEventListener("message", function (event) {
+    if (window.location.hostname !== "visa.essafariavoyages.com" ||
+        event.origin !== ORIGIN || event.source !== window.parent ||
+        !event.data || event.data.type !== "essafaria-ga4-page-view" ||
+        !allowedPath(event.data.pathname)) return;
+
+    var pathname = event.data.pathname;
+    if (!initialized) {
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = function () { window.dataLayer.push(arguments); };
+
+      // Google Consent Mode v2: all consent denied until the parent has
+      // explicitly informed this isolated bridge that opt-in is saved.
+      window.gtag("consent", "default", {
+        analytics_storage: "denied", ad_storage: "denied",
+        ad_user_data: "denied", ad_personalization: "denied"
+      });
+      window.gtag("consent", "update", { analytics_storage: "granted" });
+      window.gtag("js", new Date());
+      window.gtag("config", ID, {
+        send_page_view: false,
+        page_location: ORIGIN + pathname,
+        page_referrer: "",
+        allow_google_signals: false,
+        allow_ad_personalization_signals: false
+      });
+      var script = document.createElement("script");
+      script.async = true;
+      script.src = "https://www.googletagmanager.com/gtag/js?id=" + ID;
+      document.head.appendChild(script);
+      initialized = true;
+    }
+    // Only a controlled allowlisted, stripped path is ever sent to GA4.
+    // Browsing the private portal never changes this iframe's URL/history.
+    window.gtag("event", "page_view", {
+      send_to: ID,
+      page_path: pathname,
+      page_location: ORIGIN + pathname,
+      page_referrer: "",
+      page_title: "ESSAFARIA VISA OS"
+    });
+  });
+}());
+</script>
+</body>
+</html>
