@@ -35,30 +35,40 @@ from inbound certificates. Do not enable the ingestion cron or production API.
 
 ## Safe sequence to implement
 
-1. Add a Staff-only, audited binding of VISA OS application ID to the VFS
-   application/certificate reference **and the applicant passport number**.
-   Expose on the Staff China dossier, not as a new public service.
-   Prevent duplicate VFS references across open/closed dossiers.
-2. Backfill exact identifiers for existing online China requests where known.
-   Unlinked requests stay untouched. Do not create an application for an
-   unmatched/offline message.
-3. Add a Gmail intake job for the connected mailbox. Search:
+1. A Staff user enters ONLY the VFS China reference on the China dossier.
+   The write-once binding is unique across agencies, audited, and private.
+   Migration 0036 adds the binding table; the Staff panel is gated by
+   VFS_CHINA_STAFF_BINDING_ENABLED, default false.
+2. The PASSPORT document (current China document type `COD-PASS`) is read
+   automatically by a **locally controlled OCR worker**. Its OCR text is
+   validated as ICAO 9303 TD3 MRZ: passport-number, birth-date, expiry-date
+   and composite check digits. Strict parser and audited persistence sink are
+   implemented; migration 0037 stores immutable OCR provenance.
+   OCR providers, PDF rasterization and the ingestion worker are **not yet
+   installed or activated**. No external charged OCR API was authorized.
+   On any unreadable, inconsistent, or ambiguous scan, leave the dossier
+   unchanged for Staff review. Never ask agency users to type a passport number.
+   Reprocess existing China PASSPORT uploads in the background when the OCR
+   engine is qualified; do not alter their original PDFs.
+3. Backfill only matched, MRZ-verified online China requests. Unlinked
+   or offline VFS mails remain untouched; no new dossier is created.
+4. Add a Gmail intake job for the connected mailbox. Search:
    `to:visa@essafariavoyages.com from:service@visaforchina.org subject:"Online review completed" has:attachment`.
    Choose Google Apps Script time-driven scan or Gmail API subscription, with
    a durable retry cursor and least-privilege authorization. No hidden costs.
-4. Authenticate source; require one PDF <= 2MB with valid magic bytes and
+5. Authenticate source; require one PDF <= 2MB with valid magic bytes and
    extracted text showing the exact reference/form/passport. The pure policy
    lives in `src/lib/vfs-china-certificate.ts`; tests use synthetic identities.
-5. Resolve matching **only** against the exact Staff-bound reference AND
-   passport in a single, non-terminal eligible China application. If missing,
+6. Resolve matching **only** against the exact Staff-bound reference AND
+   OCR-verified passport in a single, non-terminal eligible China application. If missing,
    duplicate or conflicting, IGNORE_OFFLINE or REVIEW_REQUIRED — never approve.
-6. Finalize using a purpose-limited service actor with a complete audit trail
+7. Finalize using a purpose-limited service actor with a complete audit trail
    and the existing decision transaction/transition and approved-document
    policy. Preserve document integrity, notification agency scoping and
    processing-duration freeze. Idempotency MUST use Gmail message ID + PDF
    SHA-256 + VFS reference with a unique DB constraint; locking must avoid
    duplicate approvals from concurrent webhooks.
-7. Run staged tests (success, offline, duplicate, mismatched passport, wrong
+8. Run staged tests (success, offline, duplicate, mismatched passport, wrong
    agency, expired/decided dossier, malicious/spoofed source, malformed PDF,
    crash/retry, storage failure, MFA/RBAC regression). Publish gated by an
    explicit VFS_CHINA_AUTOMATION_ENABLED=false-by-default flag and approved
@@ -75,3 +85,22 @@ from inbound certificates. Do not enable the ingestion cron or production API.
   logs; retain only necessary audit hashes/IDs and secured official PDF.
 - No Production DB migration, automatic final decision or external webhook is
   activated by this initial matching-policy PR.
+
+## Work implemented (Preview only)
+- `src/lib/passport-mrz.ts`: ICAO checksum-verified MRZ parser.
+- `src/lib/passport-ocr-evidence.ts`: server-private persistence sink; it does
+  not itself perform OCR or accept public OCR text.
+- `src/lib/vfs-china-bindings.ts`: Staff-only audited, unique, write-once
+  VFS reference registration.
+- `src/app/actions/vfs-china.ts` and Staff China dossier panel, disabled
+  until the Preview/Production migration and feature flag are approved.
+- `src/lib/vfs-china-certificate.ts`: matching now refuses cases where
+  OCR provenance has not been established.
+- Preview-only migrations 0036 and 0037 verified. Production remains on 0035.
+
+## Activation gate
+Do NOT activate auto-decisions, OCR, Gmail polling or the Staff panel in
+Production until a supported OCR engine can process JPEG/PNG and scanned PDF
+passport photos in the deployed environment, with no third-party transfer
+unless authorized. OCR results must be tested against real redacted samples
+and MRZ checks, plus idempotent recovery and workflow tests.
