@@ -796,12 +796,18 @@ export async function recordApplicationDecision(params: DecisionInput): Promise<
         agencyId: app.agencyId, action: "APPLICATION_DECISION_RECORDED", entity: "application", entityId: app.id,
         metadata: { outcome: params.outcome, documentId, from: from.code, actorName: actor.name, actorUsername: actor.username }, ipAddress: params.ipAddress ?? null,
       });
-      const recipients = await tx.select({ id: users.id, agencyId: users.agencyId }).from(users)
-        .where(sql`${users.status} = 'ACTIVE' and (${users.agencyId} = ${app.agencyId} or ${users.agencyId} is null)`);
-      const events = recipients.filter((u) => u.id !== actor.id).map((u) => ({ userId: u.id,
+      // Only the owning agency receives final-decision notifications.
+      // Staff already recorded the outcome; no Staff in-app/push alert is needed.
+      const recipients = await tx.select({ id: users.id }).from(users)
+        .where(and(
+          eq(users.agencyId, app.agencyId),
+          eq(users.status, "ACTIVE"),
+          inArray(users.role, ["AGENCY_ADMIN", "AGENCY_USER"]),
+        ));
+      const events = recipients.map((u) => ({ userId: u.id,
         agencyId: app.agencyId, applicationId: app.id, type: "APPLICATION_DECISION",
         title: `Application ${app.reference}: ${to.name}`, body: note ?? to.name,
-        link: `/${u.agencyId ? "portal" : "admin"}/applications/${app.id}`,
+        link: `/portal/applications/${app.id}`,
       }));
       if (events.length) await tx.insert(notifications).values(events);
       await storageReferenceCommitted(tx,storageKey);
