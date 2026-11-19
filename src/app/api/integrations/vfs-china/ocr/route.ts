@@ -117,7 +117,7 @@ export async function POST(request: Request) {
   try {
     if (!vfsOcrWorkerEnabled()) throw new AppError("NOT_ENABLED", "OCR worker is disabled.");
     const raw = await readRequestBodyLimited(request, 100_000);
-    requireSignedVfsRequest(request, raw);
+    requireSignedVfsRequest(request, raw, "ocr");
     const data = ocrResult.parse(JSON.parse(raw.toString("utf8")) as unknown);
     const actor = await vfsServiceActor();
     const outcome = await recordVerifiedPassportFromOcr({ ...data, actor });
