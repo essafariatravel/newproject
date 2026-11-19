@@ -7,6 +7,7 @@ import { pickUiLocale } from "@/lib/ui-i18n";
 import { countryName } from "@/lib/country-names";
 import { toCsv, toXlsx, XLSX_CONTENT_TYPE, type Column } from "@/lib/tabular-export";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
+import { applicationElapsedMs } from "@/lib/time-in-status";
 
 /**
  * Staff export of the applications list — CSV or XLSX.
@@ -86,11 +87,19 @@ export async function GET(request: Request) {
     { key: "owner", header: "Owner" },
     { key: "fee", header: "Fee (DZD)", kind: "money" },
     { key: "submitted", header: "Submitted" },
-    { key: "waitingDays", header: "Days in status", kind: "number" },
+    { key: "durationDays", header: "Duration (days)", kind: "number" },
     { key: "updated", header: "Last update" },
   ];
 
-  const data = rows.map((r) => ({
+  const data = rows.map((r) => {
+    const ms = applicationElapsedMs({
+      isTerminal: r.isTerminal,
+      statusSince: r.statusSince,
+      submittedAt: r.app.submittedAt,
+      decisionAt: r.app.decisionAt,
+      completedAt: r.app.completedAt,
+    });
+    return {
     reference: r.app.reference,
     agency: r.agencyName ?? "",
     applicant: r.applicantSummary ?? "",
@@ -102,9 +111,10 @@ export async function GET(request: Request) {
     owner: r.ownerName ?? "",
     fee: Number(r.app.fee),
     submitted: r.app.submittedAt ? new Date(r.app.submittedAt).toISOString().slice(0, 10) : "",
-    waitingDays: Math.max(0, Math.floor((Date.now() - new Date(r.statusSince).getTime()) / 86_400_000)),
+    durationDays: ms === null ? null : Math.floor(ms / 86_400_000),
     updated: new Date(r.app.updatedAt).toISOString().slice(0, 10),
-  }));
+    };
+  });
 
   await recordAuditStrict({
     actor: user,
