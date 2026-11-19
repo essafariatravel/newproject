@@ -615,6 +615,23 @@ export async function reportData(filters: ReportFilters = {}) {
 /* ------------------------------ notifications --------------------------- */
 
 export type NotificationFilter = "all" | "action" | "applications" | "messages" | "wallet";
+
+/**
+ * Hide legacy APPLICATION_DECISION alerts addressed to ESSAFARIA Staff.
+ * The decision is already visible in the dossier audit; it belongs in the
+ * owning agency's inbox only. Historic rows remain untouched in the ledger.
+ * Applied consistently to page, bell and unread badge across all read paths.
+ */
+function visibleNotificationForRecipient(userId: string) {
+  return sql`(
+    ${notifications.type} <> 'APPLICATION_DECISION'
+    or exists (
+      select 1 from ${sql.raw(qualifiedTable("users"))} recipient
+      where recipient.id = ${userId} and recipient.agency_id is not null
+    )
+  )`;
+}
+
 /** The live bell needs only lightweight, recipient-scoped event headings. */
 export function notificationBellEventsForUser(userId: string) {
   return db.select({
@@ -624,13 +641,16 @@ export function notificationBellEventsForUser(userId: string) {
     createdAt: notifications.createdAt,
   })
     .from(notifications)
-    .where(eq(notifications.userId, userId))
+    .where(and(eq(notifications.userId, userId), visibleNotificationForRecipient(userId)))
     .orderBy(desc(notifications.createdAt), desc(notifications.id))
     .limit(20);
 }
 
 export async function listNotificationsForUser(userId: string, limit = 50, filter: NotificationFilter = "all") {
-  const conditions = [eq(notifications.userId, userId)];
+  const conditions = [
+    eq(notifications.userId, userId),
+    visibleNotificationForRecipient(userId),
+  ];
   const table = (name: string) => sql.raw(qualifiedTable(name));
   if (filter === "messages") conditions.push(eq(notifications.type, "MESSAGE_POSTED"));
   if (filter === "wallet") conditions.push(sql`(${notifications.type} like '%WALLET%' or ${notifications.type} = 'TOPUP_REQUESTED')`);
@@ -682,7 +702,11 @@ export async function unreadNotificationCount(userId: string): Promise<number> {
   const rows = await db
     .select({ total: count() })
     .from(notifications)
-    .where(and(eq(notifications.userId, userId), sql`${notifications.readAt} is null`));
+    .where(and(
+      eq(notifications.userId, userId),
+      sql`${notifications.readAt} is null`,
+      visibleNotificationForRecipient(userId),
+    ));
   return Number(rows[0]?.total ?? 0);
 }
 
