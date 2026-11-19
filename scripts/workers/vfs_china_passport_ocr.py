@@ -8,7 +8,7 @@ processing. Run on a trusted workstation/server with encrypted local disk.
 
 Configuration via environment (never commit secrets):
   VISA_OS_URL=https://<preview-host>
-  VFS_CHINA_HMAC_SECRET=<same value configured in Preview>
+  VFS_CHINA_OCR_HMAC_SECRET=<same value configured in Preview>
   VFS_CHINA_OCR_MAX_DOCS=10
 """
 from __future__ import annotations
@@ -34,7 +34,7 @@ API_TIMEOUT = 30
 
 def request(method: str, path: str, payload: dict | None = None) -> tuple[bytes, str]:
     root = os.environ.get("VISA_OS_URL", "").rstrip("/")
-    secret = os.environ.get("VFS_CHINA_HMAC_SECRET", "")
+    secret = os.environ.get("VFS_CHINA_OCR_HMAC_SECRET", "")
     if not root.startswith("https://") or len(secret) < 40 or urlsplit(root).path not in ("", "/"):
         raise RuntimeError("Missing approved HTTPS portal origin or HMAC secret")
     body = json.dumps(payload, separators=(",", ":")).encode("utf-8") if payload is not None else b""
