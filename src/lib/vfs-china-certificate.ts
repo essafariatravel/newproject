@@ -37,6 +37,8 @@ export interface ChinaApplicationCandidate {
   vfsReference: string | null;
   /** Sensitive passport number; use only for a transient server-side match. */
   passportNumber: string | null;
+  /** True only when passport_mrz_evidence exists after successful ICAO checks. */
+  passportOcrVerified: boolean;
 }
 
 export type VfsMatchResult =
@@ -44,7 +46,7 @@ export type VfsMatchResult =
   | { state: "IGNORED_OFFLINE" }
   | { state: "REVIEW_REQUIRED"; reason:
       "UNVERIFIED_MAIL" | "INCONSISTENT_CERTIFICATE" | "MISSING_IDENTIFIER" |
-      "AMBIGUOUS_MATCH" | "NOT_ELIGIBLE" };
+      "AMBIGUOUS_MATCH" | "NOT_ELIGIBLE" | "OCR_NOT_VERIFIED" };
 
 function mailbox(raw: string): string {
   return (raw.match(/<([^<>]+)>/)?.[1] ?? raw).trim().toLowerCase();
@@ -100,6 +102,7 @@ export function matchVfsChinaCertificate(
 
   const match = linked[0]!;
   if (!match.passportNumber) return { state: "REVIEW_REQUIRED", reason: "MISSING_IDENTIFIER" };
+  if (!match.passportOcrVerified) return { state: "REVIEW_REQUIRED", reason: "OCR_NOT_VERIFIED" };
   if (normalizedId(match.passportNumber) !== normalizedId(certificate.passportNumber))
     return { state: "REVIEW_REQUIRED", reason: "INCONSISTENT_CERTIFICATE" };
   if (match.destinationIso2 !== "CN" || !["IN_PROCESS", "EMBASSY_SENT"].includes(match.statusCode))
