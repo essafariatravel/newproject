@@ -25,6 +25,8 @@ Les styles de `src/app/premium-foundations.css` s’activent sur un conteneur `.
 | `.premium-dialog` | Sur un dialogue natif ou le dialogue accessible existant. Donner un titre, un bouton de fermeture et rendre le focus au déclencheur. |
 | `.premium-notice` | Présenter une information avec `role="status"` et une erreur avec `role="alert"`. Le texte explique l’état et son action possible. |
 
-La connexion utilise une entrée unique de 440 à 680 ms. Les liens et boutons réagissent en 160 ms. La préférence de mouvement réduit supprime les déplacements. Le hublot est un recadrage intact de la maquette, sans couche de nuages indépendante.
+Sur ordinateur, la signature horizontale officielle partage un axe avec « Visa OS ». Sur mobile, la version empilée garde les deux écritures lisibles. Le filet du pied de page reprend les marges du bandeau.
+
+Le trait bleu passe derrière le hublot et s’affine à ses extrémités. Au focus du champ e-mail, le filet doré se prolonge en 200 ms. L’entrée de la page dure de 440 à 680 ms. Dans la photographie, seuls les nuages sous l’horizon se déplacent de deux pixels sur un cycle de 24 secondes. Avec la préférence de mouvement réduit, la page présente directement la composition fixe.
 
 En arabe, le flux de lecture inverse les colonnes, le menu et l’œil du mot de passe. Le logo, le paysage et les adresses e-mail gardent leur orientation. Le widget Cloudflare affiche son propre état et possède son propre rendu.

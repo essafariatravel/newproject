@@ -21,7 +21,9 @@ async function checkView(page, locale, size) {
   await page.evaluate(async () => {
     await document.fonts.ready;
     await Promise.all([...document.querySelectorAll(".premium-login img")].map(img => img.decode()));
-    await Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {})));
+    await Promise.all(document.getAnimations()
+      .filter(animation => animation.effect?.getTiming().iterations !== Infinity)
+      .map(animation => animation.finished.catch(() => {})));
   });
   const geometry = await screen.evaluate(root => {
     const box = selector => root.querySelector(selector).getBoundingClientRect();
@@ -29,6 +31,11 @@ async function checkView(page, locale, size) {
       language: root.lang,
       direction: getComputedStyle(root).direction,
       background: getComputedStyle(root).backgroundColor,
+      brandAsset: new URL(root.querySelector(".login-brand img").currentSrc).pathname,
+      photoTransform: getComputedStyle(root.querySelector(".login-window img")).transform,
+      orbitTransform: getComputedStyle(root.querySelector(".login-orbit-direction")).transform,
+      orbitSize: getComputedStyle(root.querySelector(".login-orbit-wide")).display === "none" ? "mobile" : "desktop",
+      cloudDuration: getComputedStyle(root.querySelector(".login-cloud-drift")).animationDuration,
       emailDirection: getComputedStyle(root.querySelector("#email")).direction,
       windowLeft: box(".login-window").x,
       titleLeft: box("h1").x,
@@ -41,6 +48,11 @@ async function checkView(page, locale, size) {
   assert.equal(geometry.direction, locale === "ar" ? "rtl" : "ltr");
   assert.equal(geometry.emailDirection, "ltr");
   assert.equal(geometry.background, "rgb(255, 255, 255)");
+  assert.equal(geometry.brandAsset, size === "desktop" ? "/images/login/essafaria-horizontal.webp" : "/images/essafaria-logo-header.webp");
+  assert.equal(geometry.photoTransform, "none");
+  assert.equal(geometry.orbitTransform, locale === "ar" ? "matrix(-1, 0, 0, 1, 0, 0)" : "none");
+  assert.equal(geometry.orbitSize, size);
+  assert.equal(geometry.cloudDuration, "24s");
   assert.equal(geometry.overflow, 0);
   assert.ok(geometry.titleTop < geometry.formTop);
   assert.equal(geometry.windowLeft < geometry.titleLeft, size === "desktop" ? locale !== "ar" : locale === "ar");
@@ -49,7 +61,24 @@ async function checkView(page, locale, size) {
   assert.equal(await screen.locator(".login-register a").getAttribute("href"), "/agency/register?lang=" + locale);
   assert.equal(await screen.locator(".login-recovery a").getAttribute("href"), "/forgot-password?lang=" + locale);
   const capture = path.join(folder, stamp + "-login-" + size + "-" + locale + ".png");
-  await page.screenshot({ path: capture, fullPage: true });
+  const png = await page.screenshot({ path: capture, fullPage: true, animations: "disabled" });
+  if (size === "desktop") {
+    const visibleInk = await page.evaluate(async data => {
+      // Full-page capture can repaint a mirrored SVG differently from the live viewport.
+      const curve = document.querySelector(".login-orbit-wide .login-orbit-ink");
+      const point = curve.getPointAtLength(curve.getTotalLength() * .12).matrixTransform(curve.getScreenCTM());
+      const image = new Image();
+      image.src = "data:image/png;base64," + data;
+      await image.decode();
+      const sample = document.createElement("canvas");
+      sample.width = sample.height = 24;
+      const context = sample.getContext("2d");
+      context.drawImage(image, point.x + scrollX - 12, point.y + scrollY - 12, 24, 24, 0, 0, 24, 24);
+      const rgba = context.getImageData(0, 0, 24, 24).data;
+      return rgba.some((red, i) => i % 4 === 0 && red < 215 && rgba[i + 2] > red + 8);
+    }, png.toString("base64"));
+    assert.ok(visibleInk, "The orbital stroke must be visible in the " + locale + " full-page capture");
+  }
   return path.basename(capture);
 }
 
@@ -67,6 +96,11 @@ async function main() {
     }
     const email = page.locator("#email");
     const password = page.locator("#password");
+    const gold = page.locator(".login-orbit-compact .login-orbit-gold");
+    const idleLength = await gold.evaluate(el => parseFloat(getComputedStyle(el).strokeDasharray));
+    assert.ok(idleLength > 0 && idleLength < 1);
+    await email.focus();
+    await page.waitForFunction(() => parseFloat(getComputedStyle(document.querySelector(".login-orbit-compact .login-orbit-gold")).strokeDasharray) === 1);
     await email.fill("visual-review@example.invalid");
     await password.fill("visual-fixture");
     const eye = page.getByTestId("password-toggle");
@@ -89,6 +123,10 @@ async function main() {
     await page.goto(new URL("/login?lang=ar&reset=complete", origin).href);
     assert.equal(await page.locator(".premium-notice[data-tone=success]").isVisible(), true);
     assert.equal(await page.locator(".login-window").evaluate(el => getComputedStyle(el).animationName), "none");
+    assert.equal(await page.locator(".login-cloud-field").evaluate(el => getComputedStyle(el).display), "none");
+    assert.equal(await page.locator(".login-orbit-direction").evaluate(el => getComputedStyle(el).animationName), "none");
+    await email.focus();
+    assert.equal(await gold.evaluate(el => parseFloat(getComputedStyle(el).strokeDasharray)), idleLength);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 320);
     for (const locale of Object.keys(titles)) {
       await page.goto(new URL("/login?lang=" + locale, origin).href);
@@ -114,7 +152,7 @@ async function main() {
     await page.getByRole("link", { name: "Mot de passe oublié ?" }).click();
     await page.waitForURL(url => url.pathname === "/forgot-password");
     assert.equal(await page.locator(".premium-public-header").isVisible(), true);
-    console.log(JSON.stringify({ captures, checked: ["native verification slot", "password visibility", "locale switch and input retention", "320px and 200% type", "motion preference", "notices", "recovery navigation"] }, null, 2));
+    console.log(JSON.stringify({ captures, checked: ["responsive official artwork", "RTL orbit and fixed photograph", "24-second clouds and focus trace", "reduced motion", "native verification slot", "password visibility", "locale switch and input retention", "320px and 200% type", "notices", "recovery navigation"] }, null, 2));
   } finally {
     await browser.close();
   }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { LoginWindow } from "@/components/login-window";
 import { UiLanguageSwitcher } from "@/components/ui-language-switcher";
 import { premiumLoginCopy } from "@/lib/premium-login-copy";
 import { seoLocalizedPublicPath } from "@/lib/seo-manifest";
@@ -21,7 +22,14 @@ export function PremiumLoginShell({ locale, logoUrl, brandName, returnPath, regi
     <div className="premium-ui premium-login" lang={locale} dir={locale === "ar" ? "rtl" : "ltr"}>
       <header className="login-masthead">
         <Link href={home} className="login-brand">
-          <img src={logoUrl ?? "/images/essafaria-logo.png"} width="1517" height="1072" alt={logoUrl ? brandName : "ESSAFARIA TRAVEL"} />
+          {logoUrl ? (
+            <img className="login-custom-logo" src={logoUrl} width="1517" height="1072" alt={brandName} />
+          ) : (
+            <picture>
+              <source media="(max-width: 46rem)" srcSet="/images/essafaria-logo-header.webp" width="160" height="113" />
+              <img src="/images/login/essafaria-horizontal.webp" width="612" height="187" alt="ESSAFARIA TRAVEL" />
+            </picture>
+          )}
           <span dir="ltr">Visa OS</span>
         </Link>
         <Link className="login-back" href={home}>{copy.back}</Link>
@@ -33,9 +41,7 @@ export function PremiumLoginShell({ locale, logoUrl, brandName, returnPath, regi
         </div>
       </header>
       <section className="login-composition" aria-labelledby="login-welcome">
-        <div className="login-window" aria-hidden="true">
-          <img src="/images/login/approved-window.webp" width="482" height="682" fetchPriority="high" alt="" />
-        </div>
+        <LoginWindow />
         <div className="login-intro">
           <h1 id="login-welcome" key={locale}>
             <span>{copy.title[0]}</span>{" "}<span>{copy.title[1]}</span>
@@ -49,7 +55,7 @@ export function PremiumLoginShell({ locale, logoUrl, brandName, returnPath, regi
       </section>
       <footer className="login-colophon">
         <span dir="ltr">© ESSAFARIA TRAVEL</span>
-        <p>{disclosure}</p>
+        <p>{disclosure.replace(". ", ".\n")}</p>
       </footer>
     </div>
   );
