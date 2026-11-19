@@ -28,6 +28,7 @@ const dossier: ChinaApplicationCandidate = {
   statusCode: "IN_PROCESS",
   vfsReference: reference,
   passportNumber: passport,
+  passportOcrVerified: true,
 };
 
 describe("VFS China certificate ingestion safety contract", () => {
@@ -53,6 +54,12 @@ describe("VFS China certificate ingestion safety contract", () => {
     expect(matchVfsChinaCertificate(mail, parseVfsCertificateText(pdfText), [{...dossier, passportNumber: "X99887766"}]))
       .toEqual({ state: "REVIEW_REQUIRED", reason: "INCONSISTENT_CERTIFICATE" });
   });
+  it("refuses auto-approval until the passport MRZ has been verified by OCR", () => {
+    expect(matchVfsChinaCertificate(mail, parseVfsCertificateText(pdfText),
+      [{ ...dossier, passportOcrVerified: false }]))
+      .toEqual({ state: "REVIEW_REQUIRED", reason: "OCR_NOT_VERIFIED" });
+  });
+
   it("requires passport number to be structured, never guesses from the attached image or contact", () => {
     expect(matchVfsChinaCertificate(mail, parseVfsCertificateText(pdfText), [{...dossier, passportNumber: null}]))
       .toEqual({ state: "REVIEW_REQUIRED", reason: "MISSING_IDENTIFIER" });
