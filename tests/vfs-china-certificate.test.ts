@@ -44,6 +44,14 @@ describe("VFS China certificate ingestion safety contract", () => {
     expect(matchVfsChinaCertificate(mail, parseVfsCertificateText(pdfText), [dossier]))
       .toEqual({ state: "MATCHED", applicationId: "app-1", agencyId: "owning-agency-1" });
   });
+  it("matches the numeric Application Form No. entered by Staff before the certificate arrives", () => {
+    expect(matchVfsChinaCertificate(mail, parseVfsCertificateText(pdfText),
+      [{...dossier, vfsReference: "2026111775482696540"}]))
+      .toEqual({ state: "MATCHED", applicationId: "app-1", agencyId: "owning-agency-1" });
+    expect(matchVfsChinaCertificate(mail, parseVfsCertificateText(pdfText),
+      [dossier, {...dossier, applicationId: "app-2", vfsReference: "2026111775482696540"}]))
+      .toEqual({ state: "REVIEW_REQUIRED", reason: "AMBIGUOUS_MATCH" });
+  });
   it("ignores offline VFS requests instead of creating dossiers", () => {
     expect(matchVfsChinaCertificate(mail, parseVfsCertificateText(pdfText), []))
       .toEqual({ state: "IGNORED_OFFLINE" });
