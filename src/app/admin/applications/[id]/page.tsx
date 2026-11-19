@@ -296,8 +296,8 @@ export default async function AdminApplicationDetailPage({
                       <div className="min-w-[220px] flex-1">
                         <label htmlFor="vfs-china-reference" className="label">{ct("VFS reference")}</label>
                         <input id="vfs-china-reference" name="vfsReference" className="input font-mono"
-                          placeholder="ALG..." maxLength={32} required autoComplete="off"
-                          pattern="ALG[A-Za-z0-9]{10,26}" />
+                          placeholder="ALG… / 202611…" maxLength={32} required autoComplete="off"
+                          pattern="(?:ALG[A-Za-z0-9]{10,26}|[0-9]{12,24})" />
                       </div>
                       <SubmitButton className="btn-secondary btn-sm" pendingLabel={ct("Saving…")}>{ct("Save reference")}</SubmitButton>
                     </form>
