@@ -630,6 +630,23 @@ export const pushSubscriptions = pgTable(
   (t) => [index("push_subscriptions_user_idx").on(t.userId, t.updatedAt)],
 );
 
+/**
+ * Immutable evidence that a passport number came from a private OCR extraction
+ * and passed all ICAO TD3 MRZ checks. Never surface raw OCR output to agencies.
+ */
+export const passportMrzEvidence = pgTable(
+  "passport_mrz_evidence",
+  {
+    applicationId: uuid("application_id").primaryKey().references(() => applications.id),
+    documentId: uuid("document_id").notNull().references(() => documents.id),
+    verifiedBy: uuid("verified_by").notNull().references(() => users.id),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }).notNull().defaultNow(),
+    extractorVersion: text("extractor_version").notNull(),
+  },
+  (t) => [index("passport_mrz_document_idx").on(t.documentId)],
+);
+
+
 export const communications = pgTable(
   "communications",
   {
