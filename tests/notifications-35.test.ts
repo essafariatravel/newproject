@@ -197,8 +197,7 @@ describe("§34 notifications — every required event produces a notification", 
       expect(n.title).toContain(app.reference);
     }
     // Final outcomes never create a duplicate Staff alert.
-    const staff = await userByEmail("admin@test.example");
-    const staffRows = await listNotificationsForUser(staff.id);
+    const staffRows = await listNotificationsForUser((await userByEmail("admin@test.example")).id);
     expect(staffRows.some((n) => n.type === "APPLICATION_DECISION" && n.applicationId === app.id)).toBe(false);
   });
 
