@@ -11,6 +11,8 @@
 export const VFS_CHINA_SENDER = "service@visaforchina.org";
 export const VFS_CHINA_ALIAS = "visa@essafariavoyages.com";
 export const VFS_CHINA_REFERENCE = /^ALG[A-Z0-9]{10,26}$/;
+/** Staff may pre-enter the VFS numeric Application Form No. (available earlier). */
+export const VFS_CHINA_BINDING_REFERENCE = /^(?:ALG[A-Z0-9]{10,26}|[0-9]{12,24})$/;
 
 export interface VfsChinaMailMetadata {
   from: string;
@@ -96,7 +98,9 @@ export function matchVfsChinaCertificate(
   if (!certificate || certificate.reference !== mailReference)
     return { state: "REVIEW_REQUIRED", reason: "INCONSISTENT_CERTIFICATE" };
 
-  const linked = candidates.filter((c) => c.vfsReference && normalizedId(c.vfsReference) === certificate.reference);
+  const linked = candidates.filter((c) => c.vfsReference &&
+    (normalizedId(c.vfsReference) === certificate.reference ||
+     normalizedId(c.vfsReference) === certificate.applicationFormNumber));
   if (!linked.length) return { state: "IGNORED_OFFLINE" };
   if (linked.length !== 1) return { state: "REVIEW_REQUIRED", reason: "AMBIGUOUS_MATCH" };
 
