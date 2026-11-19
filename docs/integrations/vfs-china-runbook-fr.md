@@ -14,9 +14,7 @@
    le numéro normalisé dans `applicants.passport_number` et conserve la preuve
    documentaire dans `passport_mrz_evidence`; aucun OCR brut n'est conservé.
    Les dossiers ambigus ne sont pas modifiés.
-3. Un Staff ESSAFARIA renseigne **manuellement la référence VFS** sur son
-   dossier Chine. Une contrainte UNIQUE interdit qu'une référence appartienne
-   à deux demandes, et chaque saisie est journalisée.
+3. Un Staff ESSAFARIA renseigne **manuellement soit la référence ALG, soit le numéro de formulaire VFS numérique** sur son dossier Chine. Le numéro de formulaire peut être disponible avant l'e-mail final. Une contrainte UNIQUE interdit qu'une référence appartienne à deux demandes, et chaque saisie est journalisée.
 4. Un **Google Apps Script** installé par le propriétaire du compte Gmail
    recherche les messages envoyés à l'alias `visa@essafariavoyages.com`.
    Il vérifie les en-têtes Gmail, convertit temporairement le PDF en Google
@@ -45,7 +43,7 @@
 - `scripts/workers/vfs_china_passport_ocr.py` (OCR local Python stdlib +
   exécutables `tesseract` et `pdftoppm`; les fichiers temporaires sont supprimés)
 - `scripts/integrations/vfs-china-gmail-apps-script.js` (mail/Drive)
-- `migrations/0036*`, `0037*`, `0038*` (tables privées)
+- `migrations/0036*`, `0037*`, `0038*`, `0039*` (tables privées et formats VFS)
 - Staff : champ de saisie de référence VFS, visible uniquement quand le
   drapeau d'activation correspondant est activé
 - Tests unitaires/contrats (HMAC, MRZ, états, isolation).
@@ -133,3 +131,15 @@ Tester sur la **base de test isolée uniquement** :
   sans procédure de réconciliation Staff.
 - Production reste sur la version en service tant que ces prérequis ne sont
   pas validés; flags false ou absents par défaut.
+
+## Vérification actuelle (branch Preview)
+
+- Les compilations Next.js/TypeScript Vercel du code sont READY.
+- Les migrations 0036 à 0039 existent dans le schéma **visa_os_preview**,
+  pas dans le schéma Production **visa_os**.
+- Le PDF VFS réel fourni a été contrôlé en lecture seule : ses champs
+  Certificate No., Application Form No. et Passport No. ont chacun un
+  résultat unique avec les expressions prévues, sans OCR du certificat.
+- Les essais d'acceptation avec une session Staff, le moteur Tesseract sur
+  les passeports des agences, et la réception Gmail en condition réelle
+  restent à effectuer. Ne pas annoncer le service comme actif.
