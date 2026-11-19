@@ -32,6 +32,36 @@ export function currentStatusSince(
   return newest ?? fallback;
 }
 
+/** Immutable processing time for completed dossiers, live status wait for open ones.
+ *
+ * A final dossier is measured from submission to its recorded decision (or,
+ * for cancellation/legacy closures, to the final status transition). Never
+ * use the wall clock for a terminal status. If timestamps are unavailable or
+ * inconsistent, return null instead of inventing a duration.
+ */
+export interface ApplicationElapsedInput {
+  isTerminal: boolean;
+  statusSince: Date | string | null | undefined;
+  submittedAt?: Date | string | null;
+  decisionAt?: Date | string | null;
+  completedAt?: Date | string | null;
+}
+
+function instantMs(value: Date | string | null | undefined): number | null {
+  if (value == null) return null;
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+export function applicationElapsedMs(input: ApplicationElapsedInput, now: Date = new Date()): number | null {
+  const start = input.isTerminal ? instantMs(input.submittedAt) : instantMs(input.statusSince);
+  const finish = input.isTerminal
+    ? instantMs(input.decisionAt) ?? instantMs(input.completedAt) ?? instantMs(input.statusSince)
+    : instantMs(now);
+  if (start == null || finish == null || finish < start) return null;
+  return finish - start;
+}
+
 /** Whole days between two instants (never negative). */
 export function elapsedDays(from: Date, now: Date = new Date()): number {
   const ms = Math.max(0, now.getTime() - from.getTime());
