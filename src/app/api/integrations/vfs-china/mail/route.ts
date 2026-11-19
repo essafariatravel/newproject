@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import {
@@ -13,7 +13,7 @@ import { validateDocumentFormat } from "@/lib/upload-validation";
 import { readRequestBodyLimited } from "@/lib/http-body";
 import {
   inspectVfsChinaMail, matchVfsChinaCertificate, parseVfsCertificateText,
-  type ChinaApplicationCandidate,
+  type ChinaApplicationCandidate, type VfsChinaCertificate,
 } from "@/lib/vfs-china-certificate";
 import {
   requireSignedVfsRequest, vfsIntegrationEnabled, vfsMailDecisionEnabled,
@@ -55,7 +55,7 @@ async function existingEvent(messageId: string) {
   return row ?? null;
 }
 
-async function candidateForVfsReference(reference: string): Promise<ChinaApplicationCandidate[]> {
+async function candidateForVfsReference(certificate: VfsChinaCertificate): Promise<ChinaApplicationCandidate[]> {
   const rows = await db.select({
     applicationId: applications.id,
     agencyId: applications.agencyId,
@@ -71,7 +71,7 @@ async function candidateForVfsReference(reference: string): Promise<ChinaApplica
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
     .innerJoin(applicants, eq(applicants.applicationId, applications.id))
     .leftJoin(passportMrzEvidence, eq(passportMrzEvidence.applicationId, applications.id))
-    .where(eq(vfsChinaBindings.vfsReference, reference)).limit(3);
+    .where(inArray(vfsChinaBindings.vfsReference, [certificate.reference, certificate.applicationFormNumber])).limit(3);
   const candidates: ChinaApplicationCandidate[] = [];
   for (const row of rows) {
     // Reject stale MRZ evidence if the passport document has since changed.
@@ -199,7 +199,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const candidates = await candidateForVfsReference(certificate.reference);
+    const candidates = await candidateForVfsReference(certificate);
     // TRUST BOUNDARY: this fact comes only from our owner-controlled,
     // HMAC-authenticated Apps Script. Never accept unsigned email claims.
     const match = matchVfsChinaCertificate(source, certificate, candidates);
