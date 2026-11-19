@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import {
-  applicants, applications, countries, passportMrzEvidence, statuses,
-  vfsChinaBindings, vfsChinaMailEvents,
+  applicants, applications, countries, documents, documentTypes,
+  passportMrzEvidence, statuses, vfsChinaBindings, vfsChinaMailEvents,
 } from "@/db/schema";
 import { recordApplicationDecision } from "@/lib/applications";
 import { AppError, MAX_UPLOAD_BYTES } from "@/lib/types";
@@ -12,7 +12,7 @@ import { sha256Hex } from "@/lib/file-integrity";
 import { validateDocumentFormat } from "@/lib/upload-validation";
 import { readRequestBodyLimited } from "@/lib/http-body";
 import {
-  matchVfsChinaCertificate, parseVfsCertificateText,
+  inspectVfsChinaMail, matchVfsChinaCertificate, parseVfsCertificateText,
   type ChinaApplicationCandidate,
 } from "@/lib/vfs-china-certificate";
 import {
@@ -64,6 +64,7 @@ async function candidateForVfsReference(reference: string): Promise<ChinaApplica
     vfsReference: vfsChinaBindings.vfsReference,
     passportNumber: applicants.passportNumber,
     passportOcrEvidence: passportMrzEvidence.applicationId,
+    mrzEvidenceDocumentId: passportMrzEvidence.documentId,
   }).from(vfsChinaBindings)
     .innerJoin(applications, eq(vfsChinaBindings.applicationId, applications.id))
     .innerJoin(countries, eq(applications.countryId, countries.id))
@@ -71,12 +72,27 @@ async function candidateForVfsReference(reference: string): Promise<ChinaApplica
     .innerJoin(applicants, eq(applicants.applicationId, applications.id))
     .leftJoin(passportMrzEvidence, eq(passportMrzEvidence.applicationId, applications.id))
     .where(eq(vfsChinaBindings.vfsReference, reference)).limit(3);
-  return rows.map(row => ({
-    applicationId: row.applicationId, agencyId: row.agencyId,
-    destinationIso2: row.destinationIso2, statusCode: row.statusCode,
-    vfsReference: row.vfsReference, passportNumber: row.passportNumber,
-    passportOcrVerified: Boolean(row.passportOcrEvidence),
-  }));
+  const candidates: ChinaApplicationCandidate[] = [];
+  for (const row of rows) {
+    // Reject stale MRZ evidence if the passport document has since changed.
+    const [latestPassport] = await db.select({ id: documents.id })
+      .from(documents)
+      .innerJoin(documentTypes, eq(documentTypes.id, documents.documentTypeId))
+      .where(and(
+        eq(documents.applicationId, row.applicationId),
+        eq(documentTypes.code, "COD-PASS"),
+        ne(documents.status, "REJECTED"),
+      ))
+      .orderBy(desc(documents.createdAt), desc(documents.id)).limit(1);
+    candidates.push({
+      applicationId: row.applicationId, agencyId: row.agencyId,
+      destinationIso2: row.destinationIso2, statusCode: row.statusCode,
+      vfsReference: row.vfsReference, passportNumber: row.passportNumber,
+      passportOcrVerified: Boolean(row.passportOcrEvidence &&
+        latestPassport && latestPassport.id === row.mrzEvidenceDocumentId),
+    });
+  }
+  return candidates;
 }
 
 type Claim = "CLAIMED" | "BUSY" | "DONE" | "MISMATCH";
@@ -146,22 +162,47 @@ export async function POST(request: Request) {
     const certificate = parseVfsCertificateText(input.certificateText);
     if (!certificate) return outcome("REVIEW_REQUIRED");
     const pdfHash = sha256Hex(file);
+    // Idempotency must never bypass mail-source verification.
+    const source = {
+      from: input.from, recipients: input.recipients, subject: input.subject,
+      body: input.body, pdfFilename: filename,
+      gmailDmarcVerified: input.gmailDmarcVerified,
+    };
+    if (inspectVfsChinaMail(source) !== certificate.reference) return outcome("REVIEW_REQUIRED");
 
     const prior = await existingEvent(input.gmailMessageId);
     if (prior) {
       if (prior.pdfSha256 !== pdfHash || prior.certificateReference !== certificate.reference)
         return outcome("REVIEW_REQUIRED");
       if (prior.status === "COMPLETED") return outcome("ALREADY_PROCESSED");
+      // Recovery: the canonical approval transaction may have committed but
+      // a response/ledger update may have been lost after the PDF was stored.
+      // An exact approved-document SHA confirms success without reapproving.
+      const [recorded] = await db.select({ id: documents.id })
+        .from(documents)
+        .innerJoin(documentTypes, eq(documents.documentTypeId, documentTypes.id))
+        .innerJoin(applications, eq(documents.applicationId, applications.id))
+        .innerJoin(statuses, eq(applications.statusId, statuses.id))
+        .where(and(
+          eq(documents.applicationId, prior.applicationId),
+          eq(documents.sha256, pdfHash),
+          eq(documents.status, "ACCEPTED"),
+          eq(documentTypes.code, "DECISION_VISA_APPROVAL"),
+          eq(statuses.code, "APPROVED"),
+        )).limit(1);
+      if (recorded) {
+        await db.update(vfsChinaMailEvents).set({
+          status: "COMPLETED", decisionDocumentId: recorded.id,
+          completedAt: new Date(), updatedAt: new Date(), lastErrorCode: null,
+        }).where(eq(vfsChinaMailEvents.gmailMessageId, input.gmailMessageId));
+        return outcome("ALREADY_PROCESSED");
+      }
     }
 
     const candidates = await candidateForVfsReference(certificate.reference);
-    const match = matchVfsChinaCertificate({
-      from: input.from, recipients: input.recipients, subject: input.subject,
-      body: input.body, pdfFilename: filename,
-      // TRUST BOUNDARY: this fact comes only from our owner-controlled,
-      // HMAC-authenticated Apps Script. Never accept unsigned email claims.
-      gmailDmarcVerified: input.gmailDmarcVerified,
-    }, certificate, candidates);
+    // TRUST BOUNDARY: this fact comes only from our owner-controlled,
+    // HMAC-authenticated Apps Script. Never accept unsigned email claims.
+    const match = matchVfsChinaCertificate(source, certificate, candidates);
 
     if (match.state === "IGNORED_OFFLINE") return outcome("IGNORED_OFFLINE");
     if (match.state !== "MATCHED") return outcome("REVIEW_REQUIRED");
