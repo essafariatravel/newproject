@@ -11,7 +11,7 @@
  * 5) Only enable the Vercel integration flags after Preview acceptance.
  *
  * The PDF is temporarily converted to a Google Doc, read and immediately
- * trashed. This uses Google Drive processing; it does not send a passport.
+ * permanently deleted. This uses Google Drive processing; it does not send a passport.
  * The original Gmail messages are never moved, deleted or marked read.
  */
 const VFS_CHINA_QUERY =
@@ -41,11 +41,17 @@ function extractCertificateText_(pdfBlob) {
       mimeType: "application/vnd.google-apps.document",
     }, pdfBlob, { fields: "id" });
     tempId = String(doc.id);
-    return DocumentApp.openById(tempId).getBody().getText().slice(0, 80_000);
+    let lastError = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try { return DocumentApp.openById(tempId).getBody().getText().slice(0, 80_000); }
+      catch (err) { lastError = err; Utilities.sleep(700); }
+    }
+    throw new Error("Temporary certificate text could not be read");
   } finally {
     if (tempId) {
-      try { DriveApp.getFileById(tempId).setTrashed(true); }
-      catch (_error) { throw new Error("Temporary Google document cleanup failed"); }
+      // Permanently delete rather than leaving sensitive PDFs in Drive Trash.
+      try { Drive.Files.remove(tempId); }
+      catch (_error) { throw new Error("Temporary Google document deletion failed"); }
     }
   }
 }
