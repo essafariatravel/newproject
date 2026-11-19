@@ -47,7 +47,7 @@ export function validateVfsWorkerSignature(input: {
   return timingSafeEqual(expected, Buffer.from(signatureHex, "hex"));
 }
 
-export function requireSignedVfsRequest(request: Request, body: Uint8Array): void {
+export function requireSignedVfsRequest(request: Request, body: Uint8Array, channel: "mail" | "ocr"): void {
   if (!vfsIntegrationEnabled()) throw new AppError("NOT_ENABLED", "VFS automation is not active.");
   const url = new URL(request.url);
   if (!validateVfsWorkerSignature({
@@ -56,7 +56,11 @@ export function requireSignedVfsRequest(request: Request, body: Uint8Array): voi
     method: request.method,
     pathWithQuery: url.pathname + url.search,
     body,
-    secret: process.env.VFS_CHINA_HMAC_SECRET,
+    // Independent credentials: an OCR workstation can NEVER impersonate a
+    // Gmail certificate decision, even if its own signing key is compromised.
+    secret: channel === "mail"
+      ? process.env.VFS_CHINA_MAIL_HMAC_SECRET
+      : process.env.VFS_CHINA_OCR_HMAC_SECRET,
   })) {
     throw new AppError("UNAUTHENTICATED", "Invalid integration authentication.");
   }
