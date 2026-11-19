@@ -91,7 +91,13 @@ function runVfsChinaSweep() {
     for (const thread of threads) {
       for (const message of thread.getMessages()) {
         const key = "vfs:" + message.getId();
-        if (settings.getProperty(key) === "done") continue;
+        const cached = String(settings.getProperty(key) || "");
+        if (cached === "done") continue;
+        // Unlinked/ambiguous messages can become eligible after Staff saves
+        // a VFS reference. Retry them periodically, not every five minutes.
+        const temporary = cached.match(/^(offline|review):(\d{13})$/);
+        if (temporary && Date.now() - Number(temporary[2]) <
+            (temporary[1] === "offline" ? 6 * 3600_000 : 30 * 60_000)) continue;
         try {
           const sender = String(message.getFrom() || "");
           const recipients = String(message.getTo() || "");
@@ -121,11 +127,18 @@ function runVfsChinaSweep() {
             certificateText: text,
             gmailDmarcVerified: true,
           }, origin, secret);
-          if (["APPROVED", "IGNORED_OFFLINE", "ALREADY_PROCESSED"].includes(result.outcome)) {
-            // Gmail messages themselves remain untouched; only script cache.
+          if (["APPROVED", "ALREADY_PROCESSED"].includes(result.outcome)) {
             settings.setProperty(key, "done");
-            counters[result.outcome === "IGNORED_OFFLINE" ? "offline" : "completed"]++;
-          } else counters.review++;
+            counters.completed++;
+          } else if (result.outcome === "IGNORED_OFFLINE") {
+            // Do not permanently ignore: a Staff VFS reference might be
+            // registered after the email first arrived.
+            settings.setProperty(key, "offline:" + Date.now());
+            counters.offline++;
+          } else {
+            settings.setProperty(key, "review:" + Date.now());
+            counters.review++;
+          }
         } catch (_error) {
           // Do not log the Gmail message, traveler details, certificate or PDF.
           counters.error++;
