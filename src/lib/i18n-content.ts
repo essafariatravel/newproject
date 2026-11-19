@@ -1189,6 +1189,7 @@ const CONTENT: Record<string, Entry> = {
   /* §28 global staff search + §25/§27 ownership & saved views */
   "Owner": { fr: "Responsable", ar: "المسؤول" },
   "Waiting": { fr: "Attente", ar: "مدة الانتظار" },
+  "Duration": { fr: "Durée", ar: "المدة" },
   "Waiting over 7 days": { fr: "En attente depuis plus de 7 jours", ar: "قيد الانتظار منذ أكثر من 7 أيام" },
   "Clear view": { fr: "Effacer la vue", ar: "إزالة العرض" },
   "Documents missing": { fr: "Documents manquants", ar: "مستندات ناقصة" },
