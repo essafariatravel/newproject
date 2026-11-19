@@ -647,6 +647,25 @@ export const passportMrzEvidence = pgTable(
 );
 
 
+/** Private replay/decision ledger for signed VFS China Gmail events. */
+export const vfsChinaMailEvents = pgTable(
+  "vfs_china_mail_events",
+  {
+    gmailMessageId: text("gmail_message_id").primaryKey(),
+    certificateReference: text("certificate_reference").notNull(),
+    pdfSha256: text("pdf_sha256").notNull(),
+    applicationId: uuid("application_id").notNull().references(() => applications.id),
+    status: text("status").notNull().default("PROCESSING"),
+    decisionDocumentId: uuid("decision_document_id").references(() => documents.id),
+    attempts: integer("attempts").notNull().default(1),
+    leasedUntil: timestamp("leased_until", { withTimezone: true }).notNull().default(sql`now() + interval '10 minutes'`),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    lastErrorCode: text("last_error_code"),
+    ...timestamps,
+  },
+  (t) => [index("vfs_china_mail_app_idx").on(t.applicationId, t.createdAt)],
+);
+
 export const communications = pgTable(
   "communications",
   {
