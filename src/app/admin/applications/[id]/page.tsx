@@ -44,6 +44,7 @@ import { getApplicationPricing } from "@/lib/price-adjustments";
 import { applyPriceAdjustmentAction } from "@/app/actions/pricing";
 import { vfsChinaStaffBindingEnabled, readVfsChinaReference } from "@/lib/vfs-china-bindings";
 import { saveVfsChinaReferenceAction } from "@/app/actions/vfs-china";
+import { isPassportMrzVerified } from "@/lib/passport-ocr-evidence";
 
 export const dynamic = "force-dynamic";
 
@@ -131,6 +132,7 @@ export default async function AdminApplicationDetailPage({
   const openRequests = docRequests.filter((r) => r.req.status === "OPEN");
   const showVfsChinaBinding = vfsChinaStaffBindingEnabled() && detail.countryIso2 === "CN" && canReview;
   const vfsChinaReference = showVfsChinaBinding ? await readVfsChinaReference(id, user) : null;
+  const passportOcrVerified = showVfsChinaBinding ? await isPassportMrzVerified(id) : false;
 
   return (
     <>
@@ -282,7 +284,7 @@ export default async function AdminApplicationDetailPage({
                 <CardHeader title={ct("VFS China reference")} subtitle={ct("Entered by ESSAFARIA Staff when the VFS reference is available. Passport identification is automatic; never type it here.")} />
                 <div className="space-y-3 px-4 py-4">
                   <p className="text-xs text-slate-600">
-                    {ct("Passport scan")}: {applicant?.passportNumber ? ct("Verified passport available") : ct("Automatic OCR verification pending")}
+                    {ct("Passport scan")}: {passportOcrVerified ? ct("Verified passport available") : ct("Automatic OCR verification pending")}
                   </p>
                   {vfsChinaReference ? (
                     <p className="rounded-md bg-ivory-50 px-4 py-3 font-mono text-sm text-navy-900">
