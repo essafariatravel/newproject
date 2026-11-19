@@ -7,7 +7,7 @@ import { currentOperationActor } from "@/lib/operation-identity";
 import { assertAgencyOperational } from "@/lib/agency-identity";
 import { recordAudit } from "@/lib/audit";
 import { requirePermission } from "@/lib/rbac";
-import { VFS_CHINA_REFERENCE } from "@/lib/vfs-china-certificate";
+import { VFS_CHINA_BINDING_REFERENCE } from "@/lib/vfs-china-certificate";
 
 /**
  * Disabled until migration 0036 is applied to the intended schema and the
@@ -37,8 +37,8 @@ export async function saveVfsChinaReference(
     throw new AppError("FORBIDDEN", "Only ESSAFARIA Staff may register a VFS reference.");
   requirePermission(actor, "applications.review");
   const reference = rawReference.trim().toUpperCase();
-  if (!VFS_CHINA_REFERENCE.test(reference))
-    throw new AppError("VALIDATION", "Enter a valid VFS China certificate reference (ALG...).");
+  if (!VFS_CHINA_BINDING_REFERENCE.test(reference))
+    throw new AppError("VALIDATION", "Enter the VFS China certificate number (ALG...) or numeric application form number.");
 
   return db.transaction(async (tx) => {
     await currentOperationActor(tx, actor);
