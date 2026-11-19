@@ -37,7 +37,7 @@ function failed(err: unknown): NextResponse {
 export async function GET(request: Request) {
   try {
     if (!vfsOcrWorkerEnabled()) throw new AppError("NOT_ENABLED", "OCR worker is disabled.");
-    requireSignedVfsRequest(request, new Uint8Array());
+    requireSignedVfsRequest(request, new Uint8Array(), "ocr");
     const actor = await vfsServiceActor();
     const u = new URL(request.url);
     const action = u.searchParams.get("action");
