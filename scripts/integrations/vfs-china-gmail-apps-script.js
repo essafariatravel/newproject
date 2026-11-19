@@ -6,7 +6,7 @@
  * 2) Enable Advanced Google Service "Drive API" (v3). Authorize Gmail,
  *    Drive/Docs and outbound HTTPS for text-layer extraction.
  * 3) Add Script properties: VISA_OS_URL (Preview URL without trailing slash),
- *    VFS_CHINA_HMAC_SECRET (shared 40+ char secret, never in source code).
+ *    VFS_CHINA_MAIL_HMAC_SECRET (shared 40+ char secret, never in source code).
  * 4) Install a time-driven trigger for runVfsChinaSweep every five minutes.
  * 5) Only enable the Vercel integration flags after Preview acceptance.
  *
@@ -77,7 +77,7 @@ function runVfsChinaSweep() {
   try {
     const settings = PropertiesService.getScriptProperties();
     const origin = String(settings.getProperty("VISA_OS_URL") || "").replace(/\/+$/, "");
-    const secret = String(settings.getProperty("VFS_CHINA_HMAC_SECRET") || "");
+    const secret = String(settings.getProperty("VFS_CHINA_MAIL_HMAC_SECRET") || "");
     if (!/^https:\/\/[^/]+$/.test(origin) || secret.length < 40)
       throw new Error("Approved HTTPS origin and HMAC secret required");
 
