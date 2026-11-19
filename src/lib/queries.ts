@@ -72,6 +72,7 @@ const applicationSelection = {
   app: applications,
   statusCode: statuses.code,
   statusName: statuses.name,
+  isTerminal: statuses.isTerminal,
   priorityName: priorities.name,
   priorityWeight: priorities.weight,
   agencyName: sql<string>`(select coalesce(a.trading_name, a.legal_name) from ${sql.raw(qualifiedTable("agencies"))} a where a.id = applications.agency_id)`,
@@ -158,8 +159,9 @@ export async function buildApplicationConditions(user: AuthUser, filters: Applic
                     where d.checklist_item_id = ci.id and d.status <> 'REJECTED'))`,
     );
   }
-  // §27/§31 — waiting at least N whole days in the current status, from real history.
+  // §27/§31 — only OPEN dossiers can age; terminal decisions are final.
   if (filters.agingDays && filters.agingDays > 0) {
+    conditions.push(eq(statuses.isTerminal, false));
     conditions.push(
       sql`coalesce(
             (select max(h.created_at) from ${sql.raw(qualifiedTable("application_status_history"))} h
