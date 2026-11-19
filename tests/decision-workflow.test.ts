@@ -16,6 +16,7 @@ import {
   documents,
   notifications,
   statuses,
+  users,
 } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import {
@@ -139,6 +140,27 @@ async function submittedAppForDecision() {
   return { app, staff };
 }
 
+/** Final decision alerts must never leak into Staff or another agency's inbox. */
+async function expectAgencyOnlyDecisionNotification(applicationId: string, agencyId: string) {
+  const events = await db.select({
+    recipientAgencyId: users.agencyId,
+    recipientRole: users.role,
+    target: notifications.link,
+  }).from(notifications)
+    .innerJoin(users, eq(notifications.userId, users.id))
+    .where(and(
+      eq(notifications.applicationId, applicationId),
+      eq(notifications.type, "APPLICATION_DECISION"),
+    ));
+
+  expect(events.length).toBeGreaterThan(0);
+  expect(events.every((event) =>
+    event.recipientAgencyId === agencyId &&
+    ["AGENCY_ADMIN", "AGENCY_USER"].includes(event.recipientRole) &&
+    event.target === `/portal/applications/${applicationId}`
+  )).toBe(true);
+}
+
 async function currentStatus(applicationId: string): Promise<string> {
   const rows = await db
     .select({ code: statuses.code })
@@ -230,10 +252,11 @@ describe("decision workflow — audit-proof success paths", () => {
     // agency notified on its portal
     const notes = await db.select().from(notifications).where(eq(notifications.type, "APPLICATION_DECISION"));
     expect(notes.some((n) => n.agencyId === agency.id && n.applicationId === app.id)).toBe(true);
+    await expectAgencyOnlyDecisionNotification(app.id, agency.id);
   });
 
   it("REJECTED decision uses the refusal-letter document type and stamps decisionAt", async () => {
-    const { app, staff } = await appAt("IN_PROCESS");
+    const { app, agency, staff } = await appAt("IN_PROCESS");
     const result = await recordApplicationDecision({
       applicationId: app.id,
       outcome: "REJECTED",
@@ -247,6 +270,7 @@ describe("decision workflow — audit-proof success paths", () => {
     const appRow = (await db.select().from(applications).where(eq(applications.id, app.id)))[0]!;
     expect(appRow.decisionAt).toBeTruthy();
     expect(await currentStatus(app.id)).toBe("REJECTED");
+    await expectAgencyOnlyDecisionNotification(app.id, agency.id);
   });
 
   it("decision documents appear via getDecisionDocuments and are downloadable server-side with full tenant isolation", async () => {
