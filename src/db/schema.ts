@@ -386,6 +386,23 @@ export const applicants = pgTable(
 );
 
 /**
+ * VFS China case reference supplied only by ESSAFARIA Staff.
+ * No agency-side mutation and no automatic approval unless a verified
+ * passport OCR result and exact reference identify ONE open China dossier.
+ */
+export const vfsChinaBindings = pgTable(
+  "vfs_china_bindings",
+  {
+    applicationId: uuid("application_id").primaryKey().references(() => applications.id),
+    vfsReference: text("vfs_reference").notNull().unique(),
+    savedBy: uuid("saved_by").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("vfs_china_bindings_saved_by_idx").on(t.savedBy)],
+);
+
+/**
  * Checklist is snapshotted per application from visa_requirements at creation,
  * then re-synced (additions only) while the application is still a draft,
  * preserving historical meaning of existing items.
