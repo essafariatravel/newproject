@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   applicants, applications, countries, documents, documentTypes,
@@ -65,6 +65,17 @@ export async function recordVerifiedPassportFromOcr(input: {
       throw new AppError("FORBIDDEN", "Invalid OCR operation actor.");
     }
     await assertAgencyOperational(tx, doc.agencyId, doc.applicationId);
+
+    // A replacement passport may have been submitted while OCR was running.
+    // Never persist an older document as the current verified identity.
+    const [latestPassport] = await tx.select({ id: documents.id }).from(documents)
+      .innerJoin(documentTypes, eq(documents.documentTypeId, documentTypes.id))
+      .where(and(
+        eq(documents.applicationId, doc.applicationId),
+        eq(documentTypes.code, "COD-PASS"),
+        ne(documents.status, "REJECTED"),
+      )).orderBy(desc(documents.createdAt), desc(documents.id)).limit(1);
+    if (!latestPassport || latestPassport.id !== doc.id) return "REVIEW_REQUIRED";
 
     const traveler = await tx.select({ id: applicants.id, passportNumber: applicants.passportNumber })
       .from(applicants).where(eq(applicants.applicationId, doc.applicationId)).limit(2);
