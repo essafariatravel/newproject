@@ -12,11 +12,12 @@ import { loginLockoutCopy } from "@/lib/login-lockout-copy";
 
 /**
  * Form only. The page (src/app/(public)/login/page.tsx) owns the layout
- * wrapper, the single "Sign in" <h1> and the subtitle, so this component must
+ * wrapper, the single welcome heading and the subtitle, so this component must
  * not repeat them.
  */
 export interface LoginCopy {
   email: string;
+  emailExample: string;
   password: string;
   signIn: string;
   signingIn: string;
@@ -26,7 +27,7 @@ export interface LoginCopy {
   hidePassword: string;
 }
 
-export function LoginForm({ copy, locale, botConfig }: { brandName: string; copy: LoginCopy; locale: UiLocale; botConfig: TurnstilePublicConfig }) {
+export function LoginForm({ copy, locale, botConfig }: { copy: LoginCopy; locale: UiLocale; botConfig: TurnstilePublicConfig }) {
   const { state, formAction, verified, setVerified, challenge } = useProtectedAction<ActionState>(loginAction, {}, botConfig, locale);
   const submittedIdentifier = useRef("");
   const [currentIdentifier, setCurrentIdentifier] = useState("");
@@ -54,9 +55,9 @@ export function LoginForm({ copy, locale, botConfig }: { brandName: string; copy
 
   return (
     <>
-      <form action={formAction} onSubmit={event => { submittedIdentifier.current = String(new FormData(event.currentTarget).get("identifier") ?? "").trim().toLowerCase(); }} onReset={event => event.preventDefault()} className="mt-8 space-y-4">
+      <form action={formAction} onSubmit={event => { submittedIdentifier.current = String(new FormData(event.currentTarget).get("identifier") ?? "").trim().toLowerCase(); }} onReset={event => event.preventDefault()} className="login-form">
         {state.error ? (
-          <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-4 text-base text-red-700">
+          <div role="alert" className="premium-notice" data-tone="error">
             {lockedResult ? (
               <>
                 <p>{lockedCopy.locked}</p>
@@ -78,6 +79,7 @@ export function LoginForm({ copy, locale, botConfig }: { brandName: string; copy
             id="email"
             name="identifier"
             type="email"
+            placeholder={copy.emailExample}
             value={currentIdentifier}
             onChange={event => setCurrentIdentifier(event.target.value)}
             autoComplete="username"
@@ -87,14 +89,14 @@ export function LoginForm({ copy, locale, botConfig }: { brandName: string; copy
             className="input"
           />
         </div>
-        <PasswordField id="password" name="password" label={copy.password} autoComplete="current-password" required minLength={0} hint="" showLabel={copy.showPassword} hideLabel={copy.hidePassword}/>
-        <TurnstileField ref={challenge} config={botConfig} action="password_login" locale={locale} onVerified={setVerified} />
-        <SubmitButton disabled={!verified || stillLocked} className="btn-primary w-full py-2" pendingLabel={copy.signingIn}>
+        <PasswordField className="login-password" id="password" name="password" label={copy.password} autoComplete="current-password" required showRequiredMark={false} minLength={0} hint="" showLabel={copy.showPassword} hideLabel={copy.hidePassword}/>
+        <div className="login-recovery"><Link href={`/forgot-password?lang=${locale}`}>{copy.forgotPassword}</Link></div>
+        <div className="login-verification"><TurnstileField ref={challenge} config={botConfig} action="password_login" locale={locale} onVerified={setVerified} /></div>
+        <SubmitButton disabled={!verified || stillLocked} className="premium-button" pendingLabel={copy.signingIn}>
           {copy.signIn}
         </SubmitButton>
       </form>
-      <Link href="/forgot-password" className="mt-4 block text-center text-base text-iris-700 underline">{copy.forgotPassword}</Link>
-      <p className="mt-6 text-center text-xs text-slate-500">
+      <p className="login-caption">
         {copy.footer}
       </p>
     </>

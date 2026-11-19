@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
+import { PremiumLoginShell } from "@/components/premium-login-shell";
+import { premiumLoginCopy } from "@/lib/premium-login-copy";
+import "../../premium-login.css";
 import { getSessionUser } from "@/lib/auth";
 import { isAgencyRole } from "@/lib/types";
 import { readBranding, brandLogoUrl, BRANDING_DEFAULTS } from "@/lib/branding";
@@ -40,46 +42,37 @@ export default async function LoginPage({searchParams}: {searchParams: Promise<R
     console.error("[login] readBranding failed", safeErrorCode(err) ?? "unknown");
     branding = BRANDING_DEFAULTS;
   }
-  const logoUrl = brandLogoUrl(branding);
+  const copy = premiumLoginCopy[locale];
+  const notices = new URLSearchParams();
+  if (sp.reason === "session-expired") notices.set("reason", "session-expired");
+  if (sp.reset === "complete") notices.set("reset", "complete");
 
   return (
-    <div className="auth-entrance public-access-interior grid min-h-[calc(100vh-4rem)] grid-cols-1 lg:grid-cols-2">
-      <div className="auth-story relative hidden flex-col justify-between overflow-hidden border-e border-white/10 bg-navy-950 bg-cover bg-center p-8 text-white lg:flex">
-        <div aria-hidden className="pointer-events-none absolute inset-0 bg-navy-950/65" />
-        <div className="relative auth-story-copy">
-          <h2 className="text-white">{ct("The ESSAFARIA visa desk")}</h2>
-          <p className="mt-4 max-w-md text-base leading-relaxed text-white/80">
-            {ct("Agency partners manage applications, documents and wallets. Staff process files from the central Back Office.")}
-          </p>
-        </div>
-        <p className="relative text-sm text-white">
-          {ct("Ostuni, Italy")}
-        </p>
-      </div>
-      <div className="flex items-center justify-center p-6">
-        <div className="w-full max-w-sm">
-          <div className="mb-8 flex justify-center lg:hidden">
-            <img className="h-20 w-28 object-contain" src={logoUrl ?? "/images/essafaria-logo.png"} alt={branding.name} width="112" height="80" />
-          </div>
-          <h1 className="font-serif text-2xl text-navy-900">{ct("Sign in")}</h1>
-          <p className="mt-1 text-base text-slate-500">{ct("Partner access")}</p>
-          {sp.reason === "session-expired" ? <p role="status" className="mt-4 border-s-2 border-gold-500 ps-4 text-base text-slate-600">{ct("Your session has expired. Sign in again to continue.")}</p> : null}
-          {sp.reset === "complete" ? <p role="status" className="mt-4 border-s-2 border-emerald-600 ps-4 text-base text-slate-600">{ct("Your password has been updated. Sign in with your new password.")}</p> : null}
-          <LoginForm
+    <PremiumLoginShell
+      locale={locale}
+      logoUrl={brandLogoUrl(branding)}
+      brandName={branding.name}
+      returnPath={notices.size ? `/login?${notices}` : "/login"}
+      registerLabel={ct("Register your agency")}
+      disclosure={ct("Access is restricted to authorized users. All activity is logged and audited.")}
+    >
+      {notices.has("reason") && <p role="status" className="premium-notice">{ct("Your session has expired. Sign in again to continue.")}</p>}
+      {notices.has("reset") && <p role="status" className="premium-notice" data-tone="success">{ct("Your password has been updated. Sign in with your new password.")}</p>}
+      <LoginForm
+        locale={locale}
+        botConfig={publicTurnstileConfig()}
         copy={{
-          email: ct("Email"),
+          email: copy.email,
+          emailExample: copy.emailExample,
           password: ct("Password"),
           signIn: ct("Sign in"),
           signingIn: `${ct("Signing in")}…`,
-          footer: it("Sign in with your registered account email."),
+          footer: copy.caption,
           forgotPassword: it("Forgot password?"),
           showPassword: ct("Show"),
           hidePassword: ct("Hide"),
-        }} brandName={branding.name} locale={locale} botConfig={publicTurnstileConfig()} />
-          <p className="auth-partner-link"><Link href="/agency/register">{ct("Register your agency")}</Link></p>
-          <p className="text-center text-xs text-slate-600">{ct("Access is restricted to authorized users. All activity is logged and audited.")}</p>
-        </div>
-      </div>
-    </div>
+        }}
+      />
+    </PremiumLoginShell>
   );
 }

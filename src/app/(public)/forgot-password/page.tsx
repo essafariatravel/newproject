@@ -7,8 +7,8 @@ import { publicTurnstileConfig } from "@/lib/turnstile-config";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Account recovery", robots: { index: false, follow: false }, referrer: "no-referrer" as const };
 
-export default async function ForgotPasswordPage() {
-  const locale = await getUiLocale(), t = identityT(locale);
+export default async function ForgotPasswordPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const locale = await getUiLocale(await searchParams), t = identityT(locale);
   return <div className="mx-auto max-w-md px-4 py-8">
     <h1 className="font-serif text-[32px] text-navy-900">{t("Recover account access")}</h1>
     <p className="mt-4 text-base text-slate-500">{t("Sign in with your registered account email.")}</p>

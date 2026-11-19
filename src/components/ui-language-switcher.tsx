@@ -14,12 +14,14 @@ export function UiLanguageSwitcher({
   publicPage,
   onDark = false,
   compact = false,
+  login = false,
 }: {
   locale: UiLocale | string;
   nextPath?: string;
   publicPage?: IndexablePublicSeoPage;
   onDark?: boolean;
   compact?: boolean;
+  login?: boolean;
 }) {
   const current = pickUiLocale(locale) ?? "en";
   const base = onDark
@@ -27,7 +29,9 @@ export function UiLanguageSwitcher({
     : "bg-white border-line/80 text-slate-500";
   const active = onDark ? "bg-white text-navy-900 shadow-sm" : "bg-navy-900 text-white shadow-sm";
   const languageLabel = "English / Français / العربية";
-  const options = UI_LOCALES.map((l) => (
+  const locales = login ? (["fr", "en", "ar"] as const) : UI_LOCALES;
+  const shortLabel = (l: UiLocale) => l === "ar" ? (login ? UI_LOCALE_NAMES.ar : "ع") : l.toUpperCase();
+  const options = locales.map((l) => (
     <form key={l} action={setUiLocaleAction} className="contents">
       <input type="hidden" name="locale" value={l} />
       {publicPage || nextPath ? (
@@ -39,9 +43,10 @@ export function UiLanguageSwitcher({
           compact ? "w-full text-start text-base" : "text-xs"
         } ${l === current ? active : "hover:bg-ivory-50 hover:text-navy-900"}`}
         aria-current={l === current ? "true" : undefined}
+        lang={l}
         title={UI_LOCALE_NAMES[l]}
       >
-        {compact ? UI_LOCALE_NAMES[l] : l === "ar" ? "ع" : l.toUpperCase()}
+        {compact ? UI_LOCALE_NAMES[l] : shortLabel(l)}
       </button>
     </form>
   ));
@@ -54,7 +59,7 @@ export function UiLanguageSwitcher({
           title={languageLabel}
           className={`grid h-11 min-w-11 place-items-center rounded-lg border text-xs font-semibold ${base}`}
         >
-          {current === "ar" ? "ع" : current.toUpperCase()}
+          {shortLabel(current)}
         </summary>
         <div className="ui-locale-menu-panel">{options}</div>
       </details>
