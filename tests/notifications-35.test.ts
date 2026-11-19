@@ -25,7 +25,7 @@ import { reviewDocument, uploadDocument } from "@/lib/documents";
 import { requestAdditionalDocument, requestDocumentReplacement } from "@/lib/document-requests";
 import { adjustWallet, applyWalletMutation } from "@/lib/wallet";
 import { createTopupRequest, processTopupRequest } from "@/lib/topup";
-import { listNotificationsForUser, unreadNotificationCount } from "@/lib/queries";
+import { listNotificationsForUser, notificationBellEventsForUser, unreadNotificationCount } from "@/lib/queries";
 import { notifyUsers } from "@/lib/notifications";
 import { agencyByEmail, userByEmail } from "./helpers/fixtures";
 
@@ -196,9 +196,42 @@ describe("§34 notifications — every required event produces a notification", 
       expect(n.link).toBe(`/portal/applications/${app.id}`);
       expect(n.title).toContain(app.reference);
     }
-    // …and the staff copy points into the back office instead.
-    const staffRows = await listNotificationsForUser((await userByEmail("admin@test.example")).id);
-    expect(staffRows.some((n) => n.type === "APPLICATION_DECISION" && n.link === `/admin/applications/${app.id}`)).toBe(true);
+    // Final outcomes never create a duplicate Staff alert.
+    const staff = await userByEmail("admin@test.example");
+    const staffRows = await listNotificationsForUser(staff.id);
+    expect(staffRows.some((n) => n.type === "APPLICATION_DECISION" && n.applicationId === app.id)).toBe(false);
+  });
+
+  it("hides historic Staff decision alerts without deleting records or hiding agency decisions", async () => {
+    const staff = await userByEmail("admin@test.example");
+    const agencyUser = await userByEmail("a-admin@test.example");
+    const agency = await agencyByEmail("ops@agencya.example");
+
+    const staffUnreadBefore = await unreadNotificationCount(staff.id);
+    await db.insert(notifications).values([
+      {
+        userId: staff.id, agencyId: agency.id, type: "APPLICATION_DECISION",
+        title: "Legacy final decision", body: "Already approved",
+        link: "/admin/notifications",
+      },
+      {
+        userId: agencyUser.id, agencyId: agency.id, type: "APPLICATION_DECISION",
+        title: "Agency final decision", body: "Already approved",
+        link: "/portal/notifications",
+      },
+    ]);
+
+    const historicStaffRows = await db.select({ id: notifications.id }).from(notifications)
+      .where(and(eq(notifications.userId, staff.id), eq(notifications.type, "APPLICATION_DECISION")));
+    expect(historicStaffRows.length).toBeGreaterThan(0); // retained, not deleted
+
+    expect((await listNotificationsForUser(staff.id)).some((n) => n.type === "APPLICATION_DECISION")).toBe(false);
+    expect((await notificationBellEventsForUser(staff.id)).some((n) => n.type === "APPLICATION_DECISION")).toBe(false);
+    expect(await unreadNotificationCount(staff.id)).toBe(staffUnreadBefore);
+
+    expect((await listNotificationsForUser(agencyUser.id)).some((n) => n.type === "APPLICATION_DECISION")).toBe(true);
+    expect((await notificationBellEventsForUser(agencyUser.id)).some((n) => n.type === "APPLICATION_DECISION")).toBe(true);
+    expect(await unreadNotificationCount(agencyUser.id)).toBeGreaterThan(0);
   });
 
   it("a wallet credit notifies the agency; the amount and balance are in the body", async () => {
