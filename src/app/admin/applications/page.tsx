@@ -7,7 +7,7 @@ import { staffDirectory } from "@/app/actions/communications";
 import { listAgencies, activeVisaOptions, listStatuses, listPriorities } from "@/lib/applications-exports";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatAmount, formatDate } from "@/lib/format";
-import { elapsedDays, elapsedLabel, waitingBand, type WaitingBand } from "@/lib/time-in-status";
+import { applicationElapsedMs, formatElapsed, waitingBand, type WaitingBand } from "@/lib/time-in-status";
 import { FilterBar, Pagination, PageSizeSelector } from "@/components/app-widgets";
 import { EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
 import { PriorityBadge, StatusBadge } from "@/components/badges";
@@ -99,6 +99,19 @@ export default async function AdminApplicationsPage({
   // Only staff assignable to dossiers (never agency accounts) — same directory
   // the dossier page uses, so the two screens can never disagree.
   const officers = hasPermission(user, "applications.assign") ? await staffDirectory() : [];
+
+  // Open dossiers show time spent in their CURRENT status. Final decisions show
+  // the immutable total processing time from submission until closure.
+  const rowsWithDuration = result.rows.map((r) => ({
+    ...r,
+    durationMs: applicationElapsedMs({
+      isTerminal: r.isTerminal,
+      statusSince: r.statusSince,
+      submittedAt: r.app.submittedAt,
+      decisionAt: r.app.decisionAt,
+      completedAt: r.app.completedAt,
+    }),
+  }));
 
   return (
     <>
@@ -222,7 +235,7 @@ export default async function AdminApplicationsPage({
                 <th className="th">{ct("Applicant")}</th>
                 <th className="th">{ct("Agency")}</th>
                 <th className="th">{ct("Status")}</th>
-                <th className="th">{ct("Waiting")}</th>
+                <th className="th">{ct("Duration")}</th>
                 <th className="th">{ct("Owner")}</th>
                 <th className="th">{ct("Priority")}</th>
                 <th className="th">{ct("Fee")}</th>
@@ -231,7 +244,7 @@ export default async function AdminApplicationsPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {result.rows.map((r) => (
+              {rowsWithDuration.map((r) => (
                 <NavigableTableRow key={r.app.id} href={`/admin/applications/${r.app.id}`} className="tr-hover">
                   {canBulk ? (
                     <td className="td">
@@ -260,8 +273,13 @@ export default async function AdminApplicationsPage({
                   <td className="td max-w-[160px] truncate">{r.agencyName}</td>
                   <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
                   <td className="td whitespace-nowrap" data-testid="waiting-cell">
-                    <span className={waitingClass(waitingBand(elapsedDays(new Date(r.statusSince))))}>
-                      {elapsedLabel(new Date(r.statusSince), uiLocale)}
+                    <span
+                      className={r.isTerminal
+                        ? "tabular-nums text-slate-600"
+                        : waitingClass(waitingBand(Math.floor((r.durationMs ?? 0) / 86_400_000)))}
+                      title={r.isTerminal ? ct("Processing time") : ct("Time in status")}
+                    >
+                      {r.durationMs == null ? "—" : formatElapsed(r.durationMs, uiLocale)}
                     </span>
                   </td>
                   <td className="td whitespace-nowrap">
