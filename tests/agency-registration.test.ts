@@ -292,6 +292,7 @@ describe("public agency registration — duplicates & rate limiting", () => {
         contactLastName: "User",
         contactEmail: data.email,
         contactPhone: data.phone,
+        businessType: "TRAVEL_AGENCY",
         termsAccepted: true,
         privacyAcknowledged: true,
         infoConfirmed: true,
