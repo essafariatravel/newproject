@@ -118,13 +118,15 @@ describe("registration approval — provisioning", () => {
     const userAudit = await db.select().from(auditLogs).where(eq(auditLogs.entityId, result.adminUserId));
     expect(userAudit.some((a) => a.action === "USER_CREATED")).toBe(true);
 
-    // onboarding notification through the existing mechanism
-    const welcome = await db
-      .select()
-      .from(notifications)
-      .where(and(eq(notifications.userId, result.adminUserId), eq(notifications.type, "AGENCY_ONBOARDED")));
-    expect(welcome).toHaveLength(1);
-    expect(welcome[0]!.agencyId).toBe(result.agencyId);
+    // Only the registering contact's agency administrator receives the approval.
+    const approvalNotices = await db.select().from(notifications)
+      .where(eq(notifications.type, "REGISTRATION_APPROVED"));
+    expect(approvalNotices).toHaveLength(1);
+    expect(approvalNotices[0]!.userId).toBe(result.adminUserId);
+    expect(approvalNotices[0]!.agencyId).toBe(result.agencyId);
+    expect(approvalNotices[0]!.link).toBe("/portal");
+    expect(approvalNotices[0]!.body).toContain("Activate your account");
+    expect(await db.select().from(notifications).where(eq(notifications.type, "AGENCY_ONBOARDED"))).toHaveLength(0);
 
     // NO wallet manipulation: zero transactions, zero balance — ever.
     const txs = await db.select().from(walletTransactions).where(eq(walletTransactions.agencyId, result.agencyId));
@@ -142,6 +144,9 @@ describe("registration approval — provisioning", () => {
     expect(second.alreadyApproved).toBe(true);
     expect(second.agencyId).toBe(first.agencyId);
     expect(second.adminUserId).toBe(first.adminUserId);
+    const approvalNotices = await db.select().from(notifications)
+      .where(and(eq(notifications.type, "REGISTRATION_APPROVED"), eq(notifications.userId, first.adminUserId)));
+    expect(approvalNotices).toHaveLength(1);
 
     const withName = await db.select().from(agencies).where(sql`lower(${agencies.legalName}) = lower(${data.legalName})`);
     expect(withName).toHaveLength(1);

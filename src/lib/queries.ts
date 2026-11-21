@@ -617,14 +617,13 @@ export async function reportData(filters: ReportFilters = {}) {
 export type NotificationFilter = "all" | "action" | "applications" | "messages" | "wallet";
 
 /**
- * Hide legacy APPLICATION_DECISION alerts addressed to ESSAFARIA Staff.
- * The decision is already visible in the dossier audit; it belongs in the
- * owning agency's inbox only. Historic rows remain untouched in the ledger.
- * Applied consistently to page, bell and unread badge across all read paths.
+ * Historic Staff decision and registration approval alerts stay in the ledger
+ * but are hidden from the Staff feed, bell, and unread count. These outcomes
+ * belong in the registered agency's inbox. Staff still see new registrations.
  */
 function visibleNotificationForRecipient(userId: string) {
   return sql`(
-    ${notifications.type} <> 'APPLICATION_DECISION'
+    ${notifications.type} not in ('APPLICATION_DECISION', 'REGISTRATION_APPROVED')
     or exists (
       select 1 from ${sql.raw(qualifiedTable("users"))} recipient
       where recipient.id = ${userId} and recipient.agency_id is not null

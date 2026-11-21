@@ -923,23 +923,16 @@ export async function approveRegistration(params: {
     client.release();
   }
 
-  // Notifications run after the atomic decision and audit transaction.
-  // Existing onboarding/notification mechanism: welcome the agency admin
-  // and keep staff informed.
+  // Only the registering agency's newly created administrator receives this
+  // confirmation. Staff already decided and can consult the audited history.
+  // One notification also serves as the account-ready welcome message.
   await notifyUsers([result.adminUserId], {
-    type: "AGENCY_ONBOARDED",
-    title: `Welcome to ESSAFARIA VISA OS — ${result.legalName}`,
-    body: "Your agency workspace is ready. Activate your account with the secure link provided by ESSAFARIA to access your portal.",
-    link: "/portal",
-    agencyId: result.agencyId,
-  }).catch((err) => console.error("[registrations] onboarding notification failed", safeErrorCode(err) ?? "unknown"));
-  const staff = await staffUserIds([...REGISTRATION_DECIDE_ROLES]).catch(() => [] as string[]);
-  await notifyUsers(staff, {
     type: "REGISTRATION_APPROVED",
     title: `Registration approved — ${result.legalName}`,
-    body: `${result.legalName} was approved by ${actor.name}. The agency and its Agency Admin were created.`,
-    link: `/admin/registrations/${registrationId}`,
-  }).catch((err) => console.error("[registrations] staff notification failed", safeErrorCode(err) ?? "unknown"));
+    body: "Your registration has been approved. Your agency workspace is ready. Activate your account with the secure link provided by ESSAFARIA to access your portal.",
+    link: "/portal",
+    agencyId: result.agencyId,
+  }).catch((err) => console.error("[registrations] agency approval notification failed", safeErrorCode(err) ?? "unknown"));
 
   return result;
 }

@@ -201,7 +201,7 @@ describe("§34 notifications — every required event produces a notification", 
     expect(staffRows.some((n) => n.type === "APPLICATION_DECISION" && n.applicationId === app.id)).toBe(false);
   });
 
-  it("hides historic Staff decision alerts without deleting records or hiding agency decisions", async () => {
+  it("hides historic Staff decisions and registration approvals without deleting agency notices", async () => {
     const staff = await userByEmail("admin@test.example");
     const agencyUser = await userByEmail("a-admin@test.example");
     const agency = await agencyByEmail("ops@agencya.example");
@@ -218,18 +218,39 @@ describe("§34 notifications — every required event produces a notification", 
         title: "Agency final decision", body: "Already approved",
         link: "/portal/notifications",
       },
+      {
+        userId: staff.id, agencyId: agency.id, type: "REGISTRATION_APPROVED",
+        title: "Legacy Staff approval", body: "Agency approved",
+        link: "/admin/registrations",
+      },
+      {
+        userId: agencyUser.id, agencyId: agency.id, type: "REGISTRATION_APPROVED",
+        title: "Agency approval", body: "Agency approved",
+        link: "/portal",
+      },
     ]);
 
     const historicStaffRows = await db.select({ id: notifications.id }).from(notifications)
       .where(and(eq(notifications.userId, staff.id), eq(notifications.type, "APPLICATION_DECISION")));
     expect(historicStaffRows.length).toBeGreaterThan(0); // retained, not deleted
 
-    expect((await listNotificationsForUser(staff.id)).some((n) => n.type === "APPLICATION_DECISION")).toBe(false);
-    expect((await notificationBellEventsForUser(staff.id)).some((n) => n.type === "APPLICATION_DECISION")).toBe(false);
+    const staffRawApproval = await db.select({ id: notifications.id }).from(notifications)
+      .where(and(eq(notifications.userId, staff.id), eq(notifications.type, "REGISTRATION_APPROVED")));
+    expect(staffRawApproval).toHaveLength(1); // preserved, not deleted
+    const staffFeed = await listNotificationsForUser(staff.id);
+    const staffBell = await notificationBellEventsForUser(staff.id);
+    for (const type of ["APPLICATION_DECISION", "REGISTRATION_APPROVED"]) {
+      expect(staffFeed.some((n) => n.type === type)).toBe(false);
+      expect(staffBell.some((n) => n.type === type)).toBe(false);
+    }
     expect(await unreadNotificationCount(staff.id)).toBe(staffUnreadBefore);
 
-    expect((await listNotificationsForUser(agencyUser.id)).some((n) => n.type === "APPLICATION_DECISION")).toBe(true);
-    expect((await notificationBellEventsForUser(agencyUser.id)).some((n) => n.type === "APPLICATION_DECISION")).toBe(true);
+    const agencyFeed = await listNotificationsForUser(agencyUser.id);
+    const agencyBell = await notificationBellEventsForUser(agencyUser.id);
+    for (const type of ["APPLICATION_DECISION", "REGISTRATION_APPROVED"]) {
+      expect(agencyFeed.some((n) => n.type === type)).toBe(true);
+      expect(agencyBell.some((n) => n.type === type)).toBe(true);
+    }
     expect(await unreadNotificationCount(agencyUser.id)).toBeGreaterThan(0);
   });
 
