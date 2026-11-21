@@ -52,7 +52,9 @@ export default async function AdminUsersPage({
   // §privilege escalation — the role picker only ever offers roles that belong to
   // the population being edited. An agency account is never presented with a
   // staff role, even though the action would reject it anyway.
-  const roleOptions = view === "staff" ? [staff.role==='SUPER_ADMIN'?'ADMIN':staff.role] : AGENCY_ROLES;
+  const roleOptions = view === "staff"
+    ? staff.role === "SUPER_ADMIN" ? ["ADMIN", "VISA_AGENT", "ACCOUNTING"] : [staff.role]
+    : AGENCY_ROLES;
 
   return (
     <>
@@ -192,7 +194,7 @@ export default async function AdminUsersPage({
               <select id="n-role" name="role" required className="input" defaultValue={roleOptions[0]}>
                 {roleOptions.map((r) => (
                   <option key={r} value={r}>
-                    {view === "staff" ? it("Staff") : businessLabel(r, uiLocale)}
+                    {view === "staff" && staff.role !== "SUPER_ADMIN" ? it("Staff") : businessLabel(r, uiLocale)}
                   </option>
                 ))}
               </select>
