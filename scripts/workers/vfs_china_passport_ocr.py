@@ -41,16 +41,26 @@ def request(method: str, path: str, payload: dict | None = None) -> tuple[bytes,
     timestamp = str(int(time.time() * 1000))
     canonical = f"{timestamp}\n{method}\n{path}\n{base64.b64encode(body).decode('ascii')}"
     signature = hmac.new(secret.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
-    req = Request(root + path, data=body if method == "POST" else None, method=method, headers={
+    headers = {
         "x-vfs-timestamp": timestamp,
         "x-vfs-signature": signature,
         "Content-Type": "application/json" if method == "POST" else "application/octet-stream",
-    })
+    }
+    # Short-lived OIDC token from `vercel env run --`; no SSO/Preview protection disabled.
+    oidc_token = os.environ.get("VERCEL_OIDC_TOKEN", "").strip()
+    if oidc_token:
+        headers["x-vercel-trusted-oidc-idp-token"] = oidc_token
+    req = Request(root + path, data=body if method == "POST" else None, method=method, headers=headers)
     with urlopen(req, timeout=API_TIMEOUT) as response:
         data = response.read(MAX_FILE + 200_000)
         if len(data) > MAX_FILE + 150_000:
             raise RuntimeError("OCR response over limit")
-        return data, response.headers.get("Content-Type", "")
+        mime = response.headers.get("Content-Type", "")
+        if urlsplit(response.geturl()).netloc != urlsplit(root).netloc:
+            raise RuntimeError("Unexpected OCR endpoint redirect (check Vercel Authentication)")
+        if (method == "POST" or path == ROUTE + "?action=queue") and "application/json" not in mime.lower():
+            raise RuntimeError("OCR endpoint returned non-JSON content (check Vercel Authentication)")
+        return data, mime
 
 
 def _run(command: list[str], timeout: int = 60) -> str:
