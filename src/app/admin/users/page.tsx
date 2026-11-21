@@ -152,7 +152,22 @@ export default async function AdminUsersPage({
                       {!u.agencyId ? <details className="w-full max-w-xl text-start">
                         <summary className="cursor-pointer py-3 font-semibold">{it('Edit Staff access')}</summary>
                         <form action={updateUserAction} className="mt-3 grid gap-4 sm:grid-cols-2">
-                          <input type="hidden" name="id" value={u.id} /><input type="hidden" name="back" value="/admin/users?view=staff" /><input type="hidden" name="role" value={u.role} />
+                          <input type="hidden" name="id" value={u.id} /><input type="hidden" name="back" value="/admin/users?view=staff" />
+                          {staff.role === "SUPER_ADMIN" ? (
+                            <>
+                              <label className="label" htmlFor={`staff-role-${u.id}`}>Staff role
+                                <select id={`staff-role-${u.id}`} name="role" defaultValue={u.role} required className="input">
+                                  {(["ADMIN", "VISA_AGENT", "ACCOUNTING"] as const).map((role) => (
+                                    <option key={role} value={role}>{role}</option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="label flex items-center gap-2">
+                                <input type="checkbox" name="confirmRoleChange" value="1" />
+                                I confirm any Staff role change
+                              </label>
+                            </>
+                          ) : <input type="hidden" name="role" value={u.role} />}
                           <label className="label" htmlFor={`staff-name-${u.id}`}>{ct('Full name')}<input id={`staff-name-${u.id}`} name="name" required maxLength={512} dir="auto" defaultValue={u.name} className="input" /></label>
                           <label className="label" htmlFor={`staff-username-${u.id}`}>{it('Internal username (optional)')}<input id={`staff-username-${u.id}`} name="username" maxLength={128} dir="auto" defaultValue={u.username??''} className="input" /></label>
                           <label className="label sm:col-span-2" htmlFor={`staff-email-${u.id}`}>{ct('Email')}<input id={`staff-email-${u.id}`} name="email" type="email" required maxLength={254} dir="ltr" defaultValue={u.email} className="input" /></label>
