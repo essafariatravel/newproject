@@ -386,6 +386,23 @@ export const applicants = pgTable(
 );
 
 /**
+ * VFS China case reference supplied only by ESSAFARIA Staff.
+ * No agency-side mutation and no automatic approval unless a verified
+ * passport OCR result and exact reference identify ONE open China dossier.
+ */
+export const vfsChinaBindings = pgTable(
+  "vfs_china_bindings",
+  {
+    applicationId: uuid("application_id").primaryKey().references(() => applications.id),
+    vfsReference: text("vfs_reference").notNull().unique(),
+    savedBy: uuid("saved_by").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("vfs_china_bindings_saved_by_idx").on(t.savedBy)],
+);
+
+/**
  * Checklist is snapshotted per application from visa_requirements at creation,
  * then re-synced (additions only) while the application is still a draft,
  * preserving historical meaning of existing items.
@@ -611,6 +628,42 @@ export const pushSubscriptions = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("push_subscriptions_user_idx").on(t.userId, t.updatedAt)],
+);
+
+/**
+ * Immutable evidence that a passport number came from a private OCR extraction
+ * and passed all ICAO TD3 MRZ checks. Never surface raw OCR output to agencies.
+ */
+export const passportMrzEvidence = pgTable(
+  "passport_mrz_evidence",
+  {
+    applicationId: uuid("application_id").primaryKey().references(() => applications.id),
+    documentId: uuid("document_id").notNull().references(() => documents.id),
+    verifiedBy: uuid("verified_by").notNull().references(() => users.id),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }).notNull().defaultNow(),
+    extractorVersion: text("extractor_version").notNull(),
+  },
+  (t) => [index("passport_mrz_document_idx").on(t.documentId)],
+);
+
+
+/** Private replay/decision ledger for signed VFS China Gmail events. */
+export const vfsChinaMailEvents = pgTable(
+  "vfs_china_mail_events",
+  {
+    gmailMessageId: text("gmail_message_id").primaryKey(),
+    certificateReference: text("certificate_reference").notNull(),
+    pdfSha256: text("pdf_sha256").notNull(),
+    applicationId: uuid("application_id").notNull().references(() => applications.id),
+    status: text("status").notNull().default("PROCESSING"),
+    decisionDocumentId: uuid("decision_document_id").references(() => documents.id),
+    attempts: integer("attempts").notNull().default(1),
+    leasedUntil: timestamp("leased_until", { withTimezone: true }).notNull().default(sql`now() + interval '10 minutes'`),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    lastErrorCode: text("last_error_code"),
+    ...timestamps,
+  },
+  (t) => [index("vfs_china_mail_app_idx").on(t.applicationId, t.createdAt)],
 );
 
 export const communications = pgTable(
