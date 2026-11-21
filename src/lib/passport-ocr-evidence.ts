@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   applicants, applications, countries, documents, documentTypes,
@@ -54,7 +54,7 @@ export async function recordVerifiedPassportFromOcr(input: {
       .limit(1).for("update", { of: applications });
 
     if (!doc) throw new AppError("NOT_FOUND", "Passport document not found.");
-    if (doc.countryIso2 !== "CN" || doc.terminal || doc.docType !== "COD-PASS" ||
+    if (doc.countryIso2 !== "CN" || doc.terminal || !["PASSPORT", "COD-PASS"].includes(doc.docType) ||
         !["UPLOADED", "ACCEPTED", "UNDER_REVIEW"].includes(doc.docStatus)) {
       throw new AppError("INVALID_DOCUMENT", "Only an open China dossier's passport document can be read.");
     }
@@ -72,7 +72,7 @@ export async function recordVerifiedPassportFromOcr(input: {
       .innerJoin(documentTypes, eq(documents.documentTypeId, documentTypes.id))
       .where(and(
         eq(documents.applicationId, doc.applicationId),
-        eq(documentTypes.code, "COD-PASS"),
+        inArray(documentTypes.code, ["PASSPORT", "COD-PASS"]),
         ne(documents.status, "REJECTED"),
       )).orderBy(desc(documents.createdAt), desc(documents.id)).limit(1);
     if (!latestPassport || latestPassport.id !== doc.id) return "REVIEW_REQUIRED";
