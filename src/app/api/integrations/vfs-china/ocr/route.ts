@@ -41,11 +41,15 @@ export async function GET(request: Request) {
     const actor = await vfsServiceActor();
     const u = new URL(request.url);
     const action = u.searchParams.get("action");
+    const testDocumentId = process.env.VFS_CHINA_OCR_TEST_DOCUMENT_ID;
+    if (testDocumentId && !uuid.safeParse(testDocumentId).success)
+      throw new AppError("NOT_CONFIGURED", "OCR test document ID is invalid.");
 
     const eligibility = and(
       eq(countries.iso2, "CN"),
       eq(statuses.isTerminal, false),
       inArray(documentTypes.code, ["PASSPORT", "COD-PASS"]),
+      testDocumentId ? eq(documents.id, testDocumentId) : undefined,
       inArray(documents.status, [...passportStatuses]),
       isNull(passportMrzEvidence.applicationId),
     );
@@ -119,6 +123,9 @@ export async function POST(request: Request) {
     const raw = await readRequestBodyLimited(request, 100_000);
     requireSignedVfsRequest(request, raw, "ocr");
     const data = ocrResult.parse(JSON.parse(raw.toString("utf8")) as unknown);
+    const testDocumentId = process.env.VFS_CHINA_OCR_TEST_DOCUMENT_ID;
+    if (testDocumentId && data.documentId !== testDocumentId)
+      throw new AppError("NOT_FOUND", "Passport not available in this OCR test.");
     const actor = await vfsServiceActor();
     const outcome = await recordVerifiedPassportFromOcr({ ...data, actor });
     return NextResponse.json({ outcome }, { headers: NO_STORE });
