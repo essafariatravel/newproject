@@ -524,7 +524,9 @@ async function persistRegistration(
       });
     } catch (err) {
       lastError = err;
-      const dbError = err as { code?: string; constraint?: string } | null;
+      // Drizzle may wrap PostgreSQL errors in DrizzleQueryError.cause.
+      const dbError = ((err as { cause?: unknown } | null)?.cause ?? err) as
+        { code?: string; constraint?: string } | null;
       if (dbError?.code === "23505" && dbError.constraint === "agency_registration_email_once") {
         throw new AppError("DUPLICATE", "An agency registration already exists for this email.");
       }

@@ -281,19 +281,26 @@ describe("public agency registration — duplicates & rate limiting", () => {
   it("database rejects direct duplicate writes without deleting existing applications", async () => {
     const data = registrationData();
     const first = await submitAgencyRegistration({ data, files: [], ipAddress: nextIp() });
-    await expect(db.insert(agencyRegistrations).values({
-      reference: "AGR-2099-DBDUP1",
-      legalName: "Duplicated Via SQL",
-      email: data.email,
-      phone: data.phone,
-      contactFirstName: "Other",
-      contactLastName: "User",
-      contactEmail: data.email,
-      contactPhone: data.phone,
-      termsAccepted: true,
-      privacyAcknowledged: true,
-      infoConfirmed: true,
-    })).rejects.toMatchObject({ code: "23505", constraint: "agency_registration_email_once" });
+    let directInsertError: unknown;
+    try {
+      await db.insert(agencyRegistrations).values({
+        reference: "AGR-2099-DBDUP1",
+        legalName: "Duplicated Via SQL",
+        email: data.email,
+        phone: data.phone,
+        contactFirstName: "Other",
+        contactLastName: "User",
+        contactEmail: data.email,
+        contactPhone: data.phone,
+        termsAccepted: true,
+        privacyAcknowledged: true,
+        infoConfirmed: true,
+      });
+    } catch (error) { directInsertError = error; }
+    expect(directInsertError).toBeDefined();
+    const pgError = ((directInsertError as { cause?: unknown })?.cause ?? directInsertError) as
+      { code?: string; constraint?: string };
+    expect(pgError).toMatchObject({ code: "23505", constraint: "agency_registration_email_once" });
     expect((await db.select().from(agencyRegistrations).where(eq(agencyRegistrations.id, first.id)))).toHaveLength(1);
   });
   it("accepts a shared mailbox already used by a platform user", async () => {
