@@ -207,7 +207,7 @@ const en: RegistrationCopy = {
     fileContent: "The file content does not match its declared format.",
     fileName: "Invalid file name.",
     duplicate:
-      "An application or account already exists for this email or company. If you believe this is an error, contact ESSAFARIA.",
+      "A registration request already exists for this email address. Contact ESSAFARIA to update your application or get assistance.",
     rateLimited: "Too many attempts. Please wait a while before submitting again.",
     spamDetected: "Your submission could not be accepted. Please contact ESSAFARIA directly.",
     generic: "Something went wrong. Please try again.",
@@ -339,7 +339,7 @@ const fr: RegistrationCopy = {
     fileContent: "Le contenu du fichier ne correspond pas au format déclaré.",
     fileName: "Nom de fichier invalide.",
     duplicate:
-      "Une demande ou un compte existe déjà pour cet email ou cette société. Si vous pensez qu'il s'agit d'une erreur, contactez ESSAFARIA.",
+      "Une demande d'inscription existe déjà pour cette adresse e-mail. Contactez ESSAFARIA pour la modifier ou obtenir de l'aide.",
     rateLimited: "Trop de tentatives. Veuillez patienter avant de soumettre à nouveau.",
     spamDetected: "Votre envoi n'a pas pu être accepté. Veuillez contacter ESSAFARIA directement.",
     generic: "Une erreur est survenue. Veuillez réessayer.",
@@ -470,7 +470,7 @@ const ar: RegistrationCopy = {
     fileContent: "محتوى الملف لا يطابق الصيغة المُعلنة.",
     fileName: "اسم الملف غير صالح.",
     duplicate:
-      "يوجد طلب أو حساب مسجَّل مسبقاً لهذا البريد الإلكتروني أو لهذه الشركة. إذا كنتم تعتقدون أن هناك خطأ، يرجى التواصل مع ESSAFARIA.",
+      "يوجد طلب تسجيل سابق بعنوان البريد الإلكتروني هذا. يرجى التواصل مع ESSAFARIA لتحديث الطلب أو الحصول على المساعدة.",
     rateLimited: "محاولات كثيرة جداً. يرجى الانتظار قليلاً قبل إعادة الإرسال.",
     spamDetected: "تعذّر قبول طلبكم. يرجى التواصل مع ESSAFARIA مباشرةً.",
     generic: "حدث خطأ ما. يرجى المحاولة مرة أخرى.",

@@ -440,6 +440,20 @@ async function persistRegistration(
           }
           consent = { ...canonical, locale: data.locale };
         }
+        // Serialize requests for the SAME canonical email across all Vercel
+        // instances. A former, pending, rejected or approved application
+        // permanently reserves its email; changing company names cannot bypass it.
+        // The database trigger (migration 0040) independently enforces this
+        // invariant for writers outside this service.
+        const canonicalEmail = data.email.trim().toLowerCase();
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtext('evos:registration-email'), hashtext(${canonicalEmail}))`);
+        const [emailAlreadyRegistered] = await tx.select({ id: agencyRegistrations.id })
+          .from(agencyRegistrations)
+          .where(sql`lower(btrim(${agencyRegistrations.email})) = ${canonicalEmail}`)
+          .limit(1);
+        if (emailAlreadyRegistered) {
+          throw new AppError("DUPLICATE", "An agency registration already exists for this email.");
+        }
         await tx.insert(agencyRegistrations).values({
           id,
           reference,
@@ -510,7 +524,12 @@ async function persistRegistration(
       });
     } catch (err) {
       lastError = err;
-      if ((err as { code?: string } | null)?.code === "23505" && attempt < 2) continue;
+      const dbError = err as { code?: string; constraint?: string } | null;
+      if (dbError?.code === "23505" && dbError.constraint === "agency_registration_email_once") {
+        throw new AppError("DUPLICATE", "An agency registration already exists for this email.");
+      }
+      // Retry ONLY reference collisions, never duplicate-email violations.
+      if (dbError?.code === "23505" && dbError.constraint === "agency_registrations_reference_key" && attempt < 2) continue;
       throw err;
     }
   }

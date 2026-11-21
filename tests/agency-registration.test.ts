@@ -232,13 +232,69 @@ describe("public agency registration — document safety", () => {
 });
 
 describe("public agency registration — duplicates & rate limiting", () => {
-  it("accepts likely duplicates for Staff review rather than rejecting them", async () => {
+  it("rejects a second registration for the same email, independent of name or casing", async () => {
+    const data = registrationData();
+    const initial = await submitAgencyRegistration({ data, files: [], ipAddress: nextIp() });
+    const before = await countRegistrations();
+    const staffBefore = (await db.select().from(notifications).where(eq(notifications.type, "REGISTRATION_SUBMITTED"))).length;
+    await expect(submitAgencyRegistration({
+      data: { ...registrationData(), email: "  " + data.email.toUpperCase() + "  ", legalName: "Different Name Voyages" },
+      files: [], ipAddress: nextIp(),
+    })).rejects.toMatchObject({ code: "DUPLICATE" });
+    expect(await countRegistrations()).toBe(before);
+    expect((await db.select().from(notifications).where(eq(notifications.type, "REGISTRATION_SUBMITTED")))).toHaveLength(staffBefore);
+    expect((await db.select().from(agencyRegistrations).where(eq(agencyRegistrations.id, initial.id)))).toHaveLength(1);
+    for (const locale of ["en", "fr", "ar"] as const) {
+      expect(registrationCopy(locale).errors.duplicate.length).toBeGreaterThan(30);
+    }
+  });
+  it("preserves duplicate detection for Staff when company names match but email differs", async () => {
     const data = registrationData();
     const first = await submitAgencyRegistration({ data, files: [], ipAddress: nextIp() });
-    const second = await submitAgencyRegistration({ data, files: [], ipAddress: nextIp() });
-    expect(first.id).not.toBe(second.id);
+    const second = await submitAgencyRegistration({
+      data: { ...registrationData(), legalName: data.legalName },
+      files: [], ipAddress: nextIp(),
+    });
     const matches = await getRegistrationDuplicateCandidates(second.id, await userByEmail("admin@test.example"));
-    expect(matches.some((match) => match.id === first.id && match.signals.includes("email"))).toBe(true);
+    expect(matches.some((match) => match.id === first.id && match.signals.includes("name"))).toBe(true);
+  });
+  it("rejects resubmissions after refusal without changing historical status", async () => {
+    const data = registrationData();
+    const first = await submitAgencyRegistration({ data, files: [], ipAddress: nextIp() });
+    await db.update(agencyRegistrations).set({ status: "REJECTED" }).where(eq(agencyRegistrations.id, first.id));
+    await expect(submitAgencyRegistration({ data, files: [], ipAddress: nextIp() })).rejects.toMatchObject({ code: "DUPLICATE" });
+    expect((await db.select().from(agencyRegistrations).where(eq(agencyRegistrations.id, first.id)))[0]!.status).toBe("REJECTED");
+  });
+  it("serializes concurrent submissions with the same email", async () => {
+    const data = registrationData();
+    const attempts = await Promise.allSettled([
+      submitAgencyRegistration({ data, files: [], ipAddress: nextIp() }),
+      submitAgencyRegistration({ data: { ...registrationData(), email: data.email }, files: [], ipAddress: nextIp() }),
+    ]);
+    expect(attempts.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const rejected = attempts.find((r) => r.status === "rejected");
+    expect(rejected).toBeDefined();
+    if (rejected?.status === "rejected") expect(rejected.reason).toMatchObject({ code: "DUPLICATE" });
+    expect((await db.select().from(agencyRegistrations)
+      .where(sql`lower(btrim(${agencyRegistrations.email})) = ${data.email}`))).toHaveLength(1);
+  });
+  it("database rejects direct duplicate writes without deleting existing applications", async () => {
+    const data = registrationData();
+    const first = await submitAgencyRegistration({ data, files: [], ipAddress: nextIp() });
+    await expect(db.insert(agencyRegistrations).values({
+      reference: "AGR-2099-DBDUP1",
+      legalName: "Duplicated Via SQL",
+      email: data.email,
+      phone: data.phone,
+      contactFirstName: "Other",
+      contactLastName: "User",
+      contactEmail: data.email,
+      contactPhone: data.phone,
+      termsAccepted: true,
+      privacyAcknowledged: true,
+      infoConfirmed: true,
+    })).rejects.toMatchObject({ code: "23505", constraint: "agency_registration_email_once" });
+    expect((await db.select().from(agencyRegistrations).where(eq(agencyRegistrations.id, first.id)))).toHaveLength(1);
   });
   it("accepts a shared mailbox already used by a platform user", async () => {
     await expect(submitAgencyRegistration({ data: registrationData({contactEmail:"a-admin@test.example"}), files:[], ipAddress:nextIp() })).resolves.toHaveProperty("reference");
