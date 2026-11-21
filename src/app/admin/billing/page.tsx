@@ -12,6 +12,8 @@ import { FilterBar, Pagination } from "@/components/app-widgets";
 import { TopupProcessForm } from "@/components/topup";
 import { processTopupAction } from "@/app/actions/topup";
 import { listTopupRequests } from "@/lib/topup";
+import { listBankAccounts } from "@/lib/bank-accounts";
+import { BankAccountsAdmin } from "@/components/bank-accounts";
 import { agencyClosureCopy } from "@/lib/agency-closure-copy";
 
 import { EmptyState, Flash, PageHeader, StatCard, TableWrap } from "@/components/ui";
@@ -39,11 +41,12 @@ export default async function AdminBillingPage({
   const flash = flashFrom(sp);
   const agencyFilter = typeof sp.agency === "string" ? sp.agency : undefined;
   const page = Number(sp.page ?? "1") || 1;
-  const [txs, agencies, topups, totalBalance] = await Promise.all([
+  const [txs, agencies, topups, totalBalance, bankAccounts] = await Promise.all([
     listWalletTransactions({ agencyId: agencyFilter, page }),
     listAgencies(),
     listTopupRequests({ status: "PENDING", limit: 50 }),
     totalWalletBalance(),
+    staff.role === "SUPER_ADMIN" ? listBankAccounts(staff) : Promise.resolve([]),
   ]);
   const canAdjust = hasPermission(staff,"wallet.adjust");
 
@@ -58,6 +61,8 @@ export default async function AdminBillingPage({
         <StatCard label={ct("Ledger entries")} value={txs.total} />
         <StatCard label={ct("Pending top-up requests")} value={topups.length} tone="gold" />
       </div>
+
+      {staff.role === "SUPER_ADMIN" ? <BankAccountsAdmin accounts={bankAccounts} locale={uiLocale} /> : null}
 
       <div className="mt-8">
         <h2 className="mb-1 font-serif text-lg text-navy-900">{ct("Pending top-up requests")}</h2>

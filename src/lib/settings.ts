@@ -2,7 +2,6 @@ import { cache } from "react";
 import { db } from "@/lib/db";
 import { siteSettings } from "@/db/schema";
 import { sql } from "drizzle-orm";
-import { STAFF_PROFILE_PREFIX } from '@/lib/staff-profile';
 
 export type SiteSettingsMap = Record<string, unknown>;
 
@@ -15,7 +14,8 @@ export type SiteSettingsMap = Record<string, unknown>;
  */
 export const getSiteSettings = cache(async (): Promise<SiteSettingsMap> => {
   try {
-    const rows = await db.select().from(siteSettings).where(sql`${siteSettings.key} not like ${STAFF_PROFILE_PREFIX+'%'}`);
+    // Never load private operational entries into any public-facing settings map.
+  const rows = await db.select().from(siteSettings).where(sql`${siteSettings.key} not like ${"internal.%"}`);
     const map: SiteSettingsMap = {};
     for (const row of rows) map[row.key] = row.value;
     return map;

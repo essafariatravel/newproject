@@ -13,6 +13,8 @@ import { FilterBar, Pagination } from "@/components/app-widgets";
 import { Card, EmptyState, Flash, PageHeader, TableWrap } from "@/components/ui";
 import { WalletStatementForm } from "@/components/wallet-statement-form";
 import { TopupRequestForm } from "@/components/topup";
+import { BankAccountDirectory } from "@/components/bank-accounts";
+import { listBankAccounts } from "@/lib/bank-accounts";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 
@@ -33,8 +35,8 @@ export default async function PortalWalletPage({
   for (const [k, v] of Object.entries(raw)) sp[k] = typeof v === "string" ? v : undefined;
   const user = await portalPageUser();
   if (!hasPermission(user,"transactions.view.own")) {
-    const balance = await getBalance(user.agencyId);
-    return <><PageHeader title={ct("Available balance")}/><div className="card p-6"><p className="font-serif text-[32px] font-semibold tabular-nums">{formatAmount(balance.balance)}</p><p className="mt-4 text-base text-slate-500">{ct("Your Agency Admin manages wallet funding and transactions.")}</p></div></>;
+    const [balance, bankAccounts] = await Promise.all([getBalance(user.agencyId), listBankAccounts(user)]);
+    return <><PageHeader title={ct("Available balance")}/><div className="card p-6"><p className="font-serif text-[32px] font-semibold tabular-nums">{formatAmount(balance.balance)}</p><p className="mt-4 text-base text-slate-500">{ct("Your Agency Admin manages wallet funding and transactions.")}</p></div><div className="mt-6"><BankAccountDirectory accounts={bankAccounts} locale={uiLocale} /></div></>;
   }
   const flash = flashFrom(sp);
   const page = Number(sp.page ?? "1") || 1;
@@ -42,7 +44,7 @@ export default async function PortalWalletPage({
   const typeFilter = sp.type && typeFilterOptions(ct).some((o) => o.value === sp.type) ? sp.type : undefined;
   const q = sp.q?.trim() || undefined;
 
-  const [balance, ledger, topups] = await Promise.all([
+  const [balance, ledger, topups, bankAccounts] = await Promise.all([
     getBalance(user.agencyId),
     listWalletTransactions({
       agencyId: user.agencyId, // tenant scope from the session only
@@ -54,6 +56,7 @@ export default async function PortalWalletPage({
       pageSize: 25,
     }),
     listTopupRequestsForAgency(user.agencyId),
+    listBankAccounts(user),
   ]);
 
   const pendingTopup = topups.find((t) => t.status === "PENDING") ?? null;
@@ -272,7 +275,10 @@ export default async function PortalWalletPage({
         <p className="mt-1 max-w-2xl text-base text-slate-500">
           {ct("Tell ESSAFARIA how much you need in your wallet. Your balance is credited once the funds are confirmed — no online payment is taken here.")}
         </p>
-        <div className="mt-4 max-w-3xl">
+        <div className="mt-5 max-w-4xl">
+          <BankAccountDirectory accounts={bankAccounts} locale={uiLocale} />
+        </div>
+        <div className="mt-6 max-w-3xl">
           <TopupRequestForm
             action={requestTopupAction}
             back="/portal/wallet"
