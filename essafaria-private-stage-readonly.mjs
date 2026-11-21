@@ -31,9 +31,26 @@ try {
  gateStage="DATABASE_READONLY_IDENTITY";
  const who=(await client.query("select current_database() db,current_setting('transaction_read_only') ro")).rows[0];
  assert.equal(who.db,"postgres");assert.equal(who.ro,"on");
- gateStage="EXACT_LEDGER37";
+ gateStage="EXACT_LEDGER38";
  const ledger=(await client.query("select name from visa_os.schema_migrations order by name")).rows.map(r=>r.name);
- assertExactWebPushLedger(ledger, exactWebPushLedger(APPROVED_BASELINE.ledger, QUALIFIED_RELEASE_SCOPE, QUALIFIED_BATCH_B_SCOPE));
+ // Retain the original strict 37-migration attestation and explicitly
+ // authorize only the independently verified, non-destructive email guard.
+ const approvedLedger37=exactWebPushLedger(APPROVED_BASELINE.ledger, QUALIFIED_RELEASE_SCOPE, QUALIFIED_BATCH_B_SCOPE);
+ assertExactWebPushLedger(ledger, [...approvedLedger37, "0040_agency_registration_email_once.sql"]);
+ gateStage="REGISTRATION_EMAIL_UNIQUENESS_GUARD";
+ const registrationGuard=(await client.query(`
+   select t.tgenabled as enabled, pg_get_triggerdef(t.oid) definition,
+     pg_get_functiondef(t.tgfoid) handler
+   from pg_trigger t join pg_class c on c.oid=t.tgrelid
+   join pg_namespace n on n.oid=c.relnamespace
+   where n.nspname='visa_os' and c.relname='agency_registrations'
+     and t.tgname='agency_registration_email_once' and not t.tgisinternal
+ `)).rows;
+ assert.equal(registrationGuard.length,1);
+ assert.equal(registrationGuard[0].enabled,"O");
+ assert.match(registrationGuard[0].definition,/BEFORE INSERT OR UPDATE OF email ON visa_os\.agency_registrations/);
+ assert.match(registrationGuard[0].handler,/pg_advisory_xact_lock/);
+ assert.match(registrationGuard[0].handler,/agency_registration_email_once/);
  gateStage="WEB_PUSH_PRIVATE_TABLE";
  const push=(await client.query(`
    select c.relrowsecurity as rls, c.relforcerowsecurity as forced_rls,
@@ -55,7 +72,7 @@ try {
  gateStage="HISTORICAL_ADMINS";
  const historical=(await client.query("select count(*)::int n from visa_os.users where lower(btrim(email))<>$1 and role='SUPER_ADMIN' and status='ACTIVE' and agency_id is null",["admin@essafariavoyages.com"])).rows[0];assert.equal(historical.n,2);
  await client.query("rollback");
- console.log("ESSAFARIA_PRIVATE_STAGE_TLS_READONLY_LEDGER37_STAFF_PUSH_OWNER_GATE_PASS");
+ console.log("ESSAFARIA_PRIVATE_STAGE_TLS_READONLY_LEDGER38_REGISTRATION_EMAIL_STAFF_PUSH_OWNER_GATE_PASS");
 }catch {
  console.error("ESSAFARIA_PRIVATE_STAGE_READONLY_GATE_BLOCKED_NO_SECRETS stage="+gateStage);process.exitCode=1;
 }finally {
