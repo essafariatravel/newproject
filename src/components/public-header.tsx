@@ -43,6 +43,7 @@ export function PublicHeader({ brandName, homeHref = "/", tagline: _tagline, log
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const pathname = usePathname();
+  const isHome = pathname === "/" || pathname === "/fr" || pathname === "/ar";
   const toggle = useRef<HTMLButtonElement>(null);
 
   // The menu never survives a route change/resize race: close it when the
@@ -67,11 +68,26 @@ export function PublicHeader({ brandName, homeHref = "/", tagline: _tagline, log
   }, [open]);
 
   return (
-    <header className="premium-public-header sticky top-0 z-40 border-b border-white/10 bg-navy-950 text-white">
+    <header className={`premium-public-header sticky top-0 z-40 border-b border-white/10 bg-navy-950 text-white${isHome ? " home-header" : ""}`}>
       <div className="ess-container flex h-16 items-center justify-between gap-2">
         {/* Brand — logo artwork when uploaded, otherwise monogram + wordmark */}
         <Link href={homeHref} className="platform-brand flex min-w-0 shrink items-center gap-2" aria-label={brandName}>
-          {logoUrl ? (
+          {isHome ? (
+            <>
+              {logoUrl ? (
+                <img className="home-configured-logo" src={logoUrl} alt="" width="126" height="42" />
+              ) : (
+                <picture>
+                  <source media="(max-width: 680px)" srcSet="/images/essafaria-logo-header.webp" width="160" height="113" />
+                  <img src="/images/login/essafaria-horizontal.webp" alt="" width="612" height="187" />
+                </picture>
+              )}
+              <span className="home-brand-name">
+                <b dir="ltr">Visa OS</b>
+                <small>{labels.b2b}</small>
+              </span>
+            </>
+          ) : logoUrl ? (
             <img
               src={logoUrl}
               alt={brandName}

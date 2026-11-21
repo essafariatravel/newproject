@@ -1,6 +1,7 @@
 import { ActivityTimeline } from "@/components/application-detail";
 import { DocStatusBadge } from "@/components/badges";
 import { Progress } from "@/components/ui";
+import { PublicVisaIntake } from "@/components/public-visa-intake";
 import { contentT } from "@/lib/i18n-content";
 import type { UiLocale } from "@/lib/ui-i18n";
 
@@ -49,13 +50,9 @@ const sampleHistory = [
   { history: { id: "submission", reason: "Request submitted", createdAt: new Date("2026-05-12T09:05:00Z") }, toStatus: { code: "SUBMITTED", name: "Submitted" } },
 ];
 
-// Heights of the 1344px and 686px form captures vary with the translated copy.
-const captureHeights = { en: [394, 466], fr: [426, 498], ar: [392, 464] } as const;
-
 export function PublicVisaChapters({ locale }: { locale: UiLocale }) {
   const labels = copy[locale];
   const ct = contentT(locale);
-  const [wideHeight, smallHeight] = captureHeights[locale];
   return (
     <section id="visa-services" className="platform-width workspace-tour" aria-labelledby="chapter-title">
       <header className="tour-heading">
@@ -76,17 +73,11 @@ export function PublicVisaChapters({ locale }: { locale: UiLocale }) {
             </label>
           </div>
         ))}
+        <div className="chapter-indicator" aria-hidden="true"><span /></div>
         <div className="product-proof">
           <div className="proof-body">
             <section id="visa-explanation-0" className="proof-pane">
-              <div className="proof-intro">
-                <h3>{labels.file}</h3>
-                <p>{labels.tabs[0][1]}</p>
-              </div>
-              <picture className="proof-screen">
-                <source media="(max-width: 639px)" srcSet={`/images/workflow/intake-${locale}-small.webp`} width="686" height={smallHeight} />
-                <img src={`/images/workflow/intake-${locale}.webp`} alt={labels.intakeImage} width="1344" height={wideHeight} loading="lazy" />
-              </picture>
+              <PublicVisaIntake locale={locale} title={labels.file} description={labels.tabs[0][1]} imageAlt={labels.intakeImage} />
             </section>
             <section id="visa-explanation-1" className="proof-pane">
               <div className="proof-intro">

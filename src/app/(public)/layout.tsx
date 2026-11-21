@@ -42,6 +42,10 @@ export default async function PublicLayout({ children }: { children: ReactNode }
     SEO_INDEXABLE_PUBLIC_ENTRIES.find((entry) => entry.key === headerPage)?.key;
   const tr = chromeT(locale);
   const ct = contentT(locale);
+  const homeTagline = "Visa management, built for travel agencies.";
+  const footerTagline = publicPage === "home" && (!tagline || tagline === homeTagline)
+    ? { en: homeTagline, fr: "Gestion des visas pour les agences de voyages.", ar: "منصة لإدارة طلبات التأشيرة لوكالات السفر." }[locale]
+    : ct(tagline);
   const legalLinks = {
     fr: ["Mentions légales", "Politique de cookies", "Conditions commerciales B2B"],
     en: ["Legal notice", "Cookie policy", "B2B commercial terms"],
@@ -81,7 +85,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
         <div className={`ess-container grid grid-cols-1 gap-8 py-8 sm:grid-cols-2 ${hasContact ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
           <div>
             <p className="text-lg font-semibold text-white">{brandName}</p>
-            <p className="mt-2 max-w-xs text-base leading-relaxed text-white/65">{ct(tagline)}</p>
+            <p className="mt-2 max-w-xs text-base leading-relaxed text-white/65">{footerTagline}</p>
           </div>
           <div>
             <p className="text-base font-semibold text-white">{tr("Platform")}</p>

@@ -30,7 +30,7 @@ export default async function HomePage() {
         <div className="hero-airport" aria-hidden="true">
           <img data-hero-image src="/images/travel/dulles-terminal.webp"
             srcSet="/images/travel/dulles-terminal-small.webp 720w, /images/travel/dulles-terminal.webp 1680w"
-            sizes="(max-width: 639px) 100vw, 76vw" alt="" width="1680" height="998" fetchPriority="high" />
+            sizes="(max-width: 680px) 100vw, 78vw" alt="" width="1680" height="998" fetchPriority="high" />
         </div>
         <div className="platform-width hero-content">
           <h1 id="public-hero-title">{copy.hero}</h1>
