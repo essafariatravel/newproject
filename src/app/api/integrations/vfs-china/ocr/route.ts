@@ -45,7 +45,7 @@ export async function GET(request: Request) {
     const eligibility = and(
       eq(countries.iso2, "CN"),
       eq(statuses.isTerminal, false),
-      eq(documentTypes.code, "COD-PASS"),
+      inArray(documentTypes.code, ["PASSPORT", "COD-PASS"]),
       inArray(documents.status, [...passportStatuses]),
       isNull(passportMrzEvidence.applicationId),
     );
