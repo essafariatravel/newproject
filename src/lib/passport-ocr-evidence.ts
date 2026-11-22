@@ -1,6 +1,7 @@
 import "server-only";
-import { and, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { qualifiedTable } from "@/lib/database-schema";
 import {
   applicants, applications, countries, documents, documentTypes,
   passportMrzEvidence, statuses,
@@ -40,6 +41,15 @@ export async function recordVerifiedPassportFromOcr(input: {
   return await db.transaction(async (tx) => {
     await currentOperationActor(tx, input.actor);
     stage = "document-lock";
+    // Explicitly lock the owning application using an unqualified FOR UPDATE target.
+    // Drizzle's .for("update", { of: applications }) emits a schema-qualified
+    // relation in the OF clause for pgSchema tables; PostgreSQL rejects it (42601).
+    const locked = await tx.execute(sql`select id from ${sql.raw(qualifiedTable("applications"))}
+      where id = (select application_id from ${sql.raw(qualifiedTable("documents"))}
+        where id = ${input.documentId}::uuid)
+      for update`);
+    if (!locked.rows.length) throw new AppError("NOT_FOUND", "Passport document not found.");
+    stage = "document-lookup";
     const [doc] = await tx.select({
       id: documents.id,
       applicationId: documents.applicationId,
@@ -54,7 +64,7 @@ export async function recordVerifiedPassportFromOcr(input: {
       .innerJoin(countries, eq(countries.id, applications.countryId))
       .innerJoin(statuses, eq(statuses.id, applications.statusId))
       .where(eq(documents.id, input.documentId))
-      .limit(1).for("update", { of: applications });
+      .limit(1);
 
     if (!doc) throw new AppError("NOT_FOUND", "Passport document not found.");
     if (doc.countryIso2 !== "CN" || doc.terminal || !["PASSPORT", "COD-PASS"].includes(doc.docType) ||
