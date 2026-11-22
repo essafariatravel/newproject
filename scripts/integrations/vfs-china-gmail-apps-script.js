@@ -21,7 +21,7 @@ const VFS_CHINA_QUERY =
 function strictVfsHeaders_(message) {
   const raw = String(message.getRawContent() || "");
   // Parse only the RFC 822 header section; never match a forged body excerpt.
-  const headerBlock = raw.split(/\r?\n\r?\n/, 1)[0].slice(0, 24_000);
+  const headerBlock = raw.substring(0, 24000).split("\r\n\r\n")[0].split("\n\n")[0];
   const unfolded = headerBlock.replace(/\r?\n[ \t]+/g, " ");
   const results = unfolded.match(/^Authentication-Results:[^\r\n]*$/gim) || [];
   const googleVerified = results.some(line =>
@@ -66,7 +66,7 @@ function extractCertificateText_(pdfBlob) {
     tempId = String(doc.id);
     let lastError = null;
     for (let attempt = 0; attempt < 3; attempt++) {
-      try { return DocumentApp.openById(tempId).getBody().getText().slice(0, 80_000); }
+      try { return DocumentApp.openById(tempId).getBody().getText().slice(0, 80000); }
       catch (err) { lastError = err; Utilities.sleep(700); }
     }
     throw new Error("Temporary certificate text could not be read");
@@ -107,7 +107,7 @@ function hmacPost_(path, input, origin, secret) {
 
 function runVfsChinaSweep() {
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(10_000)) return;
+  if (!lock.tryLock(10000)) return;
   const counters = { completed: 0, offline: 0, review: 0, error: 0 };
   try {
     const settings = PropertiesService.getScriptProperties();
@@ -126,7 +126,7 @@ function runVfsChinaSweep() {
         // a VFS reference. Retry them periodically, not every five minutes.
         const temporary = cached.match(/^(offline|review):(\d{13})$/);
         if (temporary && Date.now() - Number(temporary[2]) <
-            (temporary[1] === "offline" ? 6 * 3600_000 : 30 * 60_000)) continue;
+            (temporary[1] === "offline" ? 6 * 3600000 : 30 * 60000)) continue;
         try {
           const sender = String(message.getFrom() || "");
           const recipients = String(message.getTo() || "");
@@ -136,7 +136,7 @@ function runVfsChinaSweep() {
               !/^Online review completed\b/i.test(title)) continue;
           if (!strictVfsHeaders_(message)) { counters.review++; continue; }
 
-          const body = String(message.getPlainBody() || "").slice(0, 20_000);
+          const body = String(message.getPlainBody() || "").slice(0, 20000);
           const pdfs = message.getAttachments({ includeInlineImages: false })
             .filter(a => /^application\/pdf$/i.test(a.getContentType()) &&
               /^ALG[A-Z0-9]{10,26}\.pdf$/i.test(a.getName()) &&
