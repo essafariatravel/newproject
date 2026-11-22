@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { applications, countries, statuses, vfsChinaBindings } from "@/db/schema";
-import { AppError, type AuthUser, isStaffRole } from "@/lib/types";
+import { AppError, type AuthUser, isAgencyRole, isStaffRole } from "@/lib/types";
 import { currentOperationActor } from "@/lib/operation-identity";
 import { assertAgencyOperational } from "@/lib/agency-identity";
 import { recordAudit } from "@/lib/audit";
@@ -23,6 +23,28 @@ export async function readVfsChinaReference(applicationId: string, user: AuthUse
   requirePermission(user, "applications.review");
   const [binding] = await db.select({ reference: vfsChinaBindings.vfsReference })
     .from(vfsChinaBindings).where(eq(vfsChinaBindings.applicationId, applicationId)).limit(1);
+  return binding?.reference ?? null;
+}
+
+/**
+ * Agency-facing, read-only VFS reference. Never trust an application ID alone:
+ * the join must also enforce the authenticated agency's ownership. This does
+ * not grant access to Staff tools, the underlying table or another agency.
+ */
+export async function readAgencyVfsChinaReference(
+  applicationId: string,
+  user: AuthUser,
+): Promise<string | null> {
+  if (!vfsChinaStaffBindingEnabled() || !isAgencyRole(user.role) || !user.agencyId) return null;
+  const [binding] = await db.select({ reference: vfsChinaBindings.vfsReference })
+    .from(vfsChinaBindings)
+    .innerJoin(applications, eq(vfsChinaBindings.applicationId, applications.id))
+    .innerJoin(countries, eq(applications.countryId, countries.id))
+    .where(and(
+      eq(vfsChinaBindings.applicationId, applicationId),
+      eq(applications.agencyId, user.agencyId),
+      eq(countries.iso2, "CN"),
+    )).limit(1);
   return binding?.reference ?? null;
 }
 
