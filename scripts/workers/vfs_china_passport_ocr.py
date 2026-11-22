@@ -118,6 +118,7 @@ def main() -> int:
         maximum = max(1, min(30, int(os.environ.get("VFS_CHINA_OCR_MAX_DOCS", "10"))))
         counters = {"recorded": 0, "review": 0, "error": 0}
         for item in queue[:maximum]:
+            stage = "download"
             try:
                 identifier = str(item["id"])
                 if len(identifier) != 36:
@@ -125,10 +126,12 @@ def main() -> int:
                 path = ROUTE + "?action=file&documentId=" + quote(identifier, safe="")
                 binary, mime = request("GET", path)
                 mime = mime.split(";", 1)[0].strip().lower()
+                stage = "local-ocr"
                 text = ocr_document(binary, mime)
                 if len(text) < 10:
                     counters["review"] += 1
                     continue
+                stage = "submit-result"
                 response, _ = request("POST", ROUTE, {
                     "documentId": identifier, "ocrText": text,
                     "extractorVersion": "tesseract-local-v1",
@@ -138,8 +141,14 @@ def main() -> int:
                     counters["recorded"] += 1
                 else:
                     counters["review"] += 1
-            except (ValueError, KeyError, HTTPError, URLError, RuntimeError, subprocess.TimeoutExpired):
+            except (ValueError, KeyError, HTTPError, URLError, RuntimeError, subprocess.TimeoutExpired) as exc:
                 counters["error"] += 1
+                # Never print document IDs, OCR text, MRZ, secret headers or HTTP bodies.
+                # Only report the failed phase, exception class, and HTTP status.
+                if isinstance(exc, HTTPError):
+                    print(f"OCR diagnostic: stage={stage}, type=HTTPError, status={exc.code}", file=sys.stderr)
+                else:
+                    print(f"OCR diagnostic: stage={stage}, type={type(exc).__name__}", file=sys.stderr)
         print("OCR summary:", json.dumps(counters, sort_keys=True))
         return 0 if counters["error"] == 0 else 1
     except (HTTPError, URLError, RuntimeError, ValueError, KeyError) as exc:
