@@ -31,6 +31,31 @@ function strictVfsHeaders_(message) {
   return googleVerified;
 }
 
+/**
+ * Safe first authorization test. Reads VFS message metadata/authentication
+ * headers only; never accesses PDF attachments, Drive, or the VISA OS API.
+ * Aggregated counts only, no message IDs or applicant information.
+ */
+function runVfsChinaPreflight() {
+  const counts = { threads: 0, candidateMessages: 0, dmarcVerified: 0, authenticationReview: 0 };
+  const threads = GmailApp.search(VFS_CHINA_QUERY, 0, 10);
+  counts.threads = threads.length;
+  for (const thread of threads) {
+    for (const message of thread.getMessages()) {
+      const sender = String(message.getFrom() || "");
+      const recipients = String(message.getTo() || "");
+      const title = String(message.getSubject() || "");
+      if (!/service@visaforchina\.org/i.test(sender) ||
+          !/visa@essafariavoyages\.com/i.test(recipients) ||
+          !/^Online review completed\b/i.test(title)) continue;
+      counts.candidateMessages++;
+      if (strictVfsHeaders_(message)) counts.dmarcVerified++;
+      else counts.authenticationReview++;
+    }
+  }
+  console.log("VFS China preflight summary " + JSON.stringify(counts));
+}
+
 function extractCertificateText_(pdfBlob) {
   // Requires the Drive advanced service; Docs conversion uses Google's
   // document OCR/text extraction. No persistent Drive file is retained.
@@ -63,11 +88,17 @@ function hmacPost_(path, input, origin, secret) {
     Utilities.base64Encode(Utilities.newBlob(body).getBytes());
   const signature = Utilities.computeHmacSha256Signature(canonical, secret);
   const hex = signature.map(b => ("0" + ((b + 256) % 256).toString(16)).slice(-2)).join("");
+  const headers = { "x-vfs-timestamp": timestamp, "x-vfs-signature": hex };
+  // Optional, owner-approved Vercel protection bypass for external Apps Script.
+  // Keep this secret in Script Properties only; do not create it during preflight.
+  const previewBypass = String(PropertiesService.getScriptProperties()
+    .getProperty("VFS_CHINA_VERCEL_BYPASS_SECRET") || "");
+  if (previewBypass) headers["x-vercel-protection-bypass"] = previewBypass;
   const response = UrlFetchApp.fetch(origin + path, {
     method: "post",
     contentType: "application/json",
     payload: body,
-    headers: { "x-vfs-timestamp": timestamp, "x-vfs-signature": hex },
+    headers: headers,
     muteHttpExceptions: true,
     followRedirects: false,
   });
