@@ -16,8 +16,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import type { UiLocale } from "@/lib/ui-locale-values";
+import { PublicActionLabel } from "./public-action-label";
 
 export interface PublicHeaderProps {
+  locale: UiLocale;
   brandName: string;
   homeHref?: string;
   /** Reserved for the marketing lockup — not rendered inside the app chrome. */
@@ -39,7 +42,7 @@ export interface PublicHeaderProps {
   };
 }
 
-export function PublicHeader({ brandName, homeHref = "/", tagline: _tagline, logoUrl, localeSwitcher, nav, labels }: PublicHeaderProps) {
+export function PublicHeader({ locale, brandName, homeHref = "/", tagline: _tagline, logoUrl, localeSwitcher, nav, labels }: PublicHeaderProps) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const pathname = usePathname();
@@ -124,17 +127,17 @@ export function PublicHeader({ brandName, homeHref = "/", tagline: _tagline, log
           {/* Language switcher: desktop only — mobile gets it inside the menu */}
           <span className="public-desktop-controls hidden xl:inline-flex">{localeSwitcher}</span>
           <span className="public-desktop-controls hidden xl:inline-flex">
-            <Link href="/login" className="btn btn-sm platform-sign-in">
-              {labels.signIn}
+            <Link href={`/login?lang=${locale}`} className="btn btn-sm platform-sign-in">
+              {isHome ? <PublicActionLabel locale={locale}>{labels.signIn}</PublicActionLabel> : labels.signIn}
             </Link>
           </span>
           {/* The ONE register CTA (visible on every viewport, mobile included) */}
           <Link
-            href="/agency/register"
+            href={`/agency/register?lang=${locale}`}
             data-testid="public-register-cta"
             className="btn-gold btn-sm public-partner-action whitespace-nowrap px-4 text-base"
           >
-            {labels.register}
+            {isHome ? <PublicActionLabel locale={locale}>{labels.register}</PublicActionLabel> : labels.register}
           </Link>
           <button
             ref={toggle}
@@ -174,8 +177,8 @@ export function PublicHeader({ brandName, homeHref = "/", tagline: _tagline, log
             ))}
             <div className="mt-2 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 px-2 pb-4 pt-4">
               {localeSwitcher}
-              <Link href="/login" className="btn btn-sm border border-white/35 bg-transparent text-white" onClick={() => setOpen(false)}>
-                {labels.signIn}
+              <Link href={`/login?lang=${locale}`} className="btn btn-sm platform-sign-in border border-white/35 bg-transparent text-white" onClick={() => setOpen(false)}>
+                {isHome ? <PublicActionLabel locale={locale}>{labels.signIn}</PublicActionLabel> : labels.signIn}
               </Link>
             </div>
           </nav>

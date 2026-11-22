@@ -26,7 +26,7 @@ export function PremiumLoginShell({ locale, logoUrl, brandName, returnPath, regi
             <img className="login-custom-logo" src={logoUrl} width="1517" height="1072" alt={brandName} />
           ) : (
             <picture>
-              <source media="(max-width: 46rem)" srcSet="/images/essafaria-logo-header.webp" width="160" height="113" />
+              <source media="(max-width: 680px)" srcSet="/images/essafaria-logo-header.webp" width="160" height="113" />
               <img src="/images/login/essafaria-horizontal.webp" width="612" height="187" alt="ESSAFARIA TRAVEL" />
             </picture>
           )}

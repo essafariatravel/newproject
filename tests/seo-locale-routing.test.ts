@@ -55,4 +55,27 @@ describe("stable public locale URLs", () => {
     expect(config.matcher).not.toContain("/admin/:path*");
     expect(config.matcher).not.toContain("/portal/:path*");
   });
+
+  it("gives the login document the explicit language of the agency link", () => {
+    for (const locale of ["fr", "en", "ar"]) {
+      const response = proxy(new NextRequest(`${host}/login?reason=session-expired&lang=${locale}`, {
+        headers: { cookie: "evos_ui_locale=ar" },
+      }));
+      expect(response.headers.get("x-middleware-request-x-essafaria-public-locale")).toBe(locale);
+      expect(response.headers.get("x-middleware-request-x-essafaria-public-page")).toBeNull();
+      expect(response.headers.get("x-middleware-rewrite")).toBeNull();
+    }
+    for (const query of ["lang=xx", "lang=fr&lang=ar"]) {
+      expect(proxy(new NextRequest(`${host}/login?${query}`)).headers.get("x-middleware-request-x-essafaria-public-locale")).toBeNull();
+    }
+  });
+
+  it("remembers a public document visit and ignores speculative navigation", () => {
+    for (const path of ["/ar", "/login?lang=ar", "/forgot-password?lang=ar"]) {
+      const visit = proxy(new NextRequest(host + path, { headers: { "sec-fetch-dest": "document" } }));
+      expect(visit.cookies.get("evos_ui_locale")?.value).toBe("ar");
+      const prefetch = proxy(new NextRequest(host + path, { headers: { "sec-fetch-dest": "document", "sec-purpose": "prefetch;prerender" } }));
+      expect(prefetch.cookies.get("evos_ui_locale")).toBeUndefined();
+    }
+  });
 });

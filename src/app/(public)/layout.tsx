@@ -58,6 +58,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
       <PublicMotion />
       <a className="public-skip" href="#public-main">{tr("Skip to content")}</a>
       <PublicHeader
+        locale={locale}
         brandName={brandName}
         homeHref={seoLocalizedPublicPath("home", locale)}
         tagline={tagline}
@@ -91,8 +92,8 @@ export default async function PublicLayout({ children }: { children: ReactNode }
             <p className="text-base font-semibold text-white">{tr("Platform")}</p>
             <ul className="mt-4 space-y-2 text-base">
               <li><Link className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("b2b", locale)}>{tr("For Agencies")}</Link></li>
-              <li><Link className="text-white/70 transition-colors hover:text-white" href="/login">{tr("Sign in")}</Link></li>
-              <li><Link className="text-white/70 transition-colors hover:text-white" href="/agency/register">{tr("Register your agency")}</Link></li>
+              <li><Link className="text-white/70 transition-colors hover:text-white" href={`/login?lang=${locale}`}>{tr("Sign in")}</Link></li>
+              <li><Link className="text-white/70 transition-colors hover:text-white" href={`/agency/register?lang=${locale}`}>{tr("Register your agency")}</Link></li>
             </ul>
           </div>
           <div>
@@ -100,8 +101,8 @@ export default async function PublicLayout({ children }: { children: ReactNode }
             <ul className="mt-4 space-y-2 text-base">
               <li><Link className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("about", locale)}>{ct("About ESSAFARIA VISA")}</Link></li>
               <li><Link className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("contact", locale)}>{ct("Contact")}</Link></li>
-              <li><Link className="text-white/70 transition-colors hover:text-white" href="/privacy">{ct("Privacy Notice")}</Link></li>
-              <li><Link className="text-white/70 transition-colors hover:text-white" href="/terms">{ct("Terms of Service")}</Link></li>
+              <li><Link className="text-white/70 transition-colors hover:text-white" href={`/privacy?lang=${locale}`}>{ct("Privacy Notice")}</Link></li>
+              <li><Link className="text-white/70 transition-colors hover:text-white" href={`/terms?lang=${locale}`}>{ct("Terms of Service")}</Link></li>
               {(["legal-notice", "cookies", "commercial"] as const).map((document, index) => <li key={document}><Link className="text-white/70 transition-colors hover:text-white" href={`/legal/${document}?lang=${locale}`}>{legalLinks[index]}</Link></li>)}
             </ul>
           </div>

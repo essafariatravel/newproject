@@ -28,7 +28,7 @@ export interface LoginCopy {
 }
 
 export function LoginForm({ copy, locale, botConfig }: { copy: LoginCopy; locale: UiLocale; botConfig: TurnstilePublicConfig }) {
-  const { state, formAction, verified, setVerified, challenge } = useProtectedAction<ActionState>(loginAction, {}, botConfig, locale);
+  const { state, formAction, pending, verified, setVerified, challenge } = useProtectedAction<ActionState>(loginAction, {}, botConfig, locale);
   const submittedIdentifier = useRef("");
   const [currentIdentifier, setCurrentIdentifier] = useState("");
   const [remaining, setRemaining] = useState<number | null>(null);
@@ -55,7 +55,7 @@ export function LoginForm({ copy, locale, botConfig }: { copy: LoginCopy; locale
 
   return (
     <>
-      <form action={formAction} onSubmit={event => { submittedIdentifier.current = String(new FormData(event.currentTarget).get("identifier") ?? "").trim().toLowerCase(); }} onReset={event => event.preventDefault()} className="login-form">
+      <form action={formAction} aria-busy={pending || undefined} onSubmit={event => { submittedIdentifier.current = String(new FormData(event.currentTarget).get("identifier") ?? "").trim().toLowerCase(); }} onReset={event => event.preventDefault()} className="login-form">
         {state.error ? (
           <div role="alert" className="premium-notice" data-tone="error">
             {lockedResult ? (
