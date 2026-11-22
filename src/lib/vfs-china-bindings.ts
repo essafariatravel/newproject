@@ -42,17 +42,28 @@ export async function saveVfsChinaReference(
 
   return db.transaction(async (tx) => {
     await currentOperationActor(tx, actor);
+    // Lock only the dossier row. With a schema-qualified Drizzle pgTable,
+    // .for("update", { of: applications }) generates FOR UPDATE OF
+    // "visa_os_preview"."applications", which PostgreSQL rejects (42601).
+    // A standalone SELECT FOR UPDATE emits valid SQL and avoids locking the
+    // shared countries/statuses lookup rows.
     const [app] = await tx.select({
       id: applications.id, agencyId: applications.agencyId,
       reference: applications.reference,
+    }).from(applications)
+      .where(eq(applications.id, applicationId)).limit(1).for("update");
+    if (!app) throw new AppError("NOT_FOUND", "Application not found.");
+
+    const [details] = await tx.select({
       iso2: countries.iso2, terminal: statuses.isTerminal,
     }).from(applications)
       .innerJoin(countries, eq(applications.countryId, countries.id))
       .innerJoin(statuses, eq(applications.statusId, statuses.id))
-      .where(eq(applications.id, applicationId)).limit(1).for("update", { of: applications });
-    if (!app) throw new AppError("NOT_FOUND", "Application not found.");
+      .where(eq(applications.id, applicationId)).limit(1);
+    if (!details) throw new AppError("NOT_FOUND", "Application details not found.");
+
     await assertAgencyOperational(tx, app.agencyId, app.id);
-    if (app.iso2 !== "CN" || app.terminal)
+    if (details.iso2 !== "CN" || details.terminal)
       throw new AppError("INVALID_STATE", "VFS references can only be added to open China dossiers.");
 
     const [old] = await tx.select({ reference: vfsChinaBindings.vfsReference })
