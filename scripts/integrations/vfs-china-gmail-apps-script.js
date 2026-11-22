@@ -18,7 +18,7 @@
 const VFS_CHINA_APPROVED_ORIGIN =
   "https://newproject-git-feature-vfs-c-72c740-essafaria-travel-s-projects.vercel.app";
 const VFS_CHINA_MAX_MESSAGES_PER_RUN = 1;
-const VFS_CHINA_MAX_THREADS_PER_RUN = 1;
+const VFS_CHINA_MAX_THREADS_PER_RUN = 25;
 
 const VFS_CHINA_QUERY =
   'to:visa@essafariavoyages.com from:service@visaforchina.org ' +
