@@ -35,8 +35,11 @@ export async function recordVerifiedPassportFromOcr(input: {
   const parsed = extractVerifiedPassportMrz(input.ocrText);
   if (!parsed) return "REVIEW_REQUIRED";
 
-  return db.transaction(async (tx) => {
+  let stage = "actor-authorization";
+  try {
+  return await db.transaction(async (tx) => {
     await currentOperationActor(tx, input.actor);
+    stage = "document-lock";
     const [doc] = await tx.select({
       id: documents.id,
       applicationId: documents.applicationId,
@@ -64,7 +67,9 @@ export async function recordVerifiedPassportFromOcr(input: {
     } else if (!isStaffRole(input.actor.role)) {
       throw new AppError("FORBIDDEN", "Invalid OCR operation actor.");
     }
+    stage = "agency-check";
     await assertAgencyOperational(tx, doc.agencyId, doc.applicationId);
+    stage = "latest-document";
 
     // A replacement passport may have been submitted while OCR was running.
     // Never persist an older document as the current verified identity.
@@ -77,12 +82,14 @@ export async function recordVerifiedPassportFromOcr(input: {
       )).orderBy(desc(documents.createdAt), desc(documents.id)).limit(1);
     if (!latestPassport || latestPassport.id !== doc.id) return "REVIEW_REQUIRED";
 
+    stage = "applicant-check";
     const traveler = await tx.select({ id: applicants.id, passportNumber: applicants.passportNumber })
       .from(applicants).where(eq(applicants.applicationId, doc.applicationId)).limit(2);
     if (traveler.length !== 1) return "REVIEW_REQUIRED";
     if (traveler[0]!.passportNumber &&
         traveler[0]!.passportNumber.trim().toUpperCase() !== parsed.passportNumber) return "REVIEW_REQUIRED";
 
+    stage = "evidence-check";
     const [existing] = await tx.select({
       documentId: passportMrzEvidence.documentId,
     }).from(passportMrzEvidence)
@@ -96,15 +103,18 @@ export async function recordVerifiedPassportFromOcr(input: {
 
     // The extracted passport number and its evidence become visible together.
     if (!traveler[0]!.passportNumber) {
+      stage = "applicant-update";
       await tx.update(applicants).set({ passportNumber: parsed.passportNumber })
         .where(eq(applicants.id, traveler[0]!.id));
     }
+    stage = "evidence-insert";
     await tx.insert(passportMrzEvidence).values({
       applicationId: doc.applicationId,
       documentId: doc.id,
       verifiedBy: input.actor.id,
       extractorVersion: input.extractorVersion,
     });
+    stage = "audit-insert";
     await recordAudit({
       actor: input.actor,
       action: "PASSPORT_MRZ_VERIFIED",
@@ -115,6 +125,17 @@ export async function recordVerifiedPassportFromOcr(input: {
     }, tx);
     return "RECORDED";
   });
+  } catch (error) {
+    if (process.env.VERCEL_ENV === "preview" && process.env.VFS_CHINA_OCR_TEST_DOCUMENT_ID) {
+      const e = error as { name?: unknown; code?: unknown; cause?: { code?: unknown } };
+      const kind = typeof e?.name === "string" && /^[A-Za-z0-9_]{2,50}$/.test(e.name) ? e.name : "UnknownError";
+      const rawCode = typeof e?.cause?.code === "string" ? e.cause.code : typeof e?.code === "string" ? e.code : "";
+      const safeCode = /^[A-Z0-9_]{2,40}$/.test(rawCode) ? rawCode : "unspecified";
+      // No passport numbers, OCR text, names, document IDs, SQL text or secrets.
+      console.error("[vfs-ocr-preview] stage=" + stage + " kind=" + kind + " code=" + safeCode);
+    }
+    throw error;
+  }
 }
 
 export async function isPassportMrzVerified(applicationId: string): Promise<boolean> {
