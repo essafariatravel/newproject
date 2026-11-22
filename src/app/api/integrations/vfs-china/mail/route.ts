@@ -80,7 +80,7 @@ async function candidateForVfsReference(certificate: VfsChinaCertificate): Promi
       .innerJoin(documentTypes, eq(documentTypes.id, documents.documentTypeId))
       .where(and(
         eq(documents.applicationId, row.applicationId),
-        eq(documentTypes.code, "COD-PASS"),
+        inArray(documentTypes.code, ["PASSPORT", "COD-PASS"]),
         ne(documents.status, "REJECTED"),
       ))
       .orderBy(desc(documents.createdAt), desc(documents.id)).limit(1);
