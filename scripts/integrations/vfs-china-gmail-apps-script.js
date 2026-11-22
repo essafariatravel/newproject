@@ -32,25 +32,23 @@ function strictVfsHeaders_(message) {
 }
 
 /**
- * Safe first authorization test. Reads VFS message metadata/authentication
- * headers only; never accesses PDF attachments, Drive, or the VISA OS API.
+ * Safe first authorization test. Checks basic Gmail message headers only.
+ * No getRawContent(), no attachment/PDF access, no Drive and no HTTP requests.
  * Aggregated counts only, no message IDs or applicant information.
  */
 function runVfsChinaPreflight() {
-  const counts = { threads: 0, candidateMessages: 0, dmarcVerified: 0, authenticationReview: 0 };
+  const counts = { threads: 0, messagesScanned: 0, metadataMatches: 0 };
   const threads = GmailApp.search(VFS_CHINA_QUERY, 0, 10);
   counts.threads = threads.length;
   for (const thread of threads) {
     for (const message of thread.getMessages()) {
+      counts.messagesScanned++;
       const sender = String(message.getFrom() || "");
       const recipients = String(message.getTo() || "");
       const title = String(message.getSubject() || "");
-      if (!/service@visaforchina\.org/i.test(sender) ||
-          !/visa@essafariavoyages\.com/i.test(recipients) ||
-          !/^Online review completed\b/i.test(title)) continue;
-      counts.candidateMessages++;
-      if (strictVfsHeaders_(message)) counts.dmarcVerified++;
-      else counts.authenticationReview++;
+      if (/service@visaforchina\.org/i.test(sender) &&
+          /visa@essafariavoyages\.com/i.test(recipients) &&
+          /^Online review completed\b/i.test(title)) counts.metadataMatches++;
     }
   }
   console.log("VFS China preflight summary " + JSON.stringify(counts));
