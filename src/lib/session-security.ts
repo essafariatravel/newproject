@@ -3,12 +3,13 @@ import { db } from "@/lib/db";
 import { sessions, users, auditLogs } from "@/db/schema";
 import { currentAccountActor, lockIdentityState, recordIdentityAudit, revokeUserAccess } from "./account-security";
 import type { AuthUser } from "./types";
+import { sessionPolicy } from "./identity-policy";
 
 /** Only safe metadata; raw tokens and token hashes never leave this service. */
 export async function activeSessions(actor: AuthUser) {
   return db.select({id:sessions.id,createdAt:sessions.createdAt,lastActivityAt:sessions.lastActivityAt,expiresAt:sessions.expiresAt,userAgent:sessions.userAgent,mfaVerifiedAt:sessions.mfaVerifiedAt})
     .from(sessions).innerJoin(users,eq(sessions.userId,users.id))
-    .where(and(eq(sessions.userId,actor.id),eq(sessions.credentialVersion,users.credentialVersion),gt(sessions.expiresAt,new Date()),sql`${sessions.lastActivityAt}>now()-interval '30 minutes'`))
+    .where(and(eq(sessions.userId,actor.id),eq(sessions.credentialVersion,users.credentialVersion),gt(sessions.expiresAt,new Date()),sql`${sessions.lastActivityAt} > now() - ${sessionPolicy(actor.agencyId).idleMs} * interval '1 millisecond'`))
     .orderBy(desc(sessions.createdAt),desc(sessions.id)).limit(100);
 }
 export async function securityOverview(actor:AuthUser){

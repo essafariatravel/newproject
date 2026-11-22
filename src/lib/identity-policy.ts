@@ -18,9 +18,12 @@ export function legacyAgencyUsername(userId: string): string {
 }
 
 export const SESSION_POLICIES = {
-  staff: { idleMs: 30 * 60_000, absoluteMs: 12 * 60 * 60_000 },
-  agency: { idleMs: 15 * 60_000, absoluteMs: 24 * 60 * 60_000 },
+  staff: { idleMs: 60 * 60_000, absoluteMs: 12 * 60 * 60_000 },
+  agency: { idleMs: 120 * 60_000, absoluteMs: 24 * 60 * 60_000 },
 } as const;
+
+/** Warning before the effective idle or absolute session deadline. */
+export const SESSION_WARNING_MS = 5 * 60_000;
 
 export function sessionPolicy(agencyId: string | null) {
   return agencyId ? SESSION_POLICIES.agency : SESSION_POLICIES.staff;
