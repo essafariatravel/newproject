@@ -150,6 +150,11 @@ export async function POST(request: Request) {
     const raw = await readRequestBodyLimited(request, MAX_VFS_INTAKE_BYTES);
     requireSignedVfsRequest(request, raw, "mail");
     const input = mailShape.parse(JSON.parse(raw.toString("utf8")) as unknown);
+    // A synthetic Preview smoke test must NEVER enter the decision workflow,
+    // even if someone accidentally enables the auto-decision feature flag.
+    if (input.gmailMessageId.startsWith("PREVIEWDRYRUN_") &&
+        (process.env.VERCEL_ENV !== "preview" || vfsMailDecisionEnabled()))
+      return outcome("REVIEW_REQUIRED");
     const file = Buffer.from(input.pdfBase64, "base64");
     if (file.length < 100 || file.length > MAX_UPLOAD_BYTES ||
         file.toString("ascii", 0, 5) !== "%PDF-")
