@@ -28,6 +28,9 @@ function run(script: string, args: string[]): number {
 
 function main(): void {
   console.log(`[build] Verified storage provider: ${configuredStorageProvider()}`);
+  // Dependency-free policy/EN-FR-AR verification in both Preview and Production.
+  // No database connection, no session mutations, and no external service calls.
+  if (run("node_modules/tsx/dist/cli.mjs", ["scripts/verify-session-inactivity.ts"]) !== 0) process.exit(1);
   if (process.env.VERCEL === "1" && process.env.VERCEL_ENV === "production") {
     if (run("node_modules/tsx/dist/cli.mjs", ["essafaria-private-stage-readonly.mjs"]) !== 0) process.exit(1);
   }
