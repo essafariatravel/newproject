@@ -42,6 +42,9 @@ import {
 } from "@/components/application-detail";
 import { getApplicationPricing } from "@/lib/price-adjustments";
 import { applyPriceAdjustmentAction } from "@/app/actions/pricing";
+import { vfsChinaStaffBindingEnabled, readVfsChinaReference } from "@/lib/vfs-china-bindings";
+import { saveVfsChinaReferenceAction } from "@/app/actions/vfs-china";
+import { isPassportMrzVerified } from "@/lib/passport-ocr-evidence";
 
 export const dynamic = "force-dynamic";
 
@@ -127,6 +130,9 @@ export default async function AdminApplicationDetailPage({
   const visaDisplayName = configName({ name: app.visaTypeName, nameFr: detail.visaNameFr, nameAr: detail.visaNameAr }, uiLocale);
   const applicant = applicants[0];
   const openRequests = docRequests.filter((r) => r.req.status === "OPEN");
+  const showVfsChinaBinding = vfsChinaStaffBindingEnabled() && detail.countryIso2 === "CN" && canReview;
+  const vfsChinaReference = showVfsChinaBinding ? await readVfsChinaReference(id, user) : null;
+  const passportOcrVerified = showVfsChinaBinding ? await isPassportMrzVerified(id) : false;
 
   return (
     <>
@@ -270,6 +276,34 @@ export default async function AdminApplicationDetailPage({
                 ) : (
                   <p className="px-4 pb-4 text-xs text-slate-500">{["APPROVED","REJECTED","COMPLETED","CANCELLED"].includes(detail.statusCode) ? ct("File closed.") : ct("Decisions unlock in Processing / Awaiting Decision.")}</p>
                 )}
+              </Card>
+            ) : null}
+
+            {showVfsChinaBinding ? (
+              <Card>
+                <CardHeader title={ct("VFS China reference")} subtitle={ct("Entered by ESSAFARIA Staff when the VFS reference is available. Passport identification is automatic; never type it here.")} />
+                <div className="space-y-3 px-4 py-4">
+                  <p className="text-xs text-slate-600">
+                    {ct("Passport scan")}: {passportOcrVerified ? ct("Verified passport available") : ct("Automatic OCR verification pending")}
+                  </p>
+                  {vfsChinaReference ? (
+                    <p className="rounded-md bg-ivory-50 px-4 py-3 font-mono text-sm text-navy-900">
+                      {vfsChinaReference}
+                    </p>
+                  ) : (
+                    <form action={saveVfsChinaReferenceAction} className="flex flex-wrap items-end gap-3">
+                      <input name="applicationId" type="hidden" value={id} />
+                      <div className="min-w-[220px] flex-1">
+                        <label htmlFor="vfs-china-reference" className="label">{ct("VFS reference")}</label>
+                        <input id="vfs-china-reference" name="vfsReference" className="input font-mono"
+                          placeholder="ALG… / 202611…" maxLength={32} required autoComplete="off"
+                          pattern="(?:ALG[A-Za-z0-9]{10,26}|[0-9]{12,24})" />
+                      </div>
+                      <SubmitButton className="btn-secondary btn-sm" pendingLabel={ct("Saving…")}>{ct("Save reference")}</SubmitButton>
+                    </form>
+                  )}
+                  <p className="text-xs text-slate-500">{ct("Saving the reference does not approve a dossier. Approval requires a validated certificate and an exact passport match.")}</p>
+                </div>
               </Card>
             ) : null}
 

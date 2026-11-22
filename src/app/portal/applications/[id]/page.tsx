@@ -2,6 +2,7 @@ import { configName } from "@/lib/config-localization";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { portalPageUser } from "@/lib/page-auth";
+import { readAgencyVfsChinaReference } from "@/lib/vfs-china-bindings";
 import { getApplicationDetail, getEmbassyApplicability } from "@/lib/queries";
 import {
   getChecklist,
@@ -55,6 +56,11 @@ export default async function PortalApplicationDetailPage({
   if (!detail) notFound();
   const app = detail.app;
   const back = `/portal/applications/${id}`;
+  // getApplicationDetail has already checked this dossier belongs to this agency.
+  // The lookup independently rechecks agency ownership before returning a binding.
+  const vfsChinaReference = detail.countryIso2 === "CN"
+    ? await readAgencyVfsChinaReference(id, user)
+    : null;
 
   const [applicants, docs, checklist, history, messages, charge, draftStatus, _wallet, decisionDocs, docRequests] =
     await Promise.all([
@@ -151,6 +157,17 @@ export default async function PortalApplicationDetailPage({
                   <p className="mt-1 font-mono text-navy-900">{app.reference}</p>
                   <p className="text-xs text-slate-500">{ct("Submitted")}: {formatDateTime(app.submittedAt, uiLocale)}</p>
                 </div>
+                {vfsChinaReference ? (
+                  <div className="sm:col-span-2 rounded-lg border border-slate-200 bg-ivory-50 p-4" data-testid="agency-vfs-china-reference">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      {uiLocale === "fr" ? "Référence VFS Chine" : uiLocale === "ar" ? "مرجع VFS للصين" : "VFS China reference"}
+                    </p>
+                    <p className="mt-1 break-all font-mono text-base font-semibold text-navy-900">{vfsChinaReference}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {uiLocale === "fr" ? "Enregistrée par ESSAFARIA · Lecture seule" : uiLocale === "ar" ? "مسجّل من طرف ESSAFARIA · للعرض فقط" : "Registered by ESSAFARIA · Read only"}
+                    </p>
+                  </div>
+                ) : null}
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Destination")}</p>
                   <p className="mt-1 font-semibold text-navy-900">{countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)}</p>
