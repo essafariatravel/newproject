@@ -19,6 +19,7 @@ const VFS_CHINA_APPROVED_ORIGIN =
   "https://newproject-git-feature-vfs-c-72c740-essafaria-travel-s-projects.vercel.app";
 const VFS_CHINA_MAX_MESSAGES_PER_RUN = 1;
 const VFS_CHINA_MAX_THREADS_PER_RUN = 25;
+const VFS_CHINA_CURSOR_PROPERTY = "VFS_CHINA_LAST_SCANNED_MESSAGE_ID";
 
 const VFS_CHINA_QUERY =
   'to:visa@essafariavoyages.com from:service@visaforchina.org ' +
@@ -139,11 +140,34 @@ function runVfsChinaSweep() {
     }
 
     const threads = GmailApp.search(VFS_CHINA_QUERY, 0, VFS_CHINA_MAX_THREADS_PER_RUN);
-
-    vfsThreadLoop: for (const thread of threads) {
+    // Scan metadata across a bounded group of conversations. One Gmail
+    // conversation may include many different VFS certificates.
+    const candidates = [];
+    for (const thread of threads) {
       for (const message of thread.getMessages()) {
-        if (counters.processed >= VFS_CHINA_MAX_MESSAGES_PER_RUN) break vfsThreadLoop;
-        if (Date.now() - startedAt >= 60000) break vfsThreadLoop;
+        if (Date.now() - startedAt >= 45000) break;
+        const sender = String(message.getFrom() || "");
+        const recipients = String(message.getTo() || "");
+        const title = String(message.getSubject() || "");
+        if (/service@visaforchina\.org/i.test(sender) &&
+            /visa@essafariavoyages\.com/i.test(recipients) &&
+            /^Online review completed\b/i.test(title)) {
+          candidates.push(message);
+        }
+      }
+      if (Date.now() - startedAt >= 45000) break;
+    }
+
+    // A cursor prevents expired offline/review retries in the first thread
+    // from starving certificates in other threads. Gmail is read-only.
+    const previousId = String(settings.getProperty(VFS_CHINA_CURSOR_PROPERTY) || "");
+    const previousIndex = candidates.findIndex(message => message.getId() === previousId);
+    const ordered = previousIndex < 0 ? candidates :
+      candidates.slice(previousIndex + 1).concat(candidates.slice(0, previousIndex + 1));
+
+    for (const message of ordered) {
+        if (counters.processed >= VFS_CHINA_MAX_MESSAGES_PER_RUN) break;
+        if (Date.now() - startedAt >= 60000) break;
 
         const key = "vfs:" + message.getId();
         const cached = String(settings.getProperty(key) || "");
@@ -156,18 +180,12 @@ function runVfsChinaSweep() {
           continue;
         }
 
+        // Keep the approved one-PDF-per-run safety limit.
+        counters.processed++;
+        settings.setProperty(VFS_CHINA_CURSOR_PROPERTY, message.getId());
         const sender = String(message.getFrom() || "");
         const recipients = String(message.getTo() || "");
         const title = String(message.getSubject() || "");
-        if (!/service@visaforchina\.org/i.test(sender) ||
-            !/visa@essafariavoyages\.com/i.test(recipients) ||
-            !/^Online review completed\b/i.test(title)) {
-          continue;
-        }
-
-        // Count even a rejected/failed message, so a single call cannot
-        // download, convert or transmit more than one candidate certificate.
-        counters.processed++;
 
         try {
           if (!strictVfsHeaders_(message)) {
@@ -220,7 +238,6 @@ function runVfsChinaSweep() {
           counters.error++;
           settings.setProperty(key, "review:" + Date.now());
         }
-      }
     }
     console.log("VFS China sweep summary " + JSON.stringify(counters));
   } finally {

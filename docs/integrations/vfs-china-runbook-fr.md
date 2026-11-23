@@ -98,8 +98,9 @@ globale pour ce projet.
    l'écosystème de la boîte), avec suppression immédiate du temporaire.
 4. Définir les propriétés de script `VISA_OS_URL` et
    `VFS_CHINA_MAIL_HMAC_SECRET`.
-5. Exécuter une fois `runVfsChinaSweep` sur Preview pour autoriser les
-   permissions, puis installer un déclencheur temporel toutes les 5 minutes.
+5. Conserver **l'unique déclencheur horaire existant** `runVfsChinaSweep` (type `Time-driven`) : ne pas créer de second déclencheur, ne pas accélérer la fréquence et ne pas activer les décisions automatiques.
+6. Après revue, le propriétaire de Gmail remplace le code dans **le projet Apps Script déjà installé**, sans modifier les propriétés ni les autorisations. Le code GitHub n'est pas synchronisé automatiquement avec Apps Script.
+7. Vérifier les compteurs `processed`, `offline`, `review` et `error` lors de l'exécution horaire suivante. Le curseur `VFS_CHINA_LAST_SCANNED_MESSAGE_ID` permet de passer aux autres confirmations tout en conservant un seul PDF par exécution.
 6. Ne pas activer les décisions tant que les cas tests ne passent pas.
 
 ### Qualification avant décisions réelles
