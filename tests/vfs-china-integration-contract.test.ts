@@ -27,7 +27,7 @@ describe("VFS China integration — deployment safety contract", () => {
   });
 
   it("requires evidence and exact linking before calling the existing canonical decision workflow", () => {
-    expect(mail).toContain("candidateForVfsReference(certificate.reference)");
+    expect(mail).toContain("candidateForVfsReference(certificate)");
     expect(mail).toContain("matchVfsChinaCertificate(source, certificate, candidates)");
     expect(mail).toContain("passportOcrVerified:");
     expect(mail).toContain("recordApplicationDecision({");
