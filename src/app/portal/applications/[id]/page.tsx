@@ -1,3 +1,5 @@
+import { CancellationPanel } from "@/components/cancellation-panel";
+import { listApplicationCancellations } from "@/lib/application-cancellations";
 import { configName } from "@/lib/config-localization";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -54,6 +56,7 @@ export default async function PortalApplicationDetailPage({
   const detail = await getApplicationDetail(id, user);
   if (!detail) notFound();
   const app = detail.app;
+  const cancellations = await listApplicationCancellations(id,user);
   const back = `/portal/applications/${id}`;
 
   const [applicants, docs, checklist, history, messages, charge, draftStatus, _wallet, decisionDocs, docRequests] =
@@ -110,6 +113,7 @@ export default async function PortalApplicationDetailPage({
       /></div>
       <ReconciliationWarning applicationId={id} user={user} locale={uiLocale}/>
       <Flash {...flash} />
+      <CancellationPanel id={id} rows={cancellations} eligible={Boolean(app.submittedAt) && !["APPROVED","REJECTED","CANCELLED","COMPLETED","REFUSED"].includes(detail.statusCode)} staff={false} netPaid={pricing?.effectivePrice??null} locale={uiLocale}/>
 
       <Tabs tabs={TABS.map((t) => ({ ...t, label: ct(t.label), href: `${back}?tab=${t.id}` }))} current={tab} />
 

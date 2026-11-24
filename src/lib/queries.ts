@@ -664,6 +664,9 @@ export async function listNotificationsForUser(userId: string, limit = 50, filte
             and requested.id = ${notifications.documentRequestId}))
         or (recipient.agency_id is null and (
           (${notifications.type} = 'APPLICATION_SUBMITTED' and state.code = 'SUBMITTED')
+          or (${notifications.type} = 'CANCELLATION_REQUESTED' and exists (
+            select 1 from ${table("application_cancellation_requests")} cancellation
+            where cancellation.application_id=dossier.id and cancellation.status='PENDING'))
           or (${notifications.type} = 'DOCUMENT_REQUEST_FULFILLED' and exists (
             select 1 from ${table("document_requests")} requested join ${table("documents")} file on file.id=requested.fulfilled_document_id
             where requested.id=${notifications.documentRequestId} and requested.application_id=dossier.id and requested.status='FULFILLED' and file.status in ('UPLOADED','UNDER_REVIEW') and file.version = (

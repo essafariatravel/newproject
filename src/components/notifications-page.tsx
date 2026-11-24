@@ -67,7 +67,7 @@ export async function NotificationsPage({
                   ))}
                 </p>
                 {n.reference ? <p className="text-xs text-slate-500"><bdi>{n.reference}</bdi></p> : null}
-                <p className="mt-1 text-base text-slate-600">{["MESSAGE_POSTED", "DOCUMENT_REQUESTED"].includes(n.type) ? n.body : null}</p>
+                <p className="mt-1 text-base text-slate-600">{["MESSAGE_POSTED", "DOCUMENT_REQUESTED", "CANCELLATION_REQUESTED", "CANCELLATION_APPROVED", "CANCELLATION_REFUSED"].includes(n.type) ? n.body : null}</p>
                 <p className="mt-1 text-xs text-slate-400">{formatDateTime(n.createdAt, locale)}</p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-2">

@@ -1,3 +1,5 @@
+import { CancellationPanel } from "@/components/cancellation-panel";
+import { listApplicationCancellations } from "@/lib/application-cancellations";
 import { configName } from "@/lib/config-localization";
 import { ReconciliationWarning } from "@/components/reconciliation-warning";
 import { businessLabel } from "@/lib/business-labels";
@@ -67,6 +69,7 @@ export default async function AdminApplicationDetailPage({
   const detail = await getApplicationDetail(id, user);
   if (!detail) notFound();
   const app = detail.app;
+  const cancellations = await listApplicationCancellations(id,user);
 
   const canAdjustPrice = hasPermission(user, "applications.pricing.adjust");
   const idempotencyKey = `adj-${id}-${Math.random().toString(36).slice(2, 14)}`;
@@ -143,6 +146,7 @@ export default async function AdminApplicationDetailPage({
       />
       <ReconciliationWarning applicationId={id} user={user} locale={uiLocale}/>
       <Flash {...flash} />
+      <CancellationPanel id={id} rows={cancellations} eligible={Boolean(app.submittedAt) && !["APPROVED","REJECTED","CANCELLED","COMPLETED","REFUSED"].includes(detail.statusCode) && canStatusChange && canAdjustPrice} staff netPaid={pricing?.effectivePrice??null} locale={uiLocale}/>
       <Tabs tabs={TABS.map((t) => ({ ...t, label: ct(t.label), href: `${back}?tab=${t.id}` }))} current={tab} />
 
       <section className="dossier-next-action" aria-labelledby="staff-next-action">
@@ -323,7 +327,7 @@ export default async function AdminApplicationDetailPage({
 
             {pricing ? <PriceAdjustmentHistory pricing={pricing} locale={uiLocale} /> : null}
 
-            {canAdjustPrice && pricing?.submittedPrice ? (
+            {canAdjustPrice && pricing?.submittedPrice && detail.statusCode !== "CANCELLED" ? (
               <Card>
                 <CardHeader title={ct("Adjust price")} subtitle={ct("Immutable adjustment + compensating wallet entry")} />
                 <form action={applyPriceAdjustmentAction} className="grid grid-cols-1 gap-4 p-4">

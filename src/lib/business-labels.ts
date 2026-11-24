@@ -50,6 +50,9 @@ const labels: Record<string, [string, string, string]> = {
   DOCUMENT_REQUEST_FULFILLED: ["Requested document received", "Document demandé reçu", "تم استلام المستند المطلوب"],
   APPLICATION_COMPLETED: ["Application completed", "Demande terminée", "اكتمل الطلب"],
   APPLICATION_DECISION: ["Decision available", "Décision disponible", "القرار متاح"],
+  CANCELLATION_REQUESTED: ["Cancellation requested", "Annulation demandée", "طلب إلغاء"],
+  CANCELLATION_APPROVED: ["Cancellation approved", "Annulation acceptée", "تم قبول الإلغاء"],
+  CANCELLATION_REFUSED: ["Cancellation refused", "Annulation refusée", "تم رفض الإلغاء"],
   MESSAGE_POSTED: ["New message", "Nouveau message", "رسالة جديدة"],
   WALLET_ADJUSTED: ["Wallet updated", "Portefeuille mis à jour", "تم تحديث المحفظة"],
   TOPUP_REQUESTED: ["Top-up requested", "Approvisionnement demandé", "طلب تعبئة المحفظة"],
@@ -80,7 +83,7 @@ export function businessReason(reason: string, type: string, reference: string |
 }
 
 export function notificationCategory(type: string): "action" | "messages" | "wallet" | "applications" {
-  if (["DOCUMENT_REQUESTED", "DOCUMENT_REJECTED", "RESUBMISSION_REQUIRED"].includes(type)) return "action";
+  if (["DOCUMENT_REQUESTED", "DOCUMENT_REJECTED", "RESUBMISSION_REQUIRED", "CANCELLATION_REQUESTED"].includes(type)) return "action";
   if (type === "MESSAGE_POSTED") return "messages";
   if (type.includes("WALLET") || type === "TOPUP_REQUESTED") return "wallet";
   return "applications";

@@ -531,6 +531,7 @@ export async function changeApplicationStatus(params: {
   }
   if (to.code === "SUBMITTED") throw new AppError("SUBMISSION_REQUIRED", "Submit this application through the submission workflow so its documents and wallet charge are recorded together.");
   if (to.isDraft) throw new AppError("INVALID_TRANSITION", "Submitted applications cannot return to a draft.");
+  if (to.code === "CANCELLED" && !from.isDraft) throw new AppError("INVALID_TRANSITION", "Use the cancellation and refund workflow.");
   if (from.isDraft && to.code !== "CANCELLED") throw new AppError("SUBMISSION_REQUIRED", "Submit this application before it enters operational processing.");
   if (actor.mustChangePassword || (actor.agencyId && !(from.isDraft && to.code === "CANCELLED"))) throw new AppError("FORBIDDEN", "Only ESSAFARIA staff can perform operational status changes.");
 
@@ -588,13 +589,18 @@ export async function changeApplicationStatus(params: {
     const scopeAllowed = currentTransition && (currentTransition.scope === "BOTH" || currentTransition.scope === (staff ? "STAFF" : "AGENCY"));
     if (!currentFrom?.active || currentFrom.isTerminal || !currentTo?.active || currentTo.isDraft ||
         ["SUBMITTED", "APPROVED", "REJECTED"].includes(currentTo.code) || !scopeAllowed ||
-        (currentFrom.isDraft && currentTo.code !== "CANCELLED")) {
+        (currentFrom.isDraft && currentTo.code !== "CANCELLED") ||
+        (!currentFrom.isDraft && currentTo.code === "CANCELLED")) {
       throw new AppError("INVALID_TRANSITION", "This transition is no longer available. Refresh the application.");
     }
     if (EMBASSY_STATUS_CODES.has(currentTo.code)) {
       const [programme] = await tx.select({ embassy: visaTypes.embassyApplicability }).from(visaTypes).where(eq(visaTypes.id, app.visaTypeId)).for("share");
       const captured=app.visaRuleSnapshot?.embassyApplicability;
       if ((typeof captured==="string"?captured:programme?.embassy) === "NOT_APPLICABLE") throw new AppError("INVALID_TRANSITION", "This visa programme does not use an embassy stage.");
+    }
+    if (currentTo.isTerminal && !currentFrom.isDraft) {
+      const pending=await tx.execute(sql`select 1 from ${sql.raw(qualifiedTable("application_cancellation_requests"))} where application_id=${app.id} and status='PENDING'`);
+      if(pending.rows.length)throw new AppError("BAD_STATE","Resolve the pending cancellation request first.");
     }
     await tx.update(applications).set(patch).where(eq(applications.id, app.id));
     await tx.insert(applicationStatusHistory).values({
@@ -763,6 +769,8 @@ export async function recordApplicationDecision(params: DecisionInput): Promise<
       const [locked] = await tx.select().from(applications).where(eq(applications.id, app.id)).for("update");
       if (!locked) throw new AppError("NOT_FOUND", "Application not found.");
       const [from] = await tx.select().from(statuses).where(eq(statuses.id, locked.statusId));
+      const pendingCancellation=await tx.execute(sql`select 1 from ${sql.raw(qualifiedTable("application_cancellation_requests"))} where application_id=${app.id} and status='PENDING'`);
+      if(pendingCancellation.rows.length)throw new AppError("BAD_STATE","Resolve the pending cancellation request first.");
       const [to] = await tx.select().from(statuses).where(and(eq(statuses.code, params.outcome), eq(statuses.active, true)));
       if (!from || !to) throw new AppError("CONFIG_ERROR", "Decision workflow is not configured.");
       if (!(DECISION_SOURCES[from.code] ?? []).includes(params.outcome)) {
@@ -863,7 +871,7 @@ export async function allowedNextStatuses(fromStatusId: string, role: AuthUser["
   const isStaffWorkflow = isStaffRole(role);
   const isAgencyRole = ["AGENCY_ADMIN", "AGENCY_USER"].includes(role);
   return rows.filter((r) => !r.status.isDraft && !["SUBMITTED", "APPROVED", "REJECTED"].includes(r.status.code))
-    .filter((r) => (!from.draft || r.status.code === "CANCELLED") && (!isAgencyRole || (from.draft && r.status.code === "CANCELLED"))).filter((r) =>
+    .filter((r) => (from.draft ? r.status.code === "CANCELLED" : r.status.code !== "CANCELLED") && (!isAgencyRole || (from.draft && r.status.code === "CANCELLED"))).filter((r) =>
     r.scope === "BOTH"
       ? isStaffWorkflow || isAgencyRole
       : r.scope === "STAFF"
