@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { and, count, eq, isNotNull, max } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { applications } from "@/db/schema";
 import { businessLabel } from "@/lib/business-labels";
 import { portalPageUser } from "@/lib/page-auth";
 import { activeVisaOptions, agencyDashboard } from "@/lib/queries";
@@ -19,13 +22,23 @@ export default async function PortalDashboardPage() {
  const user=await portalPageUser();
  const locale=await getUiLocale();
  const ct=contentT(locale);
- const [data,options]=await Promise.all([agencyDashboard(user.agencyId,user.id),activeVisaOptions()]);
+ const [data,options,usage]=await Promise.all([
+  agencyDashboard(user.agencyId,user.id),activeVisaOptions(),
+  // Read only, authenticated tenant scope; count actual submissions, not drafts or clicks.
+  db.select({countryId:applications.countryId,total:count(),lastUsed:max(applications.submittedAt)})
+    .from(applications).where(and(eq(applications.agencyId,user.agencyId),isNotNull(applications.submittedAt)))
+    .groupBy(applications.countryId).catch(()=>{console.warn("Dashboard destination ranking unavailable");return [];})
+ ]);
  const destinations=[...new Map(options.map(o=>[o.countryId,o])).values()].map(o=>({id:o.countryId,name:countryName({name:o.countryName,iso2:o.countryIso2},locale),iso:o.countryIso2??"",aliases:o.countryName}));
  destinations.sort((a,b)=>a.name.localeCompare(b.name,locale));
+ const usageByCountry=new Map(usage.map(row=>[row.countryId,row]));
+ const lastUsed=(id:string)=>{const value=usageByCountry.get(id)?.lastUsed;return value?new Date(value).getTime()||0:0;};
+ const shortcutIds=[...destinations].sort((a,b)=>(usageByCountry.get(b.id)?.total??0)-(usageByCountry.get(a.id)?.total??0)||lastUsed(b.id)-lastUsed(a.id)||a.name.localeCompare(b.name,locale)).slice(0,4).map(o=>o.id);
  const {totals,wallet}=data;
  const canViewTx=hasPermission(user,"transactions.view.own");
  const canTopup=canViewTx && user.role==="AGENCY_ADMIN";
- const shortcuts={fr:"Accès direct",en:"Quick access",ar:"وصول سريع"}[locale];
+ const shortcuts={fr:"Destinations suggérées",en:"Suggested destinations",ar:"الوجهات المقترحة"}[locale];
+ const quickDescriptions={fr:["Retrouvez vos pièces et visas délivrés.","Accédez aux dossiers de vos voyageurs.","Échangez avec ESSAFARIA."],en:["Find your documents and issued visas.","Access your travellers’ applications.","Message ESSAFARIA."],ar:["اعثروا على مستنداتكم والتأشيرات الصادرة.","اطلعوا على ملفات مسافريكم.","تواصلوا مع ESSAFARIA."]}[locale];
  const opening={fr:"Ouverture de la demande…",en:"Opening application…",ar:"جارٍ فتح الطلب…"}[locale];
  const topup={fr:"Recharger",en:"Top up",ar:"شحن المحفظة"}[locale];
  const copy={
@@ -35,9 +48,9 @@ export default async function PortalDashboardPage() {
  }[locale];
  // Presentation-only campaign data. Future Admin source can supply this same typed shape.
  const campaigns:Campaign[]=[
-  {id:"visa-services",eyebrow:copy.updates,title:copy.campaignTitle[0]!,body:copy.campaignBody[0]!,cta:copy.campaignCta[0]!,href:"/portal/applications/new",image:"/images/travel/ostuni-small.webp"},
-  {id:"case-tracking",eyebrow:copy.updates,title:copy.campaignTitle[1]!,body:copy.campaignBody[1]!,cta:copy.campaignCta[1]!,href:"/portal/applications",image:"/images/travel/dulles-terminal-small.webp"},
-  {id:"communications",eyebrow:copy.updates,title:copy.campaignTitle[2]!,body:copy.campaignBody[2]!,cta:copy.campaignCta[2]!,href:"/portal/communications",image:"/images/travel/cape-greco-small.webp"},
+  {id:"visa-services",eyebrow:copy.updates,title:copy.campaignTitle[0]!,body:copy.campaignBody[0]!,cta:copy.campaignCta[0]!,href:"/portal/applications/new",image:"/images/travel/cape-greco.webp"},
+  {id:"case-tracking",eyebrow:copy.updates,title:copy.campaignTitle[1]!,body:copy.campaignBody[1]!,cta:copy.campaignCta[1]!,href:"/portal/applications",image:"/images/travel/dulles-terminal.webp"},
+  {id:"communications",eyebrow:copy.updates,title:copy.campaignTitle[2]!,body:copy.campaignBody[2]!,cta:copy.campaignCta[2]!,href:"/portal/communications",image:"/images/travel/st-gallen.webp"},
  ];
  const actionRequired=totals.actionRequired??0;
  const records=(rows:typeof data.recentApplications,attention=false)=>(
@@ -56,7 +69,7 @@ export default async function PortalDashboardPage() {
   <DashboardCampaigns items={campaigns} labels={copy}/>
   {data.needsAttention.length>0?<section className="dash-section dash-attention" aria-labelledby="dash-attention"><div className="dash-section-heading"><h2 id="dash-attention">{ct("Needs your attention")}</h2><Link href="/portal/applications?documents=requested">{ct("View all")} <span aria-hidden="true" className="dash-arrow">→</span></Link></div>{records(data.needsAttention,true)}</section>:null}
   <section className="dash-command" aria-label={ct("Create application")}>
-   <DashboardDestination options={destinations} locale={locale} labels={{title:ct("Create application"),choose:copy.choose,search:copy.destinationSearch,none:copy.none,noMatch:copy.noMatch,all:copy.all,shortcuts,opening}}/>
+   <DashboardDestination options={destinations} shortcutIds={shortcutIds} locale={locale} labels={{title:ct("Create application"),choose:copy.choose,search:copy.destinationSearch,none:copy.none,noMatch:copy.noMatch,all:copy.all,shortcuts,opening}}/>
    <form action="/portal/applications" method="get" role="search" className="dash-find"><label htmlFor="dash-reference">{ct("Find an application")}</label><div className="dash-field-row"><div className="dash-search-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="dash-reference" name="q" type="search" dir="auto" placeholder={copy.find} className="input" maxLength={160}/></div><button className="btn-secondary" type="submit">{ct("Search")}</button></div></form>
   </section>
   <nav className="dash-metrics" aria-label={ct("Agency dashboard")}>
@@ -76,6 +89,6 @@ export default async function PortalDashboardPage() {
     })}</ul><Link className="dash-finance-link" href="/portal/wallet">{copy.allTx} <span aria-hidden="true" className="dash-arrow">→</span></Link>
    </section>:null}
   </div>
-  <nav className="dash-quick-links" aria-label={copy.quick}><h2>{copy.quick}</h2><div>{[["/portal/documents","Documents","M5 3h9l5 5v13H5z M14 3v5h5"],["/portal/applicants","Applicants","M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M4 21v-2a8 8 0 0 1 16 0v2"],["/portal/communications","Communications","M4 4h16v12H9l-5 4z"]].map(([href,label,path])=><Link key={href} href={href!}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d={path}/></svg>{ct(label!)}<span aria-hidden="true" className="dash-arrow">→</span></Link>)}</div></nav>
+  <nav className="dash-quick-links" aria-label={copy.quick}><h2>{copy.quick}</h2><div>{[["/portal/documents","Documents","M5 3h9l5 5v13H5z M14 3v5h5"],["/portal/applicants","Applicants","M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M4 21v-2a8 8 0 0 1 16 0v2"],["/portal/communications","Communications","M4 4h16v12H9l-5 4z"]].map(([href,label,path],i)=><Link key={href} href={href!}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d={path}/></svg><span className="dash-quick-copy"><strong>{ct(label!)}</strong><small>{quickDescriptions[i]}</small></span><span aria-hidden="true" className="dash-arrow">→</span></Link>)}</div></nav>
  </div>;
 }

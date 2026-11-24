@@ -29,14 +29,15 @@ export function CountryFlag({iso}:{iso:string}){
 type Destination={id:string;name:string;iso:string;aliases:string};
 type DestinationLabels={title:string;choose:string;search:string;none:string;noMatch:string;all:string;shortcuts:string;opening:string};
 const normalize=(s:string)=>s.normalize("NFD").replace(/\p{M}/gu,"").toLocaleLowerCase().trim();
-export function DashboardDestination({options,locale,labels:t}:{options:Destination[];locale:string;labels:DestinationLabels}){
+export function DashboardDestination({options,shortcutIds,locale,labels:t}:{options:Destination[];shortcutIds:string[];locale:string;labels:DestinationLabels}){
  const uid=useId(),root=useRef<HTMLDivElement>(null),input=useRef<HTMLInputElement>(null),list=useRef<HTMLDivElement>(null);
  const router=useRouter();
  const [query,setQuery]=useState(""),[open,setOpen]=useState(false),[active,setActive]=useState(0),[pending,startTransition]=useTransition();
  const matches=options.filter(o=>normalize(o.name+" "+o.aliases+" "+o.iso).includes(normalize(query)));
- const preferred=["CN","AE","FR","TR"];
- const shortcuts=[...options].sort((a,b)=>(preferred.includes(a.iso)?preferred.indexOf(a.iso):99)-(preferred.includes(b.iso)?preferred.indexOf(b.iso):99)).slice(0,4);
- const choose=(o:Destination)=>{if(pending)return;setQuery(o.name);setOpen(false);startTransition(()=>router.push("/portal/applications/new?destination="+encodeURIComponent(o.id)));};
+ const shortcuts=shortcutIds.flatMap(id=>options.filter(o=>o.id===id));
+ const navigating=useRef(false);
+ const choose=(o:Destination)=>{if(navigating.current||pending)return;navigating.current=true;setQuery(o.name);setOpen(false);startTransition(()=>router.push("/portal/applications/new?destination="+encodeURIComponent(o.id)));};
+ useEffect(()=>{if(!pending)navigating.current=false;},[pending]);
  useEffect(()=>{const outside=(e:PointerEvent)=>{if(!root.current?.contains(e.target as Node))setOpen(false)};document.addEventListener("pointerdown",outside);return()=>document.removeEventListener("pointerdown",outside)},[]);
  useEffect(()=>{const box=list.current,option=document.getElementById(uid+"-"+active);if(!open||!box||!option)return;const b=box.getBoundingClientRect(),o=option.getBoundingClientRect();if(o.bottom>b.bottom)box.scrollTop+=o.bottom-b.bottom;else if(o.top<b.top)box.scrollTop-=b.top-o.top;},[active,open,uid]);
  return <div className="dash-create" lang={locale} aria-busy={pending}>
@@ -47,6 +48,6 @@ export function DashboardDestination({options,locale,labels:t}:{options:Destinat
    </div>
    <div ref={list} id={uid+"-options"} role="listbox" aria-label={t.all} className="dash-destination-options" hidden={!open}>{matches.length?matches.map((o,i)=><div id={uid+"-"+i} key={o.id} role="option" aria-selected={i===active} className="dash-destination-option" data-active={i===active} onMouseDown={e=>e.preventDefault()} onClick={()=>choose(o)}><CountryFlag iso={o.iso}/><span>{o.name}</span><span className="dash-arrow" aria-hidden="true">→</span></div>):<p role="status">{options.length?t.noMatch:t.none}</p>}</div>
   </div></div>
-  <div className="dash-destination-shortcuts" aria-label={t.shortcuts}>{pending?<span role="status" className="dash-opening">{t.opening}</span>:shortcuts.map(o=><button type="button" key={o.id} onClick={()=>choose(o)}><CountryFlag iso={o.iso}/><span>{o.name}</span></button>)}</div>
+  <div className="dash-destination-shortcuts" role="group" aria-label={t.shortcuts}>{pending?<span role="status" className="dash-opening">{t.opening}</span>:shortcuts.map(o=><button type="button" key={o.id} onClick={()=>choose(o)} disabled={pending}><CountryFlag iso={o.iso}/><span>{o.name}</span></button>)}</div>
  </div>;
 }

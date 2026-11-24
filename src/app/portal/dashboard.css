@@ -180,3 +180,66 @@
  .essafaria-dashboard .dash-record-row .dash-updated{font-size:.875rem}
 }
 @media(prefers-reduced-motion:reduce){.essafaria-dashboard :is(.dash-record-row,.dash-destination-shortcuts button,.dash-campaign-copy a){transition:none}}
+
+/* Revision 03: final Dashboard polish; no other route inherits these rules. */
+@media(min-width:1024px){
+ .workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation a:is([href="/portal/notifications"],[href="/portal/profile"]){display:none}
+}
+@media(min-width:1600px){
+ .workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation{gap:8px}
+ .workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation .workspace-nav-link{padding-inline:14px}
+ .workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation a[href="/portal/applications/new"]{order:10;margin-inline-start:14px}
+}
+.workspace-agency:has(.essafaria-dashboard) .workspace-topbar a,.workspace-agency:has(.essafaria-dashboard) .workspace-topbar button,.workspace-agency:has(.essafaria-dashboard) .workspace-topbar summary,.workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation a{transition:background-color 160ms ease,color 160ms ease}
+.workspace-agency:has(.essafaria-dashboard) :is(.workspace-topbar,.agency-desktop-navigation) :is(a,button,summary):focus-visible{outline:2px solid #304b64;outline-offset:3px}
+.essafaria-dashboard .dash-campaign-content{min-height:176px}
+.essafaria-dashboard .dash-campaign-photo{background-position:center 48%}
+.essafaria-dashboard .dash-campaign-content::before{background:linear-gradient(90deg,#0b2035 0%,#0b2035fa 25%,#0b2035ed 42%,#0b2035a6 53%,#0b20352b 67%,transparent 82%)}
+.essafaria-dashboard[dir="rtl"] .dash-campaign-content::before{background:linear-gradient(270deg,#0b2035 0%,#0b2035fa 25%,#0b2035ed 42%,#0b2035a6 53%,#0b20352b 67%,transparent 82%)}
+.essafaria-dashboard .dash-campaign-copy{width:min(49%,640px)}
+.essafaria-dashboard .dash-campaign-controls{background:#0b2035bf;border-radius:8px;padding:0 3px;bottom:8px;inset-inline-end:10px}
+.essafaria-dashboard .dash-campaign-controls button{min-width:28px;min-height:32px}
+.essafaria-dashboard .dash-campaign-controls .dash-slide-dot{min-width:25px}
+.essafaria-dashboard .dash-destination-shortcuts{gap:6px;margin-top:8px;align-items:start}
+.essafaria-dashboard .dash-destination-shortcuts button{background:#fff;border:1px solid #d9dfe3;border-radius:7px;padding:5px 9px;min-height:36px;max-width:100%;text-align:start}
+.essafaria-dashboard .dash-destination-shortcuts button:hover{background:#eef3f6;border-color:#a7b8c6}
+.essafaria-dashboard .dash-destination-shortcuts button:active{background:#e0e8ef}
+.essafaria-dashboard .dash-destination-option{transition:background-color 150ms ease}
+.essafaria-dashboard .dash-wallet-actions{gap:7px 12px}
+.essafaria-dashboard .dash-wallet-actions .dash-topup{background:#10243b;color:white;padding:6px 11px;min-height:36px;border-radius:7px;white-space:nowrap;transition:background-color 160ms ease}
+.essafaria-dashboard .dash-wallet-actions .dash-topup:hover{background:#28465f;text-decoration:none}
+.essafaria-dashboard .dash-record-row small,.essafaria-dashboard .dash-updated,.essafaria-dashboard .dash-transaction small{color:#475b6c;font-size:.9375rem}
+.essafaria-dashboard .dash-record-row .dash-traveller{min-width:0;overflow-wrap:anywhere}
+.essafaria-dashboard .dash-record-head{color:#415466;font-weight:500}
+.essafaria-dashboard .dash-record-row .dash-destination>span{min-width:0;overflow-wrap:anywhere}
+.essafaria-dashboard .dash-transaction>strong{font-size:1.0625rem;text-align:end;align-self:center;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.essafaria-dashboard .dash-record-row:hover .dash-chevron{color:#193d5b;transform:translateX(2px);transition:transform 150ms ease}
+.essafaria-dashboard[dir="rtl"] .dash-record-row:hover .dash-chevron{transform:translateX(-2px) rotate(180deg)}
+.essafaria-dashboard .dash-quick-links>div{gap:16px}
+.essafaria-dashboard .dash-quick-links a{padding:12px 10px;gap:12px;min-height:68px;border-radius:7px 7px 0 0;align-items:center;transition:background-color 160ms ease}
+.essafaria-dashboard .dash-quick-links a>svg{width:24px;height:24px;flex:none;color:#304b64}
+.essafaria-dashboard .dash-quick-links a>.dash-quick-copy{margin-inline-start:0;display:grid;gap:4px;min-width:0}
+.essafaria-dashboard .dash-quick-copy strong{font-size:1rem;font-weight:600}
+.essafaria-dashboard .dash-quick-copy small{font-size:.9375rem;color:#536476;font-weight:400;line-height:1.35}
+.essafaria-dashboard .dash-quick-links a>.dash-arrow{margin-inline-start:auto;flex:none}
+.essafaria-dashboard .dash-quick-links a:hover{background:#eef2f3}
+@media(min-width:768px) and (max-width:1150px){
+ .essafaria-dashboard .dash-campaign-copy{width:58%}
+ .essafaria-dashboard .dash-campaign-content::before{background:linear-gradient(90deg,#0b2035 0%,#0b2035f5 42%,#0b2035b0 58%,transparent 90%)}
+ .essafaria-dashboard[dir="rtl"] .dash-campaign-content::before{background:linear-gradient(270deg,#0b2035 0%,#0b2035f5 42%,#0b2035b0 58%,transparent 90%)}
+}
+@media(max-width:767px){
+ .essafaria-dashboard .dash-campaign-content{min-height:228px}
+ .essafaria-dashboard .dash-campaign-copy{width:100%;padding:16px 16px 54px}
+ .essafaria-dashboard .dash-campaign-content::before,.essafaria-dashboard[dir="rtl"] .dash-campaign-content::before{background:linear-gradient(180deg,#0b2035f2 0%,#0b2035de 65%,#0b2035a8 100%)}
+ .essafaria-dashboard .dash-campaign-controls button{min-width:36px;min-height:36px}
+ .essafaria-dashboard .dash-destination-shortcuts button,.essafaria-dashboard .dash-wallet-actions .dash-topup{min-height:44px}
+ .essafaria-dashboard .dash-quick-links>div{gap:0}
+ .essafaria-dashboard .dash-quick-links a{padding-inline:4px}
+ .essafaria-dashboard .dash-wallet-actions{gap:6px}
+}
+@media(prefers-reduced-motion:reduce){
+ .essafaria-dashboard :is(.dash-destination-shortcuts button,.dash-destination-option,.dash-topup,.dash-quick-links a,.dash-record-row .dash-chevron),.workspace-agency:has(.essafaria-dashboard) :is(.workspace-topbar a,.workspace-topbar button,.workspace-topbar summary,.agency-desktop-navigation a){transition:none}
+ .essafaria-dashboard .dash-record-row:hover .dash-chevron{transform:none}
+ .essafaria-dashboard[dir="rtl"] .dash-record-row:hover .dash-chevron{transform:rotate(180deg)}
+}

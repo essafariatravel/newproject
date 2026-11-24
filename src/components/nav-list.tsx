@@ -28,6 +28,7 @@ export function NavList({ sections }: { sections: NavSection[] }) {
   const initialUnread = sections.flatMap((s) => s.items).find((i) => i.href.endsWith("/notifications"))?.badge ?? 0;
   const unread = useNavUnreadCount(initialUnread);
   const activeHref = activeNavigationHref(sections.flatMap((s) => s.items), pathname);
+  const dashboardLabels: Record<string,string> = { "Tableau de bord":"Accueil", "Dashboard":"Home", "لوحة التحكم":"الرئيسية", "Portefeuille & transactions":"Portefeuille", "Wallet & Transactions":"Wallet", "المحفظة والمعاملات":"المحفظة", "Communications":"Messages", "المراسلات":"الرسائل" };
   return (
     <>
       {sections.map((section) => (
@@ -36,18 +37,19 @@ export function NavList({ sections }: { sections: NavSection[] }) {
             {section.title}
           </p>
           <div className="space-y-1">
-            {section.items.map((source) => { const item = source.href.endsWith("/notifications") ? { ...source, badge: unread } : source; return (
+            {section.items.map((source) => { const item = source.href.endsWith("/notifications") ? { ...source, badge: unread } : source; const shortLabel = pathname === "/portal" ? dashboardLabels[item.label] ?? item.label : item.label; return (
               <Link
                 key={item.href}
                 href={item.href}
                 aria-current={activeHref === item.href ? "page" : undefined}
+                aria-label={shortLabel!==item.label?item.label:undefined}
                 className={`workspace-nav-link flex min-h-11 items-center justify-between rounded-md px-4 py-2 text-base ${
                   activeHref === item.href
                     ? "font-semibold text-white"
                     : "text-white/70 hover:bg-white/8 hover:text-white"
                 }`}
               >
-                <span className="flex items-center gap-2"><NavIcon href={item.href} /><span>{item.label}</span></span>
+                <span className="flex items-center gap-2"><NavIcon href={item.href} /><span>{shortLabel}</span></span>
                 {item.badge ? (
                   <span
                     className={`badge tabular-nums ${
