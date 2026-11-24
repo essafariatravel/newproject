@@ -51,7 +51,8 @@ export default async function PortalApplicationDetailPage({
 }) {
   const { id } = await params;
   const sp = await searchParams;
-  const tab = typeof sp.tab === "string" && TABS.some((t) => t.id === sp.tab) ? sp.tab : "overview";
+  const requestedTab = sp.tab === "communications" ? "messages" : sp.tab;
+  const tab = typeof requestedTab === "string" && TABS.some((t) => t.id === requestedTab) ? requestedTab : "overview";
   const user = await portalPageUser();
   const detail = await getApplicationDetail(id, user);
   if (!detail) notFound();
@@ -163,37 +164,22 @@ export default async function PortalApplicationDetailPage({
                   <p className="text-xs text-slate-500">{visaDisplayName} · {app.categoryName}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Fee")}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct(pricing?.effectivePrice!=null?"Net amount paid":"Fee")}</p>
                   <p className="mt-1 font-semibold tabular-nums text-navy-900">{formatAmount(pricing?.effectivePrice ?? app.fee, "DZD", uiLocale)}</p>
                   <p className="text-xs text-slate-500">{ct("Processing time")}: {app.processingMinDays}–{app.processingMaxDays} {ct("days")}</p>
                 </div>
-                <div className="sm:col-span-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Progress")}</p>
-                  <ol className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-2 text-xs" data-testid="application-progress">
-                    {progress.map((step, index) => (
-                      <li key={step.key} className="flex items-center gap-2">
-                        {index > 0 ? <span aria-hidden className="directional text-slate-300">→</span> : null}
-                        <span
-                          data-step={step.key}
-                          data-state={step.state}
-                          className={`rounded-md px-2 py-1 font-semibold ${
-                            step.state === "current"
-                              ? "bg-iris-100 text-iris-700"
-                              : step.state === "done"
-                                ? "bg-emerald-50 text-emerald-700"
-                                : "bg-slate-100 text-slate-400"
-                          }`}
-                        >
-                          {ct(step.label)}
-                        </span>
-                        {step.at && step.state !== "pending" ? (
-                          <span className="hidden text-xs text-slate-400 sm:inline">{formatDateTime(step.at, uiLocale)}</span>
-                        ) : null}
+                {app.submittedAt ? <section className="sm:col-span-2 agency-v2-journey" aria-label={ct("Progress")}>
+                  <h3>{ct("Progress")}</h3>
+                  <ol data-testid="application-progress">
+                    {progress.filter(step=>detail.statusCode!=="CANCELLED"||step.at!==null).map(step=>(
+                      <li key={step.key} data-step={step.key} data-state={step.state} aria-current={step.state==="current"?"step":undefined}>
+                        <span className="agency-v2-journey-marker" aria-hidden="true">{step.state==="done"?"✓":step.state==="current"?"●":""}</span>
+                        <div><strong>{ct(step.label)}</strong>{step.at&&step.state!=="pending"?<time dateTime={step.at.toISOString()}>{formatDateTime(step.at,uiLocale)}</time>:<span>{step.state==="pending"?(uiLocale==="fr"?"À venir":uiLocale==="ar"?"لاحقًا":"Upcoming"):(uiLocale==="fr"?"En cours":uiLocale==="ar"?"قيد المعالجة":"In progress")}</span>}</div>
                       </li>
                     ))}
+                    {detail.statusCode==="CANCELLED"?<li data-state="done"><span className="agency-v2-journey-marker" aria-hidden="true">✓</span><div><StatusBadge code={detail.statusCode} name={detail.statusName}/><time>{formatDateTime(app.completedAt,uiLocale)}</time></div></li>:null}
                   </ol>
-
-                </div>
+                </section>:null}
               </div>
             </Card>
 

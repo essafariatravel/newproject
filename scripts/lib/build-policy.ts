@@ -26,6 +26,8 @@ export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
   "seo/legal-metadata-from-gsc-20261114",
   "seo/b2b-algeria-relevance-20261118",
   "design/agency-identity-home-20261118",
+  // Agency UX branch: no migration or seed even without environment overrides.
+  "codex/agency-experience-2-0-preview-20261124",
 ] as const;
 
 export function automaticDatabaseChangesForbidden(branch: string | null | undefined): boolean {

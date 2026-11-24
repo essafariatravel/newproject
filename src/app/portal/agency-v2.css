@@ -166,3 +166,44 @@
 .workspace-agency #workspace-main .agency-v2-submission-receipt p{margin-top:6px;color:#344f49}
 .workspace-agency #workspace-main .agency-v2-effective-price{display:flex;justify-content:space-between;gap:12px;align-items:baseline;border-block:1px solid var(--agency-rule);padding-block:14px}
 .workspace-agency #workspace-main .agency-v2-effective-price strong{font-size:1.25rem;white-space:nowrap}
+
+/* Agency inbox: two-pane operational workspace with explicit mobile back navigation. */
+.workspace-agency #workspace-main .agency-v2-mail{display:grid;grid-template-columns:minmax(280px,360px) minmax(0,1fr);border:1px solid var(--agency-rule);border-radius:16px;background:#fff;overflow:hidden;min-height:560px}
+.workspace-agency #workspace-main .agency-v2-mail-list{border-inline-end:1px solid var(--agency-rule);min-width:0}
+.workspace-agency #workspace-main .agency-v2-mail-search{display:flex;gap:8px;padding:16px}
+.workspace-agency #workspace-main .agency-v2-mail-search input{flex:1;min-width:0}
+.workspace-agency #workspace-main .agency-v2-mail-filters{display:flex;flex-wrap:wrap;gap:4px;padding:0 16px 14px;border-bottom:1px solid var(--agency-rule)}
+.workspace-agency #workspace-main .agency-v2-mail-filters a{padding:9px 10px;min-height:44px;border-radius:8px;font-size:.9375rem;color:var(--agency-muted);display:flex;align-items:center}
+.workspace-agency #workspace-main .agency-v2-mail-filters a[aria-current]{background:#e8eef4;color:var(--agency-ink);font-weight:600}
+.workspace-agency #workspace-main .agency-v2-mail-row{display:grid;gap:5px;padding:18px 16px;border-bottom:1px solid var(--agency-rule);border-inline-start:3px solid transparent;min-width:0}
+.workspace-agency #workspace-main .agency-v2-mail-row:hover{background:var(--agency-hover)}
+.workspace-agency #workspace-main .agency-v2-mail-row[aria-current]{background:#edf3f8;border-inline-start-color:#1c3a56}
+.workspace-agency #workspace-main .agency-v2-mail-row-top,.workspace-agency #workspace-main .agency-v2-mail-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.workspace-agency #workspace-main .agency-v2-mail-row-top strong{font-size:1.0625rem;overflow-wrap:anywhere}
+.workspace-agency #workspace-main .agency-v2-unread{width:9px;height:9px;flex:none;background:#205d9a;border-radius:50%}
+.workspace-agency #workspace-main .agency-v2-mail-destination,.workspace-agency #workspace-main .agency-v2-mail-meta{font-size:.875rem;color:var(--agency-muted)}
+.workspace-agency #workspace-main .agency-v2-mail-preview{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere;font-size:.9375rem;color:#33465a}
+.workspace-agency #workspace-main .agency-v2-mail-meta>span{font-weight:600;color:#8a5015}
+.workspace-agency #workspace-main .agency-v2-mail-pages{display:flex;gap:8px;padding:16px}
+.workspace-agency #workspace-main .agency-v2-mail-detail{min-width:0}
+.workspace-agency #workspace-main .agency-v2-mail-header{padding:24px;border-bottom:1px solid var(--agency-rule)}
+.workspace-agency #workspace-main .agency-v2-mail-header h2,.workspace-agency #workspace-main .agency-v2-mail-empty h2{font-size:1.5rem;font-weight:600;letter-spacing:-.02em}
+.workspace-agency #workspace-main .agency-v2-mail-header p{color:var(--agency-muted);margin-top:4px}
+.workspace-agency #workspace-main .agency-v2-mail-header form{margin-top:16px}
+.workspace-agency #workspace-main .agency-v2-mail-body{padding:24px;overflow-wrap:anywhere}
+.workspace-agency #workspace-main .agency-v2-mail-body .card{border-radius:10px}
+.workspace-agency #workspace-main .agency-v2-mail-empty{display:grid;align-content:center;justify-items:start;gap:10px;min-height:460px;padding:40px;max-width:580px}
+.workspace-agency #workspace-main .agency-v2-mail-empty p{color:var(--agency-muted)}
+.workspace-agency #workspace-main .agency-v2-mail-back{display:none}
+.workspace-agency #workspace-main .agency-v2-journey{border-top:1px solid var(--agency-rule);padding-top:24px;margin-top:12px}
+.workspace-agency #workspace-main .agency-v2-journey h3{font-size:1.25rem;font-weight:600;margin-bottom:20px}
+.workspace-agency #workspace-main .agency-v2-journey ol{display:grid;gap:0}
+.workspace-agency #workspace-main .agency-v2-journey li{position:relative;display:grid;grid-template-columns:30px minmax(0,1fr);gap:14px;min-height:70px}
+.workspace-agency #workspace-main .agency-v2-journey li:not(:last-child)::after{content:"";position:absolute;inset-inline-start:14px;top:28px;bottom:0;width:2px;background:var(--agency-rule)}
+.workspace-agency #workspace-main .agency-v2-journey-marker{display:grid;place-items:center;width:30px;height:30px;border:1px solid #b1bdc9;border-radius:50%;background:white;color:#23685c;font-weight:600;z-index:1}
+.workspace-agency #workspace-main .agency-v2-journey li[data-state="done"] .agency-v2-journey-marker{background:#e8f4ee;border-color:#84b6a3}
+.workspace-agency #workspace-main .agency-v2-journey li[data-state="current"] .agency-v2-journey-marker{background:#e8eef4;border:2px solid #1c3a56;color:#1c3a56}
+.workspace-agency #workspace-main .agency-v2-journey li>div{display:grid;align-content:start;gap:3px;padding:3px 0 18px}
+.workspace-agency #workspace-main .agency-v2-journey li>div>strong{font-weight:600;font-size:1rem}
+.workspace-agency #workspace-main .agency-v2-journey li>div>:is(time,span:not(.badge)){font-size:.9375rem;color:var(--agency-muted)}
+@media(max-width:850px){.workspace-agency #workspace-main .agency-v2-mail{display:block;min-height:0}.workspace-agency #workspace-main .agency-v2-mail-list{border:0}.workspace-agency #workspace-main .agency-v2-mail:not(.has-thread) .agency-v2-mail-detail,.workspace-agency #workspace-main .agency-v2-mail.has-thread .agency-v2-mail-list{display:none}.workspace-agency #workspace-main .agency-v2-mail-back{display:inline-flex;margin-bottom:16px}.workspace-agency #workspace-main .agency-v2-mail-header,.workspace-agency #workspace-main .agency-v2-mail-body{padding:18px}}

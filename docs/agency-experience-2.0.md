@@ -19,3 +19,8 @@ Second code-review pass: remove redundant dashboard and wallet CTAs; prioritize 
 
 ## Benchmark critique — 2026-11-24
 Airbnb hosting: task-specific reservation details and contextual messaging; Expedia TAAP: agent booking manager, itemized costs and reports; Booking.com for Business: dashboard, managed bookings and spending. The first preview is still a cosmetic iteration, not benchmark parity. Confirmed source findings: incorrect refund sign on dashboard, submit function did not explicitly gate step three, generic submitting label despite staged requests, no explicit submitted receipt from the redirect, effective price separated from billing. This commit corrects those in agency UI. No backend or permission changes. Remaining: true usability and visual audit in authenticated Preview, communication workspace, safe draft recovery, useful help, real performance. Preview was observed returning 403 in browser; no authenticated visuals verified.
+
+## Third revision
+- Dedicated agency-only two-pane communications, selected thread constrained to existing tenant-scoped results. Existing message action, rate limit, and authorization unchanged. Read-marking stays explicit; old shared inbox action redirects to a now-supported agency tab alias.
+- Dossier milestones based on persisted history and live status, no simulated travel stage; draft has no submitted timeline; cancelled stops at actual reached milestones. Net amount label reflects adjustments.
+- Stable branch hostname and Managed Turnstile configured in Vercel only. Cloudflare Preview widget needs exact hostname added by account owner. Explicit build policy denies automatic DB writes on branch. No production change. Authenticated visual acceptance outstanding.
