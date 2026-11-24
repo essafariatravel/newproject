@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { requestCancellationAction, decideCancellationAction } from "@/app/actions/cancellations";
 import { formatAmount } from "@/lib/format";
@@ -20,8 +20,10 @@ function cents(raw:string):number|null {
  const [whole,fraction=""]=value.split(".");
  return Number(whole)*100+Number(fraction.padEnd(2,"0"));
 }
-function CloseFormButton({label,onClose}:{label:string;onClose:()=>void}){
+function CloseFormButton({label,onClose,onPending}:{label:string;onClose:()=>void;onPending:(pending:boolean)=>void}){
  const {pending}=useFormStatus();
+ const wasPending=useRef(false);
+ useEffect(()=>{onPending(pending);if(wasPending.current&&!pending)onClose();wasPending.current=pending},[pending,onPending,onClose]);
  return <button type="button" className="btn-secondary" disabled={pending} onClick={onClose}>{label}</button>;
 }
 export function CancellationActionMenu({id,staff,requestId,requestReason,netPaid,walletBalance,reference,summary,locale,labels:t}:{
@@ -36,7 +38,7 @@ export function CancellationActionMenu({id,staff,requestId,requestReason,netPaid
  const [refund,setRefund]=useState("");
  const [reason,setReason]=useState("");
  const [confirmed,setConfirmed]=useState(false);
- const [open,setOpen]=useState(false);
+ const submitting=useRef(false);
  const max=netPaid===null?null:cents(netPaid);
  const value=cents(refund);
  const balance=walletBalance===null?null:cents(walletBalance);
@@ -44,8 +46,9 @@ export function CancellationActionMenu({id,staff,requestId,requestReason,netPaid
  const approved=decision==="APPROVED";
  const title=staff?(requestId?t.review:t.direct):t.request;
  const reset=()=>{setDecision("APPROVED");setRefund("");setReason("");setConfirmed(false)};
- const show=()=>{if(menu.current)menu.current.open=false;reset();dialog.current?.showModal();setOpen(true)};
- const close=()=>dialog.current?.close();
+ const show=()=>{if(menu.current)menu.current.open=false;reset();dialog.current?.showModal()};
+ const close=useCallback(()=>{if(!submitting.current)dialog.current?.close()},[]);
+ const onPending=useCallback((p:boolean)=>{submitting.current=p},[]);
  const money=(n:number)=>formatAmount(n/100,"DZD",locale);
  useEffect(()=>{
    function outside(e:PointerEvent){if(menu.current?.open&&!menu.current.contains(e.target as Node))menu.current.open=false;}
@@ -63,8 +66,8 @@ export function CancellationActionMenu({id,staff,requestId,requestReason,netPaid
    <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/></svg>{title}
   </button></div>
  </details>}
- <dialog ref={dialog} dir={locale==="ar"?"rtl":"ltr"} className="cancellation-dialog" aria-labelledby={uid+"-title"} onClose={()=>{setOpen(false);trigger.current?.focus()}}>
- {open?<div className="cancellation-dialog-inner">
+ <dialog ref={dialog} dir={locale==="ar"?"rtl":"ltr"} className="cancellation-dialog" aria-labelledby={uid+"-title"} onCancel={e=>{if(submitting.current)e.preventDefault()}} onClose={()=>{trigger.current?.focus()}}>
+ <div className="cancellation-dialog-inner">
   <header className="flex items-start justify-between gap-4">
    <div><p className="text-xs font-semibold text-slate-500"><bdi>{reference}</bdi></p><h2 id={uid+"-title"} className="mt-2 text-xl font-semibold tracking-tight text-navy-900">{title}</h2></div>
    <button className="btn-secondary btn-sm min-h-11 min-w-11" type="button" onClick={close} aria-label={t.close}>×</button>
@@ -97,11 +100,11 @@ export function CancellationActionMenu({id,staff,requestId,requestReason,netPaid
    <p className="mt-1 text-end text-xs text-slate-500 tabular-nums">{reason.length}/1000</p></div>
    {staff?<label className="flex items-start gap-3 text-sm"><input type="checkbox" required name="confirm" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/><span>{approved?t.confirm:t.confirmRefusal}</span></label>:null}
    <div className="cancellation-dialog-footer">
-    <CloseFormButton label={staff?t.close:t.keep} onClose={close}/>
+    <CloseFormButton label={staff?t.close:t.keep} onClose={close} onPending={onPending}/>
     <SubmitButton pendingLabel={t.pending} className={staff&&approved?"btn-danger":"btn-primary"} disabled={reason.trim().length<8||(staff&&(!confirmed||(approved&&!valid)))}>{staff?(approved?t.submitApproval:t.submitRefusal):t.submit}</SubmitButton>
    </div>
   </form>
- </div>:null}
+ </div>
  </dialog>
  </>;
 }
