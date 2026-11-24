@@ -1,3 +1,4 @@
+import "./agency-v2.css";
 import { LiveNotifications } from "@/components/live-notifications";
 import { contentT } from "@/lib/i18n-content";
 import { redirect } from "next/navigation";

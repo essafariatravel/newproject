@@ -118,8 +118,8 @@ export default async function PortalApplicationDetailPage({
 
       <Tabs tabs={TABS.map((t) => ({ ...t, label: ct(t.label), href: `${back}?tab=${t.id}` }))} current={tab} />
 
-      <section className="dossier-next-action" aria-labelledby="agency-next-action">
-        <p id="agency-next-action" className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{ct("Next action")}</p>
+      <section className="dossier-next-action agency-v2-case-action" aria-labelledby="agency-next-action">
+        <p id="agency-next-action" className="agency-v2-section-label font-semibold text-slate-600">{ct("Next action")}</p>
         {openRequests.length > 0 ? (
           <>
             <p className="mt-2 text-base font-semibold text-navy-900">{ct("Action required")} — {openRequests.length} {ct("document(s) requested")}</p>

@@ -43,11 +43,14 @@ export default async function PortalDashboardPage() {
 
   return (
     <>
-      <section className="agency-desk" aria-labelledby="agency-desk-heading">
-        <header className="desk-heading">
+      <header className="agency-v2-home-heading">
+        <div className="desk-heading">
           <h1 id="agency-desk-heading">{ct("Agency dashboard")}</h1>
           <p><bdi>{user.agencyName ?? user.name}</bdi></p>
-        </header>
+        </div>
+        <Link href="/portal/applications/new" className="btn-primary">{ct("Create application")}</Link>
+      </header>
+      <section className="agency-desk" aria-label={ct("Create application")}>
         <div className="desk-actions">
           <form action="/portal/applications/new" method="get" aria-labelledby="new-file-title">
             <h2 id="new-file-title">{ct("Create application")}</h2>
@@ -92,6 +95,9 @@ export default async function PortalDashboardPage() {
         {data.recentApplications.length ? records(data.recentApplications) : <EmptyState title={ct("No applications yet")} body={ct("Submit your first visa application to see it tracked here.")} action={<Link href="/portal/applications/new" className="btn-primary">{ct("Create application")}</Link>} />}
       </section>
 
+      <nav className="agency-v2-directory" aria-label={ct("Workspace")}>
+        {[["/portal/documents","Documents"],["/portal/applicants","Applicants"],["/portal/communications","Communications"]].map(([href,label])=><Link key={href} href={href!}><span>{ct(label!)}</span><span aria-hidden="true" className="directional-arrow">→</span></Link>)}
+      </nav>
       {hasPermission(user,"transactions.view.own") ? <Card className="agency-wallet-ledger">
         <CardHeader title={ct("Recent wallet activity")} actions={<Link href="/portal/wallet" className="btn-secondary btn-sm">{ct("Ledger")}</Link>} />
         <ul className="divide-y divide-slate-100 px-4">

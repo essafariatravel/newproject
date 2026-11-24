@@ -37,7 +37,14 @@ export default async function PortalApplicantsPage({
         <div className="card"><EmptyState title={ct("No applicants found")} /></div>
       ) : (
         <>
-          <TableWrap>
+          <div className="agency-v2-directory-list md:hidden">
+            {result.rows.map(({ applicant, applicationReference, applicationId }) => <article key={applicant.id} className="agency-v2-directory-row">
+              <Link href={`/portal/applications/${applicationId}`} className="agency-v2-inline-link font-semibold"><span>{personName(applicant)}</span><span aria-hidden="true" className="directional-arrow">→</span></Link>
+              <p>{ct("Passport")}: <bdi>{applicant.passportNumber}</bdi></p><p>{ct("Passport expiry")} · {formatDate(applicant.passportExpiryDate, locale)}</p><p>{ct("Nationality")}: {applicant.nationality}</p><p>{ct("Added")}: {formatDate(applicant.createdAt, locale)}</p>
+              <Link href={`/portal/applications/${applicationId}`} className="agency-v2-inline-link"><bdi>{applicationReference}</bdi></Link>
+            </article>)}
+          </div>
+          <div className="hidden md:block"><TableWrap>
             <thead className="border-b border-slate-100 bg-ivory-50/60">
               <tr>
                 <th className="th">{ct("Name")}</th>
@@ -65,7 +72,7 @@ export default async function PortalApplicantsPage({
                 </NavigableTableRow>
               ))}
             </tbody>
-          </TableWrap>
+          </TableWrap></div>
           <Pagination locale={locale} page={result.page} pageCount={result.pageCount} total={result.total} basePath="/portal/applicants" query={{ q: sp.q }} />
         </>
       )}

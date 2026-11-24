@@ -346,13 +346,13 @@ export function RequestWizard(props: Props) {
   }
 
   return (
-    <form ref={formRef} className="space-y-6" onSubmit={(event) => { event.preventDefault(); void submit(event.currentTarget); }}>
+    <form ref={formRef} className="agency-v2-wizard space-y-6" onSubmit={(event) => { event.preventDefault(); void submit(event.currentTarget); }}>
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       {countryId ? <input type="hidden" name="countryId" value={countryId} /> : null}
       <input type="hidden" name="locale" value={props.locale} />
 
       {/* Step rail */}
-      <ol className="grid grid-cols-3 gap-2 text-base" data-testid="wizard-steps">
+      <ol className="agency-v2-steps grid grid-cols-3 gap-2 text-base" data-testid="wizard-steps">
         {[
           { n: 1, label: t.stepChoose },
           { n: 2, label: t.stepUpload },
@@ -361,6 +361,7 @@ export function RequestWizard(props: Props) {
           <li
             key={s.n}
             className="wizard-step flex min-w-0 items-center gap-2 border-b pb-2"
+            aria-current={step === s.n ? "step" : undefined}
             data-state={step === s.n ? "active" : step > s.n ? "complete" : "pending"}
           >
             <span className={`flex h-7 w-7 items-center justify-center rounded-md text-xs font-semibold ${step === s.n ? "bg-navy-900 text-white" : step > s.n ? "bg-emerald-50 text-emerald-700" : "bg-ivory-100 text-slate-500"}`}>
@@ -823,10 +824,11 @@ export function RequestWizard(props: Props) {
         </div>
       </section>
 
-      <div className="flex items-center justify-between">
+      <div className="agency-v2-wizard-footer flex flex-wrap items-center justify-between gap-3" data-step={step}>
         <button type="button" onClick={goBack} disabled={step === 1 || pending} className="btn-secondary">
           <span className="directional" aria-hidden>←</span> {t.back}
         </button>
+        {step < 3 && visa ? <span className="agency-v2-wizard-total"><span>{t.fee}</span> <strong><bdi>{formatDZD(visa.fee)}</bdi></strong></span> : null}
         {step < 3 ? (
           <button type="button" onClick={goNext} className="btn-primary">
             {t.next} <span className="directional" aria-hidden>→</span>

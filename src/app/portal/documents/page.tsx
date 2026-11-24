@@ -55,7 +55,14 @@ export default async function PortalDocumentsPage({
         <div className="card"><EmptyState title={ct("No documents found")} body={ct("Upload documents from an application's checklist.")} /></div>
       ) : (
         <>
-          <TableWrap>
+          <div className="agency-v2-directory-list md:hidden">
+            {result.rows.map(({ doc, applicationReference, documentTypeName }) => <article key={doc.id} className="agency-v2-directory-row">
+              <div className="agency-v2-directory-row-head"><a href={`/api/documents/${doc.id}`} target="_blank" rel="noopener noreferrer" className="font-semibold text-navy-900 break-all">{doc.originalFilename}</a><DocStatusBadge status={doc.status}/></div>
+              <p>{documentTypeName} · {bytes(doc.sizeBytes)}</p><p>{formatDateTime(doc.createdAt, locale)}</p>
+              <Link href={`/portal/applications/${doc.applicationId}?tab=documents`} className="agency-v2-inline-link"><bdi>{applicationReference}</bdi><span aria-hidden="true" className="directional-arrow">→</span></Link>
+            </article>)}
+          </div>
+          <div className="hidden md:block"><TableWrap>
             <thead className="border-b border-slate-100 bg-ivory-50/60">
               <tr>
                 <th className="th">{ct("File")}</th>
@@ -86,7 +93,7 @@ export default async function PortalDocumentsPage({
                 </tr>
               ))}
             </tbody>
-          </TableWrap>
+          </TableWrap></div>
           <Pagination locale={locale} page={result.page} pageCount={result.pageCount} total={result.total} basePath="/portal/documents" query={{ q: sp.q, status: sp.status }} />
         </>
       )}

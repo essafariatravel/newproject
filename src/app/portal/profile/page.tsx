@@ -53,7 +53,7 @@ export default async function PortalProfilePage({
     <>
       <PageHeader title={ct("Profile")} subtitle={ct("Your agency account and team.")} />
       <Flash {...flash} />
-      <div className="agency-account-masthead"><h2>{agency.tradingName ?? agency.legalName}</h2><p>{ct("Partner since")} · {formatDateTime(agency.createdAt, uiLocale)}</p></div>
+      <div className="agency-account-masthead agency-v2-account"><h2>{agency.tradingName ?? agency.legalName}</h2><p>{ct("Partner since")} · {formatDateTime(agency.createdAt, uiLocale)}</p></div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="xl:col-span-2 space-y-4">

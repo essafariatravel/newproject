@@ -79,7 +79,7 @@ export default async function PortalWalletPage({
       <Flash {...flash} />
 
       {/* Primary element: the available balance */}
-      <div className="card flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+      <div className="card agency-v2-wallet-balance flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{ct("Available balance")}</p>
           <p className="mt-1 font-serif text-[32px] text-navy-900 tabular-nums">
@@ -91,6 +91,7 @@ export default async function PortalWalletPage({
           <p className="text-base text-slate-500">
             {ct("Your wallet stays prepaid — each confirmed visa request is debited automatically and shown in the ledger below. All amounts in DZD.")}
           </p>
+          <a href="#topup" className="btn-primary">{ct("Request wallet top-up")}</a>
           {lowBalance ? (
             <p className="rounded-lg border border-gold-200 bg-gold-50 px-4 py-2 text-xs text-gold-800">
               {ct("Your wallet balance may be insufficient for a new application.")}{" "}
@@ -103,14 +104,14 @@ export default async function PortalWalletPage({
       </div>
 
       {/* Immutable-ledger explainer: what the agency is looking at, in plain words */}
-      <div className="card mt-4 px-6 py-4">
-        <h3 className="text-lg font-semibold text-navy-800">{ct("About your wallet")}</h3>
+      <details className="agency-v2-wallet-info">
+        <summary className="text-base font-semibold text-navy-800">{ct("About your wallet")}</summary>
         <p className="mt-1 text-base leading-relaxed text-slate-500">
           {ct(
             "Your wallet is prepaid and denominated in Algerian dinars (DZD) only. Every movement is written to an immutable ledger with a numbered reference, a before/after balance and a reason — nothing can be edited or deleted, corrections are made with compensating entries.",
           )}
         </p>
-      </div>
+      </details>
 
       {/* Statement + export */}
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">

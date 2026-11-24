@@ -50,6 +50,17 @@ export default async function PortalApplicationsPage({
       />
       <Flash {...flash} />
 
+      <nav className="agency-v2-queues" aria-label={ct("Applications")}>
+        {([{ label: "All", queue: "", documents: "" }, { label: "Active applications", queue: "active", documents: "" }, { label: "Action required", queue: "", documents: "requested" }, { label: "Completed", queue: "completed", documents: "" }] as const).map(item => {
+          const query = new URLSearchParams();
+          if (item.queue) query.set("queue", item.queue);
+          if (item.documents) query.set("documents", item.documents);
+          if (sp.q) query.set("q", sp.q);
+          if (sp.per) query.set("per", sp.per);
+          const selected = (sp.queue ?? "") === item.queue && (sp.documents ?? "") === item.documents && !sp.status && !sp.from && !sp.to;
+          return <Link key={item.label} href={`/portal/applications${query.toString() ? `?${query}` : ""}`} aria-current={selected ? "page" : undefined}>{ct(item.label)}</Link>;
+        })}
+      </nav>
       <FilterBar locale={uiLocale}
         action="/portal/applications"
         hidden={{ documents:sp.documents==="requested"?"requested":"", queue:sp.queue??"" }}
@@ -88,7 +99,7 @@ export default async function PortalApplicationsPage({
               const p = progressById.get(r.app.id);
               const needsDocuments = ["DOCUMENTS_REQUESTED", "DOCUMENTS_REQUIRED"].includes(r.statusCode);
               return (
-                <Link key={r.app.id} href={`/portal/applications/${r.app.id}`} className="card block p-4">
+                <Link key={r.app.id} href={`/portal/applications/${r.app.id}${needsDocuments ? "?tab=documents" : ""}`} className="card agency-v2-mobile-record block p-4">
                   <div className="flex items-start justify-between gap-4">
                     <span className="font-semibold text-navy-900">{countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}</span>
                     <StatusBadge code={r.statusCode} name={r.statusName} />
