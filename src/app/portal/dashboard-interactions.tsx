@@ -4,16 +4,20 @@ import {useRouter} from "next/navigation";
 import Link from "next/link";
 
 export type Campaign={id:string;title:string;body:string;cta:string;href:string;image:string};
-type CampaignLabels={campaigns:string;pause:string;play:string;previous:string;next:string;show:string};
+type CampaignLabels={campaigns:string;previous:string;next:string;show:string};
 export function DashboardCampaigns({items,labels}:{items:Campaign[];labels:CampaignLabels}){
- const [index,setIndex]=useState(0),[paused,setPaused]=useState(false),[hover,setHover]=useState(false),[focused,setFocused]=useState(false),[reduced,setReduced]=useState(true),[visible,setVisible]=useState(true);
+ const [index,setIndex]=useState(0),[hover,setHover]=useState(false),[focused,setFocused]=useState(false),[reduced,setReduced]=useState(true),[visible,setVisible]=useState(true);
  useEffect(()=>{const media=window.matchMedia("(prefers-reduced-motion: reduce)");const change=()=>setReduced(media.matches);change();media.addEventListener("change",change);const visibility=()=>setVisible(!document.hidden);visibility();document.addEventListener("visibilitychange",visibility);return()=>{media.removeEventListener("change",change);document.removeEventListener("visibilitychange",visibility)}},[]);
- useEffect(()=>{if(items.length<2||paused||hover||focused||reduced||!visible)return;const timer=window.setInterval(()=>setIndex(i=>(i+1)%items.length),7000);return()=>window.clearInterval(timer)},[items.length,paused,hover,focused,reduced,visible,index]);
+ useEffect(()=>{if(items.length<2||hover||focused||reduced||!visible)return;const timer=window.setTimeout(()=>setIndex(i=>(i+1)%items.length),7000);return()=>window.clearTimeout(timer)},[items.length,hover,focused,reduced,visible,index]);
  const item=items[index%Math.max(1,items.length)];if(!item)return null;
- const go=(n:number)=>setIndex((n+items.length)%items.length);
+ const go=(delta:number)=>setIndex(i=>(i+delta+items.length)%items.length);
  return <section className="dash-campaign" aria-label={labels.campaigns} onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)} onFocusCapture={()=>setFocused(true)} onBlurCapture={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setFocused(false)}}>
-  <div key={item.id} className="dash-campaign-content"><div className="dash-campaign-photo" aria-hidden="true" style={{backgroundImage:`url("${item.image}")`}}/><div className="dash-campaign-copy"><h2>{item.title}</h2><p>{item.body}</p><Link href={item.href}>{item.cta} <span className="dash-arrow" aria-hidden="true">→</span></Link></div></div>
-  {items.length>1?<div className="dash-campaign-controls" aria-label={labels.campaigns}><button type="button" aria-label={labels.previous} onClick={()=>go(index-1)}><svg className="dash-chevron dash-prev" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m7 5 5 5-5 5"/></svg></button>{items.map((s,i)=><button key={s.id} className="dash-slide-dot" type="button" aria-label={`${labels.show} ${i+1}`} aria-current={index===i?"true":undefined} onClick={()=>go(i)}><span/></button>)}<button type="button" aria-label={labels.next} onClick={()=>go(index+1)}><svg className="dash-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m7 5 5 5-5 5"/></svg></button>{!reduced?<button type="button" aria-label={paused?labels.play:labels.pause} title={paused?labels.play:labels.pause} onClick={()=>setPaused(p=>!p)}>{paused?"▶":"Ⅱ"}</button>:null}</div>:null}
+  <div key={item.id} className="dash-campaign-content" data-campaign={item.id}><div className="dash-campaign-photo" aria-hidden="true" style={{backgroundImage:`url("${item.image}")`}}/><div className="dash-campaign-copy"><h2>{item.title}</h2><p>{item.body}</p><Link href={item.href}>{item.cta} <span className="dash-arrow" aria-hidden="true">→</span></Link></div></div>
+  {items.length>1?<div className="dash-campaign-controls" role="group" aria-label={labels.campaigns}>
+    <button type="button" aria-label={labels.previous} onClick={()=>go(-1)}><svg className="dash-campaign-chevron dash-campaign-prev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m14.5 5.5-6 6.5 6 6.5"/></svg></button>
+    <span className="dash-campaign-dots" aria-label={`${labels.show} ${index%items.length+1} / ${items.length}`}><span className="sr-only">{`${index%items.length+1} / ${items.length}`}</span>{items.map((s,i)=><span key={s.id} className="dash-slide-dot" data-current={index%items.length===i?"true":"false"} aria-hidden="true"/>)}</span>
+    <button type="button" aria-label={labels.next} onClick={()=>go(1)}><svg className="dash-campaign-chevron dash-campaign-next" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9.5 5.5 6 6.5-6 6.5"/></svg></button>
+  </div>:null}
  </section>;
 }
 

@@ -38,21 +38,27 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-dashboard){fon
 .essafaria-dashboard .dash-title h1{font-size:34px;line-height:1.18;font-weight:600;letter-spacing:-.025em}
 .essafaria-dashboard .dash-title p{margin:0;color:var(--dash-muted);font-size:16px}
 .essafaria-dashboard .dash-campaign{position:relative;background:#0b1c30;color:white;border-radius:8px;overflow:hidden}
-.essafaria-dashboard .dash-campaign-content{position:relative;isolation:isolate;display:flex;min-height:176px;align-items:stretch;animation:dash-campaign-enter 160ms ease-out}
-.essafaria-dashboard .dash-campaign-photo{position:absolute;inset:0;z-index:-2;background-size:cover;background-position:center 48%}
-.essafaria-dashboard .dash-campaign-content::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#0b1c30 0%,#0b1c30 40%,#0b1c30ed 49%,transparent 68%)}
-.essafaria-dashboard[dir="rtl"] .dash-campaign-content::before{background:linear-gradient(270deg,#0b1c30 0%,#0b1c30 40%,#0b1c30ed 49%,transparent 68%)}
-.essafaria-dashboard .dash-campaign-copy{width:min(48%,640px);padding:24px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:8px;min-width:0}
-.essafaria-dashboard .dash-campaign-copy h2{font-size:30px;line-height:1.16;font-weight:600;letter-spacing:-.02em;color:#fff}
-.essafaria-dashboard .dash-campaign-copy p{font-size:16px;color:#f0f3f7;max-width:50ch}
-.essafaria-dashboard .dash-campaign-copy a{min-height:44px;padding:8px 16px;border-radius:6px;background:white;color:var(--dash-ink);font-size:16px;font-weight:600;display:inline-flex;align-items:center;gap:8px;text-decoration:none;transition:background-color 160ms ease}
-.essafaria-dashboard .dash-campaign-copy a:hover{background:#e8edf2}
-.essafaria-dashboard .dash-campaign-controls{position:absolute;inset-inline-end:12px;bottom:12px;display:flex;align-items:center;gap:0;z-index:1;background:#0b1c30d9;border-radius:6px;padding:0 4px}
-.essafaria-dashboard .dash-campaign-controls button{display:grid;place-items:center;min-width:32px;min-height:36px;color:white;border-radius:4px;background:none;border:0;cursor:pointer;font-size:16px}
+.essafaria-dashboard .dash-campaign-content{position:relative;isolation:isolate;display:flex;min-height:180px;align-items:stretch;animation:dash-campaign-enter 420ms ease-out}
+.essafaria-dashboard .dash-campaign-photo{position:absolute;inset:0;z-index:-2;background-size:cover;background-position:center 50%}
+.essafaria-dashboard .dash-campaign-content[data-campaign="case-tracking"] .dash-campaign-photo{background-position:center 45%}
+.essafaria-dashboard .dash-campaign-content::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#0b1c30 0%,#0b1c30fa 27%,#0b1c30ed 40%,#0b1c30a6 52%,#0b1c3030 67%,transparent 80%)}
+.essafaria-dashboard[dir="rtl"] .dash-campaign-content::before{background:linear-gradient(270deg,#0b1c30 0%,#0b1c30fa 27%,#0b1c30ed 40%,#0b1c30a6 52%,#0b1c3030 67%,transparent 80%)}
+.essafaria-dashboard .dash-campaign-copy{width:min(48%,640px);padding:24px 32px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:8px;min-width:0}
+.essafaria-dashboard .dash-campaign-copy h2{font-family:Georgia,"Times New Roman",serif;font-size:clamp(30px,2.45vw,42px);line-height:1.12;font-weight:400;letter-spacing:-.025em;color:#fff}
+.essafaria-dashboard[dir="rtl"] .dash-campaign-copy h2{font-family:inherit;font-weight:600;letter-spacing:normal}
+.essafaria-dashboard .dash-campaign-copy p{font-size:16px;line-height:1.5;color:#f0f3f7;max-width:50ch}
+.essafaria-dashboard .dash-campaign-copy a{min-height:44px;padding:10px 20px;margin-top:4px;border-radius:15px;background:white;color:var(--dash-ink);font-size:16px;font-weight:600;display:inline-flex;align-items:center;gap:10px;text-decoration:none;transition:background-color 160ms ease,transform 160ms ease}
+.essafaria-dashboard .dash-campaign-copy a:hover{background:#edf2f6;transform:translateY(-1px)}
+.essafaria-dashboard .dash-campaign-copy a:active{transform:translateY(0)}
+.essafaria-dashboard .dash-campaign-controls{position:absolute;inset-inline-end:16px;bottom:16px;display:flex;align-items:center;gap:8px;z-index:1;background:rgba(11,28,48,.65);border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:2px 4px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.essafaria-dashboard .dash-campaign-controls button{display:grid;place-items:center;width:44px;height:44px;flex:none;color:white;border-radius:50%;background:none;border:0;cursor:pointer;transition:background-color 160ms ease}
 .essafaria-dashboard .dash-campaign-controls button:hover{background:#ffffff25}
 .essafaria-dashboard .dash-campaign-controls button:focus-visible,.essafaria-dashboard .dash-campaign-copy a:focus-visible{outline:2px solid white!important;outline-offset:2px}
-.essafaria-dashboard .dash-slide-dot span{width:7px;height:7px;background:#c7d1dd;border-radius:50%}
-.essafaria-dashboard .dash-slide-dot[aria-current] span{width:18px;background:white;border-radius:8px}
+.essafaria-dashboard .dash-campaign-chevron{width:21px;height:21px;flex:none}
+.essafaria-dashboard[dir="rtl"] .dash-campaign-chevron{transform:scaleX(-1)}
+.essafaria-dashboard .dash-campaign-dots{display:flex;align-items:center;gap:8px;padding-inline:2px}
+.essafaria-dashboard .dash-slide-dot{display:block;width:7px;height:7px;background:#ffffff70;border-radius:50%}
+.essafaria-dashboard .dash-slide-dot[data-current="true"]{background:#fff}
 .essafaria-dashboard .dash-chevron{width:20px;height:20px;flex:none}
 .essafaria-dashboard .dash-prev{transform:rotate(180deg)}
 .essafaria-dashboard[dir="rtl"] .dash-chevron{transform:rotate(180deg)}
@@ -147,11 +153,11 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-dashboard){fon
 .essafaria-dashboard .dash-quick-links a>svg{width:24px;height:24px;flex:none;color:var(--dash-muted)}
 .essafaria-dashboard .dash-quick-links a>.dash-arrow{margin-inline-start:auto;flex:none}
 .essafaria-dashboard .dash-quick-links a:hover{background:var(--dash-hover)}
-@keyframes dash-campaign-enter{from{opacity:.75}to{opacity:1}}
+@keyframes dash-campaign-enter{from{opacity:.45}to{opacity:1}}
 @media(max-width:1279px){
  .essafaria-dashboard .dash-workspace.has-finance{grid-template-columns:minmax(0,1fr)}
  .essafaria-dashboard .dash-metric{padding-inline:16px}
- .essafaria-dashboard .dash-campaign-copy{width:58%}
+ .essafaria-dashboard .dash-campaign-copy{width:58%;padding:24px}
  .essafaria-dashboard .dash-campaign-content::before{background:linear-gradient(90deg,#0b1c30 0%,#0b1c30 48%,#0b1c30eb 58%,transparent 82%)}
  .essafaria-dashboard[dir="rtl"] .dash-campaign-content::before{background:linear-gradient(270deg,#0b1c30 0%,#0b1c30 48%,#0b1c30eb 58%,transparent 82%)}
 }
@@ -159,10 +165,11 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-dashboard){fon
  .essafaria-dashboard{gap:24px}
  .essafaria-dashboard .dash-title{display:block}.essafaria-dashboard .dash-title h1{font-size:28px}.essafaria-dashboard .dash-title p{margin-top:4px}
  .essafaria-dashboard .dash-campaign-content{min-height:232px}
- .essafaria-dashboard .dash-campaign-copy{width:100%;padding:16px 16px 56px}
- .essafaria-dashboard .dash-campaign-copy h2{font-size:26px}
+ .essafaria-dashboard .dash-campaign-copy{width:100%;padding:20px 16px 76px}
+ .essafaria-dashboard .dash-campaign-copy h2{font-size:30px}
  .essafaria-dashboard .dash-campaign-content::before,.essafaria-dashboard[dir="rtl"] .dash-campaign-content::before{background:#0b1c30d9}
- .essafaria-dashboard .dash-campaign-controls button{min-width:40px;min-height:44px}
+ .essafaria-dashboard .dash-campaign-controls{inset-inline-end:12px;bottom:12px}
+ .essafaria-dashboard .dash-campaign-controls button{width:44px;height:44px}
  .essafaria-dashboard .dash-command{grid-template-columns:minmax(0,1fr);gap:16px}
  .essafaria-dashboard .dash-destination-shortcuts button,.essafaria-dashboard .dash-wallet-actions a{min-height:44px}
  .essafaria-dashboard .dash-metrics{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px 0}
