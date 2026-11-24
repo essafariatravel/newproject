@@ -642,7 +642,7 @@ export function RequestWizard(props: Props) {
         </div>
 
         <div className="card space-y-4 p-6">
-          <h2 className="font-serif text-lg text-navy-900">{t.documents}</h2>
+          <div className="agency-v2-document-heading"><h2 className="font-serif text-lg text-navy-900">{t.documents}</h2>{requirements.some(r => r.required) ? <div className="agency-v2-document-progress" role="status"><span>{t.required}: <strong>{requirements.filter(r => r.required && (files[r.documentTypeId] ?? []).length > 0).length} / {requirements.filter(r => r.required).length}</strong></span><progress aria-label={t.required} value={requirements.filter(r => r.required && (files[r.documentTypeId] ?? []).length > 0).length} max={requirements.filter(r => r.required).length} /></div> : null}</div>
           {fileError ? (
             <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700" data-testid="wizard-file-error">
               {fileError}

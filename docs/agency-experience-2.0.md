@@ -14,3 +14,5 @@ Baseline f737f97. Preview only. Portal routes only.
 | Communications | dense metadata | chat / inbox / case | Inbox + case; existing action |
 | Profile | small text, heavy header | settings / card / team | Settings + team |
 Self-review: no decorative glass in content, no invented data or upload progress, preserve existing routes and all financial actions; scoped CSS; responsive directories, readable labels and keyboard focus, logical RTL and reduced motion. Authenticated visual and functional QA still required. Do not perform writes to a live backend from Preview.
+
+Second code-review pass: remove redundant dashboard and wallet CTAs; prioritize actual attention queue before search; use localized landmark label; correct tablet bottom padding; expose real required-document selection progress, not network transfer progress; add file-picker keyboard focus. First Preview build READY before this correction. Authenticated visual review remains pending.

@@ -48,8 +48,12 @@ export default async function PortalDashboardPage() {
           <h1 id="agency-desk-heading">{ct("Agency dashboard")}</h1>
           <p><bdi>{user.agencyName ?? user.name}</bdi></p>
         </div>
-        <Link href="/portal/applications/new" className="btn-primary">{ct("Create application")}</Link>
       </header>
+      {data.needsAttention.length > 0 ? <section className="agency-record-section" aria-labelledby="attention-heading">
+        <div className="agency-section-header"><h2 id="attention-heading">{ct("Needs your attention")}</h2><Link href="/portal/applications?documents=requested">{ct("View all")}</Link></div>
+        {records(data.needsAttention, true)}
+      </section> : null}
+
       <section className="agency-desk" aria-label={ct("Create application")}>
         <div className="desk-actions">
           <form action="/portal/applications/new" method="get" aria-labelledby="new-file-title">
@@ -85,17 +89,12 @@ export default async function PortalDashboardPage() {
         <Link href="/portal/wallet"><strong className="wallet-value tabular-nums">{formatAmount(wallet.balance, "DZD", locale)}</strong><span>{ct("Wallet balance")}</span></Link>
       </nav>
 
-      {data.needsAttention.length > 0 ? <section className="agency-record-section" aria-labelledby="attention-heading">
-        <div className="agency-section-header"><h2 id="attention-heading">{ct("Needs your attention")}</h2><Link href="/portal/applications?documents=requested">{ct("View all")}</Link></div>
-        {records(data.needsAttention, true)}
-      </section> : null}
-
       <section className="agency-record-section" aria-labelledby="recent-heading">
         <div className="agency-section-header"><h2 id="recent-heading">{ct("Recent applications")}</h2><Link href="/portal/applications">{ct("View all")}</Link></div>
         {data.recentApplications.length ? records(data.recentApplications) : <EmptyState title={ct("No applications yet")} body={ct("Submit your first visa application to see it tracked here.")} action={<Link href="/portal/applications/new" className="btn-primary">{ct("Create application")}</Link>} />}
       </section>
 
-      <nav className="agency-v2-directory" aria-label={ct("Workspace")}>
+      <nav className="agency-v2-directory" aria-label={`${ct("Documents")} / ${ct("Applicants")} / ${ct("Communications")}`}>
         {[["/portal/documents","Documents"],["/portal/applicants","Applicants"],["/portal/communications","Communications"]].map(([href,label])=><Link key={href} href={href!}><span>{ct(label!)}</span><span aria-hidden="true" className="directional-arrow">→</span></Link>)}
       </nav>
       {hasPermission(user,"transactions.view.own") ? <Card className="agency-wallet-ledger">

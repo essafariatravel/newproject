@@ -143,3 +143,15 @@
 @media(max-width:479px){.workspace-agency.workspace-agency .agency-header-brand img{width:44px;height:38px}}
 @media(prefers-reduced-motion:reduce){.workspace-agency #workspace-main :is(.btn,.btn-primary,.btn-secondary,.wizard-choice,.travel-record){transition:none}}
 @media(prefers-reduced-transparency:reduce){.workspace-agency.workspace-agency .agency-bottom-navigation{background:white;backdrop-filter:none}}
+
+/* Self-review: tablet shell, keyboard-visible file picker, real selection progress. */
+@media(min-width:1024px) and (max-width:1279px){.workspace-agency #workspace-main{padding-bottom:32px}}
+.workspace-agency #workspace-main .agency-v2-document-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.workspace-agency #workspace-main .agency-v2-document-progress{display:flex;align-items:center;gap:12px;color:var(--agency-muted);font-size:.9375rem}
+.workspace-agency #workspace-main .agency-v2-document-progress progress{width:104px;height:8px;accent-color:#23685c}
+.workspace-agency #workspace-main label.btn-secondary:focus-within{outline:2px solid #1c3a56;outline-offset:3px}
+.workspace-agency #workspace-main .wizard-file-settle{overflow-wrap:anywhere;animation:none}
+.workspace-agency #workspace-main .agency-v2-directory-list{overflow:visible}
+.workspace-agency #workspace-main .agency-v2-directory-row:first-child{border-radius:14px 14px 0 0}
+.workspace-agency #workspace-main .agency-v2-directory-row:last-child{border-radius:0 0 14px 14px}
+@media(max-width:479px){.workspace-agency #workspace-main .agency-v2-document-progress{width:100%;justify-content:space-between}}

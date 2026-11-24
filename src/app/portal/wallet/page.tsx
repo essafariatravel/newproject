@@ -94,10 +94,7 @@ export default async function PortalWalletPage({
           <a href="#topup" className="btn-primary">{ct("Request wallet top-up")}</a>
           {lowBalance ? (
             <p className="rounded-lg border border-gold-200 bg-gold-50 px-4 py-2 text-xs text-gold-800">
-              {ct("Your wallet balance may be insufficient for a new application.")}{" "}
-              <a href="#topup" className="font-semibold underline">
-                {ct("Request wallet top-up")}
-              </a>
+              {ct("Your wallet balance may be insufficient for a new application.")}
             </p>
           ) : null}
         </div>
