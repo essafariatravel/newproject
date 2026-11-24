@@ -21,9 +21,9 @@ export default async function PortalCommunicationsPage({ searchParams }: { searc
  en:{choose:"Select a conversation",chooseBody:"Review each case’s messages and documents without losing your place.",back:"All conversations",open:"Open case and mark messages as read",reply:"Reply",older:"Older messages",latest:"Latest messages"},
  ar:{choose:"اختر محادثة",chooseBody:"راجع مراسلات ومستندات كل طلب دون فقدان قائمة المحادثات.",back:"جميع المحادثات",open:"فتح الملف وتحديد الرسائل كمقروءة",reply:"رد",older:"الرسائل السابقة",latest:"أحدث الرسائل"}
  }[locale];
- const page=Math.max(1,Math.min(10000,Math.trunc(Number(sp.page)||1)));
- const filter=["unread","reply"].includes(sp.filter??"")?sp.filter!:"all";
- const q=(sp.q??"").slice(0,160);
+ const page=Math.max(1,Math.min(10000,Math.trunc(typeof sp.page==="string"?Number(sp.page)||1:1)));
+ const filter=typeof sp.filter==="string"&&["unread","reply"].includes(sp.filter)?sp.filter:"all";
+ const q=typeof sp.q==="string"?sp.q.slice(0,160):"";
  const threads=await conversationInbox(user,{q,filter,page});
  // A requested thread must be in the authenticated agency's own scoped result.
  const selected=threads.find(t=>t.applicationId===sp.thread);

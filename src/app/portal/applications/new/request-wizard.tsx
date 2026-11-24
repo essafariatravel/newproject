@@ -161,6 +161,20 @@ export function RequestWizard(props: Props) {
   const [files, setFiles] = useState<Record<string, File[]>>({});
   const [pending, setPending] = useState(false);
   const submittingRef = useRef(false);
+  const leavingAfterSuccess = useRef(false);
+  const [dirty, setDirty] = useState(false);
+  const selectedFileLabel = {fr:"Sélectionné",en:"Selected",ar:"تم التحديد"}[props.locale];
+  const preparationNotice = {fr:"Votre dossier n’est pas encore enregistré. Les pièces restent sur cet appareil jusqu’à la confirmation.",en:"Your case is not saved yet. Files stay on this device until you confirm.",ar:"لم يُحفظ طلبكم بعد. تبقى الملفات على هذا الجهاز إلى حين التأكيد."}[props.locale];
+  useEffect(() => {
+    if (!dirty && !pending) return;
+    const protect = (event: BeforeUnloadEvent) => {
+      if (leavingAfterSuccess.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", protect);
+    return () => window.removeEventListener("beforeunload", protect);
+  }, [dirty,pending]);
   const [transfer, setTransfer] = useState<{done:number;total:number;phase:"files"|"confirm"} | null>(null);
   const feedbackRef = useRef<HTMLDivElement>(null);
   const stepHeadingRef = useRef<HTMLOListElement>(null);
@@ -283,6 +297,7 @@ export function RequestWizard(props: Props) {
 
   function goNext() {
     if (submittingRef.current || !validateStep(step)) return;
+    setDirty(true);
     setWizardDirection("forward");
     setStep(Math.min(3, step + 1));
   }
@@ -303,6 +318,7 @@ export function RequestWizard(props: Props) {
       return;
     }
     setFileError("");
+    setDirty(true);
     setFiles((prev) => ({ ...prev, [documentTypeId]: incoming }));
   }
 
@@ -363,6 +379,7 @@ export function RequestWizard(props: Props) {
         body: JSON.stringify({ attempt: idempotencyKey, countryId, visaTypeId, tokens,
           fullName: String(fields.get("t0_fullName") ?? ""), nationality: String(fields.get("t0_nationality") ?? ""), notes: String(fields.get("agencyNotes") ?? "") }) });
       const data = await readRequestResponse<{applicationId:string}>(response,props.locale);
+      leavingAfterSuccess.current = true;
       window.location.assign(`/portal/applications/${data.applicationId}?submitted=1`);
     } catch (error) {
       const feedback=requestFailureFeedback(error,props.locale);
@@ -376,7 +393,7 @@ export function RequestWizard(props: Props) {
   }
 
   return (
-    <form ref={formRef} className="agency-v2-wizard space-y-6" onSubmit={(event) => { event.preventDefault(); void submit(event.currentTarget); }}>
+    <form ref={formRef} className="agency-v2-wizard space-y-6" onChange={()=>setDirty(true)} onSubmit={(event) => { event.preventDefault(); void submit(event.currentTarget); }}>
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       {countryId ? <input type="hidden" name="countryId" value={countryId} /> : null}
       <input type="hidden" name="locale" value={props.locale} />
@@ -718,7 +735,7 @@ export function RequestWizard(props: Props) {
                             <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
                             <span className="font-semibold text-navy-800">{f.name}</span>
                             <span className="text-slate-400">{(f.size / 1024).toFixed(0)} KB</span>
-                            <span className="badge bg-emerald-100 text-emerald-800">{t.uploaded}</span>
+                            <span className="text-sm text-slate-600">{selectedFileLabel}</span>
                             <button
                               type="button"
                               aria-label={`${t.remove}: ${f.name}`}
@@ -855,6 +872,7 @@ export function RequestWizard(props: Props) {
         </div>
       </section>
 
+      {!pending && dirty ? <p className="agency-v2-preparation-notice">{preparationNotice}</p> : null}
       <div className="agency-v2-wizard-footer flex flex-wrap items-center justify-between gap-3" data-step={step}>
         <button type="button" onClick={goBack} disabled={step === 1 || pending} className="btn-secondary">
           <span className="directional" aria-hidden>←</span> {t.back}
