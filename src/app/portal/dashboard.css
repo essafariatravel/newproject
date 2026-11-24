@@ -188,3 +188,50 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-dashboard){fon
 .essafaria-dashboard .dash-more-panel a:hover{background:var(--dash-hover)}
 .essafaria-dashboard .dash-more :is(summary,a):focus-visible{outline:2px solid #304b64;outline-offset:2px}
 @media(max-width:767px){.essafaria-dashboard .dash-section-heading{flex-wrap:wrap}.essafaria-dashboard .dash-recent-actions{margin-inline-start:auto;gap:8px}}
+
+/* Revision 06 — stable editorial carousel, compact desktop rhythm, accessible controls. */
+.essafaria-dashboard .dash-campaign-slides{display:grid;isolation:isolate}
+.essafaria-dashboard .dash-campaign-content{grid-area:1/1;animation:none;opacity:0;visibility:hidden;pointer-events:none;transition:opacity 220ms ease,visibility 0s linear 220ms}
+.essafaria-dashboard .dash-campaign-content[data-current="true"]{opacity:1;visibility:visible;pointer-events:auto;transition:opacity 220ms ease}
+.essafaria-dashboard .dash-campaign-photo{display:block;overflow:hidden}
+.essafaria-dashboard .dash-campaign-photo img{display:block;width:100%;height:100%;object-fit:cover;object-position:center 52%}
+.essafaria-dashboard .dash-campaign-content[data-campaign="case-tracking"] .dash-campaign-photo img{object-position:center 45%}
+.essafaria-dashboard .dash-campaign-controls{gap:4px;background:#0b1c30d9}
+.essafaria-dashboard .dash-campaign-controls .dash-rotation-toggle{width:auto;min-width:44px;padding-inline:10px;border-radius:24px;font-size:15px;font-weight:500;white-space:normal}
+.essafaria-dashboard .dash-wallet-number{display:inline-flex;align-items:baseline;gap:8px;flex-wrap:wrap;max-width:100%;overflow-wrap:anywhere}
+.essafaria-dashboard .dash-currency{font-size:18px;letter-spacing:0}
+.essafaria-dashboard .dash-command label{font-size:18px;font-weight:600}
+.essafaria-dashboard .dash-destination-shortcuts button{border-bottom:1px solid #e2e5e9;border-radius:4px}
+.essafaria-dashboard .dash-destination-option{transition:background-color 150ms ease}
+.essafaria-dashboard :is(.dash-destination-shortcuts button,.dash-picker-toggle,.dash-metric,.dash-topup,.dash-recent-actions a,.dash-find button):focus-visible{outline:2px solid #285582;outline-offset:3px}
+.essafaria-dashboard .dash-search-wrap:focus-within{border-radius:6px;outline:2px solid #285582;outline-offset:2px}
+.essafaria-dashboard .dash-metric>small,.essafaria-dashboard .dash-record-head,.essafaria-dashboard .dash-record-row small,.essafaria-dashboard .dash-updated{color:#344457}
+.essafaria-dashboard .dash-metric[data-attention="no"] small{color:#21684f}
+.essafaria-dashboard .dash-metric[data-attention="yes"] small{color:#80500e}
+.essafaria-dashboard .dash-record-row .dash-chevron{transition:color 150ms ease}
+.essafaria-dashboard .dash-record-row:hover .dash-chevron{color:#285582}
+@media(min-width:768px){
+ .workspace-agency.workspace-agency:has(.essafaria-dashboard) #workspace-main{padding-block-start:16px}
+ .essafaria-dashboard{gap:16px}
+ .essafaria-dashboard .dash-campaign-content{min-height:164px}
+ .essafaria-dashboard .dash-campaign-copy{padding-block:16px}
+ .essafaria-dashboard .dash-command label{margin-bottom:6px}
+ .essafaria-dashboard .dash-destination-shortcuts{margin-top:4px;min-height:36px}
+ .essafaria-dashboard .dash-destination-shortcuts button{min-height:36px}
+ .essafaria-dashboard .dash-metrics{padding-block:12px}
+ .essafaria-dashboard .dash-section-heading{padding-bottom:8px}
+ .essafaria-dashboard .dash-record-head{padding-block:8px}
+ .essafaria-dashboard .dash-record-row{min-height:66px;padding-block:8px}
+}
+@media(min-width:768px) and (max-width:1050px){
+ .essafaria-dashboard .dash-campaign-copy{width:65%;padding-bottom:72px}
+ .essafaria-dashboard .dash-metric{padding-inline:12px}
+}
+@media(max-width:767px){
+ .essafaria-dashboard .dash-campaign-copy{padding-bottom:88px}
+ .essafaria-dashboard .dash-campaign-controls{max-width:calc(100% - 24px);gap:2px}
+ .essafaria-dashboard .dash-campaign-controls .dash-rotation-toggle{font-size:15px;padding-inline:8px}
+ .essafaria-dashboard .dash-destination-shortcuts button{min-height:44px}
+ .essafaria-dashboard .dash-wallet-number{gap:6px}
+}
+@media(prefers-reduced-motion:reduce){.essafaria-dashboard .dash-campaign-content{transition:none!important}}
