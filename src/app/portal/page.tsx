@@ -38,7 +38,7 @@ export default async function PortalDashboardPage() {
  const canViewTx=hasPermission(user,"transactions.view.own");
  const canTopup=canViewTx && user.role==="AGENCY_ADMIN";
  const shortcuts={fr:"Destinations suggérées",en:"Suggested destinations",ar:"الوجهات المقترحة"}[locale];
- const quickDescriptions={fr:["Retrouvez vos pièces et visas délivrés.","Accédez aux dossiers de vos voyageurs.","Échangez avec ESSAFARIA."],en:["Find your documents and issued visas.","Access your travellers’ applications.","Message ESSAFARIA."],ar:["اعثروا على مستنداتكم والتأشيرات الصادرة.","اطلعوا على ملفات مسافريكم.","تواصلوا مع ESSAFARIA."]}[locale];
+ const heading={fr:"Tableau de bord",en:"Dashboard",ar:"لوحة التحكم"}[locale];
  const opening={fr:"Ouverture de la demande…",en:"Opening application…",ar:"جارٍ فتح الطلب…"}[locale];
  const topup={fr:"Recharger",en:"Top up",ar:"شحن المحفظة"}[locale];
  const copy={
@@ -47,10 +47,14 @@ export default async function PortalDashboardPage() {
  ar:{updates:"اكتشف",campaigns:"مستجدات ESSAFARIA",pause:"إيقاف مؤقت",play:"استئناف",previous:"السابق",next:"التالي",show:"عرض",none:"لا توجد وجهات متاحة",noMatch:"لا توجد وجهة مطابقة",destinationSearch:"ابحث عن دولة…",choose:"اختر وجهة",all:"جميع الوجهات",ready:"لا توجد إجراءات مطلوبة",attention:"طلبات تحتاج إلى مراجعة",active:"متابعة الطلبات",completed:"عرض السجل",wallet:"عرض المحفظة",traveller:"المسافر",destination:"الوجهة / التأشيرة",status:"الحالة",updated:"آخر تحديث",activity:"النشاط المالي",allTx:"جميع المعاملات",quick:"روابط سريعة",find:"اسم المسافر أو المرجع",open:"فتح",required:"إجراء مطلوب",campaignTitle:["تأشيراتكم على منصة واحدة.","تابعوا كل طلب.","جميع مراسلاتكم في مكان واحد."],campaignBody:["استكشفوا برامج التأشيرات المتاحة لمسافريكم.","تابعوا تقدم طلباتكم في أي وقت.","اطلعوا على مراسلاتكم مع ESSAFARIA."],campaignCta:["استكشاف التأشيرات","عرض طلباتي","فتح المراسلات"]}
  }[locale];
  // Presentation-only campaign data. Future Admin source can supply this same typed shape.
+ const editorial={
+ fr:[{title:"Services visa",body:"Consultez les programmes disponibles pour vos voyageurs.",cta:"Voir les destinations"},{title:"Suivi des visas",body:"Retrouvez vos demandes et leurs dernières mises à jour.",cta:"Voir mes dossiers"}],
+ en:[{title:"Visa services",body:"Explore the programmes available for your travellers.",cta:"Browse destinations"},{title:"Visa application tracking",body:"Find your applications and their latest updates.",cta:"View applications"}],
+ ar:[{title:"خدمات التأشيرات",body:"اطلعوا على برامج التأشيرات المتاحة لمسافريكم.",cta:"عرض الوجهات"},{title:"متابعة التأشيرات",body:"اطلعوا على طلباتكم وآخر تحديثاتها.",cta:"عرض الطلبات"}]
+ }[locale];
  const campaigns:Campaign[]=[
-  {id:"visa-services",eyebrow:copy.updates,title:copy.campaignTitle[0]!,body:copy.campaignBody[0]!,cta:copy.campaignCta[0]!,href:"/portal/applications/new",image:"/images/travel/cape-greco.webp"},
-  {id:"case-tracking",eyebrow:copy.updates,title:copy.campaignTitle[1]!,body:copy.campaignBody[1]!,cta:copy.campaignCta[1]!,href:"/portal/applications",image:"/images/travel/dulles-terminal.webp"},
-  {id:"communications",eyebrow:copy.updates,title:copy.campaignTitle[2]!,body:copy.campaignBody[2]!,cta:copy.campaignCta[2]!,href:"/portal/communications",image:"/images/travel/st-gallen.webp"},
+  {id:"visa-services",...editorial[0]!,href:"/portal/applications/new",image:"/images/travel/cape-greco.webp"},
+  {id:"case-tracking",...editorial[1]!,href:"/portal/applications",image:"/images/travel/dulles-terminal.webp"},
  ];
  const actionRequired=totals.actionRequired??0;
  const records=(rows:typeof data.recentApplications,attention=false)=>(
@@ -65,7 +69,7 @@ export default async function PortalDashboardPage() {
   </div>
  );
  return <div className="essafaria-dashboard" dir={locale==="ar"?"rtl":"ltr"}>
-  <header className="dash-title"><h1>{ct("Agency dashboard")}</h1><p><bdi>{user.agencyName??user.name}</bdi></p></header>
+  <header className="dash-title"><h1>{heading}</h1><p><bdi>{user.agencyName??user.name}</bdi></p></header>
   <DashboardCampaigns items={campaigns} labels={copy}/>
   {data.needsAttention.length>0?<section className="dash-section dash-attention" aria-labelledby="dash-attention"><div className="dash-section-heading"><h2 id="dash-attention">{ct("Needs your attention")}</h2><Link href="/portal/applications?documents=requested">{ct("View all")} <span aria-hidden="true" className="dash-arrow">→</span></Link></div>{records(data.needsAttention,true)}</section>:null}
   <section className="dash-command" aria-label={ct("Create application")}>
@@ -73,10 +77,10 @@ export default async function PortalDashboardPage() {
    <form action="/portal/applications" method="get" role="search" className="dash-find"><label htmlFor="dash-reference">{ct("Find an application")}</label><div className="dash-field-row"><div className="dash-search-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="dash-reference" name="q" type="search" dir="auto" placeholder={copy.find} className="input" maxLength={160}/></div><button className="btn-secondary" type="submit">{ct("Search")}</button></div></form>
   </section>
   <nav className="dash-metrics" aria-label={ct("Agency dashboard")}>
-   <Link href="/portal/applications?queue=active" className="dash-metric"><span>{ct("Active applications")}</span><strong>{totals.active}</strong><small>{copy.active} <span aria-hidden="true" className="dash-arrow">→</span></small></Link>
-   <Link href="/portal/applications?documents=requested" className="dash-metric" data-attention={actionRequired>0?"yes":"no"}><span>{copy.required}</span><strong>{actionRequired}</strong><small>{actionRequired>0?copy.attention:copy.ready} {actionRequired===0?<span aria-hidden="true">✓</span>:<span aria-hidden="true" className="dash-arrow">→</span>}</small></Link>
-   <Link href="/portal/applications?queue=completed" className="dash-metric"><span>{ct("Completed")}</span><strong>{totals.completed}</strong><small>{copy.completed} <span aria-hidden="true" className="dash-arrow">→</span></small></Link>
-   <div className="dash-metric dash-wallet"><span>{ct("Wallet balance")}</span><strong><bdi>{formatAmount(wallet.balance,wallet.currency,locale)}</bdi></strong><div className="dash-wallet-actions"><Link href="/portal/wallet">{copy.wallet} <span aria-hidden="true" className="dash-arrow">→</span></Link>{canTopup?<Link href="/portal/wallet#topup" className="dash-topup"><span aria-hidden="true">+</span> {topup}</Link>:null}</div></div>
+   <Link href="/portal/applications?queue=active" className="dash-metric"><span>{ct("Active applications")}</span><strong>{totals.active}</strong><small>{copy.active}</small></Link>
+   <Link href="/portal/applications?documents=requested" className="dash-metric" data-attention={actionRequired>0?"yes":"no"}><span>{copy.required}</span><strong>{actionRequired}</strong><small>{actionRequired>0?copy.attention:copy.ready} {actionRequired===0?<span aria-hidden="true">✓</span>:null}</small></Link>
+   <Link href="/portal/applications?queue=completed" className="dash-metric"><span>{ct("Completed")}</span><strong>{totals.completed}</strong><small>{copy.completed}</small></Link>
+   <div className="dash-metric dash-wallet"><span>{ct("Wallet balance")}</span><strong><bdi>{formatAmount(wallet.balance,wallet.currency,locale).replace(/ DZD$/,"")}{formatAmount(wallet.balance,wallet.currency,locale).endsWith(" DZD")?<span className="dash-currency"> DZD</span>:null}</bdi></strong><div className="dash-wallet-actions"><Link href="/portal/wallet">{copy.wallet}</Link>{canTopup?<Link href="/portal/wallet#topup" className="dash-topup"><span aria-hidden="true">+</span> {topup}</Link>:null}</div></div>
   </nav>
   <div className={"dash-workspace"+(canViewTx?" has-finance":"")}>
    <section className="dash-section dash-recent" aria-labelledby="dash-recent"><div className="dash-section-heading"><h2 id="dash-recent">{ct("Recent applications")}</h2><Link href="/portal/applications">{ct("View all")} <span aria-hidden="true" className="dash-arrow">→</span></Link></div>
@@ -89,6 +93,6 @@ export default async function PortalDashboardPage() {
     })}</ul><Link className="dash-finance-link" href="/portal/wallet">{copy.allTx} <span aria-hidden="true" className="dash-arrow">→</span></Link>
    </section>:null}
   </div>
-  <nav className="dash-quick-links" aria-label={copy.quick}><h2>{copy.quick}</h2><div>{[["/portal/documents","Documents","M5 3h9l5 5v13H5z M14 3v5h5"],["/portal/applicants","Applicants","M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M4 21v-2a8 8 0 0 1 16 0v2"],["/portal/communications","Communications","M4 4h16v12H9l-5 4z"]].map(([href,label,path],i)=><Link key={href} href={href!}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d={path}/></svg><span className="dash-quick-copy"><strong>{ct(label!)}</strong><small>{quickDescriptions[i]}</small></span><span aria-hidden="true" className="dash-arrow">→</span></Link>)}</div></nav>
+  <nav className="dash-quick-links" aria-label={copy.quick}><h2>{copy.quick}</h2><div>{[["/portal/documents","Documents","M5 3h9l5 5v13H5z M14 3v5h5"],["/portal/applicants","Applicants","M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M4 21v-2a8 8 0 0 1 16 0v2"],["/portal/communications","Communications","M4 4h16v12H9l-5 4z"]].map(([href,label,path])=><Link key={href} href={href!}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d={path}/></svg><span className="dash-quick-copy">{ct(label!)}</span><span aria-hidden="true" className="dash-arrow">→</span></Link>)}</div></nav>
  </div>;
 }
