@@ -720,3 +720,16 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .animate-spin { animation: none; }
 }
+
+/* Contextual dossier actions: quiet until needed; native accessible dialog. */
+.cancellation-menu > summary::-webkit-details-marker { display:none; }
+.cancellation-menu-items { position:absolute; inset-inline-end:0; top:calc(100% + 6px); width:max-content; max-width:min(290px,85vw); z-index:35; border:1px solid #dce2e8; border-radius:10px; background:white; padding:5px; box-shadow:0 8px 24px #0c203812; }
+.cancellation-dialog { position:fixed; inset:0; margin:auto; width:min(520px,calc(100% - 32px)); max-height:calc(100dvh - 48px); overflow:auto; padding:0; background:white; border:1px solid #dce2e8; border-radius:16px; color:var(--color-navy-900); box-shadow:0 24px 80px #0c203825; }
+.cancellation-dialog[open] { animation:cancellation-enter 160ms ease-out; }
+.cancellation-dialog::backdrop { background:rgb(12 32 56 / .35); }
+.cancellation-dialog-inner { padding:24px; }
+.cancellation-dialog-footer { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; padding-top:12px; border-top:1px solid #e2e8f0; }
+.cancellation-state { border:1px solid #dce2e8; border-radius:10px; background:#fff; padding:16px; }
+@keyframes cancellation-enter { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@media(max-width:640px) { .cancellation-dialog { inset:auto 0 0; margin:0; width:100%; max-width:100%; max-height:92dvh; border-radius:18px 18px 0 0; } .cancellation-dialog-inner { padding:20px 16px max(20px,env(safe-area-inset-bottom)); } .cancellation-dialog-footer > * { flex:1 1 100%; min-height:44px; } }
+@media(prefers-reduced-motion:reduce) { .cancellation-dialog[open] { animation:none; } }

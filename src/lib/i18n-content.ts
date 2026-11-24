@@ -13,6 +13,19 @@ import { identityT } from "@/lib/identity-copy";
 type Entry = { fr: string; ar: string };
 
 const CONTENT: Record<string, Entry> = {
+  "Review cancellation": { fr: "Examiner l’annulation", ar: "مراجعة الإلغاء" },
+  "Keep my application": { fr: "Conserver mon dossier", ar: "الإبقاء على طلبي" },
+  "The dossier remains open. ESSAFARIA will review your request; no refund is guaranteed before approval.": { fr: "Le dossier reste ouvert. ESSAFARIA examinera votre demande ; aucun remboursement n’est garanti avant validation.", ar: "يبقى الطلب مفتوحًا. ستراجع ESSAFARIA طلبكم، ولا يُضمن أي استرداد قبل الموافقة." },
+  "Net amount paid": { fr: "Montant net payé", ar: "صافي المبلغ المدفوع" },
+  "Amount retained": { fr: "Montant conservé", ar: "المبلغ المحتفظ به" },
+  "Estimated wallet balance after refund": { fr: "Solde estimé après remboursement", ar: "الرصيد التقديري بعد الاسترداد" },
+  "No refund": { fr: "Sans remboursement", ar: "دون استرداد" },
+  "Full refund": { fr: "Remboursement intégral", ar: "استرداد كامل" },
+  "Estimate based on the current balance. Other transactions may change it.": { fr: "Estimation selon le solde actuel. D’autres transactions peuvent le modifier.", ar: "تقدير بناءً على الرصيد الحالي. قد تؤثر عليه معاملات أخرى." },
+  "The application remains open. No refund was issued.": { fr: "Le dossier poursuit son traitement. Aucun remboursement n’a été effectué.", ar: "يستمر معالجة الطلب. لم يتم استرداد أي مبلغ." },
+  "Refund credited to the agency wallet.": { fr: "Remboursement crédité sur le portefeuille de l’agence.", ar: "تم إضافة الاسترداد إلى محفظة الوكالة." },
+  "View cancellation history": { fr: "Voir l’historique d’annulation", ar: "عرض سجل الإلغاء" },
+  "Working…": { fr: "Traitement…", ar: "جارٍ المعالجة…" },
   "Application cancellation": { fr: "Annulation du dossier", ar: "إلغاء الطلب" },
   "Cancellation and refund decisions are recorded in the application history.": { fr: "Les décisions d’annulation et de remboursement sont enregistrées dans l’historique du dossier.", ar: "تُسجل قرارات الإلغاء والاسترداد في سجل الطلب." },
   "Cancellation pending": { fr: "Annulation en attente", ar: "طلب الإلغاء قيد المراجعة" },

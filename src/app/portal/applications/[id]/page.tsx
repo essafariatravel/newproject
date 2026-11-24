@@ -1,4 +1,4 @@
-import { CancellationPanel } from "@/components/cancellation-panel";
+import { CancellationActions, CancellationPanel } from "@/components/cancellation-panel";
 import { listApplicationCancellations } from "@/lib/application-cancellations";
 import { configName } from "@/lib/config-localization";
 import Link from "next/link";
@@ -107,13 +107,14 @@ export default async function PortalApplicationDetailPage({
         actions={
           <>
             <StatusBadge code={detail.statusCode} name={detail.statusName} />
+            <CancellationActions id={id} rows={cancellations} eligible={Boolean(app.submittedAt) && !["APPROVED","REJECTED","CANCELLED","COMPLETED","REFUSED"].includes(detail.statusCode)} staff={false} netPaid={pricing?.effectivePrice??null} locale={uiLocale} reference={app.reference} summary={`${applicantName} · ${visaDisplayName}`}/>
             <Link href="/portal/applications" className="btn-secondary btn-sm"><span className="directional" aria-hidden="true">←</span> {ct("All applications")}</Link>
           </>
         }
       /></div>
       <ReconciliationWarning applicationId={id} user={user} locale={uiLocale}/>
       <Flash {...flash} />
-      <CancellationPanel id={id} rows={cancellations} eligible={Boolean(app.submittedAt) && !["APPROVED","REJECTED","CANCELLED","COMPLETED","REFUSED"].includes(detail.statusCode)} staff={false} netPaid={pricing?.effectivePrice??null} locale={uiLocale}/>
+      <CancellationPanel rows={cancellations} staff={false} locale={uiLocale}/>
 
       <Tabs tabs={TABS.map((t) => ({ ...t, label: ct(t.label), href: `${back}?tab=${t.id}` }))} current={tab} />
 

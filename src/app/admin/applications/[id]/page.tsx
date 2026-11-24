@@ -1,4 +1,4 @@
-import { CancellationPanel } from "@/components/cancellation-panel";
+import { CancellationActions, CancellationPanel } from "@/components/cancellation-panel";
 import { listApplicationCancellations } from "@/lib/application-cancellations";
 import { configName } from "@/lib/config-localization";
 import { ReconciliationWarning } from "@/components/reconciliation-warning";
@@ -17,7 +17,7 @@ import {
 } from "@/lib/applications";
 import { groupDocumentsForDisplay, listApplicantsForApplication, listDocumentsForApplication } from "@/lib/documents";
 import { listAgencyRequestableDocumentTypes, listDocumentRequests } from "@/lib/document-requests";
-import { findTransactionByApplication } from "@/lib/wallet";
+import { findTransactionByApplication, getBalance } from "@/lib/wallet";
 import { listCommunications } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
 import { getUiLocale, localizedStatusName, localizedDocTypeName, localizedDocStatus } from "@/lib/ui-i18n";
@@ -122,6 +122,7 @@ export default async function AdminApplicationDetailPage({
   const allowedDecisionOutcomes = embassyApplicability === "APPLICABLE" && detail.statusCode !== "EMBASSY_SENT" ? [] : decisionOutcomesForStatus(detail.statusCode);
   const isClosed = ["APPROVED", "REJECTED", "CANCELLED", "COMPLETED", "REFUSED"].includes(detail.statusCode);
   const canStatusChange = hasPermission(user, "applications.status.change");
+  const cancellationWallet = app.submittedAt && !isClosed && canStatusChange && canAdjustPrice ? await getBalance(app.agencyId) : null;
   const canReview = hasPermission(user, "applications.review");
   const _canOverride = hasPermission(user, "applications.submit.override") && OVERRIDE_ROLES.includes(user.role);
   const flash = flashFrom(sp);
@@ -140,13 +141,14 @@ export default async function AdminApplicationDetailPage({
           <>
             <StatusBadge code={detail.statusCode} name={detail.statusName} />
             <PriorityBadge name={detail.priorityName} weight={detail.priorityWeight} />
+            <CancellationActions id={id} rows={cancellations} eligible={Boolean(app.submittedAt) && !["APPROVED","REJECTED","CANCELLED","COMPLETED","REFUSED"].includes(detail.statusCode) && canStatusChange && canAdjustPrice} staff netPaid={pricing?.effectivePrice??null} locale={uiLocale} reference={app.reference} summary={`${applicant?.fullName || app.reference} · ${visaDisplayName}`} walletBalance={cancellationWallet?.balance??null}/>
             <Link href="/admin/applications" className="btn-secondary btn-sm">{uiLocale === "ar" ? "→" : "←"} {ct("All applications")}</Link>
           </>
         }
       />
       <ReconciliationWarning applicationId={id} user={user} locale={uiLocale}/>
       <Flash {...flash} />
-      <CancellationPanel id={id} rows={cancellations} eligible={Boolean(app.submittedAt) && !["APPROVED","REJECTED","CANCELLED","COMPLETED","REFUSED"].includes(detail.statusCode) && canStatusChange && canAdjustPrice} staff netPaid={pricing?.effectivePrice??null} locale={uiLocale}/>
+      <CancellationPanel rows={cancellations} staff={true} locale={uiLocale}/>
       <Tabs tabs={TABS.map((t) => ({ ...t, label: ct(t.label), href: `${back}?tab=${t.id}` }))} current={tab} />
 
       <section className="dossier-next-action" aria-labelledby="staff-next-action">
