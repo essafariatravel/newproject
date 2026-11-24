@@ -50,7 +50,7 @@ export function durationLabel(minutes:number,locale:"fr"|"en"|"ar"){
 }
 
 /** Dates of business search periods are Algeria-local calendar dates, independent of server TZ. */
-export function casePeriod(value:string|undefined,now=new Date()){
+export function casePeriod(value:string|undefined,now=new Date()):{text:string;period?:"today"|"week"|"month";from?:Date;to?:Date}{
  const q=(value??"").trim();
  const suffix=/(?:^|\s)(aujourd['’]hui|today|اليوم|cette semaine|this week|هذا الأسبوع|ce mois-ci|this month|هذا الشهر)$/iu.exec(q);
  if(!suffix)return {text:q,period:undefined,from:undefined,to:undefined};

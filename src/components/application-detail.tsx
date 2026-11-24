@@ -12,6 +12,7 @@ import {
   uploadResubmissionAction,
   deleteDocumentAction,
 } from "@/app/actions/documents";
+import { caseDateTime } from "@/app/portal/applications/case-workspace";
 import { CaseMessageTemplates } from "./case-message-templates";
 import { hasPermission } from "@/lib/rbac";
 import { postMessageAction } from "@/app/actions/communications";
@@ -295,7 +296,7 @@ export function CommunicationsPanel(props: {
                     </span>
                   ) : null}
                 </p>
-                <span className="text-xs text-slate-400">{formatDateTime(message.createdAt, props.locale ?? "en")}</span>
+                <span className="text-xs text-slate-400">{props.caseWorkspace?caseDateTime(message.createdAt,props.locale??"en"):formatDateTime(message.createdAt,props.locale??"en")}</span>
               </div>
               <p className="mt-2 whitespace-pre-line text-base text-slate-700">{message.body}</p>
             </div>

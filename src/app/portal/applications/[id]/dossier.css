@@ -74,3 +74,7 @@
 .dossier-workspace .case-message-templates{display:flex;gap:8px;flex-wrap:wrap;margin-block:6px}
 .dossier-workspace .case-message-templates select{font-size:15px;max-width:100%}
 @media(max-width:767px){.dossier-workspace .dossier-details-grid{grid-template-columns:1fr}}
+
+.dossier-workspace .dossier-navigation{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.dossier-workspace .dossier-neighbours{display:flex;align-items:center;gap:16px;font-size:15px;color:#285582}
+.dossier-workspace .dossier-neighbours a{min-height:36px;display:inline-flex;align-items:center;gap:6px}

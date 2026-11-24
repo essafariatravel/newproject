@@ -437,7 +437,7 @@ export function DatePicker(props: DatePickerProps) {
               type="button"
               className="inline-flex min-h-11 items-center text-base font-semibold text-slate-500 hover:underline"
               disabled={props.required}
-              onClick={() => { if (!props.required) { setValue(""); closePicker(); } }}
+              onClick={() => { if (!props.required) { setValue(""); setTyped(null); closePicker(); } }}
             >
               {locale === "fr" ? "Effacer" : locale === "ar" ? "مسح" : "Clear"}
             </button>

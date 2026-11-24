@@ -35,6 +35,10 @@ import { CopyCaseReference } from "../copy-case-reference";
 import { hasPermission } from "@/lib/rbac";
 import { DocumentViewerProvider, DocumentPreviewButton } from "../document-viewer";
 import { LiveCaseDuration } from "../live-case-duration";
+import { CaseNavigation } from "../case-navigation";
+import { db } from "@/lib/db";
+import { notifications } from "@/db/schema";
+import { and, count, eq, isNull } from "drizzle-orm";
 import "../cases.css";
 import "./dossier.css";
 
@@ -69,7 +73,7 @@ export default async function PortalApplicationDetailPage({
   const returnTo=safeCaseReturn(sp.returnTo);
   const returnSuffix=returnTo==="/portal/applications"?"":"&returnTo="+encodeURIComponent(returnTo);
 
-  const [applicants, docs, checklist, history, messages, charge, decisionDocs, docRequests,cancellations,embassyApplicability,pricing,uiLocale] =
+  const [applicants, docs, checklist, history, messages, charge, decisionDocs, docRequests,cancellations,embassyApplicability,pricing,uiLocale,unreadRows] =
     await Promise.all([
       listApplicantsForApplication(id),
       tab==="overview"||tab==="documents"?listDocumentsForApplication(id):Promise.resolve([]),
@@ -83,6 +87,7 @@ export default async function PortalApplicationDetailPage({
       tab==="overview"?getEmbassyApplicability(app.visaTypeId,app.visaRuleSnapshot):Promise.resolve(null),
       app.submittedAt?getApplicationPricing(id):Promise.resolve(null),
       getUiLocale(sp),
+      db.select({total:count()}).from(notifications).where(and(eq(notifications.userId,user.id),eq(notifications.agencyId,user.agencyId),eq(notifications.applicationId,id),eq(notifications.type,"MESSAGE_POSTED"),isNull(notifications.readAt))),
     ]);
   // §17 — progress is derived from the persisted history, and the embassy
   // stage only appears when the programme declares it (or the file went there).
@@ -115,7 +120,7 @@ export default async function PortalApplicationDetailPage({
   }[uiLocale];
   return (
     <div className="essafaria-cases dossier-workspace" dir={uiLocale==="ar"?"rtl":"ltr"}>
-      <Link href={returnTo} className="dossier-back"><span className="directional" aria-hidden="true">←</span> {copy.back}</Link>
+      <div className="dossier-navigation"><Link href={returnTo} className="dossier-back"><span className="directional" aria-hidden="true">←</span> {copy.back}</Link><CaseNavigation scope={user.id} context={returnTo} id={id} tab={tab} locale={uiLocale}/></div>
       <div className="dossier-masthead"><PageHeader
         title={applicantName}
         subtitle={`${countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)} · ${visaDisplayName}`}
@@ -132,7 +137,7 @@ export default async function PortalApplicationDetailPage({
       {sp.submitted === "1" && app.submittedAt && charge && !flash.error ? <section className="agency-v2-submission-receipt" role="status"><div><h2>{uiLocale === "fr" ? "Votre dossier a bien été soumis" : uiLocale === "ar" ? "تم تقديم طلبكم بنجاح" : "Your application has been submitted"}</h2><p>{ct("Reference")}: <bdi>{app.reference}</bdi> · {ct("Application fee")}: <bdi>{formatAmount(charge.amount,"DZD",uiLocale)}</bdi></p></div><Link href={`${back}?tab=documents${returnSuffix}`} className="btn-secondary">{ct("Documents")}</Link></section> : null}
       <CancellationPanel rows={cancellations} staff={false} locale={uiLocale}/>
 
-      <nav className="case-queues dossier-tabs" aria-label={ct("Applications")}>{TABS.map(t=><Link key={t.id} aria-current={t.id===tab?"page":undefined} href={`${back}?tab=${t.id}${returnSuffix}`}>{ct(t.label)}{t.id==="documents"&&openRequests.length>0?<span className="case-count">{openRequests.length}</span>:null}</Link>)}</nav>
+      <nav className="case-queues dossier-tabs" aria-label={ct("Applications")}>{TABS.map(t=><Link key={t.id} aria-current={t.id===tab?"page":undefined} href={`${back}?tab=${t.id}${returnSuffix}`}>{ct(t.label)}{t.id==="documents"&&openRequests.length>0?<span className="case-count">{openRequests.length}</span>:null}{t.id==="messages"&&Number(unreadRows[0]?.total??0)>0?<span className="case-count" title={uiLocale==="fr"?"Notifications de messages non lues":uiLocale==="ar"?"إشعارات الرسائل غير المقروءة":"Unread message notifications"}>{Number(unreadRows[0]?.total??0)}</span>:null}</Link>)}</nav>
 
       {(openRequests.length>0||isDraft)&&!terminal&&tab!=="documents"?<section className="dossier-attention" aria-labelledby="agency-next-action">
         <p id="agency-next-action" className="agency-v2-section-label font-semibold text-slate-600">{ct("Next action")}</p>

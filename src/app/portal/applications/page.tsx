@@ -21,7 +21,8 @@ import { CountryFlag } from "../dashboard-interactions";
 import { caseAction } from "../dashboard-smart";
 import { CaseFilters } from "./case-filters";
 import { caseLink, queueFilters, caseSort, caseSearch, validCaseDate, detailLink, processingDuration, durationLabel, casePeriod, caseDateTime, type CaseQueue } from "./case-workspace";
-import { CaseQuickView } from "./case-quick-view";
+import { CaseQuickView, CaseQuickViewProvider } from "./case-quick-view";
+import { CaseListMemory } from "./case-navigation";
 import { agencyAttentionCondition } from "@/lib/attention";
 import "./cases.css";
 
@@ -77,10 +78,11 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
  const labels={search:ct("Search"),placeholder:locale==="fr"?"Nom, référence, passeport, pays ou visa…":locale==="en"?"Name, reference, passport, country or visa…":"الاسم أو المرجع أو جواز السفر أو البلد أو التأشيرة…",filters:copy.filters,status:ct("Status"),all:ct("All"),from:ct("From"),to:ct("To"),apply:ct("Filter"),reset:ct("Reset"),suggestions:copy.suggestions,searching:copy.searching,unavailable:copy.unavailable,noSuggestions:copy.noSuggestions,loading:copy.loading};
  const resetHref=caseLink({...queueFilters(queue),per:sp.per,sort:caseSort(sp.sort)});
  const documents=(r:typeof rows[number])=>r.progress?<span className="case-docs" data-complete={r.progress.done>=r.progress.total} title={r.progress.done>=r.progress.total?copy.docsComplete:copy.docsPending}><bdi>{r.progress.done}/{r.progress.total}</bdi>{r.progress.total>0&&r.progress.done>=r.progress.total?<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 8 3 3 7-7"/></svg>:null}</span>:<span>—</span>;
- const quick=(r:typeof rows[number],decision=false)=><CaseQuickView id={r.id} href={r.base} traveller={r.traveller} reference={r.reference} destination={r.country+" · "+r.visa} status={localizedStatusName(r.status,r.statusName,locale)} elapsed={r.elapsed} updated={r.updated} fee={r.fee} progress={r.progress?`${r.progress.done}/${r.progress.total}`:"—"} actionHref={r.actionHref} actionText={r.actionText} official={["APPROVED","REJECTED"].includes(r.status)} decisionTrigger={decision} locale={locale}/>;
+ const quickRows=rows.map(r=>({id:r.id,href:r.base,traveller:r.traveller,reference:r.reference,destination:r.country+" · "+r.visa,status:localizedStatusName(r.status,r.statusName,locale),elapsed:r.elapsed,updated:r.updated,fee:r.fee,progress:r.progress?`${r.progress.done}/${r.progress.total}`:"—",actionHref:r.actionHref,actionText:r.actionText,official:["APPROVED","REJECTED"].includes(r.status)}));
+ const quick=(r:typeof rows[number],decision=false)=><CaseQuickView id={r.id} reference={r.reference} decisionTrigger={decision} locale={locale}/>;
  const action=(r:typeof rows[number])=>["APPROVED","REJECTED"].includes(r.status)?quick(r,true):r.actionText?<Link className="case-action" href={r.actionHref}>{r.actionText}<span aria-hidden="true" className="case-arrow">→</span></Link>:<span className="case-none" aria-label={copy.none}>—</span>;
  const state=(r:typeof rows[number])=><div className="case-status-cell"><span className="case-state" data-status={r.status}><StatusBadge code={r.status} name={r.statusName}/></span>{r.elapsed?<small>{r.terminal?({fr:"Durée :",en:"Duration:",ar:"المدة:"}[locale]):({fr:"Depuis",en:"Since",ar:"منذ"}[locale])} <bdi>{r.elapsed}</bdi></small>:null}</div>;
- return <div className="essafaria-cases" dir={locale==="ar"?"rtl":"ltr"}>
+ return <div className="essafaria-cases" dir={locale==="ar"?"rtl":"ltr"}><CaseQuickViewProvider rows={quickRows} locale={locale}><CaseListMemory scope={user.id} context={caseLink({...query,page:String(result.page)})} rows={rows.map(r=>({id:r.id,href:r.base}))}/>
    <header className="case-title"><h1>{ct("Applications")}</h1></header>
    <Flash {...flashFrom(sp)}/>
    <nav className="case-queues" aria-label={ct("Applications")}>
@@ -108,11 +110,11 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
        {rows.map(r=><article className="case-mobile-record" key={r.id}>
          <div><Link className="case-name" href={r.base}><bdi>{r.traveller}</bdi></Link><small><bdi>{r.reference}</bdi></small></div>{state(r)}
          <div className="case-destination"><CountryFlag iso={r.iso}/><div><strong>{r.country}</strong><small>{r.visa}</small></div></div><span className="case-fee"><bdi>{r.fee}</bdi></span>
-         <div><small>{ct("Documents")} · {documents(r)}</small><small>{ct("Last updated")} · {r.updated}</small><small>{r.created}</small></div><div className="case-mobile-action">{r.actionText?action(r):<Link className="case-action" href={r.base}>{ct("Open dossier")} <span aria-hidden="true" className="case-arrow">→</span></Link>}</div>
+         <div><small>{ct("Documents")} · {documents(r)}</small><small>{ct("Last updated")} · {r.updated}</small><small>{r.created}</small></div><div className="case-mobile-action">{quick(r)} {r.actionText?action(r):<Link className="case-action" href={r.base}>{ct("Open dossier")} <span aria-hidden="true" className="case-arrow">→</span></Link>}</div>
        </article>)}
      </div>
      {result.pageCount>1?<Pagination locale={locale} page={result.page} pageCount={result.pageCount} total={result.total} basePath="/portal/applications" query={query}/>:null}
      {result.total>20?<div className="case-page-size"><PageSizeSelector locale={locale} pageSize={per} basePath="/portal/applications" query={query}/></div>:null}
    </>}
- </div>;
+ </CaseQuickViewProvider></div>;
 }
