@@ -14,6 +14,11 @@ describe("Preview build database-change guard", () => {
     expect(AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES).toContain("seo/v1-2-deep-2026-11-09");
     expect(automaticDatabaseChangesForbidden("seo/v1-2-deep-2026-11-09")).toBe(true);
   });
+  it("keeps SEO V2 free of automatic deployment and database changes", () => {
+    expect(automaticDatabaseChangesForbidden("seo/v2-algeria-20261124")).toBe(true);
+    const config = JSON.parse(readFileSync(path.join(process.cwd(), "vercel.json"), "utf8"));
+    expect(config.git?.deploymentEnabled?.["seo/v2-algeria-20261124"]).toBe(false);
+  });
   it("holds the Master RC against automatic deployment, migrations and seeds", () => {
     expect(automaticDatabaseChangesForbidden("codex/master-go-live-rc-2026-10-17")).toBe(true);
     expect(automaticDatabaseChangesForbidden("codex/master-go-live-rc-2026-11-01")).toBe(true);

@@ -7,6 +7,7 @@ on:
       - seo/legal-metadata-from-gsc-20261114
       - seo/b2b-algeria-relevance-20261118
       - design/agency-identity-home-20261118
+      - seo/v2-algeria-20261124
 
 permissions:
   contents: read
@@ -38,7 +39,7 @@ jobs:
       - name: Public SEO and isolation tests
         run: npx vitest run tests/seo-editorial-evidence.test.ts tests/seo-company-identity.test.ts tests/seo-indexation.test.ts tests/seo-partner-content.test.ts tests/seo-public-performance.test.ts tests/seo-route-policy.test.ts tests/build-preview-guard.test.ts
       - name: B2B relevance, localized links and privacy tests
-        run: npx vitest run tests/seo-commercial-intent.test.ts
+        run: npx vitest run tests/seo-commercial-intent.test.ts tests/seo-v2-discovery.test.ts tests/seo-public-links.test.ts tests/seo-locale-routing.test.ts tests/seo-metadata-safety.test.ts tests/seo-private-resources.test.ts
       - name: Typecheck
         run: npm run typecheck
       - name: Lint

@@ -25,6 +25,7 @@ export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
   "seo/gsc-verified-lastmod-20261114",
   "seo/legal-metadata-from-gsc-20261114",
   "seo/b2b-algeria-relevance-20261118",
+  "seo/v2-algeria-20261124",
   "design/agency-identity-home-20261118",
 ] as const;
 
