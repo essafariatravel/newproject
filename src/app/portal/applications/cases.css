@@ -136,3 +136,14 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-cases){font-fa
 .workspace-agency #workspace-main .essafaria-cases .case-search-line>button{font-weight:600;line-height:1.4}
 .essafaria-cases .case-docs{display:inline-flex;align-items:center;gap:6px}
 .essafaria-cases .case-docs svg{width:14px;height:14px;flex:none}
+
+/* Revision 04 — progressive filters and compact sorting. */
+.essafaria-cases .case-sort-line{display:flex;align-items:center;justify-content:flex-end;gap:8px;font-size:15px;color:var(--dash-secondary)}
+.essafaria-cases .case-sort{font:inherit;color:var(--dash-ink);background:#fff;border:0;min-height:32px;max-width:100%}
+.essafaria-cases .case-advanced.case-advanced-v4:not([hidden]){grid-template-columns:repeat(3,minmax(0,1fr));border-bottom:0;padding-bottom:0;align-items:end}
+.essafaria-cases .case-filter-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+.essafaria-cases .case-advanced .case-missing{display:flex;align-items:center;gap:8px;min-height:44px;margin:0}
+.essafaria-cases .case-reset{text-decoration:none;align-self:center}
+.essafaria-cases .case-reset:hover{text-decoration:underline}
+.essafaria-cases .case-search-scope{border-bottom:1px solid var(--dash-rule)}
+@media(max-width:767px){.essafaria-cases .case-advanced.case-advanced-v4:not([hidden]){grid-template-columns:1fr}.essafaria-cases .case-filter-actions{justify-content:flex-start}}

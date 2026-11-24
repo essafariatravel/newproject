@@ -20,7 +20,7 @@ import { hasPermission } from "@/lib/rbac";
 import { CountryFlag } from "../dashboard-interactions";
 import { caseAction } from "../dashboard-smart";
 import { CaseFilters } from "./case-filters";
-import { caseLink, queueFilters, type CaseQueue } from "./case-workspace";
+import { caseLink, queueFilters, caseSort, caseSearch, validCaseDate, detailLink, processingDuration, durationLabel, type CaseQueue } from "./case-workspace";
 import "./cases.css";
 
 export const dynamic = "force-dynamic";
@@ -31,12 +31,14 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
  const sp:Record<string,string|undefined>={};
  for(const [k,v] of Object.entries(raw))sp[k]=typeof v==="string"?v:undefined;
  const queue:CaseQueue=sp.documents==="requested"?"attention":sp.queue==="active"?"active":sp.queue==="completed"?"completed":"all";
- const page=Math.max(1,Math.floor(Number(sp.page)||1));
+ const page=Math.min(100000,Math.max(1,Math.floor(Number(sp.page)||1)));
  const per=resolvePageSize(sp.per);
- const filters:ApplicationFilters={q:sp.q,statusCode:sp.status,dateFrom:sp.from,dateTo:sp.to};
- const shared={q:sp.q,status:sp.status,from:sp.from,to:sp.to,per:sp.per};
+ const parsed=caseSearch(sp.q),from=validCaseDate(sp.from),to=validCaseDate(sp.to);
+ const country=sp.country&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sp.country)?sp.country:undefined;
+ const filters:ApplicationFilters={q:parsed.q,statusCode:sp.status||parsed.statusCode,dateFrom:from,dateTo:to,countryId:country,caseSort:caseSort(sp.sort),caseMissing:sp.missing==="1"||parsed.missing===true};
+ const shared={q:sp.q,status:sp.status,from,to,per:sp.per,country,sort:caseSort(sp.sort),missing:sp.missing==="1"?"1":undefined};
  const query={...shared,...queueFilters(queue)};
- const hasFilters=Boolean(sp.q||sp.status||sp.from||sp.to);
+ const hasFilters=Boolean(sp.q||sp.status||from||to||country||sp.missing==="1");
  const copy={
   fr:{all:"Tous",active:"Actifs",attention:"Action requise",completed:"Terminés",traveller:"Voyageur",destination:"Destination / visa",action:"Action",filters:"Filtres",search:"Nom, référence, pays ou visa…",suggestions:"Suggestions de dossiers",searching:"Recherche…",unavailable:"Suggestions indisponibles. La recherche reste accessible.",noSuggestions:"Aucune suggestion.",ready:"Vous êtes à jour",readyBody:"Aucun dossier ne nécessite votre intervention.",emptyQueue:"Aucun dossier dans cette vue.",decision:"Voir le dossier",cancelled:"Consulter l’annulation",cancellation:"Suivre l’annulation",documents:"Compléter les documents",openDocuments:"Consulter les documents",none:"Aucune action nécessaire",docsComplete:"Documents complets",docsPending:"Documents à compléter",loading:"Chargement des dossiers…"},
   en:{all:"All",active:"Active",attention:"Action required",completed:"Completed",traveller:"Traveller",destination:"Destination / visa",action:"Action",filters:"Filters",search:"Name, reference, country or visa…",suggestions:"Case suggestions",searching:"Searching…",unavailable:"Suggestions unavailable. Search is still available.",noSuggestions:"No suggestions.",ready:"You're up to date",readyBody:"No case requires your attention.",emptyQueue:"No cases in this view.",decision:"View case",cancelled:"View cancellation",cancellation:"Track cancellation",documents:"Complete documents",openDocuments:"View documents",none:"No action required",docsComplete:"Documents complete",docsPending:"Documents incomplete",loading:"Loading cases…"},
@@ -44,16 +46,12 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
  }[locale];
  const queues:CaseQueue[]=["all","active","attention","completed"];
  const toFilters=(key:CaseQueue):ApplicationFilters=>({...filters,...queueFilters(key)});
- const [result,statuses]=await Promise.all([
-   searchApplications(user,{...toFilters(queue),page,pageSize:per}),listStatuses(true)
+ const [result,statuses,otherCounts,countryRows]=await Promise.all([
+ searchApplications(user,{...toFilters(queue),page,pageSize:per}),listStatuses(true),
+ Promise.all(queues.map(async key=>{if(key===queue)return null;const conditions=await buildApplicationConditions(user,toFilters(key));const rows=await db.select({total:count()}).from(applications).innerJoin(statusTable,eq(applications.statusId,statusTable.id)).where(and(...conditions));return Number(rows[0]?.total??0)})),
+ db.selectDistinct({id:applications.countryId,name:applications.countryName}).from(applications).where(eq(applications.agencyId,user.agencyId))
  ]);
- // Count precisely the same tenant-scoped filters as the list, without loading other pages.
- const counts=await Promise.all(queues.map(async key=>{
-   if(key===queue)return result.total;
-   const conditions=await buildApplicationConditions(user,toFilters(key));
-   const rows=await db.select({total:count()}).from(applications).innerJoin(statusTable,eq(applications.statusId,statusTable.id)).where(and(...conditions));
-   return Number(rows[0]?.total??0);
- }));
+ const counts=otherCounts.map(n=>n??result.total);
  const ids=result.rows.map(r=>r.app.id);
  const [checklists,pendingRows]=await Promise.all([
    checklistProgressForApplications(ids),
@@ -63,27 +61,29 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
  const canUpload=hasPermission(user,"documents.upload.own");
  const canCreate=hasPermission(user,"applications.create");
  const rows=result.rows.map(r=>{
-   const base="/portal/applications/"+r.app.id;
-   const requested=r.agencyNextAction==="Upload requested documents"||["DOCUMENTS_REQUESTED","DOCUMENTS_REQUIRED"].includes(r.statusCode);
+   const base=detailLink(r.app.id,caseLink({...query,page:String(result.page)}));
+   const separator=base.includes("?")?"&":"?";
+   const requested=r.agencyNextAction==="Upload requested documents";
    const action=caseAction(r.statusCode,requested,pendingIds.has(r.app.id));
-   const actionHref=action==="documents"?base+"?tab=documents":action==="cancellation"||action==="cancelled"?base+"#cancellation":base;
+   const actionHref=action==="documents"?base+separator+"tab=documents":action==="cancellation"||action==="cancelled"?base+"#cancellation":base;
    const actionText=action==="documents"?(canUpload?copy.documents:copy.openDocuments):action==="view"?r.isTerminal?copy.decision:null:copy[action];
    const p=checklists.get(r.app.id);
-   return {id:r.app.id,base,actionHref,actionText,action,traveller:r.applicantSummary??"—",reference:r.app.reference,country:countryName({name:r.app.countryName,iso2:r.countryIso2},locale),iso:r.countryIso2??"",visa:configName({name:r.app.visaTypeName,nameFr:r.visaNameFr,nameAr:r.visaNameAr},locale),progress:p?{done:p.requiredComplete,total:p.requiredTotal}:null,fee:formatAmount(r.app.fee,"DZD",locale),status:r.statusCode,statusName:r.statusName,updated:formatDateTime(r.app.updatedAt,locale),created:formatDate(r.app.createdAt,locale)};
+   const elapsed=processingDuration(r.app.submittedAt,r.app.decisionAt,r.app.completedAt,r.isTerminal||["APPROVED","REJECTED","REFUSED","COMPLETED","CANCELLED"].includes(r.statusCode));
+   return {id:r.app.id,base,actionHref,actionText,action,elapsed:elapsed?durationLabel(elapsed.minutes,locale):null,terminal:elapsed?.terminal??false,traveller:r.applicantSummary??"—",reference:r.app.reference,country:countryName({name:r.app.countryName,iso2:r.countryIso2},locale),iso:r.countryIso2??"",visa:configName({name:r.app.visaTypeName,nameFr:r.visaNameFr,nameAr:r.visaNameAr},locale),progress:p?{done:p.requiredComplete,total:p.requiredTotal}:null,fee:formatAmount(r.app.fee,"DZD",locale),status:r.statusCode,statusName:r.statusName,updated:formatDateTime(r.app.updatedAt,locale),created:formatDate(r.app.createdAt,locale)};
  });
  const recent=rows.slice(0,5).map(r=>({id:r.id,title:r.traveller,detail:r.reference+" · "+r.country,href:r.base,aliases:[r.country,r.visa,r.reference]}));
  const labels={search:ct("Search"),placeholder:copy.search,filters:copy.filters,status:ct("Status"),all:ct("All"),from:ct("From"),to:ct("To"),apply:ct("Filter"),reset:ct("Reset"),suggestions:copy.suggestions,searching:copy.searching,unavailable:copy.unavailable,noSuggestions:copy.noSuggestions,loading:copy.loading};
- const resetHref=caseLink({...queueFilters(queue),per:sp.per});
+ const resetHref=caseLink({...queueFilters(queue),per:sp.per,sort:caseSort(sp.sort)});
  const documents=(r:typeof rows[number])=>r.progress?<span className="case-docs" data-complete={r.progress.done>=r.progress.total} title={r.progress.done>=r.progress.total?copy.docsComplete:copy.docsPending}><bdi>{r.progress.done}/{r.progress.total}</bdi>{r.progress.total>0&&r.progress.done>=r.progress.total?<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 8 3 3 7-7"/></svg>:null}</span>:<span>—</span>;
  const action=(r:typeof rows[number])=>r.actionText?<Link className="case-action" href={r.actionHref}>{r.actionText}<span aria-hidden="true" className="case-arrow">→</span></Link>:<span className="case-none" aria-label={copy.none}>—</span>;
- const state=(r:typeof rows[number])=><span className="case-state" data-status={r.status}><StatusBadge code={r.status} name={r.statusName}/></span>;
+ const state=(r:typeof rows[number])=><div><span className="case-state" data-status={r.status}><StatusBadge code={r.status} name={r.statusName}/></span>{r.elapsed?<small>{r.terminal?({fr:"Durée :",en:"Duration:",ar:"المدة:"}[locale]):({fr:"Depuis soumission :",en:"Since submission:",ar:"منذ التقديم:"}[locale])} <bdi>{r.elapsed}</bdi></small>:null}</div>;
  return <div className="essafaria-cases" dir={locale==="ar"?"rtl":"ltr"}>
    <header className="case-title"><h1>{ct("Applications")}</h1></header>
    <Flash {...flashFrom(sp)}/>
    <nav className="case-queues" aria-label={ct("Applications")}>
      {queues.map((key,i)=><Link key={key} href={caseLink({...shared,...queueFilters(key)})} aria-current={queue===key?"page":undefined}><span>{copy[key]}</span><span className="case-count">{counts[i]}</span></Link>)}
    </nav>
-   <CaseFilters key={caseLink(query)} locale={locale} labels={labels} query={query} recent={recent} statuses={statuses.filter(s=>!["DRAFT","CANCELLED"].includes(s.code)).map(s=>({value:s.code,label:localizedStatusName(s.code,s.name,locale)}))} resetHref={resetHref}/>
+   <CaseFilters key={caseLink(query)} locale={locale} labels={labels} query={query} recent={recent} statuses={statuses.map(s=>({value:s.code,label:localizedStatusName(s.code,s.name,locale)}))} countries={Array.from(new Map(countryRows.map(r=>[r.id,{value:r.id,label:r.name}])).values()).sort((a,b)=>a.label.localeCompare(b.label,locale))} resetHref={resetHref}/>
    {rows.length===0?<section className="case-empty" role="status">
      <h2>{hasFilters?ct("No applications match these filters."):queue==="attention"?copy.ready:queue==="all"?ct("No applications yet"):copy.emptyQueue}</h2>
      <p>{hasFilters?ct("Adjust or clear the filters to see other applications."):queue==="attention"?copy.readyBody:queue==="all"?ct("Submit your first visa application to see it tracked here."):""}</p>

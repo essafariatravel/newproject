@@ -47,6 +47,9 @@ export const PAGE_SIZE = 20;
 
 export interface ApplicationFilters {
   q?: string;
+  /** Opt-in agency case workspace ordering. */
+  caseSort?: "recent" | "submitted" | "oldest" | "priority";
+  caseMissing?: boolean;
   agencyId?: string;
   countryId?: string;
   visaTypeId?: string;
@@ -151,7 +154,7 @@ export async function buildApplicationConditions(user: AuthUser, filters: Applic
     );
   }
   // §27 — a required, still-active checklist item without a usable upload.
-  if (filters.documents === "missing") {
+  if (filters.documents === "missing" || (user.agencyId && filters.caseMissing)) {
     conditions.push(
       sql`exists (select 1 from ${sql.raw(qualifiedTable("checklist_items"))} ci
             where ci.application_id = applications.id and ci.required and ci.active
@@ -193,6 +196,11 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
   const conditions = await buildApplicationConditions(user, filters);
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
+  const order = user.agencyId && filters.caseSort === "recent" ? [desc(applications.updatedAt),desc(applications.id)]
+    : user.agencyId && filters.caseSort === "submitted" ? [desc(sql`coalesce(${applications.submittedAt},${applications.createdAt})`),desc(applications.id)]
+    : user.agencyId && filters.caseSort === "oldest" ? [asc(applications.createdAt),asc(applications.id)]
+    : user.agencyId && filters.caseSort === "priority" ? [desc(sql`case when ${agencyAttentionCondition()} then 1 else 0 end`),desc(applications.updatedAt),desc(applications.id)]
+    : [desc(applications.createdAt),desc(applications.id)];
   // Bound the page before evaluating dossier details. A wide OFFSET query
   // otherwise runs correlated detail reads for every discarded row.
   const pageIds = db
@@ -201,7 +209,7 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
     .innerJoin(priorities, eq(applications.priorityId, priorities.id))
     .where(where)
-    .orderBy(desc(applications.createdAt),desc(applications.id))
+    .orderBy(...order)
     .limit(pageSize)
     .offset((page - 1) * pageSize);
 
@@ -211,7 +219,7 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
     .innerJoin(priorities, eq(applications.priorityId, priorities.id))
     .where(inArray(applications.id, pageIds))
-    .orderBy(desc(applications.createdAt),desc(applications.id));
+    .orderBy(...order);
 
   const totalRows = await db
     .select({ total: count() })

@@ -13,25 +13,28 @@ import {
 } from "@/lib/applications";
 import { groupDocumentsForDisplay, listApplicantsForApplication, listDocumentsForApplication } from "@/lib/documents";
 import { listDocumentRequests } from "@/lib/document-requests";
-import { findTransactionByApplication, getBalance } from "@/lib/wallet";
+import { findTransactionByApplication } from "@/lib/wallet";
 import { listCommunications } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
-import { getUiLocale, localizedDocTypeName } from "@/lib/ui-i18n";
+import { getUiLocale, localizedDocTypeName, localizedDocStatus } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { countryName } from "@/lib/country-names";
 import { getApplicationPricing } from "@/lib/price-adjustments";
 import { PriceAdjustmentHistory } from "@/components/application-detail";
 import { ReconciliationWarning } from "@/components/reconciliation-warning";
-import { formatDateTime, formatAmount, bytes } from "@/lib/format";
+import { formatDateTime, formatAmount, formatProcessingDays, bytes } from "@/lib/format";
 import { nationalityLabel } from "@/lib/nationalities";
 import { buildProgress } from "@/lib/progress";
-import { Card, CardHeader, Flash, PageHeader, Tabs } from "@/components/ui";
+import { Card, CardHeader, Flash, PageHeader } from "@/components/ui";
 import { StatusBadge } from "@/components/badges";
 import {
-  ActivityTimeline,
   CommunicationsPanel,
 } from "@/components/application-detail";
 import { uploadDocumentAction } from "@/app/actions/documents";
+import { safeCaseReturn, processingDuration, durationLabel } from "../case-workspace";
+import { CopyCaseReference } from "../copy-case-reference";
+import "../cases.css";
+import "./dossier.css";
 
 export const dynamic = "force-dynamic";
 
@@ -59,18 +62,19 @@ export default async function PortalApplicationDetailPage({
   const app = detail.app;
   const cancellations = await listApplicationCancellations(id,user);
   const back = `/portal/applications/${id}`;
+  const returnTo=safeCaseReturn(sp.returnTo);
+  const returnSuffix=returnTo==="/portal/applications"?"":"&returnTo="+encodeURIComponent(returnTo);
 
-  const [applicants, docs, checklist, history, messages, charge, draftStatus, _wallet, decisionDocs, docRequests] =
+  const [applicants, docs, checklist, history, messages, charge, draftStatus, decisionDocs, docRequests] =
     await Promise.all([
       listApplicantsForApplication(id),
-      listDocumentsForApplication(id),
-      getChecklist(id),
-      getStatusHistory(id),
-      listCommunications(id, user,sp.messagesBefore),
-      findTransactionByApplication(id),
+      tab==="overview"||tab==="documents"?listDocumentsForApplication(id):Promise.resolve([]),
+      tab==="overview"||tab==="documents"?getChecklist(id):Promise.resolve([]),
+      tab==="overview"||tab==="activity"?getStatusHistory(id):Promise.resolve([]),
+      tab==="messages"?listCommunications(id, user,sp.messagesBefore):Promise.resolve([]),
+      tab==="overview"||sp.submitted==="1"?findTransactionByApplication(id):Promise.resolve(null),
       getStatusByCode("DRAFT"),
-      getBalance(user.agencyId),
-      getDecisionDocuments(id),
+      tab==="overview"?getDecisionDocuments(id):Promise.resolve([]),
       listDocumentRequests(id),
     ]);
   const isDraft = app.statusId === draftStatus.id;
@@ -100,27 +104,35 @@ export default async function PortalApplicationDetailPage({
   // from the agency's own view of its dossier.
   const documentGroups = groupDocumentsForDisplay(checklist, docs);
 
+  const terminal=["APPROVED","REJECTED","CANCELLED","COMPLETED","REFUSED"].includes(detail.statusCode);
+  const elapsed=processingDuration(app.submittedAt,app.decisionAt,app.completedAt,terminal);
+  const copy={
+   fr:{back:"Tous les dossiers",copy:"Copier la référence",copied:"Référence copiée",failed:"Copie indisponible",tracking:"Suivi du dossier",elapsed:"Temps écoulé",duration:"Durée enregistrée",estimate:"Délai indicatif",noAction:"Aucune action requise de votre agence.",official:"Décision officielle",download:"Télécharger",billing:"Facturation",submitted:"Soumis le",activity:"Activité du dossier",noHistory:"Aucun événement enregistré."},
+   en:{back:"All cases",copy:"Copy reference",copied:"Reference copied",failed:"Copy unavailable",tracking:"Case tracking",elapsed:"Elapsed time",duration:"Recorded duration",estimate:"Indicative timeframe",noAction:"No action required from your agency.",official:"Official decision",download:"Download",billing:"Billing",submitted:"Submitted on",activity:"Case activity",noHistory:"No events recorded."},
+   ar:{back:"جميع الطلبات",copy:"نسخ المرجع",copied:"تم نسخ المرجع",failed:"النسخ غير متاح",tracking:"متابعة الطلب",elapsed:"الوقت المنقضي",duration:"المدة المسجلة",estimate:"المدة التقديرية",noAction:"لا يلزم أي إجراء من وكالتكم.",official:"القرار الرسمي",download:"تنزيل",billing:"الفوترة",submitted:"تاريخ التقديم",activity:"نشاط الطلب",noHistory:"لا توجد أحداث مسجلة."}
+  }[uiLocale];
   return (
-    <>
+    <div className="essafaria-cases dossier-workspace" dir={uiLocale==="ar"?"rtl":"ltr"}>
+      <Link href={returnTo} className="dossier-back"><span className="directional" aria-hidden="true">←</span> {copy.back}</Link>
       <div className="dossier-masthead"><PageHeader
-        title={countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)}
-        subtitle={`${applicantName} · ${visaDisplayName} · ${app.reference}`}
+        title={applicantName}
+        subtitle={`${countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)} · ${visaDisplayName}`}
         actions={
           <>
-            <StatusBadge code={detail.statusCode} name={detail.statusName} />
+            <span className="case-state" data-status={detail.statusCode}><StatusBadge code={detail.statusCode} name={detail.statusName} /></span>
             <CancellationActions id={id} rows={cancellations} eligible={Boolean(app.submittedAt) && !["APPROVED","REJECTED","CANCELLED","COMPLETED","REFUSED"].includes(detail.statusCode)} staff={false} netPaid={pricing?.effectivePrice??null} locale={uiLocale} reference={app.reference} summary={`${applicantName} · ${visaDisplayName}`}/>
-            <Link href="/portal/applications" className="btn-secondary btn-sm"><span className="directional" aria-hidden="true">←</span> {ct("All applications")}</Link>
+            {decisionDocs.length>0?<a href="#official-decision" className="btn-primary btn-sm">{copy.official} ↓</a>:null}
           </>
         }
-      /></div>
+      /><CopyCaseReference reference={app.reference} label={copy.copy} copied={copy.copied} failed={copy.failed}/></div>
       <ReconciliationWarning applicationId={id} user={user} locale={uiLocale}/>
       <Flash {...flash} />
-      {sp.submitted === "1" && app.submittedAt && charge && !flash.error ? <section className="agency-v2-submission-receipt" role="status"><div><h2>{uiLocale === "fr" ? "Votre dossier a bien été soumis" : uiLocale === "ar" ? "تم تقديم طلبكم بنجاح" : "Your application has been submitted"}</h2><p>{ct("Reference")}: <bdi>{app.reference}</bdi> · {ct("Application fee")}: <bdi>{formatAmount(charge.amount,"DZD",uiLocale)}</bdi></p></div><Link href={`${back}?tab=documents`} className="btn-secondary">{ct("Documents")}</Link></section> : null}
+      {sp.submitted === "1" && app.submittedAt && charge && !flash.error ? <section className="agency-v2-submission-receipt" role="status"><div><h2>{uiLocale === "fr" ? "Votre dossier a bien été soumis" : uiLocale === "ar" ? "تم تقديم طلبكم بنجاح" : "Your application has been submitted"}</h2><p>{ct("Reference")}: <bdi>{app.reference}</bdi> · {ct("Application fee")}: <bdi>{formatAmount(charge.amount,"DZD",uiLocale)}</bdi></p></div><Link href={`${back}?tab=documents${returnSuffix}`} className="btn-secondary">{ct("Documents")}</Link></section> : null}
       <CancellationPanel rows={cancellations} staff={false} locale={uiLocale}/>
 
-      <Tabs tabs={TABS.map((t) => ({ ...t, label: ct(t.label), href: `${back}?tab=${t.id}` }))} current={tab} />
+      <nav className="case-queues dossier-tabs" aria-label={ct("Applications")}>{TABS.map(t=><Link key={t.id} aria-current={t.id===tab?"page":undefined} href={`${back}?tab=${t.id}${returnSuffix}`}>{ct(t.label)}{t.id==="documents"&&openRequests.length>0?<span className="case-count">{openRequests.length}</span>:null}</Link>)}</nav>
 
-      <section className="dossier-next-action agency-v2-case-action" aria-labelledby="agency-next-action">
+      {(openRequests.length>0||isDraft)&&!terminal?<section className="dossier-attention" aria-labelledby="agency-next-action">
         <p id="agency-next-action" className="agency-v2-section-label font-semibold text-slate-600">{ct("Next action")}</p>
         {openRequests.length > 0 ? (
           <>
@@ -130,21 +142,23 @@ export default async function PortalApplicationDetailPage({
                 <li key={r.req.id}>• {localizedDocTypeName(r.docTypeCode, r.docTypeName, uiLocale)}: {r.req.reason}</li>
               ))}
             </ul>
-            <Link href={`${back}?tab=documents`} className="btn-primary btn-sm mt-4">{ct("Upload requested documents")}</Link>
+            <Link href={`${back}?tab=documents${returnSuffix}#request-${openRequests[0]?.req.id}`} className="btn-primary btn-sm mt-4">{ct("Upload requested documents")}</Link>
           </>
         ) : isDraft ? (
           <>
             <p className="mt-2 text-base text-navy-900">{ct("Review the dossier details and required documents.")}</p>
-            <Link href={`${back}?tab=documents`} className="btn-secondary btn-sm mt-4">{ct("Open documents")}</Link>
+            <Link href={`${back}?tab=documents${returnSuffix}`} className="btn-secondary btn-sm mt-4">{ct("Open documents")}</Link>
           </>
         ) : (
           <p className="mt-2 text-base text-navy-900">{ct("No action is required from your agency right now.")}</p>
         )}
-      </section>
+      </section>:null}
 
       {tab === "overview" ? (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <div className="space-y-4 xl:col-span-2">
+        <div className="dossier-overview">
+          <div className="dossier-main">
+            {decisionDocs.length>0?<section id="official-decision" className="dossier-delivery"><h2>{copy.official}</h2>{decisionDocs.map(doc=><div key={doc.id} className="dossier-delivery-row"><div><strong>{localizedDocTypeName(doc.typeCode,doc.typeName,uiLocale)}</strong><p>{formatDateTime(doc.createdAt,uiLocale)}</p></div><a href={`/api/documents/${doc.id}`} className="btn-primary btn-sm">{copy.download} ↓</a></div>)}</section>:null}
+            <section className="dossier-tracking"><h2>{copy.tracking}</h2>{!terminal&&!isDraft&&openRequests.length===0?<p className="dossier-no-action">{copy.noAction}</p>:null}<div className="dossier-metrics"><div><span>{elapsed?.terminal?copy.duration:copy.elapsed}</span><strong>{elapsed?durationLabel(elapsed.minutes,uiLocale):"—"}</strong></div><div><span>{copy.estimate}</span><strong>{formatProcessingDays(app.processingMinDays,app.processingMaxDays,uiLocale)}</strong></div><div><span>{copy.submitted}</span><strong>{formatDateTime(app.submittedAt,uiLocale)}</strong></div></div></section>
             <Card>
               <CardHeader title={ct("Application overview")} />
               <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 text-base">
@@ -163,11 +177,6 @@ export default async function PortalApplicationDetailPage({
                   <p className="mt-1 font-semibold text-navy-900">{countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)}</p>
                   <p className="text-xs text-slate-500">{visaDisplayName} · {app.categoryName}</p>
                 </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct(pricing?.effectivePrice!=null?"Net amount paid":"Fee")}</p>
-                  <p className="mt-1 font-semibold tabular-nums text-navy-900">{formatAmount(pricing?.effectivePrice ?? app.fee, "DZD", uiLocale)}</p>
-                  <p className="text-xs text-slate-500">{ct("Processing time")}: {app.processingMinDays}–{app.processingMaxDays} {ct("days")}</p>
-                </div>
                 {app.submittedAt ? <section className="sm:col-span-2 agency-v2-journey" aria-label={ct("Progress")}>
                   <h3>{ct("Progress")}</h3>
                   <ol data-testid="application-progress">
@@ -183,23 +192,6 @@ export default async function PortalApplicationDetailPage({
               </div>
             </Card>
 
-            {decisionDocs.length > 0 ? (
-              <Card className="border-emerald-200">
-                <CardHeader title={ct("Official decision")} />
-                <ul className="space-y-2 px-4 py-4 text-base">
-                  {decisionDocs.map((d) => (
-                    <li key={d.id} className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-emerald-100 bg-emerald-50/50 px-4 py-2">
-                      <div>
-                        <p className="font-semibold text-navy-900">{localizedDocTypeName(d.typeCode, d.typeName, uiLocale)}</p>
-                        <p className="text-xs text-slate-500">{formatDateTime(d.createdAt, uiLocale)}</p>
-                      </div>
-                      <a href={`/api/documents/${d.id}`} className="btn-primary btn-sm">{ct("Download")}</a>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            ) : null}
-
             {pricing && pricing.adjustments.length > 0 ? (
               <PriceAdjustmentHistory pricing={pricing} locale={uiLocale} />
             ) : null}
@@ -211,7 +203,7 @@ export default async function PortalApplicationDetailPage({
 
           <div className="space-y-4">
             <Card>
-              <CardHeader title={ct("Billing summary")} />
+              <CardHeader title={copy.billing} />
               <div className="p-4 space-y-4 text-base">
                 <div className="flex justify-between"><span className="text-slate-500">{ct("Application fee")}</span><span className="font-semibold tabular-nums">{formatAmount(app.fee, "DZD", uiLocale)}</span></div>
                 {pricing?.effectivePrice != null && pricing.adjustments.length > 0 ? <div className="agency-v2-effective-price"><span>{ct("Net amount paid")}</span><strong><bdi>{formatAmount(pricing.effectivePrice,"DZD",uiLocale)}</bdi></strong></div> : null}
@@ -235,16 +227,16 @@ export default async function PortalApplicationDetailPage({
                 <p className="text-xs text-slate-500">{docs.length} {ct("document(s) uploaded")}</p>
                 <div className="mt-2 space-y-2">
                   {checklist.map((c) => {
-                    const hasDoc = docs.some((d) => d.doc.checklistItemId === c.id);
+                    const hasDoc = docs.some((d) => d.doc.checklistItemId === c.id&&!["REJECTED","RESUBMISSION_REQUIRED"].includes(d.doc.status));
                     return (
                       <div key={c.id} className="flex items-center justify-between text-xs">
-                        <span className={hasDoc ? "text-emerald-700" : "text-slate-500"}>{localizedDocTypeName(c.documentTypeCode, c.documentTypeName, uiLocale)} {c.required ? "*" : ""}</span>
+                        <span className="dossier-document-name">{localizedDocTypeName(c.documentTypeCode, c.documentTypeName, uiLocale)} {c.required ? "*" : ""}</span>
                         <span className={hasDoc ? "text-emerald-600" : "text-amber-600"}>{hasDoc ? "✓" : "—"}</span>
                       </div>
                     );
                   })}
                 </div>
-                <Link href={`${back}?tab=documents`} className="btn-secondary btn-sm mt-4">{ct("Open documents")}</Link>
+                <Link href={`${back}?tab=documents${returnSuffix}`} className="btn-secondary btn-sm mt-4">{ct("Open documents")}</Link>
               </div>
             </Card>
           </div>
@@ -252,7 +244,7 @@ export default async function PortalApplicationDetailPage({
       ) : null}
 
       {tab === "documents" ? (
-        <div className="space-y-4">
+        <div className="dossier-documents space-y-4">
           {openRequests.length > 0 ? (
             <Card className="border-amber-200 bg-amber-50/50">
               <CardHeader title={ct("Action required")} subtitle={ct("ESSAFARIA requested replacement or additional documents")} />
@@ -265,7 +257,7 @@ export default async function PortalApplicationDetailPage({
                       <input type="hidden" name="applicationId" value={id} />
                       {r.req.checklistItemId ? <input type="hidden" name="checklistItemId" value={r.req.checklistItemId} /> : null}
                       <input type="hidden" name="documentTypeId" value={r.req.documentTypeId} />
-                      <input type="hidden" name="back" value={`${back}?tab=documents`} />
+                      <input type="hidden" name="back" value={`${back}?tab=documents${returnSuffix}`} />
                       <input type="file" name="file" aria-labelledby={`request-document-label-${r.req.id}`} required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:me-2 file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-xs file:text-white" />
                       <button type="submit" className="btn-primary btn-sm">{ct("Upload replacement")}</button>
                     </form>
@@ -288,13 +280,9 @@ export default async function PortalApplicationDetailPage({
                       <div>
                         <p id={`checklist-document-label-${item.id}`} className="font-semibold text-navy-900">{localizedDocTypeName(item.documentTypeCode, item.documentTypeName, uiLocale)} {item.required ? <span className="badge bg-rose-50 text-rose-600 text-xs">{ct("Required")}</span> : <span className="badge bg-slate-100 text-slate-500 text-xs">{ct("Optional")}</span>}</p>
                         {item.notes ? <p className="mt-1 text-xs text-slate-500">{item.notes}</p> : null}
-                        <p className="mt-1 text-xs text-slate-400">{ct("PDF, JPEG, PNG, WEBP, DOC, DOCX · 2 MB max")}</p>
+                        {isDraft||hasOpenRequest?<p className="mt-1 text-xs text-slate-400">{ct("PDF, JPEG, PNG, WEBP, DOC, DOCX · 2 MB max")}</p>:null}
                       </div>
-                      {latest ? (
-                        <span className="badge bg-emerald-50 text-emerald-700">{ct("Uploaded")} ✓</span>
-                      ) : (
-                        <span className="badge bg-amber-50 text-amber-700">{ct("Missing")}</span>
-                      )}
+                      {latest?<span className="dossier-doc-state" data-doc-state={latest.doc.status}>{localizedDocStatus(latest.doc.status,uiLocale,latest.doc.status)}</span>:<span className="dossier-doc-state" data-doc-state="MISSING">{ct("Missing")}</span>}
                       {latest && fulfilledRequests.some((r) => r.req.fulfilledDocumentId === latest.doc.id) ? (
                         <span className="badge bg-teal-50 text-teal-700">{ct("Received")}</span>
                       ) : null}
@@ -304,10 +292,10 @@ export default async function PortalApplicationDetailPage({
                         {itemDocs.map(({ doc }) => (
                           <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ivory-50 px-4 py-2 text-xs">
                             <span className="flex min-w-0 flex-wrap items-center gap-2">
-                              <a href={`/api/documents/${doc.id}`} target="_blank" className="font-semibold text-navy-800 truncate hover:underline">{doc.originalFilename}</a>
+                              <a href={`/api/documents/${doc.id}`} target="_blank" rel="noopener noreferrer" className="font-semibold text-navy-800 truncate hover:underline">{doc.originalFilename}</a>
                               <span className="text-slate-400">v{doc.version} · {bytes(doc.sizeBytes)} · {formatDateTime(doc.createdAt, uiLocale)}</span>
                             </span>
-                            <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-sm">{ct("Preview")}</a>
+                            <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-sm">{copy.download}</a>
                           </li>
                         ))}
                       </ul>
@@ -316,14 +304,14 @@ export default async function PortalApplicationDetailPage({
                       <form action={uploadDocumentAction} encType="multipart/form-data" className="mt-4 flex flex-wrap items-center gap-2">
                         <input type="hidden" name="applicationId" value={id} />
                         <input type="hidden" name="checklistItemId" value={item.id} />
-                        <input type="hidden" name="back" value={`${back}?tab=documents`} />
+                        <input type="hidden" name="back" value={`${back}?tab=documents${returnSuffix}`} />
                         <input type="file" name="file" aria-labelledby={`checklist-document-label-${item.id}`} required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:me-2 file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-xs file:text-white" />
                         <button type="submit" className="btn-secondary btn-sm">{latest ? ct("Replace") : ct("Upload")}</button>
                       </form>
                     ) : hasOpenRequest ? (
                       <p className="mt-2 text-xs text-amber-700">{ct("Upload enabled via action required above.")}</p>
                     ) : (
-                      <p className="mt-2 text-xs text-slate-400">{ct("Locked after submission.")}</p>
+                      null
                     )}
                   </div>
                 );
@@ -339,10 +327,10 @@ export default async function PortalApplicationDetailPage({
                 {documentGroups.unassigned.map(({ doc }) => (
                   <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-4 text-xs">
                     <span className="flex min-w-0 flex-wrap items-center gap-2">
-                      <a href={`/api/documents/${doc.id}`} target="_blank" className="truncate font-semibold text-navy-800 hover:underline">{doc.originalFilename}</a>
+                      <a href={`/api/documents/${doc.id}`} target="_blank" rel="noopener noreferrer" className="truncate font-semibold text-navy-800 hover:underline">{doc.originalFilename}</a>
                       <span className="text-slate-400">v{doc.version} · {bytes(doc.sizeBytes)} · {formatDateTime(doc.createdAt, uiLocale)}</span>
                     </span>
-                    <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-sm">{ct("Preview")}</a>
+                    <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-sm">{copy.download}</a>
                   </div>
                 ))}
               </div>
@@ -380,19 +368,19 @@ export default async function PortalApplicationDetailPage({
       ) : null}
 
       {tab === "messages" ? (
-        <CommunicationsPanel applicationId={id} messages={messages} user={user} back={`${back}?tab=messages`} locale={uiLocale} />
+        <CommunicationsPanel applicationId={id} messages={messages} user={user} back={`${back}?tab=messages${returnSuffix}`} locale={uiLocale} />
       ) : null}
 
       {tab === "activity" ? (
         <div className="space-y-4">
           <Card>
-            <CardHeader title={ct("Activity timeline")} subtitle={ct("Human-readable business activity")} />
+            <CardHeader title={copy.activity} />
             <div className="px-4 py-4">
-              <ActivityTimeline history={history} locale={uiLocale} />
+              {history.length===0?<p className="dossier-muted">{copy.noHistory}</p>:<ol className="dossier-activity">{history.map(h=><li key={h.history.id}><div><span className="case-state" data-status={h.toStatus.code}><StatusBadge code={h.toStatus.code} name={h.toStatus.name}/></span>{h.history.reason?<p>{h.toStatus.code==="SUBMITTED"&&h.history.reason==="Request submitted"?ct("Request submitted"):h.history.reason}</p>:null}</div><time dateTime={h.history.createdAt.toISOString()}>{formatDateTime(h.history.createdAt,uiLocale)}</time></li>)}</ol>}
             </div>
           </Card>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }

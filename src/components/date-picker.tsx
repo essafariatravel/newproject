@@ -27,6 +27,7 @@ export interface DatePickerProps {
   className?: string;
   /** Placeholder shown when empty — pass a localized string from the server page. */
   placeholder?: string;
+  displayDayFirst?: boolean;
   ariaLabel?: string;
 }
 
@@ -93,6 +94,8 @@ export function DatePicker(props: DatePickerProps) {
 
   const initial = parseIso(props.defaultValue);
   const [value, setValue] = useState<string>(props.defaultValue ?? "");
+  const [typed, setTyped] = useState<string|null>(null);
+  const displayInput=props.displayDayFirst?(typed??(parseIso(value)?value.slice(8,10)+"/"+value.slice(5,7)+"/"+value.slice(0,4):value)):value;
   const [open, setOpen] = useState(false);
   const [viewYear, setViewYear] = useState(initial?.y ?? today.y);
   const [viewMonth, setViewMonth] = useState(initial?.m ?? today.m);
@@ -172,9 +175,11 @@ export function DatePicker(props: DatePickerProps) {
   function select(v: string) {
     if (!parseIso(v) || !allowed(v)) return;
     setValue(v);
+    setTyped(null);
     closePicker();
   }
   function applyText(v: string) {
+    if(props.displayDayFirst){setTyped(v);const match=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v);v=match?match[3]+"-"+match[2]+"-"+match[1]:v}
     setValue(v);
     const p = parseIso(v);
     if (p && allowed(v)) {
@@ -241,7 +246,7 @@ export function DatePicker(props: DatePickerProps) {
           type="text"
           inputMode="numeric"
           dir="ltr"
-          value={value}
+          value={displayInput}
           disabled={props.disabled}
           placeholder={props.placeholder ?? "YYYY-MM-DD"}
           onChange={(e) => applyText(e.target.value)}
