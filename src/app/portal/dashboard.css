@@ -188,7 +188,7 @@
 @media(min-width:1600px){
  .workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation{gap:8px}
  .workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation .workspace-nav-link{padding-inline:14px}
- .workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation a[href="/portal/applications/new"]{order:10;margin-inline-start:14px}
+ .workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation a[href="/portal/applications/new"]{margin-inline:6px}
 }
 .workspace-agency:has(.essafaria-dashboard) .workspace-topbar a,.workspace-agency:has(.essafaria-dashboard) .workspace-topbar button,.workspace-agency:has(.essafaria-dashboard) .workspace-topbar summary,.workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation a{transition:background-color 160ms ease,color 160ms ease}
 .workspace-agency:has(.essafaria-dashboard) :is(.workspace-topbar,.agency-desktop-navigation) :is(a,button,summary):focus-visible{outline:2px solid #304b64;outline-offset:3px}

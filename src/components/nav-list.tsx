@@ -42,7 +42,7 @@ export function NavList({ sections }: { sections: NavSection[] }) {
                 key={item.href}
                 href={item.href}
                 aria-current={activeHref === item.href ? "page" : undefined}
-                aria-label={shortLabel!==item.label?item.label:undefined}
+                title={shortLabel!==item.label?item.label:undefined}
                 className={`workspace-nav-link flex min-h-11 items-center justify-between rounded-md px-4 py-2 text-base ${
                   activeHref === item.href
                     ? "font-semibold text-white"
