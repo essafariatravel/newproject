@@ -12,6 +12,7 @@ import { PublicMotion } from "@/components/public-motion";
 import { PublicOrganizationData } from "@/components/public-organization-data";
 import { TravelPhotoCredits } from "@/components/travel-photo-credits";
 import { PublicLanguageLinks } from "@/components/public-language-links";
+import { PUBLIC_RESOURCE_COPY } from "@/lib/public-resources";
 import {
   SEO_INDEXABLE_PUBLIC_ENTRIES,
   seoLocalizedPublicPath,
@@ -89,6 +90,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
             <ul className="mt-4 space-y-2 text-base">
               <li><Link className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("b2b", locale)}>{tr("For Agencies")}</Link></li>
               <li><Link className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("faq", locale)}>{ct("FAQ")}</Link></li>
+              <li><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("resources", locale)}>{PUBLIC_RESOURCE_COPY[locale].nav}</Link></li>
               <li><Link className="text-white/70 transition-colors hover:text-white" href="/login">{tr("Sign in")}</Link></li>
               <li><Link className="text-white/70 transition-colors hover:text-white" href="/agency/register">{tr("Register your agency")}</Link></li>
             </ul>

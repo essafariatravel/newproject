@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { getUiLocale, type UiLocale } from "@/lib/ui-i18n";
 import { buildPublicMetadata } from "@/lib/seo";
+import Link from "next/link";
+import { PUBLIC_RESOURCE_COPY } from "@/lib/public-resources";
+import { seoLocalizedPublicPath } from "@/lib/seo-manifest";
 
 export const dynamic = "force-dynamic";
 
@@ -181,6 +184,7 @@ export default async function FaqPage() {
         <header className="faq-intro">
           <h1 id="faq-heading">{copy.title}</h1>
           <p className="interior-lede">{copy.intro}</p>
+          <Link prefetch={false} href={seoLocalizedPublicPath("resources", locale)} className="interior-link mt-4 inline-block">{PUBLIC_RESOURCE_COPY[locale].nav}</Link>
         </header>
         <div className="faq-register">
           {copy.items.map((item, index) => (

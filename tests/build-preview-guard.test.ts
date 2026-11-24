@@ -16,8 +16,10 @@ describe("Preview build database-change guard", () => {
   });
   it("keeps SEO V2 free of automatic deployment and database changes", () => {
     expect(automaticDatabaseChangesForbidden("seo/v2-live-production-20261124")).toBe(true);
+    expect(automaticDatabaseChangesForbidden("seo/v2-resources-20261124")).toBe(true);
     const config = JSON.parse(readFileSync(path.join(process.cwd(), "vercel.json"), "utf8"));
     expect(config.git?.deploymentEnabled?.["seo/v2-live-production-20261124"]).toBe(false);
+    expect(config.git?.deploymentEnabled?.["seo/v2-resources-20261124"]).toBe(false);
   });
   it("holds the Master RC against automatic deployment, migrations and seeds", () => {
     expect(automaticDatabaseChangesForbidden("codex/master-go-live-rc-2026-10-17")).toBe(true);

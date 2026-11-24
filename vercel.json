@@ -14,7 +14,8 @@
       "security/pre-codex-gate-2026-10-03": false,
       "release/essafaria-auth-security-20261112": false,
       "seo/v2-live-production-20261124": false,
-      "seo/v2-algeria-20261124": false
+      "seo/v2-algeria-20261124": false,
+      "seo/v2-resources-20261124": false
     }
   }
 }

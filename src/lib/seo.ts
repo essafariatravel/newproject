@@ -30,6 +30,7 @@ const VERIFIED_PUBLIC_LASTMOD: Partial<Record<IndexablePublicSeoPage, string>> =
   b2b: "2026-11-18",
   about: "2026-11-14",
   faq: "2026-11-24",
+  resources: "2026-11-24",
 };
 
 const OG_LOCALE: Record<UiLocale, string> = {
@@ -63,6 +64,10 @@ const PUBLIC_COPY: Record<
       description:
         "Contact ESSAFARIA in Algiers about travel agency partnerships, professional visa services and access to the secure B2B portal.",
     },
+    resources: {
+      title: "Visa File Management Guide for Travel Agencies",
+      description: "Practical B2B guidance for Algerian travel agencies: organize visa files, check documents, manage requests and communicate with travellers.",
+    },
     faq: {
       title: "B2B Visa Services FAQ for Travel Agencies",
       description:
@@ -90,6 +95,10 @@ const PUBLIC_COPY: Record<
       description:
         "Contactez ESSAFARIA à Alger pour un partenariat agence, l'accès au portail professionnel ou des informations sur les services visa B2B.",
     },
+    resources: {
+      title: "Guide de gestion des dossiers visa pour agences",
+      description: "Ressources pratiques pour agences de voyages en Algérie : organiser les dossiers visa, vérifier les pièces et gérer le suivi des demandes.",
+    },
     faq: {
       title: "FAQ visas B2B pour agences de voyages en Algérie",
       description:
@@ -116,6 +125,10 @@ const PUBLIC_COPY: Record<
       title: "اتصل بـ ESSAFARIA لشراكات وكالات السفر",
       description:
         "تواصل مع ESSAFARIA في الجزائر العاصمة للاستفسار عن شراكات الوكالات وخدمات التأشيرات المهنية والوصول إلى البوابة.",
+    },
+    resources: {
+      title: "دليل إدارة ملفات التأشيرات لوكالات السفر",
+      description: "دليل عملي لوكالات السفر في الجزائر لتنظيم ملفات التأشيرات ومراجعة الوثائق ومتابعة الطلبات والتواصل مع المسافرين.",
     },
     faq: {
       title: "أسئلة شائعة عن خدمات التأشيرات B2B في الجزائر",

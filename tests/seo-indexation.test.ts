@@ -111,7 +111,7 @@ describe("sitemap and robots", () => {
         SEO_PUBLIC_LOCALES.map((locale) => publicCanonicalUrl(entry.key, locale)),
       ),
     );
-    expect(map).toHaveLength(15);
+    expect(map).toHaveLength(18);
     for (const entry of map) {
       const url = new URL(entry.url);
       expect(url.protocol).toBe("https:");
@@ -134,8 +134,10 @@ describe("sitemap and robots", () => {
       }
     }
     for (const locale of SEO_PUBLIC_LOCALES) {
-      const url = publicCanonicalUrl("faq", locale);
-      expect(map.find((page) => page.url === url)?.lastModified).toBe("2026-11-24");
+      for (const page of ["faq", "resources"] as const) {
+        const url = publicCanonicalUrl(page, locale);
+        expect(map.find((entry) => entry.url === url)?.lastModified).toBe("2026-11-24");
+      }
     }
     // Do not invent dates for content without verified significant updates.
     for (const route of ["home", "b2b"] as const) {
@@ -150,7 +152,7 @@ describe("sitemap and robots", () => {
         expect(map.find((page) => page.url === url)?.lastModified).toBeUndefined();
       }
     }
-    expect(map).toHaveLength(15);
+    expect(map).toHaveLength(18);
   });
 
   it("publishes no sitemap URLs outside Production", () => {

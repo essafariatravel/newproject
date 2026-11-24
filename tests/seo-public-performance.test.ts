@@ -8,6 +8,7 @@ const INDEXABLE_PAGE_FILES = [
   "src/app/(public)/about/page.tsx",
   "src/app/(public)/contact/page.tsx",
   "src/app/(public)/faq/page.tsx",
+  "src/app/(public)/resources/page.tsx",
 ] as const;
 
 function source(path: string): string {
@@ -45,6 +46,18 @@ describe("public SEO performance guardrails", () => {
       ["public/images/departure-atelier.webp", 500_000],
       ["public/images/essafaria-airport-hero.webp", 250_000],
       ["public/images/essafaria-logo.png", 200_000],
+      ["public/images/travel/dulles-terminal.webp", 150_000],
+      ["public/images/travel/dulles-terminal-small.webp", 45_000],
+      ["public/images/travel/st-gallen.webp", 180_000],
+      ["public/images/travel/st-gallen-small.webp", 50_000],
+      ["public/images/travel/cape-greco.webp", 330_000],
+      ["public/images/travel/cape-greco-small.webp", 70_000],
+      ["public/images/travel/ostuni.webp", 260_000],
+      ["public/images/travel/ostuni-small.webp", 80_000],
+      ...["en", "fr", "ar"].flatMap((locale) => [
+        [`public/images/workflow/intake-${locale}.webp`, 45_000] as const,
+        [`public/images/workflow/intake-${locale}-small.webp`, 45_000] as const,
+      ]),
     ] as const;
     for (const [path, maxBytes] of assets) {
       expect(statSync(resolve(process.cwd(), path)).size, `${path} exceeds budget`).toBeLessThanOrEqual(maxBytes);

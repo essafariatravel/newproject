@@ -18,6 +18,7 @@ describe("public internal links", () => {
     resolve(process.cwd(), "src/app/(public)/about/page.tsx"),
     resolve(process.cwd(), "src/app/(public)/contact/page.tsx"),
     resolve(process.cwd(), "src/app/(public)/faq/page.tsx"),
+    resolve(process.cwd(), "src/app/(public)/resources/page.tsx"),
     resolve(process.cwd(), "src/app/(public)/layout.tsx"),
     resolve(process.cwd(), "src/components/public-header.tsx"),
   ];
