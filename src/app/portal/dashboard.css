@@ -100,3 +100,83 @@
 @media(max-width:767px){.essafaria-dashboard{gap:20px}.essafaria-dashboard .dash-campaign-content{grid-template-columns:minmax(0,1fr) 30%;min-height:224px}.essafaria-dashboard .dash-campaign-copy{padding:20px 16px 42px}.essafaria-dashboard .dash-campaign-controls{inset-inline-start:12px}.essafaria-dashboard .dash-command{grid-template-columns:1fr;gap:18px}.essafaria-dashboard .dash-metrics{grid-template-columns:1fr 1fr;gap:14px 0;padding-block:14px}.essafaria-dashboard .dash-metric{padding:8px 14px}.essafaria-dashboard .dash-metric:nth-child(2){border-inline-end:0}.essafaria-dashboard .dash-metric:nth-child(3){padding-inline-start:0}.essafaria-dashboard .dash-metric:nth-child(-n+2){border-bottom:1px solid var(--dash-rule);padding-bottom:16px}.essafaria-dashboard .dash-metric>strong{font-size:1.65rem}.essafaria-dashboard .dash-record-head{display:none}.essafaria-dashboard .dash-record-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding:15px 16px;gap:8px}.essafaria-dashboard .dash-record-row .dash-updated{font-size:.8125rem}.essafaria-dashboard .dash-section-heading{padding:16px}.essafaria-dashboard .dash-quick-links>div{grid-template-columns:1fr;gap:0}}
 @media(max-width:400px){.essafaria-dashboard .dash-campaign-content{grid-template-columns:1fr}.essafaria-dashboard .dash-campaign-photo{display:none}.essafaria-dashboard .dash-field-row{flex-wrap:wrap}.essafaria-dashboard .dash-field-row>button{width:100%}.essafaria-dashboard .dash-field-row>div{flex-basis:100%}.essafaria-dashboard .dash-transaction{grid-template-columns:20px minmax(0,1fr)}.essafaria-dashboard .dash-transaction>strong{grid-column:2}}
 @media(prefers-reduced-motion:reduce){.essafaria-dashboard .dash-campaign-content{animation:none}}
+
+/* Revision 02 — Dashboard route only. Existing shell DOM, no shared-component edits.
+   Wide screens use one sticky row. Narrow desktops retain two rows rather than truncate links. */
+@media(min-width:1024px){
+ .workspace-agency:has(.essafaria-dashboard) .workspace-topbar{flex-shrink:0}
+ .workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation{position:sticky;top:var(--dash-header-height,64px);z-index:29;flex-shrink:0}
+ .workspace-agency:has(.essafaria-dashboard) #workspace-main{padding-block-start:22px}
+}
+@media(min-width:1600px){
+ .workspace-agency:has(.essafaria-dashboard) .workspace-topbar{height:68px;padding-inline:24px}
+ .workspace-agency:has(.essafaria-dashboard) .workspace-topbar > div:last-child > span.hidden{display:none}
+ .workspace-agency:has(.essafaria-dashboard) .account-menu-identity{display:none}
+ .workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation{top:0;z-index:31;align-self:center;width:calc(100% - 460px);min-height:68px;height:68px;margin-block-start:-68px;padding:0;gap:2px;justify-content:center;border:0;background:transparent}
+ .workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation .workspace-nav-link{padding:8px 9px;min-height:44px;font-size:.9375rem;white-space:nowrap;border-radius:7px}
+ .workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation .workspace-nav-link:not([href="/portal/applications/new"]) .workspace-nav-icon{display:none}
+ .workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation .workspace-nav-link[aria-current]:not([href="/portal/applications/new"]){background:transparent;box-shadow:inset 0 -2px #10243b;border-radius:0;color:#10243b}
+ .workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation .workspace-nav-link:hover:not([href="/portal/applications/new"]){background:#f2f5f7}
+}
+.essafaria-dashboard{gap:18px}
+.essafaria-dashboard .dash-title{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.essafaria-dashboard .dash-title h1{font-size:clamp(1.85rem,2.5vw,2.2rem)}
+.essafaria-dashboard .dash-title p{margin:0;font-size:1rem}
+.essafaria-dashboard .dash-campaign-content{position:relative;isolation:isolate;display:flex;min-height:176px;align-items:stretch}
+.essafaria-dashboard .dash-campaign-photo{display:block;position:absolute;inset:0;z-index:-2;background-size:cover;background-position:center 52%}
+.essafaria-dashboard .dash-campaign-content::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#0b2035 0%,#0b2035f7 32%,#0b2035e8 48%,#0b203580 72%,#0b20352b 100%)}
+.essafaria-dashboard[dir="rtl"] .dash-campaign-content::before{background:linear-gradient(270deg,#0b2035 0%,#0b2035f7 32%,#0b2035e8 48%,#0b203580 72%,#0b20352b 100%)}
+.essafaria-dashboard .dash-campaign-copy{width:min(70%,760px);padding:15px 26px 16px;gap:5px}
+.essafaria-dashboard .dash-campaign-copy h2{font-size:clamp(1.5rem,2.4vw,2rem)}
+.essafaria-dashboard .dash-campaign-copy p{font-size:1rem}
+.essafaria-dashboard .dash-campaign-copy a{min-height:40px;padding:8px 14px;margin-top:5px;border-radius:7px;background:white;color:#10243b;text-decoration:none;transition:background-color 160ms ease}
+.essafaria-dashboard .dash-campaign-copy a:hover{background:#e8edf2}
+.essafaria-dashboard .dash-campaign-controls{inset-inline-start:auto;inset-inline-end:12px;bottom:8px;gap:0;background:#0b2035b8;border-radius:7px;padding:2px 4px}
+.essafaria-dashboard .dash-campaign-controls button{min-width:36px;min-height:36px}
+.essafaria-dashboard .dash-command{gap:24px;padding:0}
+.essafaria-dashboard .dash-command label{margin-bottom:7px}
+.essafaria-dashboard .dash-destination-option>span:last-child{margin-inline-start:auto;color:var(--dash-muted)}
+.essafaria-dashboard .dash-destination-shortcuts{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;margin-top:5px;min-height:32px}
+.essafaria-dashboard .dash-destination-shortcuts button{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:5px 8px;border:1px solid transparent;border-radius:6px;font-size:.9375rem;color:var(--dash-ink);transition:background-color 160ms ease,border-color 160ms ease}
+.essafaria-dashboard .dash-destination-shortcuts button:hover{background:#edf1f4;border-color:#d5dde4}
+.essafaria-dashboard .dash-destination-shortcuts .dash-flag{width:21px;height:14px}
+.essafaria-dashboard .dash-opening{font-size:.9375rem;color:var(--dash-muted)}
+.essafaria-dashboard .dash-metrics{padding-block:12px}
+.essafaria-dashboard .dash-metric{padding-block:3px;gap:5px}
+.essafaria-dashboard .dash-metric>span{font-size:1rem;color:#405365}
+.essafaria-dashboard .dash-metric>strong{font-size:2.25rem;line-height:1.12}
+.essafaria-dashboard .dash-wallet>strong{font-size:clamp(1.6rem,2.4vw,2.25rem)}
+.essafaria-dashboard .dash-wallet-actions{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;font-size:.9375rem;font-weight:500}
+.essafaria-dashboard .dash-wallet-actions a{min-height:28px;display:inline-flex;align-items:center;gap:4px}
+.essafaria-dashboard .dash-wallet-actions a:hover{text-decoration:underline;text-underline-offset:3px}
+.essafaria-dashboard .dash-wallet-actions .dash-topup{font-weight:600;color:#10243b}
+.essafaria-dashboard .dash-section-heading{padding:14px 18px}
+.essafaria-dashboard .dash-record-head,.essafaria-dashboard .dash-record-row{padding-inline:18px;gap:10px}
+.essafaria-dashboard .dash-record-head{font-size:.9375rem;padding-block:9px}
+.essafaria-dashboard .dash-record-row{min-height:72px;padding-block:10px;transition:background-color 160ms ease}
+.essafaria-dashboard .dash-record-row:hover{background:#f0f4f7}
+.essafaria-dashboard .dash-record-row small,.essafaria-dashboard .dash-updated,.essafaria-dashboard .dash-transaction small{font-size:.9375rem}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-state .badge{font-size:.875rem;padding:5px 8px;border-radius:6px;line-height:1.35}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-state[data-status="SUBMITTED"] .badge{background:#e8f0fa;color:#285582}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-state:is([data-status="IN_PROCESS"],[data-status="PROCESSING"],[data-status="EMBASSY_SENT"],[data-status="EMBASSY_SUBMISSION"],[data-status="AWAITING_DECISION"]) .badge{background:#fbf0dd;color:#80500e}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-state:is([data-status="DOCUMENTS_REQUESTED"],[data-status="DOCUMENTS_REQUIRED"]) .badge{background:#fff0e4;color:#923c16}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-state[data-status="APPROVED"] .badge{background:#e7f4ec;color:#21684f}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-state:is([data-status="REFUSED"],[data-status="REJECTED"]) .badge{background:#fceaea;color:#a32b2b}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-state[data-status="CANCELLED"] .badge{background:#eceff2;color:#49586a}
+.essafaria-dashboard .dash-finance ul{padding-inline:16px}
+.essafaria-dashboard .dash-transaction{padding-block:12px;min-height:72px;align-items:center}
+.essafaria-dashboard .dash-transaction>strong{font-size:1.0625rem}
+.essafaria-dashboard .dash-transaction>div>strong{font-size:1rem}
+.essafaria-dashboard .dash-finance-link{min-height:46px;padding-block:8px}
+.essafaria-dashboard .dash-quick-links{gap:6px}
+@media(max-width:767px){
+ .essafaria-dashboard .dash-title{display:block}.essafaria-dashboard .dash-title p{margin-top:4px}
+ .essafaria-dashboard .dash-campaign-content{min-height:224px}
+ .essafaria-dashboard .dash-campaign-copy{width:100%;padding:16px 16px 50px}
+ .essafaria-dashboard .dash-campaign-content::before,.essafaria-dashboard[dir="rtl"] .dash-campaign-content::before{background:linear-gradient(90deg,#0b2035f7,#0b2035d9)}
+ .essafaria-dashboard .dash-campaign-controls{inset-inline-start:auto;inset-inline-end:8px}
+ .essafaria-dashboard .dash-metric>strong{font-size:1.85rem}
+ .essafaria-dashboard .dash-record-row{min-height:88px}
+ .essafaria-dashboard .dash-record-row .dash-updated{font-size:.875rem}
+}
+@media(prefers-reduced-motion:reduce){.essafaria-dashboard :is(.dash-record-row,.dash-destination-shortcuts button,.dash-campaign-copy a){transition:none}}

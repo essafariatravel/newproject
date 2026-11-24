@@ -1,5 +1,6 @@
 "use client";
-import {useEffect,useId,useRef,useState} from "react";
+import {useEffect,useId,useRef,useState,useTransition} from "react";
+import {useRouter} from "next/navigation";
 import Link from "next/link";
 
 export type Campaign={id:string;eyebrow:string;title:string;body:string;cta:string;href:string;image:string};
@@ -11,7 +12,7 @@ export function DashboardCampaigns({items,labels}:{items:Campaign[];labels:Campa
  const item=items[index%Math.max(1,items.length)];if(!item)return null;
  const go=(n:number)=>setIndex((n+items.length)%items.length);
  return <section className="dash-campaign" aria-label={labels.campaigns} onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)} onFocusCapture={()=>setFocused(true)} onBlurCapture={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setFocused(false)}}>
-  <div key={item.id} className="dash-campaign-content"><div className="dash-campaign-copy"><span>{item.eyebrow}</span><h2>{item.title}</h2><p>{item.body}</p><Link href={item.href}>{item.cta} <span className="dash-arrow" aria-hidden="true">→</span></Link></div><div className="dash-campaign-photo" aria-hidden="true" style={{backgroundImage:`url("${item.image}")`}}/></div>
+  <div key={item.id} className="dash-campaign-content"><div className="dash-campaign-photo" aria-hidden="true" style={{backgroundImage:`url("${item.image}")`}}/><div className="dash-campaign-copy"><span>{item.eyebrow}</span><h2>{item.title}</h2><p>{item.body}</p><Link href={item.href}>{item.cta} <span className="dash-arrow" aria-hidden="true">→</span></Link></div></div>
   {items.length>1?<div className="dash-campaign-controls" aria-label={labels.campaigns}><button type="button" aria-label={labels.previous} onClick={()=>go(index-1)}><svg className="dash-chevron dash-prev" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m7 5 5 5-5 5"/></svg></button>{items.map((s,i)=><button key={s.id} className="dash-slide-dot" type="button" aria-label={`${labels.show} ${i+1}`} aria-current={index===i?"true":undefined} onClick={()=>go(i)}><span/></button>)}<button type="button" aria-label={labels.next} onClick={()=>go(index+1)}><svg className="dash-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m7 5 5 5-5 5"/></svg></button>{!reduced?<button type="button" aria-label={paused?labels.play:labels.pause} title={paused?labels.play:labels.pause} onClick={()=>setPaused(p=>!p)}>{paused?"▶":"Ⅱ"}</button>:null}</div>:null}
  </section>;
 }
@@ -26,23 +27,26 @@ export function CountryFlag({iso}:{iso:string}){
  return <span className="dash-flag-emoji" aria-hidden="true">{/^[A-Z]{2}$/.test(code)?String.fromCodePoint(...Array.from(code,c=>127397+c.charCodeAt(0))):"◌"}</span>;
 }
 type Destination={id:string;name:string;iso:string;aliases:string};
-type DestinationLabels={title:string;choose:string;search:string;none:string;noMatch:string;all:string;continue:string};
+type DestinationLabels={title:string;choose:string;search:string;none:string;noMatch:string;all:string;shortcuts:string;opening:string};
 const normalize=(s:string)=>s.normalize("NFD").replace(/\p{M}/gu,"").toLocaleLowerCase().trim();
 export function DashboardDestination({options,locale,labels:t}:{options:Destination[];locale:string;labels:DestinationLabels}){
- const uid=useId(),root=useRef<HTMLDivElement>(null),input=useRef<HTMLInputElement>(null);
- const [query,setQuery]=useState(""),[selected,setSelected]=useState<Destination|null>(null),[open,setOpen]=useState(false),[active,setActive]=useState(0);
+ const uid=useId(),root=useRef<HTMLDivElement>(null),input=useRef<HTMLInputElement>(null),list=useRef<HTMLDivElement>(null);
+ const router=useRouter();
+ const [query,setQuery]=useState(""),[open,setOpen]=useState(false),[active,setActive]=useState(0),[pending,startTransition]=useTransition();
  const matches=options.filter(o=>normalize(o.name+" "+o.aliases+" "+o.iso).includes(normalize(query)));
- const choose=(o:Destination)=>{setSelected(o);setQuery(o.name);setOpen(false);input.current?.focus();};
+ const preferred=["CN","AE","FR","TR"];
+ const shortcuts=[...options].sort((a,b)=>(preferred.includes(a.iso)?preferred.indexOf(a.iso):99)-(preferred.includes(b.iso)?preferred.indexOf(b.iso):99)).slice(0,4);
+ const choose=(o:Destination)=>{if(pending)return;setQuery(o.name);setOpen(false);startTransition(()=>router.push("/portal/applications/new?destination="+encodeURIComponent(o.id)));};
  useEffect(()=>{const outside=(e:PointerEvent)=>{if(!root.current?.contains(e.target as Node))setOpen(false)};document.addEventListener("pointerdown",outside);return()=>document.removeEventListener("pointerdown",outside)},[]);
- useEffect(()=>{if(open)document.getElementById(uid+"-"+active)?.scrollIntoView({block:"nearest"});},[active,open,uid]);
- return <form action="/portal/applications/new" method="get" className="dash-create" onSubmit={e=>{if(!selected)e.preventDefault()}}>
+ useEffect(()=>{const box=list.current,option=document.getElementById(uid+"-"+active);if(!open||!box||!option)return;const b=box.getBoundingClientRect(),o=option.getBoundingClientRect();if(o.bottom>b.bottom)box.scrollTop+=o.bottom-b.bottom;else if(o.top<b.top)box.scrollTop-=b.top-o.top;},[active,open,uid]);
+ return <div className="dash-create" lang={locale} aria-busy={pending}>
   <label htmlFor={uid}>{t.title}</label><div className="dash-field-row"><div ref={root} className="dash-destination-picker" onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setOpen(false)}}>
-   <input type="hidden" name="destination" value={selected?.id??""}/>
-   <div className="dash-search-wrap">{selected?<CountryFlag iso={selected.iso}/>:<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a18 18 0 0 1 0 18 18 18 0 0 1 0-18"/></svg>}
-    <input ref={input} id={uid} className="input" type="text" autoComplete="off" dir="auto" role="combobox" aria-expanded={open} aria-autocomplete="list" aria-controls={uid+"-options"} aria-activedescendant={open&&matches[active]?uid+"-"+active:undefined} placeholder={t.search} value={query} onClick={()=>{if(selected){setQuery("");setSelected(null)}setOpen(true);setActive(0)}} onChange={e=>{setSelected(null);setQuery(e.target.value);setOpen(true);setActive(0)}} onKeyDown={e=>{if(e.key==="ArrowDown"||e.key==="ArrowUp"){e.preventDefault();setOpen(true);setActive(i=>!open?0:Math.max(0,Math.min(matches.length-1,i+(e.key==="ArrowDown"?1:-1))))}else if(e.key==="Escape"){setOpen(false)}else if(e.key==="Enter"&&open){e.preventDefault();if(matches[active])choose(matches[active]!)}}}/>
-    <button className="dash-picker-toggle" type="button" aria-label={t.all} onClick={()=>{if(open){setOpen(false);return}setQuery("");setSelected(null);setActive(0);setOpen(true);input.current?.focus()}}><svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m5 8 5 5 5-5"/></svg></button>
+   <div className="dash-search-wrap"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a18 18 0 0 1 0 18 18 18 0 0 1 0-18"/></svg>
+    <input ref={input} id={uid} className="input" type="text" autoComplete="off" dir="auto" role="combobox" aria-expanded={open} aria-autocomplete="list" aria-controls={uid+"-options"} aria-activedescendant={open&&matches[active]?uid+"-"+active:undefined} placeholder={t.search} value={query} readOnly={pending} onClick={()=>{if(!pending){setOpen(true);setActive(0)}}} onChange={e=>{setQuery(e.target.value);setOpen(true);setActive(0)}} onKeyDown={e=>{if(pending)return;if(e.key==="ArrowDown"||e.key==="ArrowUp"){e.preventDefault();setOpen(true);setActive(i=>!open?0:Math.max(0,Math.min(matches.length-1,i+(e.key==="ArrowDown"?1:-1))))}else if(e.key==="Escape"){setOpen(false)}else if(e.key==="Enter"){e.preventDefault();if(open&&matches[active])choose(matches[active]!);else{setOpen(true);setActive(0)}}}}/>
+    <button className="dash-picker-toggle" type="button" aria-label={t.all} disabled={pending} onClick={()=>{if(open){setOpen(false);return}setQuery("");setActive(0);setOpen(true);input.current?.focus()}}><svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m5 8 5 5 5-5"/></svg></button>
    </div>
-   <div id={uid+"-options"} role="listbox" aria-label={t.all} className="dash-destination-options" hidden={!open}>{matches.length?matches.map((o,i)=><div id={uid+"-"+i} key={o.id} role="option" aria-selected={selected?.id===o.id} className="dash-destination-option" data-active={i===active} onMouseDown={e=>e.preventDefault()} onClick={()=>choose(o)}><CountryFlag iso={o.iso}/><span>{o.name}</span>{selected?.id===o.id?<span aria-hidden="true">✓</span>:null}</div>):<p role="status">{options.length?t.noMatch:t.none}</p>}</div>
-  </div><button className="btn-primary" type="submit" disabled={!selected}>{t.continue}<span className="dash-arrow" aria-hidden="true"> →</span></button></div>
- </form>;
+   <div ref={list} id={uid+"-options"} role="listbox" aria-label={t.all} className="dash-destination-options" hidden={!open}>{matches.length?matches.map((o,i)=><div id={uid+"-"+i} key={o.id} role="option" aria-selected={i===active} className="dash-destination-option" data-active={i===active} onMouseDown={e=>e.preventDefault()} onClick={()=>choose(o)}><CountryFlag iso={o.iso}/><span>{o.name}</span><span className="dash-arrow" aria-hidden="true">→</span></div>):<p role="status">{options.length?t.noMatch:t.none}</p>}</div>
+  </div></div>
+  <div className="dash-destination-shortcuts" aria-label={t.shortcuts}>{pending?<span role="status" className="dash-opening">{t.opening}</span>:shortcuts.map(o=><button type="button" key={o.id} onClick={()=>choose(o)}><CountryFlag iso={o.iso}/><span>{o.name}</span></button>)}</div>
+ </div>;
 }
