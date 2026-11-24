@@ -28,7 +28,7 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-dashboard){fon
  .workspace-agency.workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation a[href="/portal/applications/new"]{margin-inline:6px}
 }
 .essafaria-dashboard{
- --dash-ink:#0b1c30;--dash-muted:#344457;--dash-rule:#e2e5e9;--dash-hover:#f5f7fa;
+ --dash-ink:#0b1c30;--dash-muted:#344457;--dash-secondary:#647182;--dash-rule:#e2e5e9;--dash-hover:#f5f7fa;
  display:grid;gap:24px;color:var(--dash-ink);font-size:16px;line-height:1.5;
  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
 }
@@ -113,7 +113,7 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-dashboard){fon
 .essafaria-dashboard .dash-workspace{display:grid;gap:32px;align-items:start;grid-template-columns:minmax(0,1fr)}
 .essafaria-dashboard .dash-section{min-width:0;background:white;border:0;border-radius:0}
 .essafaria-dashboard .dash-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 0 12px;border-bottom:1px solid var(--dash-rule);min-height:44px}
-.essafaria-dashboard .dash-section-heading h2{font-size:22px;font-weight:600;letter-spacing:-.015em;line-height:1.3}
+.essafaria-dashboard .dash-section-heading h2{font-size:24px;font-weight:600;letter-spacing:-.015em;line-height:1.25}
 .essafaria-dashboard .dash-section-heading>a,.essafaria-dashboard .dash-recent-actions>a{font-size:15px;font-weight:500;color:var(--dash-muted)}
 .essafaria-dashboard .dash-section-heading>a:hover,.essafaria-dashboard .dash-recent-actions>a:hover{text-decoration:underline;text-underline-offset:4px}
 .essafaria-dashboard .dash-record-head,.essafaria-dashboard .dash-record-row{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1.1fr) minmax(0,.8fr) minmax(0,1.2fr);gap:12px;padding:12px 0;align-items:center}
@@ -127,7 +127,7 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-dashboard){fon
 .essafaria-dashboard .dash-record-row small{display:block;color:var(--dash-muted);font-size:15px;font-weight:400;margin-top:4px;overflow-wrap:anywhere}
 .essafaria-dashboard .dash-traveller,.essafaria-dashboard .dash-destination>span{min-width:0;overflow-wrap:anywhere}
 .essafaria-dashboard .dash-destination{display:flex;align-items:center;gap:8px;min-width:0}
-.essafaria-dashboard .dash-destination strong{font-size:16px;font-weight:500}
+.essafaria-dashboard .dash-destination strong{font-size:16px;font-weight:600;line-height:1.4}
 .essafaria-dashboard .dash-updated{display:flex;align-items:center;gap:8px;justify-content:space-between;color:var(--dash-muted);font-size:15px}
 .workspace-agency #workspace-main .essafaria-dashboard .dash-state .badge{display:inline-flex;align-items:baseline;gap:8px;padding:0;border:0;border-radius:0;background:transparent;color:#344457;font-size:15px;font-weight:500;line-height:1.5;white-space:normal}
 .workspace-agency #workspace-main .essafaria-dashboard .dash-state .badge::before{content:"";display:inline-block;width:8px;height:8px;flex:none;border-radius:50%;background:currentColor;align-self:center}
@@ -205,7 +205,8 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-dashboard){fon
 .essafaria-dashboard .dash-destination-option{transition:background-color 150ms ease}
 .essafaria-dashboard :is(.dash-destination-shortcuts button,.dash-picker-toggle,.dash-metric,.dash-topup,.dash-recent-actions a,.dash-find button):focus-visible{outline:2px solid #285582;outline-offset:3px}
 .essafaria-dashboard .dash-search-wrap:focus-within{border-radius:6px;outline:2px solid #285582;outline-offset:2px}
-.essafaria-dashboard .dash-metric>small,.essafaria-dashboard .dash-record-head,.essafaria-dashboard .dash-record-row small,.essafaria-dashboard .dash-updated{color:#344457}
+.essafaria-dashboard .dash-metric>small{color:var(--dash-muted)}
+.essafaria-dashboard .dash-record-head,.essafaria-dashboard .dash-record-row small,.essafaria-dashboard .dash-updated{color:var(--dash-secondary)}
 .essafaria-dashboard .dash-metric[data-attention="no"] small{color:#21684f}
 .essafaria-dashboard .dash-metric[data-attention="yes"] small{color:#80500e}
 .essafaria-dashboard .dash-record-row .dash-chevron{transition:color 150ms ease}
@@ -243,3 +244,26 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-dashboard){fon
 .essafaria-dashboard .dash-campaign-controls{gap:2px;padding-inline:4px}
 .essafaria-dashboard .dash-campaign-controls .dash-rotation-toggle{margin-inline-end:2px}
 @media(max-width:767px){.essafaria-dashboard .dash-campaign-controls{gap:2px}.essafaria-dashboard .dash-campaign-controls .dash-rotation-toggle{padding-inline:8px}}
+
+/* 06.2 — final type hierarchy; all rules limited to the Dashboard. */
+.workspace-agency #workspace-main .essafaria-dashboard{font-weight:400;line-height:1.5}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-section-heading h2{font-size:24px;font-weight:600;line-height:1.25}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-command label{font-size:18px;font-weight:600;line-height:1.35}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-command .input{font-weight:400;line-height:1.5;letter-spacing:normal}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-command .input::placeholder{font-weight:400;color:var(--dash-secondary);opacity:1}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-command :is(.btn-secondary,.btn-primary){font-weight:600;line-height:1.4}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-destination-shortcuts button{font-size:16px;font-weight:400;line-height:1.4}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-metric>span{font-size:16px;font-weight:500;line-height:1.4}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-metric>strong{font-weight:600;font-variant-numeric:tabular-nums lining-nums;line-height:1.16}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-currency{font-size:18px;font-weight:500;line-height:1.4}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-metric>small{font-size:15px;font-weight:400;line-height:1.45}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-record-head{font-size:15px;font-weight:500;line-height:1.4;color:var(--dash-secondary)}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-record-link{font-size:16px;font-weight:600;line-height:1.4;color:var(--dash-ink)}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-destination strong{font-size:16px;font-weight:600;line-height:1.4;color:var(--dash-ink)}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-record-row small{font-size:15px;font-weight:400;line-height:1.4;color:var(--dash-secondary);margin-top:3px}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-updated{font-size:15px;font-weight:400;line-height:1.4;color:var(--dash-secondary);font-variant-numeric:tabular-nums}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-state .badge{font-size:15px;font-weight:500;line-height:1.4}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-traveller small{font-variant-numeric:tabular-nums}
+.workspace-agency #workspace-main .essafaria-dashboard[dir="rtl"] :is(.dash-title h1,.dash-section-heading h2,.dash-metric>strong){letter-spacing:normal}
+.workspace-agency #workspace-main .essafaria-dashboard[dir="rtl"] :is(.dash-command label,.dash-record-link,.dash-record-row small,.dash-updated,.dash-state .badge){line-height:1.55}
+@media(max-width:767px){.workspace-agency #workspace-main .essafaria-dashboard .dash-section-heading h2{font-size:22px}}
