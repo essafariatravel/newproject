@@ -1,175 +1,115 @@
-import { configName } from "@/lib/config-localization";
 import Link from "next/link";
+import { and, count, eq, inArray, sql } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { applications, statuses as statusTable } from "@/db/schema";
+import { qualifiedTable } from "@/lib/database-schema";
+import { configName } from "@/lib/config-localization";
 import { portalPageUser } from "@/lib/page-auth";
-import { searchApplications, resolvePageSize } from "@/lib/queries";
+import { searchApplications, resolvePageSize, buildApplicationConditions, type ApplicationFilters } from "@/lib/queries";
 import { checklistProgressForApplications, listStatuses } from "@/lib/applications";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatAmount, formatDate, formatDateTime } from "@/lib/format";
-import { FilterBar, Pagination, PageSizeSelector } from "@/components/app-widgets";
-import { localizedStatusName } from "@/lib/ui-i18n";
-import { EmptyState, Flash, PageHeader, Progress, TableWrap } from "@/components/ui";
+import { Pagination, PageSizeSelector } from "@/components/app-widgets";
+import { localizedStatusName, getUiLocale } from "@/lib/ui-i18n";
+import { Flash } from "@/components/ui";
 import { StatusBadge } from "@/components/badges";
-import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { countryName } from "@/lib/country-names";
 import { NavigableTableRow } from "@/components/navigable-table-row";
+import { hasPermission } from "@/lib/rbac";
+import { CountryFlag } from "../dashboard-interactions";
+import { caseAction } from "../dashboard-smart";
+import { CaseFilters } from "./case-filters";
+import { caseLink, queueFilters, type CaseQueue } from "./case-workspace";
+import "./cases.css";
 
 export const dynamic = "force-dynamic";
 
-export default async function PortalApplicationsPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const raw = await searchParams;
-  const uiLocale = await getUiLocale(raw);
-  const ct = contentT(uiLocale);
-  const sp: Record<string, string | undefined> = {};
-  for (const [k, v] of Object.entries(raw)) sp[k] = typeof v === "string" ? v : undefined;
-  const user = await portalPageUser();
-  const flash = flashFrom(sp);
-  const page = Number(sp.page ?? "1") || 1;
-  const hasActiveFilters = Boolean(sp.q || sp.status || sp.from || sp.to || sp.queue || sp.documents);
-
-  const [result, statuses] = await Promise.all([
-    searchApplications(user, { q: sp.q, queue:sp.queue==="active"||sp.queue==="completed"?sp.queue:undefined, documents: sp.documents === "requested" ? "requested" : undefined, statusCode: sp.status, dateFrom: sp.from, dateTo: sp.to, page, pageSize: resolvePageSize(sp.per) }),
-    listStatuses(true),
-  ]);
-
-  const checklistProgressById = await checklistProgressForApplications(result.rows.map((r) => r.app.id));
-  const progressById = new Map(
-    [...checklistProgressById].map(([id, p]) => [id, { done: p.requiredComplete, total: p.requiredTotal }]),
-  );
-
-  return (
-    <>
-      <PageHeader
-        title={ct("Applications")}
-        subtitle={ct("Your agency's visa files.")}
-        actions={<Link href="/portal/applications/new" className="btn-primary btn-sm">{ct("+ New application")}</Link>}
-      />
-      <Flash {...flash} />
-
-      <nav className="agency-v2-queues" aria-label={ct("Applications")}>
-        {([{ label: "All", queue: "", documents: "" }, { label: "Active applications", queue: "active", documents: "" }, { label: "Action required", queue: "", documents: "requested" }, { label: "Completed", queue: "completed", documents: "" }] as const).map(item => {
-          const query = new URLSearchParams();
-          if (item.queue) query.set("queue", item.queue);
-          if (item.documents) query.set("documents", item.documents);
-          if (sp.q) query.set("q", sp.q);
-          if (sp.per) query.set("per", sp.per);
-          const selected = (sp.queue ?? "") === item.queue && (sp.documents ?? "") === item.documents && !sp.status && !sp.from && !sp.to;
-          return <Link key={item.label} href={`/portal/applications${query.toString() ? `?${query}` : ""}`} aria-current={selected ? "page" : undefined}>{ct(item.label)}</Link>;
-        })}
-      </nav>
-      <FilterBar locale={uiLocale}
-        action="/portal/applications"
-        hidden={{ documents:sp.documents==="requested"?"requested":"", queue:sp.queue??"" }}
-        fields={[
-          { name: "q", label: ct("Search"), type: "text", value: sp.q, placeholder: ct("Reference or applicant…") },
-          {
-            name: "status", label: ct("Status"), type: "select", value: sp.status,
-            options: statuses
-              .filter((s) => !["DRAFT", "CANCELLED"].includes(s.code))
-              .map((s) => ({ value: s.code, label: localizedStatusName(s.code, s.name, uiLocale) })),
-          },
-          { name: "from", label: ct("From"), type: "date", value: sp.from },
-          { name: "to", label: ct("To"), type: "date", value: sp.to },
-        ]}
-      />
-
-      {result.rows.length === 0 ? (
-        <div className="card">
-          <EmptyState
-            title={ct(hasActiveFilters ? "No applications match these filters." : "No applications yet")}
-            body={ct(hasActiveFilters ? "Adjust or clear the filters to see other applications." : "Submit your first visa application to see it tracked here.")}
-            action={
-              hasActiveFilters
-                ? <Link href="/portal/applications" className="btn-secondary btn-sm">{ct("Clear filters")}</Link>
-                : <Link href="/portal/applications/new" className="btn-primary btn-sm">{ct("Create application")}</Link>
-            }
-          />
-        </div>
-      ) : (
-        <>
-          {/* §"mobile cards" — on a phone a seven-column table is unusable, so the
-              same rows are rendered as cards (same data, same links, same order).
-              The table stays for pointer/desktop viewports. */}
-          <div className="space-y-4 md:hidden" data-testid="applications-cards">
-            {result.rows.map((r) => {
-              const p = progressById.get(r.app.id);
-              const needsDocuments = ["DOCUMENTS_REQUESTED", "DOCUMENTS_REQUIRED"].includes(r.statusCode);
-              return (
-                <Link key={r.app.id} href={`/portal/applications/${r.app.id}${needsDocuments ? "?tab=documents" : ""}`} className="card agency-v2-mobile-record block p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <span className="font-semibold text-navy-900">{countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}</span>
-                    <StatusBadge code={r.statusCode} name={r.statusName} />
-                  </div>
-                  <p className="mt-2 text-lg font-semibold text-navy-900">{r.applicantSummary ?? "—"}</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}
-                    <span aria-hidden="true"> · </span><bdi>{r.app.reference}</bdi>
-                  </p>
-                  <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
-                    <div className="space-y-1 text-xs text-slate-500">
-                      <p className="tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</p>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {p ? <Progress done={p.done} total={p.total} /> : null}
-                        <span>{formatDate(r.app.createdAt, uiLocale)}</span>
-                      </div>
-                    </div>
-                    <span className="inline-flex min-h-11 items-center gap-2 text-base font-semibold text-navy-900">
-                      {ct(needsDocuments ? "Upload requested documents" : "Open dossier")}
-                      <span aria-hidden="true" className="directional-arrow">→</span>
-                    </span>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-
-          <div className="hidden md:block">
-          <TableWrap>
-            <thead className="border-b border-slate-100 bg-ivory-50/60">
-              <tr>
-                <th className="th">{ct("Applicant")}</th>
-                <th className="th">{ct("Visa / Country")}</th>
-                <th className="th">{ct("Documents")}</th>
-                <th className="th">{ct("Fee")}</th>
-                <th className="th">{ct("Status")}</th>
-                <th className="th">{ct("Next action")}</th>
-                <th className="th">{ct("Last updated")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {result.rows.map((r) => {
-                const p = progressById.get(r.app.id);
-                return (
-                  <NavigableTableRow key={r.app.id} href={`/portal/applications/${r.app.id}`} className="tr-hover">
-                    <td className="td">
-                      <Link href={`/portal/applications/${r.app.id}`} className="inline-flex min-h-11 items-center font-semibold text-navy-900 hover:underline">{r.applicantSummary ?? "—"}</Link>
-                      <span className="block text-xs text-slate-500">{r.app.reference}</span>
-                    </td>
-                    <td className="td">
-                      {countryName({ name: r.app.countryName, iso2: r.countryIso2 }, uiLocale)}
-                      <span className="block text-xs text-slate-400">{configName({ name: r.app.visaTypeName, nameFr: r.visaNameFr, nameAr: r.visaNameAr }, uiLocale)}</span>
-                    </td>
-                    <td className="td">{p ? <Progress done={p.done} total={p.total} /> : "—"}</td>
-                    <td className="td whitespace-nowrap tabular-nums">{formatAmount(r.app.fee, "DZD", uiLocale)}</td>
-                    <td className="td"><StatusBadge code={r.statusCode} name={r.statusName} /></td>
-                    <td className="td text-xs">{ct(r.agencyNextAction)}</td>
-                    <td className="td whitespace-nowrap text-xs text-slate-500">{formatDateTime(r.app.updatedAt, uiLocale)}</td>
-                  </NavigableTableRow>
-                );
-              })}
-            </tbody>
-          </TableWrap>
-          </div>
-          <Pagination locale={uiLocale} page={result.page} pageCount={result.pageCount} total={result.total} basePath="/portal/applications" query={{ q: sp.q, queue: sp.queue, documents: sp.documents, status: sp.status, from: sp.from, to: sp.to, per: sp.per }} />
-          <div className="flex justify-end">
-            <PageSizeSelector locale={uiLocale} pageSize={resolvePageSize(sp.per)} basePath="/portal/applications" query={{ q: sp.q, queue: sp.queue, documents: sp.documents, status: sp.status, from: sp.from, to: sp.to }} />
-          </div>
-        </>
-      )}
-    </>
-  );
+export default async function PortalApplicationsPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}) {
+ const raw=await searchParams;
+ const locale=await getUiLocale(raw), ct=contentT(locale), user=await portalPageUser();
+ const sp:Record<string,string|undefined>={};
+ for(const [k,v] of Object.entries(raw))sp[k]=typeof v==="string"?v:undefined;
+ const queue:CaseQueue=sp.documents==="requested"?"attention":sp.queue==="active"?"active":sp.queue==="completed"?"completed":"all";
+ const page=Math.max(1,Math.floor(Number(sp.page)||1));
+ const per=resolvePageSize(sp.per);
+ const filters:ApplicationFilters={q:sp.q,statusCode:sp.status,dateFrom:sp.from,dateTo:sp.to};
+ const shared={q:sp.q,status:sp.status,from:sp.from,to:sp.to,per:sp.per};
+ const query={...shared,...queueFilters(queue)};
+ const hasFilters=Boolean(sp.q||sp.status||sp.from||sp.to);
+ const copy={
+  fr:{all:"Tous",active:"Actifs",attention:"Action requise",completed:"Terminés",traveller:"Voyageur",destination:"Destination / visa",action:"Action",filters:"Filtres",search:"Nom, référence, pays ou visa…",suggestions:"Suggestions de dossiers",searching:"Recherche…",unavailable:"Suggestions indisponibles. La recherche reste accessible.",noSuggestions:"Aucune suggestion.",ready:"Vous êtes à jour",readyBody:"Aucun dossier ne nécessite votre intervention.",emptyQueue:"Aucun dossier dans cette vue.",decision:"Consulter le dossier final",cancelled:"Consulter l’annulation",cancellation:"Suivre l’annulation",documents:"Compléter les documents",openDocuments:"Consulter les documents",none:"Aucune action nécessaire",docsComplete:"Documents complets",docsPending:"Documents à compléter",loading:"Chargement des dossiers…"},
+  en:{all:"All",active:"Active",attention:"Action required",completed:"Completed",traveller:"Traveller",destination:"Destination / visa",action:"Action",filters:"Filters",search:"Name, reference, country or visa…",suggestions:"Case suggestions",searching:"Searching…",unavailable:"Suggestions unavailable. Search is still available.",noSuggestions:"No suggestions.",ready:"You're up to date",readyBody:"No case requires your attention.",emptyQueue:"No cases in this view.",decision:"View final dossier",cancelled:"View cancellation",cancellation:"Track cancellation",documents:"Complete documents",openDocuments:"View documents",none:"No action required",docsComplete:"Documents complete",docsPending:"Documents incomplete",loading:"Loading cases…"},
+  ar:{all:"الكل",active:"النشطة",attention:"إجراء مطلوب",completed:"المكتملة",traveller:"المسافر",destination:"الوجهة / التأشيرة",action:"الإجراء",filters:"التصفية",search:"الاسم أو المرجع أو البلد أو التأشيرة…",suggestions:"اقتراحات الطلبات",searching:"جارٍ البحث…",unavailable:"الاقتراحات غير متاحة. لا يزال البحث متاحًا.",noSuggestions:"لا توجد اقتراحات.",ready:"أنت على اطلاع بكل المستجدات",readyBody:"لا توجد طلبات تتطلب تدخلك.",emptyQueue:"لا توجد طلبات في هذا العرض.",decision:"عرض الملف النهائي",cancelled:"عرض الإلغاء",cancellation:"متابعة الإلغاء",documents:"استكمال الوثائق",openDocuments:"عرض الوثائق",none:"لا يوجد إجراء مطلوب",docsComplete:"الوثائق مكتملة",docsPending:"الوثائق غير مكتملة",loading:"جارٍ تحميل الطلبات…"}
+ }[locale];
+ const queues:CaseQueue[]=["all","active","attention","completed"];
+ const toFilters=(key:CaseQueue):ApplicationFilters=>({...filters,...queueFilters(key)});
+ const [result,statuses]=await Promise.all([
+   searchApplications(user,{...toFilters(queue),page,pageSize:per}),listStatuses(true)
+ ]);
+ // Count precisely the same tenant-scoped filters as the list, without loading other pages.
+ const counts=await Promise.all(queues.map(async key=>{
+   if(key===queue)return result.total;
+   const conditions=await buildApplicationConditions(user,toFilters(key));
+   const rows=await db.select({total:count()}).from(applications).innerJoin(statusTable,eq(applications.statusId,statusTable.id)).where(and(...conditions));
+   return Number(rows[0]?.total??0);
+ }));
+ const ids=result.rows.map(r=>r.app.id);
+ const [checklists,pendingRows]=await Promise.all([
+   checklistProgressForApplications(ids),
+   ids.length?db.select({id:applications.id,pending:sql<boolean>`exists(select 1 from ${sql.raw(qualifiedTable("application_cancellation_requests"))} r where r.application_id=${applications.id} and r.status='PENDING')`}).from(applications).where(and(eq(applications.agencyId,user.agencyId),inArray(applications.id,ids))).catch(()=>[]):Promise.resolve([])
+ ]);
+ const pendingIds=new Set(pendingRows.filter(r=>r.pending).map(r=>r.id));
+ const canUpload=hasPermission(user,"documents.upload.own");
+ const canCreate=hasPermission(user,"applications.create");
+ const rows=result.rows.map(r=>{
+   const base="/portal/applications/"+r.app.id;
+   const requested=r.agencyNextAction==="Upload requested documents"||["DOCUMENTS_REQUESTED","DOCUMENTS_REQUIRED"].includes(r.statusCode);
+   const action=caseAction(r.statusCode,requested,pendingIds.has(r.app.id));
+   const actionHref=action==="documents"?base+"?tab=documents":action==="cancellation"||action==="cancelled"?base+"#cancellation":base;
+   const actionText=action==="documents"?(canUpload?copy.documents:copy.openDocuments):action==="view"?r.isTerminal?copy.decision:null:copy[action];
+   const p=checklists.get(r.app.id);
+   return {id:r.app.id,base,actionHref,actionText,action,traveller:r.applicantSummary??"—",reference:r.app.reference,country:countryName({name:r.app.countryName,iso2:r.countryIso2},locale),iso:r.countryIso2??"",visa:configName({name:r.app.visaTypeName,nameFr:r.visaNameFr,nameAr:r.visaNameAr},locale),progress:p?{done:p.requiredComplete,total:p.requiredTotal}:null,fee:formatAmount(r.app.fee,"DZD",locale),status:r.statusCode,statusName:r.statusName,updated:formatDateTime(r.app.updatedAt,locale),created:formatDate(r.app.createdAt,locale)};
+ });
+ const recent=rows.slice(0,5).map(r=>({id:r.id,title:r.traveller,detail:r.reference+" · "+r.country,href:r.base,aliases:[r.country,r.visa,r.reference]}));
+ const labels={search:ct("Search"),placeholder:copy.search,filters:copy.filters,status:ct("Status"),all:ct("All"),from:ct("From"),to:ct("To"),apply:ct("Filter"),reset:ct("Reset"),suggestions:copy.suggestions,searching:copy.searching,unavailable:copy.unavailable,noSuggestions:copy.noSuggestions,loading:copy.loading};
+ const resetHref=caseLink({...queueFilters(queue),per:sp.per});
+ const documents=(r:typeof rows[number])=>r.progress?<span className="case-docs" data-complete={r.progress.done>=r.progress.total} title={r.progress.done>=r.progress.total?copy.docsComplete:copy.docsPending}><bdi>{r.progress.done}/{r.progress.total}</bdi></span>:<span>—</span>;
+ const action=(r:typeof rows[number])=>r.actionText?<Link className="case-action" href={r.actionHref}>{r.actionText}<span aria-hidden="true" className="case-arrow">→</span></Link>:<span className="case-none" aria-label={copy.none}>—</span>;
+ const state=(r:typeof rows[number])=><span className="case-state" data-status={r.status}><StatusBadge code={r.status} name={r.statusName}/></span>;
+ return <div className="essafaria-cases" dir={locale==="ar"?"rtl":"ltr"}>
+   <header className="case-title"><h1>{ct("Applications")}</h1></header>
+   <Flash {...flashFrom(sp)}/>
+   <nav className="case-queues" aria-label={ct("Applications")}>
+     {queues.map((key,i)=><Link key={key} href={caseLink({...shared,...queueFilters(key)})} aria-current={queue===key?"page":undefined}><span>{copy[key]}</span><span className="case-count">{counts[i]}</span></Link>)}
+   </nav>
+   <CaseFilters key={caseLink(query)} locale={locale} labels={labels} query={query} recent={recent} statuses={statuses.filter(s=>!["DRAFT","CANCELLED"].includes(s.code)).map(s=>({value:s.code,label:localizedStatusName(s.code,s.name,locale)}))} resetHref={resetHref}/>
+   {rows.length===0?<section className="case-empty" role="status">
+     <h2>{hasFilters?ct("No applications match these filters."):queue==="attention"?copy.ready:queue==="all"?ct("No applications yet"):copy.emptyQueue}</h2>
+     <p>{hasFilters?ct("Adjust or clear the filters to see other applications."):queue==="attention"?copy.readyBody:queue==="all"?ct("Submit your first visa application to see it tracked here."):""}</p>
+     {hasFilters?<Link className="btn-secondary" href={resetHref}>{ct("Clear filters")}</Link>:queue!=="all"?<Link className="btn-secondary" href={caseLink({per:sp.per})}>{ct("All applications")}</Link>:canCreate?<Link className="btn-primary" href="/portal/applications/new">{ct("Create application")}</Link>:null}
+   </section>:<>
+     <div className="case-desktop">
+       <table className="case-table" aria-label={ct("Applications")}>
+         <colgroup><col className="case-col-traveller"/><col className="case-col-destination"/><col className="case-col-docs"/><col className="case-col-fee"/><col className="case-col-status"/><col className="case-col-action"/><col className="case-col-updated"/></colgroup>
+         <thead><tr><th scope="col">{copy.traveller}</th><th scope="col">{copy.destination}</th><th scope="col">{ct("Documents")}</th><th scope="col" className="case-fee">{ct("Fee")}</th><th scope="col">{ct("Status")}</th><th scope="col">{copy.action}</th><th scope="col">{ct("Last updated")}</th></tr></thead>
+         <tbody>{rows.map(r=><NavigableTableRow key={r.id} href={r.base} className="case-row">
+           <td><Link className="case-name" href={r.base}><bdi>{r.traveller}</bdi></Link><small><bdi>{r.reference}</bdi></small></td>
+           <td><div className="case-destination"><CountryFlag iso={r.iso}/><div><strong>{r.country}</strong><small>{r.visa}</small></div></div></td>
+           <td>{documents(r)}</td><td className="case-fee"><bdi>{r.fee}</bdi></td><td>{state(r)}</td><td>{action(r)}</td>
+           <td><div className="case-updated"><span>{r.updated}</span><Link href={r.base} aria-label={ct("Open dossier")+" "+r.reference} className="case-chevron"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m7 5 5 5-5 5"/></svg></Link></div></td>
+         </NavigableTableRow>)}</tbody>
+       </table>
+     </div>
+     <div className="case-mobile" data-testid="applications-cards">
+       {rows.map(r=><article className="case-mobile-record" key={r.id}>
+         <div><Link className="case-name" href={r.base}><bdi>{r.traveller}</bdi></Link><small><bdi>{r.reference}</bdi></small></div>{state(r)}
+         <div className="case-destination"><CountryFlag iso={r.iso}/><div><strong>{r.country}</strong><small>{r.visa}</small></div></div><span className="case-fee"><bdi>{r.fee}</bdi></span>
+         <div><small>{ct("Documents")} · {documents(r)}</small><small>{ct("Last updated")} · {r.updated}</small><small>{r.created}</small></div><div className="case-mobile-action">{r.actionText?action(r):<Link className="case-action" href={r.base}>{ct("Open dossier")} <span aria-hidden="true" className="case-arrow">→</span></Link>}</div>
+       </article>)}
+     </div>
+     {result.pageCount>1?<Pagination locale={locale} page={result.page} pageCount={result.pageCount} total={result.total} basePath="/portal/applications" query={query}/>:null}
+     {result.total>20?<div className="case-page-size"><PageSizeSelector locale={locale} pageSize={per} basePath="/portal/applications" query={query}/></div>:null}
+   </>}
+ </div>;
 }
