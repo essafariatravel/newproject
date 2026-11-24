@@ -160,6 +160,12 @@ export function RequestWizard(props: Props) {
   const [fileError, setFileError] = useState("");
   const [files, setFiles] = useState<Record<string, File[]>>({});
   const [pending, setPending] = useState(false);
+  const submittingRef = useRef(false);
+  const [transfer, setTransfer] = useState<{done:number;total:number;phase:"files"|"confirm"} | null>(null);
+  const feedbackRef = useRef<HTMLDivElement>(null);
+  const stepHeadingRef = useRef<HTMLOListElement>(null);
+  const previousStep = useRef(1);
+  const progressCopy = { en: { files:"Documents received by the server", confirm:"Confirming the application and wallet charge…", notice:"Keep this page open until confirmation.", selected:"Required documents selected" }, fr: { files:"Documents reçus par le serveur", confirm:"Confirmation du dossier et du débit du portefeuille…", notice:"Gardez cette page ouverte jusqu’à la confirmation.", selected:"Documents obligatoires sélectionnés" }, ar: { files:"المستندات التي استلمها الخادم", confirm:"جارٍ تأكيد الطلب والخصم من المحفظة…", notice:"أبقوا هذه الصفحة مفتوحة حتى التأكيد.", selected:"المستندات الإلزامية المحددة" } }[props.locale];
   const [clientError, setClientError] = useState("");
   const [catalogueRecovery, setCatalogueRecovery] = useState(false);
   const [sessionRecovery, setSessionRecovery] = useState(false);
@@ -262,13 +268,28 @@ export function RequestWizard(props: Props) {
     return true;
   }
 
+  useEffect(() => {
+    if (previousStep.current === step) return;
+    previousStep.current = step;
+    stepHeadingRef.current?.focus({preventScroll:true});
+    stepHeadingRef.current?.scrollIntoView({block:"start",behavior:"instant"});
+  }, [step]);
+
+  useEffect(() => {
+    if (!clientError || pending) return;
+    feedbackRef.current?.focus({preventScroll:true});
+    feedbackRef.current?.scrollIntoView({block:"nearest",behavior:"instant"});
+  }, [clientError,pending]);
+
   function goNext() {
-    if (!validateStep(step)) return;
+    if (submittingRef.current || !validateStep(step)) return;
     setWizardDirection("forward");
     setStep(Math.min(3, step + 1));
   }
 
   function goBack() {
+    if (submittingRef.current) return;
+    setClientError("");
     setWizardDirection("back");
     setStep((s) => Math.max(1, s - 1));
   }
@@ -313,8 +334,13 @@ export function RequestWizard(props: Props) {
 
 
   async function submit(form: HTMLFormElement) {
-    if (pending || !validateStep(1) || !validateStep(2)) return;
+    if (step !== 3 || submittingRef.current || !validateStep(1) || !validateStep(2)) return;
+    submittingRef.current = true;
     setPending(true);
+    const fields = new FormData(form);
+    const total = requirements.reduce((sum,r)=>sum+(files[r.documentTypeId]??[]).length,0);
+    let received = 0;
+    setTransfer({done:0,total,phase:total?"files":"confirm"});
     try {
       const tokens: string[] = [];
       // Each file travels in its own bounded request. Only final confirmation
@@ -328,9 +354,11 @@ export function RequestWizard(props: Props) {
           const response = await fetch("/api/agency/requests", { method: "POST", body });
           const data = await readRequestResponse<{token:string}>(response,props.locale);
           tokens.push(data.token);
+          received += 1;
+          setTransfer({done:received,total,phase:"files"});
         }
       }
-      const fields = new FormData(form);
+      setTransfer({done:received,total,phase:"confirm"});
       const response = await fetch("/api/agency/requests", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ attempt: idempotencyKey, countryId, visaTypeId, tokens,
           fullName: String(fields.get("t0_fullName") ?? ""), nationality: String(fields.get("t0_nationality") ?? ""), notes: String(fields.get("agencyNotes") ?? "") }) });
@@ -341,6 +369,8 @@ export function RequestWizard(props: Props) {
       setClientError(feedback.message);
       setCatalogueRecovery(feedback.catalogue);
       setSessionRecovery(feedback.session);
+      submittingRef.current = false;
+      setTransfer(null);
       setPending(false);
     }
   }
@@ -352,7 +382,7 @@ export function RequestWizard(props: Props) {
       <input type="hidden" name="locale" value={props.locale} />
 
       {/* Step rail */}
-      <ol className="agency-v2-steps grid grid-cols-3 gap-2 text-base" data-testid="wizard-steps">
+      <ol ref={stepHeadingRef} tabIndex={-1} className="agency-v2-steps grid grid-cols-3 gap-2 text-base" data-testid="wizard-steps">
         {[
           { n: 1, label: t.stepChoose },
           { n: 2, label: t.stepUpload },
@@ -376,7 +406,7 @@ export function RequestWizard(props: Props) {
         <p className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700">{props.serverError}</p>
       ) : null}
       {clientError ? (
-        <div role="alert" className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700"><p>{clientError}</p>{catalogueRecovery ? <button type="button" className="btn-secondary mt-4" onClick={() => window.location.reload()}>{contentT(props.locale)("Refresh catalogue and choose again")}</button> : null}{sessionRecovery ? <a className="btn-secondary mt-4" href="/login?reason=session-expired">{contentT(props.locale)("Sign in")}</a> : null}</div>
+        <div ref={feedbackRef} tabIndex={-1} role="alert" className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700"><p>{clientError}</p>{catalogueRecovery ? <button type="button" className="btn-secondary mt-4" onClick={() => window.location.reload()}>{contentT(props.locale)("Refresh catalogue and choose again")}</button> : null}{sessionRecovery ? <a className="btn-secondary mt-4" href="/login?reason=session-expired">{contentT(props.locale)("Sign in")}</a> : null}</div>
       ) : null}
 
       {/* STEP 1 — destination search, then programmes, then applicant */}
@@ -642,7 +672,7 @@ export function RequestWizard(props: Props) {
         </div>
 
         <div className="card space-y-4 p-6">
-          <div className="agency-v2-document-heading"><h2 className="font-serif text-lg text-navy-900">{t.documents}</h2>{requirements.some(r => r.required) ? <div className="agency-v2-document-progress" role="status"><span>{t.required}: <strong>{requirements.filter(r => r.required && (files[r.documentTypeId] ?? []).length > 0).length} / {requirements.filter(r => r.required).length}</strong></span><progress aria-label={t.required} value={requirements.filter(r => r.required && (files[r.documentTypeId] ?? []).length > 0).length} max={requirements.filter(r => r.required).length} /></div> : null}</div>
+          <div className="agency-v2-document-heading"><h2 className="font-serif text-lg text-navy-900">{t.documents}</h2>{requirements.some(r => r.required) ? <div className="agency-v2-document-progress" role="status"><span>{progressCopy.selected}: <strong>{requirements.filter(r => r.required && (files[r.documentTypeId] ?? []).length > 0).length} / {requirements.filter(r => r.required).length}</strong></span><progress aria-label={t.required} value={requirements.filter(r => r.required && (files[r.documentTypeId] ?? []).length > 0).length} max={requirements.filter(r => r.required).length} /></div> : null}</div>
           {fileError ? (
             <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700" data-testid="wizard-file-error">
               {fileError}
@@ -790,6 +820,7 @@ export function RequestWizard(props: Props) {
 
           <p className="rounded-lg bg-iris-50 px-4 py-2 text-xs text-iris-800">{t.chargeNote}</p>
 
+          {pending && transfer ? <div className="agency-v2-submit-progress" role="status" aria-live="polite"><strong>{transfer.phase === "files" ? `${progressCopy.files}: ${transfer.done} / ${transfer.total}` : progressCopy.confirm}</strong>{transfer.phase === "files" && transfer.total > 0 ? <progress aria-label={progressCopy.files} value={transfer.done} max={transfer.total}/> : null}<p>{progressCopy.notice}</p></div> : null}
           {canAfford ? (
             <button
               type="submit"

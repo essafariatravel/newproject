@@ -114,6 +114,7 @@ export default async function PortalApplicationDetailPage({
       /></div>
       <ReconciliationWarning applicationId={id} user={user} locale={uiLocale}/>
       <Flash {...flash} />
+      {sp.submitted === "1" && app.submittedAt && charge && !flash.error ? <section className="agency-v2-submission-receipt" role="status"><div><h2>{uiLocale === "fr" ? "Votre dossier a bien été soumis" : uiLocale === "ar" ? "تم تقديم طلبكم بنجاح" : "Your application has been submitted"}</h2><p>{ct("Reference")}: <bdi>{app.reference}</bdi> · {ct("Application fee")}: <bdi>{formatAmount(charge.amount,"DZD",uiLocale)}</bdi></p></div><Link href={`${back}?tab=documents`} className="btn-secondary">{ct("Documents")}</Link></section> : null}
       <CancellationPanel rows={cancellations} staff={false} locale={uiLocale}/>
 
       <Tabs tabs={TABS.map((t) => ({ ...t, label: ct(t.label), href: `${back}?tab=${t.id}` }))} current={tab} />
@@ -163,7 +164,7 @@ export default async function PortalApplicationDetailPage({
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Fee")}</p>
-                  <p className="mt-1 font-semibold tabular-nums text-navy-900">{formatAmount(app.fee, "DZD", uiLocale)}</p>
+                  <p className="mt-1 font-semibold tabular-nums text-navy-900">{formatAmount(pricing?.effectivePrice ?? app.fee, "DZD", uiLocale)}</p>
                   <p className="text-xs text-slate-500">{ct("Processing time")}: {app.processingMinDays}–{app.processingMaxDays} {ct("days")}</p>
                 </div>
                 <div className="sm:col-span-2">
@@ -227,6 +228,7 @@ export default async function PortalApplicationDetailPage({
               <CardHeader title={ct("Billing summary")} />
               <div className="p-4 space-y-4 text-base">
                 <div className="flex justify-between"><span className="text-slate-500">{ct("Application fee")}</span><span className="font-semibold tabular-nums">{formatAmount(app.fee, "DZD", uiLocale)}</span></div>
+                {pricing?.effectivePrice != null && pricing.adjustments.length > 0 ? <div className="agency-v2-effective-price"><span>{ct("Net amount paid")}</span><strong><bdi>{formatAmount(pricing.effectivePrice,"DZD",uiLocale)}</bdi></strong></div> : null}
                 {charge ? (
                   <>
                     <div className="flex justify-between"><span className="text-slate-500">{ct("Balance before")}</span><span className="tabular-nums">{formatAmount(charge.balanceBefore, "DZD", uiLocale)}</span></div>
