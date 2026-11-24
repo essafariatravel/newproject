@@ -1,0 +1,34 @@
+name: Cancellation financial qualification
+on:
+  push:
+    branches:
+      - codex/urgent-hotfix-application-cancellation-20261124
+permissions:
+  contents: read
+concurrency:
+  group: cancellation-qualification-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CI: "true"
+      VERCEL: "0"
+      VERCEL_ENV: ""
+      DATABASE_SCHEMA: public
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5434/essafaria_test
+      STORAGE_PROVIDER: db
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - name: Financial integration and regressions on disposable local PostgreSQL
+        run: npm test -- tests/application-cancellations.test.ts tests/price-adjustments-22.test.ts tests/status.test.ts tests/wallet.test.ts tests/zz-teardown.test.ts
