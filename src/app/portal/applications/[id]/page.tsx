@@ -75,7 +75,7 @@ export default async function PortalApplicationDetailPage({
   const returnTo=safeCaseReturn(sp.returnTo);
   const returnSuffix=returnTo==="/portal/applications"?"":"&returnTo="+encodeURIComponent(returnTo);
 
-  const [applicants, docs, checklist, history, messages, charge, decisionDocs, docRequests,cancellations,embassyApplicability,pricing,uiLocale,unreadRows,vfsReference] =
+  const [applicants, docs, checklist, history, messages, charge, decisionDocs, docRequests,cancellations,embassyApplicability,pricing,uiLocale,vfsReference,unreadRows] =
     await Promise.all([
       listApplicantsForApplication(id),
       tab==="overview"||tab==="documents"?listDocumentsForApplication(id):Promise.resolve([]),

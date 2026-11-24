@@ -33,7 +33,7 @@ export function CaseFilters({locale,labels:t,query,currentPage,recent,statuses,c
  const items=useMemo(()=>{
   const local=recent.filter(i=>[i.title,i.detail,...(i.aliases??[])].some(s=>fold(s).includes(fold(q))));
   const server=remote?.q===q&&!remote.error?remote.items:[];
-  return [...new Map([...server,...local].map(i=>[i.id,i])).values()].slice(0,5);
+  return (q.length>=3&&remote?.q===q&&!remote.error?server:[...new Map([...server,...local].map(i=>[i.id,i])).values()]).slice(0,5);
  },[recent,q,remote]);
  useEffect(()=>{if(open&&active>=0)document.getElementById(uid+"-"+active)?.scrollIntoView({block:"nearest"})},[open,active,uid]);
  function choose(item:Item){setOpen(false);setActive(-1);startTransition(()=>router.push(detailLink(item.id,caseLink({...query,page:String(currentPage)}))))}

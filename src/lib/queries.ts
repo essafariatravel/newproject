@@ -211,6 +211,14 @@ export async function buildApplicationConditions(user: AuthUser, filters: Applic
   return conditions;
 }
 
+/** Lightweight, tenant-scoped autocomplete: no count or full dossier payload. */
+export async function searchCaseSuggestions(user: AuthUser, filters: ApplicationFilters) {
+  if(!user.agencyId)return [];
+  const conditions=await buildApplicationConditions(user,filters);
+  return db.select({id:applications.id,reference:applications.reference,applicantSummary:applicationSelection.applicantSummary,statusCode:statuses.code,statusName:statuses.name})
+    .from(applications).innerJoin(statuses,eq(applications.statusId,statuses.id))
+    .where(and(...conditions)).orderBy(desc(applications.updatedAt),desc(applications.id)).limit(5);
+}
 export async function searchApplications(user: AuthUser, filters: ApplicationFilters) {
   const page = Math.max(1, filters.page ?? 1);
   const pageSize = resolvePageSize(filters.pageSize ?? DEFAULT_PAGE_SIZE);
