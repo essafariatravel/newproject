@@ -127,11 +127,15 @@ describe("sitemap and robots", () => {
 
   it("marks only verifiably updated public content with stable lastmod dates", () => {
     const map = buildPublicSitemap(production);
-    for (const route of ["about", "faq"] as const) {
+    for (const route of ["about"] as const) {
       for (const locale of SEO_PUBLIC_LOCALES) {
         const url = publicCanonicalUrl(route, locale);
         expect(map.find((page) => page.url === url)?.lastModified).toBe("2026-11-14");
       }
+    }
+    for (const locale of SEO_PUBLIC_LOCALES) {
+      const url = publicCanonicalUrl("faq", locale);
+      expect(map.find((page) => page.url === url)?.lastModified).toBe("2026-11-24");
     }
     // Do not invent dates for content without verified significant updates.
     for (const route of ["home", "b2b"] as const) {

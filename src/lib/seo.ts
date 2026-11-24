@@ -29,7 +29,7 @@ const VERIFIED_PUBLIC_LASTMOD: Partial<Record<IndexablePublicSeoPage, string>> =
   home: "2026-11-18",
   b2b: "2026-11-18",
   about: "2026-11-14",
-  faq: "2026-11-14",
+  faq: "2026-11-24",
 };
 
 const OG_LOCALE: Record<UiLocale, string> = {
