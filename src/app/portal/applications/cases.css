@@ -227,3 +227,28 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-cases){font-fa
 .essafaria-cases .case-col-traveller{width:17%}.essafaria-cases .case-col-destination{width:15%}.essafaria-cases .case-col-updated{width:17%}
 .essafaria-cases .case-select{accent-color:#0b1c30;width:17px;height:17px;vertical-align:middle;cursor:pointer}
 .essafaria-cases .case-selection-toolbar{padding-block:8px;font-size:15px}
+
+/* Revision 07.1 — reuse the agency popover behaviour and dashboard field tokens. */
+.essafaria-cases .case-sort-line{gap:8px;padding-inline:4px;min-width:0}
+.essafaria-cases .case-select-field{position:relative;min-width:0;width:100%}
+.essafaria-cases .case-select-field.case-select-compact{width:auto;flex:0 1 auto}
+.essafaria-cases .case-select-trigger{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:48px;padding:0 12px;border:1px solid #a7b1bd;border-radius:6px;background:#fff;color:var(--dash-ink);font-family:inherit;font-size:16px;font-weight:400;text-align:start;cursor:pointer}
+.essafaria-cases .case-select-trigger>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.essafaria-cases .case-select-trigger>svg{flex:none;color:var(--dash-secondary)}
+.essafaria-cases .case-select-trigger:hover{border-color:#647182}
+.essafaria-cases .case-select-trigger[aria-expanded=true]{border-color:#647182}
+.essafaria-cases .case-select-trigger[aria-expanded=true]>svg{transform:rotate(180deg)}
+.essafaria-cases .case-select-compact .case-select-trigger{font-size:15px;font-weight:500;padding-inline:10px;width:clamp(176px,12vw,218px);border-color:var(--dash-rule)}
+.essafaria-cases .case-select-panel{position:absolute;inset-inline:0;top:calc(100% + 4px);z-index:26;padding:4px;border:1px solid var(--dash-rule);border-radius:8px;background:#fff;box-shadow:0 8px 24px #0b1c3014;max-height:var(--case-menu-max,288px);overflow-y:auto;overscroll-behavior:contain;transform:translateX(var(--case-menu-offset,0px))}
+.essafaria-cases .case-select-panel[data-up=true]{top:auto;bottom:calc(100% + 4px)}
+.essafaria-cases .case-select-compact .case-select-panel{inset-inline-start:auto;inset-inline-end:0;width:max-content;min-width:100%;max-width:calc(100vw - 24px)}
+.essafaria-cases .case-select-panel [role=option]{display:flex;justify-content:space-between;align-items:center;gap:14px;min-height:44px;padding:8px 12px;color:var(--dash-ink);font-size:15px;font-weight:400;line-height:1.45;border-radius:4px;cursor:pointer}
+.essafaria-cases .case-select-panel [role=option]>svg{flex:none}
+.essafaria-cases .case-select-panel [role=option][data-active=true]{background:var(--dash-hover)}
+.essafaria-cases .case-select-panel [role=option][aria-selected=true]{font-weight:600}
+.essafaria-cases .case-quick-views summary{display:inline-flex;align-items:center;gap:6px;min-height:36px;color:var(--dash-secondary);list-style:none;font-weight:500}
+.essafaria-cases .case-quick-views summary::-webkit-details-marker{display:none}
+.essafaria-cases .case-quick-views[open] .case-disclosure-chevron{transform:rotate(180deg)}
+.essafaria-cases .case-quick-views a{min-height:36px;display:inline-flex;align-items:center;border-radius:6px;font-size:15px;padding:6px 12px}
+.essafaria-cases .case-quick-views a:hover,.essafaria-cases .case-quick-views a[aria-current]{background:var(--dash-hover)}
+@media(max-width:767px){.essafaria-cases .case-select-compact .case-select-trigger{width: min(218px,65vw)}.essafaria-cases .case-select-panel [role=option]{min-height:48px}}
