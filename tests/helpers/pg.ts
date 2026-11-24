@@ -39,6 +39,9 @@ async function start(): Promise<void> {
   state.directory = await mkdtemp(path.join(os.tmpdir(), "essafaria-test-pg-"));
   state.pg = new EmbeddedPostgres({
     databaseDir: state.directory,
+    // Ephemeral CI build containers run as root. Only the explicitly isolated
+    // cancellation gate can provision the package's unprivileged local PG user.
+    createPostgresUser: process.getuid?.() === 0 && process.env.ESSAFARIA_DISPOSABLE_PG_ROOT === "1",
     initdbFlags: ["--encoding=UTF8", "--locale=C"],
     user: "postgres",
     password: "postgres",

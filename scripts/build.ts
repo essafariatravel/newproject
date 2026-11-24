@@ -42,7 +42,7 @@ function main(): void {
   // database URLs, API credentials, or production flags into the test child.
   if (isVercelPreview && process.env.VERCEL_GIT_COMMIT_REF === "codex/urgent-hotfix-application-cancellation-20261124") {
     const localEnv = { PATH: process.env.PATH, HOME: process.env.HOME, TMPDIR: process.env.TMPDIR,
-      CI: "true", VERCEL: "0", VERCEL_ENV: "", DATABASE_SCHEMA: "public", STORAGE_PROVIDER: "db",
+      CI: "true", VERCEL: "0", VERCEL_ENV: "", DATABASE_SCHEMA: "public", STORAGE_PROVIDER: "db", ESSAFARIA_DISPOSABLE_PG_ROOT: "1",
       DATABASE_URL: "postgresql://postgres:postgres@localhost:5434/essafaria_test", NEXT_TELEMETRY_DISABLED: "1" };
     const result = spawnSync(process.execPath, ["node_modules/vitest/vitest.mjs", "run", "tests/application-cancellations.test.ts"], {
       stdio: "inherit", env: localEnv,
