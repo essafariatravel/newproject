@@ -13,6 +13,7 @@
  * - Graceful text entry: typing a valid ISO date directly updates the value.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAgencyPopover } from "@/components/agency-popover-controller";
 
 export interface DatePickerProps {
   name: string;
@@ -104,6 +105,7 @@ export function DatePicker(props: DatePickerProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const focusRequested = useRef(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  useAgencyPopover(rootRef,open,setOpen,triggerRef);
 
   useEffect(() => {
     if (!open || !panelRef.current) return;

@@ -1,4 +1,5 @@
 import "./agency-v2.css";
+import { AgencyPopoverController } from "@/components/agency-popover-controller";
 import { LiveNotifications } from "@/components/live-notifications";
 import { contentT } from "@/lib/i18n-content";
 import { redirect } from "next/navigation";
@@ -75,6 +76,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
       brandName={platformBranding?.name}
       headerExtras={<><LiveNotifications initialCount={unread} href="/portal/notifications" label={tr("Notifications")} soundLabel={contentT(locale)("Notification sounds")} closeLabel={contentT(locale)("Close")} /><UiLanguageSwitcher locale={locale} compact /></>}
     >
+      <AgencyPopoverController />
       {children}
     </AppShell>
   );

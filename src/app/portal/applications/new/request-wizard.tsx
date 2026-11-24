@@ -1,4 +1,5 @@
 "use client";
+import { useAgencyPopover } from "@/components/agency-popover-controller";
 
 /**
  * The 3-step visa request wizard — §12/§13/§14/§15.
@@ -154,6 +155,7 @@ export function RequestWizard(props: Props) {
   const [destinationOpen, setDestinationOpen] = useState(false);
   const destinationPickerRef = useRef<HTMLDivElement>(null);
   const destinationListRef = useRef<HTMLDivElement>(null);
+  useAgencyPopover(destinationPickerRef,destinationOpen,setDestinationOpen);
   const [activeDestination,setActiveDestination]=useState(-1);
   const destinationChangeRef=useRef<HTMLButtonElement>(null);
   const keyboardSelectionRef=useRef(false);

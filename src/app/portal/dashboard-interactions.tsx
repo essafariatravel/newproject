@@ -3,6 +3,7 @@ import {useEffect,useId,useMemo,useRef,useState,useTransition} from "react";
 import {rankDestinations,type SearchDestination} from "./dashboard-search";
 import {useRouter} from "next/navigation";
 import Link from "next/link";
+import { useAgencyPopover } from "@/components/agency-popover-controller";
 
 export type Campaign={id:string;title:string;body:string;cta:string;href:string;image:string;smallImage:string};
 type CampaignLabels={campaigns:string;previous:string;next:string;show:string;pause:string;play:string};
@@ -44,6 +45,7 @@ export function DashboardDestination({options,shortcutIds,locale,labels:t}:{opti
  const uid=useId(),root=useRef<HTMLDivElement>(null),input=useRef<HTMLInputElement>(null),list=useRef<HTMLDivElement>(null);
  const router=useRouter();
  const [query,setQuery]=useState(""),[open,setOpen]=useState(false),[active,setActive]=useState(0),[pending,startTransition]=useTransition();
+ useAgencyPopover(root,open,setOpen);
  const matches=useMemo(()=>rankDestinations(options,query),[options,query]);
  const shortcuts=useMemo(()=>shortcutIds.flatMap(id=>options.filter(o=>o.id===id)),[options,shortcutIds]);
  const navigating=useRef(false);
