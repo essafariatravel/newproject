@@ -345,8 +345,8 @@ describe("Phase 2.2 §17/§18 — authorization + wallet/reporting reconciliatio
     const { app } = await submittedApp(84);
     const admin = await staff();
     const staffUser = await userByEmail("admin@test.example");
-    const { changeApplicationStatus } = await import("@/lib/applications");
-    await changeApplicationStatus({ applicationId: app.id, toStatusCode: "CANCELLED", actor: staffUser });
+    const { decideApplicationCancellation } = await import("@/lib/application-cancellations");
+    await decideApplicationCancellation({ applicationId: app.id, actor: staffUser, decision: "APPROVED", reason: "Synthetic cancellation regression test", refundAmount: "0" });
     await expect(
       applyPriceAdjustment({ applicationId: app.id, actor: admin, type: "DISCOUNT", amount: 10, reason: "Cancelled-app discount attempt", idempotencyKey: `t84-${app.id}` }),
     ).rejects.toMatchObject({ code: "BAD_STATE" });
