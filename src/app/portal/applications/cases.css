@@ -205,3 +205,15 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-cases){font-fa
 .essafaria-cases .case-decision-file>span{min-width:0;flex:1;overflow-wrap:anywhere;font-size:14px}
 .essafaria-cases .case-decision-note{font-size:14px;line-height:1.5}
 @media(max-width:767px){.essafaria-cases .case-viewer-dialog{width:96vw;padding:12px}.essafaria-cases .case-viewer-download{margin-inline-start:0}.essafaria-cases .case-viewer-zoom{width:100%}}
+
+/* R07: operational shortcuts and viewer. */
+.essafaria-cases .case-quick-state{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-block:16px 8px}
+.essafaria-cases .case-quick-responsibility{padding:8px 0}.essafaria-cases .case-quick-responsibility[data-agency=true]{color:#80500e;font-weight:600}
+.essafaria-cases .case-quick-dialog dl{gap:4px;margin-block:12px}
+.essafaria-cases .case-quick-dialog .dossier-reference{display:flex;gap:8px;align-items:center;color:var(--dash-secondary);font-size:15px;margin-block:8px}
+.essafaria-cases .case-quick-dialog .dossier-reference button{min-width:36px;min-height:36px;display:grid;place-items:center}
+.essafaria-cases .case-quick-links,.essafaria-cases .case-quick-neighbours{display:flex;justify-content:space-between;align-items:center;gap:8px;padding-block:12px;color:#285582;font-size:15px}
+.essafaria-cases .case-quick-links a,.essafaria-cases .case-quick-neighbours button{min-height:44px;display:inline-flex;align-items:center}
+.essafaria-cases .case-quick-neighbours button:disabled{opacity:.45}
+.essafaria-cases .case-viewer-expanded{width:98vw;max-width:98vw;max-height:98dvh}.essafaria-cases .case-viewer-expanded .case-viewer-stage,.essafaria-cases .case-viewer-expanded .case-viewer-stage .case-viewer-fit{max-height:78dvh}
+.essafaria-cases .case-viewer-expanded iframe{height:78dvh}

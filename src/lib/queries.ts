@@ -1,3 +1,4 @@
+import { caseDateBoundary } from "@/app/portal/applications/case-workspace";
 import type { ReportFilters } from "@/lib/report-filters";
 import { agencyAttentionCondition } from "@/lib/attention";
 import { usableCurrentCaseDocument } from "./case-document-read-model";
@@ -140,8 +141,13 @@ export async function buildApplicationConditions(user: AuthUser, filters: Applic
   }
   if (filters.queue === "completed") conditions.push(user.agencyId && !filters.caseSort ? inArray(statuses.code,["APPROVED","COMPLETED"]) : eq(statuses.isTerminal,true));
   else if (filters.queue) conditions.push(eq(statuses.isTerminal,false));
-  if (filters.dateFrom) conditions.push(gte(applications.createdAt, new Date(filters.dateFrom)));
-  if (filters.dateTo) conditions.push(lte(applications.createdAt, new Date(`${filters.dateTo}T23:59:59`)));
+  if(user.agencyId&&filters.caseSort){
+    const from=filters.dateFrom?caseDateBoundary(filters.dateFrom):undefined,to=filters.dateTo?caseDateBoundary(filters.dateTo,true):undefined;
+    if(from)conditions.push(gte(applications.createdAt,from));if(to)conditions.push(lt(applications.createdAt,to));
+  }else{
+    if (filters.dateFrom) conditions.push(gte(applications.createdAt, new Date(filters.dateFrom)));
+    if (filters.dateTo) conditions.push(lte(applications.createdAt, new Date(`${filters.dateTo}T23:59:59`)));
+  }
   if(user.agencyId && filters.caseSort && (filters.caseEventFrom||filters.caseEventTo)){
     const event=filters.statusCode==="APPROVED"||filters.statusCode==="REJECTED"?applications.decisionAt:filters.statusCode==="SUBMITTED"?applications.submittedAt:applications.createdAt;
     if(filters.caseEventFrom)conditions.push(gte(event,filters.caseEventFrom));

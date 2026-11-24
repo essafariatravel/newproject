@@ -46,7 +46,7 @@ export function processingDuration(submitted:Date|string|null|undefined,decision
 }
 export function durationLabel(minutes:number,locale:"fr"|"en"|"ar"){
  const d=Math.floor(minutes/1440),h=Math.floor(minutes%1440/60),m=minutes%60,f=new Intl.NumberFormat(locale);
- return locale==="fr"?(d?f.format(d)+" j "+f.format(h)+" h":h?f.format(h)+" h "+f.format(m)+" min":f.format(m)+" min"):locale==="ar"?(d?f.format(d)+" يوم "+f.format(h)+" س":h?f.format(h)+" س "+f.format(m)+" د":f.format(m)+" د"):(d?f.format(d)+"d "+f.format(h)+"h":h?f.format(h)+"h "+f.format(m)+"m":f.format(m)+"m");
+ return locale==="fr"?(d?f.format(d)+(h?" j "+f.format(h)+" h":d===1?" jour":" jours"):h?f.format(h)+" h "+f.format(m)+" min":f.format(m)+" min"):locale==="ar"?(d?f.format(d)+" يوم"+(h?" "+f.format(h)+" س":""):h?f.format(h)+" س "+f.format(m)+" د":f.format(m)+" د"):(d?f.format(d)+"d"+(h?" "+f.format(h)+"h":""):h?f.format(h)+"h "+f.format(m)+"m":f.format(m)+"m");
 }
 
 /** Dates of business search periods are Algeria-local calendar dates, independent of server TZ. */
@@ -69,3 +69,16 @@ export function caseDateTime(value:Date|string|null|undefined,locale:"fr"|"en"|"
  return date.toLocaleString(locale==="fr"?"fr-FR":locale==="ar"?"ar-DZ":"en-GB",{timeZone:"Africa/Algiers",day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
 }
 export function usableCaseDocument(status:string|undefined,requested:boolean){return !requested&&Boolean(status&&["UPLOADED","UNDER_REVIEW","ACCEPTED"].includes(status))}
+
+export function caseDateBoundary(v:string,exclusiveEnd=false){const valid=validCaseDate(v);return valid?new Date(Date.parse(valid+"T00:00:00Z")-3600000+(exclusiveEnd?86400000:0)):undefined}
+export function caseResponsibility(status:string,terminal:boolean,requested:boolean,cancellation:boolean){
+ if(terminal)return "closed";
+ if(requested)return "agency";
+ if(cancellation)return "cancellation";
+ if(status==="DRAFT")return "draft";
+ if(status==="SUBMITTED")return "verification";
+ if(status==="DOCUMENTS_CHECKING")return "checking";
+ if(status==="IN_PROCESS")return "processing";
+ if(status==="EMBASSY_SENT")return "embassy";
+ return "unknown";
+}

@@ -59,7 +59,7 @@ export async function GET(
         entity: "document",
         entityId: id,
         agencyId: row.appAgencyId,
-        metadata: { evidenceIntegrity: "VERIFIED" },
+        metadata: { evidenceIntegrity: "VERIFIED", accessIntent: user.agencyId && _request.headers.get("X-Document-Intent")==="preview" ? "PREVIEW" : "DOWNLOAD" },
       }, tx);
     });
     return response;

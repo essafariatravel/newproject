@@ -35,6 +35,7 @@ import { CopyCaseReference } from "../copy-case-reference";
 import { hasPermission } from "@/lib/rbac";
 import { DocumentViewerProvider, DocumentPreviewButton } from "../document-viewer";
 import { LiveCaseDuration } from "../live-case-duration";
+import { readCaseVfsReference } from "@/lib/case-vfs-reference";
 import { CaseNavigation } from "../case-navigation";
 import { db } from "@/lib/db";
 import { notifications } from "@/db/schema";
@@ -73,7 +74,7 @@ export default async function PortalApplicationDetailPage({
   const returnTo=safeCaseReturn(sp.returnTo);
   const returnSuffix=returnTo==="/portal/applications"?"":"&returnTo="+encodeURIComponent(returnTo);
 
-  const [applicants, docs, checklist, history, messages, charge, decisionDocs, docRequests,cancellations,embassyApplicability,pricing,uiLocale,unreadRows] =
+  const [applicants, docs, checklist, history, messages, charge, decisionDocs, docRequests,cancellations,embassyApplicability,pricing,uiLocale,unreadRows,vfsReference] =
     await Promise.all([
       listApplicantsForApplication(id),
       tab==="overview"||tab==="documents"?listDocumentsForApplication(id):Promise.resolve([]),
@@ -87,6 +88,7 @@ export default async function PortalApplicationDetailPage({
       tab==="overview"?getEmbassyApplicability(app.visaTypeId,app.visaRuleSnapshot):Promise.resolve(null),
       app.submittedAt?getApplicationPricing(id):Promise.resolve(null),
       getUiLocale(sp),
+      tab==="overview"&&detail.countryIso2==="CN"?readCaseVfsReference(id,user):Promise.resolve(null),
       db.select({total:count()}).from(notifications).where(and(eq(notifications.userId,user.id),eq(notifications.agencyId,user.agencyId),eq(notifications.applicationId,id),eq(notifications.type,"MESSAGE_POSTED"),isNull(notifications.readAt))),
     ]);
   // §17 — progress is derived from the persisted history, and the embassy
@@ -165,7 +167,7 @@ export default async function PortalApplicationDetailPage({
         <div className="dossier-overview">
           <div className="dossier-main">
             {decisionDocs.length>0?<DocumentViewerProvider locale={uiLocale} files={decisionDocs.map(doc=>({id:doc.id,name:doc.originalFilename,mime:doc.mimeType}))}><section id="official-decision" className="dossier-delivery"><h2>{copy.official}</h2>{decisionDocs.map(doc=><div key={doc.id} className="dossier-delivery-row"><div><strong>{localizedDocTypeName(doc.typeCode,doc.typeName,uiLocale)}</strong><p>{caseDateTime(doc.createdAt,uiLocale)}</p></div><DocumentPreviewButton id={doc.id} variant="primary" locale={uiLocale}/></div>)}</section></DocumentViewerProvider>:null}
-            <section className="dossier-tracking"><h2>{copy.tracking}</h2>{!terminal&&!isDraft&&openRequests.length===0?<p className="dossier-no-action">{copy.noAction}</p>:null}<div className="dossier-metrics"><div><span>{elapsed?.terminal?copy.duration:copy.elapsed}</span><strong>{elapsed?<LiveCaseDuration submitted={app.submittedAt?.toISOString()??""} initialMinutes={elapsed.minutes} terminal={elapsed.terminal} locale={uiLocale}/>:"—"}</strong></div><div><span>{copy.estimate}</span><strong>{formatProcessingDays(app.processingMinDays,app.processingMaxDays,uiLocale)}</strong></div><div><span>{ct("Last updated")}</span><strong>{caseDateTime(app.updatedAt,uiLocale)}</strong></div></div></section>
+            {vfsReference?<section className="dossier-vfs"><h2>{({fr:"Référence VFS Chine",en:"VFS China reference",ar:"مرجع VFS للصين"}[uiLocale])}</h2><CopyCaseReference reference={vfsReference} label={copy.copy} copied={copy.copied} failed={copy.failed}/></section>:null}<section className="dossier-tracking"><h2>{copy.tracking}</h2>{!terminal&&!isDraft&&openRequests.length===0?<p className="dossier-no-action">{copy.noAction}</p>:null}<div className="dossier-metrics"><div><span>{elapsed?.terminal?copy.duration:copy.elapsed}</span><strong>{elapsed?<LiveCaseDuration submitted={app.submittedAt?.toISOString()??""} initialMinutes={elapsed.minutes} terminal={elapsed.terminal} locale={uiLocale}/>:"—"}</strong></div><div><span>{copy.estimate}</span><strong>{formatProcessingDays(app.processingMinDays,app.processingMaxDays,uiLocale)}</strong></div><div><span>{ct("Last updated")}</span><strong>{caseDateTime(app.updatedAt,uiLocale)}</strong></div></div></section>
                 {app.submittedAt ? <section className="agency-v2-journey" aria-label={ct("Progress")}>
                   <h3>{ct("Progress")}</h3>
                   <ol data-testid="application-progress">
@@ -286,7 +288,7 @@ export default async function PortalApplicationDetailPage({
                     </div>
                     {itemDocs.length > 0 ? (
                       <ul className="mt-4 space-y-2">
-                        {itemDocs.map(({ doc }) => (
+                        {itemDocs.slice(0,1).map(({ doc }) => (
                           <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ivory-50 px-4 py-2 text-xs">
                             <span className="flex min-w-0 flex-wrap items-center gap-2">
                               <DocumentPreviewButton id={doc.id}>{doc.originalFilename}</DocumentPreviewButton>
@@ -297,6 +299,13 @@ export default async function PortalApplicationDetailPage({
                         ))}
                       </ul>
                     ) : null}
+                    {itemDocs.length>1?<details className="dossier-document-history"><summary>{({fr:"Versions précédentes",en:"Previous versions",ar:"الإصدارات السابقة"}[uiLocale])} ({itemDocs.length-1})</summary><ul className="mt-2 space-y-2">{itemDocs.slice(1).map(({doc})=>(<li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ivory-50 px-4 py-2 text-xs">
+                            <span className="flex min-w-0 flex-wrap items-center gap-2">
+                              <DocumentPreviewButton id={doc.id}>{doc.originalFilename}</DocumentPreviewButton>
+                              <span className="text-slate-400">v{doc.version} · {bytes(doc.sizeBytes)} · {caseDateTime(doc.createdAt, uiLocale)}</span>
+                            </span>
+                            <DocumentPreviewButton id={doc.id} variant="button" locale={uiLocale}/>
+                          </li>))}</ul></details>:null}
                     {isDraft && canUpload ? (
                       <form action={uploadDocumentAction} encType="multipart/form-data" className="mt-4 flex flex-wrap items-center gap-2">
                         <input type="hidden" name="applicationId" value={id} />

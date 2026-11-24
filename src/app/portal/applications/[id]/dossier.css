@@ -92,3 +92,8 @@
 .dossier-workspace .dossier-message-count{font-size:13px;color:var(--dash-secondary);font-variant-numeric:tabular-nums}
 .workspace-agency #workspace-main .dossier-workspace .dossier-send{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:44px;padding-inline:20px}
 @media(max-width:767px){.dossier-workspace .dossier-message-privacy{flex-basis:100%}.dossier-workspace .dossier-message-count{margin-inline-end:auto}.dossier-workspace .dossier-template-label{flex-basis:100%}}
+
+.dossier-workspace .dossier-vfs{border-block-end:1px solid var(--dash-rule);padding-block:8px 12px}
+.dossier-workspace .dossier-vfs h2{font-size:20px;font-weight:600}
+.dossier-workspace .dossier-document-history summary{cursor:pointer;color:#285582;font-size:15px;padding-block:8px}
+.dossier-workspace .case-nav-position{font-size:14px;color:var(--dash-secondary)}

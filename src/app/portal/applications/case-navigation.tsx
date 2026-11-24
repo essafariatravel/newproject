@@ -20,10 +20,10 @@ export function CaseListMemory({scope,context,rows}:{scope:string;context:string
  return null;
 }
 export function CaseNavigation({scope,context,id,tab,locale}:{scope:string;context:string;id:string;tab:string;locale:"fr"|"en"|"ar"}){
- const [links,setLinks]=useState<{previous?:Row;next?:Row}|null>(null);
- useEffect(()=>{if(snapshot?.scope!==scope||snapshot.context!==context){setLinks(null);return}const rows=snapshot.rows,i=rows.findIndex(x=>x.id===id);setLinks(i<0?null:{previous:rows[i-1],next:rows[i+1]})},[scope,context,id]);
- if(!links?.previous&&!links?.next)return null;
+ const [links,setLinks]=useState<{previous?:Row;next?:Row;position:number;total:number}|null>(null);
+ useEffect(()=>{if(snapshot?.scope!==scope||snapshot.context!==context){setLinks(null);return}const rows=snapshot.rows,i=rows.findIndex(x=>x.id===id);setLinks(i<0?null:{previous:rows[i-1],next:rows[i+1],position:i+1,total:rows.length})},[scope,context,id]);
+ if(!links)return null;
  const t={fr:{prev:"Dossier précédent",next:"Dossier suivant"},en:{prev:"Previous case",next:"Next case"},ar:{prev:"الطلب السابق",next:"الطلب التالي"}}[locale];
  const href=(r:Row)=>r.href+(r.href.includes("?")?"&":"?")+"tab="+encodeURIComponent(tab);
- return <nav className="dossier-neighbours" aria-label={locale==="fr"?"Navigation entre dossiers":locale==="ar"?"التنقل بين الطلبات":"Case navigation"}>{links.previous?<Link href={href(links.previous)} prefetch={false}><span aria-hidden="true" className="directional">←</span> {t.prev}</Link>:null}{links.next?<Link href={href(links.next)} prefetch={false}>{t.next} <span aria-hidden="true" className="directional">→</span></Link>:null}</nav>
+ return <nav className="dossier-neighbours" aria-label={locale==="fr"?"Navigation entre dossiers":locale==="ar"?"التنقل بين الطلبات":"Case navigation"}>{links.previous?<Link href={href(links.previous)} prefetch={false}><span aria-hidden="true" className="directional">←</span> {t.prev}</Link>:null}<span className="case-nav-position"><bdi>{links.position}/{links.total}</bdi></span>{links.next?<Link href={href(links.next)} prefetch={false}>{t.next} <span aria-hidden="true" className="directional">→</span></Link>:null}</nav>
 }
