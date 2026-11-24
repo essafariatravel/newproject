@@ -20,8 +20,9 @@ import { hasPermission } from "@/lib/rbac";
 import { CountryFlag } from "../dashboard-interactions";
 import { caseAction } from "../dashboard-smart";
 import { CaseFilters } from "./case-filters";
-import { caseLink, queueFilters, caseSort, caseSearch, validCaseDate, detailLink, processingDuration, durationLabel, casePeriod, caseDateTime, caseResponsibility, type CaseQueue } from "./case-workspace";
+import { caseLink, queueFilters, caseSort, detailLink, processingDuration, durationLabel, caseDateTime, caseResponsibility, caseQueryFilters, type CaseQueue } from "./case-workspace";
 import { CaseQuickView, CaseQuickViewProvider } from "./case-quick-view";
+import { CaseSelectionProvider, CaseSelect, CaseSelectAll, CaseSelectionToolbar } from "./case-selection";
 import { CaseListMemory } from "./case-navigation";
 import { agencyAttentionCondition } from "@/lib/attention";
 import "./cases.css";
@@ -36,12 +37,10 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
  const queue:CaseQueue=sp.documents==="requested"?"attention":sp.queue==="active"?"active":sp.queue==="completed"?"completed":"all";
  const page=Math.min(100000,Math.max(1,Math.floor(Number(sp.page)||1)));
  const per=resolvePageSize(sp.per);
- const period=casePeriod(sp.q),parsed=caseSearch(period.text),from=validCaseDate(sp.from),to=validCaseDate(sp.to);
- const country=sp.country&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sp.country)?sp.country:undefined;
- const filters:ApplicationFilters={q:parsed.q,statusCode:sp.status||parsed.statusCode,dateFrom:from,dateTo:to,countryId:country,caseSort:caseSort(sp.sort),caseMissing:sp.missing==="1"||parsed.missing===true,caseEventFrom:period.from,caseEventTo:period.to};
- const shared={q:sp.q,status:sp.status,from,to,per:sp.per,country,sort:caseSort(sp.sort),missing:sp.missing==="1"?"1":undefined};
+ const filters:ApplicationFilters=caseQueryFilters(sp),from=filters.dateFrom,to=filters.dateTo,country=filters.countryId;
+ const shared={q:sp.q,status:sp.status,from,to,per:sp.per,country,sort:caseSort(sp.sort),missing:sp.missing==="1"?"1":undefined,focus:filters.caseFocus};
  const query={...shared,...queueFilters(queue)};
- const hasFilters=Boolean(sp.q||sp.status||from||to||country||sp.missing==="1");
+ const hasFilters=Boolean(sp.q||sp.status||from||to||country||sp.missing==="1"||filters.caseFocus);
  const copy={
   fr:{all:"Tous",active:"Actifs",attention:"Action requise",completed:"Terminés",traveller:"Voyageur",destination:"Destination / visa",action:"Action",filters:"Filtres",search:"Nom, référence, pays ou visa…",suggestions:"Suggestions de dossiers",searching:"Recherche…",unavailable:"Suggestions indisponibles. La recherche reste accessible.",noSuggestions:"Aucune suggestion.",ready:"Vous êtes à jour",readyBody:"Aucun dossier ne nécessite votre intervention.",emptyQueue:"Aucun dossier dans cette vue.",decision:"Voir le dossier",cancelled:"Consulter l’annulation",cancellation:"Suivre l’annulation",documents:"Compléter les documents",openDocuments:"Consulter les documents",none:"Aucune action nécessaire",docsComplete:"Documents complets",docsPending:"Documents à compléter",loading:"Chargement des dossiers…"},
   en:{all:"All",active:"Active",attention:"Action required",completed:"Completed",traveller:"Traveller",destination:"Destination / visa",action:"Action",filters:"Filters",search:"Name, reference, country or visa…",suggestions:"Case suggestions",searching:"Searching…",unavailable:"Suggestions unavailable. Search is still available.",noSuggestions:"No suggestions.",ready:"You're up to date",readyBody:"No case requires your attention.",emptyQueue:"No cases in this view.",decision:"View case",cancelled:"View cancellation",cancellation:"Track cancellation",documents:"Complete documents",openDocuments:"View documents",none:"No action required",docsComplete:"Documents complete",docsPending:"Documents incomplete",loading:"Loading cases…"},
@@ -82,7 +81,7 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
  const quick=(r:typeof rows[number],decision=false)=><CaseQuickView id={r.id} reference={r.reference} decisionTrigger={decision} locale={locale}/>;
  const action=(r:typeof rows[number])=>["APPROVED","REJECTED"].includes(r.status)?quick(r,true):r.actionText?<Link className="case-action" href={r.actionHref}>{r.actionText}<span aria-hidden="true" className="case-arrow">→</span></Link>:<span className="case-none" aria-label={copy.none}>—</span>;
  const state=(r:typeof rows[number])=><div className="case-status-cell"><span className="case-state" data-status={r.status}><StatusBadge code={r.status} name={r.statusName}/></span>{r.elapsed?<small>{r.terminal?({fr:"Durée :",en:"Duration:",ar:"المدة:"}[locale]):({fr:"Depuis",en:"Since",ar:"منذ"}[locale])} <bdi>{r.elapsed}</bdi></small>:null}</div>;
- return <div className="essafaria-cases" dir={locale==="ar"?"rtl":"ltr"}><CaseQuickViewProvider rows={quickRows} locale={locale}><CaseListMemory scope={user.id} context={caseLink({...query,page:String(result.page)})} rows={rows.map(r=>({id:r.id,href:r.base}))}/>
+ return <div className="essafaria-cases" dir={locale==="ar"?"rtl":"ltr"}><CaseQuickViewProvider rows={quickRows} locale={locale}><CaseSelectionProvider key={caseLink({...query,page:String(result.page)})} locale={locale} rows={rows.map(r=>({id:r.id,reference:r.reference,traveller:r.traveller,country:r.country,visa:r.visa,status:localizedStatusName(r.status,r.statusName,locale),fee:r.fee,updated:r.updated}))}><CaseListMemory scope={user.id} context={caseLink({...query,page:String(result.page)})} rows={rows.map(r=>({id:r.id,href:r.base}))}/>
    <header className="case-title"><h1>{ct("Applications")}</h1></header>
    <Flash {...flashFrom(sp)}/>
    <nav className="case-queues" aria-label={ct("Applications")}>
@@ -94,12 +93,12 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
      <p>{hasFilters?ct("Adjust or clear the filters to see other applications."):queue==="attention"?copy.readyBody:queue==="all"?ct("Submit your first visa application to see it tracked here."):""}</p>
      {hasFilters?<Link className="btn-secondary" href={resetHref}>{ct("Clear filters")}</Link>:queue!=="all"?<Link className="btn-secondary" href={caseLink({per:sp.per})}>{ct("All applications")}</Link>:canCreate?<Link className="btn-primary" href="/portal/applications/new">{ct("Create application")}</Link>:null}
    </section>:<>
-     <div className="case-desktop">
+     <CaseSelectionToolbar/><div className="case-desktop">
        <table className="case-table" aria-label={ct("Applications")}>
-         <colgroup><col className="case-col-traveller"/><col className="case-col-destination"/><col className="case-col-docs"/><col className="case-col-fee"/><col className="case-col-status"/><col className="case-col-action"/><col className="case-col-updated"/></colgroup>
-         <thead><tr><th scope="col">{copy.traveller}</th><th scope="col">{copy.destination}</th><th scope="col">{ct("Documents")}</th><th scope="col" className="case-fee">{ct("Fee")}</th><th scope="col">{ct("Status")}</th><th scope="col">{copy.action}</th><th scope="col">{ct("Last updated")}</th></tr></thead>
+         <colgroup><col className="case-col-select"/><col className="case-col-traveller"/><col className="case-col-destination"/><col className="case-col-docs"/><col className="case-col-fee"/><col className="case-col-status"/><col className="case-col-action"/><col className="case-col-updated"/></colgroup>
+         <thead><tr><th scope="col"><CaseSelectAll/></th><th scope="col">{copy.traveller}</th><th scope="col">{copy.destination}</th><th scope="col">{ct("Documents")}</th><th scope="col" className="case-fee">{ct("Fee")}</th><th scope="col">{ct("Status")}</th><th scope="col">{copy.action}</th><th scope="col">{ct("Last updated")}</th></tr></thead>
          <tbody>{rows.map(r=><NavigableTableRow key={r.id} href={r.base} className="case-row">
-           <td><Link className="case-name" href={r.base}><bdi>{r.traveller}</bdi></Link><small><bdi>{r.reference}</bdi></small></td>
+           <td><CaseSelect id={r.id} reference={r.reference}/></td><td><Link className="case-name" href={r.base}><bdi>{r.traveller}</bdi></Link><small><bdi>{r.reference}</bdi></small></td>
            <td><div className="case-destination"><CountryFlag iso={r.iso}/><div><strong>{r.country}</strong><small>{r.visa}</small></div></div></td>
            <td>{documents(r)}</td><td className="case-fee"><bdi>{r.fee}</bdi></td><td>{state(r)}</td><td>{action(r)}</td>
            <td><div className="case-updated"><span>{r.updated}</span>{quick(r)}</div></td>
@@ -108,7 +107,7 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
      </div>
      <div className="case-mobile" data-testid="applications-cards">
        {rows.map(r=><article className="case-mobile-record" key={r.id}>
-         <div><Link className="case-name" href={r.base}><bdi>{r.traveller}</bdi></Link><small><bdi>{r.reference}</bdi></small></div>{state(r)}
+         <div><CaseSelect id={r.id} reference={r.reference}/> <Link className="case-name" href={r.base}><bdi>{r.traveller}</bdi></Link><small><bdi>{r.reference}</bdi></small></div>{state(r)}
          <div className="case-destination"><CountryFlag iso={r.iso}/><div><strong>{r.country}</strong><small>{r.visa}</small></div></div><span className="case-fee"><bdi>{r.fee}</bdi></span>
          <div><small>{ct("Documents")} · {documents(r)}</small><small>{ct("Last updated")} · {r.updated}</small><small>{r.created}</small></div><div className="case-mobile-action">{quick(r)} {r.actionText?action(r):<Link className="case-action" href={r.base}>{ct("Open dossier")} <span aria-hidden="true" className="case-arrow">→</span></Link>}</div>
        </article>)}
@@ -116,5 +115,5 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
      {result.pageCount>1?<Pagination locale={locale} page={result.page} pageCount={result.pageCount} total={result.total} basePath="/portal/applications" query={query}/>:null}
      {result.total>20?<div className="case-page-size"><PageSizeSelector locale={locale} pageSize={per} basePath="/portal/applications" query={query}/></div>:null}
    </>}
- </CaseQuickViewProvider></div>;
+ </CaseSelectionProvider></CaseQuickViewProvider></div>;
 }

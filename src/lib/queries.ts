@@ -52,6 +52,7 @@ export interface ApplicationFilters {
   /** Opt-in agency case workspace ordering. */
   caseSort?: "recent" | "submitted" | "oldest" | "priority";
   caseMissing?: boolean;
+  caseFocus?: "unread"|"cancellation"|"stale"|"decision";
   caseEventFrom?: Date;
   caseEventTo?: Date;
   agencyId?: string;
@@ -144,6 +145,10 @@ export async function buildApplicationConditions(user: AuthUser, filters: Applic
   if(user.agencyId&&filters.caseSort){
     const from=filters.dateFrom?caseDateBoundary(filters.dateFrom):undefined,to=filters.dateTo?caseDateBoundary(filters.dateTo,true):undefined;
     if(from)conditions.push(gte(applications.createdAt,from));if(to)conditions.push(lt(applications.createdAt,to));
+    if(filters.caseFocus==="unread")conditions.push(sql`exists(select 1 from ${sql.raw(qualifiedTable("notifications"))} n where n.application_id=applications.id and n.user_id=${user.id} and n.agency_id=${user.agencyId} and n.type='MESSAGE_POSTED' and n.read_at is null)`);
+    if(filters.caseFocus==="cancellation")conditions.push(sql`exists(select 1 from ${sql.raw(qualifiedTable("application_cancellation_requests"))} c where c.application_id=applications.id and c.status='PENDING')`);
+    if(filters.caseFocus==="stale")conditions.push(eq(statuses.isTerminal,false),sql`${applications.updatedAt} <= now() - interval '7 days'`);
+    if(filters.caseFocus==="decision")conditions.push(inArray(statuses.code,["APPROVED","REJECTED"]));
   }else{
     if (filters.dateFrom) conditions.push(gte(applications.createdAt, new Date(filters.dateFrom)));
     if (filters.dateTo) conditions.push(lte(applications.createdAt, new Date(`${filters.dateTo}T23:59:59`)));

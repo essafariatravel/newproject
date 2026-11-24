@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { DatePicker } from "@/components/date-picker";
 import { useAgencyPopover } from "@/components/agency-popover-controller";
-import { caseLink, detailLink, casePeriod, caseSearch } from "./case-workspace";
+import { caseLink, detailLink, casePeriod, caseSearch, caseFocus } from "./case-workspace";
 type Item={id:string;title:string;detail:string;href:string;aliases?:string[]};
 type Labels={search:string;placeholder:string;filters:string;status:string;all:string;from:string;to:string;apply:string;reset:string;suggestions:string;searching:string;unavailable:string;noSuggestions:string;loading:string};
 function fold(s:string){return s.normalize("NFD").replace(/\p{M}/gu,"").toLowerCase().replace(/[أإآٱ]/g,"ا").trim()}
@@ -21,7 +21,7 @@ export function CaseFilters({locale,labels:t,query,currentPage,recent,statuses,c
   const abort=new AbortController();
   const timer=window.setTimeout(async()=>{
    try{
-    const res=await fetch("/api/agency/dashboard-search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({q}),cache:"no-store",signal:abort.signal});
+    const res=await fetch("/api/agency/cases/search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({q,filters:query}),cache:"no-store",signal:abort.signal});
     if(!res.ok)throw Error("search");
     const data=await res.json() as {items:Item[]};
     if(!abort.signal.aborted){if(cache.current.size>=12)cache.current.clear();cache.current.set(q,data.items);setActive(-1);setRemote({q,items:data.items,error:false})}
@@ -45,10 +45,12 @@ export function CaseFilters({locale,labels:t,query,currentPage,recent,statuses,c
  }
  const busy=open&&searchable&&remote?.q!==q;
  const interpretedPeriod=casePeriod(query.q),interpreted=caseSearch(interpretedPeriod.text);
- const count=Number(Boolean(query.status))+Number(Boolean(query.from||query.to))+Number(Boolean(query.country))+Number(query.missing==="1");
+ const count=Number(Boolean(query.focus))+Number(Boolean(query.status))+Number(Boolean(query.from||query.to))+Number(Boolean(query.country))+Number(query.missing==="1");
  const extra={fr:{country:"Destination",sort:"Trier par",recent:"Dernière activité",submitted:"Soumission récente",oldest:"Plus anciens",priority:"Action prioritaire",missing:"Pièces manquantes",date:"JJ/MM/AAAA",allCases:"Suggestions dans tous vos dossiers"},en:{country:"Destination",sort:"Sort by",recent:"Last activity",submitted:"Recently submitted",oldest:"Oldest first",priority:"Action priority",missing:"Missing documents",date:"DD/MM/YYYY",allCases:"Suggestions across all your cases"},ar:{country:"الوجهة",sort:"الترتيب",recent:"آخر نشاط",submitted:"أحدث تقديم",oldest:"الأقدم",priority:"أولوية الإجراء",missing:"وثائق ناقصة",date:"يوم/شهر/سنة",allCases:"اقتراحات من جميع طلباتكم"}}[locale];
+ const viewLabels={fr:{unread:"Messages non lus",cancellation:"Annulations en attente",stale:"Sans activité depuis 7 jours",decision:"Dossiers avec décision",missing:"Pièces manquantes",views:"Vues rapides",clear:"Retirer"},en:{unread:"Unread messages",cancellation:"Pending cancellations",stale:"Inactive for 7 days",decision:"Cases with a decision",missing:"Missing documents",views:"Quick views",clear:"Remove"},ar:{unread:"رسائل غير مقروءة",cancellation:"إلغاءات معلقة",stale:"دون نشاط منذ 7 أيام",decision:"طلبات بقرار",missing:"وثائق ناقصة",views:"عروض سريعة",clear:"إزالة"}}[locale];
+ const chips=[{key:"status",label:statuses.find(s=>s.value===query.status)?.label},{key:"country",label:countries.find(s=>s.value===query.country)?.label},{key:"from",label:query.from?t.from+" "+query.from:undefined},{key:"to",label:query.to?t.to+" "+query.to:undefined},{key:"missing",label:query.missing==="1"?viewLabels.missing:undefined},{key:"focus",label:caseFocus(query.focus)?viewLabels[caseFocus(query.focus)!]:undefined}].filter(c=>c.label);
  return <form className="case-filters" action="/portal/applications" method="get" onSubmit={submit} aria-busy={pending} role="search">
-  {["queue","documents","per"].map(k=>query[k]?<input key={k} type="hidden" name={k} value={query[k]}/>:null)}
+  {["queue","documents","per","focus"].map(k=>query[k]?<input key={k} type="hidden" name={k} value={query[k]}/>:null)}
   <div className="case-search-line">
    <div ref={root} className="case-search" onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setOpen(false)}}>
     <div className="case-search-input"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
@@ -63,7 +65,7 @@ export function CaseFilters({locale,labels:t,query,currentPage,recent,statuses,c
      <kbd aria-hidden="true">Ctrl K</kbd>
     </div>
     <div className="case-search-popup" hidden={!open}>
-     <p className="case-search-scope">{extra.allCases}</p><div id={uid+"-list"} role="listbox" aria-label={t.suggestions}>
+     <p className="case-search-scope">{({fr:"Suggestions dans la vue actuelle",en:"Suggestions in current view",ar:"اقتراحات في العرض الحالي"}[locale])}</p><div id={uid+"-list"} role="listbox" aria-label={t.suggestions}>
       {items.map((item,i)=><div key={item.id} id={uid+"-"+i} role="option" aria-selected={i===active} onMouseDown={e=>e.preventDefault()} onMouseMove={()=>setActive(i)} onClick={()=>choose(item)}><div><strong><bdi>{item.title}</bdi></strong><small><bdi>{item.detail}</bdi></small></div><span aria-hidden="true">›</span></div>)}
      </div>
      <p role="status" aria-live="polite">{busy?t.searching:remote?.q===q&&remote.error?t.unavailable:!items.length?t.noSuggestions:""}</p>
@@ -80,6 +82,8 @@ export function CaseFilters({locale,labels:t,query,currentPage,recent,statuses,c
    <label className="case-missing"><input type="checkbox" name="missing" value="1" defaultChecked={query.missing==="1"}/>{extra.missing}</label><div className="case-filter-actions"><button type="submit" className="btn-primary" disabled={pending}>{t.apply}</button><Link href={resetHref} className="case-reset">{t.reset}</Link></div>
   </div>
   {(interpreted.statusCode||interpreted.missing||interpretedPeriod.period)&&query.q?<p className="case-interpreted" role="status">{({fr:"Recherche interprétée :",en:"Interpreted search:",ar:"تفسير البحث:"}[locale])} {[(interpreted.q??""),statuses.find(s=>s.value===interpreted.statusCode)?.label,interpreted.missing?extra.missing:null,interpretedPeriod.period?({fr:{today:"Aujourd’hui",week:"Cette semaine",month:"Ce mois-ci"},en:{today:"Today",week:"This week",month:"This month"},ar:{today:"اليوم",week:"هذا الأسبوع",month:"هذا الشهر"}}[locale][interpretedPeriod.period]):null].filter(Boolean).join(" · ")}</p>:null}
+  {chips.length>0?<div className="case-filter-chips">{chips.map(c=><Link key={c.key} href={caseLink({...query,[c.key]:undefined})} aria-label={viewLabels.clear+" "+c.label}>{c.label} <span aria-hidden="true">×</span></Link>)}</div>:null}
+  <details className="case-quick-views"><summary>{viewLabels.views}</summary><div>{(["unread","cancellation","stale","decision"] as const).map(v=><Link key={v} href={caseLink({...query,focus:query.focus===v?undefined:v})} aria-current={query.focus===v?"true":undefined}>{viewLabels[v]}</Link>)}<Link href={caseLink({...query,missing:query.missing==="1"?undefined:"1"})}>{viewLabels.missing}</Link></div></details>
   {!advanced&&(query.q||count)?<Link href={resetHref} className="case-reset">{t.reset}</Link>:null}
   {pending?<p className="case-loading" role="status" aria-live="polite">{t.loading}</p>:null}
  </form>;

@@ -33,7 +33,7 @@ export function caseSearch(value:string|undefined):{q?:string;statusCode?:string
 export function safeCaseReturn(v:unknown){
  if(typeof v!=="string"||!v.startsWith("/portal/applications?")||v.length>2048)return "/portal/applications";
  try{const u=new URL(v,"https://local.invalid");if(u.pathname!=="/portal/applications"||u.hash)return "/portal/applications";
- const p:Record<string,string>={};for(const k of ["q","status","from","to","per","queue","documents","country","sort","page","missing"]){const x=u.searchParams.get(k);if(x)p[k]=x}return caseLink(p)}catch{return "/portal/applications"}
+ const p:Record<string,string>={};for(const k of ["q","status","from","to","per","queue","documents","country","sort","page","missing","focus"]){const x=u.searchParams.get(k);if(x)p[k]=x}return caseLink(p)}catch{return "/portal/applications"}
 }
 export function detailLink(id:string,returnTo:string){
  const base="/portal/applications/"+encodeURIComponent(id),safe=safeCaseReturn(returnTo);
@@ -82,3 +82,12 @@ export function caseResponsibility(status:string,terminal:boolean,requested:bool
  if(status==="EMBASSY_SENT")return "embassy";
  return "unknown";
 }
+
+export const CASE_FOCUSES=["unread","cancellation","stale","decision"] as const;
+export function caseFocus(v:unknown):typeof CASE_FOCUSES[number]|undefined{return CASE_FOCUSES.includes(v as typeof CASE_FOCUSES[number])?v as typeof CASE_FOCUSES[number]:undefined}
+export function caseQueryFilters(sp:Record<string,string|undefined>){
+ const period=casePeriod(sp.q),parsed=caseSearch(period.text);
+ const countryId=sp.country&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sp.country)?sp.country:undefined;
+ return {q:parsed.q,statusCode:sp.status||parsed.statusCode,dateFrom:validCaseDate(sp.from),dateTo:validCaseDate(sp.to),countryId,caseSort:caseSort(sp.sort),caseMissing:sp.missing==="1"||parsed.missing===true,caseEventFrom:period.from,caseEventTo:period.to,caseFocus:caseFocus(sp.focus)};
+}
+export function csvCell(value:string){return '"'+(/^[\s\u0000-\u001f]*[=+@-]/u.test(value)?"'"+value:value).replaceAll('"','""')+'"'}

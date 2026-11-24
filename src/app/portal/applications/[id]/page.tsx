@@ -36,6 +36,7 @@ import { hasPermission } from "@/lib/rbac";
 import { DocumentViewerProvider, DocumentPreviewButton } from "../document-viewer";
 import { LiveCaseDuration } from "../live-case-duration";
 import { readCaseVfsReference } from "@/lib/case-vfs-reference";
+import { CaseMessagesRead } from "../case-messages-read";
 import { CaseNavigation } from "../case-navigation";
 import { db } from "@/lib/db";
 import { notifications } from "@/db/schema";
@@ -373,6 +374,7 @@ export default async function PortalApplicationDetailPage({
         </div></DocumentViewerProvider>
       ) : null}
 
+      {tab==="messages"&&Number(unreadRows[0]?.total??0)>0?<CaseMessagesRead key={id} id={id}/>:null}
       {tab === "messages" ? (
         <CommunicationsPanel applicationId={id} messages={messages} user={user} back={`${back}?tab=messages${returnSuffix}`} locale={uiLocale} caseWorkspace olderPage={typeof sp.messagesBefore==="string"} />
       ) : null}

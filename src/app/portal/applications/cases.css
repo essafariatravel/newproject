@@ -217,3 +217,13 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-cases){font-fa
 .essafaria-cases .case-quick-neighbours button:disabled{opacity:.45}
 .essafaria-cases .case-viewer-expanded{width:98vw;max-width:98vw;max-height:98dvh}.essafaria-cases .case-viewer-expanded .case-viewer-stage,.essafaria-cases .case-viewer-expanded .case-viewer-stage .case-viewer-fit{max-height:78dvh}
 .essafaria-cases .case-viewer-expanded iframe{height:78dvh}
+
+.essafaria-cases .case-filter-chips,.essafaria-cases .case-quick-views>div,.essafaria-cases .case-selection-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.essafaria-cases .case-filter-chips a,.essafaria-cases .case-quick-views a{border:1px solid var(--dash-rule);border-radius:5px;padding:6px 10px;font-size:14px;color:var(--dash-ink)}
+.essafaria-cases .case-quick-views summary{cursor:pointer;font-size:15px;color:#285582;padding-block:4px}
+.essafaria-cases .case-quick-views>div{padding-block:8px}
+.essafaria-cases .case-quick-views a[aria-current]{border-color:#0b1c30;font-weight:600}
+.essafaria-cases .case-col-select{width:3%}
+.essafaria-cases .case-col-traveller{width:17%}.essafaria-cases .case-col-destination{width:15%}.essafaria-cases .case-col-updated{width:17%}
+.essafaria-cases .case-select{accent-color:#0b1c30;width:17px;height:17px;vertical-align:middle;cursor:pointer}
+.essafaria-cases .case-selection-toolbar{padding-block:8px;font-size:15px}
