@@ -267,3 +267,31 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-dashboard){fon
 .workspace-agency #workspace-main .essafaria-dashboard[dir="rtl"] :is(.dash-title h1,.dash-section-heading h2,.dash-metric>strong){letter-spacing:normal}
 .workspace-agency #workspace-main .essafaria-dashboard[dir="rtl"] :is(.dash-command label,.dash-record-link,.dash-record-row small,.dash-updated,.dash-state .badge){line-height:1.55}
 @media(max-width:767px){.workspace-agency #workspace-main .essafaria-dashboard .dash-section-heading h2{font-size:22px}}
+
+/* Smart Workspace — contextual only; no permanent new cards. */
+.essafaria-dashboard .dash-smart-attention{display:flex;align-items:center;gap:12px 24px;flex-wrap:wrap;border-inline-start:3px solid #80500e;background:#faf7f1;padding:12px 16px;color:var(--dash-ink);font-size:15px}
+.essafaria-dashboard .dash-smart-attention>strong{font-weight:600;color:#80500e}
+.essafaria-dashboard .dash-smart-attention>div{display:flex;gap:8px 20px;flex-wrap:wrap;flex:1}
+.essafaria-dashboard .dash-smart-attention a:hover{text-decoration:underline;text-underline-offset:3px}
+.essafaria-dashboard .dash-smart-find{position:relative;min-width:0}
+.essafaria-dashboard .dash-search-key{position:absolute;inset-inline-end:12px;font:inherit;font-size:15px;color:var(--dash-secondary);pointer-events:none}
+.workspace-agency #workspace-main .essafaria-dashboard .dash-smart-find .input{padding-inline-end:65px}
+.essafaria-dashboard .dash-smart-popup:not([hidden]){position:absolute;z-index:24;inset-inline:0;top:100%;margin-top:6px;border:1px solid #a7b1bd;border-radius:8px;background:white;box-shadow:0 8px 20px #0b1c3014;padding:4px}
+.essafaria-dashboard .dash-smart-list{max-height:312px;overflow:auto}
+.essafaria-dashboard .dash-smart-list [role=option]{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;gap:12px;cursor:pointer;border-radius:4px;min-height:48px}
+.essafaria-dashboard .dash-smart-list [data-active=true],.essafaria-dashboard .dash-smart-list [role=option]:hover{background:var(--dash-hover)}
+.essafaria-dashboard .dash-smart-list strong{font-size:16px;font-weight:600;overflow-wrap:anywhere}
+.essafaria-dashboard .dash-smart-list small{display:block;font-size:15px;color:var(--dash-secondary);overflow-wrap:anywhere}
+.essafaria-dashboard .dash-smart-popup p:not(:empty){padding:8px 12px;font-size:15px;color:var(--dash-muted)}
+.essafaria-dashboard .dash-smart-all{width:100%;text-align:start;padding:10px 12px;min-height:44px;border-top:1px solid var(--dash-rule);font-size:15px;font-weight:600}
+.essafaria-dashboard .dash-smart-all:hover{background:var(--dash-hover)}
+.essafaria-dashboard .dash-smart-popup :focus-visible,.essafaria-dashboard .dash-capacity :focus-visible{outline:2px solid #285582;outline-offset:2px}
+.essafaria-dashboard .dash-context-action{font-size:15px;color:var(--dash-secondary);line-height:1.4}
+.essafaria-dashboard .dash-wallet-warning{font-size:15px;color:#80500e;margin:0}
+.essafaria-dashboard .dash-capacity{position:relative;font-size:15px;color:var(--dash-muted)}
+.essafaria-dashboard .dash-capacity summary{cursor:pointer;min-height:32px;display:list-item;list-style:disclosure-closed inside}
+.essafaria-dashboard .dash-capacity[open] summary{list-style-type:disclosure-open}
+.essafaria-dashboard .dash-capacity-panel{position:absolute;top:100%;inset-inline:0;z-index:22;background:#fff;border:1px solid var(--dash-rule);border-radius:6px;box-shadow:0 6px 16px #0b1c3014;padding:12px}
+.essafaria-dashboard .dash-capacity-panel p{font-size:15px;margin-bottom:8px}
+.essafaria-dashboard .dash-capacity-panel>div{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid var(--dash-rule)}
+@media(max-width:767px){.essafaria-dashboard .dash-search-key{display:none}.workspace-agency #workspace-main .essafaria-dashboard .dash-smart-find .input{padding-inline-end:12px}.essafaria-dashboard .dash-capacity-panel{position:static;box-shadow:none}.essafaria-dashboard .dash-smart-attention>div{flex-basis:100%}.essafaria-dashboard .dash-capacity summary{min-height:44px}}

@@ -1,5 +1,8 @@
 import Link from "next/link";
-import { and, count, eq, isNotNull, max } from "drizzle-orm";
+import { and, count, eq, inArray, isNotNull, max, sql } from "drizzle-orm";
+import { qualifiedTable } from "@/lib/database-schema";
+import { capacity, caseAction } from "./dashboard-smart";
+import { DashboardSmartSearch, type SmartItem } from "./dashboard-smart-search";
 import { db } from "@/lib/db";
 import { applications } from "@/db/schema";
 import { portalPageUser } from "@/lib/page-auth";
@@ -64,29 +67,53 @@ export default async function PortalDashboardPage() {
   {id:"case-tracking",...editorial[1]!,href:"/portal/applications",image:"/images/travel/st-gallen.webp",smallImage:"/images/travel/st-gallen-small.webp"},
  ];
  const actionRequired=totals.actionRequired??0;
+ const smartCopy={
+ fr:{attention:"À traiter",review:"Compléter les documents",all:"Voir les dossiers concernés",decision:"Consulter la décision",cancelled:"Consulter l’annulation",cancellation:"Annulation en attente",walletCapacity:"Capacité de réservation",walletHint:"Estimation au tarif du programme le moins cher de chaque destination, hors ajustements.",insufficient:"Solde insuffisant pour les programmes payants disponibles.",search:"Rechercher un dossier, un pays, une action…",suggest:"Accès directs",cases:"Dossiers",dest:"Destinations",loading:"Recherche…",empty:"Aucun résultat.",error:"Suggestions indisponibles. La recherche classique reste disponible.",searchAll:"Rechercher dans tous les dossiers",bank:"Coordonnées bancaires",topup:"Recharger le portefeuille",documents:"Documents",travellers:"Voyageurs",messages:"Messages",wallet:"Portefeuille",find:"Retrouver un dossier",preferred:"Vos destinations habituelles",campaignTitle:"Vos visas : ",campaignBody:"Consultez les programmes actuellement disponibles.",campaignCta:"Voir les programmes"},
+ en:{attention:"Needs attention",review:"Complete documents",all:"View affected applications",decision:"View decision",cancelled:"View cancellation",cancellation:"Cancellation pending",walletCapacity:"Booking capacity",walletHint:"Estimate using the lowest priced programme per destination, before adjustments.",insufficient:"Insufficient balance for available paid programmes.",search:"Search applications, countries or actions…",suggest:"Quick access",cases:"Applications",dest:"Destinations",loading:"Searching…",empty:"No results.",error:"Suggestions unavailable. Standard search is still available.",searchAll:"Search all applications",bank:"Bank details",topup:"Top up wallet",documents:"Documents",travellers:"Travellers",messages:"Messages",wallet:"Wallet",find:"Find an application",preferred:"Your usual destinations",campaignTitle:"Your visas: ",campaignBody:"Explore currently available programmes.",campaignCta:"View programmes"},
+ ar:{attention:"إجراءات مطلوبة",review:"استكمال الوثائق",all:"عرض الطلبات المعنية",decision:"عرض القرار",cancelled:"عرض الإلغاء",cancellation:"الإلغاء قيد الانتظار",walletCapacity:"قدرة الحجز",walletHint:"تقدير حسب أقل سعر لكل وجهة قبل أي تعديلات.",insufficient:"الرصيد غير كافٍ للبرامج المدفوعة المتاحة.",search:"ابحث عن طلب أو دولة أو إجراء…",suggest:"وصول سريع",cases:"الطلبات",dest:"الوجهات",loading:"جارٍ البحث…",empty:"لا توجد نتائج.",error:"الاقتراحات غير متاحة. يمكن استخدام البحث العادي.",searchAll:"البحث في جميع الطلبات",bank:"البيانات البنكية",topup:"شحن المحفظة",documents:"الوثائق",travellers:"المسافرون",messages:"الرسائل",wallet:"المحفظة",find:"البحث عن طلب",preferred:"وجهاتكم المعتادة",campaignTitle:"تأشيراتكم: ",campaignBody:"اطلعوا على البرامج المتاحة حالياً.",campaignCta:"عرض البرامج"}
+ }[locale];
+ const recent=data.recentApplications.slice(0,3);
+ const pendingRows=recent.length?await db.select({id:applications.id,pending:sql<boolean>`exists(select 1 from ${sql.raw(qualifiedTable("application_cancellation_requests"))} r where r.application_id=${applications.id} and r.status='PENDING')`}).from(applications).where(and(eq(applications.agencyId,user.agencyId),inArray(applications.id,recent.map(r=>r.app.id)))).catch(()=>[]):[];
+ const pendingIds=new Set(pendingRows.filter(r=>r.pending).map(r=>r.id));
+ const attentionIds=new Set(data.needsAttention.map(r=>r.app.id));
+ const walletCapacity=capacity(wallet.balance,options.map(v=>v.fee));
+ const hasFreeProgramme=options.some(v=>Number(v.fee)===0);
+ const lowWallet=!!walletCapacity&&walletCapacity.count===0&&!hasFreeProgramme;
+ const capacityRows=shortcutIds.flatMap(id=>{const destination=destinations.find(d=>d.id===id);const value=capacity(wallet.balance,options.filter(v=>v.countryId===id).map(v=>v.fee));return destination&&value?[{destination,value}]:[]});
+ const habitual=destinations.find(d=>(usageByCountry.get(d.id)?.total??0)>0&&d.id===shortcutIds[0]);
+ if(habitual&&campaigns[0]) campaigns[0]={...campaigns[0],title:smartCopy.campaignTitle+habitual.name,body:smartCopy.campaignBody,cta:smartCopy.campaignCta,href:"/portal/applications/new?destination="+encodeURIComponent(habitual.id)};
+ const actions:SmartItem[]=[
+  {id:"wallet",title:smartCopy.wallet,detail:smartCopy.suggest,href:"/portal/wallet",kind:"action",aliases:["wallet","portefeuille","محفظة"]},
+  {id:"bank",title:smartCopy.bank,detail:smartCopy.wallet,href:"/portal/wallet",kind:"action",aliases:["RIB","bank","banque","virement","بنك","تحويل"]},
+  ...(canTopup?[{id:"topup",title:smartCopy.topup,detail:smartCopy.wallet,href:"/portal/wallet#topup",kind:"action" as const,aliases:["recharge","credit","top up","شحن"]}]:[]),
+  {id:"docs",title:smartCopy.documents,detail:smartCopy.suggest,href:"/portal/documents",kind:"action",aliases:["documents","visa","download","وثائق","تحميل"]},
+  {id:"travellers",title:smartCopy.travellers,detail:smartCopy.suggest,href:"/portal/applicants",kind:"action",aliases:["applicants","voyageurs","مسافر"]},
+  {id:"messages",title:smartCopy.messages,detail:smartCopy.suggest,href:"/portal/communications",kind:"action",aliases:["messages","communications","رسائل"]}
+ ];
+ const recentSearch:SmartItem[]=recent.map(r=>({id:r.app.id,title:r.applicantSummary,detail:r.app.reference,href:"/portal/applications/"+r.app.id,kind:"case",aliases:[r.app.reference,r.app.countryName,r.app.visaTypeName]}));
  const records=(rows:typeof data.recentApplications,attention=false)=>(
   <div className="dash-records" role="table" aria-label={ct(attention?"Needs your attention":"Recent applications")}>
    <div className="dash-record-head" role="row"><span role="columnheader">{copy.traveller}</span><span role="columnheader">{copy.destination}</span><span role="columnheader">{copy.status}</span><span role="columnheader">{copy.updated}</span></div>
-   {rows.map(row=><div className="dash-record-row" role="row" key={row.app.id}>
-    <span role="cell" className="dash-traveller"><Link className="dash-record-link" href={`/portal/applications/${row.app.id}${attention?"?tab=documents":""}`} aria-label={`${copy.open} ${row.app.reference} — ${row.applicantSummary}`}><bdi>{row.applicantSummary}</bdi></Link><small><bdi>{row.app.reference}</bdi></small></span>
+   {rows.map(row=>{const action=caseAction(row.statusCode,attention||attentionIds.has(row.app.id)||row.agencyNextAction==="Upload requested documents",pendingIds.has(row.app.id));const target=`/portal/applications/${row.app.id}${action==="documents"?"?tab=documents":action==="cancellation"?"#cancellation":""}`;return <div className="dash-record-row" role="row" key={row.app.id}>
+    <span role="cell" className="dash-traveller"><Link className="dash-record-link" href={target} aria-label={`${copy.open} ${row.app.reference} — ${row.applicantSummary}`}><bdi>{row.applicantSummary}</bdi></Link><small><bdi>{row.app.reference}</bdi></small></span>
     <span role="cell" className="dash-destination"><CountryFlag iso={row.countryIso2??""}/><span><strong>{countryName({name:row.app.countryName,iso2:row.countryIso2},locale)}</strong><small>{configName({name:row.app.visaTypeName,nameFr:row.visaNameFr,nameAr:row.visaNameAr},locale)}</small></span></span>
-    <span role="cell" className="dash-state" data-status={row.statusCode}><StatusBadge code={row.statusCode} name={row.statusName}/></span>
+    <span role="cell" className="dash-state" data-status={row.statusCode}><StatusBadge code={row.statusCode} name={row.statusName}/>{action!=="view"?<small className="dash-context-action">{action==="documents"?smartCopy.review:smartCopy[action]}</small>:null}</span>
     <span role="cell" className="dash-updated"><span>{formatDateTime(row.app.updatedAt,locale)}</span><svg aria-hidden="true" viewBox="0 0 20 20" className="dash-chevron" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m7 5 5 5-5 5"/></svg></span>
-   </div>)}
+   </div>})}
   </div>
  );
  return <div className="essafaria-dashboard" dir={locale==="ar"?"rtl":"ltr"}>
   <header className="dash-title"><h1>{heading}</h1></header>
   <DashboardCampaigns items={campaigns} labels={copy}/>
-  {data.needsAttention.length>0?<section className="dash-section dash-attention" aria-labelledby="dash-attention"><div className="dash-section-heading"><h2 id="dash-attention">{ct("Needs your attention")}</h2><Link href="/portal/applications?documents=requested">{ct("View all")} <span aria-hidden="true" className="dash-arrow">→</span></Link></div>{records(data.needsAttention,true)}</section>:null}
+  {actionRequired>0?<aside className="dash-smart-attention" aria-label={smartCopy.attention}><strong>{smartCopy.attention} · {actionRequired}</strong><div>{data.needsAttention.slice(0,2).map(r=><Link key={r.app.id} href={"/portal/applications/"+r.app.id+"?tab=documents"}><bdi>{r.applicantSummary}</bdi> · {smartCopy.review}</Link>)}</div><Link href="/portal/applications?documents=requested">{smartCopy.all} →</Link></aside>:null}
   <section className="dash-command" aria-label={ct("Create application")}>
    <DashboardDestination options={destinations} shortcutIds={shortcutIds} locale={locale} labels={{title:searchLabel,choose:copy.choose,search:copy.destinationSearch,none:copy.none,noMatch:copy.noMatch,all:copy.all,shortcuts,opening}}/>
-   <form action="/portal/applications" method="get" role="search" className="dash-find"><label htmlFor="dash-reference">{ct("Find an application")}</label><div className="dash-field-row"><div className="dash-search-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="dash-reference" name="q" type="search" dir="auto" placeholder={copy.find} className="input" maxLength={160}/></div><button className="btn-secondary" type="submit">{ct("Search")}</button></div></form>
+   <DashboardSmartSearch destinations={destinations} actions={actions} recent={recentSearch} labels={smartCopy} searchButton={ct("Search")}/>
   </section>
   <nav className="dash-metrics" aria-label={ct("Agency dashboard")}>
    <Link href="/portal/applications?queue=active" className="dash-metric"><span>{ct("Active applications")}</span><strong>{totals.active}</strong><small>{copy.active}</small></Link>
    <Link href="/portal/applications?documents=requested" className="dash-metric" data-attention={actionRequired>0?"yes":"no"}><span>{copy.required}</span><strong>{actionRequired}</strong><small>{actionRequired>0?copy.attention:copy.ready} {actionRequired===0?<span aria-hidden="true">✓</span>:null}</small></Link>
-   <div className="dash-metric dash-wallet"><span>{{fr:"Solde disponible",en:"Available balance",ar:"الرصيد المتاح"}[locale]}</span><strong><bdi className="dash-wallet-number">{formattedBalance.replace(/ DZD$/,"")}{formattedBalance.endsWith(" DZD")?<span className="dash-currency">DZD</span>:null}</bdi></strong><div className="dash-wallet-actions"><Link href="/portal/wallet">{copy.wallet}</Link>{canTopup?<Link href="/portal/wallet#topup" className="dash-topup"><span aria-hidden="true">+</span> {topup}</Link>:null}</div></div>
+   <div className="dash-metric dash-wallet"><span>{{fr:"Solde disponible",en:"Available balance",ar:"الرصيد المتاح"}[locale]}</span><strong><bdi className="dash-wallet-number">{formattedBalance.replace(/ DZD$/,"")}{formattedBalance.endsWith(" DZD")?<span className="dash-currency">DZD</span>:null}</bdi></strong><div className="dash-wallet-actions"><Link href="/portal/wallet">{copy.wallet}</Link>{canTopup?<Link href="/portal/wallet#topup" className="dash-topup"><span aria-hidden="true">+</span> {topup}</Link>:null}</div>{lowWallet?<p className="dash-wallet-warning">{smartCopy.insufficient}</p>:null}{capacityRows.length>0?<details className="dash-capacity"><summary>{smartCopy.walletCapacity}</summary><div className="dash-capacity-panel"><p>{smartCopy.walletHint}</p>{capacityRows.map(({destination,value})=><div key={destination.id}><span>{destination.name} · <bdi>{formatAmount(value.minimum,"DZD",locale)}</bdi></span><strong>{value.count}</strong></div>)}</div></details>:null}</div>
   </nav>
   <div className="dash-workspace">
    <section className="dash-section dash-recent" aria-labelledby="dash-recent"><div className="dash-section-heading"><h2 id="dash-recent">{ct("Recent applications")}</h2><div className="dash-recent-actions"><Link href="/portal/applications">{ct("View all")} <span aria-hidden="true" className="dash-arrow">→</span></Link><details className="dash-more"><summary>{moreLabel}<svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m5 8 5 5 5-5"/></svg></summary><div className="dash-more-panel"><Link href="/portal/documents">{ct("Documents")}</Link><Link href="/portal/applicants">{ct("Applicants")}</Link></div></details></div></div>
