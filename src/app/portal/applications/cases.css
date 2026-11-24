@@ -32,7 +32,7 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-cases){font-fa
 .essafaria-cases :is(button,input,select){font-family:inherit}
 .essafaria-cases .case-title h1{font-size:34px;line-height:1.18;font-weight:600;letter-spacing:-.025em;margin:0}
 .essafaria-cases[dir="rtl"] .case-title h1{letter-spacing:normal}
-.essafaria-cases .case-queues{display:flex;gap:24px;border-bottom:1px solid var(--dash-rule);overflow:auto;scrollbar-width:thin}
+.essafaria-cases .case-queues{display:flex;gap:28px;border-bottom:1px solid var(--dash-rule);overflow:auto;scrollbar-width:thin}
 .essafaria-cases .case-queues a{display:inline-flex;gap:8px;align-items:center;white-space:nowrap;min-height:48px;font-weight:500;color:var(--dash-secondary);border-bottom:2px solid transparent}
 .essafaria-cases .case-queues a[aria-current]{color:var(--dash-ink);border-color:var(--dash-ink);font-weight:600}
 .essafaria-cases .case-count{font-size:15px;font-variant-numeric:tabular-nums;color:var(--dash-secondary);font-weight:400}
@@ -58,13 +58,17 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-cases){font-fa
 .essafaria-cases .case-reset{font-size:15px;justify-self:start;align-self:center;color:var(--dash-muted);text-decoration:underline;text-underline-offset:3px}
 .essafaria-cases .case-loading{font-size:15px;color:var(--dash-secondary)}
 .essafaria-cases .case-desktop{min-width:0;overflow-x:auto}
-.essafaria-cases .case-table{width:100%;table-layout:fixed;border-collapse:collapse;min-width:1050px}
+.essafaria-cases .case-table{width:100%;table-layout:fixed;border-collapse:collapse;min-width:1050px;border-bottom:1px solid var(--dash-rule)}
 .essafaria-cases .case-col-traveller{width:18%}.essafaria-cases .case-col-destination{width:16%}.essafaria-cases .case-col-docs{width:9%}.essafaria-cases .case-col-fee{width:11%}.essafaria-cases .case-col-status{width:12%}.essafaria-cases .case-col-action{width:16%}.essafaria-cases .case-col-updated{width:18%}
 .essafaria-cases .case-table :is(th,td){text-align:start;border-bottom:1px solid var(--dash-rule);padding:8px 12px 8px 0;vertical-align:middle;overflow-wrap:anywhere}
 .essafaria-cases[dir="rtl"] .case-table :is(th,td){padding:8px 0 8px 12px}
 .essafaria-cases .case-table th{border-top:1px solid var(--dash-rule);font-size:15px;font-weight:500;line-height:1.4;color:var(--dash-secondary)}
 .essafaria-cases .case-table td{height:66px;font-size:16px;line-height:1.4}
+.essafaria-cases .case-row{transition:background-color 160ms ease}
 .essafaria-cases .case-row:is(:hover,:focus-within){background:var(--dash-hover)}
+.essafaria-cases .case-row:focus-within{outline:2px solid #304b64;outline-offset:-2px}
+.essafaria-cases .case-row:hover .case-chevron{color:#285582}
+.essafaria-cases .case-chevron{transition:color 150ms ease}
 .essafaria-cases .case-name,.essafaria-cases .case-destination strong,.essafaria-cases .case-search-popup strong{font-size:16px;font-weight:600;color:var(--dash-ink);line-height:1.4}
 .essafaria-cases small{display:block;margin-top:3px;color:var(--dash-secondary);font-size:15px;font-weight:400;line-height:1.4;overflow-wrap:anywhere}
 .essafaria-cases .case-destination{display:flex;align-items:center;gap:8px;min-width:0}
@@ -123,3 +127,12 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-cases){font-fa
  .essafaria-cases .case-empty h2{font-size:22px}
 }
 @media(prefers-reduced-motion:reduce){.essafaria-cases *{animation:none!important;transition:none!important}}
+
+/* Revision 03.2 — explicitly neutralize inherited workspace table chrome. */
+.workspace-agency #workspace-main .essafaria-cases .case-table :is(thead,thead tr,thead th){background:#fff!important;background-image:none!important;box-shadow:none}
+.workspace-agency #workspace-main .essafaria-cases .case-table thead th{color:#647182;font-size:15px;font-weight:500;line-height:1.4;border-block:1px solid #e2e5e9}
+.workspace-agency #workspace-main .essafaria-cases .case-table tbody tr:last-child td{border-bottom:1px solid #e2e5e9}
+.workspace-agency #workspace-main .essafaria-cases .case-search-input .input::placeholder{color:#647182;font-weight:400;opacity:1}
+.workspace-agency #workspace-main .essafaria-cases .case-search-line>button{font-weight:600;line-height:1.4}
+.essafaria-cases .case-docs{display:inline-flex;align-items:center;gap:6px}
+.essafaria-cases .case-docs svg{width:14px;height:14px;flex:none}
