@@ -13,7 +13,7 @@ import {
   deleteDocumentAction,
 } from "@/app/actions/documents";
 import { caseDateTime } from "@/app/portal/applications/case-workspace";
-import { CaseMessageTemplates } from "./case-message-templates";
+import { CaseMessageComposer } from "./case-message-templates";
 import { hasPermission } from "@/lib/rbac";
 import { postMessageAction } from "@/app/actions/communications";
 import type { AuthUser } from "@/lib/types";
@@ -304,11 +304,10 @@ export function CommunicationsPanel(props: {
         )}
       </div>
 
-      {(!props.caseWorkspace||hasPermission(props.user,"communications.post.agency"))?<form action={postMessageAction} className="card p-4">
+      {props.caseWorkspace?(hasPermission(props.user,"communications.post.agency")?<CaseMessageComposer key={props.applicationId} locale={props.locale??"en"} applicationId={props.applicationId} back={props.back}/>:null):<form action={postMessageAction} className="card p-4">
         <input type="hidden" name="applicationId" value={props.applicationId} />
         <input type="hidden" name="back" value={props.back} />
         <label htmlFor="msg-body" className="label">{t("New message")}</label>
-        {props.caseWorkspace?<CaseMessageTemplates locale={props.locale??"en"} inputId="msg-body"/>:null}
         <textarea id="msg-body" name="body" rows={3} required className="input" placeholder={t("Write a message…")} />
         <div className="mt-2 flex items-center justify-between gap-4">
           {isStaff ? (
@@ -321,7 +320,7 @@ export function CommunicationsPanel(props: {
           )}
           <SubmitButton className="btn-primary btn-sm" pendingLabel={t("Posting…")}>{t("Post message")}</SubmitButton>
         </div>
-      </form>:null}
+      </form>}
       <nav className="flex flex-wrap gap-4" aria-label={props.locale==="ar"?"سجل الرسائل":props.locale==="fr"?"Historique des messages":"Message history"}>
         {props.messages.length===50&&<Link className="btn btn-secondary" href={`${props.back}&messagesBefore=${encodeURIComponent(`${props.messages[0]!.message.createdAt.toISOString()}|${props.messages[0]!.message.id}`)}`}>{props.locale==="ar"?"الرسائل السابقة":props.locale==="fr"?"Messages précédents":"Older messages"}</Link>}
         {(!props.caseWorkspace||props.olderPage)?<Link className="btn btn-secondary" href={props.back}>{props.locale==="ar"?"أحدث الرسائل":props.locale==="fr"?"Derniers messages":"Latest messages"}</Link>:null}

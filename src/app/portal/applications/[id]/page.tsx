@@ -164,7 +164,7 @@ export default async function PortalApplicationDetailPage({
       {tab === "overview" ? (
         <div className="dossier-overview">
           <div className="dossier-main">
-            {decisionDocs.length>0?<section id="official-decision" className="dossier-delivery"><h2>{copy.official}</h2>{decisionDocs.map(doc=><div key={doc.id} className="dossier-delivery-row"><div><strong>{localizedDocTypeName(doc.typeCode,doc.typeName,uiLocale)}</strong><p>{caseDateTime(doc.createdAt,uiLocale)}</p></div><a href={`/api/documents/${doc.id}`} className="btn-primary btn-sm">{copy.download} ↓</a></div>)}</section>:null}
+            {decisionDocs.length>0?<DocumentViewerProvider locale={uiLocale} files={decisionDocs.map(doc=>({id:doc.id,name:doc.originalFilename,mime:doc.mimeType}))}><section id="official-decision" className="dossier-delivery"><h2>{copy.official}</h2>{decisionDocs.map(doc=><div key={doc.id} className="dossier-delivery-row"><div><strong>{localizedDocTypeName(doc.typeCode,doc.typeName,uiLocale)}</strong><p>{caseDateTime(doc.createdAt,uiLocale)}</p></div><DocumentPreviewButton id={doc.id} variant="primary" locale={uiLocale}/></div>)}</section></DocumentViewerProvider>:null}
             <section className="dossier-tracking"><h2>{copy.tracking}</h2>{!terminal&&!isDraft&&openRequests.length===0?<p className="dossier-no-action">{copy.noAction}</p>:null}<div className="dossier-metrics"><div><span>{elapsed?.terminal?copy.duration:copy.elapsed}</span><strong>{elapsed?<LiveCaseDuration submitted={app.submittedAt?.toISOString()??""} initialMinutes={elapsed.minutes} terminal={elapsed.terminal} locale={uiLocale}/>:"—"}</strong></div><div><span>{copy.estimate}</span><strong>{formatProcessingDays(app.processingMinDays,app.processingMaxDays,uiLocale)}</strong></div><div><span>{ct("Last updated")}</span><strong>{caseDateTime(app.updatedAt,uiLocale)}</strong></div></div></section>
                 {app.submittedAt ? <section className="agency-v2-journey" aria-label={ct("Progress")}>
                   <h3>{ct("Progress")}</h3>
@@ -292,7 +292,7 @@ export default async function PortalApplicationDetailPage({
                               <DocumentPreviewButton id={doc.id}>{doc.originalFilename}</DocumentPreviewButton>
                               <span className="text-slate-400">v{doc.version} · {bytes(doc.sizeBytes)} · {caseDateTime(doc.createdAt, uiLocale)}</span>
                             </span>
-                            <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-sm">{copy.download}</a>
+                            <DocumentPreviewButton id={doc.id} variant="button" locale={uiLocale}/>
                           </li>
                         ))}
                       </ul>
@@ -327,7 +327,7 @@ export default async function PortalApplicationDetailPage({
                       <DocumentPreviewButton id={doc.id}>{doc.originalFilename}</DocumentPreviewButton>
                       <span className="text-slate-400">v{doc.version} · {bytes(doc.sizeBytes)} · {caseDateTime(doc.createdAt, uiLocale)}</span>
                     </span>
-                    <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-sm">{copy.download}</a>
+                    <DocumentPreviewButton id={doc.id} variant="button" locale={uiLocale}/>
                   </div>
                 ))}
               </div>

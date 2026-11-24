@@ -12,6 +12,6 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
  const {id}=await params;const detail=await getApplicationDetail(id,user);
  if(!detail)return NextResponse.json({error:"Not found"},{status:404,headers});
  if(!["APPROVED","REJECTED"].includes(detail.statusCode))return NextResponse.json({files:[]},{headers});
- try{const verified=await getDecisionDocuments(id);return NextResponse.json({files:verified.map(d=>({id:d.id,name:d.originalFilename}))},{headers})}
+ try{const verified=await getDecisionDocuments(id);return NextResponse.json({files:verified.map(d=>({id:d.id,name:d.originalFilename,mime:d.mimeType}))},{headers})}
  catch{return NextResponse.json({error:"Unavailable"},{status:503,headers})}
 }

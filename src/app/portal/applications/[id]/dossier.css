@@ -78,3 +78,17 @@
 .dossier-workspace .dossier-navigation{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .dossier-workspace .dossier-neighbours{display:flex;align-items:center;gap:16px;font-size:15px;color:#285582}
 .dossier-workspace .dossier-neighbours a{min-height:36px;display:inline-flex;align-items:center;gap:6px}
+
+/* Revision 06 — editorial message composer, scoped to the agency dossier. */
+.workspace-agency #workspace-main .dossier-workspace .dossier-message-composer{display:grid;gap:12px;padding:16px 0;border-block-end:1px solid var(--dash-rule)}
+.dossier-workspace .dossier-compose-title{font-size:19px;font-weight:600;color:var(--dash-ink)}
+.dossier-workspace .dossier-message-composer .case-message-templates{align-items:center;margin:0;gap:8px}
+.dossier-workspace .dossier-template-label{font-size:14px;color:var(--dash-secondary);margin-inline-end:4px}
+.workspace-agency #workspace-main .dossier-workspace .dossier-template-button{font-size:14px;min-height:38px;padding-inline:12px;border-radius:6px;white-space:normal}
+.workspace-agency #workspace-main .dossier-workspace .dossier-message-input{min-height:120px;padding:12px 14px;line-height:1.6;font-size:16px;resize:vertical}
+.dossier-workspace .dossier-compose-footer{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.dossier-workspace .dossier-message-privacy{display:flex;align-items:center;gap:8px;flex:1;min-width:220px;color:var(--dash-secondary);font-size:14px;line-height:1.5}
+.dossier-workspace .dossier-message-privacy svg{flex:none}
+.dossier-workspace .dossier-message-count{font-size:13px;color:var(--dash-secondary);font-variant-numeric:tabular-nums}
+.workspace-agency #workspace-main .dossier-workspace .dossier-send{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:44px;padding-inline:20px}
+@media(max-width:767px){.dossier-workspace .dossier-message-privacy{flex-basis:100%}.dossier-workspace .dossier-message-count{margin-inline-end:auto}.dossier-workspace .dossier-template-label{flex-basis:100%}}

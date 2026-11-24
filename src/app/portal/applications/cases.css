@@ -188,3 +188,20 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-cases){font-fa
 .essafaria-cases .case-skeleton-row .case-skeleton{width:70%}
 .essafaria-cases .case-mobile-action{display:flex;align-items:center;gap:8px}
 @media(max-width:767px){.essafaria-cases .case-skeleton-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Revision 06 — preview first. */
+.essafaria-cases .case-document-preview-action,.essafaria-cases .case-viewer-download{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px}
+.essafaria-cases .case-viewer-dialog{position:fixed;inset:0;width:min(1120px,96vw);max-height:94dvh;margin:auto;overscroll-behavior:contain}
+.essafaria-cases .case-viewer-toolbar{gap:10px;border-block-end:1px solid var(--dash-rule);padding-block-end:12px}
+.essafaria-cases .case-viewer-zoom{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.essafaria-cases .case-viewer-zoom label{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--dash-secondary)}
+.essafaria-cases .case-viewer-zoom input{accent-color:#0b1c30;max-width:100px}
+.essafaria-cases .case-viewer-download{margin-inline-start:auto}
+.essafaria-cases .case-viewer-stage{display:block;text-align:center;max-height:65dvh;overscroll-behavior:contain}
+.essafaria-cases .case-viewer-stage .case-viewer-fit{display:block;margin:auto;width:auto;max-width:100%;height:auto;max-height:65dvh;object-fit:contain}
+.essafaria-cases .case-viewer-stage .case-viewer-scaled{display:block;margin:0 auto;max-width:none;height:auto}
+.essafaria-cases .case-viewer-stage>p{padding:24px}
+.essafaria-cases .case-decision-file{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding-block:10px;border-block-end:1px solid var(--dash-rule)}
+.essafaria-cases .case-decision-file>span{min-width:0;flex:1;overflow-wrap:anywhere;font-size:14px}
+.essafaria-cases .case-decision-note{font-size:14px;line-height:1.5}
+@media(max-width:767px){.essafaria-cases .case-viewer-dialog{width:96vw;padding:12px}.essafaria-cases .case-viewer-download{margin-inline-start:0}.essafaria-cases .case-viewer-zoom{width:100%}}
