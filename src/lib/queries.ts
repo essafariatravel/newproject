@@ -1,5 +1,6 @@
 import type { ReportFilters } from "@/lib/report-filters";
 import { agencyAttentionCondition } from "@/lib/attention";
+import { usableCurrentCaseDocument } from "./case-document-read-model";
 import { qualifiedTable } from "./database-schema";
 
 /**
@@ -50,6 +51,8 @@ export interface ApplicationFilters {
   /** Opt-in agency case workspace ordering. */
   caseSort?: "recent" | "submitted" | "oldest" | "priority";
   caseMissing?: boolean;
+  caseEventFrom?: Date;
+  caseEventTo?: Date;
   agencyId?: string;
   countryId?: string;
   visaTypeId?: string;
@@ -135,10 +138,15 @@ export async function buildApplicationConditions(user: AuthUser, filters: Applic
     const p = await db.select().from(priorities).where(eq(priorities.code, filters.priorityCode)).limit(1);
     if (p[0]) conditions.push(eq(applications.priorityId, p[0].id));
   }
-  if (filters.queue === "completed") conditions.push(user.agencyId ? inArray(statuses.code,["APPROVED","COMPLETED"]) : eq(statuses.isTerminal,true));
+  if (filters.queue === "completed") conditions.push(user.agencyId && !filters.caseSort ? inArray(statuses.code,["APPROVED","COMPLETED"]) : eq(statuses.isTerminal,true));
   else if (filters.queue) conditions.push(eq(statuses.isTerminal,false));
   if (filters.dateFrom) conditions.push(gte(applications.createdAt, new Date(filters.dateFrom)));
   if (filters.dateTo) conditions.push(lte(applications.createdAt, new Date(`${filters.dateTo}T23:59:59`)));
+  if(user.agencyId && filters.caseSort && (filters.caseEventFrom||filters.caseEventTo)){
+    const event=filters.statusCode==="APPROVED"||filters.statusCode==="REJECTED"?applications.decisionAt:filters.statusCode==="SUBMITTED"?applications.submittedAt:applications.createdAt;
+    if(filters.caseEventFrom)conditions.push(gte(event,filters.caseEventFrom));
+    if(filters.caseEventTo)conditions.push(lt(event,filters.caseEventTo));
+  }
   // §25/§27 — ownership scope.
   if (filters.assignedTo === "me") {
     conditions.push(eq(applications.assignedTo, user.id));
@@ -154,7 +162,9 @@ export async function buildApplicationConditions(user: AuthUser, filters: Applic
     );
   }
   // §27 — a required, still-active checklist item without a usable upload.
-  if (filters.documents === "missing" || (user.agencyId && filters.caseMissing)) {
+  if (user.agencyId && filters.caseMissing) {
+    conditions.push(or(agencyAttentionCondition(),sql`exists(select 1 from ${sql.raw(qualifiedTable("checklist_items"))} ci where ci.application_id=applications.id and ci.required and ci.active and not (${usableCurrentCaseDocument(sql`ci.id`,sql`ci.application_id`,sql`ci.document_type_id`)}))`)!);
+  } else if (filters.documents === "missing") {
     conditions.push(
       sql`exists (select 1 from ${sql.raw(qualifiedTable("checklist_items"))} ci
             where ci.application_id = applications.id and ci.required and ci.active
@@ -213,19 +223,10 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
     .limit(pageSize)
     .offset((page - 1) * pageSize);
 
-  const rows = await db
-    .select(applicationSelection)
-    .from(applications)
-    .innerJoin(statuses, eq(applications.statusId, statuses.id))
-    .innerJoin(priorities, eq(applications.priorityId, priorities.id))
-    .where(inArray(applications.id, pageIds))
-    .orderBy(...order);
-
-  const totalRows = await db
-    .select({ total: count() })
-    .from(applications)
-    .innerJoin(statuses, eq(applications.statusId, statuses.id))
-    .where(where);
+  const [rows,totalRows] = await Promise.all([
+    db.select(applicationSelection).from(applications).innerJoin(statuses,eq(applications.statusId,statuses.id)).innerJoin(priorities,eq(applications.priorityId,priorities.id)).where(inArray(applications.id,pageIds)).orderBy(...order),
+    db.select({total:count()}).from(applications).innerJoin(statuses,eq(applications.statusId,statuses.id)).where(where)
+  ]);
   const total = Number(totalRows[0]?.total ?? 0);
 
   return { rows, total, page, pageCount: Math.max(1, Math.ceil(total / pageSize)) };

@@ -48,3 +48,29 @@
 .dossier-workspace .dossier-document-name{color:var(--dash-ink)}
 @media(max-width:999px){.dossier-workspace .dossier-overview{grid-template-columns:1fr;gap:24px}}
 @media(max-width:767px){.workspace-agency #workspace-main .dossier-workspace .page-header-title{font-size:28px}.dossier-workspace .dossier-metrics{grid-template-columns:1fr;gap:12px}.dossier-workspace .dossier-activity li,.dossier-workspace .dossier-delivery-row{flex-wrap:wrap}}
+
+/* Revision 05 — less vertical chrome, progress before secondary details. */
+.workspace-agency #workspace-main .dossier-workspace{gap:12px}
+.workspace-agency #workspace-main .dossier-workspace .dossier-masthead{margin:0;padding:0;min-height:0}
+.workspace-agency #workspace-main .dossier-workspace .dossier-masthead .page-header{margin:0;padding:0;min-height:0}
+.workspace-agency #workspace-main .dossier-workspace .dossier-reference{margin:0;padding:0;min-height:0}
+.workspace-agency #workspace-main .dossier-workspace .dossier-tabs{margin-block:0}
+.workspace-agency #workspace-main .dossier-workspace .dossier-main{gap:16px}
+.workspace-agency #workspace-main .dossier-workspace .dossier-metrics{margin-block:12px 0;padding-block-end:12px}
+.workspace-agency #workspace-main .dossier-workspace .agency-v2-journey{border-top:0;padding:0 0 12px;border-bottom:1px solid var(--dash-rule)}
+.dossier-workspace .dossier-details summary{cursor:pointer;font-weight:600;color:var(--dash-ink);padding-block:9px}
+.dossier-workspace .dossier-details-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding-block:8px 12px}
+.dossier-workspace .dossier-details-grid dt{font-size:15px;color:var(--dash-secondary)}.dossier-workspace .dossier-details-grid dd{font-weight:500}
+.dossier-workspace .dossier-ledger{display:grid;gap:10px;padding-block:8px}
+.workspace-agency #workspace-main .dossier-workspace .dossier-documents .divide-y>div{padding-block:12px}
+.dossier-workspace .dossier-documents .divide-y ul{margin-block-start:6px}
+.dossier-workspace .dossier-documents .bg-ivory-50{border-bottom:0}
+.dossier-workspace .dossier-documents .badge.bg-rose-50{color:var(--dash-secondary);font-weight:400}
+.dossier-workspace .dossier-activity li:last-child{border-bottom:0}
+.dossier-workspace .dossier-messages nav:empty{display:none}
+.dossier-workspace .dossier-messages [data-message-side="agency"]{border-inline-start:2px solid #285582}
+.dossier-workspace .dossier-messages [data-message-side="staff"]{border-inline-start:2px solid #21684f}
+.dossier-workspace .dossier-messages [data-message-side]{padding-inline:14px;overflow-wrap:anywhere}
+.dossier-workspace .case-message-templates{display:flex;gap:8px;flex-wrap:wrap;margin-block:6px}
+.dossier-workspace .case-message-templates select{font-size:15px;max-width:100%}
+@media(max-width:767px){.dossier-workspace .dossier-details-grid{grid-template-columns:1fr}}

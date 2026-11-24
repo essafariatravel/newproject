@@ -8,7 +8,7 @@ import { portalPageUser } from "@/lib/page-auth";
 import { searchApplications, resolvePageSize, buildApplicationConditions, type ApplicationFilters } from "@/lib/queries";
 import { checklistProgressForApplications, listStatuses } from "@/lib/applications";
 import { flashFrom } from "@/lib/action-helpers";
-import { formatAmount, formatDate, formatDateTime } from "@/lib/format";
+import { formatAmount, formatDate } from "@/lib/format";
 import { Pagination, PageSizeSelector } from "@/components/app-widgets";
 import { localizedStatusName, getUiLocale } from "@/lib/ui-i18n";
 import { Flash } from "@/components/ui";
@@ -20,7 +20,9 @@ import { hasPermission } from "@/lib/rbac";
 import { CountryFlag } from "../dashboard-interactions";
 import { caseAction } from "../dashboard-smart";
 import { CaseFilters } from "./case-filters";
-import { caseLink, queueFilters, caseSort, caseSearch, validCaseDate, detailLink, processingDuration, durationLabel, type CaseQueue } from "./case-workspace";
+import { caseLink, queueFilters, caseSort, caseSearch, validCaseDate, detailLink, processingDuration, durationLabel, casePeriod, caseDateTime, type CaseQueue } from "./case-workspace";
+import { CaseQuickView } from "./case-quick-view";
+import { agencyAttentionCondition } from "@/lib/attention";
 import "./cases.css";
 
 export const dynamic = "force-dynamic";
@@ -33,9 +35,9 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
  const queue:CaseQueue=sp.documents==="requested"?"attention":sp.queue==="active"?"active":sp.queue==="completed"?"completed":"all";
  const page=Math.min(100000,Math.max(1,Math.floor(Number(sp.page)||1)));
  const per=resolvePageSize(sp.per);
- const parsed=caseSearch(sp.q),from=validCaseDate(sp.from),to=validCaseDate(sp.to);
+ const period=casePeriod(sp.q),parsed=caseSearch(period.text),from=validCaseDate(sp.from),to=validCaseDate(sp.to);
  const country=sp.country&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sp.country)?sp.country:undefined;
- const filters:ApplicationFilters={q:parsed.q,statusCode:sp.status||parsed.statusCode,dateFrom:from,dateTo:to,countryId:country,caseSort:caseSort(sp.sort),caseMissing:sp.missing==="1"||parsed.missing===true};
+ const filters:ApplicationFilters={q:parsed.q,statusCode:sp.status||parsed.statusCode,dateFrom:from,dateTo:to,countryId:country,caseSort:caseSort(sp.sort),caseMissing:sp.missing==="1"||parsed.missing===true,caseEventFrom:period.from,caseEventTo:period.to};
  const shared={q:sp.q,status:sp.status,from,to,per:sp.per,country,sort:caseSort(sp.sort),missing:sp.missing==="1"?"1":undefined};
  const query={...shared,...queueFilters(queue)};
  const hasFilters=Boolean(sp.q||sp.status||from||to||country||sp.missing==="1");
@@ -46,15 +48,15 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
  }[locale];
  const queues:CaseQueue[]=["all","active","attention","completed"];
  const toFilters=(key:CaseQueue):ApplicationFilters=>({...filters,...queueFilters(key)});
- const [result,statuses,otherCounts,countryRows]=await Promise.all([
+ const [result,statuses,aggregate,countryRows]=await Promise.all([
  searchApplications(user,{...toFilters(queue),page,pageSize:per}),listStatuses(true),
- Promise.all(queues.map(async key=>{if(key===queue)return null;const conditions=await buildApplicationConditions(user,toFilters(key));const rows=await db.select({total:count()}).from(applications).innerJoin(statusTable,eq(applications.statusId,statusTable.id)).where(and(...conditions));return Number(rows[0]?.total??0)})),
+ buildApplicationConditions(user,filters).then(conditions=>db.select({all:count(),active:sql<number>`count(*) filter(where not ${statusTable.isTerminal})::int`,attention:sql<number>`count(*) filter(where ${agencyAttentionCondition()})::int`,completed:sql<number>`count(*) filter(where ${statusTable.isTerminal})::int`}).from(applications).innerJoin(statusTable,eq(applications.statusId,statusTable.id)).where(and(...conditions))),
  db.selectDistinct({id:applications.countryId,name:applications.countryName}).from(applications).where(eq(applications.agencyId,user.agencyId))
  ]);
- const counts=otherCounts.map(n=>n??result.total);
+ const counts=queues.map(key=>key===queue?result.total:Number(aggregate[0]?.[key]??0));
  const ids=result.rows.map(r=>r.app.id);
  const [checklists,pendingRows]=await Promise.all([
-   checklistProgressForApplications(ids),
+   checklistProgressForApplications(ids,true),
    ids.length?db.select({id:applications.id,pending:sql<boolean>`exists(select 1 from ${sql.raw(qualifiedTable("application_cancellation_requests"))} r where r.application_id=${applications.id} and r.status='PENDING')`}).from(applications).where(and(eq(applications.agencyId,user.agencyId),inArray(applications.id,ids))).catch(()=>[]):Promise.resolve([])
  ]);
  const pendingIds=new Set(pendingRows.filter(r=>r.pending).map(r=>r.id));
@@ -69,21 +71,22 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
    const actionText=action==="documents"?(canUpload?copy.documents:copy.openDocuments):action==="view"?r.isTerminal?copy.decision:null:copy[action];
    const p=checklists.get(r.app.id);
    const elapsed=processingDuration(r.app.submittedAt,r.app.decisionAt,r.app.completedAt,r.isTerminal||["APPROVED","REJECTED","REFUSED","COMPLETED","CANCELLED"].includes(r.statusCode));
-   return {id:r.app.id,base,actionHref,actionText,action,elapsed:elapsed?durationLabel(elapsed.minutes,locale):null,terminal:elapsed?.terminal??false,traveller:r.applicantSummary??"—",reference:r.app.reference,country:countryName({name:r.app.countryName,iso2:r.countryIso2},locale),iso:r.countryIso2??"",visa:configName({name:r.app.visaTypeName,nameFr:r.visaNameFr,nameAr:r.visaNameAr},locale),progress:p?{done:p.requiredComplete,total:p.requiredTotal}:null,fee:formatAmount(r.app.fee,"DZD",locale),status:r.statusCode,statusName:r.statusName,updated:formatDateTime(r.app.updatedAt,locale),created:formatDate(r.app.createdAt,locale)};
+   return {id:r.app.id,base,actionHref,actionText,action,elapsed:elapsed?durationLabel(elapsed.minutes,locale):null,terminal:elapsed?.terminal??false,traveller:r.applicantSummary??"—",reference:r.app.reference,country:countryName({name:r.app.countryName,iso2:r.countryIso2},locale),iso:r.countryIso2??"",visa:configName({name:r.app.visaTypeName,nameFr:r.visaNameFr,nameAr:r.visaNameAr},locale),progress:p?{done:p.requiredComplete,total:p.requiredTotal}:null,fee:formatAmount(r.app.fee,"DZD",locale),status:r.statusCode,statusName:r.statusName,updated:caseDateTime(r.app.updatedAt,locale),created:formatDate(r.app.createdAt,locale)};
  });
  const recent=rows.slice(0,5).map(r=>({id:r.id,title:r.traveller,detail:r.reference+" · "+r.country,href:r.base,aliases:[r.country,r.visa,r.reference]}));
- const labels={search:ct("Search"),placeholder:copy.search,filters:copy.filters,status:ct("Status"),all:ct("All"),from:ct("From"),to:ct("To"),apply:ct("Filter"),reset:ct("Reset"),suggestions:copy.suggestions,searching:copy.searching,unavailable:copy.unavailable,noSuggestions:copy.noSuggestions,loading:copy.loading};
+ const labels={search:ct("Search"),placeholder:locale==="fr"?"Nom, référence, passeport, pays ou visa…":locale==="en"?"Name, reference, passport, country or visa…":"الاسم أو المرجع أو جواز السفر أو البلد أو التأشيرة…",filters:copy.filters,status:ct("Status"),all:ct("All"),from:ct("From"),to:ct("To"),apply:ct("Filter"),reset:ct("Reset"),suggestions:copy.suggestions,searching:copy.searching,unavailable:copy.unavailable,noSuggestions:copy.noSuggestions,loading:copy.loading};
  const resetHref=caseLink({...queueFilters(queue),per:sp.per,sort:caseSort(sp.sort)});
  const documents=(r:typeof rows[number])=>r.progress?<span className="case-docs" data-complete={r.progress.done>=r.progress.total} title={r.progress.done>=r.progress.total?copy.docsComplete:copy.docsPending}><bdi>{r.progress.done}/{r.progress.total}</bdi>{r.progress.total>0&&r.progress.done>=r.progress.total?<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 8 3 3 7-7"/></svg>:null}</span>:<span>—</span>;
- const action=(r:typeof rows[number])=>r.actionText?<Link className="case-action" href={r.actionHref}>{r.actionText}<span aria-hidden="true" className="case-arrow">→</span></Link>:<span className="case-none" aria-label={copy.none}>—</span>;
- const state=(r:typeof rows[number])=><div><span className="case-state" data-status={r.status}><StatusBadge code={r.status} name={r.statusName}/></span>{r.elapsed?<small>{r.terminal?({fr:"Durée :",en:"Duration:",ar:"المدة:"}[locale]):({fr:"Depuis soumission :",en:"Since submission:",ar:"منذ التقديم:"}[locale])} <bdi>{r.elapsed}</bdi></small>:null}</div>;
+ const quick=(r:typeof rows[number],decision=false)=><CaseQuickView id={r.id} href={r.base} traveller={r.traveller} reference={r.reference} destination={r.country+" · "+r.visa} status={localizedStatusName(r.status,r.statusName,locale)} elapsed={r.elapsed} updated={r.updated} fee={r.fee} progress={r.progress?`${r.progress.done}/${r.progress.total}`:"—"} actionHref={r.actionHref} actionText={r.actionText} official={["APPROVED","REJECTED"].includes(r.status)} decisionTrigger={decision} locale={locale}/>;
+ const action=(r:typeof rows[number])=>["APPROVED","REJECTED"].includes(r.status)?quick(r,true):r.actionText?<Link className="case-action" href={r.actionHref}>{r.actionText}<span aria-hidden="true" className="case-arrow">→</span></Link>:<span className="case-none" aria-label={copy.none}>—</span>;
+ const state=(r:typeof rows[number])=><div className="case-status-cell"><span className="case-state" data-status={r.status}><StatusBadge code={r.status} name={r.statusName}/></span>{r.elapsed?<small>{r.terminal?({fr:"Durée :",en:"Duration:",ar:"المدة:"}[locale]):({fr:"Depuis",en:"Since",ar:"منذ"}[locale])} <bdi>{r.elapsed}</bdi></small>:null}</div>;
  return <div className="essafaria-cases" dir={locale==="ar"?"rtl":"ltr"}>
    <header className="case-title"><h1>{ct("Applications")}</h1></header>
    <Flash {...flashFrom(sp)}/>
    <nav className="case-queues" aria-label={ct("Applications")}>
      {queues.map((key,i)=><Link key={key} href={caseLink({...shared,...queueFilters(key)})} aria-current={queue===key?"page":undefined}><span>{copy[key]}</span><span className="case-count">{counts[i]}</span></Link>)}
    </nav>
-   <CaseFilters key={caseLink(query)} locale={locale} labels={labels} query={query} recent={recent} statuses={statuses.map(s=>({value:s.code,label:localizedStatusName(s.code,s.name,locale)}))} countries={Array.from(new Map(countryRows.map(r=>[r.id,{value:r.id,label:r.name}])).values()).sort((a,b)=>a.label.localeCompare(b.label,locale))} resetHref={resetHref}/>
+   <CaseFilters key={caseLink(query)} locale={locale} labels={labels} query={query} currentPage={result.page} recent={recent} statuses={statuses.map(s=>({value:s.code,label:localizedStatusName(s.code,s.name,locale)}))} countries={Array.from(new Map(countryRows.map(r=>[r.id,{value:r.id,label:r.name}])).values()).sort((a,b)=>a.label.localeCompare(b.label,locale))} resetHref={resetHref}/>
    {rows.length===0?<section className="case-empty" role="status">
      <h2>{hasFilters?ct("No applications match these filters."):queue==="attention"?copy.ready:queue==="all"?ct("No applications yet"):copy.emptyQueue}</h2>
      <p>{hasFilters?ct("Adjust or clear the filters to see other applications."):queue==="attention"?copy.readyBody:queue==="all"?ct("Submit your first visa application to see it tracked here."):""}</p>
@@ -97,7 +100,7 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
            <td><Link className="case-name" href={r.base}><bdi>{r.traveller}</bdi></Link><small><bdi>{r.reference}</bdi></small></td>
            <td><div className="case-destination"><CountryFlag iso={r.iso}/><div><strong>{r.country}</strong><small>{r.visa}</small></div></div></td>
            <td>{documents(r)}</td><td className="case-fee"><bdi>{r.fee}</bdi></td><td>{state(r)}</td><td>{action(r)}</td>
-           <td><div className="case-updated"><span>{r.updated}</span><Link href={r.base} aria-label={ct("Open dossier")+" "+r.reference} className="case-chevron"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m7 5 5 5-5 5"/></svg></Link></div></td>
+           <td><div className="case-updated"><span>{r.updated}</span>{quick(r)}</div></td>
          </NavigableTableRow>)}</tbody>
        </table>
      </div>

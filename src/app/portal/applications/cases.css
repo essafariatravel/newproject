@@ -147,3 +147,37 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-cases){font-fa
 .essafaria-cases .case-reset:hover{text-decoration:underline}
 .essafaria-cases .case-search-scope{border-bottom:1px solid var(--dash-rule)}
 @media(max-width:767px){.essafaria-cases .case-advanced.case-advanced-v4:not([hidden]){grid-template-columns:1fr}.essafaria-cases .case-filter-actions{justify-content:flex-start}}
+
+/* Revision 05 — compact operational controls. */
+.essafaria-cases .case-search-line{align-items:center}
+.essafaria-cases .case-sort-line{flex:none;gap:4px;min-height:48px;padding-inline:8px}
+.essafaria-cases .case-sort-line label{font-size:14px;white-space:nowrap}
+.essafaria-cases .case-sort{font-size:15px;max-width:160px}
+.essafaria-cases .case-search-line .case-search{min-width:180px}
+.essafaria-cases .case-col-status{width:14%}.essafaria-cases .case-col-action{width:14%}
+.essafaria-cases .case-status-cell small{font-variant-numeric:tabular-nums;white-space:nowrap;font-size:15px}
+.essafaria-cases .case-interpreted{font-size:15px;color:var(--dash-secondary)}
+.essafaria-cases .case-preview-trigger{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:36px;color:#285582;font-size:15px;font-weight:500}
+.essafaria-cases .case-preview-trigger:hover{text-decoration:underline}
+.essafaria-cases .case-preview-trigger svg{width:20px;height:20px}
+.essafaria-cases .case-quick-dialog,.essafaria-cases .case-viewer-dialog{border:0;background:white;color:var(--dash-ink);font-family:inherit;max-width:100%;max-height:100%;overflow:auto}
+.essafaria-cases .case-quick-dialog{position:fixed;inset-block:0;inset-inline-start:auto;inset-inline-end:0;margin:0;width:min(480px,100vw);height:100dvh;padding:28px;box-shadow:-8px 0 24px #0b1c301a}
+.essafaria-cases :is(.case-quick-dialog,.case-viewer-dialog)::backdrop{background:#0b1c3050}
+.essafaria-cases .case-dialog-header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.essafaria-cases .case-dialog-header h2{font-size:22px;font-weight:600;overflow-wrap:anywhere}
+.essafaria-cases .case-dialog-close{display:grid;place-items:center;min-width:44px;min-height:44px;border-radius:6px;font-size:24px}
+.essafaria-cases .case-dialog-close:hover{background:var(--dash-hover)}
+.essafaria-cases .case-quick-dialog dl{display:grid;gap:12px;margin-block:24px}
+.essafaria-cases .case-quick-dialog dl>div{display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid var(--dash-rule);padding-block:10px}
+.essafaria-cases .case-quick-dialog dt{color:var(--dash-secondary);font-size:15px}.essafaria-cases .case-quick-dialog dd{text-align:end;font-weight:500;overflow-wrap:anywhere}
+.essafaria-cases .case-quick-actions{display:grid;gap:12px}
+.essafaria-cases .case-quick-dialog p{font-size:15px;color:var(--dash-secondary)}
+.essafaria-cases .case-viewer-dialog{width:min(1000px,96vw);margin:auto;padding:20px;border-radius:8px}
+.essafaria-cases .case-viewer-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-block:12px}
+.essafaria-cases .case-viewer-stage{min-height:160px;max-height:65dvh;overflow:auto;background:#f5f7fa;display:grid;place-items:center}
+.essafaria-cases .case-viewer-stage iframe{width:100%;height:65dvh;border:0}
+.essafaria-cases .case-viewer-stage img{max-width:none;height:auto;object-fit:contain}
+.essafaria-cases .case-document-preview{font-weight:600;color:var(--dash-ink);text-align:start;overflow-wrap:anywhere}
+.essafaria-cases .case-document-preview:hover{text-decoration:underline}
+@media(max-width:1100px){.essafaria-cases .case-search-line{flex-wrap:wrap}.essafaria-cases .case-sort-line{margin-inline-start:auto;min-height:32px}}
+@media(max-width:767px){.essafaria-cases .case-sort-line{width:100%;justify-content:flex-end}.essafaria-cases .case-mobile-record>.case-status-cell{justify-self:end}.essafaria-cases .case-status-cell small{white-space:normal}}

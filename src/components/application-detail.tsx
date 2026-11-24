@@ -12,6 +12,8 @@ import {
   uploadResubmissionAction,
   deleteDocumentAction,
 } from "@/app/actions/documents";
+import { CaseMessageTemplates } from "./case-message-templates";
+import { hasPermission } from "@/lib/rbac";
 import { postMessageAction } from "@/app/actions/communications";
 import type { AuthUser } from "@/lib/types";
 import { DOCUMENT_REVIEW_ROLES } from "@/lib/types";
@@ -270,17 +272,19 @@ export function CommunicationsPanel(props: {
   user: AuthUser;
   back: string;
   locale?: UiLocale;
+  caseWorkspace?: boolean;
+  olderPage?: boolean;
 }) {
   const isStaff = !props.user.agencyId;
   const t = contentT(props.locale ?? "en");
   return (
-    <div className="space-y-4">
+    <div className={props.caseWorkspace?"space-y-4 dossier-messages":"space-y-4"}>
       <div className="card divide-y divide-slate-100">
         {props.messages.length === 0 ? (
           <p className="px-4 py-8 text-center text-base text-slate-500">{t("No messages on this application yet.")}</p>
         ) : (
           props.messages.map(({ message, authorName, authorRole }) => (
-            <div key={message.id} className="px-4 py-4">
+            <div key={message.id} className="px-4 py-4" data-message-side={props.caseWorkspace?(authorRole==="ESSAFARIA_TEAM"?"staff":"agency"):undefined}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-navy-900">
                   {isStaff ? authorName : ["ESSAFARIA_TEAM", "SUPER_ADMIN", "ADMIN", "VISA_AGENT", "ACCOUNTING"].includes(authorRole) ? t("ESSAFARIA Team") : authorName}
@@ -299,10 +303,11 @@ export function CommunicationsPanel(props: {
         )}
       </div>
 
-      <form action={postMessageAction} className="card p-4">
+      {(!props.caseWorkspace||hasPermission(props.user,"communications.post.agency"))?<form action={postMessageAction} className="card p-4">
         <input type="hidden" name="applicationId" value={props.applicationId} />
         <input type="hidden" name="back" value={props.back} />
         <label htmlFor="msg-body" className="label">{t("New message")}</label>
+        {props.caseWorkspace?<CaseMessageTemplates locale={props.locale??"en"} inputId="msg-body"/>:null}
         <textarea id="msg-body" name="body" rows={3} required className="input" placeholder={t("Write a message…")} />
         <div className="mt-2 flex items-center justify-between gap-4">
           {isStaff ? (
@@ -315,10 +320,10 @@ export function CommunicationsPanel(props: {
           )}
           <SubmitButton className="btn-primary btn-sm" pendingLabel={t("Posting…")}>{t("Post message")}</SubmitButton>
         </div>
-      </form>
+      </form>:null}
       <nav className="flex flex-wrap gap-4" aria-label={props.locale==="ar"?"سجل الرسائل":props.locale==="fr"?"Historique des messages":"Message history"}>
         {props.messages.length===50&&<Link className="btn btn-secondary" href={`${props.back}&messagesBefore=${encodeURIComponent(`${props.messages[0]!.message.createdAt.toISOString()}|${props.messages[0]!.message.id}`)}`}>{props.locale==="ar"?"الرسائل السابقة":props.locale==="fr"?"Messages précédents":"Older messages"}</Link>}
-        <Link className="btn btn-secondary" href={props.back}>{props.locale==="ar"?"أحدث الرسائل":props.locale==="fr"?"Derniers messages":"Latest messages"}</Link>
+        {(!props.caseWorkspace||props.olderPage)?<Link className="btn btn-secondary" href={props.back}>{props.locale==="ar"?"أحدث الرسائل":props.locale==="fr"?"Derniers messages":"Latest messages"}</Link>:null}
       </nav>
     </div>
   );

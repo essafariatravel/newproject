@@ -51,11 +51,13 @@ export function CancellationActionMenu({id,staff,requestId,requestReason,netPaid
  const onPending=useCallback((p:boolean)=>{submitting.current=p},[]);
  const money=(n:number)=>formatAmount(n/100,"DZD",locale);
  useEffect(()=>{
+   // The agency controller owns native cancellation menus (including 180 ms pointer exit).
+   if(!staff&&menu.current?.closest(".workspace-agency"))return;
    function outside(e:PointerEvent){if(menu.current?.open&&!menu.current.contains(e.target as Node))menu.current.open=false;}
    function escape(e:KeyboardEvent){if(e.key==="Escape"&&menu.current?.open){menu.current.open=false;trigger.current?.focus();}}
    document.addEventListener("pointerdown",outside);document.addEventListener("keydown",escape);
    return()=>{document.removeEventListener("pointerdown",outside);document.removeEventListener("keydown",escape)};
- },[]);
+ },[staff]);
  return <>
  {staff&&requestId?<button ref={node=>{trigger.current=node}} type="button" onClick={show} className="btn-primary btn-sm">{t.review}</button>:
  <details ref={menu} className="cancellation-menu relative">

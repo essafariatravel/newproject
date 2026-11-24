@@ -8,7 +8,6 @@ import { getApplicationDetail, getEmbassyApplicability } from "@/lib/queries";
 import {
   getChecklist,
   getDecisionDocuments,
-  getStatusByCode,
   getStatusHistory,
 } from "@/lib/applications";
 import { groupDocumentsForDisplay, listApplicantsForApplication, listDocumentsForApplication } from "@/lib/documents";
@@ -22,7 +21,7 @@ import { countryName } from "@/lib/country-names";
 import { getApplicationPricing } from "@/lib/price-adjustments";
 import { PriceAdjustmentHistory } from "@/components/application-detail";
 import { ReconciliationWarning } from "@/components/reconciliation-warning";
-import { formatDateTime, formatAmount, formatProcessingDays, bytes } from "@/lib/format";
+import { formatAmount, formatProcessingDays, bytes } from "@/lib/format";
 import { nationalityLabel } from "@/lib/nationalities";
 import { buildProgress } from "@/lib/progress";
 import { Card, CardHeader, Flash, PageHeader } from "@/components/ui";
@@ -31,8 +30,11 @@ import {
   CommunicationsPanel,
 } from "@/components/application-detail";
 import { uploadDocumentAction } from "@/app/actions/documents";
-import { safeCaseReturn, processingDuration, durationLabel } from "../case-workspace";
+import { safeCaseReturn, processingDuration, caseDateTime, usableCaseDocument } from "../case-workspace";
 import { CopyCaseReference } from "../copy-case-reference";
+import { hasPermission } from "@/lib/rbac";
+import { DocumentViewerProvider, DocumentPreviewButton } from "../document-viewer";
+import { LiveCaseDuration } from "../live-case-duration";
 import "../cases.css";
 import "./dossier.css";
 
@@ -60,12 +62,14 @@ export default async function PortalApplicationDetailPage({
   const detail = await getApplicationDetail(id, user);
   if (!detail) notFound();
   const app = detail.app;
-  const cancellations = await listApplicationCancellations(id,user);
+  const isDraft=detail.statusCode==="DRAFT";
+  const terminal=detail.isTerminal||["APPROVED","REJECTED","CANCELLED","COMPLETED","REFUSED"].includes(detail.statusCode);
+  const canUpload=hasPermission(user,"documents.upload.own")&&!terminal;
   const back = `/portal/applications/${id}`;
   const returnTo=safeCaseReturn(sp.returnTo);
   const returnSuffix=returnTo==="/portal/applications"?"":"&returnTo="+encodeURIComponent(returnTo);
 
-  const [applicants, docs, checklist, history, messages, charge, draftStatus, decisionDocs, docRequests] =
+  const [applicants, docs, checklist, history, messages, charge, decisionDocs, docRequests,cancellations,embassyApplicability,pricing,uiLocale] =
     await Promise.all([
       listApplicantsForApplication(id),
       tab==="overview"||tab==="documents"?listDocumentsForApplication(id):Promise.resolve([]),
@@ -73,25 +77,24 @@ export default async function PortalApplicationDetailPage({
       tab==="overview"||tab==="activity"?getStatusHistory(id):Promise.resolve([]),
       tab==="messages"?listCommunications(id, user,sp.messagesBefore):Promise.resolve([]),
       tab==="overview"||sp.submitted==="1"?findTransactionByApplication(id):Promise.resolve(null),
-      getStatusByCode("DRAFT"),
-      tab==="overview"?getDecisionDocuments(id):Promise.resolve([]),
+      tab==="overview"&&["APPROVED","REJECTED"].includes(detail.statusCode)?getDecisionDocuments(id):Promise.resolve([]),
       listDocumentRequests(id),
+      listApplicationCancellations(id,user),
+      tab==="overview"?getEmbassyApplicability(app.visaTypeId,app.visaRuleSnapshot):Promise.resolve(null),
+      app.submittedAt?getApplicationPricing(id):Promise.resolve(null),
+      getUiLocale(sp),
     ]);
-  const isDraft = app.statusId === draftStatus.id;
   // §17 — progress is derived from the persisted history, and the embassy
   // stage only appears when the programme declares it (or the file went there).
-  const embassyApplicability = await getEmbassyApplicability(app.visaTypeId,app.visaRuleSnapshot);
-  const progress = buildProgress({
+  const progress = embassyApplicability===null?[]:buildProgress({
     statusCode: detail.statusCode,
     history: history.map((h) => ({ toStatusCode: h.toStatus.code, createdAt: h.history.createdAt })),
     embassyApplicability,
   });
   const flash = flashFrom(sp);
-  const uiLocale = await getUiLocale(sp);
   const ct = contentT(uiLocale);
   const visaDisplayName = configName({ name: app.visaTypeName, nameFr: detail.visaNameFr, nameAr: detail.visaNameAr }, uiLocale);
 
-  const pricing = app.submittedAt ? await getApplicationPricing(id) : null;
 
   const applicant = applicants[0];
   const applicantName = applicant?.fullName || (applicant ? `${applicant.firstName} ${applicant.lastName}`.trim() : "—");
@@ -104,7 +107,6 @@ export default async function PortalApplicationDetailPage({
   // from the agency's own view of its dossier.
   const documentGroups = groupDocumentsForDisplay(checklist, docs);
 
-  const terminal=["APPROVED","REJECTED","CANCELLED","COMPLETED","REFUSED"].includes(detail.statusCode);
   const elapsed=processingDuration(app.submittedAt,app.decisionAt,app.completedAt,terminal);
   const copy={
    fr:{back:"Tous les dossiers",copy:"Copier la référence",copied:"Référence copiée",failed:"Copie indisponible",tracking:"Suivi du dossier",elapsed:"Temps écoulé",duration:"Durée enregistrée",estimate:"Délai indicatif",noAction:"Aucune action requise de votre agence.",official:"Décision officielle",download:"Télécharger",billing:"Facturation",submitted:"Soumis le",activity:"Activité du dossier",noHistory:"Aucun événement enregistré."},
@@ -121,7 +123,7 @@ export default async function PortalApplicationDetailPage({
           <>
             <span className="case-state" data-status={detail.statusCode}><StatusBadge code={detail.statusCode} name={detail.statusName} /></span>
             <CancellationActions id={id} rows={cancellations} eligible={Boolean(app.submittedAt) && !["APPROVED","REJECTED","CANCELLED","COMPLETED","REFUSED"].includes(detail.statusCode)} staff={false} netPaid={pricing?.effectivePrice??null} locale={uiLocale} reference={app.reference} summary={`${applicantName} · ${visaDisplayName}`}/>
-            {decisionDocs.length>0?<a href="#official-decision" className="btn-primary btn-sm">{copy.official} ↓</a>:null}
+            
           </>
         }
       /><CopyCaseReference reference={app.reference} label={copy.copy} copied={copy.copied} failed={copy.failed}/></div>
@@ -132,7 +134,7 @@ export default async function PortalApplicationDetailPage({
 
       <nav className="case-queues dossier-tabs" aria-label={ct("Applications")}>{TABS.map(t=><Link key={t.id} aria-current={t.id===tab?"page":undefined} href={`${back}?tab=${t.id}${returnSuffix}`}>{ct(t.label)}{t.id==="documents"&&openRequests.length>0?<span className="case-count">{openRequests.length}</span>:null}</Link>)}</nav>
 
-      {(openRequests.length>0||isDraft)&&!terminal?<section className="dossier-attention" aria-labelledby="agency-next-action">
+      {(openRequests.length>0||isDraft)&&!terminal&&tab!=="documents"?<section className="dossier-attention" aria-labelledby="agency-next-action">
         <p id="agency-next-action" className="agency-v2-section-label font-semibold text-slate-600">{ct("Next action")}</p>
         {openRequests.length > 0 ? (
           <>
@@ -142,7 +144,7 @@ export default async function PortalApplicationDetailPage({
                 <li key={r.req.id}>• {localizedDocTypeName(r.docTypeCode, r.docTypeName, uiLocale)}: {r.req.reason}</li>
               ))}
             </ul>
-            <Link href={`${back}?tab=documents${returnSuffix}#request-${openRequests[0]?.req.id}`} className="btn-primary btn-sm mt-4">{ct("Upload requested documents")}</Link>
+            <Link href={`${back}?tab=documents${returnSuffix}#request-${openRequests[0]?.req.id}`} className="btn-primary btn-sm mt-4">{ct(canUpload?"Upload requested documents":"Open documents")}</Link>
           </>
         ) : isDraft ? (
           <>
@@ -157,40 +159,28 @@ export default async function PortalApplicationDetailPage({
       {tab === "overview" ? (
         <div className="dossier-overview">
           <div className="dossier-main">
-            {decisionDocs.length>0?<section id="official-decision" className="dossier-delivery"><h2>{copy.official}</h2>{decisionDocs.map(doc=><div key={doc.id} className="dossier-delivery-row"><div><strong>{localizedDocTypeName(doc.typeCode,doc.typeName,uiLocale)}</strong><p>{formatDateTime(doc.createdAt,uiLocale)}</p></div><a href={`/api/documents/${doc.id}`} className="btn-primary btn-sm">{copy.download} ↓</a></div>)}</section>:null}
-            <section className="dossier-tracking"><h2>{copy.tracking}</h2>{!terminal&&!isDraft&&openRequests.length===0?<p className="dossier-no-action">{copy.noAction}</p>:null}<div className="dossier-metrics"><div><span>{elapsed?.terminal?copy.duration:copy.elapsed}</span><strong>{elapsed?durationLabel(elapsed.minutes,uiLocale):"—"}</strong></div><div><span>{copy.estimate}</span><strong>{formatProcessingDays(app.processingMinDays,app.processingMaxDays,uiLocale)}</strong></div><div><span>{copy.submitted}</span><strong>{formatDateTime(app.submittedAt,uiLocale)}</strong></div></div></section>
-            <Card>
-              <CardHeader title={ct("Application overview")} />
-              <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 text-base">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Applicant")}</p>
-                  <p className="mt-1 font-semibold text-navy-900">{applicantName}</p>
-                  <p className="text-xs text-slate-500">{ct("Nationality")}: {nationalityLabel(applicantNationality, uiLocale)}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Reference")}</p>
-                  <p className="mt-1 font-mono text-navy-900">{app.reference}</p>
-                  <p className="text-xs text-slate-500">{ct("Submitted")}: {formatDateTime(app.submittedAt, uiLocale)}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Destination")}</p>
-                  <p className="mt-1 font-semibold text-navy-900">{countryName({ name: app.countryName, iso2: detail.countryIso2 }, uiLocale)}</p>
-                  <p className="text-xs text-slate-500">{visaDisplayName} · {app.categoryName}</p>
-                </div>
-                {app.submittedAt ? <section className="sm:col-span-2 agency-v2-journey" aria-label={ct("Progress")}>
+            {decisionDocs.length>0?<section id="official-decision" className="dossier-delivery"><h2>{copy.official}</h2>{decisionDocs.map(doc=><div key={doc.id} className="dossier-delivery-row"><div><strong>{localizedDocTypeName(doc.typeCode,doc.typeName,uiLocale)}</strong><p>{caseDateTime(doc.createdAt,uiLocale)}</p></div><a href={`/api/documents/${doc.id}`} className="btn-primary btn-sm">{copy.download} ↓</a></div>)}</section>:null}
+            <section className="dossier-tracking"><h2>{copy.tracking}</h2>{!terminal&&!isDraft&&openRequests.length===0?<p className="dossier-no-action">{copy.noAction}</p>:null}<div className="dossier-metrics"><div><span>{elapsed?.terminal?copy.duration:copy.elapsed}</span><strong>{elapsed?<LiveCaseDuration submitted={app.submittedAt?.toISOString()??""} initialMinutes={elapsed.minutes} terminal={elapsed.terminal} locale={uiLocale}/>:"—"}</strong></div><div><span>{copy.estimate}</span><strong>{formatProcessingDays(app.processingMinDays,app.processingMaxDays,uiLocale)}</strong></div><div><span>{ct("Last updated")}</span><strong>{caseDateTime(app.updatedAt,uiLocale)}</strong></div></div></section>
+                {app.submittedAt ? <section className="agency-v2-journey" aria-label={ct("Progress")}>
                   <h3>{ct("Progress")}</h3>
                   <ol data-testid="application-progress">
                     {progress.filter(step=>detail.statusCode!=="CANCELLED"||step.at!==null).map(step=>(
                       <li key={step.key} data-step={step.key} data-state={step.state} aria-current={step.state==="current"?"step":undefined}>
                         <span className="agency-v2-journey-marker" aria-hidden="true">{step.state==="done"?"✓":step.state==="current"?"●":""}</span>
-                        <div><strong>{ct(step.label)}</strong>{step.at&&step.state!=="pending"?<time dateTime={step.at.toISOString()}>{formatDateTime(step.at,uiLocale)}</time>:<span>{step.state==="pending"?(uiLocale==="fr"?"À venir":uiLocale==="ar"?"لاحقًا":"Upcoming"):(uiLocale==="fr"?"En cours":uiLocale==="ar"?"قيد المعالجة":"In progress")}</span>}</div>
+                        <div><strong>{ct(step.label)}</strong>{step.at&&step.state!=="pending"?<time dateTime={step.at.toISOString()}>{caseDateTime(step.at,uiLocale)}</time>:<span>{step.state==="pending"?(uiLocale==="fr"?"À venir":uiLocale==="ar"?"لاحقًا":"Upcoming"):(uiLocale==="fr"?"En cours":uiLocale==="ar"?"قيد المعالجة":"In progress")}</span>}</div>
                       </li>
                     ))}
-                    {detail.statusCode==="CANCELLED"?<li data-state="done"><span className="agency-v2-journey-marker" aria-hidden="true">✓</span><div><StatusBadge code={detail.statusCode} name={detail.statusName}/><time>{formatDateTime(app.completedAt,uiLocale)}</time></div></li>:null}
+                    {detail.statusCode==="CANCELLED"?<li data-state="done"><span className="agency-v2-journey-marker" aria-hidden="true">✓</span><div><StatusBadge code={detail.statusCode} name={detail.statusName}/><time>{caseDateTime(app.completedAt,uiLocale)}</time></div></li>:null}
                   </ol>
                 </section>:null}
-              </div>
-            </Card>
+            <details className="dossier-details">
+              <summary>{ct("Application overview")}</summary>
+              <dl className="dossier-details-grid">
+                <div><dt>{ct("Nationality")}</dt><dd>{nationalityLabel(applicantNationality,uiLocale)}</dd></div>
+                <div><dt>{ct("Destination")}</dt><dd>{countryName({name:app.countryName,iso2:detail.countryIso2},uiLocale)} · {visaDisplayName} · {app.categoryName}</dd></div>
+                <div><dt>{ct("Submitted")}</dt><dd>{caseDateTime(app.submittedAt,uiLocale)}</dd></div>
+              </dl>
+            </details>
 
             {pricing && pricing.adjustments.length > 0 ? (
               <PriceAdjustmentHistory pricing={pricing} locale={uiLocale} />
@@ -209,10 +199,10 @@ export default async function PortalApplicationDetailPage({
                 {pricing?.effectivePrice != null && pricing.adjustments.length > 0 ? <div className="agency-v2-effective-price"><span>{ct("Net amount paid")}</span><strong><bdi>{formatAmount(pricing.effectivePrice,"DZD",uiLocale)}</bdi></strong></div> : null}
                 {charge ? (
                   <>
-                    <div className="flex justify-between"><span className="text-slate-500">{ct("Balance before")}</span><span className="tabular-nums">{formatAmount(charge.balanceBefore, "DZD", uiLocale)}</span></div>
+                    <details className="dossier-details"><summary>{ct("Transaction")}</summary><div className="dossier-ledger"><div className="flex justify-between"><span className="text-slate-500">{ct("Balance before")}</span><span className="tabular-nums">{formatAmount(charge.balanceBefore, "DZD", uiLocale)}</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">{ct("Balance after")}</span><span className="tabular-nums font-semibold">{formatAmount(charge.balanceAfter, "DZD", uiLocale)}</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">{ct("Transaction")}</span><span className="font-mono text-xs">{(charge as { reference?: string | null }).reference ?? charge.id.slice(0,8)}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">{ct("Charged at")}</span><span className="text-xs">{formatDateTime(charge.createdAt, uiLocale)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">{ct("Charged at")}</span><span className="text-xs">{caseDateTime(charge.createdAt, uiLocale)}</span></div></div></details>
                   </>
                 ) : (
                   <p className="text-xs text-slate-500">{ct("No charge recorded yet.")}</p>
@@ -224,10 +214,12 @@ export default async function PortalApplicationDetailPage({
             <Card>
               <CardHeader title={ct("Documents")} />
               <div className="px-4 py-4 text-base">
-                <p className="text-xs text-slate-500">{docs.length} {ct("document(s) uploaded")}</p>
+                <p className="text-xs text-slate-500">{checklist.filter(c=>c.required&&c.active&&usableCaseDocument(documentGroups.byItem.get(c.id)?.[0]?.doc.status,openRequests.some(r=>r.req.checklistItemId===c.id||(!r.req.checklistItemId&&r.req.documentTypeId===c.documentTypeId)))).length}/{checklist.filter(c=>c.required&&c.active).length} {({fr:"pièces requises reçues",en:"required items received",ar:"الوثائق المطلوبة المستلمة"}[uiLocale])} · {docs.length} {({fr:"fichiers",en:"files",ar:"ملفات"}[uiLocale])}</p>
                 <div className="mt-2 space-y-2">
-                  {checklist.map((c) => {
-                    const hasDoc = docs.some((d) => d.doc.checklistItemId === c.id&&!["REJECTED","RESUBMISSION_REQUIRED"].includes(d.doc.status));
+                  {checklist.filter(c=>c.active).map((c) => {
+                    const latest=documentGroups.byItem.get(c.id)?.[0]?.doc;
+                    const requested=openRequests.some(r=>r.req.checklistItemId===c.id||(!r.req.checklistItemId&&r.req.documentTypeId===c.documentTypeId));
+                    const hasDoc=usableCaseDocument(latest?.status,requested);
                     return (
                       <div key={c.id} className="flex items-center justify-between text-xs">
                         <span className="dossier-document-name">{localizedDocTypeName(c.documentTypeCode, c.documentTypeName, uiLocale)} {c.required ? "*" : ""}</span>
@@ -244,7 +236,7 @@ export default async function PortalApplicationDetailPage({
       ) : null}
 
       {tab === "documents" ? (
-        <div className="dossier-documents space-y-4">
+        <DocumentViewerProvider locale={uiLocale} files={docs.map(({doc})=>({id:doc.id,name:doc.originalFilename,mime:doc.mimeType}))}><div className="dossier-documents space-y-4">
           {openRequests.length > 0 ? (
             <Card className="border-amber-200 bg-amber-50/50">
               <CardHeader title={ct("Action required")} subtitle={ct("ESSAFARIA requested replacement or additional documents")} />
@@ -253,14 +245,14 @@ export default async function PortalApplicationDetailPage({
                   <div key={r.req.id} id={`request-${r.req.id}`} className="scroll-mt-24 rounded-xl border border-amber-200 bg-white p-4">
                     <p id={`request-document-label-${r.req.id}`} className="font-semibold text-navy-900">{localizedDocTypeName(r.docTypeCode, r.docTypeName, uiLocale)} — {r.req.type === "REPLACEMENT" ? ct("Replacement requested") : ct("Additional document requested")}</p>
                     <p className="mt-1 text-base text-slate-600">{ct("Reason")}: {r.req.reason}</p>
-                    <form action={uploadDocumentAction} encType="multipart/form-data" className="mt-4 flex flex-wrap items-center gap-2">
+                    {canUpload?<form action={uploadDocumentAction} encType="multipart/form-data" className="mt-4 flex flex-wrap items-center gap-2">
                       <input type="hidden" name="applicationId" value={id} />
                       {r.req.checklistItemId ? <input type="hidden" name="checklistItemId" value={r.req.checklistItemId} /> : null}
                       <input type="hidden" name="documentTypeId" value={r.req.documentTypeId} />
                       <input type="hidden" name="back" value={`${back}?tab=documents${returnSuffix}`} />
                       <input type="file" name="file" aria-labelledby={`request-document-label-${r.req.id}`} required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="text-xs file:me-2 file:rounded-md file:border-0 file:bg-iris-600 file:px-4 file:py-2 file:text-xs file:text-white" />
                       <button type="submit" className="btn-primary btn-sm">{ct("Upload replacement")}</button>
-                    </form>
+                    </form>:null}
                   </div>
                 ))}
               </div>
@@ -273,7 +265,7 @@ export default async function PortalApplicationDetailPage({
               {checklist.map((item) => {
                 const itemDocs = documentGroups.byItem.get(item.id) ?? [];
                 const latest = itemDocs[0];
-                const hasOpenRequest = openRequests.some((r) => r.req.checklistItemId === item.id || r.req.documentTypeId === item.documentTypeId);
+                const hasOpenRequest = openRequests.some((r) => r.req.checklistItemId === item.id || (!r.req.checklistItemId&&r.req.documentTypeId === item.documentTypeId));
                 return (
                   <div key={item.id} className="px-4 py-4">
                     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -292,15 +284,15 @@ export default async function PortalApplicationDetailPage({
                         {itemDocs.map(({ doc }) => (
                           <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ivory-50 px-4 py-2 text-xs">
                             <span className="flex min-w-0 flex-wrap items-center gap-2">
-                              <a href={`/api/documents/${doc.id}`} target="_blank" rel="noopener noreferrer" className="font-semibold text-navy-800 truncate hover:underline">{doc.originalFilename}</a>
-                              <span className="text-slate-400">v{doc.version} · {bytes(doc.sizeBytes)} · {formatDateTime(doc.createdAt, uiLocale)}</span>
+                              <DocumentPreviewButton id={doc.id}>{doc.originalFilename}</DocumentPreviewButton>
+                              <span className="text-slate-400">v{doc.version} · {bytes(doc.sizeBytes)} · {caseDateTime(doc.createdAt, uiLocale)}</span>
                             </span>
                             <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-sm">{copy.download}</a>
                           </li>
                         ))}
                       </ul>
                     ) : null}
-                    {isDraft ? (
+                    {isDraft && canUpload ? (
                       <form action={uploadDocumentAction} encType="multipart/form-data" className="mt-4 flex flex-wrap items-center gap-2">
                         <input type="hidden" name="applicationId" value={id} />
                         <input type="hidden" name="checklistItemId" value={item.id} />
@@ -327,8 +319,8 @@ export default async function PortalApplicationDetailPage({
                 {documentGroups.unassigned.map(({ doc }) => (
                   <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-4 text-xs">
                     <span className="flex min-w-0 flex-wrap items-center gap-2">
-                      <a href={`/api/documents/${doc.id}`} target="_blank" rel="noopener noreferrer" className="truncate font-semibold text-navy-800 hover:underline">{doc.originalFilename}</a>
-                      <span className="text-slate-400">v{doc.version} · {bytes(doc.sizeBytes)} · {formatDateTime(doc.createdAt, uiLocale)}</span>
+                      <DocumentPreviewButton id={doc.id}>{doc.originalFilename}</DocumentPreviewButton>
+                      <span className="text-slate-400">v{doc.version} · {bytes(doc.sizeBytes)} · {caseDateTime(doc.createdAt, uiLocale)}</span>
                     </span>
                     <a href={`/api/documents/${doc.id}`} className="btn-secondary btn-sm">{copy.download}</a>
                   </div>
@@ -355,8 +347,8 @@ export default async function PortalApplicationDetailPage({
                         <span className="text-slate-500">{localizedDocTypeName(r.docTypeCode, r.docTypeName, uiLocale)}</span>
                       </span>
                       <span className="text-slate-500">
-                        {formatDateTime(r.req.createdAt, uiLocale)}
-                        {r.req.fulfilledAt ? ` · ${ct("Received")} ${formatDateTime(r.req.fulfilledAt, uiLocale)}` : ""}
+                        {caseDateTime(r.req.createdAt, uiLocale)}
+                        {r.req.fulfilledAt ? ` · ${ct("Received")} ${caseDateTime(r.req.fulfilledAt, uiLocale)}` : ""}
                       </span>
                     </div>
                   );
@@ -364,11 +356,11 @@ export default async function PortalApplicationDetailPage({
               </div>
             </Card>
           ) : null}
-        </div>
+        </div></DocumentViewerProvider>
       ) : null}
 
       {tab === "messages" ? (
-        <CommunicationsPanel applicationId={id} messages={messages} user={user} back={`${back}?tab=messages${returnSuffix}`} locale={uiLocale} />
+        <CommunicationsPanel applicationId={id} messages={messages} user={user} back={`${back}?tab=messages${returnSuffix}`} locale={uiLocale} caseWorkspace olderPage={typeof sp.messagesBefore==="string"} />
       ) : null}
 
       {tab === "activity" ? (
@@ -376,7 +368,7 @@ export default async function PortalApplicationDetailPage({
           <Card>
             <CardHeader title={copy.activity} />
             <div className="px-4 py-4">
-              {history.length===0?<p className="dossier-muted">{copy.noHistory}</p>:<ol className="dossier-activity">{history.map(h=><li key={h.history.id}><div><span className="case-state" data-status={h.toStatus.code}><StatusBadge code={h.toStatus.code} name={h.toStatus.name}/></span>{h.history.reason?<p>{h.toStatus.code==="SUBMITTED"&&h.history.reason==="Request submitted"?ct("Request submitted"):h.history.reason}</p>:null}</div><time dateTime={h.history.createdAt.toISOString()}>{formatDateTime(h.history.createdAt,uiLocale)}</time></li>)}</ol>}
+              {history.length===0?<p className="dossier-muted">{copy.noHistory}</p>:<ol className="dossier-activity">{history.map(h=><li key={h.history.id}><div><span className="case-state" data-status={h.toStatus.code}><StatusBadge code={h.toStatus.code} name={h.toStatus.name}/></span>{h.history.reason?<p>{h.toStatus.code==="SUBMITTED"&&h.history.reason==="Request submitted"?ct("Request submitted"):h.history.reason}</p>:null}</div><time dateTime={h.history.createdAt.toISOString()}>{caseDateTime(h.history.createdAt,uiLocale)}</time></li>)}</ol>}
             </div>
           </Card>
         </div>

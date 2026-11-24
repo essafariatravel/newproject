@@ -1,3 +1,4 @@
+import { usableCurrentCaseDocument } from "./case-document-read-model";
 import { configuredStorageProvider } from "@/lib/storage-config";
 import { qualifiedTable } from "./database-schema";
 import { officialDocumentIntegritySql } from "./decision-integrity";
@@ -201,6 +202,7 @@ export async function getChecklist(applicationId: string) {
  */
 export async function checklistProgressForApplications(
   applicationIds: readonly string[],
+  currentVersionOnly = false,
 ): Promise<Map<string, ChecklistProgress>> {
   const ids = [...new Set(applicationIds.filter(Boolean))];
   const progressById = new Map<string, ChecklistProgress>(
@@ -213,7 +215,7 @@ export async function checklistProgressForApplications(
   );
   if (ids.length === 0) return progressById;
 
-  const usableDocument = sql`exists (
+  const usableDocument = currentVersionOnly ? usableCurrentCaseDocument(sql`${checklistItems.id}`,sql`${checklistItems.applicationId}`,sql`${checklistItems.documentTypeId}`) : sql`exists (
     select 1
       from ${sql.raw(qualifiedTable("documents"))} d
      where d.checklist_item_id = ${checklistItems.id}

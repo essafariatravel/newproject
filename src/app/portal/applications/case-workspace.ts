@@ -48,3 +48,24 @@ export function durationLabel(minutes:number,locale:"fr"|"en"|"ar"){
  const d=Math.floor(minutes/1440),h=Math.floor(minutes%1440/60),m=minutes%60,f=new Intl.NumberFormat(locale);
  return locale==="fr"?(d?f.format(d)+" j "+f.format(h)+" h":h?f.format(h)+" h "+f.format(m)+" min":f.format(m)+" min"):locale==="ar"?(d?f.format(d)+" يوم "+f.format(h)+" س":h?f.format(h)+" س "+f.format(m)+" د":f.format(m)+" د"):(d?f.format(d)+"d "+f.format(h)+"h":h?f.format(h)+"h "+f.format(m)+"m":f.format(m)+"m");
 }
+
+/** Dates of business search periods are Algeria-local calendar dates, independent of server TZ. */
+export function casePeriod(value:string|undefined,now=new Date()){
+ const q=(value??"").trim();
+ const suffix=/(?:^|\s)(aujourd['’]hui|today|اليوم|cette semaine|this week|هذا الأسبوع|ce mois-ci|this month|هذا الشهر)$/iu.exec(q);
+ if(!suffix)return {text:q,period:undefined,from:undefined,to:undefined};
+ const term=suffix[1]!.toLowerCase(),local=new Date(now.getTime()+3600000);
+ const day=new Date(Date.UTC(local.getUTCFullYear(),local.getUTCMonth(),local.getUTCDate()));
+ const kind=["today","aujourd'hui","aujourd’hui","اليوم"].includes(term)?"today":["cette semaine","this week","هذا الأسبوع"].includes(term)?"week":"month";
+ const start=new Date(day),end=new Date(day);
+ if(kind==="week"){start.setUTCDate(day.getUTCDate()-(day.getUTCDay()+6)%7);end.setTime(start.getTime()+7*86400000)}
+ else if(kind==="month"){start.setUTCDate(1);end.setUTCMonth(start.getUTCMonth()+1,1)}
+ else end.setUTCDate(day.getUTCDate()+1);
+ const text=q.slice(0,suffix.index).trim().replace(/^(?:visas?|dossiers?|cases?|applications?|الطلبات|التأشيرات)\s+/iu,"");
+ return {text,period:kind,from:new Date(start.getTime()-3600000),to:new Date(end.getTime()-3600000)};
+}
+export function caseDateTime(value:Date|string|null|undefined,locale:"fr"|"en"|"ar"){
+ if(!value)return "—";const date=new Date(value);if(!Number.isFinite(date.getTime()))return "—";
+ return date.toLocaleString(locale==="fr"?"fr-FR":locale==="ar"?"ar-DZ":"en-GB",{timeZone:"Africa/Algiers",day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
+}
+export function usableCaseDocument(status:string|undefined,requested:boolean){return !requested&&Boolean(status&&["UPLOADED","UNDER_REVIEW","ACCEPTED"].includes(status))}
