@@ -252,3 +252,61 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-cases){font-fa
 .essafaria-cases .case-quick-views a{min-height:36px;display:inline-flex;align-items:center;border-radius:6px;font-size:15px;padding:6px 12px}
 .essafaria-cases .case-quick-views a:hover,.essafaria-cases .case-quick-views a[aria-current]{background:var(--dash-hover)}
 @media(max-width:767px){.essafaria-cases .case-select-compact .case-select-trigger{width: min(218px,65vw)}.essafaria-cases .case-select-panel [role=option]{min-height:48px}}
+
+/* Fluid Workspace — shared motion and the operational case index. */
+.fluid-cases{--fluid-ease:cubic-bezier(.2,.72,.24,1);--fluid-fast:140ms;--fluid-normal:220ms;--fluid-slow:320ms}
+.workspace-agency.workspace-agency:has(.fluid-case-list) #workspace-main{max-width:1600px;width:100%;padding-inline:clamp(20px,3.2vw,64px)}
+.workspace-agency #workspace-main .fluid-case-list{max-width:none;gap:16px}
+.fluid-cases .fluid-title{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.fluid-cases .fluid-attention-link{display:inline-flex;align-items:center;gap:10px;min-height:44px;color:#80500e;font-size:15px;font-weight:500;text-decoration:none}
+.fluid-cases .fluid-attention-dot{width:7px;height:7px;background:#80500e;border-radius:50%;flex:none}
+.fluid-cases .fluid-attention-link:hover{text-decoration:underline;text-underline-offset:4px}
+.essafaria-cases.fluid-cases .fluid-search-line{gap:12px;align-items:center}
+.fluid-cases .fluid-search-shell{display:flex;align-items:center;flex:1;min-width:260px;border:1px solid #b7c0ca;border-radius:12px;padding:4px;gap:4px;background:white;transition:border-color var(--fluid-fast),box-shadow var(--fluid-normal)}
+.fluid-cases .fluid-search-shell:focus-within{border-color:#647182;box-shadow:0 3px 14px #0b1c300d}
+.workspace-agency #workspace-main .fluid-cases .fluid-search-shell .case-search-input .input{border:0!important;box-shadow:none!important;background:transparent;min-height:48px}
+.fluid-cases .fluid-search-shell .case-search-input{border:0}
+.fluid-cases .fluid-search-submit{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:8px;min-height:46px;white-space:nowrap;padding-inline:18px}
+.fluid-cases .fluid-search-submit svg{flex:none}
+.fluid-cases .case-filter-toggle{min-height:52px;border-radius:8px}
+.fluid-cases .case-search-popup:not([hidden]){border-radius:12px;padding:8px;box-shadow:0 12px 36px #0b1c3017;margin-top:9px}
+.fluid-cases .case-search-popup [role=option]{border-radius:7px;min-height:58px}
+.fluid-cases .fluid-filter-dialog{position:fixed;inset:0;margin:auto;width:min(680px,calc(100vw - 28px));max-height:calc(100dvh - 40px);padding:0;border:1px solid var(--dash-rule);border-radius:14px;background:#fff;color:var(--dash-ink);font-family:inherit;overflow:visible}
+.fluid-cases .fluid-filter-dialog::backdrop{background:#0b1c3040}
+.fluid-cases .fluid-filter-inner{padding:24px;max-height:calc(100dvh - 44px);overflow:auto;overscroll-behavior:contain}
+.fluid-cases .fluid-filter-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block-end:14px;border-bottom:1px solid var(--dash-rule)}
+.fluid-cases .fluid-filter-header h2{font-size:22px;font-weight:600}
+.fluid-cases .fluid-close{font-size:26px;min-width:44px;min-height:44px;border-radius:50%}
+.fluid-cases .fluid-close:hover{background:var(--dash-hover)}
+.fluid-cases .fluid-filter-shortcuts{padding-block:18px;border-bottom:1px solid var(--dash-rule)}
+.fluid-cases .fluid-filter-shortcuts h3{font-size:16px;font-weight:600;margin-block-end:12px}
+.fluid-cases .fluid-filter-shortcuts>div{display:flex;flex-wrap:wrap;gap:8px}
+.fluid-cases .fluid-filter-shortcuts a{font-size:15px;min-height:42px;display:inline-flex;align-items:center;padding-inline:12px;border:1px solid var(--dash-rule);border-radius:8px}
+.fluid-cases .fluid-filter-shortcuts a:is(:hover,[aria-current]){border-color:#0b1c30;background:#f5f7fa}
+.essafaria-cases.fluid-cases .fluid-filter-fields:not([hidden]){grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;padding-block:18px}
+.fluid-cases .fluid-filter-footer{justify-content:space-between;border-top:1px solid var(--dash-rule);padding-block-start:16px}
+.fluid-cases .fluid-filter-footer .btn-primary{min-height:48px;padding-inline:24px}
+.fluid-cases .case-select-trigger,.fluid-cases .case-select-panel{border-radius:8px}
+.fluid-cases .case-row td{height:70px}
+.fluid-cases .case-queues a{position:relative;border-bottom-color:transparent!important;transition:color var(--fluid-fast)}
+.fluid-cases .case-queues a::after{content:"";position:absolute;inset-inline:0;bottom:0;height:2px;background:var(--dash-ink);transform:scaleX(0);transform-origin:center;transition:transform var(--fluid-normal) var(--fluid-ease)}
+.fluid-cases .case-queues a[aria-current]::after{transform:scaleX(1)}
+.fluid-cases .case-preview-trigger{border-radius:8px;transition:background-color var(--fluid-fast),color var(--fluid-fast)}
+.fluid-cases .case-preview-trigger:hover{background:var(--dash-hover);text-decoration:none}
+.fluid-cases .case-quick-dialog{width:min(560px,100vw);padding:28px 32px}
+.fluid-cases .case-quick-dialog .btn-primary{min-height:48px}
+.fluid-cases .case-quick-dialog .case-quick-links a{font-weight:500;text-underline-offset:4px}
+@media(prefers-reduced-motion:no-preference){
+ @keyframes fluid-reveal{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+ @keyframes fluid-fade{from{opacity:0}to{opacity:1}}
+ @keyframes fluid-drawer{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}
+ @keyframes fluid-drawer-rtl{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:translateX(0)}}
+ .fluid-cases :is(.case-search-popup:not([hidden]),.case-select-panel,.fluid-filter-dialog[open],.case-viewer-dialog[open]){animation:fluid-reveal var(--fluid-normal) var(--fluid-ease) both}
+ .fluid-cases .case-quick-dialog[open]{animation:fluid-drawer var(--fluid-slow) var(--fluid-ease) both}
+ .fluid-cases[dir=rtl] .case-quick-dialog[open]{animation-name:fluid-drawer-rtl}
+ .fluid-cases dialog[open]::backdrop{animation:fluid-fade var(--fluid-normal) ease both}
+ .fluid-cases :is(.case-quick-dialog,.case-viewer-dialog,.fluid-filter-dialog) button:active,.fluid-cases .fluid-search-submit:active{transform:scale(.98)}
+ .fluid-cases .case-quick-views[open]>div{animation:fluid-reveal var(--fluid-normal) var(--fluid-ease) both}
+}
+@media(prefers-reduced-motion:reduce){.fluid-cases *,.fluid-cases *::before,.fluid-cases *::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+@media(max-width:767px){.fluid-cases .fluid-search-shell{flex-basis:100%;min-width:0}.fluid-cases .fluid-search-submit{padding-inline:10px;font-size:15px}.fluid-cases .fluid-search-submit svg{display:none}.fluid-cases .fluid-filter-inner{padding:16px}.essafaria-cases.fluid-cases .fluid-filter-fields:not([hidden]){grid-template-columns:1fr}.fluid-cases .case-quick-dialog{padding:20px}}

@@ -25,12 +25,12 @@ export function SmartDocumentUpload({locale,label,submitLabel}:{locale:Locale;la
  return <div className="r092-upload" aria-busy={pending}>
  <input ref={input} id={id} className="r092-native" tabIndex={-1} type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" aria-label={label} onChange={e=>accept(e.target.files)}/>
  {!file?<div className="r092-drop" data-drag={drag} onDragOver={e=>{e.preventDefault();if(!pending)setDrag(true)}} onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setDrag(false)}} onDrop={e=>{e.preventDefault();setDrag(false);accept(e.dataTransfer.files,true)}}>
- <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 14v6h16v-6"/></svg><strong>{t.drop}</strong><span>{t.or}</span><button type="button" className="btn-primary" onClick={()=>input.current?.click()} disabled={pending}>{t.browse}</button><small><bdi>{t.formats}</bdi></small></div>:<div className="r092-selected">
+ <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 14v6h16v-6"/></svg><strong>{t.drop}</strong><span>{t.or}</span><button type="button" className="btn-primary" onClick={()=>input.current?.click()} disabled={pending}>{t.browse}</button><small><bdi>{t.formats}</bdi></small></div>:<div className="r092-selected fluid-selected-file">
  <div className="r092-file-line"><div><strong>{t.ready}</strong><p><bdi>{file.name} · {(file.size/1024).toFixed(1)} KB</bdi></p></div><button type="button" className="btn-secondary btn-sm" disabled={pending} onClick={()=>input.current?.click()}>{t.change}</button><button type="button" className="btn-secondary btn-sm" disabled={pending} onClick={()=>clear()}>{t.remove}</button></div>
  {previewable?(url?<div className="r092-local-preview"><p>{t.preview}</p>{file.type==="application/pdf"?<iframe title={label} src={url} sandbox=""/>:<img alt={label} src={url}/>}</div>:null):<p>{t.office}</p>}
- <button type="submit" className="btn-primary" disabled={pending}>{pending?t.sending:submitLabel}</button></div>}
+ <div className="fluid-send-bar"><span className="r092-secure">{t.secure}</span><button type="submit" className="btn-primary" disabled={pending}>{pending?t.sending:submitLabel}<span aria-hidden="true" className="directional"> →</span></button></div></div>}
  {error?<p className="r092-upload-error" role="alert">{error}</p>:null}
- <p className="r092-secure">{t.secure}</p></div>
+ {!file?<p className="r092-secure">{t.secure}</p>:null}</div>
 }
 export function DocumentUploadNotice({message}:{message:string}){
  const [show,setShow]=useState(true);

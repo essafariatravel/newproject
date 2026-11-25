@@ -247,3 +247,46 @@
 .dossier-r09 .r092-notice button{min-width:44px;min-height:44px;color:var(--dash-ink);font-size:20px}
 .dossier-r09 .r09-request:not(:first-child){margin-block-start:12px}
 @media(max-width:520px){.dossier-r09 .r092-drop{min-height:180px;padding:16px 8px}.dossier-r09 .r092-file-line>div{flex-basis:100%}}
+
+/* Fluid case detail — keep context, content and next action in one view. */
+@media(min-width:1000px){
+ .workspace-agency.workspace-agency:has(.fluid-case-detail) #workspace-main{max-width:1660px;width:100%;padding-inline:clamp(24px,3.2vw,64px);padding-block-start:16px}
+ .workspace-agency #workspace-main .fluid-case-detail{max-width:none;gap:14px}
+ .workspace-agency #workspace-main .fluid-case-detail .dossier-masthead{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+ .workspace-agency #workspace-main .fluid-case-detail .dossier-masthead .page-header{flex:1;min-width:0}
+ .fluid-case-detail .dossier-overview{grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);gap:40px}
+}
+.fluid-case-detail .dossier-navigation a{min-height:36px;display:inline-flex;align-items:center}
+.fluid-case-detail .dossier-main{gap:16px}
+.fluid-case-detail .dossier-tabs{min-height:46px}
+.fluid-case-detail .fluid-next-action{border-inline-start:2px solid #80500e;background:#faf8f3;padding:10px 16px}
+.fluid-case-detail .fluid-next-action .agency-v2-section-label{font-size:15px;letter-spacing:normal}
+.fluid-case-detail .dossier-metrics{padding-block-end:14px;margin-block-start:12px}
+.fluid-case-detail .r091-workspace .r09-split{grid-template-columns:minmax(0,.76fr) minmax(0,1.24fr)}
+.fluid-case-detail .r091-workspace .r09-library{padding-inline-end:24px}
+.fluid-case-detail .r091-workspace .r09-inspector{padding-inline-start:28px}
+.fluid-case-detail .r091-workspace .r09-document-row{border:0;border-block-end:1px solid var(--dash-rule);transition:background-color var(--fluid-fast);min-height:54px}
+.fluid-case-detail .r091-workspace .r09-document-row[data-selected=true]{background:#f3f5f7;border-radius:7px;box-shadow:none}
+.fluid-case-detail .r09-row-select{min-height:54px;gap:12px}
+.fluid-case-detail .r09-group h3{font-size:15px;font-weight:600;padding-block:12px 6px}
+.fluid-case-detail .r091-toolbar h3{font-size:23px;line-height:1.25;font-weight:600;letter-spacing:-.015em}
+.fluid-case-detail[dir=rtl] .r091-toolbar h3{letter-spacing:normal}
+.fluid-case-detail .fluid-request-state{align-self:start}
+.fluid-case-detail .r09-request{padding-block:10px 0}
+.fluid-case-detail .r09-request>p{font-size:16px;line-height:1.5;color:var(--dash-ink)}
+.fluid-case-detail .r092-drop{background:white;border-color:#a7b1bd;min-height:190px;border-radius:10px}
+.fluid-case-detail .r092-drop[data-drag=true]{background:#f4f7fa;border-color:#0b1c30}
+.fluid-case-detail .fluid-selected-file .r092-file-line{padding-block:8px}
+.fluid-case-detail .fluid-selected-file .r092-file-line strong{font-size:16px;font-weight:600}
+.fluid-case-detail .r092-local-preview{border-radius:8px;background:#f5f6f7;overflow:hidden;padding:8px}
+.fluid-case-detail .r092-local-preview>p{font-size:15px;color:var(--dash-secondary);padding:2px 0 8px}
+.fluid-case-detail .r092-local-preview :is(img,iframe){height:clamp(180px,36dvh,440px)}
+.fluid-case-detail .fluid-send-bar{position:sticky;bottom:0;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:white;border-block-start:1px solid var(--dash-rule);padding-block:10px}
+.fluid-case-detail .fluid-send-bar .btn-primary{display:inline-flex;gap:12px;align-items:center;min-height:48px;padding-inline:20px}
+.fluid-case-detail .r09-inspector-extra:empty{display:none}
+@media(prefers-reduced-motion:no-preference){
+ .fluid-case-detail :is(.fluid-document-panel,.fluid-selected-file,.r092-drop,.r092-notice,.dossier-overview,.dossier-activity){animation:fluid-reveal var(--fluid-normal) var(--fluid-ease) both}
+ .fluid-case-detail .r092-upload button,.fluid-case-detail .r09-row-select{transition:background-color var(--fluid-fast),color var(--fluid-fast)}
+ .fluid-case-detail .r092-upload button:active{transform:scale(.98)}
+}
+@media(max-width:999px){.fluid-case-detail .r091-workspace .r09-split{grid-template-columns:1fr}.fluid-case-detail .r091-workspace .r09-library,.fluid-case-detail .r091-workspace .r09-inspector{padding-inline:0}.fluid-case-detail .r091-toolbar h3{font-size:20px}}

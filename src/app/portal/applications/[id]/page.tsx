@@ -125,7 +125,7 @@ export default async function PortalApplicationDetailPage({
   }[uiLocale];
 
   const dc={fr:{required:"Pièces requises",optional:"Autres pièces",other:"Documents annexes",requests:"Historique des demandes",accepted:"pièces acceptées",received:"pièces requises reçues",actions:"demandes ouvertes",missing:"pièces manquantes",versions:"Versions précédentes",details:"Informations du fichier",inactive:"Exigence inactive",noFile:"Aucun fichier",decision:"Documents de décision",files:"fichiers",treated:"demandes clôturées",closed:"Aucune action requise.",locked:"Les documents soumis sont verrouillés. Seuls les remplacements ou compléments demandés peuvent être envoyés.",unavailable:"Aucune action de téléversement disponible.",draft:"Complétez les pièces requises avant soumission.",request:"Demande ESSAFARIA",current:"Version actuelle"},en:{required:"Required documents",optional:"Other requirements",other:"Additional files",requests:"Request history",accepted:"documents accepted",received:"required documents received",actions:"open requests",missing:"missing documents",versions:"Previous versions",details:"File information",inactive:"Inactive requirement",noFile:"No file",decision:"Decision documents",files:"files",treated:"closed requests",closed:"No action required.",locked:"Submitted documents are locked. Only requested replacements or additional files may be uploaded.",unavailable:"No upload action available.",draft:"Complete required documents before submission.",request:"ESSAFARIA request",current:"Current version"},ar:{required:"الوثائق المطلوبة",optional:"متطلبات أخرى",other:"وثائق إضافية",requests:"سجل طلبات الوثائق",accepted:"وثائق مقبولة",received:"وثائق مطلوبة مستلمة",actions:"طلبات مفتوحة",missing:"وثائق ناقصة",versions:"الإصدارات السابقة",details:"معلومات الملف",inactive:"متطلب غير نشط",noFile:"لا يوجد ملف",decision:"وثائق القرار",files:"ملفات",treated:"طلبات مغلقة",closed:"لا يلزم أي إجراء.",locked:"الوثائق المقدمة مقفلة. يمكن رفع البدائل أو الوثائق الإضافية المطلوبة فقط.",unavailable:"لا يتوفر إجراء رفع.",draft:"أكمل الوثائق المطلوبة قبل تقديم الطلب.",request:"طلب ESSAFARIA",current:"الإصدار الحالي"}}[uiLocale];
-  const docLabel=(code:string,name:string)=>(code==="TRAVEL_INSURANCE"||/^travel insurance$/i.test(name.trim()))?({fr:"Assurance voyage",en:"Travel insurance",ar:"تأمين السفر"}[uiLocale]):code==="INVITATION_LETTER"?({fr:"Lettre d’invitation",en:"Invitation letter",ar:"خطاب الدعوة"}[uiLocale]):localizedDocTypeName(code,name,uiLocale);
+  const docLabel=(code:string,name:string)=>(code==="MARRIAGE_CERTIFICATE"||/^marriage certificate$/i.test(name.trim()))?({fr:"Acte de mariage",en:"Marriage certificate",ar:"عقد الزواج"}[uiLocale]):(code==="TRAVEL_INSURANCE"||/^travel insurance$/i.test(name.trim()))?({fr:"Assurance voyage",en:"Travel insurance",ar:"تأمين السفر"}[uiLocale]):code==="INVITATION_LETTER"?({fr:"Lettre d’invitation",en:"Invitation letter",ar:"خطاب الدعوة"}[uiLocale]):localizedDocTypeName(code,name,uiLocale);
   const requestItem=(r:typeof openRequests[number])=>resolveRequestItem(checklist,r.req);
   const requestFor=(item:typeof checklist[number])=>openRequests.filter(r=>requestItem(r)===item.id);
   const latestFor=(item:typeof checklist[number])=>documentGroups.byItem.get(item.id)?.[0]?.doc;
@@ -146,7 +146,7 @@ export default async function PortalApplicationDetailPage({
     return {key:"item-"+item.id,group,title,filename:latest?.originalFilename??dc.noFile,statusCode:requested?"RESUBMISSION_REQUIRED":latest?.status??"MISSING",status:requested?ct("Action required"):latest?localizedDocStatus(latest.status,uiLocale,latest.status):ct("Missing"),priority:requested||(!terminal&&isDraft&&item.active&&item.required&&!usableCaseDocument(latest?.status,false)),file:latest?fileMeta(latest):undefined,
       required:item.active&&item.required,uploadable:isDraft&&canUpload&&item.active&&!requested,content:<div className="r09-inspector-extra"><span id={`checklist-document-label-${item.id}`} className="sr-only">{title}</span>
       {!item.active?<p>{dc.inactive}</p>:null}
-      {item.notes?<details className="r08-details"><summary>{ct("Reason")}</summary><p>{item.notes}</p></details>:null}
+      {item.notes&&!requested?<details className="r08-details"><summary>{ct("Reason")}</summary><p>{item.notes}</p></details>:null}
       {itemDocs.length>1?<details className="r08-details"><summary>{dc.versions} ({itemDocs.length-1})</summary>{itemDocs.slice(1).map(({doc})=><div className="r09-version" key={doc.id}><span><bdi>v{doc.version} · {caseDateTime(doc.createdAt,uiLocale)}</bdi><br/><bdi>{doc.originalFilename}</bdi></span><DocumentPreviewButton id={doc.id} locale={uiLocale}/></div>)}</details>:null}
       {isDraft && canUpload && item.active && !requested ? (
                       <form action={uploadDocumentAction} encType="multipart/form-data" className="r08-upload">
@@ -185,7 +185,7 @@ export default async function PortalApplicationDetailPage({
   });
   const workspaceEntries:DocumentWorkspaceEntry[]=[...requestEntries.filter(r=>!matchedRequestKeys.has(r.key)),...mergedItems.filter(e=>e.group==="action"),...decisionEntries,...mergedItems.filter(e=>e.group!=="action"),...otherEntries];
   return (
-    <div className={"essafaria-cases dossier-workspace"+(tab==="documents"?" dossier-r09":"")} dir={uiLocale==="ar"?"rtl":"ltr"}>
+    <div className={"essafaria-cases fluid-cases fluid-case-detail dossier-workspace"+(tab==="documents"?" dossier-r09":"")} dir={uiLocale==="ar"?"rtl":"ltr"}>
       <div className="dossier-navigation"><Link href={returnTo} className="dossier-back"><span className="directional" aria-hidden="true">←</span> {copy.back}</Link><CaseNavigation scope={user.id} context={returnTo} id={id} tab={tab} locale={uiLocale}/></div>
       <div className="dossier-masthead"><PageHeader
         title={applicantName}
@@ -205,7 +205,7 @@ export default async function PortalApplicationDetailPage({
 
       <nav className="case-queues dossier-tabs" aria-label={ct("Applications")}>{TABS.map(t=><Link key={t.id} aria-current={t.id===tab?"page":undefined} href={`${back}?tab=${t.id}${returnSuffix}`}>{ct(t.label)}{t.id==="documents"&&openRequests.length>0?<span className="case-count">{openRequests.length}</span>:null}{t.id==="messages"&&Number(unreadRows[0]?.total??0)>0?<span className="case-count" title={uiLocale==="fr"?"Notifications de messages non lues":uiLocale==="ar"?"إشعارات الرسائل غير المقروءة":"Unread message notifications"}>{Number(unreadRows[0]?.total??0)}</span>:null}</Link>)}</nav>
 
-      {(openRequests.length>0||isDraft)&&!terminal&&tab!=="documents"?<section className="dossier-attention" aria-labelledby="agency-next-action">
+      {(openRequests.length>0||isDraft)&&!terminal&&tab!=="documents"?<section className="dossier-attention fluid-next-action" aria-labelledby="agency-next-action">
         <p id="agency-next-action" className="agency-v2-section-label font-semibold text-slate-600">{ct("Next action")}</p>
         {openRequests.length > 0 ? (
           <>
