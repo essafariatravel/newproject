@@ -1,7 +1,7 @@
 @import "./public-design.css";
 
 /* The VISA OS public homepage. Shared chrome is qualified by the current page. */
-.public-site:has(.platform-home) {
+.public-site:has(.platform-home, .public-front-page) {
   --home-navy: var(--public-ink);
   --home-text: #354557;
   --home-muted: var(--public-muted);
@@ -16,7 +16,7 @@
 .platform-home { color: var(--home-navy); background: white; }
 .platform-width,
 .public-site > .home-header > .ess-container,
-.public-site:has(.platform-home) footer .ess-container {
+.public-site:has(.platform-home, .public-front-page) footer .ess-container {
   width: var(--home-width);
   max-width: 80rem;
   margin-inline: auto;
@@ -176,10 +176,10 @@
 .access-process li { display: grid; grid-template-columns: 1.75rem 1fr; gap: .8125rem; align-items: baseline; counter-increment: step; }
 .access-process li::before { content: counter(step); border-radius: 50%; border: 1px solid #b1bfca; color: var(--home-navy); font-weight: 600; font-size: .875rem; line-height: 1.625rem; text-align: center; }
 .access-process > a { margin-block-start: .4rem; }
-.public-site:has(.platform-home) footer { background: var(--home-navy); }
-.public-site:has(.platform-home) footer > .ess-container { padding-block: 2.8125rem 2.125rem; gap: clamp(1.25rem,4vw,4rem); }
-.public-site:has(.platform-home) footer :is(.text-white\/70,.text-white\/65) { color: #dbe3eb; }
-.public-site:has(.platform-home) footer .text-white\/50 { color: #c6d2dc; font-size: .875rem; }
+.public-site:has(.platform-home, .public-front-page) footer { background: var(--home-navy); }
+.public-site:has(.platform-home, .public-front-page) footer > .ess-container { padding-block: 2.8125rem 2.125rem; gap: clamp(1.25rem,4vw,4rem); }
+.public-site:has(.platform-home, .public-front-page) footer :is(.text-white\/70,.text-white\/65) { color: #dbe3eb; }
+.public-site:has(.platform-home, .public-front-page) footer .text-white\/50 { color: #c6d2dc; font-size: .875rem; }
 [lang="ar"] .platform-home :is(h1,h2,h3) { letter-spacing: 0; line-height: 1.42; }
 [lang="ar"] .hero-content p { line-height: 1.8; }
 
@@ -231,7 +231,7 @@
   .access-layout { gap: 1.875rem; padding-block: 2.25rem; }
   .access-layout p, .access-process li, .proof-record dt { font-size: 1rem; }
   .access-links { margin-block-start: 1rem; }
-  .public-site:has(.platform-home) footer > .ess-container { padding-block: 1.6875rem 1.3125rem; gap: 1.5625rem; }
+  .public-site:has(.platform-home, .public-front-page) footer > .ess-container { padding-block: 1.6875rem 1.3125rem; gap: 1.5625rem; }
 }
 @media (max-width:359px) {
   .hero-actions { display: grid; justify-items: start; }

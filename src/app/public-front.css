@@ -1,0 +1,46 @@
+/* Hallmark · ESSAFARIA · public pages · agency registration and visa operations */
+/* Shared chrome follows the approved homepage. Page icons, photos and forms belong to their routes. */
+.public-front-page {
+  color: var(--public-ink);
+  background: var(--premium-white);
+  min-width: 0;
+}
+.public-front-page :is(h1,h2,h3,legend) {
+  min-width: 0;
+  overflow-wrap: break-word;
+  text-wrap: balance;
+}
+.public-front-page :is(a,button,input,summary,select,textarea):focus-visible {
+  outline: 2px solid var(--public-focus);
+  outline-offset: 3px;
+}
+.public-front-page :is(h2,h3,fieldset,[tabindex="-1"])[id] {
+  scroll-margin-block-start: calc(var(--public-header-height) + 1rem);
+}
+.public-footer-extra { display: none; }
+.public-footer-legal { margin-block-start: .5rem; }
+.public-site:has(.public-front-page) .public-footer-extra { display: block; }
+.public-site:has(.public-front-page) .public-footer-legal { margin-block-start: 1rem; }
+.public-site:has(.public-front-page) .public-footer-directory { display: contents; }
+.public-site:has(.public-front-page) > footer { padding-block: 0; }
+.public-site:has(.public-front-page) footer .public-footer-grid { padding-block: clamp(2rem,4vw,3.5rem); }
+.public-site:has(.public-front-page) footer a:hover { text-decoration: underline; text-underline-offset: .22em; }
+.public-site:has(.public-front-page) footer :is(a, summary):focus-visible { outline: 2px solid var(--public-gold); outline-offset: 3px; }
+.public-site:has(.public-front-page) .travel-photo-credits ul { display: grid; gap: .375rem; }
+.public-site:has(.public-front-page) .travel-photo-credits li { line-height: 1.6; }
+@media (min-width: 1024px) {
+  .public-site:has(.public-front-page) .public-footer-grid { grid-template-columns: minmax(0,1.35fr) minmax(0,1fr) minmax(0,.9fr) minmax(0,1.2fr); }
+  .public-site:has(.public-front-page) .public-footer-grid.with-contact { grid-template-columns: repeat(5,minmax(0,1fr)); }
+}
+@media (max-width: 639px) {
+  .public-site:has(.public-front-page) .public-footer-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1.5rem 1rem; }
+  .public-site:has(.public-front-page) .public-footer-grid > :first-child { grid-column: 1 / -1; }
+}
+@media (max-width: 399px) {
+  .public-site:has(.public-front-page) > .home-header {
+    --home-width: calc(100% - 1.5rem);
+    --public-logo-width: 3.15rem;
+    --public-logo-gap: .35rem;
+  }
+  .public-site:has(.public-front-page) .public-footer-grid { grid-template-columns: minmax(0,1fr); }
+}

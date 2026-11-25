@@ -41,5 +41,6 @@ export const config = {
     "/fr/:path*", "/ar/:path*",
     "/login", "/forgot-password", "/agency/register", "/agency/register/success",
     "/privacy", "/terms", "/legal/legal-notice", "/legal/cookies", "/legal/commercial",
+    "/activate/:token", "/reset-access/:token", "/agency/verification/:token",
   ],
 };

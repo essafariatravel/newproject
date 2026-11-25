@@ -78,4 +78,15 @@ describe("stable public locale URLs", () => {
       expect(prefetch.cookies.get("evos_ui_locale")).toBeUndefined();
     }
   });
+
+  it("reflects the selected language on public one-time links without rewriting the URL", () => {
+    for (const path of ["/activate/example", "/reset-access/example", "/agency/verification/example"]) {
+      const response = proxy(new NextRequest(host + path + "?lang=ar", {
+        headers: { "sec-fetch-dest": "document", cookie: "evos_ui_locale=fr" },
+      }));
+      expect(response.headers.get("x-middleware-request-x-essafaria-public-locale")).toBe("ar");
+      expect(response.headers.get("x-middleware-rewrite")).toBeNull();
+      expect(response.cookies.get("evos_ui_locale")?.value).toBe("ar");
+    }
+  });
 });

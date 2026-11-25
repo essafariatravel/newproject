@@ -20,11 +20,11 @@ export default function ActivationForm(props: {
     useProtectedAction<ActivationFormState>(activateAccountAction, {}, botConfig, locale);
 
   return (
-    <form action={formAction} onReset={event => event.preventDefault()} className="mt-6 space-y-4">
+    <form action={formAction} onReset={event => event.preventDefault()} aria-busy={pending} className="access-form">
       <input type="hidden" name="token" value={token} />
       <input type="hidden" name="locale" value={locale} />
       {state.error ? (
-        <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-4 text-base text-red-700">
+        <div role="alert" className="access-error">
           {state.error}
         </div>
       ) : null}
@@ -51,7 +51,7 @@ export default function ActivationForm(props: {
         hideLabel={props.hideLabel}
       />
       <TurnstileField ref={challenge} config={botConfig} action="account_activation" locale={locale} onVerified={setVerified} />
-      <button type="submit" disabled={pending || !verified} className="btn-gold w-full px-6 py-2">
+      <button type="submit" disabled={pending || !verified} className="access-submit">
         {pending ? (
           <>
             <Spinner /> {copy.activation.submitPending}

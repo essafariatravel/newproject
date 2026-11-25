@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getUiLocale, type UiLocale } from "@/lib/ui-i18n";
 import { buildPublicMetadata } from "@/lib/seo";
+import { Questions } from "./questions";
 
 export const dynamic = "force-dynamic";
 
@@ -161,21 +162,8 @@ export default async function FaqPage() {
   const copy = FAQ_COPY[locale];
 
   return (
-    <section className="public-interior faq-interior" aria-labelledby="faq-heading">
-      <div className="interior-width faq-spread">
-        <header className="faq-intro">
-          <h1 id="faq-heading">{copy.title}</h1>
-          <p className="interior-lede">{copy.intro}</p>
-        </header>
-        <div className="faq-register">
-          {copy.items.map((item, index) => (
-            <details key={item.question} open={index === 0}>
-              <summary><h2>{item.question}</h2></summary>
-              <p>{item.answer}</p>
-            </details>
-          ))}
-        </div>
-      </div>
+    <section className="public-front-page info-page" aria-labelledby="faq-heading">
+      <Questions key={locale} locale={locale} title={copy.title} intro={copy.intro} items={copy.items} />
     </section>
   );
 }

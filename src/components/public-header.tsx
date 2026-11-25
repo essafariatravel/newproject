@@ -14,10 +14,13 @@
  * Desktop keeps the editorial layout: inline nav, language switcher, sign in.
  */
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { UiLocale } from "@/lib/ui-locale-values";
 import { PublicActionLabel } from "./public-action-label";
+import { UiLanguageSwitcher } from "./ui-language-switcher";
+import { supportsPublicLanguageQuery } from "@/lib/public-locale";
+import { seoIndexablePageForPath } from "@/lib/seo-manifest";
 
 export interface PublicHeaderProps {
   locale: UiLocale;
@@ -26,11 +29,7 @@ export interface PublicHeaderProps {
   /** Reserved for the marketing lockup — not rendered inside the app chrome. */
   tagline: string;
   logoUrl: string | null;
-  /**
-   * The language switcher is a SERVER component (it reads cookies), so it is
-   * passed in as a pre-rendered node instead of being imported here — a client
-   * component must never pull `next/headers` into the browser bundle.
-   */
+  /** Server-rendered locale controls used outside the public marketing and form routes. */
   localeSwitcher: ReactNode;
   nav: { href: string; label: string }[];
   labels: {
@@ -46,7 +45,21 @@ export function PublicHeader({ locale, brandName, homeHref = "/", tagline: _tagl
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const pathname = usePathname();
-  const isHome = pathname === "/" || pathname === "/fr" || pathname === "/ar";
+  const query = useSearchParams();
+  const queryPage = supportsPublicLanguageQuery(pathname) && pathname !== "/login";
+  const marketingPage = seoIndexablePageForPath(pathname.replace(/^\/(?:fr|ar)(?=\/|$)/, "") || "/");
+  const publicLockup = queryPage || Boolean(marketingPage);
+  const registration = pathname === "/agency/register" || pathname === "/agency/register/success";
+  const reference = pathname === "/agency/register/success" ? query.get("ref") : null;
+  const receiptReference = reference && /^AGR-\d{4}-[A-Z0-9]{6}$/.test(reference) ? reference : undefined;
+  // Keep the registration form mounted on language change. Other public forms
+  // use a same-document GET, which works with their no-referrer policy.
+  const isRegistrationForm = pathname === "/agency/register";
+  const languages = publicLockup ? (
+    <UiLanguageSwitcher locale={locale} compact publicPage={marketingPage ?? undefined}
+      nextPath={isRegistrationForm ? pathname : undefined} sameDocument={queryPage && !isRegistrationForm}
+      receiptReference={receiptReference} />
+  ) : localeSwitcher;
   const toggle = useRef<HTMLButtonElement>(null);
 
   // The menu never survives a route change/resize race: close it when the
@@ -71,11 +84,11 @@ export function PublicHeader({ locale, brandName, homeHref = "/", tagline: _tagl
   }, [open]);
 
   return (
-    <header className={`premium-public-header sticky top-0 z-40 border-b border-white/10 bg-navy-950 text-white${isHome ? " home-header" : ""}`}>
+    <header className={`premium-public-header sticky top-0 z-40 border-b border-white/10 bg-navy-950 text-white${publicLockup ? " home-header" : ""}`}>
       <div className="ess-container flex h-16 items-center justify-between gap-2">
         {/* Brand — logo artwork when uploaded, otherwise monogram + wordmark */}
         <Link href={homeHref} className="platform-brand flex min-w-0 shrink items-center gap-2" aria-label={brandName}>
-          {isHome ? (
+          {publicLockup ? (
             <>
               {logoUrl ? (
                 <img className="home-configured-logo" src={logoUrl} alt="" width="126" height="42" />
@@ -125,20 +138,27 @@ export function PublicHeader({ locale, brandName, homeHref = "/", tagline: _tagl
 
         <div className="platform-access flex shrink-0 items-center gap-2">
           {/* Language switcher: desktop only — mobile gets it inside the menu */}
-          <span className="public-desktop-controls hidden xl:inline-flex">{localeSwitcher}</span>
-          <span className="public-desktop-controls hidden xl:inline-flex">
-            <Link href={`/login?lang=${locale}`} className="btn btn-sm platform-sign-in">
-              {isHome ? <PublicActionLabel locale={locale}>{labels.signIn}</PublicActionLabel> : labels.signIn}
+          <span className="public-desktop-controls hidden xl:inline-flex">{languages}</span>
+          {registration ? (
+            <Link href={`/login?lang=${locale}`} className="btn btn-sm public-partner-action whitespace-nowrap px-4 text-base">
+              <PublicActionLabel locale={locale}>{labels.signIn}</PublicActionLabel>
             </Link>
-          </span>
-          {/* The ONE register CTA (visible on every viewport, mobile included) */}
-          <Link
-            href={`/agency/register?lang=${locale}`}
-            data-testid="public-register-cta"
-            className="btn-gold btn-sm public-partner-action whitespace-nowrap px-4 text-base"
-          >
-            {isHome ? <PublicActionLabel locale={locale}>{labels.register}</PublicActionLabel> : labels.register}
-          </Link>
+          ) : (
+            <>
+              <span className="public-desktop-controls hidden xl:inline-flex">
+                <Link href={`/login?lang=${locale}`} className="btn btn-sm platform-sign-in">
+                  {publicLockup ? <PublicActionLabel locale={locale}>{labels.signIn}</PublicActionLabel> : labels.signIn}
+                </Link>
+              </span>
+              <Link
+                href={`/agency/register?lang=${locale}`}
+                data-testid="public-register-cta"
+                className="btn-gold btn-sm public-partner-action whitespace-nowrap px-4 text-base"
+              >
+                {publicLockup ? <PublicActionLabel locale={locale}>{labels.register}</PublicActionLabel> : labels.register}
+              </Link>
+            </>
+          )}
           <button
             ref={toggle}
             type="button"
@@ -176,10 +196,10 @@ export function PublicHeader({ locale, brandName, homeHref = "/", tagline: _tagl
               </Link>
             ))}
             <div className="mt-2 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 px-2 pb-4 pt-4">
-              {localeSwitcher}
-              <Link href={`/login?lang=${locale}`} className="btn btn-sm platform-sign-in border border-white/35 bg-transparent text-white" onClick={() => setOpen(false)}>
-                {isHome ? <PublicActionLabel locale={locale}>{labels.signIn}</PublicActionLabel> : labels.signIn}
-              </Link>
+              {languages}
+              {registration ? null : <Link href={`/login?lang=${locale}`} className="btn btn-sm platform-sign-in border border-white/35 bg-transparent text-white" onClick={() => setOpen(false)}>
+                {publicLockup ? <PublicActionLabel locale={locale}>{labels.signIn}</PublicActionLabel> : labels.signIn}
+              </Link>}
             </div>
           </nav>
         </div>

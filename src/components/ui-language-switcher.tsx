@@ -1,12 +1,10 @@
-import { pickUiLocale, UI_LOCALES, UI_LOCALE_NAMES, type UiLocale } from "@/lib/ui-i18n";
+import { pickUiLocale, UI_LOCALES, UI_LOCALE_NAMES, type UiLocale } from "@/lib/ui-locale-values";
 import { setUiLocaleAction } from "@/app/actions/ui-locale";
 import { seoLocalizedPublicPath, type IndexablePublicSeoPage } from "@/lib/seo-manifest";
 
 /**
- * Global language switcher (EN / FR / AR). Pure server component: one small
- * form per locale posting to the cookie-writing server action via progressive
- * enhancement — hidden inputs only, so it works without client JS (approach
- * already proven by the host verification harness).
+ * Locale forms also work before hydration. On one-time access links, a
+ * relative query changes the language without putting the token in form data.
  */
 export function UiLanguageSwitcher({
   locale,
@@ -15,6 +13,8 @@ export function UiLanguageSwitcher({
   onDark = false,
   compact = false,
   login = false,
+  sameDocument = false,
+  receiptReference,
 }: {
   locale: UiLocale | string;
   nextPath?: string;
@@ -22,6 +22,8 @@ export function UiLanguageSwitcher({
   onDark?: boolean;
   compact?: boolean;
   login?: boolean;
+  sameDocument?: boolean;
+  receiptReference?: string;
 }) {
   const current = pickUiLocale(locale) ?? "en";
   const base = onDark
@@ -31,7 +33,13 @@ export function UiLanguageSwitcher({
   const languageLabel = "English / Français / العربية";
   const locales = login ? (["fr", "en", "ar"] as const) : UI_LOCALES;
   const shortLabel = (l: UiLocale) => l === "ar" ? (login ? UI_LOCALE_NAMES.ar : "ع") : l.toUpperCase();
-  const options = locales.map((l) => (
+  const options = locales.map((l) => sameDocument ? (
+    <a key={l} href={`?lang=${l}${receiptReference ? `&ref=${receiptReference}` : ""}`} referrerPolicy="no-referrer" lang={l}
+      aria-current={l === current ? "true" : undefined}
+      className={`flex min-h-11 items-center rounded-md px-4 text-base font-semibold ${l === current ? active : ""}`}>
+      {UI_LOCALE_NAMES[l]}
+    </a>
+  ) : (
     <form key={l} action={setUiLocaleAction} className="contents">
       <input type="hidden" name="locale" value={l} />
       {publicPage || nextPath ? (

@@ -86,5 +86,27 @@
         "bytes": 67418
       }
     ]
+  },
+  {
+    "title": "Terminal Ouest.jpg",
+    "photographer": "Knight of honor",
+    "source": "https://commons.wikimedia.org/wiki/File:Terminal_Ouest.jpg",
+    "license": "CC BY-SA 4.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "modifications": "Resized and converted to WebP. The About page crops the displayed frame.",
+    "variants": [
+      {
+        "file": "alger.webp",
+        "width": 1280,
+        "height": 960,
+        "bytes": 263480
+      },
+      {
+        "file": "alger-mobile.webp",
+        "width": 800,
+        "height": 600,
+        "bytes": 95124
+      }
+    ]
   }
 ]

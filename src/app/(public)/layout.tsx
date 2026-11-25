@@ -17,6 +17,8 @@ import {
   type IndexablePublicSeoPage,
 } from "@/lib/seo-manifest";
 import "../public-interiors.css";
+import "../public-front.css";
+import "@/components/public-information/information.css";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +45,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
   const tr = chromeT(locale);
   const ct = contentT(locale);
   const homeTagline = "Visa management, built for travel agencies.";
-  const footerTagline = publicPage === "home" && (!tagline || tagline === homeTagline)
+  const footerTagline = !tagline || tagline === homeTagline
     ? { en: homeTagline, fr: "Gestion des visas pour les agences de voyages.", ar: "منصة لإدارة طلبات التأشيرة لوكالات السفر." }[locale]
     : ct(tagline);
   const legalLinks = {
@@ -58,6 +60,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
       <PublicMotion />
       <a className="public-skip" href="#public-main">{tr("Skip to content")}</a>
       <PublicHeader
+        key={locale}
         locale={locale}
         brandName={brandName}
         homeHref={seoLocalizedPublicPath("home", locale)}
@@ -83,7 +86,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
       <main id="public-main" tabIndex={-1} className="flex-1">{children}</main>
 
       <footer className="border-t border-white/10 bg-navy-950 text-white">
-        <div className={`ess-container grid grid-cols-1 gap-8 py-8 sm:grid-cols-2 ${hasContact ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
+        <div className={`public-footer-grid ess-container grid grid-cols-1 gap-8 py-8 sm:grid-cols-2 ${hasContact ? "with-contact lg:grid-cols-4" : "lg:grid-cols-3"}`}>
           <div>
             <p className="text-lg font-semibold text-white">{brandName}</p>
             <p className="mt-2 max-w-xs text-base leading-relaxed text-white/65">{footerTagline}</p>
@@ -96,15 +99,23 @@ export default async function PublicLayout({ children }: { children: ReactNode }
               <li><Link className="text-white/70 transition-colors hover:text-white" href={`/agency/register?lang=${locale}`}>{tr("Register your agency")}</Link></li>
             </ul>
           </div>
-          <div>
-            <p className="text-base font-semibold text-white">{tr("Company")}</p>
-            <ul className="mt-4 space-y-2 text-base">
-              <li><Link className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("about", locale)}>{ct("About ESSAFARIA VISA")}</Link></li>
-              <li><Link className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("contact", locale)}>{ct("Contact")}</Link></li>
-              <li><Link className="text-white/70 transition-colors hover:text-white" href={`/privacy?lang=${locale}`}>{ct("Privacy Notice")}</Link></li>
-              <li><Link className="text-white/70 transition-colors hover:text-white" href={`/terms?lang=${locale}`}>{ct("Terms of Service")}</Link></li>
-              {(["legal-notice", "cookies", "commercial"] as const).map((document, index) => <li key={document}><Link className="text-white/70 transition-colors hover:text-white" href={`/legal/${document}?lang=${locale}`}>{legalLinks[index]}</Link></li>)}
-            </ul>
+          <div className="public-footer-directory">
+            <div>
+              <p className="text-base font-semibold text-white">{tr("Company")}</p>
+              <ul className="mt-4 space-y-2 text-base">
+                <li><Link className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("about", locale)}>{ct("About ESSAFARIA VISA")}</Link></li>
+                <li className="public-footer-extra"><Link className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("faq", locale)}>{ct("FAQ")}</Link></li>
+                <li><Link className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("contact", locale)}>{ct("Contact")}</Link></li>
+              </ul>
+            </div>
+            <div>
+              <p className="public-footer-extra text-base font-semibold text-white">{{fr:"Informations légales", en:"Legal information", ar:"معلومات قانونية"}[locale]}</p>
+              <ul className="public-footer-legal space-y-2 text-base">
+                <li><Link className="text-white/70 transition-colors hover:text-white" href={`/privacy?lang=${locale}`}>{ct("Privacy Notice")}</Link></li>
+                <li><Link className="text-white/70 transition-colors hover:text-white" href={`/terms?lang=${locale}`}>{ct("Terms of Service")}</Link></li>
+                {(["legal-notice", "cookies", "commercial"] as const).map((document, index) => <li key={document}><Link className="text-white/70 transition-colors hover:text-white" href={`/legal/${document}?lang=${locale}`}>{legalLinks[index]}</Link></li>)}
+              </ul>
+            </div>
           </div>
           {hasContact ? <div>
             <p className="text-base font-semibold text-white">{ct("Contact")}</p>
