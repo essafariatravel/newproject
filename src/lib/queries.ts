@@ -693,7 +693,8 @@ function visibleNotificationForRecipient(userId: string) {
 }
 
 /** The live bell needs only lightweight, recipient-scoped event headings. */
-export function notificationBellEventsForUser(userId: string) {
+export function notificationBellEventsForUser(userId: string, agencyId?:string) {
+  const table=(name:string)=>sql.raw(qualifiedTable(name));
   return db.select({
     id: notifications.id,
     type: notifications.type,
@@ -701,9 +702,12 @@ export function notificationBellEventsForUser(userId: string) {
     createdAt: notifications.createdAt,
     readAt: notifications.readAt,
     applicationId: notifications.applicationId,
+    reference:agencyId?sql<string|null>`(select a.reference from ${table("applications")} a where a.id=${notifications.applicationId} and a.agency_id=${agencyId})`:sql<string|null>`null`,
+    destination:agencyId?sql<string|null>`(select a.country_name from ${table("applications")} a where a.id=${notifications.applicationId} and a.agency_id=${agencyId})`:sql<string|null>`null`,
+    countryIso2:agencyId?sql<string|null>`(select c.iso2 from ${table("applications")} a join ${table("countries")} c on c.id=a.country_id where a.id=${notifications.applicationId} and a.agency_id=${agencyId})`:sql<string|null>`null`,
   })
     .from(notifications)
-    .where(and(eq(notifications.userId, userId), visibleNotificationForRecipient(userId)))
+    .where(and(eq(notifications.userId, userId), visibleNotificationForRecipient(userId),agencyId?sql`(${notifications.agencyId} is null or ${notifications.agencyId}=${agencyId}) and (${notifications.applicationId} is null or exists (select 1 from ${table("applications")} a where a.id=${notifications.applicationId} and a.agency_id=${agencyId}))`:undefined))
     .orderBy(desc(notifications.createdAt), desc(notifications.id))
     .limit(20);
 }
