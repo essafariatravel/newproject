@@ -30,6 +30,8 @@ import {
   CommunicationsPanel,
 } from "@/components/application-detail";
 import { uploadDocumentAction } from "@/app/actions/documents";
+import { SmartDocumentUpload, DocumentUploadNotice } from "../smart-document-upload";
+import { resolveRequestItem } from "../document-action-model";
 import { safeCaseReturn, processingDuration, caseDateTime, usableCaseDocument } from "../case-workspace";
 import { CopyCaseReference } from "../copy-case-reference";
 import { hasPermission } from "@/lib/rbac";
@@ -124,13 +126,14 @@ export default async function PortalApplicationDetailPage({
 
   const dc={fr:{required:"Pièces requises",optional:"Autres pièces",other:"Documents annexes",requests:"Historique des demandes",accepted:"pièces acceptées",received:"pièces requises reçues",actions:"demandes ouvertes",missing:"pièces manquantes",versions:"Versions précédentes",details:"Informations du fichier",inactive:"Exigence inactive",noFile:"Aucun fichier",decision:"Documents de décision",files:"fichiers",treated:"demandes clôturées",closed:"Aucune action requise.",locked:"Les documents soumis sont verrouillés. Seuls les remplacements ou compléments demandés peuvent être envoyés.",unavailable:"Aucune action de téléversement disponible.",draft:"Complétez les pièces requises avant soumission.",request:"Demande ESSAFARIA",current:"Version actuelle"},en:{required:"Required documents",optional:"Other requirements",other:"Additional files",requests:"Request history",accepted:"documents accepted",received:"required documents received",actions:"open requests",missing:"missing documents",versions:"Previous versions",details:"File information",inactive:"Inactive requirement",noFile:"No file",decision:"Decision documents",files:"files",treated:"closed requests",closed:"No action required.",locked:"Submitted documents are locked. Only requested replacements or additional files may be uploaded.",unavailable:"No upload action available.",draft:"Complete required documents before submission.",request:"ESSAFARIA request",current:"Current version"},ar:{required:"الوثائق المطلوبة",optional:"متطلبات أخرى",other:"وثائق إضافية",requests:"سجل طلبات الوثائق",accepted:"وثائق مقبولة",received:"وثائق مطلوبة مستلمة",actions:"طلبات مفتوحة",missing:"وثائق ناقصة",versions:"الإصدارات السابقة",details:"معلومات الملف",inactive:"متطلب غير نشط",noFile:"لا يوجد ملف",decision:"وثائق القرار",files:"ملفات",treated:"طلبات مغلقة",closed:"لا يلزم أي إجراء.",locked:"الوثائق المقدمة مقفلة. يمكن رفع البدائل أو الوثائق الإضافية المطلوبة فقط.",unavailable:"لا يتوفر إجراء رفع.",draft:"أكمل الوثائق المطلوبة قبل تقديم الطلب.",request:"طلب ESSAFARIA",current:"الإصدار الحالي"}}[uiLocale];
   const docLabel=(code:string,name:string)=>(code==="TRAVEL_INSURANCE"||/^travel insurance$/i.test(name.trim()))?({fr:"Assurance voyage",en:"Travel insurance",ar:"تأمين السفر"}[uiLocale]):code==="INVITATION_LETTER"?({fr:"Lettre d’invitation",en:"Invitation letter",ar:"خطاب الدعوة"}[uiLocale]):localizedDocTypeName(code,name,uiLocale);
-  const requestFor=(item:typeof checklist[number])=>openRequests.filter(r=>r.req.checklistItemId===item.id||(!r.req.checklistItemId&&r.req.documentTypeId===item.documentTypeId));
+  const requestItem=(r:typeof openRequests[number])=>resolveRequestItem(checklist,r.req);
+  const requestFor=(item:typeof checklist[number])=>openRequests.filter(r=>requestItem(r)===item.id);
   const latestFor=(item:typeof checklist[number])=>documentGroups.byItem.get(item.id)?.[0]?.doc;
   const requiredItems=checklist.filter(item=>item.active&&item.required);
   const otherItems=checklist.filter(item=>!item.active||!item.required);
   const acceptedCount=requiredItems.filter(item=>latestFor(item)?.status==="ACCEPTED"&&!requestFor(item).length).length;
   const receivedCount=requiredItems.filter(item=>usableCaseDocument(latestFor(item)?.status,requestFor(item).length>0)).length;
-  const missingCount=requiredItems.filter(item=>!latestFor(item)).length;
+  const missingCount=requiredItems.filter(item=>!latestFor(item)&&!requestFor(item).length).length;
   const orderItems=(items:typeof checklist)=>[...items].sort((a,b)=>Number(!usableCaseDocument(latestFor(b)?.status,requestFor(b).length>0))-Number(!usableCaseDocument(latestFor(a)?.status,requestFor(a).length>0)));
   const decisionRows=documentGroups.unassigned.filter(r=>["DECISION_VISA_APPROVAL","DECISION_REFUSAL_LETTER"].includes(r.documentTypeCode));
   const annexRows=documentGroups.unassigned.filter(r=>!["DECISION_VISA_APPROVAL","DECISION_REFUSAL_LETTER"].includes(r.documentTypeCode));
@@ -138,10 +141,10 @@ export default async function PortalApplicationDetailPage({
 
   const fileMeta=(doc:typeof docs[number]["doc"])=>({id:doc.id,name:doc.originalFilename,mime:doc.mimeType,version:doc.version,size:bytes(doc.sizeBytes),date:caseDateTime(doc.createdAt,uiLocale)});
   const entryForItem=(item:typeof checklist[number],group:"required"|"other"):DocumentWorkspaceEntry=>{
-    const itemDocs=documentGroups.byItem.get(item.id)??[],latest=itemDocs[0]?.doc,requests=requestFor(item),firstRequest=requests[0],requested=Boolean(firstRequest);
+    const itemDocs=documentGroups.byItem.get(item.id)??[],latest=itemDocs[0]?.doc,requests=requestFor(item),requested=requests.length>0;
     const title=docLabel(item.documentTypeCode,item.documentTypeName);
     return {key:"item-"+item.id,group,title,filename:latest?.originalFilename??dc.noFile,statusCode:requested?"RESUBMISSION_REQUIRED":latest?.status??"MISSING",status:requested?ct("Action required"):latest?localizedDocStatus(latest.status,uiLocale,latest.status):ct("Missing"),priority:requested||(!terminal&&isDraft&&item.active&&item.required&&!usableCaseDocument(latest?.status,false)),file:latest?fileMeta(latest):undefined,
-      content:<div className="r09-inspector-extra"><span id={`checklist-document-label-${item.id}`} className="sr-only">{title}</span>
+      required:item.active&&item.required,uploadable:isDraft&&canUpload&&item.active&&!requested,content:<div className="r09-inspector-extra"><span id={`checklist-document-label-${item.id}`} className="sr-only">{title}</span>
       {!item.active?<p>{dc.inactive}</p>:null}
       {item.notes?<details className="r08-details"><summary>{ct("Reason")}</summary><p>{item.notes}</p></details>:null}
       {itemDocs.length>1?<details className="r08-details"><summary>{dc.versions} ({itemDocs.length-1})</summary>{itemDocs.slice(1).map(({doc})=><div className="r09-version" key={doc.id}><span><bdi>v{doc.version} · {caseDateTime(doc.createdAt,uiLocale)}</bdi><br/><bdi>{doc.originalFilename}</bdi></span><DocumentPreviewButton id={doc.id} locale={uiLocale}/></div>)}</details>:null}
@@ -150,29 +153,37 @@ export default async function PortalApplicationDetailPage({
                         <input type="hidden" name="applicationId" value={id} />
                         <input type="hidden" name="checklistItemId" value={item.id} />
                         <input type="hidden" name="back" value={`${back}?tab=documents${returnSuffix}`} />
-                        <input type="file" name="file" aria-labelledby={`checklist-document-label-${item.id}`} required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="r08-file-input" />
-                        <button type="submit" className="btn-secondary btn-sm">{latest ? ct("Replace") : ct("Upload")}</button>
+                        <SmartDocumentUpload locale={uiLocale} label={title} submitLabel={latest ? ct("Replace") : ct("Upload")} />
                       </form> ) : null}
-      </div>,requestKey:firstRequest?"request-"+firstRequest.req.id:undefined};
+      </div>};
   };
   const requestEntries:DocumentWorkspaceEntry[]=openRequests.map(r=>{
-    const match=checklist.find(item=>r.req.checklistItemId===item.id||(!r.req.checklistItemId&&r.req.documentTypeId===item.documentTypeId)),prior=match?latestFor(match):undefined;
+    const match=checklist.find(item=>item.id===requestItem(r)),prior=match?latestFor(match):undefined;
     const title=docLabel(r.docTypeCode,r.docTypeName);
-    return {key:"request-"+r.req.id,group:"action",title,filename:r.req.type==="REPLACEMENT"?ct("Replacement requested"):ct("Additional document requested"),statusCode:"RESUBMISSION_REQUIRED",status:ct("Action required"),priority:true,file:prior?fileMeta(prior):undefined,
+    return {key:"request-"+r.req.id,group:"action",title,filename:r.req.type==="REPLACEMENT"?ct("Replacement requested"):ct("Additional document requested"),statusCode:"RESUBMISSION_REQUIRED",status:ct("Action required"),priority:true,required:Boolean(match?.active&&match.required),uploadable:canUpload,file:prior?fileMeta(prior):undefined,
       content:<div id={`request-${r.req.id}`} className="r09-request"><strong id={`request-document-label-${r.req.id}`}>{ct("Reason")}</strong><p>{r.req.reason}</p>
       {canUpload?<form action={uploadDocumentAction} encType="multipart/form-data" className="r08-upload">
                       <input type="hidden" name="applicationId" value={id} />
                       {r.req.checklistItemId ? <input type="hidden" name="checklistItemId" value={r.req.checklistItemId} /> : null}
                       <input type="hidden" name="documentTypeId" value={r.req.documentTypeId} />
                       <input type="hidden" name="back" value={`${back}?tab=documents${returnSuffix}`} />
-                      <input type="file" name="file" aria-labelledby={`request-document-label-${r.req.id}`} required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="r08-file-input" />
-                      <button type="submit" className="btn-primary btn-sm">{r.req.type==="REPLACEMENT"?ct("Upload replacement"):ct("Upload")}</button>
+                      <SmartDocumentUpload locale={uiLocale} label={title} submitLabel={r.req.type==="REPLACEMENT"?ct("Upload replacement"):ct("Upload")}/>
                     </form>:null}
       {!canUpload?<p>{dc.unavailable}</p>:null}</div>};
   });
   const decisionEntries:DocumentWorkspaceEntry[]=decisionRows.map(({doc,documentTypeCode,documentTypeName})=>({key:"decision-"+doc.id,group:"decision",title:docLabel(documentTypeCode,documentTypeName),filename:doc.originalFilename,statusCode:doc.status,status:localizedDocStatus(doc.status,uiLocale,doc.status),file:fileMeta(doc)}));
   const otherEntries:DocumentWorkspaceEntry[]=annexRows.map(({doc,documentTypeCode,documentTypeName})=>({key:"file-"+doc.id,group:"other",title:docLabel(documentTypeCode,documentTypeName),filename:doc.originalFilename,statusCode:doc.status,status:localizedDocStatus(doc.status,uiLocale,doc.status),file:fileMeta(doc)}));
-  const workspaceEntries:DocumentWorkspaceEntry[]=[...requestEntries,...orderItems(requiredItems).map(item=>entryForItem(item,"required")),...decisionEntries,...orderItems(otherItems).map(item=>entryForItem(item,"other")),...otherEntries];
+  const itemEntries=[...orderItems(requiredItems).map(item=>entryForItem(item,"required")),...orderItems(otherItems).map(item=>entryForItem(item,"other"))];
+  const matchedRequestKeys=new Set<string>();
+  const mergedItems=itemEntries.map(entry=>{
+    const related=openRequests.filter(r=>"item-"+requestItem(r)===entry.key);
+    if(!related.length)return entry;
+    const requests=related.flatMap(r=>requestEntries.filter(e=>e.key==="request-"+r.req.id));
+    for(const request of requests)matchedRequestKeys.add(request.key);
+    const first=requests[0];if(!first)return entry;
+    return {...entry,group:"action" as const,priority:true,uploadable:canUpload,status:first.status,statusCode:first.statusCode,filename:first.filename,aliases:requests.map(r=>r.key),content:<>{requests.map(r=><div key={r.key}>{r.content}</div>)}{entry.content}</>};
+  });
+  const workspaceEntries:DocumentWorkspaceEntry[]=[...requestEntries.filter(r=>!matchedRequestKeys.has(r.key)),...mergedItems.filter(e=>e.group==="action"),...decisionEntries,...mergedItems.filter(e=>e.group!=="action"),...otherEntries];
   return (
     <div className={"essafaria-cases dossier-workspace"+(tab==="documents"?" dossier-r09":"")} dir={uiLocale==="ar"?"rtl":"ltr"}>
       <div className="dossier-navigation"><Link href={returnTo} className="dossier-back"><span className="directional" aria-hidden="true">←</span> {copy.back}</Link><CaseNavigation scope={user.id} context={returnTo} id={id} tab={tab} locale={uiLocale}/></div>
@@ -188,7 +199,7 @@ export default async function PortalApplicationDetailPage({
         }
       /><CopyCaseReference reference={app.reference} label={copy.copy} copied={copy.copied} failed={copy.failed}/></div>
       <ReconciliationWarning applicationId={id} user={user} locale={uiLocale}/>
-      <Flash {...flash} />
+      {tab==="documents"?<><Flash error={flash.error}/>{flash.success?<DocumentUploadNotice key={flash.success+docs.map(r=>r.doc.id).join(",")} message={flash.success}/>:null}</>:<Flash {...flash}/>}
       {sp.submitted === "1" && app.submittedAt && charge && !flash.error ? <section className="agency-v2-submission-receipt" role="status"><div><h2>{uiLocale === "fr" ? "Votre dossier a bien été soumis" : uiLocale === "ar" ? "تم تقديم طلبكم بنجاح" : "Your application has been submitted"}</h2><p>{ct("Reference")}: <bdi>{app.reference}</bdi> · {ct("Application fee")}: <bdi>{formatAmount(charge.amount,"DZD",uiLocale)}</bdi></p></div><Link href={`${back}?tab=documents${returnSuffix}`} className="btn-secondary">{ct("Documents")}</Link></section> : null}
       <CancellationPanel rows={cancellations} staff={false} locale={uiLocale}/>
 
@@ -297,7 +308,7 @@ export default async function PortalApplicationDetailPage({
 
       {tab === "documents" ? (
         <DocumentViewerProvider locale={uiLocale} files={docs.map(({doc,documentTypeCode,documentTypeName})=>({...fileMeta(doc),label:docLabel(documentTypeCode,documentTypeName),status:localizedDocStatus(doc.status,uiLocale,doc.status)}))}>
-          <DocumentWorkspace key={id} terminal={terminal} locale={uiLocale} entries={workspaceEntries} summary={requiredItems.length?(acceptedCount===requiredItems.length?acceptedCount+"/"+requiredItems.length+" "+dc.accepted:receivedCount+"/"+requiredItems.length+" "+dc.received):""} complete={requiredItems.length>0&&acceptedCount===requiredItems.length} missing={missingCount} requestCount={openRequests.length} historyCount={closedRequests.length} policy={isDraft?dc.draft:dc.locked}
+          <DocumentWorkspace key={id+":"+openRequests.map(r=>r.req.id).join(",")+":"+docs.map(r=>r.doc.id).join(",")} terminal={terminal} locale={uiLocale} entries={workspaceEntries} summary={requiredItems.length?(acceptedCount===requiredItems.length?acceptedCount+"/"+requiredItems.length+" "+dc.accepted:receivedCount+"/"+requiredItems.length+" "+dc.received):""} complete={requiredItems.length>0&&acceptedCount===requiredItems.length} missing={missingCount} requestCount={openRequests.length} historyCount={closedRequests.length} policy={isDraft?dc.draft:dc.locked}
            history={<>{closedRequests.map(r=><div key={r.req.id} className="r09-history-row"><strong>{docLabel(r.docTypeCode,r.docTypeName)}</strong><p>{r.req.type==="REPLACEMENT"?ct("Replacement requested"):ct("Additional document requested")} · {r.req.reason}</p><p>{caseDateTime(r.req.createdAt,uiLocale)}{r.req.fulfilledAt?` · ${ct("Received")} ${caseDateTime(r.req.fulfilledAt,uiLocale)}`:""}</p><span className="dossier-doc-state" data-doc-state={r.req.status==="FULFILLED"?"ACCEPTED":"CANCELLED"}>{r.req.status==="FULFILLED"?ct("Received"):ct("Cancelled")}</span></div>)}</>}/>
         </DocumentViewerProvider>
       ) : null}
