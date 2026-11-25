@@ -24,7 +24,9 @@ export function LiveNotifications({ initialCount, href, label, soundLabel, close
         setCount(data.unread);
         window.dispatchEvent(new CustomEvent("essafaria-notifications", { detail: data.unread }));
         const fresh = seen && data.events.find((n) => !seen!.has(n.id) && Date.parse(n.createdAt) > onlineSince);
+        const freshAfterStart = data.events.some(n => Date.parse(n.createdAt) > onlineSince && !seen?.has(n.id));
         seen = new Set(data.events.map((n) => n.id));
+        if(freshAfterStart&&!fresh&&document.visibilityState==="visible")router.refresh();
         if (fresh) {
           setToast(fresh);
           router.refresh();

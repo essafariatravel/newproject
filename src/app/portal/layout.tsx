@@ -1,4 +1,6 @@
 import "./agency-v2.css";
+import { AgencyCommand } from "./applications/agency-command";
+import { hasPermission } from "@/lib/rbac";
 import { AgencyPopoverController } from "@/components/agency-popover-controller";
 import { LiveNotifications } from "@/components/live-notifications";
 import { contentT } from "@/lib/i18n-content";
@@ -77,6 +79,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
       headerExtras={<><LiveNotifications initialCount={unread} href="/portal/notifications" label={tr("Notifications")} soundLabel={contentT(locale)("Notification sounds")} closeLabel={contentT(locale)("Close")} /><UiLanguageSwitcher locale={locale} compact /></>}
     >
       <AgencyPopoverController />
+      <AgencyCommand locale={locale} canCreate={hasPermission(user,"applications.create")} canUpload={hasPermission(user,"documents.upload.own")}/>
       {children}
     </AppShell>
   );

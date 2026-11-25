@@ -5,7 +5,7 @@ import { applications, statuses as statusTable } from "@/db/schema";
 import { qualifiedTable } from "@/lib/database-schema";
 import { configName } from "@/lib/config-localization";
 import { portalPageUser } from "@/lib/page-auth";
-import { searchApplications, resolvePageSize, buildApplicationConditions, type ApplicationFilters } from "@/lib/queries";
+import { searchApplications, resolvePageSize, buildApplicationConditions, agencyFocusQueue, type ApplicationFilters } from "@/lib/queries";
 import { checklistProgressForApplications, listStatuses } from "@/lib/applications";
 import { flashFrom } from "@/lib/action-helpers";
 import { formatAmount, formatDate, formatProcessingDays } from "@/lib/format";
@@ -62,6 +62,10 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
  const pendingIds=new Set(pendingRows.filter(r=>r.pending).map(r=>r.id));
  const canUpload=hasPermission(user,"documents.upload.own");
  const canCreate=hasPermission(user,"applications.create");
+ const focusMode=sp.work==="1"&&queue==="attention"&&canUpload;
+ const focusQueue=focusMode?await agencyFocusQueue(user):null;
+ const workReturn=caseLink({documents:"requested",sort:"oldest",work:"1"});
+ const workLabel=({fr:"Traiter les dossiers",en:"Process cases",ar:"معالجة الطلبات"}[locale]);
  const rows=result.rows.map(r=>{
    const base=detailLink(r.app.id,caseLink({...query,page:String(result.page)}));
    const separator=base.includes("?")?"&":"?";
@@ -88,6 +92,7 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
    <nav className="case-queues" aria-label={ct("Applications")}>
      {queues.map((key,i)=><Link key={key} href={caseLink({...shared,...queueFilters(key)})} aria-current={queue===key?"page":undefined}><span>{copy[key]}</span><span className="case-count">{counts[i]}</span></Link>)}
    </nav>
+   {canUpload&&(counts[2]??0)>0?<div className="smart-focus-launch"><span>{({fr:"Traitement continu",en:"Continuous processing",ar:"المعالجة المتتابعة"}[locale])}</span><Link className="btn-primary btn-sm" href={focusQueue?.nextId?detailLink(focusQueue.nextId,workReturn)+"&tab=documents":workReturn}>{focusMode?({fr:"Commencer",en:"Start",ar:"ابدأ"}[locale]):workLabel} <span aria-hidden="true">→</span></Link></div>:null}
    <CaseFilters key={caseLink(query)} locale={locale} labels={labels} query={query} currentPage={result.page} recent={recent} statuses={statuses.map(s=>({value:s.code,label:localizedStatusName(s.code,s.name,locale)}))} countries={Array.from(new Map(countryRows.map(r=>[r.id,{value:r.id,label:r.name}])).values()).sort((a,b)=>a.label.localeCompare(b.label,locale))} resetHref={resetHref}/>
    {rows.length===0?<section className="case-empty" role="status">
      <h2>{hasFilters?ct("No applications match these filters."):queue==="attention"?copy.ready:queue==="all"?ct("No applications yet"):copy.emptyQueue}</h2>

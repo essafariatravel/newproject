@@ -217,12 +217,29 @@ export async function buildApplicationConditions(user: AuthUser, filters: Applic
 }
 
 /** Lightweight, tenant-scoped autocomplete: no count or full dossier payload. */
+/** Count only; the same authenticated conditions as the agency case list. */
+export async function countAgencyCases(user:AuthUser,filters:ApplicationFilters){
+ if(!user.agencyId)return 0;
+ const conditions=await buildApplicationConditions(user,filters);
+ const rows=await db.select({total:count()}).from(applications).innerJoin(statuses,eq(applications.statusId,statuses.id)).where(and(...conditions));
+ return Number(rows[0]?.total??0);
+}
+/** Focus queue: oldest pending document request case first; never loads another tenant. */
+export async function agencyFocusQueue(user:AuthUser,current?:{id:string;createdAt:Date}){
+ if(!user.agencyId)return {total:0,nextId:null as string|null};
+ const conditions=await buildApplicationConditions(user,{documents:"requested",caseSort:"oldest"});
+ conditions.push(eq(statuses.isTerminal,false));
+ const [totals,next]=await Promise.all([
+ db.select({total:count()}).from(applications).innerJoin(statuses,eq(applications.statusId,statuses.id)).where(and(...conditions)),
+ db.select({id:applications.id}).from(applications).innerJoin(statuses,eq(applications.statusId,statuses.id)).where(and(...conditions,...(current?[sql`(${applications.createdAt},${applications.id})>(${current.createdAt},${current.id}::uuid)`]:[]))).orderBy(asc(applications.createdAt),asc(applications.id)).limit(1)]);
+ return {total:Number(totals[0]?.total??0),nextId:next[0]?.id??null};
+}
 export async function searchCaseSuggestions(user: AuthUser, filters: ApplicationFilters) {
   if(!user.agencyId)return [];
   const conditions=await buildApplicationConditions(user,filters);
   return db.select({id:applications.id,reference:applications.reference,applicantSummary:applicationSelection.applicantSummary,statusCode:statuses.code,statusName:statuses.name})
     .from(applications).innerJoin(statuses,eq(applications.statusId,statuses.id))
-    .where(and(...conditions)).orderBy(desc(applications.updatedAt),desc(applications.id)).limit(5);
+    .where(and(...conditions)).orderBy(desc(agencyCaseActivity),desc(applications.id)).limit(5);
 }
 export async function searchApplications(user: AuthUser, filters: ApplicationFilters) {
   const page = Math.max(1, filters.page ?? 1);

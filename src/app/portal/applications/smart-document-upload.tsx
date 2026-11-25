@@ -8,25 +8,28 @@ const labels={
  en:{drop:"Drop your document here",browse:"Browse files",or:"or select a file",formats:"PDF, JPEG, PNG, WEBP, DOC, DOCX · 2 MB max.",invalid:"Unsupported format. Choose a compatible file.",size:"The file must not be empty or exceed 2 MB.",single:"Select one file.",fallback:"Drag and drop unavailable. Use Browse.",change:"Change file",remove:"Remove",preview:"Check before sending",office:"Preview unavailable for this format. Check the file before sending.",sending:"Uploading…",secure:"Secure transmission to ESSAFARIA",ready:"File ready to send"},
  ar:{drop:"أفلت وثيقتك هنا",browse:"تصفح الملفات",or:"أو اختر ملفاً",formats:"PDF, JPEG, PNG, WEBP, DOC, DOCX · 2 MB",invalid:"صيغة غير مسموح بها. اختر ملفاً متوافقاً.",size:"يجب ألا يكون الملف فارغاً أو يتجاوز 2 ميغابايت.",single:"اختر ملفاً واحداً.",fallback:"السحب والإفلات غير متاح. استخدم التصفح.",change:"تغيير الملف",remove:"إزالة",preview:"تحقق قبل الإرسال",office:"المعاينة غير متاحة لهذه الصيغة. تحقق من الملف قبل الإرسال.",sending:"جارٍ الإرسال…",secure:"إرسال آمن إلى ESSAFARIA",ready:"الملف جاهز للإرسال"}
 };
-export function SmartDocumentUpload({locale,label,submitLabel,existingFiles=[]}:{locale:Locale;label:string;submitLabel:string;existingFiles?:{name:string;size:number;sha256?:string|null}[]}){
+export function SmartDocumentUpload({locale,label,submitLabel,existingFiles=[]}:{locale:Locale;label:string;submitLabel:string;existingFiles?:{name:string;size:number;sha256?:string|null;label?:string}[]}){
  const t=labels[locale],id=useId(),input=useRef<HTMLInputElement>(null),{pending}=useFormStatus();
- const [file,setFile]=useState<File|null>(null),[error,setError]=useState(""),[drag,setDrag]=useState(false),[url,setUrl]=useState("");
+ const [large,setLarge]=useState<File|null>(null),[compressing,setCompressing]=useState(false),[file,setFile]=useState<File|null>(null),[error,setError]=useState(""),[drag,setDrag]=useState(false),[url,setUrl]=useState("");
  const [smallImage,setSmallImage]=useState(false),[fingerprint,setFingerprint]=useState<{file:File;hash:string}|null>(null);
  useEffect(()=>{setFingerprint(null);if(!file||!globalThis.crypto?.subtle)return;let cancelled=false;void file.arrayBuffer().then(b=>crypto.subtle.digest("SHA-256",b)).then(b=>{if(!cancelled)setFingerprint({file,hash:Array.from(new Uint8Array(b),x=>x.toString(16).padStart(2,"0")).join("")})}).catch(()=>{});return()=>{cancelled=true}},[file]);
  const identical=Boolean(file&&fingerprint?.file===file&&existingFiles.some(f=>f.sha256?.toLowerCase()===fingerprint.hash));
+ const duplicateType=existingFiles.find(f=>fingerprint?.file===file&&f.sha256?.toLowerCase()===fingerprint?.hash)?.label;
  const similar=Boolean(file&&existingFiles.some(f=>f.name===file.name&&Number(f.size)===file.size));
  useEffect(()=>{setSmallImage(false);if(!file||!file.type.startsWith("image/"))return;let cancelled=false;void createImageBitmap(file).then(bitmap=>{if(!cancelled)setSmallImage(Math.min(bitmap.width,bitmap.height)<600);bitmap.close()}).catch(()=>{});return()=>{cancelled=true}},[file]);
  const previewable=!!file&&["application/pdf","image/jpeg","image/png","image/webp"].includes(file.type);
  useEffect(()=>{setUrl("");if(!file||!previewable)return;const u=URL.createObjectURL(file);setUrl(u);return()=>URL.revokeObjectURL(u)},[file,previewable]);
- function clear(message=""){if(input.current)input.current.value="";setFile(null);setError(message)}
+ function clear(message=""){setLarge(null);if(input.current)input.current.value="";setFile(null);setError(message)}
  function accept(list:FileList|null,dropped=false){
-  if(pending)return;const next=list?.[0];if(!next){clear();return}
+  if(pending||compressing)return;const next=list?.[0];if(!next){clear();return}
   if(list?.length!==1){clear(t.single);return}
   if(!ALLOWED_MIME_TYPES.includes(next.type)||!/\.(pdf|jpe?g|png|webp|docx?)$/i.test(next.name)){clear(t.invalid);return}
-  if(next.size===0||next.size>MAX_UPLOAD_BYTES){clear(t.size);return}
+  if(next.size===0){clear(t.size);return}
+  if(next.size>MAX_UPLOAD_BYTES){clear(t.size);if(["image/jpeg","image/png","image/webp"].includes(next.type)&&next.size<=20*1024*1024)setLarge(next);return}
   if(dropped){try{const dt=new DataTransfer();dt.items.add(next);if(!input.current)throw Error();input.current.files=dt.files}catch{clear(t.fallback);return}}
-  setFile(next);setError("");
+  setFile(next);setLarge(null);setError("");
  }
+ async function compress(){if(!large||compressing||pending)return;setCompressing(true);try{const bitmap=await createImageBitmap(large);try{if(bitmap.width*bitmap.height>50_000_000)throw Error("dimensions");const scale=Math.min(1,2400/Math.max(bitmap.width,bitmap.height));const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));const ctx=canvas.getContext("2d");if(!ctx)throw Error();ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);let blob:Blob|null=null;for(const quality of [.92,.85,.78,.7]){blob=await new Promise<Blob|null>(resolve=>canvas.toBlob(resolve,"image/jpeg",quality));if(blob&&blob.size<=MAX_UPLOAD_BYTES)break}if(!blob||!blob.size||blob.size>MAX_UPLOAD_BYTES)throw Error();const next=new File([blob],large.name.replace(/\.[^.]+$/,"")+"-compressed.jpg",{type:"image/jpeg"});const dt=new DataTransfer();dt.items.add(next);if(!input.current)throw Error();input.current.files=dt.files;setFile(next);setLarge(null);setError("")}finally{bitmap.close()}}catch{setError(t.size)}finally{setCompressing(false)}}
  return <div className="r092-upload" aria-busy={pending}>
  <input ref={input} id={id} className="r092-native" tabIndex={-1} type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" aria-label={label} onChange={e=>accept(e.target.files)}/>
  {!file?<div className="r092-drop" data-drag={drag} onDragOver={e=>{e.preventDefault();if(!pending)setDrag(true)}} onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setDrag(false)}} onDrop={e=>{e.preventDefault();setDrag(false);accept(e.dataTransfer.files,true)}}>
@@ -34,9 +37,10 @@ export function SmartDocumentUpload({locale,label,submitLabel,existingFiles=[]}:
  <div className="r092-file-line"><div><strong>{t.ready}</strong><p><bdi>{file.name} · {(file.size/1024).toFixed(1)} KB</bdi></p></div><button type="button" className="btn-secondary btn-sm" disabled={pending} onClick={()=>input.current?.click()}>{t.change}</button><button type="button" className="btn-secondary btn-sm" disabled={pending} onClick={()=>clear()}>{t.remove}</button></div>
  {previewable?(url?<div className="r092-local-preview" aria-label={t.preview}><p>{t.preview}</p>{file.type==="application/pdf"?<iframe title={label} src={url} sandbox=""/>:<img alt={label} src={url}/>}</div>:null):<p>{t.office}</p>}
  {identical?<p className="adaptive-upload-warning" role="status">{({fr:"Ce contenu est identique à un fichier déjà présent dans ce dossier. Vérifiez la pièce avant l’envoi.",en:"This file has identical contents to a file already in this case. Check before sending.",ar:"محتوى الملف مطابق لملف موجود في هذا الطلب. تحقق قبل الإرسال."}[locale])}</p>:similar?<p className="adaptive-upload-warning" role="status">{({fr:"Un fichier de même nom et taille existe déjà. Vérifiez qu’il s’agit de la bonne pièce.",en:"A file with the same name and size already exists. Check that this is the intended document.",ar:"يوجد ملف بنفس الاسم والحجم. تحقق من الوثيقة المقصودة."}[locale])}</p>:null}
+ {identical&&duplicateType?<p className="adaptive-upload-warning">{({fr:"Pièce déjà associée : ",en:"Previously associated document: ",ar:"الوثيقة المرتبطة سابقًا: "}[locale])}<bdi>{duplicateType}</bdi></p>:null}
  {smallImage?<p className="adaptive-upload-warning" role="status">{({fr:"Résolution faible : vérifiez la lisibilité avant l’envoi.",en:"Low resolution: check readability before sending.",ar:"دقة منخفضة: تحقق من وضوح الوثيقة قبل الإرسال."}[locale])}</p>:null}
  <div className="fluid-send-bar"><span className="r092-secure">{t.secure}</span><button type="submit" className="btn-primary" disabled={pending}>{pending?t.sending:submitLabel}<span aria-hidden="true" className="directional"> →</span></button></div></div>}
- {error?<p className="r092-upload-error" role="alert">{error}</p>:null}
+ {error?<p className="r092-upload-error" role="alert">{error}</p>:null}{large?<div className="adaptive-upload-warning"><p>{({fr:"Créer une copie JPEG optimisée localement. Vérifiez sa lisibilité avant envoi ; l’original reste inchangé.",en:"Create a locally optimized JPEG copy. Check readability before sending; the original remains unchanged.",ar:"إنشاء نسخة JPEG محسّنة محليًا. تحقق من وضوحها قبل الإرسال؛ الأصل لا يتغير."}[locale])}</p><button type="button" className="btn-secondary btn-sm" disabled={compressing||pending} onClick={()=>void compress()}>{compressing?({fr:"Optimisation…",en:"Optimizing…",ar:"جارٍ التحسين…"}[locale]):({fr:"Optimiser la copie",en:"Optimize copy",ar:"تحسين النسخة"}[locale])}</button></div>:null}
  {!file?<p className="r092-secure">{t.secure}</p>:null}</div>
 }
 export function DocumentUploadNotice({message}:{message:string}){

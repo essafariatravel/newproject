@@ -33,7 +33,7 @@ export function caseSearch(value:string|undefined):{q?:string;statusCode?:string
 export function safeCaseReturn(v:unknown){
  if(typeof v!=="string"||!v.startsWith("/portal/applications?")||v.length>2048)return "/portal/applications";
  try{const u=new URL(v,"https://local.invalid");if(u.pathname!=="/portal/applications"||u.hash)return "/portal/applications";
- const p:Record<string,string>={};for(const k of ["q","status","from","to","per","queue","documents","country","sort","page","missing","focus"]){const x=u.searchParams.get(k);if(x)p[k]=x}return caseLink(p)}catch{return "/portal/applications"}
+ const p:Record<string,string>={};for(const k of ["q","status","from","to","per","queue","documents","country","sort","page","missing","focus","work"]){const x=u.searchParams.get(k);if(x)p[k]=x}return caseLink(p)}catch{return "/portal/applications"}
 }
 export function detailLink(id:string,returnTo:string){
  const base="/portal/applications/"+encodeURIComponent(id),safe=safeCaseReturn(returnTo);
