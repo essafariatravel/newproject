@@ -3,13 +3,16 @@ import { qualifiedTable } from "@/lib/database-schema";
 import { requirePermission } from "@/lib/rbac";
 import type { AuthUser } from "@/lib/types";
 export interface InboxThread { applicationId:string;reference:string;traveller:string;destination:string;visa:string;agencyName:string;body:string;createdAt:Date;unread:boolean;needsReply:boolean;visibility:string }
-export async function conversationInbox(actor:AuthUser,input:{q?:string;filter?:string;page?:number}={}):Promise<InboxThread[]>{
+export async function conversationInbox(actor:AuthUser,input:{q?:string;filter?:string;page?:number;agencyWorkspace?:boolean;thread?:string}={}):Promise<InboxThread[]>{
   requirePermission(actor,actor.agencyId ? "communications.post.agency" : "communications.view.all");
   const t=qualifiedTable;
+  const agencyWorkspace=Boolean(actor.agencyId&&input.agencyWorkspace);
+  const thread=agencyWorkspace&&input.thread&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(input.thread)?input.thread:null;
   const result=await pool.query(`with visible as (
     select message.*, row_number() over (partition by message.application_id order by message.created_at desc,message.id desc) as position
     from ${t("communications")} message join ${t("applications")} dossier on dossier.id=message.application_id
     where ($1::uuid is null or (dossier.agency_id=$1 and message.visibility='AGENCY'))
+      and ($6::uuid is null or dossier.id=$6)
   ), threads as (
     select dossier.id as "applicationId", dossier.reference, coalesce(traveller.full_name,concat_ws(' ',traveller.first_name,traveller.last_name),'') as traveller,
       dossier.country_name as destination,dossier.visa_type_name as visa,coalesce(agency.trading_name,agency.legal_name) as "agencyName",
@@ -22,8 +25,8 @@ export async function conversationInbox(actor:AuthUser,input:{q?:string;filter?:
     join ${t("agencies")} agency on agency.id=dossier.agency_id
     left join lateral (select * from ${t("applicants")} where application_id=dossier.id order by created_at limit 1) traveller on true
     where message.position=1
-  ) select * from threads where ($3='' or concat_ws(' ',traveller,reference,"agencyName",destination,visa) ilike $3)
+  ) select * from threads where ($3='' or concat_ws(' ',traveller,reference,"agencyName",destination,visa) ilike $3 or ($7::boolean and exists(select 1 from visible hit where hit.application_id=threads."applicationId" and hit.body ilike $3)))
     and ($4='all' or ($4='unread' and unread) or ($4='reply' and "needsReply"))
-    order by "createdAt" desc,"applicationId" limit 100 offset $5`,[actor.agencyId,actor.id,input.q?.trim()?`%${input.q.trim().slice(0,160)}%`:"",["unread","reply"].includes(input.filter??"")?input.filter:"all",(Math.max(1,Math.min(10000,input.page??1))-1)*100]);
+    order by "createdAt" desc,"applicationId" limit 100 offset $5`,[actor.agencyId,actor.id,input.q?.trim()?`%${input.q.trim().slice(0,160)}%`:"",["unread","reply"].includes(input.filter??"")?input.filter:"all",(Math.max(1,Math.min(10000,input.page??1))-1)*100,thread,agencyWorkspace]);
   return result.rows;
 }
