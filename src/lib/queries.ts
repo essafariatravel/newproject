@@ -1039,11 +1039,16 @@ export async function listWalletTransactions(filters: WalletLedgerFilters) {
   if (filters.to) conditions.push(lt(walletTransactions.createdAt, filters.to));
   if (filters.q?.trim()) {
     const term = `%${filters.q.trim()}%`;
+    // Optional exact magnitude search: normalise spaces, decimal separator and DZD,
+    // but keep original text predicates and parameterise the numeric comparison.
+    const numericText=filters.q.trim().replace(/\s*DZD$/i,"").replace(/^[+−-]/,"").replace(/[\s\u00a0\u202f]/g,"").replace(",",".");
+    const amountSearch=filters.agencyId&&/^\d{1,12}(\.\d{1,2})?$/.test(numericText)?numericText:null;
     conditions.push(
       or(
         ilike(walletTransactions.reference, term),
         ilike(walletTransactions.reason, term),
         ilike(applications.reference, term),
+        amountSearch?sql`${walletTransactions.amount} = ${amountSearch}::numeric`:undefined,
       )!,
     );
   }
