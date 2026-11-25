@@ -699,6 +699,8 @@ export function notificationBellEventsForUser(userId: string) {
     type: notifications.type,
     link: notifications.link,
     createdAt: notifications.createdAt,
+    readAt: notifications.readAt,
+    applicationId: notifications.applicationId,
   })
     .from(notifications)
     .where(and(eq(notifications.userId, userId), visibleNotificationForRecipient(userId)))
