@@ -149,6 +149,11 @@ export default async function PortalApplicationDetailPage({
     en:{action:"To complete",actions:"Documents to complete",go:"Complete",open:"View",draft:"Complete your case",detail:"Traveller information",wallet:"View wallet",docs:"View documents",accepted:"Accepted",received:"Received",statusDate:"Last status change",activityDate:"Latest known activity",journey:"Your visa journey",request:"Additional document requested",replacement:"Replacement requested",receivedEvent:"Document received",conversation:"ESSAFARIA team"},
     ar:{action:"مطلوب استكماله",actions:"وثائق تحتاج إلى استكمال",go:"استكمال",open:"عرض",draft:"استكمل طلبك",detail:"معلومات المسافر",wallet:"عرض المحفظة",docs:"عرض الوثائق",accepted:"مقبولة",received:"مستلمة",statusDate:"آخر تغيير للحالة",activityDate:"آخر نشاط معروف",journey:"متابعة التأشيرة",request:"طلب وثيقة إضافية",replacement:"طلب استبدال وثيقة",receivedEvent:"تم استلام الوثيقة",conversation:"فريق ESSAFARIA"}
   }[uiLocale];
+  const journeyUi={
+    fr:{title:"Parcours du dossier",history:"Voir l’historique",closed:"Traitement terminé",waiting:"Une intervention de votre agence est nécessaire",active:"Suivi des étapes enregistrées",checking:"Vérification",submitted:"Soumission",current:"Étape actuelle",upcoming:"À venir",unrecorded:"Date non enregistrée"},
+    en:{title:"Case journey",history:"View history",closed:"Processing complete",waiting:"Your agency needs to take action",active:"Recorded milestones",checking:"Verification",submitted:"Submission",current:"Current stage",upcoming:"Upcoming",unrecorded:"Date not recorded"},
+    ar:{title:"مسار الطلب",history:"عرض السجل",closed:"اكتملت المعالجة",waiting:"يلزم إجراء من وكالتكم",active:"متابعة المراحل المسجلة",checking:"التحقق",submitted:"الإيداع",current:"المرحلة الحالية",upcoming:"لاحقًا",unrecorded:"التاريخ غير مسجل"}
+  }[uiLocale];
   const firstRequest=openRequests[0];
   const actionHref=`${back}?tab=documents${returnSuffix}${firstRequest?"#request-"+firstRequest.req.id:""}`;
   const requestTitle=firstRequest?docLabel(firstRequest.docTypeCode,firstRequest.docTypeName):undefined;
@@ -244,16 +249,25 @@ export default async function PortalApplicationDetailPage({
           <div className="dossier-main">
             {decisionDocs.length>0?<DocumentViewerProvider locale={uiLocale} files={decisionDocs.map(doc=>({id:doc.id,name:doc.originalFilename,mime:doc.mimeType}))}><section id="official-decision" className="dossier-delivery"><h2>{copy.official}</h2>{decisionDocs.map(doc=><div key={doc.id} className="dossier-delivery-row"><div><strong>{localizedDocTypeName(doc.typeCode,doc.typeName,uiLocale)}</strong><p>{caseDateTime(doc.createdAt,uiLocale)}</p></div><DocumentPreviewButton id={doc.id} variant="primary" locale={uiLocale}/></div>)}</section></DocumentViewerProvider>:null}
             {vfsReference?<section className="dossier-vfs"><h2>{({fr:"Référence VFS Chine",en:"VFS China reference",ar:"مرجع VFS للصين"}[uiLocale])}</h2><CopyCaseReference reference={vfsReference} label={copy.copy} copied={copy.copied} failed={copy.failed}/></section>:null}<section className="dossier-tracking"><h2>{adaptive.journey}</h2>{!terminal&&openRequests.length>0?<p className="adaptive-pending-note">{({fr:"Les étapes retracent l’historique du dossier ; des pièces restent demandées.",en:"Steps show the case history; additional documents are still requested.",ar:"تعرض المراحل سجل الطلب؛ لا تزال هناك وثائق مطلوبة."}[uiLocale])}</p>:null}{!terminal&&!isDraft&&openRequests.length===0?<p className="dossier-no-action">{copy.noAction}</p>:null}<div className="dossier-metrics"><div><span>{elapsed?.terminal?copy.duration:copy.elapsed}</span><strong>{elapsed?<LiveCaseDuration submitted={app.submittedAt?.toISOString()??""} initialMinutes={elapsed.minutes} terminal={elapsed.terminal} locale={uiLocale}/>:"—"}</strong></div><div><span>{copy.estimate}</span><strong>{formatProcessingDays(app.processingMinDays,app.processingMaxDays,uiLocale)}</strong></div><div><span>{adaptive.activityDate}</span><strong>{caseDateTime(latestKnown??app.updatedAt,uiLocale)}</strong></div></div></section>
-                {app.submittedAt ? <section className="agency-v2-journey" aria-label={ct("Progress")}>
-                  <h3 className="sr-only">{ct("Progress")}</h3>
-                  <ol data-testid="application-progress">
-                    {progress.filter(step=>detail.statusCode!=="CANCELLED"||step.at!==null).map(step=>(
-                      <li key={step.key} data-step={step.key} data-state={step.state} aria-current={step.state==="current"?"step":undefined}>
-                        <span className="agency-v2-journey-marker" aria-hidden="true">{step.state==="done"?"✓":step.state==="current"?"●":""}</span>
-                        <div><strong>{ct(step.label)}</strong>{step.at&&step.state!=="pending"?<time dateTime={step.at.toISOString()}>{caseDateTime(step.at,uiLocale)}</time>:<span>{step.state==="pending"?(uiLocale==="fr"?"À venir":uiLocale==="ar"?"لاحقًا":"Upcoming"):(uiLocale==="fr"?"En cours":uiLocale==="ar"?"قيد المعالجة":"In progress")}</span>}</div>
+                {app.submittedAt ? <section className="case-journey-rail" aria-label={ct("Progress")} data-outcome={terminal?detail.statusCode:"ACTIVE"}>
+                  <div className="case-journey-heading">
+                    <div className="case-journey-heading-copy"><h3>{journeyUi.title}</h3><span className="case-journey-summary">{terminal?journeyUi.closed:openRequests.length>0?journeyUi.waiting:journeyUi.active}</span></div>
+                    <Link className="case-journey-history" href={`${back}?tab=activity${returnSuffix}`}>{journeyUi.history}<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></Link>
+                  </div>
+                  <ol data-testid="application-progress" className="case-journey-stages">
+                    {progress.filter(step=>!terminal||step.key==="submitted"||step.at!==null||(step.key==="decision"&&["APPROVED","REJECTED","COMPLETED","REFUSED"].includes(detail.statusCode))).map(step=>{
+                      const final=terminal&&step.key==="decision"&&["APPROVED","REJECTED","COMPLETED","REFUSED"].includes(detail.statusCode);
+                      const at=step.key==="submitted"?app.submittedAt:step.at??(final?(app.decisionAt??app.completedAt):null);
+                      const state=final?"done":step.state;
+                      const label=final?localizedStatusName(detail.statusCode,detail.statusName,uiLocale):step.key==="documents"?journeyUi.checking:step.key==="submitted"?journeyUi.submitted:ct(step.label);
+                      return <li key={step.key} data-step={step.key} data-state={state} data-final={final||undefined} aria-current={state==="current"?"step":undefined}>
+                        <span className="case-journey-segment" aria-hidden="true"/>
+                        <strong>{label}</strong>
+                        {state==="current"?<span className="case-journey-current-label">{journeyUi.current}</span>:null}
+                        {at&&state!=="pending"?<time dateTime={at.toISOString()}>{caseDateTime(at,uiLocale)}</time>:<span className="case-journey-time">{state==="pending"?journeyUi.upcoming:journeyUi.unrecorded}</span>}
                       </li>
-                    ))}
-                    {detail.statusCode==="CANCELLED"?<li data-state="done"><span className="agency-v2-journey-marker" aria-hidden="true">✓</span><div><StatusBadge code={detail.statusCode} name={detail.statusName}/><time>{caseDateTime(app.completedAt,uiLocale)}</time></div></li>:null}
+                    })}
+                    {detail.statusCode==="CANCELLED"?<li data-state="done" data-step="cancelled" data-final="true"><span className="case-journey-segment" aria-hidden="true"/><strong>{localizedStatusName(detail.statusCode,detail.statusName,uiLocale)}</strong>{app.completedAt?<time dateTime={app.completedAt.toISOString()}>{caseDateTime(app.completedAt,uiLocale)}</time>:<span className="case-journey-time">{journeyUi.unrecorded}</span>}</li>:null}
                   </ol>
                 </section>:null}
             <details className="dossier-details">

@@ -379,3 +379,30 @@
 
 .fluid-case-detail .adaptive-chat-refresh{margin-inline-start:auto;min-width:44px;min-height:44px;display:grid;place-items:center;border-radius:8px;color:var(--dash-secondary)}
 .fluid-case-detail .adaptive-chat-refresh:hover{background:#f0f3f6;color:var(--dash-ink)}
+
+/* Case journey — a recorded milestone rail, not a wizard or a percentage bar. */
+.dossier-workspace .case-journey-rail{min-width:0;padding:10px 0 16px;border-block-end:1px solid var(--dash-rule)}
+.dossier-workspace .case-journey-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-block-end:12px}
+.dossier-workspace .case-journey-heading-copy{display:flex;flex-wrap:wrap;align-items:baseline;gap:5px 12px;min-width:0}
+.dossier-workspace .case-journey-heading h3{font-size:18px;line-height:1.35;font-weight:600;color:#0b1c30;margin:0}
+.dossier-workspace .case-journey-summary{font-size:15px;color:#647182;line-height:1.4}
+.dossier-workspace .case-journey-history{display:inline-flex;align-items:center;gap:7px;min-height:44px;font-size:15px;font-weight:500;color:#285582;flex:none;text-decoration:none}
+.dossier-workspace .case-journey-history:hover{text-decoration:underline;text-underline-offset:4px}
+.dossier-workspace .case-journey-history:focus-visible{outline:2px solid #285582;outline-offset:3px;border-radius:4px}
+.dossier-workspace .case-journey-stages{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(125px,100%),1fr));gap:12px;list-style:none;padding:0;margin:0}
+.dossier-workspace .case-journey-stages li{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0;padding:0 0 7px;position:relative}
+.dossier-workspace .case-journey-segment{width:100%;height:4px;border-radius:3px;background:#e1e6eb;margin-block-end:5px}
+.dossier-workspace .case-journey-stages strong{font-size:16px;font-weight:600;line-height:1.35;color:#0b1c30;overflow-wrap:anywhere}
+.dossier-workspace .case-journey-stages :is(time,.case-journey-time){font-size:15px;line-height:1.4;color:#647182;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.dossier-workspace .case-journey-stages li[data-state=done] .case-journey-segment{background:#718b9d}
+.dossier-workspace .case-journey-stages li[data-state=current] .case-journey-segment{background:#0b1c30}
+.dossier-workspace .case-journey-stages li[data-state=current] strong{color:#0b1c30}
+.dossier-workspace .case-journey-current-label{font-size:13px;line-height:1.25;font-weight:600;color:#285582}
+.dossier-workspace .case-journey-stages li[data-state=pending] strong{color:#647182;font-weight:500}
+.dossier-workspace .case-journey-rail[data-outcome=APPROVED] li[data-final=true] :is(strong){color:#21684f}
+.dossier-workspace .case-journey-rail[data-outcome=APPROVED] li[data-final=true] .case-journey-segment{background:#21684f}
+.dossier-workspace .case-journey-rail:is([data-outcome=REJECTED],[data-outcome=REFUSED],[data-outcome=CANCELLED]) li[data-final=true] strong{color:#a12622}
+.dossier-workspace .case-journey-rail:is([data-outcome=REJECTED],[data-outcome=REFUSED],[data-outcome=CANCELLED]) li[data-final=true] .case-journey-segment{background:#a12622}
+.dossier-workspace[dir=rtl] .case-journey-history svg{transform:scaleX(-1)}
+@media(prefers-reduced-motion:no-preference){.dossier-workspace .case-journey-rail{animation:case-journey-reveal 220ms cubic-bezier(.2,.75,.25,1) both}.dossier-workspace .case-journey-history svg{transition:transform 160ms ease}.dossier-workspace .case-journey-history:hover svg{transform:translateX(2px)}.dossier-workspace[dir=rtl] .case-journey-history:hover svg{transform:translateX(-2px) scaleX(-1)}@keyframes case-journey-reveal{from{opacity:.5;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}}
+@media(max-width:767px){.dossier-workspace .case-journey-heading{flex-wrap:wrap;gap:2px}.dossier-workspace .case-journey-stages{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.dossier-workspace .case-journey-heading-copy{display:grid;gap:2px}}
