@@ -161,13 +161,22 @@ export function RequestWizard(props: Props) {
   const destinationChangeRef=useRef<HTMLButtonElement>(null);
   const keyboardSelectionRef=useRef(false);
   const [fileError, setFileError] = useState("");
+  const [activeDoc,setActiveDoc]=useState("");
+  const [previewIndex,setPreviewIndex]=useState(0);
+  const [previewUrl,setPreviewUrl]=useState("");
+  const [dragging,setDragging]=useState(false);
+  const [nameDraft,setNameDraft]=useState("");
+  const [nationalityDraft,setNationalityDraft]=useState(props.defaultNationality);
+  const ui = {
+    fr:{title:"Nouvelle demande",reservation:"Votre demande",travel:"Voyage et voyageur",documents:"Documents",confirm:"Confirmation",suggestions:"Destinations suggérées",ready:"Prêt à vérifier",select:"Choisissez un programme",noDebit:"Aucun débit avant la confirmation.",estimate:"Solde estimé après confirmation",covered:"Votre solde couvre cette demande.",missing:"Montant manquant",drop:"Déposez votre document ici",browse:"Parcourir les fichiers",nextDoc:"Pièce suivante",review:"Vérifier le dossier",continue:"Préparer les documents",preview:"Aperçu",unavailable:"Aperçu indisponible pour ce format. Vérifiez le fichier sur votre appareil.",replace:"Changer de fichier",changeWarning:"Changer de programme supprimera les fichiers déjà sélectionnés. Continuer ?",invalid:"Format non accepté",duplicate:"Ce fichier est déjà sélectionné. Vérifiez la pièce choisie.",local:"Fichiers sur cet appareil jusqu’à la confirmation",empty:"À préparer",optional:"Facultatif",edit:"Modifier",download:"Ouvrir le fichier",payment:"Votre paiement",check:"Votre dossier est prêt à être vérifié",selected:"Pièce sélectionnée",working:"Délai indicatif",notes:"Instructions facultatives"},
+    en:{title:"New application",reservation:"Your application",travel:"Trip and traveller",documents:"Documents",confirm:"Confirmation",suggestions:"Suggested destinations",ready:"Ready to review",select:"Choose a programme",noDebit:"No charge until confirmation.",estimate:"Estimated balance after confirmation",covered:"Your balance covers this application.",missing:"Amount missing",drop:"Drop your document here",browse:"Browse files",nextDoc:"Next document",review:"Review application",continue:"Prepare documents",preview:"Preview",unavailable:"Preview unavailable for this format. Check the file on your device.",replace:"Change file",changeWarning:"Changing the programme removes the selected files. Continue?",invalid:"Unsupported format",duplicate:"This file is already selected. Check the chosen document.",local:"Files stay on this device until confirmation",empty:"To prepare",optional:"Optional",edit:"Edit",download:"Open file",payment:"Your payment",check:"Your application is ready to review",selected:"Document selected",working:"Estimated processing time",notes:"Optional instructions"},
+    ar:{title:"طلب جديد",reservation:"طلبكم",travel:"الرحلة والمسافر",documents:"الوثائق",confirm:"التأكيد",suggestions:"الوجهات المقترحة",ready:"جاهز للمراجعة",select:"اختاروا برنامجاً",noDebit:"لا خصم قبل التأكيد.",estimate:"الرصيد المتوقع بعد التأكيد",covered:"رصيدكم يغطي هذا الطلب.",missing:"المبلغ الناقص",drop:"أفلتوا الوثيقة هنا",browse:"تصفح الملفات",nextDoc:"الوثيقة التالية",review:"مراجعة الطلب",continue:"تحضير الوثائق",preview:"معاينة",unavailable:"المعاينة غير متاحة لهذا التنسيق. تحققوا من الملف على جهازكم.",replace:"تغيير الملف",changeWarning:"سيؤدي تغيير البرنامج إلى حذف الملفات المحددة. هل تريدون المتابعة؟",invalid:"تنسيق غير مدعوم",duplicate:"هذا الملف محدد مسبقاً. تحققوا من الوثيقة المختارة.",local:"تبقى الملفات على الجهاز حتى التأكيد",empty:"للتحضير",optional:"اختياري",edit:"تعديل",download:"فتح الملف",payment:"الدفع",check:"طلبكم جاهز للمراجعة",selected:"وثيقة محددة",working:"مدة المعالجة التقديرية",notes:"تعليمات اختيارية"}
+  }[props.locale];
   const [files, setFiles] = useState<Record<string, File[]>>({});
   const [pending, setPending] = useState(false);
   const submittingRef = useRef(false);
   const leavingAfterSuccess = useRef(false);
   const [dirty, setDirty] = useState(false);
-  const selectedFileLabel = {fr:"Sélectionné",en:"Selected",ar:"تم التحديد"}[props.locale];
-  const preparationNotice = {fr:"Votre dossier n’est pas encore enregistré. Les pièces restent sur cet appareil jusqu’à la confirmation.",en:"Your case is not saved yet. Files stay on this device until you confirm.",ar:"لم يُحفظ طلبكم بعد. تبقى الملفات على هذا الجهاز إلى حين التأكيد."}[props.locale];
   useEffect(() => {
     if (!dirty && !pending) return;
     const protect = (event: BeforeUnloadEvent) => {
@@ -194,6 +203,16 @@ export function RequestWizard(props: Props) {
   const visa = useMemo(() => country?.visaTypes.find((v) => v.id === visaTypeId) ?? null, [country, visaTypeId]);
   const requirements = useMemo(() => (visaTypeId ? (props.requirementsByVisaType[visaTypeId] ?? []) : []), [props.requirementsByVisaType, visaTypeId]);
 
+  const requiredDocs=requirements.filter(r=>r.required);
+  const completedDocs=requiredDocs.filter(r=>(files[r.documentTypeId]??[]).length>0).length;
+  const selectedRequirement=requirements.find(r=>r.documentTypeId===activeDoc)??requirements.find(r=>r.required&&!(files[r.documentTypeId]??[]).length)??requirements[0];
+  const selectedFiles=selectedRequirement?files[selectedRequirement.documentTypeId]??[]:[];
+  const selectedFile=selectedFiles[previewIndex]??selectedFiles[0];
+  useEffect(()=>{if(!selectedFile){setPreviewUrl("");return;}const url=URL.createObjectURL(selectedFile);setPreviewUrl(url);return ()=>URL.revokeObjectURL(url);},[selectedFile]);
+  function selectDoc(id:string){setActiveDoc(id);setPreviewIndex(0);setFileError("");}
+  function clearForProgrammeChange(){if(Object.values(files).some(a=>a.length)&&!window.confirm(ui.changeWarning))return false;setFiles({});setActiveDoc("");setPreviewIndex(0);setFileError("");return true;}
+  function changeProgramme(id:string){if(id===visaTypeId)return;if(!clearForProgrammeChange())return;setVisaTypeId(id);setDirty(true);}
+  function editStep(n:number){if(submittingRef.current||pending||n>=step)return;setClientError("");setWizardDirection("back");setStep(n);}
   // All destinations with a bookable programme remain visible without typing.
   const availableDestinations = useMemo(() =>
     props.countries.filter((c) => c.visaTypes.length > 0)
@@ -239,10 +258,11 @@ export function RequestWizard(props: Props) {
   function chooseDestination(selected: WizardCountry, keyboard = false) {
     keyboardSelectionRef.current = keyboard;
     setCountryId(selected.id);
+    setDirty(true);
     setCountrySearch("");
     setActiveDestination(-1);
     setDestinationOpen(false);
-    if (selected.visaTypes.length !== 1) setVisaTypeId("");
+    setVisaTypeId(selected.visaTypes.length===1 ? selected.visaTypes[0]!.id : "");
   }
 
   // Auto-select when the chosen destination has exactly one programme.
@@ -260,7 +280,7 @@ export function RequestWizard(props: Props) {
         setClientError(t.validationChooseCountry);
         return false;
       }
-      if (!visaTypeId) {
+      if (!visa) {
         setClientError(t.validationChooseVisa);
         return false;
       }
@@ -315,6 +335,11 @@ export function RequestWizard(props: Props) {
   function onFileChange(documentTypeId: string, list: FileList | null) {
     if (!list) return;
     const incoming = Array.from(list);
+    if(!incoming.length)return;
+    const invalid=incoming.find(f=>!(/\.(pdf|jpe?g|png|webp|docx?)$/i.test(f.name))||f.size===0);
+    if(invalid){setFileError(ui.invalid+" ("+invalid.name+")");return;}
+    const signature=(f:File)=>f.name+"|"+f.size+"|"+f.lastModified;
+    if(new Set(incoming.map(signature)).size!==incoming.length||incoming.some(f=>Object.entries(files).some(([id,arr])=>id!==documentTypeId&&arr.some(other=>signature(other)===signature(f))))){setFileError(ui.duplicate);return;}
     const tooBig = incoming.find((f) => f.size > MAX_FILE_BYTES);
     if (tooBig) {
       setFileError(`${t.fileTooLarge} (${tooBig.name})`);
@@ -323,19 +348,11 @@ export function RequestWizard(props: Props) {
     setFileError("");
     setDirty(true);
     setFiles((prev) => ({ ...prev, [documentTypeId]: incoming }));
+    setPreviewIndex(0);
   }
 
   function removeFile(documentTypeId: string, index: number) {
     setFiles((prev) => ({ ...prev, [documentTypeId]: (prev[documentTypeId] ?? []).filter((_, i) => i !== index) }));
-  }
-
-  function applicantSummary(): string {
-    const form = formRef.current;
-    if (!form) return "—";
-    const fullName = (form.elements.namedItem("t0_fullName") as HTMLInputElement | null)?.value?.trim() ?? "";
-    const natSelect = form.elements.namedItem("t0_nationality") as HTMLSelectElement | null;
-    const nat = natSelect?.selectedOptions?.[0]?.textContent ?? natSelect?.value ?? "";
-    return [fullName, nat].filter(Boolean).join(" · ") || "—";
   }
 
   const feeNumber = visa ? Number(visa.fee) : 0;
@@ -353,7 +370,7 @@ export function RequestWizard(props: Props) {
 
 
   async function submit(form: HTMLFormElement) {
-    if (step !== 3 || submittingRef.current || !validateStep(1) || !validateStep(2)) return;
+    if (step !== 3 || submittingRef.current || !canAfford || catalogueRecovery || sessionRecovery || !validateStep(1) || !validateStep(2)) return;
     submittingRef.current = true;
     setPending(true);
     const fields = new FormData(form);
@@ -396,28 +413,19 @@ export function RequestWizard(props: Props) {
   }
 
   return (
-    <form ref={formRef} className="agency-v2-wizard space-y-6" onChange={()=>setDirty(true)} onSubmit={(event) => { event.preventDefault(); void submit(event.currentTarget); }}>
+    <form ref={formRef} className="agency-v2-wizard booking-experience" onChange={()=>setDirty(true)} onSubmit={(event) => { event.preventDefault(); void submit(event.currentTarget); }}>
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       {countryId ? <input type="hidden" name="countryId" value={countryId} /> : null}
       <input type="hidden" name="locale" value={props.locale} />
 
-      {/* Step rail */}
-      <ol ref={stepHeadingRef} tabIndex={-1} className="agency-v2-steps grid grid-cols-3 gap-2 text-base" data-testid="wizard-steps">
-        {[
-          { n: 1, label: t.stepChoose },
-          { n: 2, label: t.stepUpload },
-          { n: 3, label: t.stepPreview },
-        ].map((s) => (
-          <li
-            key={s.n}
-            className="wizard-step flex min-w-0 items-center gap-2 border-b pb-2"
-            aria-current={step === s.n ? "step" : undefined}
-            data-state={step === s.n ? "active" : step > s.n ? "complete" : "pending"}
-          >
-            <span className={`flex h-7 w-7 items-center justify-center rounded-md text-xs font-semibold ${step === s.n ? "bg-navy-900 text-white" : step > s.n ? "bg-emerald-50 text-emerald-700" : "bg-ivory-100 text-slate-500"}`}>
-              {s.n}
-            </span>
-            <span className={step === s.n ? "font-semibold text-navy-900" : "text-slate-500"}>{s.label}</span>
+      <style>{bookingCss}</style>
+      <ol ref={stepHeadingRef} tabIndex={-1} className="booking-rail" data-testid="wizard-steps">
+        {[ui.travel,ui.documents,ui.confirm].map((label,i)=>(
+          <li key={label} aria-current={step===i+1?"step":undefined} data-state={step===i+1?"active":step>i+1?"complete":"pending"}>
+            <button type="button" disabled={step<=i+1||pending} onClick={()=>editStep(i+1)}>
+              <span className="booking-marker">{step>i+1?"✓":step===i+1?<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 10 21 3l-7 18-4-7-7-4Zm7 4L21 3"/></svg>:i+1}</span>
+              <span>{label}</span>
+            </button>
           </li>
         ))}
       </ol>
@@ -430,15 +438,15 @@ export function RequestWizard(props: Props) {
       ) : null}
 
       {/* STEP 1 — destination search, then programmes, then applicant */}
-      <section data-wizard-section="1" hidden={step !== 1} className="wizard-panel space-y-6" data-direction={wizardDirection}>
-        <div className="card relative z-10 space-y-4 p-6">
+      <section data-wizard-section="1" hidden={step !== 1} className="wizard-panel booking-grid" data-direction={wizardDirection}>
+        <div className="booking-main"><div className="booking-destination relative z-10 space-y-4">
           <div>
             <h2 className="font-serif text-lg text-navy-900">{t.destinationQuestion}</h2>
-            <p className="mt-1 text-xs text-slate-500">{t.destinationHint}</p>
+
           </div>
 
           {country ? (
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-iris-200 bg-iris-50/50 px-4 py-4">
+            <div className="booking-selected-country">
               <p className="text-base">
                 <span className="text-slate-500">{t.destination}: </span>
                 <span className="font-semibold text-navy-900" data-testid="wizard-destination-selected">
@@ -450,6 +458,7 @@ export function RequestWizard(props: Props) {
                 className="btn-secondary btn-sm"
                 ref={destinationChangeRef}
                 onClick={() => {
+                  if(!clearForProgrammeChange())return;
                   setCountryId("");
                   setVisaTypeId("");
                 }}
@@ -461,7 +470,7 @@ export function RequestWizard(props: Props) {
             <div className="space-y-4">
               <div
                 ref={destinationPickerRef}
-                className="relative z-30 w-full sm:max-w-2xl"
+                className="relative z-30 w-full"
                 onBlur={(event) => {
                   if (!event.currentTarget.contains(event.relatedTarget)) {
                     setDestinationOpen(false);
@@ -572,7 +581,7 @@ export function RequestWizard(props: Props) {
               {!countrySearch && popularDestinations.length > 0 ? (
                 <div data-testid="wizard-popular-destinations">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                    {t.popularDestinations}
+                    {ui.suggestions}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {popularDestinations.map((c) => (
@@ -584,7 +593,7 @@ export function RequestWizard(props: Props) {
                         onClick={(event) => chooseDestination(c, event.detail === 0)}
                       >
                         {c.name}
-                        <span className="ms-2 text-xs text-slate-400">{c.visaTypes.length}</span>
+
                       </button>
                     ))}
                   </div>
@@ -594,7 +603,7 @@ export function RequestWizard(props: Props) {
           )}
 
           {/* Programmes for the chosen destination only */}
-          {country ? (
+          {country && country.visaTypes.length>1 ? (
             <div className="space-y-4 border-t border-slate-100 pt-4">
               <h3 className="text-base font-semibold text-navy-900">
                 {t.availableProgrammes}
@@ -613,7 +622,7 @@ export function RequestWizard(props: Props) {
                       data-country-id={v.countryId}
                       className="sr-only"
                       checked={visaTypeId === v.id}
-                      onChange={() => setVisaTypeId(v.id)}
+                      onChange={() => changeProgramme(v.id)}
                     />
                     <span className="block font-semibold text-navy-900">{v.name}</span>
                     <span className="mt-1 block text-xs text-slate-500">{v.categoryName}</span>
@@ -629,8 +638,8 @@ export function RequestWizard(props: Props) {
         </div>
 
         {/* Applicant — one traveler, minimal data (§12) */}
-        <div className="card space-y-4 p-6">
-          <h3 className="font-semibold text-navy-900">{t.applicant}</h3>
+        <div className="booking-traveller space-y-4">
+          <h2>{t.applicant}</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor="t0_fullName">{t.fullName} *</label>
@@ -641,6 +650,7 @@ export function RequestWizard(props: Props) {
                 autoComplete="name"
                 className="input"
                 data-testid="wizard-full-name"
+                value={nameDraft} onChange={e=>setNameDraft(e.target.value)}
                 placeholder={t.fullNamePlaceholder}
               />
             </div>
@@ -650,7 +660,7 @@ export function RequestWizard(props: Props) {
                 id="t0_nationality"
                 name="t0_nationality"
                 required
-                defaultValue={props.defaultNationality}
+                value={nationalityDraft} onChange={e=>setNationalityDraft(e.target.value)}
                 className="input"
                 data-testid="wizard-nationality"
                 aria-label={t.nationality}
@@ -661,232 +671,73 @@ export function RequestWizard(props: Props) {
               </select>
             </div>
           </div>
-          <div>
-            <label className="label" htmlFor="agencyNotes">{t.notes}</label>
-            <textarea id="agencyNotes" name="agencyNotes" rows={2} className="input" placeholder={t.notesPlaceholder} />
-          </div>
+          <details className="booking-notes"><summary>{ui.notes}</summary><label className="label sr-only" htmlFor="agencyNotes">{t.notes}</label><textarea id="agencyNotes" name="agencyNotes" rows={2} className="input mt-3" placeholder={t.notesPlaceholder} /></details>
         </div>
+        </div>
+        <aside className="booking-side">
+          <h2>{ui.reservation}</h2>
+          {visa?<><div className="booking-product"><small>{country?.name}</small><h3>{visa.name}</h3><span>{visa.categoryName} · {processingLabel(visa)}</span>{visa.description?<p>{visa.description}</p>:null}<strong className="booking-price"><bdi>{formatDZD(visa.fee)}</bdi></strong></div>
+          <div className="booking-rule"><h3>{t.summaryDocuments}</h3>{requirements.length?requirements.map(r=><p className="booking-line" key={r.documentTypeId}><span>{r.name}</span><small>{r.required?t.required:ui.optional}</small></p>):<p>{t.noDocumentsRequired}</p>}</div>
+          <div className="booking-rule"><p className="booking-line"><span>{t.walletBalance}</span><strong><bdi>{formatDZD(props.walletBalance)}</bdi></strong></p>{canAfford?<><p className="booking-line"><span>{ui.estimate}</span><strong><bdi>{formatDZD(afterNum)}</bdi></strong></p><p className="booking-success">✓ {ui.covered}</p></>:<><p className="booking-warning">{ui.missing}: <bdi>{formatDZD(missing)}</bdi></p><a href={topupHref} className="btn-secondary">{t.requestTopup}</a></>}</div></>:<p className="booking-empty">{ui.select}</p>}
+          <small>{ui.noDebit}</small>
+        </aside>
       </section>
 
-      {/* STEP 2 — documents */}
-      <section data-wizard-section="2" hidden={step !== 2} className="wizard-panel space-y-4" data-direction={wizardDirection}>
-        <div className="card p-6">
-          <dl className="grid grid-cols-1 gap-2 text-base sm:grid-cols-4">
-            <div className="flex flex-col gap-1">
-              <dt className="text-xs text-slate-400">{t.destination}</dt>
-              <dd className="font-semibold text-navy-900">{country?.name ?? "—"}</dd>
-            </div>
-            <div className="flex flex-col gap-1">
-              <dt className="text-xs text-slate-400">{t.stepChoose}</dt>
-              <dd className="font-semibold text-navy-900">{visa?.name ?? "—"}</dd>
-            </div>
-            <div className="flex flex-col gap-1">
-              <dt className="text-xs text-slate-400">{t.fee}</dt>
-              <dd className="font-semibold tabular-nums text-navy-900">{visa ? formatDZD(visa.fee) : "—"}</dd>
-            </div>
-            <div className="flex flex-col gap-1">
-              <dt className="text-xs text-slate-400">{t.processing}</dt>
-              <dd className="font-semibold text-navy-900">{visa ? processingLabel(visa) : "—"}</dd>
-            </div>
-          </dl>
-        </div>
-
-        <div className="card space-y-4 p-6">
-          <div className="agency-v2-document-heading"><h2 className="font-serif text-lg text-navy-900">{t.documents}</h2>{requirements.some(r => r.required) ? <div className="agency-v2-document-progress" role="status"><span>{progressCopy.selected}: <strong>{requirements.filter(r => r.required && (files[r.documentTypeId] ?? []).length > 0).length} / {requirements.filter(r => r.required).length}</strong></span><progress aria-label={t.required} value={requirements.filter(r => r.required && (files[r.documentTypeId] ?? []).length > 0).length} max={requirements.filter(r => r.required).length} /></div> : null}</div>
-          {fileError ? (
-            <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700" data-testid="wizard-file-error">
-              {fileError}
-            </p>
-          ) : null}
-          {requirements.length === 0 ? (
-            <p className="text-base text-slate-500">{t.noDocumentsRequired}</p>
-          ) : (
-            <ul className="border-y border-line">
-              {requirements.map((r) => {
-                const picked = files[r.documentTypeId] ?? [];
-                return (
-                  <li key={r.documentTypeId} className="border-b border-line py-4 last:border-b-0">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div>
-                        <p className="font-semibold text-navy-900">
-                          {r.name}{" "}
-                          <span className={`ms-1 rounded-md px-2 py-1 text-xs font-semibold ${r.required ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-500"}`}>
-                            {r.required ? t.required : t.optional}
-                          </span>
-                        </p>
-                        {r.notes ? <p className="mt-1 text-xs text-slate-500">{r.notes}</p> : null}
-                        <p className="mt-1 text-xs text-slate-400">{t.uploadHint}</p>
-                      </div>
-                      <label className="btn-secondary btn-sm cursor-pointer">
-                        {t.chooseFile}
-                        <input
-                          type="file"
-                          aria-label={`${t.chooseFile}: ${r.name}`}
-                          name={`file_${r.documentTypeId}`}
-                          multiple
-                          accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
-                          className="sr-only"
-                          data-required={r.required ? "1" : "0"}
-                          onChange={(e) => onFileChange(r.documentTypeId, e.currentTarget.files)}
-                        />
-                      </label>
-                    </div>
-                    {picked.length > 0 ? (
-                      <ul className="mt-2 space-y-1 text-xs text-slate-600">
-                        {picked.map((f, idx) => (
-                          <li key={idx} className="wizard-file-settle flex flex-wrap items-center gap-2">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                            <span className="font-semibold text-navy-800">{f.name}</span>
-                            <span className="text-slate-400">{(f.size / 1024).toFixed(0)} KB</span>
-                            <span className="text-sm text-slate-600">{selectedFileLabel}</span>
-                            <button
-                              type="button"
-                              aria-label={`${t.remove}: ${f.name}`}
-                              onClick={() => removeFile(r.documentTypeId, idx)}
-                              className="inline-flex min-h-11 items-center px-2 text-xs font-semibold text-rose-700 underline"
-                            >
-                              {t.remove}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
+      {/* STEP 2 — document workspace */}
+      <section data-wizard-section="2" hidden={step!==2} className="wizard-panel booking-docs" data-direction={wizardDirection}>
+        <div className="booking-doc-head"><div><h2>{t.documents}</h2><small>{country?.name} · {visa?.name} · <bdi>{visa?formatDZD(visa.fee):"—"}</bdi></small></div><div className="booking-doc-progress" role="status"><strong>{completedDocs}/{requiredDocs.length}</strong> <span>{progressCopy.selected}</span>{requiredDocs.length>0?<progress value={completedDocs} max={requiredDocs.length} aria-label={progressCopy.selected}/>:null}</div></div>
+        {fileError?<p role="alert" className="booking-warning" data-testid="wizard-file-error">{fileError}</p>:null}
+        {requirements.length===0?<p>{t.noDocumentsRequired}</p>:<div className="booking-doc-grid">
+          <div className="booking-doc-list" role="group" aria-label={t.summaryDocuments}>
+            {requirements.map(r=><button type="button" key={r.documentTypeId} className="booking-doc-row" aria-pressed={selectedRequirement?.documentTypeId===r.documentTypeId} onClick={()=>selectDoc(r.documentTypeId)}><span className="booking-doc-icon" aria-hidden>▤</span><span><strong>{r.name}</strong><small>{r.required?t.required:ui.optional}</small></span><span className={(files[r.documentTypeId]??[]).length?"booking-success":"booking-muted"}>{(files[r.documentTypeId]??[]).length?"✓ "+t.uploaded:ui.empty}</span></button>)}
+          </div>
+          {selectedRequirement?<div className="booking-doc-panel">
+            <div className="booking-doc-head"><h3>{selectedRequirement.name}</h3>{selectedFiles.length?<span className="booking-success">✓ {ui.selected}</span>:null}</div>
+            {selectedRequirement.notes?<p className="booking-muted">{selectedRequirement.notes}</p>:null}
+            <label className={selectedFiles.length?"booking-file-replace":"booking-drop"} data-dragging={dragging} onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={e=>{e.preventDefault();setDragging(false);onFileChange(selectedRequirement.documentTypeId,e.dataTransfer.files)}}>
+              {!selectedFiles.length?<><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5"/></svg><strong>{ui.drop}</strong></>:null}
+              <span className={selectedFiles.length?"btn-secondary":"btn-primary"}>{selectedFiles.length?ui.replace:ui.browse}</span>
+              <input key={selectedRequirement.documentTypeId} type="file" name={`file_${selectedRequirement.documentTypeId}`} aria-label={`${t.chooseFile}: ${selectedRequirement.name}`} multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="sr-only" data-required={selectedRequirement.required?"1":"0"} onChange={e=>{onFileChange(selectedRequirement.documentTypeId,e.currentTarget.files);e.currentTarget.value=""}}/>
+              {!selectedFiles.length?<small>{t.uploadHint}</small>:null}
+            </label>
+            {selectedFiles.length?<><div className="booking-files">{selectedFiles.map((f,i)=><div key={i} className="booking-line"><button type="button" className="booking-file-name" aria-pressed={i===previewIndex} onClick={()=>setPreviewIndex(i)}>{f.name} <small>{Math.ceil(f.size/1024)} KB</small></button><button type="button" className="booking-link" onClick={()=>{removeFile(selectedRequirement.documentTypeId,i);setPreviewIndex(0)}}>{t.remove}</button></div>)}</div>
+            {selectedFile&&previewUrl?<div className="booking-preview">{/^image\/(jpeg|png|webp)$/.test(selectedFile.type)?<img src={previewUrl} alt={selectedFile.name}/>:selectedFile.type==="application/pdf"?<iframe title={selectedFile.name} src={previewUrl}/>:<p>{ui.unavailable}</p>}</div>:null}</>:null}
+            <div className="booking-line"><small>{ui.local}</small>{requirements.some(r=>r.documentTypeId!==selectedRequirement.documentTypeId&&r.required&&!(files[r.documentTypeId]??[]).length)?<button type="button" className="btn-secondary" onClick={()=>{const next=requirements.find(r=>r.documentTypeId!==selectedRequirement.documentTypeId&&r.required&&!(files[r.documentTypeId]??[]).length);if(next)selectDoc(next.documentTypeId)}}>{ui.nextDoc} →</button>:null}</div>
+          </div>:null}
+        </div>}
       </section>
 
       {/* STEP 3 — review & submit */}
-      <section data-wizard-section="3" hidden={step !== 3} className="wizard-panel space-y-4" data-direction={wizardDirection}>
-        <div className="card space-y-6 p-6">
-          <div>
-            <h2 className="font-serif text-lg text-navy-900">{t.reviewTitle}</h2>
-            <p className="mt-1 text-base text-slate-500">{t.reviewSubtitle}</p>
-          </div>
-
-          {/* VISA */}
-          <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{t.sectionVisa}</h3>
-            <dl className="grid grid-cols-1 gap-2 text-base sm:grid-cols-3">
-              <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
-                <dt className="text-slate-500">{t.destination}</dt>
-                <dd className="font-semibold text-navy-900">{country?.name ?? "—"}</dd>
-              </div>
-              <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
-                <dt className="text-slate-500">{t.programme}</dt>
-                <dd className="font-semibold text-navy-900">{visa?.name ?? "—"}</dd>
-              </div>
-              <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
-                <dt className="text-slate-500">{t.processing}</dt>
-                <dd className="font-semibold text-navy-900">{visa ? processingLabel(visa) : "—"}</dd>
-              </div>
-            </dl>
-          </div>
-
-          {/* APPLICANT */}
-          <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{t.sectionApplicant}</h3>
-            <dl className="grid grid-cols-1 gap-2 text-base sm:grid-cols-2">
-              <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2 sm:col-span-2">
-                <dt className="text-slate-500">{t.summaryApplicant}</dt>
-                <dd className="font-semibold text-navy-900" data-testid="wizard-applicant-summary">{applicantSummary()}</dd>
-              </div>
-            </dl>
-          </div>
-
-          {/* DOCUMENTS */}
-          <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{t.summaryDocuments}</h3>
-            <ul className="space-y-1 text-base">
-              {requirements.map((r) => {
-                const count = (files[r.documentTypeId] ?? []).length;
-                const missingHere = r.required && count === 0;
-                return (
-                  <li key={r.documentTypeId} className="flex items-center justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
-                    <span className="text-slate-600">{r.name}</span>
-                    <span className={missingHere ? "font-semibold text-rose-600" : "font-semibold text-emerald-700"}>
-                      {missingHere ? t.missingPrefix : `${count} × ${t.uploaded}`}
-                    </span>
-                  </li>
-                );
-              })}
-              {requirements.length === 0 ? <li className="text-slate-500">{t.noDocumentsRequired}</li> : null}
-            </ul>
-          </div>
-
-          {/* PAYMENT */}
-          <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{t.sectionPayment}</h3>
-            <dl className="grid grid-cols-1 gap-2 text-base sm:grid-cols-3">
-              <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
-                <dt className="text-slate-500">{t.fee}</dt>
-                <dd className="font-semibold tabular-nums text-navy-900">{visa ? formatDZD(visa.fee) : "—"}</dd>
-              </div>
-              <div className="flex justify-between gap-4 rounded-md bg-ivory-50 px-4 py-2">
-                <dt className="text-slate-500">{t.currentBalance}</dt>
-                <dd className="font-semibold tabular-nums text-navy-900">{formatDZD(props.walletBalance)}</dd>
-              </div>
-              <div className={`flex justify-between gap-4 rounded-lg px-4 py-2 ${canAfford ? "bg-emerald-50" : "bg-gold-50"}`}>
-                <dt className={canAfford ? "text-emerald-700" : "text-gold-800"}>{t.balanceAfter}</dt>
-                <dd className={`font-semibold tabular-nums ${canAfford ? "text-emerald-800" : "text-gold-800"}`}>
-                  {canAfford && visa ? formatDZD(afterNum) : "—"}
-                </dd>
-              </div>
-            </dl>
-          </div>
-
-          <p className="rounded-lg bg-iris-50 px-4 py-2 text-xs text-iris-800">{t.chargeNote}</p>
-
-          {pending && transfer ? <div className="agency-v2-submit-progress" role="status" aria-live="polite"><strong>{transfer.phase === "files" ? `${progressCopy.files}: ${transfer.done} / ${transfer.total}` : progressCopy.confirm}</strong>{transfer.phase === "files" && transfer.total > 0 ? <progress aria-label={progressCopy.files} value={transfer.done} max={transfer.total}/> : null}<p>{progressCopy.notice}</p></div> : null}
-          {canAfford ? (
-            <button
-              type="submit"
-              disabled={pending || catalogueRecovery || sessionRecovery}
-              className="btn-primary w-full sm:w-auto disabled:opacity-50"
-              data-testid="wizard-submit"
-            >
-              {pending ? t.submitting : <>{t.submitApplication} — <bdi dir="ltr">{visa ? formatDZD(visa.fee) : "—"}</bdi></>}
-            </button>
-          ) : (
-            <div className="space-y-4 rounded-lg border border-gold-200 bg-gold-50 p-4">
-              <p className="font-semibold text-gold-900">{t.insufficientTitle}</p>
-              <dl className="grid grid-cols-1 gap-1 text-base sm:grid-cols-3">
-                <div className="flex justify-between gap-2">
-                  <dt className="text-gold-800">{t.requiredAmount}</dt>
-                  <dd className="font-semibold tabular-nums text-gold-900">{formatDZD(feeNumber)}</dd>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <dt className="text-gold-800">{t.currentBalance}</dt>
-                  <dd className="font-semibold tabular-nums text-gold-900">{formatDZD(balanceNumber)}</dd>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <dt className="text-navy-700">{t.missingAmount}</dt>
-                  <dd className="font-semibold tabular-nums text-navy-700">{formatDZD(missing)}</dd>
-                </div>
-              </dl>
-              <a href={topupHref} className="btn-primary inline-flex w-full sm:w-auto" data-testid="wizard-topup-cta">
-                {t.requestTopup}
-              </a>
-            </div>
-          )}
+      <section data-wizard-section="3" hidden={step!==3} className="wizard-panel booking-grid" data-direction={wizardDirection}>
+        <div className="booking-main booking-review">
+          <h2>{ui.check}</h2>
+          <div className="booking-rule"><div className="booking-line"><h3>{t.sectionVisa}</h3><button type="button" className="booking-link" disabled={pending} onClick={()=>editStep(1)}>{ui.edit}</button></div><h3>{country?.name} · {visa?.name}</h3><p className="booking-muted">{visa?processingLabel(visa):"—"}</p></div>
+          <div className="booking-rule"><div className="booking-line"><h3>{t.sectionApplicant}</h3><button type="button" className="booking-link" disabled={pending} onClick={()=>editStep(1)}>{ui.edit}</button></div><p data-testid="wizard-applicant-summary">{nameDraft||"—"} · {props.nationalities.find(n=>n.code===nationalityDraft)?.label??nationalityDraft}</p></div>
+          <div className="booking-rule"><div className="booking-line"><h3>{t.summaryDocuments}</h3><button type="button" className="booking-link" disabled={pending} onClick={()=>editStep(2)}>{ui.edit}</button></div>{requirements.map(r=><div className="booking-line" key={r.documentTypeId}><span>{r.name}</span><button type="button" disabled={pending} className="booking-link" onClick={()=>{selectDoc(r.documentTypeId);editStep(2)}}>{(files[r.documentTypeId]??[]).length?ui.preview:r.required?t.missingPrefix:ui.optional} →</button></div>)}</div>
         </div>
+        <aside className="booking-side">
+          <h2>{ui.payment}</h2><div className="booking-product"><small>{t.requiredAmount}</small><strong className="booking-price"><bdi>{visa?formatDZD(visa.fee):"—"}</bdi></strong></div>
+          <div className="booking-rule"><p className="booking-line"><span>{t.currentBalance}</span><strong><bdi>{formatDZD(props.walletBalance)}</bdi></strong></p><p className="booking-line"><span>{t.fee}</span><strong><bdi>{formatDZD(feeNumber)}</bdi></strong></p><p className="booking-line"><span>{t.balanceAfter}</span><strong className={canAfford?"booking-success":"booking-warning"}><bdi>{canAfford?formatDZD(afterNum):"—"}</bdi></strong></p></div>
+          <p className="booking-muted">{t.chargeNote}</p>
+          {pending&&transfer?<div className="agency-v2-submit-progress" role="status" aria-live="polite"><strong>{transfer.phase==="files"?`${progressCopy.files}: ${transfer.done} / ${transfer.total}`:progressCopy.confirm}</strong>{transfer.phase==="files"&&transfer.total>0?<progress aria-label={progressCopy.files} value={transfer.done} max={transfer.total}/>:null}<p>{progressCopy.notice}</p></div>:null}
+          {canAfford?<button type="submit" className="btn-primary w-full" disabled={pending||catalogueRecovery||sessionRecovery} data-testid="wizard-submit">{pending?t.submitting:<>{t.submitApplication} — <bdi>{visa?formatDZD(visa.fee):"—"}</bdi></>}</button>:<><p className="booking-warning">{t.insufficientTitle} · <bdi>{formatDZD(missing)}</bdi></p><a href={topupHref} className="btn-primary" data-testid="wizard-topup-cta">{t.requestTopup}</a></>}
+        </aside>
       </section>
 
-      {!pending && dirty ? <p className="agency-v2-preparation-notice">{preparationNotice}</p> : null}
-      <div className="agency-v2-wizard-footer flex flex-wrap items-center justify-between gap-3" data-step={step}>
-        <button type="button" onClick={goBack} disabled={step === 1 || pending} className="btn-secondary">
+
+      <div className="booking-footer" data-step={step}>
+        <button type="button" onClick={goBack} hidden={step===1} disabled={step === 1 || pending} className="btn-secondary">
           <span className="directional" aria-hidden>←</span> {t.back}
         </button>
-        {step < 3 && visa ? <span className="agency-v2-wizard-total"><span>{t.fee}</span> <strong><bdi>{formatDZD(visa.fee)}</bdi></strong></span> : null}
+        <small>{ui.noDebit}</small>
         {step < 3 ? (
           <button type="button" onClick={goNext} className="btn-primary">
-            {t.next} <span className="directional" aria-hidden>→</span>
+            {step===1?ui.continue:ui.review} <span className="directional" aria-hidden>→</span>
           </button>
         ) : null}
       </div>
     </form>
   );
 }
+
+const bookingCss = "/* ESSAFARIA Dashboard 04 — only /portal. Typography and surface tokens have one source. */\n.workspace-agency.workspace-agency:has(.booking-experience){\n --agency-paper:#fff;--agency-ink:#0b1c30;--agency-muted:#344457;--agency-rule:#e2e5e9;--agency-hover:#f5f7fa;\n background:#fff;color:#0b1c30;font-family:system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",Arial,sans-serif;\n}\nhtml[lang=\"ar\"] .workspace-agency.workspace-agency:has(.booking-experience){font-family:\"Plex Arabic\",Barlow,Arial,sans-serif}\n.workspace-agency.workspace-agency:has(.booking-experience) #workspace-main{background:#fff;padding-block-start:24px}\n.workspace-agency.workspace-agency:has(.booking-experience) .workspace-header-context{display:none}\n.workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation a[href=\"/portal/notifications\"] .badge{display:none}\n.workspace-agency.workspace-agency:has(.booking-experience) .agency-header-brand small{font-size:15px;letter-spacing:normal}\n.workspace-agency.workspace-agency:has(.booking-experience) .workspace-topbar button,.workspace-agency.workspace-agency:has(.booking-experience) .workspace-topbar summary{font-family:inherit}\n.workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation .workspace-nav-link{font-size:16px;font-weight:500}\n.workspace-agency.workspace-agency:has(.booking-experience) :is(.workspace-topbar,.agency-desktop-navigation) :is(a,button,summary):focus-visible{outline:2px solid #304b64;outline-offset:3px}\n@media(min-width:1280px){\n .workspace-agency.workspace-agency:has(.booking-experience) .workspace-topbar{flex-shrink:0}\n .workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation{position:sticky;top:64px;z-index:29;flex-shrink:0;background:white}\n .workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation a:is([href=\"/portal/notifications\"],[href=\"/portal/profile\"]){display:none}\n}\n@media(min-width:1600px){\n .workspace-agency.workspace-agency:has(.booking-experience) .workspace-topbar{height:68px;padding-inline:24px}\n .workspace-agency.workspace-agency:has(.booking-experience) .workspace-topbar > div:last-child > span.hidden{display:none}\n .workspace-agency.workspace-agency:has(.booking-experience) .account-menu-identity{display:none}\n .workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation{top:0;z-index:31;align-self:center;width:calc(100% - 480px);min-height:68px;height:68px;margin-block-start:-68px;padding:0;gap:8px;justify-content:center;border:0;background:transparent}\n .workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation .workspace-nav-link{padding:8px 12px;min-height:44px;white-space:nowrap;border-radius:6px}\n .workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation .workspace-nav-link:not([href=\"/portal/applications/new\"]) .workspace-nav-icon{display:none}\n .workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation .workspace-nav-link[aria-current]:not([href=\"/portal/applications/new\"]){background:transparent;box-shadow:inset 0 -2px #0b1c30;border-radius:0;color:#0b1c30;font-weight:600}\n .workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation .workspace-nav-link:hover:not([href=\"/portal/applications/new\"]){background:#f5f7fa}\n .workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation a[href=\"/portal/applications/new\"]{margin-inline:6px}\n}\n\n.workspace-agency.workspace-agency:has(.booking-experience){--agency-muted:#647182}\n.workspace-agency:has(.booking-experience) #workspace-main{max-width:1700px;width:100%;padding-inline:clamp(20px,4vw,64px)}\n.workspace-agency:has(.booking-experience) #workspace-main .page-header{margin-block-end:12px}\n.workspace-agency:has(.booking-experience) #workspace-main .page-header-subtitle{display:none}\n.workspace-agency #workspace-main .booking-experience{color:#0b1c30;font-size:16px;line-height:1.5;display:grid;gap:20px;font-family:inherit}\n.workspace-agency #workspace-main .booking-experience :is(h1,h2,h3,button,input,select,textarea){font-family:inherit}\n.workspace-agency #workspace-main .booking-experience h2{font-size:22px;font-weight:600;letter-spacing:-.018em}\n.workspace-agency #workspace-main .booking-experience h3{font-size:17px;font-weight:600}\n.workspace-agency #workspace-main .booking-experience small,.booking-muted{font-size:15px;color:#647182}\n.workspace-agency #workspace-main .booking-experience :is(.input,.btn-primary,.btn-secondary){border-radius:7px;font-weight:500}\n.booking-experience [hidden]{display:none!important}\n.booking-rail{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding-block:5px 12px;border-bottom:1px solid #e2e5e9;gap:12px}\n.booking-rail li{position:relative;min-width:0}\n.booking-rail li:not(:last-child):after{content:\"\";position:absolute;inset-inline-start:42px;inset-inline-end:8px;top:18px;border-top:1px dashed #b8c6d4;z-index:0}\n.booking-rail li[data-state=complete]:after{border-top:1px solid #6b899f}\n.booking-rail button{display:flex;flex-direction:column;align-items:start;gap:7px;position:relative;z-index:1;text-align:start;font-size:15px;color:#647182;min-height:58px}\n.booking-rail li[data-state=active] button{color:#0b1c30;font-weight:600}\n.booking-rail li[data-state=complete] button{color:#0b1c30;cursor:pointer}\n.booking-marker{width:36px;height:36px;display:grid;place-items:center;border:1px solid #c7d1db;border-radius:50%;background:white;color:#647182;font-size:15px}\n.booking-rail li[data-state=active] .booking-marker{background:#0b1c30;color:white;box-shadow:0 0 0 4px #e6edf3;border-color:#0b1c30}\n.booking-rail li[data-state=complete] .booking-marker{color:#23685c;border-color:#8cb4a8}\n.booking-grid:not([hidden]){display:grid;grid-template-columns:minmax(0,1.55fr) minmax(300px,1fr);gap:clamp(24px,4vw,64px);align-items:start}\n.booking-main,.booking-side{display:grid;gap:18px;min-width:0}\n.booking-side{border-inline-start:1px solid #e2e5e9;padding-inline-start:clamp(20px,3vw,44px)}\n.booking-traveller{border-top:1px solid #e2e5e9;padding-top:20px}\n.booking-selected-country{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #e2e5e9;padding-block:10px}\n.booking-notes summary{cursor:pointer;color:#647182;min-height:44px;display:list-item;padding-block:10px}\n.booking-product{display:grid;gap:5px}\n.booking-product h3{font-size:24px!important;line-height:1.25}\n.booking-price{font-size:34px;line-height:1.2;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.025em;margin-top:8px}\n.booking-rule{border-top:1px solid #e2e5e9;padding-top:12px;display:grid;gap:8px}\n.booking-line{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:30px}\n.booking-line strong{font-weight:600;text-align:end;font-variant-numeric:tabular-nums}\n.booking-success{color:#21684f;font-size:15px}\n.booking-warning{color:#934516;font-size:15px}\n.booking-empty{color:#647182;padding-block:14px}\n.booking-doc-head{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}\n.booking-doc-progress{display:flex;align-items:center;gap:8px;color:#647182;font-size:15px}\n.booking-doc-progress strong{font-size:22px;color:#0b1c30;font-weight:600}\n.booking-doc-progress progress{width:90px;height:5px;accent-color:#23685c}\n.booking-doc-grid{display:grid;grid-template-columns:minmax(260px, .75fr) minmax(0,1.25fr);gap:24px;border-top:1px solid #e2e5e9;margin-top:14px}\n.booking-doc-list{padding-block:8px;min-width:0}\n.booking-doc-row{width:100%;display:grid;grid-template-columns:22px minmax(0,1fr) auto;align-items:center;text-align:start;gap:12px;min-height:64px;padding:10px 12px;border-bottom:1px solid #e2e5e9;transition:background 160ms ease;border-radius:5px}\n.booking-doc-row[aria-pressed=true]{background:#edf2f6;box-shadow:inset 3px 0 #0b1c30}\n[dir=rtl] .booking-doc-row[aria-pressed=true]{box-shadow:inset -3px 0 #0b1c30}\n.booking-doc-row:hover{background:#f5f7fa}\n.booking-doc-row strong,.booking-doc-row small{display:block;font-weight:500}\n.booking-doc-icon{color:#647182;font-size:20px}\n.booking-doc-panel{display:grid;gap:14px;align-content:start;padding:16px 0 0 24px;border-inline-start:1px solid #e2e5e9;min-width:0}\n[dir=rtl] .booking-doc-panel{padding:16px 24px 0 0}\n.booking-drop{display:grid;justify-items:center;align-content:center;gap:10px;min-height:218px;border:1px dashed #aab8c7;border-radius:12px;text-align:center;padding:18px;cursor:pointer;transition:background 160ms ease,border-color 160ms ease}\n.booking-drop:hover,.booking-drop[data-dragging=true]{background:#f5f8fb;border-color:#0b1c30}\n.booking-drop:focus-within,.booking-file-replace:focus-within{outline:2px solid #0b1c30;outline-offset:3px}\n.booking-file-replace{justify-self:start;cursor:pointer}\n.booking-preview{display:grid;place-items:center;background:#f6f7f9;border-radius:7px;min-height:150px;overflow:hidden}\n.booking-preview img{max-width:100%;height:clamp(160px,25vh,310px);object-fit:contain}\n.booking-preview iframe{width:100%;height:clamp(220px,33vh,390px);border:0}\n.booking-preview p{padding:18px;color:#647182}\n.booking-files{display:grid;gap:4px}\n.booking-file-name{text-align:start;overflow-wrap:anywhere;min-width:0}\n.booking-file-name[aria-pressed=true]{font-weight:600}\n.booking-link{color:#285582;min-height:44px;padding-inline:6px;text-decoration:underline;text-underline-offset:3px}\n.booking-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-block:12px;border-top:1px solid #e2e5e9}\n.booking-footer>button:last-child{margin-inline-start:auto}\n.workspace-agency #workspace-main .booking-experience .wizard-choice{font-weight:500;border-radius:6px}\n.workspace-agency #workspace-main .booking-experience .wizard-panel:not([hidden]){animation:booking-enter 200ms cubic-bezier(.2,.7,.2,1) both}\n@keyframes booking-enter{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}\n@media(max-width:850px){.booking-grid:not([hidden]),.booking-doc-grid{grid-template-columns:1fr;gap:16px}.booking-side,.booking-doc-panel,[dir=rtl] .booking-doc-panel{border-inline-start:0;padding-inline:0;border-top:1px solid #e2e5e9;padding-top:16px}.booking-doc-row{min-height:56px}.booking-rail button{font-size:14px}.booking-footer{position:static}}\n@media(prefers-reduced-motion:reduce){.workspace-agency #workspace-main .booking-experience .wizard-panel:not([hidden]){animation:none}.booking-doc-row,.booking-drop{transition:none}}\n";
