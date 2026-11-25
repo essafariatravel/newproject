@@ -40,7 +40,7 @@ export default async function PortalCommunicationsPage({searchParams}:{searchPar
  const dayKey=(d:Date)=>new Intl.DateTimeFormat("sv-SE",{timeZone:"Africa/Algiers",year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
  const clock=(d:Date)=>new Intl.DateTimeFormat(locale,{timeZone:"Africa/Algiers",hour:"2-digit",minute:"2-digit",hour12:false}).format(d);
  const day=(d:Date)=>dayKey(d)===dayKey(new Date())?copy.today:dayKey(d)===dayKey(new Date(Date.now()-86400000))?copy.yesterday:new Intl.DateTimeFormat(locale,{timeZone:"Africa/Algiers",day:"numeric",month:"long",year:"numeric"}).format(d);
- const short=(d:Date)=>dayKey(d)===dayKey(new Date())?clock(d):new Intl.DateTimeFormat(locale,{timeZone:"Africa/Algiers",day:"numeric",month:"short",...(d.getFullYear()!==new Date().getFullYear()?{year:"numeric"}:{})}).format(d);
+ const short=(d:Date)=>dayKey(d)===dayKey(new Date())?clock(d):new Intl.DateTimeFormat(locale,{timeZone:"Africa/Algiers",day:"numeric",month:"short",...(d.getFullYear()!==new Date().getFullYear()?{year:"numeric" as const}:{})}).format(d);
  const icon=<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H5l1.5-4A7.5 7.5 0 1 1 20 11.5Z"/><path d="M9 11h7m-7 3h4"/></svg>;
  return <section className="essafaria-communication" dir={locale==="ar"?"rtl":"ltr"}>
  <style>{communicationCss}</style>
@@ -49,7 +49,7 @@ export default async function PortalCommunicationsPage({searchParams}:{searchPar
  <div className="comm-workspace" data-selected={Boolean(selected)}>
  <section className="comm-inbox" aria-label={copy.inbox}>
  <div className="comm-inbox-head"><h2>{copy.inbox}</h2><InboxSearch locale={locale} q={q} filter={filter}/>
- <nav className="comm-filters" aria-label={ct("Filter")}>{[["all",copy.all],["unread",copy.unread],["reply",copy.reply]].map(([key,label])=><Link key={key} href={url(undefined,1,key)} scroll={false} aria-current={filter===key?"page":undefined}>{label}</Link>)}</nav></div>
+ <nav className="comm-filters" aria-label={ct("Filter")}>{([["all",copy.all],["unread",copy.unread],["reply",copy.reply]] as const).map(([key,label])=><Link key={key} href={url(undefined,1,key)} scroll={false} aria-current={filter===key?"page":undefined}>{label}</Link>)}</nav></div>
  <div className="comm-inbox-scroll">{threads.length?<ol className="comm-threads">{threads.map(t=><li key={t.applicationId}><Link className="comm-row" href={url(t.applicationId)} scroll={false} aria-current={selected?.applicationId===t.applicationId?"page":undefined} data-unread={t.unread}>
  <span className="comm-row-line"><strong><bdi>{t.traveller||t.reference}</bdi></strong><time dateTime={t.createdAt.toISOString()}>{short(t.createdAt)}</time>{t.unread?<span className="comm-unread" aria-label={copy.unread}/>:null}</span>
  <span className="comm-case"><bdi>{countryName({name:t.destination},locale)} · {t.reference}</bdi></span>
