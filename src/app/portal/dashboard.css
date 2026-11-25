@@ -453,3 +453,65 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-dashboard){fon
 @media(max-width:767px){.smart-home .home-news.home-news-glass{border-radius:14px;min-height:0;padding:14px;gap:10px 6px}.smart-home .home-news-glass h2{font-size:23px}.smart-home .home-news-glass p{font-size:15px}.smart-home .home-news-glass .home-news-controls button{width:44px;min-width:44px}.smart-home .home-news-glass .home-news-cta{padding-inline:12px;font-size:14px;gap:6px}.smart-home .home-news-glass .home-news-art img{width:100%}}
 @media(max-width:370px){.smart-home .home-news.home-news-glass{grid-template-columns:1fr}.smart-home .home-news-glass .home-news-controls{justify-self:start}}
 @media(prefers-reduced-motion:reduce){.smart-home .home-news-glass :is(.home-news-content,.home-news-art,.home-news-cta,.home-news-controls button,.home-news-dot){animation:none;transition:none}}
+
+/* Destination experience — adaptive commercial sheet, scoped to the home catalogue. */
+.home-programme-dialog.destination-experience{padding:0;width:min(720px,94vw);max-height:90dvh;border:1px solid #dce3e9;border-radius:24px;overflow:auto;box-shadow:0 22px 80px #0b1c3026;font-family:inherit;color:#0b1c30;background:#fff}
+.home-programme-dialog.destination-experience[data-multiple=true]{width:min(1040px,94vw)}
+.home-programme-dialog.destination-experience::backdrop{background:#0b1c303b;backdrop-filter:blur(5px)}
+.destination-experience .destination-hero{padding:24px 30px;display:flex;align-items:center;justify-content:space-between;gap:16px;border-block-end:1px solid #e2e7eb;background:#f4f7fa;position:sticky;top:0;z-index:2}
+.destination-experience .destination-identity{display:flex;align-items:center;gap:15px;min-width:0}
+.destination-experience .destination-flag{display:grid;place-items:center;width:68px;height:52px;border:1px solid #e0e7ed;border-radius:13px;background:white;flex:none}
+.destination-experience .destination-flag .dash-flag{width:42px;height:28px;max-width:none}
+.destination-experience .destination-flag .dash-flag-emoji{font-size:32px;line-height:1}
+.destination-experience .destination-hero p{font-size:15px;margin:0;color:#647182}
+.destination-experience .destination-hero h2{display:block;font-size:32px;line-height:1.2;font-weight:600;margin:4px 0 0;overflow-wrap:anywhere}
+.destination-experience .destination-close{display:grid;place-items:center;width:44px;height:44px;border:1px solid #dce3e9;border-radius:50%;background:#ffffffc9;backdrop-filter:blur(12px);flex:none;color:#0b1c30}
+.destination-experience .destination-close:hover{background:white}
+.destination-experience .destination-body{display:grid;grid-template-columns:minmax(0,1fr);padding:23px 30px 26px;gap:24px}
+.destination-experience[data-multiple=true] .destination-body{grid-template-columns:minmax(0,.95fr) minmax(0,1.25fr)}
+.destination-experience h3{margin:0;font-size:22px;font-weight:600;line-height:1.35;overflow-wrap:anywhere}
+.destination-experience .destination-detail{min-width:0;display:flex;flex-direction:column;gap:15px}
+.destination-experience .destination-essentials{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;padding:4px 0 16px;border-block-end:1px solid #e2e7eb}
+.destination-experience .destination-essentials>div{display:grid;gap:6px;min-width:0}
+.destination-experience .destination-essentials>div+div{border-inline-start:1px solid #e2e7eb;padding-inline-start:20px}
+.destination-experience .destination-essentials>div>span{font-size:15px;color:#647182}
+.destination-experience .destination-price{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;font-size:34px;font-weight:600;line-height:1.15;font-variant-numeric:tabular-nums}
+.destination-experience .destination-price small{font-size:16px;font-weight:500}
+.destination-experience .destination-time{font-size:22px;line-height:1.35;font-weight:600;overflow-wrap:anywhere}
+.destination-experience .destination-wallet-state{display:flex;align-items:flex-start;gap:11px;color:#21684f;padding:4px 0 7px}
+.destination-experience .destination-wallet-state[data-low=true]{color:#9b4b17}
+.destination-experience .destination-wallet-state svg{flex:none;margin-block-start:1px}
+.destination-experience .destination-wallet-state strong{font-size:16px;font-weight:600}
+.destination-experience .destination-wallet-state p{margin:4px 0 0;font-size:15px;color:#647182;line-height:1.4;font-variant-numeric:tabular-nums}
+.destination-experience .destination-disclosure{border-block-start:1px solid #e2e7eb}
+.destination-experience .destination-disclosure summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:45px;list-style:none;cursor:pointer;font-size:16px;font-weight:500}
+.destination-experience .destination-disclosure summary::-webkit-details-marker{display:none}
+.destination-experience .destination-disclosure summary::marker{content:""}
+.destination-experience .destination-disclosure summary small{color:#647182;font-size:15px;font-weight:400;margin-inline-start:10px}
+.destination-experience .destination-disclosure summary svg{flex:none;color:#647182}
+.destination-experience .destination-disclosure[open] summary svg{transform:rotate(180deg)}
+.destination-experience .destination-disclosure-body{font-size:15px;color:#647182;padding:0 0 12px;line-height:1.5;overflow-wrap:anywhere}
+.destination-experience .destination-disclosure-body p{margin:0;white-space:pre-wrap}
+.destination-experience .destination-disclosure-body ul{margin:0;padding-inline-start:20px;list-style:disc}
+.destination-experience .destination-disclosure-body li{padding:4px 0;color:#0b1c30}
+.destination-experience .destination-disclosure-body li p,.destination-experience .destination-disclosure-body li small{color:#647182;font-size:15px}
+.destination-experience .destination-footer{position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;padding-block-start:15px;border-block-start:1px solid #e2e7eb}
+.destination-experience .destination-footer p{color:#647182;font-size:15px;margin:0}
+.destination-experience .destination-cta{display:inline-flex;align-items:center;justify-content:center;gap:16px;min-height:50px;padding:12px 22px;border-radius:12px;background:#0b1c30;color:#fff;font-size:16px;font-weight:600;text-decoration:none;text-align:center}
+.destination-experience .destination-cta:hover{background:#203c55}
+.destination-experience .destination-comparison{padding-inline-end:22px;border-inline-end:1px solid #e2e7eb;min-width:0}
+.destination-experience .destination-comparison h3{font-size:16px;margin-block-end:14px}
+.destination-experience .destination-options{display:grid;gap:8px}
+.destination-experience .destination-options button{display:flex;align-items:center;gap:10px;justify-content:space-between;text-align:start;padding:14px 12px;border:1px solid #e0e5e9;border-radius:11px;background:white;min-height:72px;color:#0b1c30}
+.destination-experience .destination-options button>span:first-child{display:grid;gap:4px;flex:1;min-width:0;overflow-wrap:anywhere}
+.destination-experience .destination-options button strong{font-size:16px;font-weight:600}
+.destination-experience .destination-options button small{font-size:15px;color:#647182}
+.destination-experience .destination-options button bdi{font-size:15px;font-weight:600;white-space:nowrap}
+.destination-experience .destination-options button[aria-pressed=true]{border-color:#0b1c30;background:#f4f7fa}
+.destination-experience .destination-selection{width:15px;height:15px;flex:none;border:1px solid #a6b1bc;border-radius:50%}
+.destination-experience .destination-options button[aria-pressed=true] .destination-selection{border:4px solid #0b1c30}
+.destination-experience .destination-empty{padding:26px 30px}
+.destination-experience :is(button,a,summary):focus-visible{outline:2px solid #285582;outline-offset:3px}
+.destination-experience[dir=rtl] .destination-cta svg{transform:scaleX(-1)}
+@media(prefers-reduced-motion:no-preference){.home-programme-dialog.destination-experience[open]{animation:destination-enter 240ms cubic-bezier(.2,.8,.2,1) both}.destination-experience .destination-detail{animation:destination-content 160ms ease-out both}.destination-experience :is(.destination-close,.destination-options button,.destination-cta,.destination-disclosure summary svg){transition:background-color 160ms ease,border-color 160ms ease,transform 180ms ease}.destination-experience .destination-cta:hover svg{translate:3px 0}.destination-experience[dir=rtl] .destination-cta:hover svg{translate:-3px 0}@keyframes destination-enter{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes destination-content{from{opacity:.4;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}}
+@media(max-width:767px){.home-programme-dialog.destination-experience,.home-programme-dialog.destination-experience[data-multiple=true]{width:100%;max-width:none;max-height:92dvh;inset:auto 0 0;margin:0;border-radius:22px 22px 0 0}.destination-experience .destination-hero{padding:18px 20px}.destination-experience .destination-body,.destination-experience[data-multiple=true] .destination-body{grid-template-columns:minmax(0,1fr);padding:18px 20px 24px;gap:20px}.destination-experience .destination-comparison{border-inline-end:0;padding-inline-end:0;border-block-end:1px solid #e2e7eb;padding-block-end:16px}.destination-experience .destination-options{max-height:30dvh;overflow:auto}.destination-experience .destination-hero h2{font-size:28px}.destination-experience .destination-price{font-size:29px}.destination-experience .destination-time{font-size:19px}.destination-experience .destination-footer{flex-direction:column-reverse;align-items:stretch;text-align:center}.destination-experience .destination-essentials>div+div{padding-inline-start:14px}}
