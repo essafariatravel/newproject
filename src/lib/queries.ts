@@ -241,10 +241,15 @@ export async function searchCaseSuggestions(user: AuthUser, filters: Application
     .from(applications).innerJoin(statuses,eq(applications.statusId,statuses.id))
     .where(and(...conditions)).orderBy(desc(agencyCaseActivity),desc(applications.id)).limit(5);
 }
-export async function searchApplications(user: AuthUser, filters: ApplicationFilters) {
+export async function searchApplications(user: AuthUser, filters: ApplicationFilters, conversation?: "existing"|"new") {
   const page = Math.max(1, filters.page ?? 1);
   const pageSize = resolvePageSize(filters.pageSize ?? DEFAULT_PAGE_SIZE);
   const conditions = await buildApplicationConditions(user, filters);
+  // Only the agency message picker opts into this filter. Apply it before count and pagination.
+  if (user.agencyId && (conversation === "existing" || conversation === "new")) {
+    const visibleConversation = sql`exists (select 1 from ${sql.raw(qualifiedTable("communications"))} m where m.application_id=${applications.id} and m.visibility='AGENCY')`;
+    conditions.push(conversation === "existing" ? visibleConversation : sql`not (${visibleConversation})`);
+  }
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
   const order = user.agencyId && filters.caseSort === "recent" ? [desc(agencyCaseActivity),desc(applications.id)]
