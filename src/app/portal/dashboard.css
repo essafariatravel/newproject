@@ -404,3 +404,52 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-dashboard){fon
 @media(max-width:1050px){.smart-home .home-news-main{gap:10px;flex-wrap:wrap;padding:14px 16px}.smart-home .home-news{grid-template-columns:minmax(0,1fr) 160px}.smart-home .home-news-cta{min-height:40px}}
 @media(max-width:767px){.workspace-agency.workspace-agency:has(.smart-home) #workspace-main{padding-inline:16px}.smart-home .home-news{grid-template-columns:1fr;min-height:0}.smart-home .home-news-main{padding:16px 16px 58px}.smart-home .home-news-art{display:none}.smart-home .home-news-controls button{min-width:44px;min-height:44px}.smart-home .home-news-controls{inset-inline-end:12px;inset-block-end:8px}.smart-home .home-operational{grid-template-columns:1fr;gap:12px}.smart-home .home-wallet{padding-inline-start:0}.smart-home .home-action-row{min-height:48px}.smart-home .dash-record-row{min-height:94px}}
 @media(prefers-reduced-motion:reduce){.smart-home .home-news-content,.smart-home .home-active,.smart-home .home-news-cta,.smart-home .dash-record-row{animation:none;transition:none}}
+
+/* Home 4.2 — compact panoramic glass; isolated from the operational UI. */
+.smart-home .home-news.home-news-glass{
+ --news-ink:#0b1c30;--news-muted:#42566a;--news-glass:rgba(255,255,255,.62);--news-border:rgba(255,255,255,.92);--news-hover:rgba(255,255,255,.88);
+ display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:14px;
+ min-height:112px;padding:14px 16px 14px 24px;border-radius:18px;position:relative;isolation:isolate;
+ background:#edf3f8;color:var(--news-ink);border:1px solid #dce5ed;box-shadow:0 2px 8px #0b1c3008;
+}
+.smart-home .home-news-glass[data-kind=photo]{--news-ink:#fff;--news-muted:#e6edf5;--news-glass:rgba(16,36,57,.64);--news-border:rgba(255,255,255,.38);--news-hover:rgba(30,52,75,.92);background:#0b1c30;border-color:#20364c}
+.smart-home .home-news-glass .home-news-art{display:block;position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(ellipse at 86% 0%,#fff 0%,#dbe8f2 34%,transparent 70%),linear-gradient(115deg,#f7fafc,#e3ecf5)}
+.smart-home .home-news-glass .home-news-art::after{background:linear-gradient(90deg,#f8fafccc 0%,#edf3f844 62%,transparent)}
+.smart-home .home-news-glass[data-kind=photo] .home-news-art{background:#0b1c30}
+.smart-home .home-news-glass[data-kind=photo] .home-news-art img{inset-inline-start:auto;inset-inline-end:0;width:76%;object-position:center 56%}
+.smart-home .home-news-glass[data-kind=photo] .home-news-art::after{background:linear-gradient(90deg,#0b1c30 10%,#0b1c30f5 32%,#0b1c30b8 58%,#0b1c3060 100%)}
+.smart-home[dir=rtl] .home-news-glass[data-kind=photo] .home-news-art::after{background:linear-gradient(270deg,#0b1c30 10%,#0b1c30f5 32%,#0b1c30b8 58%,#0b1c3060 100%)}
+.smart-home .home-news-glass .home-news-main{display:block;padding:0;min-width:0;z-index:auto}
+.smart-home .home-news-glass .home-news-content{gap:3px}
+.smart-home .home-news-glass .home-news-kicker{font-size:13px;font-weight:600;color:var(--news-muted);letter-spacing:.015em}
+.smart-home .home-news-glass h2{font-size:clamp(23px,1.7vw,29px);font-weight:600;line-height:1.18;letter-spacing:-.035em;color:var(--news-ink)}
+.smart-home .home-news-glass p{font-size:15px;color:var(--news-muted);line-height:1.4;margin:0}
+.smart-home .home-news-glass .home-news-cta,.smart-home .home-news-glass .home-news-controls{background:var(--news-glass);border:1px solid var(--news-border);-webkit-backdrop-filter:blur(16px) saturate(125%);backdrop-filter:blur(16px) saturate(125%);border-radius:999px;box-shadow:0 2px 8px #0b1c3010,inset 0 1px 0 #ffffff30;color:var(--news-ink)}
+.smart-home .home-news-glass .home-news-cta{padding:0 16px;min-height:46px;gap:12px;font-size:15px;white-space:nowrap}
+.smart-home .home-news-glass .home-news-cta:hover{background:var(--news-hover)}
+.smart-home .home-news-glass .home-news-controls{position:static;inset:auto;gap:0;padding:0 2px;justify-self:end;flex-shrink:0}
+.smart-home .home-news-glass .home-news-controls button{display:grid;place-items:center;width:44px;min-width:44px;height:44px;min-height:44px;border-radius:50%;color:var(--news-ink)}
+.smart-home .home-news-glass .home-news-controls button:hover{background:var(--news-hover)}
+.smart-home .home-news-glass .home-news-hide{border-inline-start:1px solid var(--news-border);border-start-start-radius:0;border-end-start-radius:0}
+.smart-home .home-news-glass .home-news-dots{display:flex;gap:4px;align-items:center;justify-content:center;min-width:22px}
+.smart-home .home-news-glass .home-news-dot{display:block;width:5px;height:5px;border-radius:5px;background:currentColor;opacity:.36}
+.smart-home .home-news-glass .home-news-dot[data-current=true]{width:14px;opacity:1}
+.smart-home .home-news-glass :is(a,button):focus-visible{outline:2px solid var(--news-ink)!important;outline-offset:2px}
+.smart-home[dir=rtl] .home-news-glass h2,.smart-home[dir=rtl] .home-news-glass .home-news-kicker{letter-spacing:normal}
+.smart-home[dir=rtl] .home-news-glass .home-news-cta svg,.smart-home[dir=rtl] .home-news-glass .home-news-controls button:not(.home-news-hide) svg{transform:scaleX(-1)}
+.smart-home .home-news-collapsed button{display:flex;gap:8px;align-items:center}
+@media(prefers-reduced-motion:no-preference){
+ .smart-home .home-news-glass .home-news-content{animation:home-glass-copy 240ms cubic-bezier(.2,.75,.25,1) both}
+ .smart-home .home-news-glass .home-news-art{animation:home-glass-image 300ms ease-out both}
+ .smart-home .home-news-glass :is(.home-news-cta,.home-news-controls button){transition:background-color 180ms ease,transform 180ms cubic-bezier(.2,.75,.25,1)}
+ .smart-home .home-news-glass .home-news-cta:hover svg{transform:translateX(2px)}
+ .smart-home[dir=rtl] .home-news-glass .home-news-cta:hover svg{transform:translateX(-2px) scaleX(-1)}
+ .smart-home .home-news-glass .home-news-cta svg,.smart-home .home-news-glass .home-news-dot{transition:transform 180ms ease,width 180ms ease,opacity 180ms ease}
+ .smart-home .home-news-glass :is(.home-news-cta,.home-news-controls button):active{transform:scale(.97)}
+ @keyframes home-glass-copy{from{opacity:.3;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+ @keyframes home-glass-image{from{opacity:.4}to{opacity:1}}
+}
+@media(max-width:1050px){.smart-home .home-news.home-news-glass{grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:14px 16px}.smart-home .home-news-glass .home-news-main{grid-column:1/-1}.smart-home .home-news-glass .home-news-cta{justify-self:start;white-space:normal}}
+@media(max-width:767px){.smart-home .home-news.home-news-glass{border-radius:14px;min-height:0;padding:14px;gap:10px 6px}.smart-home .home-news-glass h2{font-size:23px}.smart-home .home-news-glass p{font-size:15px}.smart-home .home-news-glass .home-news-controls button{width:44px;min-width:44px}.smart-home .home-news-glass .home-news-cta{padding-inline:12px;font-size:14px;gap:6px}.smart-home .home-news-glass .home-news-art img{width:100%}}
+@media(max-width:370px){.smart-home .home-news.home-news-glass{grid-template-columns:1fr}.smart-home .home-news-glass .home-news-controls{justify-self:start}}
+@media(prefers-reduced-motion:reduce){.smart-home .home-news-glass :is(.home-news-content,.home-news-art,.home-news-cta,.home-news-controls button,.home-news-dot){animation:none;transition:none}}
