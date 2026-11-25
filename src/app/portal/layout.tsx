@@ -8,9 +8,8 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { getSessionUser } from "@/lib/auth";
 import { isAgencyRole } from "@/lib/types";
-import { businessLabel } from "@/lib/business-labels";
-import { countryName } from "@/lib/country-names";
-import { unreadNotificationCount, notificationBellEventsForUser } from "@/lib/queries";
+import { agencyBellEvents } from "@/lib/agency-notification-bell";
+import { unreadNotificationCount } from "@/lib/queries";
 import { AppShell, type NavSection } from "@/components/app-shell";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
@@ -30,10 +29,10 @@ export default async function PortalLayout({ children }: { children: ReactNode }
   if (!isAgencyRole(user.role)) redirect("/admin"); // staff belong in the Back Office
   if (!user.agencyId) redirect("/login");
 
-  const [unread,bellRows] = await Promise.all([unreadNotificationCount(user.id),notificationBellEventsForUser(user.id,user.agencyId)]);
+  const unread=await unreadNotificationCount(user.id);
   const locale = await getUiLocale();
   const tr = chromeT(locale);
-  const initialEvents=bellRows.map(n=>({id:n.id,title:businessLabel(n.type,locale),link:(n.type.includes("WALLET")||n.type==="TOPUP_REQUESTED")&&!hasPermission(user,"wallet.view.own")?null:n.link,createdAt:n.createdAt.toISOString(),readAt:n.readAt?.toISOString()??null,type:n.type,applicationId:n.applicationId,context:[n.destination?countryName({name:n.destination,iso2:n.countryIso2},locale):null,n.reference].filter(Boolean).join(" · ")}));
+  const initialEvents=await agencyBellEvents(user.id,user.agencyId,locale,hasPermission(user,"wallet.view.own"));
   const agencyRows = await db
     .select({ logoKey: agencies.logoKey, logoUploadedAt: agencies.logoUploadedAt })
     .from(agencies)
