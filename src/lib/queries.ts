@@ -706,7 +706,7 @@ export function notificationBellEventsForUser(userId: string) {
     .limit(20);
 }
 
-export async function listNotificationsForUser(userId: string, limit = 50, filter: NotificationFilter = "all") {
+export async function listNotificationsForUser(userId: string, limit = 50, filter: NotificationFilter = "all", options?: {agencyId:string;unread?:boolean;q?:string;offset?:number;financial?:boolean}) {
   const conditions = [
     eq(notifications.userId, userId),
     visibleNotificationForRecipient(userId),
@@ -715,7 +715,7 @@ export async function listNotificationsForUser(userId: string, limit = 50, filte
   if (filter === "messages") conditions.push(eq(notifications.type, "MESSAGE_POSTED"));
   if (filter === "wallet") conditions.push(sql`(${notifications.type} like '%WALLET%' or ${notifications.type} = 'TOPUP_REQUESTED')`);
   if (filter === "applications") conditions.push(sql`${notifications.applicationId} is not null and ${notifications.type} <> 'MESSAGE_POSTED' and ${notifications.type} not like '%WALLET%'`);
-  if (filter === "action") conditions.push(sql`(
+  const actionCondition=sql`(
     exists (select 1 from ${table("users")} recipient
       join ${table("applications")} dossier on dossier.id = ${notifications.applicationId}
       join ${table("statuses")} state on state.id = dossier.status_id
@@ -736,10 +736,25 @@ export async function listNotificationsForUser(userId: string, limit = 50, filte
       select 1 from ${table("wallet_topup_requests")} topup where topup.id=${notifications.topupRequestId} and topup.agency_id = ${notifications.agencyId} and topup.status = 'PENDING'))
     or (${notifications.type} = 'REGISTRATION_SUBMITTED' and exists (
       select 1 from ${table("agency_registrations")} registration where ${notifications.link}='/admin/registrations/' || registration.id::text and registration.status in ('PENDING','UNDER_REVIEW')))
-  )`);
+  )`;
+  if (filter === "action") conditions.push(actionCondition);
+  if (options) {
+    // Agency opt-in only. Never change the shared Staff feed defaults.
+    conditions.push(sql`exists (select 1 from ${table("users")} recipient where recipient.id=${userId} and recipient.agency_id=${options.agencyId})`);
+    conditions.push(sql`(${notifications.agencyId} is null or ${notifications.agencyId}=${options.agencyId})`);
+    conditions.push(sql`(${notifications.applicationId} is null or ${applications.agencyId}=${options.agencyId})`);
+    if (options.unread) conditions.push(isNull(notifications.readAt));
+    const q=options.q?.trim().slice(0,160);
+    if(q){const pattern="%"+q.replace(/[\\%_]/g,"\\$&")+"%";conditions.push(sql`(${applications.reference} ilike ${pattern} or ${applications.countryName} ilike ${pattern} or ${applications.visaTypeName} ilike ${pattern} or ${notifications.title} ilike ${pattern} or exists (select 1 from ${table("applicants")} a where a.application_id=${applications.id} and coalesce(a.full_name,concat_ws(' ',a.first_name,a.last_name)) ilike ${pattern}))`);}
+  }
+
   return db
     .select({
       ...getTableColumns(notifications),
+      actionRequired: options ? sql<boolean>`${actionCondition}` : sql<boolean>`false`,
+      topupAmount: options?.financial ? sql<string|null>`(select topup.amount::text from ${table("wallet_topup_requests")} topup where topup.id=${notifications.topupRequestId} and topup.agency_id=${options.agencyId})` : sql<string|null>`null`,
+      topupReference: options?.financial ? sql<string|null>`(select topup.reference from ${table("wallet_topup_requests")} topup where topup.id=${notifications.topupRequestId} and topup.agency_id=${options.agencyId})` : sql<string|null>`null`,
+      topupCurrency: options?.financial ? sql<string|null>`(select topup.currency from ${table("wallet_topup_requests")} topup where topup.id=${notifications.topupRequestId} and topup.agency_id=${options.agencyId})` : sql<string|null>`null`,
       travellerName: sql<string | null>`(select coalesce(traveller.full_name, concat_ws(' ',traveller.first_name,traveller.last_name)) from ${table("applicants")} traveller where traveller.application_id = ${table("notifications")}.application_id limit 1)`,
       destination: applications.countryName,
       countryIso2: countries.iso2,
@@ -758,7 +773,7 @@ export async function listNotificationsForUser(userId: string, limit = 50, filte
     .leftJoin(visaTypes, eq(applications.visaTypeId, visaTypes.id))
     .where(and(...conditions))
     .orderBy(desc(notifications.createdAt),desc(notifications.id))
-    .limit(Number.isFinite(limit)?Math.min(100,Math.max(1,Math.floor(limit))):50);
+    .limit(Number.isFinite(limit)?Math.min(100,Math.max(1,Math.floor(limit))):50).offset(options?Math.max(0,Math.min(100000,Math.floor(options.offset??0))):0);
 }
 
 export async function unreadNotificationCount(userId: string): Promise<number> {
