@@ -187,3 +187,41 @@
 @media(min-width:1000px) and (min-height:650px){.dossier-workspace .r09-library,.dossier-workspace .r09-inspector{max-height:calc(100dvh - 300px);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}.dossier-workspace .r09-tools,.dossier-workspace .r09-inspector-nav{position:sticky;top:0;background:#fff;z-index:2}}
 @media(max-width:999px){.dossier-workspace .r09-split{grid-template-columns:1fr}.dossier-workspace .r09-library{padding-inline-end:0}.dossier-workspace .r09-inspector{border-inline-start:0;border-block-start:1px solid var(--dash-rule);padding-inline-start:0;margin-block-start:16px}.dossier-workspace .r09-tools{flex-wrap:wrap}}
 @media(max-width:520px){.dossier-workspace .r09-row-select{grid-template-columns:20px minmax(0,1fr);gap:3px 8px}.dossier-workspace .r09-row-select .dossier-doc-state{grid-column:2}.dossier-workspace .r09-filters{gap:10px}}
+
+/* R09.1 — live preview workspace; scope to the documents tab. */
+@media(min-width:1000px){
+ .workspace-agency.workspace-agency:has(.dossier-r09) #workspace-main{width:100%;max-width:none;padding-inline:clamp(24px,3vw,64px);padding-block-start:12px}
+ .workspace-agency #workspace-main .dossier-r09{width:100%;max-width:none;gap:6px}
+ .workspace-agency #workspace-main .dossier-r09 .dossier-masthead{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+ .workspace-agency #workspace-main .dossier-r09 .dossier-masthead .page-header{flex:1;min-width:0}
+ .workspace-agency #workspace-main .dossier-r09 .dossier-reference{margin-block:0}
+}
+.dossier-r09 .r091-workspace .r09-heading{margin-block:0 6px}
+.dossier-r09 .r091-workspace .r09-split{grid-template-columns:minmax(0,0.85fr) minmax(0,1.15fr)}
+.dossier-r09 .r091-workspace .r09-tools{justify-content:space-between;flex-wrap:wrap}
+.dossier-r09 .r091-library-label,.dossier-r09 .r091-history-toggle{font-size:15px;color:var(--dash-secondary)}
+.dossier-r09 .r091-history-toggle{min-height:40px;padding-inline:8px}
+.dossier-r09 .r091-history-toggle[aria-pressed=true]{color:var(--dash-ink);font-weight:600}
+.dossier-r09 .r091-workspace .r09-row-select{min-height:48px;padding-block:8px;grid-template-columns:24px minmax(0,1fr) minmax(88px,auto)}
+.dossier-r09 .r091-workspace .r09-document-row{min-height:48px}
+.dossier-r09 .r091-workspace .r09-document-row[data-selected=true]{box-shadow:inset 3px 0 var(--dash-ink);background:#f1f4f7}
+.dossier-r09[dir=rtl] .r091-workspace .r09-document-row[data-selected=true]{box-shadow:inset -3px 0 var(--dash-ink)}
+.dossier-r09 .r091-workspace .r09-group h3{padding-block:7px 3px;color:var(--dash-secondary)}
+.dossier-r09 .r091-workspace .r09-inspector-body{display:flex;flex-direction:column;gap:8px;padding-block:8px}
+.dossier-r09 .r091-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;flex-wrap:wrap}
+.dossier-r09 .r091-toolbar h3{font-size:18px;font-weight:600;flex:1;min-width:180px;overflow-wrap:anywhere}
+.dossier-r09 .r091-tools,.dossier-r09 .r091-navigation{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.dossier-r09 .r091-tool{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;color:var(--dash-ink);border-radius:5px;font-size:15px}
+.dossier-r09 .r091-tool:hover{background:var(--dash-hover)}
+.dossier-r09 .r091-tool:disabled{opacity:.4;cursor:default}
+.dossier-r09 .r091-preview-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:15px}
+.dossier-r09 .r091-navigation button{font-size:25px}
+.dossier-r09[dir=rtl] .r091-navigation button{transform:scaleX(-1)}
+.dossier-r09 .r091-file-details{border-block-start:1px solid var(--dash-rule);font-size:15px;color:var(--dash-secondary)}
+.dossier-r09 .r091-file-details summary{cursor:pointer;padding-block:10px}
+.dossier-r09 .r091-filename{overflow-wrap:anywhere}
+.dossier-r09 .r091-workspace .r09-inline-preview{height:clamp(220px,calc(100dvh - 440px),720px);min-height:220px}
+.dossier-r09 .r091-show{align-self:start}
+@media(min-width:1000px) and (min-height:650px){.dossier-r09 .r091-workspace .r09-library,.dossier-r09 .r091-workspace .r09-inspector{max-height:calc(100dvh - 258px)}}
+@media(max-width:999px){.dossier-r09 .r091-workspace .r09-split{grid-template-columns:1fr}.dossier-r09 .r091-workspace .r09-inspector{scroll-margin-top:80px}.dossier-r09 .r091-workspace .r09-inline-preview{height:50dvh}}
+@media(max-width:520px){.dossier-r09 .r091-workspace .r09-row-select{grid-template-columns:20px minmax(0,1fr)}}
