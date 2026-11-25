@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { UiLocale } from "@/lib/ui-i18n";
 import type { BankAccount } from "@/lib/bank-accounts";
 import { bankAccountCopy } from "@/lib/bank-accounts-copy";
@@ -10,9 +11,18 @@ function groupedRib(rib: string): string {
 }
 
 export function BankAccountDirectory({
-  accounts, locale,
-}: { accounts: BankAccount[]; locale: UiLocale }) {
+  accounts, locale, smart=false,
+}: { accounts: BankAccount[]; locale: UiLocale; smart?:boolean }) {
   const t = bankAccountCopy(locale);
+  const polish={fr:{title:"Coordonnées bancaires",empty:"Coordonnées bancaires indisponibles",contact:"Contacter ESSAFARIA",account:"Compte de virement · DZD",intro:"Utilisez uniquement les coordonnées affichées ici, puis transmettez votre justificatif de virement. Le crédit intervient après confirmation des fonds."},en:{title:"Bank details",empty:"Bank details unavailable",contact:"Contact ESSAFARIA",account:"Transfer account · DZD",intro:"Use only the details displayed here, then submit your transfer receipt. Funds are credited after confirmation."},ar:{title:"البيانات البنكية",empty:"البيانات البنكية غير متاحة",contact:"التواصل مع السفارية",account:"حساب التحويل · DZD",intro:"استخدموا فقط البيانات المعروضة هنا ثم أرسلوا إيصال التحويل. يضاف الرصيد بعد تأكيد الأموال."}}[locale];
+  const bankIcon=<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 9 9-5 9 5M4 10h16M6 11v7m4-7v7m4-7v7m4-7v7M3 20h18"/></svg>;
+  if(smart)return <section className="wallet-bank-directory" data-testid="agency-bank-accounts" aria-label={polish.title}>
+    <h2>{polish.title}</h2>
+    {accounts.length===0?<div className="wallet-bank-empty" role="status"><span className="wallet-bank-icon">{bankIcon}</span><strong>{polish.empty}</strong><p>{t.none}</p><Link className="btn-secondary" href="/portal/messages">{polish.contact}</Link></div>:<>
+      <p className="wallet-muted">{polish.intro}</p>
+      <div className="wallet-bank-grid">{accounts.map(account=><article key={account.id} className="wallet-bank-account"><div className="wallet-bank-name"><span className="wallet-bank-icon">{bankIcon}</span><div><h3><bdi>{account.bankName}</bdi></h3><small>{polish.account}</small></div></div><dl><div><dt>{t.beneficiary}</dt><dd><bdi>{account.holderName}</bdi></dd></div><div><dt>{t.rib}</dt><dd dir="ltr" className="wallet-bank-rib">{groupedRib(account.rib)}</dd></div></dl><CopyRibButton rib={account.rib} label={t.copy} copiedLabel={t.copied}/></article>)}</div>
+    </>}
+  </section>;
   return (
     <section className="rounded-lg border border-line/80 bg-white p-4 sm:p-5" aria-label={t.title} data-testid="agency-bank-accounts">
       <h3 className="text-lg font-semibold tracking-tight text-navy-900">{t.title}</h3>
