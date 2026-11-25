@@ -1,0 +1,53 @@
+"use client";
+import {useEffect,useRef,useState,useTransition,type ReactNode} from "react";
+import {useRouter} from "next/navigation";
+import {useFormStatus} from "react-dom";
+import {postMessageAction} from "@/app/actions/communications";
+import {CaseMessagesRead} from "../applications/case-messages-read";
+
+type Locale="fr"|"en"|"ar";
+const copy={
+ fr:{search:"Voyageur, référence ou message…",send:"Envoyer",sending:"Envoi…",write:"Écrire à ESSAFARIA…",privacy:"Visible uniquement par votre agence et ESSAFARIA.",templates:"Réponses rapides",refresh:"Actualiser",bottom:"Derniers messages",draft:"Brouillon",items:[["Suivi du dossier","Bonjour, pourriez-vous nous communiquer l’état d’avancement de ce dossier ? Merci."],["Documents requis","Bonjour, pourriez-vous nous préciser les documents complémentaires nécessaires ? Merci."],["Délai","Bonjour, pourriez-vous nous indiquer le délai estimé de traitement ? Merci."],["Confirmation","Bonjour, nous confirmons la réception de votre message. Merci."],["Précisions","Bonjour, pourriez-vous nous apporter quelques précisions à ce sujet ? Merci."]]},
+ en:{search:"Traveller, reference or message…",send:"Send",sending:"Sending…",write:"Write to ESSAFARIA…",privacy:"Visible only to your agency and ESSAFARIA.",templates:"Quick replies",refresh:"Refresh",bottom:"Latest messages",draft:"Draft",items:[["Case update","Hello, could you provide an update on this case? Thank you."],["Documents","Hello, could you clarify which additional documents are required? Thank you."],["Processing time","Hello, could you provide an estimated processing time? Thank you."],["Confirmation","Hello, we confirm receipt of your message. Thank you."],["Clarification","Hello, could you clarify this matter? Thank you."]]},
+ ar:{search:"المسافر أو المرجع أو الرسالة…",send:"إرسال",sending:"جارٍ الإرسال…",write:"اكتبوا إلى السفارية…",privacy:"مرئية لوكالتكم وفريق السفارية فقط.",templates:"ردود سريعة",refresh:"تحديث",bottom:"أحدث الرسائل",draft:"مسودة",items:[["متابعة الطلب","مرحبًا، هل يمكنكم إبلاغنا بمستجدات الطلب؟ شكرًا."],["الوثائق المطلوبة","مرحبًا، ما الوثائق الإضافية المطلوبة؟ شكرًا."],["مدة المعالجة","مرحبًا، هل يمكنكم تحديد مدة المعالجة المتوقعة؟ شكرًا."],["تأكيد","مرحبًا، نؤكد استلام رسالتكم. شكرًا."],["استفسار","مرحبًا، هل يمكنكم توضيح هذا الأمر؟ شكرًا."]]}
+}[ "fr" ];
+
+// Keep locale-specific copy outside the component's state.
+const translations={
+ fr:copy,
+ en:{search:"Traveller, reference or message…",send:"Send",sending:"Sending…",write:"Write to ESSAFARIA…",privacy:"Visible only to your agency and ESSAFARIA.",templates:"Quick replies",refresh:"Refresh",bottom:"Latest messages",draft:"Draft",items:[["Case update","Hello, could you provide an update on this case? Thank you."],["Documents","Hello, could you clarify which additional documents are required? Thank you."],["Processing time","Hello, could you provide an estimated processing time? Thank you."],["Confirmation","Hello, we confirm receipt of your message. Thank you."],["Clarification","Hello, could you clarify this matter? Thank you."]]},
+ ar:{search:"المسافر أو المرجع أو الرسالة…",send:"إرسال",sending:"جارٍ الإرسال…",write:"اكتبوا إلى السفارية…",privacy:"مرئية لوكالتكم وفريق السفارية فقط.",templates:"ردود سريعة",refresh:"تحديث",bottom:"أحدث الرسائل",draft:"مسودة",items:[["متابعة الطلب","مرحبًا، هل يمكنكم إبلاغنا بمستجدات الطلب؟ شكرًا."],["الوثائق المطلوبة","مرحبًا، ما الوثائق الإضافية المطلوبة؟ شكرًا."],["مدة المعالجة","مرحبًا، هل يمكنكم تحديد مدة المعالجة المتوقعة؟ شكرًا."],["تأكيد","مرحبًا، نؤكد استلام رسالتكم. شكرًا."],["استفسار","مرحبًا، هل يمكنكم توضيح هذا الأمر؟ شكرًا."]]}
+};
+export function InboxSearch({locale,q,filter}:{locale:Locale;q:string;filter:string}){
+ const router=useRouter(),[value,setValue]=useState(q),[pending,startTransition]=useTransition(),timer=useRef<ReturnType<typeof setTimeout>|null>(null);
+ useEffect(()=>{setValue(q)},[q]);
+ useEffect(()=>()=>{if(timer.current)clearTimeout(timer.current)},[]);
+ function search(v:string){if(timer.current)clearTimeout(timer.current);const p=new URLSearchParams(window.location.search);p.delete("page");p.delete("thread");p.delete("messagesBefore");p.delete("ok");p.delete("error");if(v.trim())p.set("q",v.trim());else p.delete("q");if(filter==="all")p.delete("filter");else p.set("filter",filter);startTransition(()=>router.replace("/portal/communications"+(p.size?"?"+p.toString():""),{scroll:false}))}
+ return <form className="comm-search" role="search" aria-busy={pending} onSubmit={e=>{e.preventDefault();search(value)}}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input type="search" value={value} aria-label={translations[locale].search} placeholder={translations[locale].search} maxLength={160} onChange={e=>{const v=e.target.value;setValue(v);if(timer.current)clearTimeout(timer.current);timer.current=setTimeout(()=>search(v),450)}}/></form>;
+}
+export function ConversationStream({id,latest,older,unread,locale,children}:{id:string;latest:string;older:boolean;unread:boolean;locale:Locale;children:ReactNode}){
+ const router=useRouter(),root=useRef<HTMLDivElement>(null),near=useRef(true),first=useRef(true),[atEnd,setAtEnd]=useState(true),[pending,startTransition]=useTransition();
+ const scrollBottom=()=>{if(root.current){root.current.scrollTop=root.current.scrollHeight;near.current=true;setAtEnd(true)}};
+ useEffect(()=>{first.current=true;near.current=true},[id,older]);
+ useEffect(()=>{if(older){if(root.current)root.current.scrollTop=0;return}if(first.current||near.current){scrollBottom();first.current=false}},[id,latest,older]);
+ const t=translations[locale];
+ return <div className="comm-stream-shell"><div ref={root} className="comm-stream" tabIndex={0} onScroll={()=>{const el=root.current;if(!el)return;near.current=el.scrollHeight-el.scrollTop-el.clientHeight<100;setAtEnd(near.current)}}>{children}</div>
+ {unread&&!older?<CaseMessagesRead key={id+":"+latest} id={id}/>:null}
+ <div className="comm-stream-actions">{!atEnd&&!older?<button type="button" onClick={scrollBottom}>{t.bottom} ↓</button>:null}<button type="button" className="comm-refresh" title={t.refresh} aria-label={t.refresh} disabled={pending} onClick={()=>startTransition(()=>router.refresh())}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2 6M20 4v7h-7"/></svg></button></div></div>;
+}
+// Drafts stay in the current browser tab's memory, scoped by user and case.
+const drafts=new Map<string,{body:string;at:number}>();
+const ttl=10*60*1000;
+function ComposerFields({locale,scope,posted,latest}:{locale:Locale;scope:string;posted:boolean;latest:string}){
+ const t=translations[locale],{pending}=useFormStatus(),[body,setBody]=useState(""),input=useRef<HTMLTextAreaElement>(null),[open,setOpen]=useState(false),root=useRef<HTMLDivElement>(null),leave=useRef<ReturnType<typeof setTimeout>|null>(null),lastPosted=useRef("");
+ useEffect(()=>{for(const [k,v] of drafts)if(Date.now()-v.at>ttl)drafts.delete(k);setBody(drafts.get(scope)?.body??"")},[scope]);
+ useEffect(()=>{if(!posted||!latest||lastPosted.current===latest)return;lastPosted.current=latest;drafts.delete(scope);setBody("");const url=new URL(window.location.href);url.searchParams.delete("ok");window.history.replaceState(null,"",url.pathname+url.search+url.hash)},[scope,posted,latest]);
+ useEffect(()=>{const outside=(e:PointerEvent)=>{if(!root.current?.contains(e.target as Node))setOpen(false)};const escape=(e:KeyboardEvent)=>{if(e.key==="Escape")setOpen(false)};document.addEventListener("pointerdown",outside);document.addEventListener("keydown",escape);return()=>{document.removeEventListener("pointerdown",outside);document.removeEventListener("keydown",escape);if(leave.current)clearTimeout(leave.current)}},[]);
+ useEffect(()=>{const el=input.current;if(el){el.style.height="auto";el.style.height=Math.min(el.scrollHeight,108)+"px"}},[body]);
+ function change(v:string){setBody(v);if(!v.trim())drafts.delete(scope);else{if(drafts.size>=20&&!drafts.has(scope)){const first=drafts.keys().next().value;if(first)drafts.delete(first)}drafts.set(scope,{body:v,at:Date.now()})}}
+ return <><div className="comm-compose-tools"><div ref={root} className="comm-template-anchor" onPointerEnter={()=>{if(leave.current)clearTimeout(leave.current)}} onPointerLeave={e=>{if(e.pointerType==="mouse")leave.current=setTimeout(()=>setOpen(false),180)}}><button type="button" className="comm-text-action" aria-expanded={open} disabled={pending} onClick={()=>setOpen(v=>!v)}>{t.templates} ⌄</button>{open?<div className="comm-template-menu">{t.items.map(([label,message])=><button key={label} type="button" disabled={pending||body.length+message.length+1>4000} onClick={()=>{change(body.trim()?body+"\n"+message:message);setOpen(false);input.current?.focus()}}>{label}</button>)}</div>:null}</div>{body.trim()&&!pending?<small>{t.draft}</small>:null}</div>
+ <div className="comm-compose-input"><textarea ref={input} name="body" dir="auto" value={body} onChange={e=>change(e.target.value)} aria-label={t.write} placeholder={t.write} rows={2} minLength={2} maxLength={4000} required readOnly={pending} onKeyDown={e=>{if(!e.nativeEvent.isComposing&&(e.ctrlKey||e.metaKey)&&e.key==="Enter"&&!pending&&body.trim().length>=2){e.preventDefault();e.currentTarget.form?.requestSubmit()}}}/><button className="comm-send" type="submit" disabled={pending||body.trim().length<2}>{pending?t.sending:t.send}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true" className="directional"><path d="m3 3 18 9-18 9 4-9-4-9Zm4 9h14"/></svg></button></div><div className="comm-compose-footer"><small>{t.privacy}</small>{body.length>3600?<small>{body.length}/4000</small>:null}</div></>;
+}
+export function ConversationComposer({locale,applicationId,userId,back,posted,latest}:{locale:Locale;applicationId:string;userId:string;back:string;posted:boolean;latest:string}){
+ return <form className="comm-composer" action={postMessageAction}><input type="hidden" name="applicationId" value={applicationId}/><input type="hidden" name="back" value={back}/><ComposerFields key={userId+":"+applicationId} scope={userId+":"+applicationId} locale={locale} posted={posted} latest={latest}/></form>;
+}
