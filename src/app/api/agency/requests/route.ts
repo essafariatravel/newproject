@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { requireAgencyUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { applications } from "@/db/schema";
+import { applications, applicants, statuses, visaTypes, countries, visaCategories } from "@/db/schema";
+import { getBalance } from "@/lib/wallet";
 import { AppError } from "@/lib/types";
 import { submitVisaRequest,coalesceVisaSubmission } from "@/lib/requests";
 import { stageRequestUpload, resolveRequestUploads, clearRequestUploads } from "@/lib/request-uploads";
@@ -14,7 +15,8 @@ import { readRequestBodyLimited } from "@/lib/http-body";
 
 export const runtime = "nodejs";
 const submission = z.object({ attempt: z.string().uuid(), visaTypeId: z.string().uuid(), countryId: z.string().uuid(),
-  fullName: z.string().max(200), nationality: z.string().max(80), notes: z.string().max(1000), tokens: z.array(z.string()).max(60) });
+  fullName: z.string().max(200), nationality: z.string().max(80), notes: z.string().max(1000), tokens: z.array(z.string()).max(60), expectedFee: z.string().max(32).regex(/^\d+(?:\.\d+)?$/).optional() });
+const preflight = z.object({ action: z.literal("preflight"), visaTypeId: z.string().uuid(), countryId: z.string().uuid(), fullName: z.string().trim().min(1).max(200), nationality: z.string().trim().min(1).max(80) });
 
 export async function POST(request: Request) {
   try {
@@ -41,13 +43,30 @@ export async function POST(request: Request) {
     } catch {
       throw new AppError("VALIDATION", "Invalid request.");
     }
+    if (typeof json === "object" && json !== null && "action" in json && json.action === "preflight") {
+      const input = preflight.parse(json);
+      const [programmes, wallet, matching] = await Promise.all([
+        db.select({fee:visaTypes.fee}).from(visaTypes)
+          .innerJoin(countries,eq(visaTypes.countryId,countries.id))
+          .innerJoin(visaCategories,eq(visaTypes.categoryId,visaCategories.id))
+          .where(and(eq(visaTypes.id,input.visaTypeId),eq(visaTypes.countryId,input.countryId),eq(visaTypes.active,true),eq(countries.active,true),eq(visaCategories.active,true),eq(visaTypes.currency,"DZD"))).limit(1),
+        getBalance(actor.agencyId),
+        db.select({id:applications.id}).from(applications)
+          .innerJoin(applicants,eq(applicants.applicationId,applications.id))
+          .innerJoin(statuses,eq(applications.statusId,statuses.id))
+          .where(and(eq(applications.agencyId,actor.agencyId),eq(applications.visaTypeId,input.visaTypeId),eq(statuses.isTerminal,false),eq(statuses.isDraft,false),
+            sql`lower(regexp_replace(trim(coalesce(nullif(${applicants.fullName}, ''), concat_ws(' ', ${applicants.firstName}, ${applicants.lastName}))), '[[:space:]]+', ' ', 'g')) = lower(regexp_replace(trim(${input.fullName}), '[[:space:]]+', ' ', 'g'))`,
+            sql`lower(trim(${applicants.nationality})) = lower(trim(${input.nationality}))`)).limit(1)
+      ]);
+      return NextResponse.json({fee:programmes[0]?.fee??null,balance:wallet.balance,possibleDuplicate:matching.length>0}, {headers:{"Cache-Control":"no-store"}});
+    }
     const input = submission.parse(json);
     // A retry after a lost response works even after temporary files are removed.
     const id=await coalesceVisaSubmission(actor,input.attempt,async()=>{
     const [existing] = await db.select({ id: applications.id }).from(applications)
       .where(and(eq(applications.idempotencyKey, input.attempt), eq(applications.agencyId, actor.agencyId)));
     const committedId = existing?.id ?? (await submitVisaRequest({ actor, idempotencyKey: input.attempt, countryId: input.countryId,
-      visaTypeId: input.visaTypeId, agencyNotes: input.notes, travellers: [{ fullName: input.fullName, nationality: input.nationality }],
+      visaTypeId: input.visaTypeId, expectedFee: input.expectedFee, agencyNotes: input.notes, travellers: [{ fullName: input.fullName, nationality: input.nationality }],
       documents: await resolveRequestUploads(actor, input.attempt, input.visaTypeId, input.tokens) })).applicationId;
     await clearRequestUploads(actor, input.attempt).catch(() => {});
     return committedId;
