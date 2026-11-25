@@ -76,10 +76,9 @@ export default async function PortalLayout({ children }: { children: ReactNode }
       agencyLogoUrl={agencyLogo}
       platformLogoUrl={platformBranding ? brandLogoUrl(platformBranding) : null}
       brandName={platformBranding?.name}
-      headerExtras={<><LiveNotifications refreshFirstEvent initialCount={unread} href="/portal/notifications" label={tr("Notifications")} soundLabel={contentT(locale)("Notification sounds")} closeLabel={contentT(locale)("Close")} /><UiLanguageSwitcher locale={locale} compact /></>}
+      headerExtras={<><AgencyCommand locale={locale} canCreate={hasPermission(user,"applications.create")} canUpload={hasPermission(user,"documents.upload.own")} canWallet={hasPermission(user,"wallet.view.own")} /><LiveNotifications refreshFirstEvent initialCount={unread} href="/portal/notifications" label={tr("Notifications")} soundLabel={contentT(locale)("Notification sounds")} closeLabel={contentT(locale)("Close")} /><UiLanguageSwitcher locale={locale} compact /></>}
     >
       <AgencyPopoverController />
-      <AgencyCommand locale={locale} canCreate={hasPermission(user,"applications.create")} canUpload={hasPermission(user,"documents.upload.own")}/>
       {children}
     </AppShell>
   );

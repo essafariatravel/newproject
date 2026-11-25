@@ -467,11 +467,11 @@ export async function agencyDashboard(agencyId: string, userId: string) {
     .from(agencies)
     .where(eq(agencies.id, agencyId));
 
-  const needsAttention = await db.select(applicationSelection).from(applications)
+  const needsAttention = await db.select({...applicationSelection,requestId:sql<string | null>`(select r.id::text from ${sql.raw(qualifiedTable("document_requests"))} r where r.application_id=applications.id and r.status='OPEN' order by r.created_at,r.id limit 1)`}).from(applications)
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
     .innerJoin(priorities, eq(applications.priorityId, priorities.id))
     .where(and(eq(applications.agencyId, agencyId), agencyAttentionCondition()))
-    .orderBy(desc(applications.updatedAt)).limit(5);
+    .orderBy(asc(agencyCaseActivity),asc(applications.id)).limit(5);
 
   const recentTx = await db
     .select()
@@ -481,12 +481,12 @@ export async function agencyDashboard(agencyId: string, userId: string) {
     .limit(5);
 
   const recentApplications = await db
-    .select(applicationSelection)
+    .select({...applicationSelection,caseActivity:agencyCaseActivityText})
     .from(applications)
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
     .innerJoin(priorities, eq(applications.priorityId, priorities.id))
     .where(eq(applications.agencyId, agencyId))
-    .orderBy(desc(applications.createdAt))
+    .orderBy(desc(agencyCaseActivity),desc(applications.id))
     .limit(6);
 
   // Correction 1 (Phase 2-Final): ONE authoritative unread-count source —
@@ -495,7 +495,13 @@ export async function agencyDashboard(agencyId: string, userId: string) {
   // per-user mark-all-read action and could show stale counters.
   const unread = await unreadNotificationCount(userId);
 
+  const [recentDecisions,drafts,unreadMessages] = await Promise.all([
+    db.select(applicationSelection).from(applications).innerJoin(statuses,eq(applications.statusId,statuses.id)).innerJoin(priorities,eq(applications.priorityId,priorities.id)).where(and(eq(applications.agencyId,agencyId),inArray(statuses.code,["APPROVED","REJECTED","REFUSED"]),isNotNull(applications.decisionAt))).orderBy(desc(applications.decisionAt),desc(applications.id)).limit(2),
+    db.select(applicationSelection).from(applications).innerJoin(statuses,eq(applications.statusId,statuses.id)).innerJoin(priorities,eq(applications.priorityId,priorities.id)).where(and(eq(applications.agencyId,agencyId),eq(statuses.code,"DRAFT"))).orderBy(desc(applications.updatedAt)).limit(1),
+    db.select({total:count()}).from(notifications).where(and(eq(notifications.userId,userId),eq(notifications.type,"MESSAGE_POSTED"),isNull(notifications.readAt),visibleNotificationForRecipient(userId)))
+  ]);
   return {
+    recentDecisions,drafts,unreadMessages:Number(unreadMessages[0]?.total??0),
     totals: totals!,
     wallet: wallet!,
     recentTx,

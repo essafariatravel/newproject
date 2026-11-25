@@ -160,6 +160,7 @@ export default async function NewApplicationPage({
         labels={labels}
         serverError={serverError}
         initialCountryId={destinationParam}
+        initialVisaTypeId={typeof sp.programme==="string"?sp.programme:null}
         topupPath="/portal/wallet"
       />
     </>

@@ -126,6 +126,7 @@ interface Props {
   serverError: string | null;
   /** Destination preselected from the ?destination=<countryId> deep link. */
   initialCountryId?: string | null;
+  initialVisaTypeId?: string | null;
   /** Deep link used by the insufficient-balance state. */
   topupPath?: string;
 }
@@ -150,7 +151,7 @@ export function RequestWizard(props: Props) {
     const initial = props.initialCountryId;
     return initial && props.countries.some((c) => c.id === initial) ? initial : "";
   });
-  const [visaTypeId, setVisaTypeId] = useState("");
+  const [visaTypeId, setVisaTypeId] = useState(()=>props.countries.find(c=>c.id===props.initialCountryId)?.visaTypes.some(v=>v.id===props.initialVisaTypeId)?props.initialVisaTypeId??"":"");
   const [countrySearch, setCountrySearch] = useState("");
   const [destinationOpen, setDestinationOpen] = useState(false);
   const destinationPickerRef = useRef<HTMLDivElement>(null);

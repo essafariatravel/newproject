@@ -41,7 +41,7 @@ export function CountryFlag({iso}:{iso:string}){
 }
 type Destination=SearchDestination;
 type DestinationLabels={title:string;choose:string;search:string;none:string;noMatch:string;all:string;shortcuts:string;opening:string};
-export function DashboardDestination({options,shortcutIds,locale,labels:t}:{options:Destination[];shortcutIds:string[];locale:string;labels:DestinationLabels}){
+export function DashboardDestination({options,shortcutIds,locale,labels:t,onChoose}:{options:Destination[];shortcutIds:string[];locale:string;labels:DestinationLabels;onChoose?:(id:string)=>void}){
  const uid=useId(),root=useRef<HTMLDivElement>(null),input=useRef<HTMLInputElement>(null),list=useRef<HTMLDivElement>(null);
  const router=useRouter();
  const [query,setQuery]=useState(""),[open,setOpen]=useState(false),[active,setActive]=useState(0),[pending,startTransition]=useTransition();
@@ -49,7 +49,7 @@ export function DashboardDestination({options,shortcutIds,locale,labels:t}:{opti
  const matches=useMemo(()=>rankDestinations(options,query),[options,query]);
  const shortcuts=useMemo(()=>shortcutIds.flatMap(id=>options.filter(o=>o.id===id)),[options,shortcutIds]);
  const navigating=useRef(false);
- const choose=(o:Destination)=>{if(navigating.current||pending)return;navigating.current=true;setQuery(o.name);setOpen(false);startTransition(()=>router.push("/portal/applications/new?destination="+encodeURIComponent(o.id)));};
+ const choose=(o:Destination)=>{if(navigating.current||pending)return;navigating.current=true;setQuery(o.name);setOpen(false);if(onChoose){navigating.current=false;onChoose(o.id);return}startTransition(()=>router.push("/portal/applications/new?destination="+encodeURIComponent(o.id)));};
  useEffect(()=>{if(!pending)navigating.current=false;},[pending]);
  useEffect(()=>{const outside=(e:PointerEvent)=>{if(!root.current?.contains(e.target as Node))setOpen(false)};document.addEventListener("pointerdown",outside);return()=>document.removeEventListener("pointerdown",outside)},[]);
  useEffect(()=>{const box=list.current,option=document.getElementById(uid+"-"+active);if(!open||!box||!option)return;const b=box.getBoundingClientRect(),o=option.getBoundingClientRect();if(o.bottom>b.bottom)box.scrollTop+=o.bottom-b.bottom;else if(o.top<b.top)box.scrollTop-=b.top-o.top;},[active,open,uid]);
