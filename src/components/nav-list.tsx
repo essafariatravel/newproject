@@ -37,7 +37,7 @@ export function NavList({ sections }: { sections: NavSection[] }) {
             {section.title}
           </p>
           <div className="space-y-1">
-            {section.items.map((source) => { const item = source.href.endsWith("/notifications") ? { ...source, badge: unread } : source; const shortLabel = (pathname === "/portal" || pathname === "/portal/applications" || (/^\/portal\/applications\/[^/]+$/.test(pathname) && pathname !== "/portal/applications/new")) ? dashboardLabels[item.label] ?? item.label : item.label; return (
+            {section.items.map((source) => { const item = source.href.endsWith("/notifications") ? { ...source, badge: unread } : source; const shortLabel = (pathname === "/portal" || pathname.startsWith("/portal/")) ? dashboardLabels[item.label] ?? item.label : item.label; return (
               <Link
                 key={item.href}
                 href={item.href}

@@ -18,7 +18,7 @@ import { useAgencyPopover } from "@/components/agency-popover-controller";
 
 import { useMemo, useRef, useState, useEffect } from "react";
 import { contentT } from "@/lib/i18n-content";
-import { formatDZD } from "@/lib/format";
+import { formatDZD, formatProcessingDays } from "@/lib/format";
 import { readRequestResponse, requestFailureFeedback } from "@/lib/request-feedback";
 
 export interface WizardVisaOption {
@@ -467,7 +467,7 @@ export function RequestWizard(props: Props) {
     en:{checking:"Checking price and balance…",unavailable:"The check could not be completed. Try again before submitting.",retry:"Retry",changed:"This programme or its price has changed. Refresh the catalogue before confirming. Selected files will need to be added again.",refresh:"Refresh catalogue",duplicate:"A similar active application exists for this name, nationality and programme. Check before submitting; it may be a different person with the same name.",checked:"Price and balance checked."},
     ar:{checking:"جارٍ التحقق من السعر والرصيد…",unavailable:"تعذر إتمام التحقق. أعيدوا المحاولة قبل الإرسال.",retry:"إعادة المحاولة",changed:"تغير هذا البرنامج أو سعره. حدّثوا القائمة قبل التأكيد. ستحتاجون إلى إضافة الملفات مجدداً.",refresh:"تحديث القائمة",duplicate:"يوجد طلب نشط مشابه بالاسم والجنسية والبرنامج نفسه. تحققوا قبل الإرسال، فقد يكون شخصاً آخر بالاسم نفسه.",checked:"تم التحقق من السعر والرصيد."}
   }[props.locale];
-  type ReviewCheck = { key:string; status:"checking"|"unavailable" } | {key:string;status:"ready";fee:string|null;balance:string;possibleDuplicate:boolean};
+  type ReviewCheck = { key:string; status:"checking"|"unavailable" } | {key:string;status:"ready";fee:string|null;balance:string;possibleDuplicate:boolean;similarApplicationId?:string|null};
   const [preflight,setPreflight]=useState<ReviewCheck|null>(null);
   const [preflightRetry,setPreflightRetry]=useState(0);
   const preflightKey=JSON.stringify([countryId,visaTypeId,nameDraft.trim(),nationalityDraft,visa?.fee]);
@@ -479,7 +479,7 @@ export function RequestWizard(props: Props) {
     void (async()=>{
       try{
         const response=await fetch("/api/agency/requests",{method:"POST",headers:{"Content-Type":"application/json"},signal:controller.signal,body:JSON.stringify({action:"preflight",countryId,visaTypeId,fullName:nameDraft.trim(),nationality:nationalityDraft})});
-        const data=await readRequestResponse<{fee:string|null;balance:string;possibleDuplicate:boolean}>(response,props.locale);
+        const data=await readRequestResponse<{fee:string|null;balance:string;possibleDuplicate:boolean;similarApplicationId?:string|null}>(response,props.locale);
         if(!data||typeof data.balance!=="string"||!Number.isFinite(Number(data.balance))||!(data.fee===null||typeof data.fee==="string")||typeof data.possibleDuplicate!=="boolean")throw Error("Invalid review data");
         if(current)setPreflight({key:preflightKey,status:"ready",...data});
       }catch{if(current)setPreflight({key:preflightKey,status:"unavailable"})}
@@ -498,9 +498,7 @@ export function RequestWizard(props: Props) {
   const topupHref = `${props.topupPath ?? "/portal/wallet"}#topup`;
 
   function processingLabel(v: { minDays: number; maxDays: number }): string {
-    if (v.minDays > 0 && v.maxDays > 0) return `${v.minDays}–${v.maxDays} ${t.days}`;
-    if (v.minDays === 0 && v.maxDays === 0) return t.processingUnspecified;
-    return t.processingUnspecified;
+    return formatProcessingDays(v.minDays,v.maxDays,props.locale);
   }
 
 
@@ -531,7 +529,7 @@ export function RequestWizard(props: Props) {
       }
       setTransfer({done:received,total,phase:"confirm"});
       const response = await fetch("/api/agency/requests", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attempt: idempotencyKey, countryId, visaTypeId, expectedFee: visa?.fee, tokens,
+        body: JSON.stringify({ locale:props.locale, attempt: idempotencyKey, countryId, visaTypeId, expectedFee: visa?.fee, tokens,
           fullName: nameDraft.trim(), nationality: nationalityDraft, notes: String(fields.get("agencyNotes") ?? "") }) });
       const data = await readRequestResponse<{applicationId:string}>(response,props.locale);
       leavingAfterSuccess.current = true;
@@ -801,8 +799,8 @@ export function RequestWizard(props: Props) {
       <section data-wizard-section="2" hidden={step!==2} className="wizard-panel booking-docs" data-direction={wizardDirection}>
         <div className="booking-doc-head"><div><h2>{t.documents}</h2><small>{country?.name} · {visa?.name} · <bdi>{visa?formatDZD(visa.fee):"—"}</bdi></small></div><div className="booking-doc-progress" role="status"><strong>{completedDocs}/{requiredDocs.length}</strong> <span>{progressCopy.selected}</span>{requiredDocs.length>0?<progress value={completedDocs} max={requiredDocs.length} aria-label={progressCopy.selected}/>:null}</div></div>
         {fileError?<p role="alert" className="booking-warning" data-testid="wizard-file-error">{fileError}</p>:null}
-        {requirements.length===0?<p>{t.noDocumentsRequired}</p>:<div className="booking-doc-grid">
-          <div className="booking-doc-list" role="group" aria-label={t.summaryDocuments}>
+        {requirements.length===0?<p>{t.noDocumentsRequired}</p>:<div className="booking-doc-grid" data-single={requirements.length===1&&batch.length===0}>
+          <div className="booking-doc-list" role="group" aria-label={t.summaryDocuments} hidden={requirements.length===1&&batch.length===0}>
             <label className="booking-batch btn-secondary"><span>＋ {assist.batch}</span><input className="sr-only" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" onChange={e=>{const incoming=Array.from(e.currentTarget.files??[]);if(incoming.length){setBatch(prev=>[...prev,...incoming]);setDirty(true)}e.currentTarget.value=""}}/></label>
             {batch.length?<div className="booking-inbox"><strong>{assist.unassigned} ({batch.length})</strong><small>{assist.batchHint}</small>{batch.map((f,i)=><div className="booking-batch-row" key={i}><span>{f.name}</span><button type="button" className="booking-link" disabled={!selectedRequirement} aria-label={assist.assign+" "+f.name+" → "+selectedRequirement?.name} onClick={()=>{if(selectedRequirement&&onFileChange(selectedRequirement.documentTypeId,[...(files[selectedRequirement.documentTypeId]??[]),f]))setBatch(prev=>prev.filter((_,j)=>j!==i))}}>{assist.assign}</button><button type="button" className="booking-link" aria-label={t.remove+" "+f.name} onClick={()=>setBatch(prev=>prev.filter((_,j)=>j!==i))}>×</button></div>)}</div>:null}
             {requirements.map(r=><button type="button" key={r.documentTypeId} className="booking-doc-row" aria-pressed={selectedRequirement?.documentTypeId===r.documentTypeId} onClick={()=>selectDoc(r.documentTypeId)}><span className="booking-doc-icon" aria-hidden>▤</span><span><strong>{r.name}</strong><small>{r.required?t.required:ui.optional}</small></span><span className={(files[r.documentTypeId]??[]).length?"booking-success":"booking-muted"}>{warningMessages(r).length?<span className="booking-warning">• {smart.inspect}</span>:(files[r.documentTypeId]??[]).length?"✓ "+smart.selected:ui.empty}</span></button>)}
@@ -828,7 +826,7 @@ export function RequestWizard(props: Props) {
         <div className="booking-main booking-review">
           <h2>{ui.check}</h2>
           <div className="booking-rule"><div className="booking-line"><h3>{t.sectionVisa}</h3><button type="button" className="booking-link" disabled={pending} onClick={()=>editStep(1)}>{ui.edit}</button></div><h3>{country?.name} · {visa?.name}</h3><p className="booking-muted">{visa?processingLabel(visa):"—"}</p></div>
-          <div className="booking-rule"><div className="booking-line"><h3>{t.sectionApplicant}</h3><button type="button" className="booking-link" disabled={pending} onClick={()=>editStep(1)}>{ui.edit}</button></div><p data-testid="wizard-applicant-summary">{nameDraft||"—"} · {props.nationalities.find(n=>n.code===nationalityDraft)?.label??nationalityDraft}</p></div>
+          <div className="booking-rule"><div className="booking-line"><h3>{t.sectionApplicant}</h3><button type="button" className="booking-link" disabled={pending} onClick={()=>editStep(1)}>{ui.edit}</button></div><p data-testid="wizard-applicant-summary">{nameDraft||"—"} · {props.nationalities.find(n=>n.code===nationalityDraft)?.label??nationalityDraft}</p>{reviewReady&&reviewCheck?.status==="ready"&&reviewCheck.possibleDuplicate?<div className="booking-duplicate-note" role="status"><div><strong>{({fr:"Dossier similaire détecté",en:"Similar application found",ar:"تم العثور على طلب مشابه"}[props.locale])}</strong><p>{({fr:"Vérifiez s’il s’agit du même voyageur ou d’un homonyme.",en:"Check whether this is the same traveller or a different person with the same name.",ar:"تحققوا مما إذا كان المسافر نفسه أو شخصاً آخر يحمل الاسم نفسه."}[props.locale])}</p></div>{typeof reviewCheck.similarApplicationId==="string"&&/^[0-9a-f-]{36}$/i.test(reviewCheck.similarApplicationId)?<a className="booking-link" href={`/portal/applications/${encodeURIComponent(reviewCheck.similarApplicationId)}`} target="_blank" rel="noopener noreferrer">{({fr:"Consulter le dossier ↗",en:"View application ↗",ar:"عرض الطلب ↗"}[props.locale])}</a>:null}</div>:null}</div>
           <div className="booking-rule"><div className="booking-line"><h3>{t.summaryDocuments}</h3><button type="button" className="booking-link" disabled={pending} onClick={()=>editStep(2)}>{ui.edit}</button></div>{requirements.map(r=><div className="booking-line" key={r.documentTypeId}><span>{r.name}</span><div className="booking-review-files">{(files[r.documentTypeId]??[]).length?(files[r.documentTypeId]??[]).map((f,i)=><button key={i} type="button" disabled={pending} className="booking-link" onClick={()=>setReviewFile(f)}>{ui.preview}{(files[r.documentTypeId]??[]).length>1?" "+(i+1):""} →</button>):<small>{r.required?t.missingPrefix:ui.optional}</small>}</div></div>)}{flaggedRequirements.length?<div className="booking-smart-review" role="status"><strong>{smart.checks} · {flaggedRequirements.length}</strong>{flaggedRequirements.map(r=><div key={r.documentTypeId} className="booking-line"><div><strong>{r.name}</strong>{warningMessages(r).map(message=><p key={message} className="booking-warning">{message}</p>)}</div><button type="button" className="booking-link" disabled={pending} onClick={()=>{selectDoc(r.documentTypeId);editStep(2)}}>{smart.inspect} →</button></div>)}<small>{smart.noValidation}</small></div>:null}<small>{ux.verify}</small></div>
         </div>
         <aside className="booking-side">
@@ -836,7 +834,7 @@ export function RequestWizard(props: Props) {
           <div className="booking-rule"><p className="booking-line"><span>{t.currentBalance}</span><strong><bdi>{formatDZD(displayedBalance)}</bdi></strong></p><p className="booking-line"><span>{t.balanceAfter}</span><strong className={canAfford?"booking-success":"booking-warning"}><bdi>{canAfford?formatDZD(afterNum):"—"}</bdi></strong></p></div>
           <p className="booking-muted">{t.chargeNote}</p>
           <div className="booking-preflight" aria-live="polite">
-            {!reviewCheck||reviewCheck.status==="checking"?<p className="booking-muted">{preflightText.checking}</p>:reviewCheck.status==="unavailable"?<div className="booking-line"><p className="booking-warning">{preflightText.unavailable}</p><button type="button" className="booking-link" disabled={pending} onClick={()=>{setPreflight(null);setPreflightRetry(n=>n+1)}}>{preflightText.retry}</button></div>:quoteChanged?<div><p className="booking-warning">{preflightText.changed}</p><button type="button" className="booking-link" disabled={pending} onClick={()=>window.location.reload()}>{preflightText.refresh}</button></div>:<><p className="booking-success">✓ {preflightText.checked}</p>{reviewCheck.status==="ready"&&reviewCheck.possibleDuplicate?<p className="booking-warning">{preflightText.duplicate}</p>:null}</>}
+            {!reviewCheck||reviewCheck.status==="checking"?<p className="booking-muted">{preflightText.checking}</p>:reviewCheck.status==="unavailable"?<div className="booking-line"><p className="booking-warning">{preflightText.unavailable}</p><button type="button" className="booking-link" disabled={pending} onClick={()=>{setPreflight(null);setPreflightRetry(n=>n+1)}}>{preflightText.retry}</button></div>:quoteChanged?<div><p className="booking-warning">{preflightText.changed}</p><button type="button" className="booking-link" disabled={pending} onClick={()=>window.location.reload()}>{preflightText.refresh}</button></div>:<><p className="booking-success">✓ {preflightText.checked}</p></>}
           </div>
           {pending&&transfer?<div className="agency-v2-submit-progress" role="status" aria-live="polite"><strong>{transfer.phase==="files"?`${progressCopy.files}: ${transfer.done} / ${transfer.total}`:progressCopy.confirm}</strong>{transfer.phase==="files"&&transfer.total>0?<progress aria-label={progressCopy.files} value={transfer.done} max={transfer.total}/>:null}<p>{progressCopy.notice}</p></div>:null}
           {canAfford||!reviewReady?<button type="submit" className="btn-primary w-full" disabled={pending||!reviewReady||catalogueRecovery||sessionRecovery} data-testid="wizard-submit">{pending?t.submitting:<>{t.submitApplication} — <bdi>{visa?formatDZD(visa.fee):"—"}</bdi></>}</button>:<><p className="booking-warning">{t.insufficientTitle} · <bdi>{formatDZD(missing)}</bdi></p><a href={topupHref} className="btn-primary" data-testid="wizard-topup-cta">{t.requestTopup}</a></>}
@@ -869,6 +867,8 @@ const bookingRefinementCss="\n.booking-rail{max-width:760px;width:100%;padding-b
 const bookingAssistCss=".booking-experience .wizard-panel[data-wizard-section=\"1\"]:has(.booking-nationality-pop,.wizard-destination-popover,[data-testid=\"wizard-destination-popover\"]){position:relative;z-index:11}.booking-nationality{position:relative}.booking-nationality>button{width:100%;text-align:start}.booking-nationality-pop{position:absolute;z-index:45;inset-inline:0;top:100%;padding:8px;background:#fff;border:1px solid #e2e5e9;border-radius:12px;box-shadow:0 12px 32px #0b1c301a}.booking-nationality-pop[data-placement=above]{top:auto;bottom:100%;margin-bottom:4px}.booking-nationality-pop[data-placement=below]{margin-top:4px}.booking-nationality-pop{box-sizing:border-box}.booking-nationality-list{max-height:240px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;touch-action:pan-y}.booking-nationality-pop input{width:100%;min-width:0}.booking-nationality-list button{display:block;width:100%;text-align:start;padding:9px;border-radius:5px}.booking-nationality-list button:hover,.booking-nationality-list button[aria-pressed=true]{background:#edf2f6}.booking-batch{display:flex!important;justify-content:center;cursor:pointer;margin-bottom:8px}.booking-batch:focus-within{outline:2px solid #0b1c30;outline-offset:2px}.booking-inbox{display:grid;gap:6px;padding:10px 0;border-bottom:1px solid #e2e5e9}.booking-batch-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px;align-items:center}.booking-batch-row>span{overflow-wrap:anywhere}.booking-dialog-body[data-zoom=true] img{max-width:none;max-height:none;width:150%;height:auto}@media(max-width:850px){.booking-batch-row{grid-template-columns:minmax(0,1fr) auto}.booking-batch-row>span{grid-column:1/-1}}";
 
 const smartBookingCss = `
+.booking-experience .booking-doc-grid[data-single="true"]{grid-template-columns:minmax(0,1fr);gap:0}.booking-experience .booking-doc-grid[data-single="true"] .booking-doc-list{display:none}.booking-experience .booking-doc-grid[data-single="true"] .booking-doc-panel{border-inline-start:0;padding-inline:0}.booking-experience .booking-doc-grid[data-single="true"] .booking-preview{min-height:280px}.booking-experience .booking-duplicate-note{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-block-start:12px;padding:12px 0;border-block-start:1px solid #e2e5e9;color:#87500d}.booking-experience .booking-duplicate-note p{margin:4px 0 0;color:#647182}.booking-experience .booking-duplicate-note a{flex-shrink:0}@media(max-width:600px){.booking-experience .booking-duplicate-note{flex-wrap:wrap}}
+
 .booking-experience .booking-preflight{display:grid;gap:8px;margin-block:10px}.booking-experience .booking-preflight p{margin:0}.booking-experience .booking-preflight .booking-line{align-items:flex-start;gap:12px}.booking-experience .booking-smart-review{display:grid;gap:10px;padding-block:12px;border-block-start:1px solid #e2e5e9;margin-block:12px}
 .booking-experience .booking-smart-review .booking-line{align-items:flex-start;gap:16px}
 .booking-experience .booking-smart-review .booking-line>div{min-width:0}

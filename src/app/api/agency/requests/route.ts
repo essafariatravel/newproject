@@ -10,11 +10,11 @@ import { AppError } from "@/lib/types";
 import { submitVisaRequest,coalesceVisaSubmission } from "@/lib/requests";
 import { stageRequestUpload, resolveRequestUploads, clearRequestUploads } from "@/lib/request-uploads";
 import { requestErrorMessage } from "@/lib/request-feedback";
-import { getUiLocale } from "@/lib/ui-i18n";
+import { getUiLocale, UI_LOCALE_COOKIE } from "@/lib/ui-i18n";
 import { readRequestBodyLimited } from "@/lib/http-body";
 
 export const runtime = "nodejs";
-const submission = z.object({ attempt: z.string().uuid(), visaTypeId: z.string().uuid(), countryId: z.string().uuid(),
+const submission = z.object({ locale: z.enum(["en","fr","ar"]).optional(), attempt: z.string().uuid(), visaTypeId: z.string().uuid(), countryId: z.string().uuid(),
   fullName: z.string().max(200), nationality: z.string().max(80), notes: z.string().max(1000), tokens: z.array(z.string()).max(60), expectedFee: z.string().max(32).regex(/^\d+(?:\.\d+)?$/).optional() });
 const preflight = z.object({ action: z.literal("preflight"), visaTypeId: z.string().uuid(), countryId: z.string().uuid(), fullName: z.string().trim().min(1).max(200), nationality: z.string().trim().min(1).max(80) });
 
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
             sql`lower(regexp_replace(trim(coalesce(nullif(${applicants.fullName}, ''), concat_ws(' ', ${applicants.firstName}, ${applicants.lastName}))), '[[:space:]]+', ' ', 'g')) = lower(regexp_replace(trim(${input.fullName}), '[[:space:]]+', ' ', 'g'))`,
             sql`lower(trim(${applicants.nationality})) = lower(trim(${input.nationality}))`)).limit(1)
       ]);
-      return NextResponse.json({fee:programmes[0]?.fee??null,balance:wallet.balance,possibleDuplicate:matching.length>0}, {headers:{"Cache-Control":"no-store"}});
+      return NextResponse.json({fee:programmes[0]?.fee??null,balance:wallet.balance,possibleDuplicate:matching.length>0, similarApplicationId:matching[0]?.id??null}, {headers:{"Cache-Control":"no-store"}});
     }
     const input = submission.parse(json);
     // A retry after a lost response works even after temporary files are removed.
@@ -72,7 +72,9 @@ export async function POST(request: Request) {
     return committedId;
     });
     revalidatePath("/portal", "layout"); revalidatePath("/admin", "layout");
-    return NextResponse.json({ applicationId: id }, { headers: { "Cache-Control": "no-store" } });
+    const response = NextResponse.json({ applicationId: id }, { headers: { "Cache-Control": "no-store" } });
+    if (input.locale) response.cookies.set(UI_LOCALE_COOKIE, input.locale, { httpOnly:false, sameSite:"lax", secure:process.env.NODE_ENV==="production", maxAge:60*60*24*365, path:"/" });
+    return response;
   } catch (error) {
     const locale = await getUiLocale();
     const code = error instanceof AppError ? error.code : error instanceof z.ZodError ? "VALIDATION" : "INTERNAL";

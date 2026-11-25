@@ -161,9 +161,9 @@
 .workspace-agency #workspace-main .agency-v2-submit-progress{display:grid;gap:8px;padding:16px 0;color:var(--agency-ink)}
 .workspace-agency #workspace-main .agency-v2-submit-progress progress{width:100%;height:8px;accent-color:#23685c}
 .workspace-agency #workspace-main .agency-v2-submit-progress p{font-size:.9375rem;color:var(--agency-muted)}
-.workspace-agency #workspace-main .agency-v2-submission-receipt{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-block:0 24px;padding:20px 22px;border:1px solid #b9d5ca;border-radius:14px;background:#f3f9f6}
-.workspace-agency #workspace-main .agency-v2-submission-receipt h2{font-size:1.25rem;font-weight:600;color:#174f43}
-.workspace-agency #workspace-main .agency-v2-submission-receipt p{margin-top:6px;color:#344f49}
+.workspace-agency #workspace-main .agency-v2-submission-receipt{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-block:0 24px;padding:16px 0;border:0;border-block-end:1px solid #e2e5e9;border-radius:0;background:#fff}
+.workspace-agency #workspace-main .agency-v2-submission-receipt h2{font-size:1.25rem;font-weight:600;color:#0b1c30}
+.workspace-agency #workspace-main .agency-v2-submission-receipt p{margin-top:4px;color:#647182}
 .workspace-agency #workspace-main .agency-v2-effective-price{display:flex;justify-content:space-between;gap:12px;align-items:baseline;border-block:1px solid var(--agency-rule);padding-block:14px}
 .workspace-agency #workspace-main .agency-v2-effective-price strong{font-size:1.25rem;white-space:nowrap}
 
@@ -230,3 +230,5 @@
 @media(min-width:1600px){.workspace-agency.workspace-agency .agency-desktop-navigation{max-width:calc(100% - 570px)}}
 
 .agency-command-dialog .command-item-label{display:flex;align-items:center;gap:12px;min-width:0}.agency-command-dialog .command-item-label>span:last-child{min-width:0}.agency-command-dialog .command-item-icon{width:24px;flex:none;text-align:center;color:#647182;font-size:19px}.agency-command-dialog .command-key-hints{display:flex;justify-content:space-between;align-items:center;border-block-start:1px solid #e2e5e9;padding-block-start:10px;margin-block-start:8px;color:#647182;font-size:13px}.agency-command-dialog .command-key-hints kbd{font-family:inherit;font-size:13px;padding:2px 5px;border:1px solid #dce2e8;border-radius:4px}
+
+.workspace-agency #workspace-main .submission-identity{display:flex;align-items:center;gap:14px;min-width:0}.workspace-agency #workspace-main .submission-mark{display:grid;place-items:center;width:44px;height:44px;flex:none;border-radius:50%;background:#0b1c30;color:#fff}.workspace-agency #workspace-main .submission-identity bdi{font-variant-numeric:tabular-nums}.workspace-agency #workspace-main .agency-v2-submission-receipt .btn-secondary{background:#fff}
