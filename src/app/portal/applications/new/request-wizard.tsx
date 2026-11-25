@@ -180,6 +180,8 @@ export function RequestWizard(props: Props) {
   const [dragging,setDragging]=useState(false);
   const [nameDraft,setNameDraft]=useState("");
   const [nationalityDraft,setNationalityDraft]=useState(props.defaultNationality);
+  // Controlled state is the single source of truth for the gate and the submitted payload.
+  const applicantReady = Boolean(nameDraft.trim() && props.nationalities.some(n => n.code === nationalityDraft));
   const ui = {
     fr:{title:"Nouvelle demande",reservation:"Votre demande",travel:"Voyage et voyageur",documents:"Documents",confirm:"Confirmation",suggestions:"Destinations suggérées",ready:"Prêt à vérifier",select:"Choisissez un programme",noDebit:"Aucun débit avant la confirmation.",estimate:"Solde estimé après confirmation",covered:"Votre solde couvre cette demande.",missing:"Montant manquant",drop:"Déposez votre document ici",browse:"Parcourir les fichiers",nextDoc:"Pièce suivante",review:"Vérifier le dossier",continue:"Préparer les documents",preview:"Aperçu",unavailable:"Aperçu indisponible pour ce format. Vérifiez le fichier sur votre appareil.",replace:"Changer de fichier",changeWarning:"Changer de programme supprimera les fichiers déjà sélectionnés. Continuer ?",invalid:"Format non accepté",duplicate:"Ce fichier est déjà sélectionné. Vérifiez la pièce choisie.",local:"Fichiers sur cet appareil jusqu’à la confirmation",empty:"À préparer",optional:"Facultatif",edit:"Modifier",download:"Ouvrir le fichier",payment:"Votre paiement",check:"Votre dossier est prêt à être vérifié",selected:"Pièce sélectionnée",working:"Délai indicatif",notes:"Instructions facultatives"},
     en:{title:"New application",reservation:"Your application",travel:"Trip and traveller",documents:"Documents",confirm:"Confirmation",suggestions:"Suggested destinations",ready:"Ready to review",select:"Choose a programme",noDebit:"No charge until confirmation.",estimate:"Estimated balance after confirmation",covered:"Your balance covers this application.",missing:"Amount missing",drop:"Drop your document here",browse:"Browse files",nextDoc:"Next document",review:"Review application",continue:"Prepare documents",preview:"Preview",unavailable:"Preview unavailable for this format. Check the file on your device.",replace:"Change file",changeWarning:"Changing the programme removes the selected files. Continue?",invalid:"Unsupported format",duplicate:"This file is already selected. Check the chosen document.",local:"Files stay on this device until confirmation",empty:"To prepare",optional:"Optional",edit:"Edit",download:"Open file",payment:"Your payment",check:"Your application is ready to review",selected:"Document selected",working:"Estimated processing time",notes:"Optional instructions"},
@@ -323,14 +325,9 @@ export function RequestWizard(props: Props) {
         setClientError(t.validationChooseVisa);
         return false;
       }
-      const form = formRef.current;
-      if (form) {
-        const fullName = (form.elements.namedItem("t0_fullName") as HTMLInputElement | null)?.value?.trim() ?? "";
-        const nationality = (form.elements.namedItem("t0_nationality") as HTMLInputElement | null)?.value?.trim() ?? "";
-        if (!fullName || !nationality) {
-          setClientError(t.validationApplicant);
-          return false;
-        }
+      if (!applicantReady) {
+        setClientError(t.validationApplicant);
+        return false;
       }
     }
     if (n === 2) {
@@ -438,7 +435,7 @@ export function RequestWizard(props: Props) {
       setTransfer({done:received,total,phase:"confirm"});
       const response = await fetch("/api/agency/requests", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ attempt: idempotencyKey, countryId, visaTypeId, tokens,
-          fullName: String(fields.get("t0_fullName") ?? ""), nationality: String(fields.get("t0_nationality") ?? ""), notes: String(fields.get("agencyNotes") ?? "") }) });
+          fullName: nameDraft.trim(), nationality: nationalityDraft, notes: String(fields.get("agencyNotes") ?? "") }) });
       const data = await readRequestResponse<{applicationId:string}>(response,props.locale);
       leavingAfterSuccess.current = true;
       window.location.assign(`/portal/applications/${data.applicationId}?submitted=1`);
@@ -676,18 +673,18 @@ export function RequestWizard(props: Props) {
                 autoComplete="off"
                 className="input"
                 data-testid="wizard-full-name"
-                value={nameDraft} onChange={e=>setNameDraft(e.target.value)}
+                value={nameDraft} onChange={e=>{setNameDraft(e.target.value);if(clientError===t.validationApplicant)setClientError("")}}
                 placeholder={t.fullNamePlaceholder}
               />
             </div>
             <div>
-              <label className="label" htmlFor="t0_nationality">{t.nationality} *</label>
+              <label className="label" htmlFor="wizard-nationality-trigger">{t.nationality} *</label>
               <div ref={nationalityRef} className="booking-nationality">
                 <input type="hidden" name="t0_nationality" value={nationalityDraft}/>
-                <button type="button" id="t0_nationality" className="input booking-line" data-testid="wizard-nationality" aria-expanded={nationalityOpen} aria-controls="booking-nationality-options" onClick={()=>{setNationalitySearch("");setNationalityOpen(v=>!v)}}>{props.nationalities.find(n=>n.code===nationalityDraft)?.label??nationalityDraft}<span aria-hidden>⌄</span></button>
-                {nationalityOpen?<div className="booking-nationality-pop" id="booking-nationality-options" onKeyDown={e=>{if(e.key==="Escape"){setNationalityOpen(false);document.getElementById("t0_nationality")?.focus()}}}>
+                <button type="button" id="wizard-nationality-trigger" className="input booking-line" data-testid="wizard-nationality" aria-expanded={nationalityOpen} aria-controls="booking-nationality-options" onClick={()=>{setNationalitySearch("");setNationalityOpen(v=>!v)}}>{props.nationalities.find(n=>n.code===nationalityDraft)?.label??nationalityDraft}<span aria-hidden>⌄</span></button>
+                {nationalityOpen?<div className="booking-nationality-pop" id="booking-nationality-options" onKeyDown={e=>{if(e.key==="Escape"){setNationalityOpen(false);document.getElementById("wizard-nationality-trigger")?.focus()}}}>
                   <input autoFocus type="search" className="input" aria-label={assist.nationality} placeholder={assist.nationality} value={nationalitySearch} onChange={e=>setNationalitySearch(e.target.value)}/>
-                  <div className="booking-nationality-list">{props.nationalities.filter(n=>normalize(n.label+" "+n.code).includes(normalize(nationalitySearch))).map(n=><button key={n.code} type="button" aria-pressed={n.code===nationalityDraft} onClick={()=>{setNationalityDraft(n.code);setDirty(true);setNationalityOpen(false);document.getElementById("t0_nationality")?.focus()}}>{n.label}{n.code===nationalityDraft?" ✓":""}</button>)}{!props.nationalities.some(n=>normalize(n.label+" "+n.code).includes(normalize(nationalitySearch)))?<p className="booking-muted">{assist.noNationality}</p>:null}</div>
+                  <div className="booking-nationality-list">{props.nationalities.filter(n=>normalize(n.label+" "+n.code).includes(normalize(nationalitySearch))).map(n=><button key={n.code} type="button" aria-pressed={n.code===nationalityDraft} onClick={()=>{setNationalityDraft(n.code);if(clientError===t.validationApplicant)setClientError("");setDirty(true);setNationalityOpen(false);document.getElementById("wizard-nationality-trigger")?.focus()}}>{n.label}{n.code===nationalityDraft?" ✓":""}</button>)}{!props.nationalities.some(n=>normalize(n.label+" "+n.code).includes(normalize(nationalitySearch)))?<p className="booking-muted">{assist.noNationality}</p>:null}</div>
                 </div>:null}
               </div>
             </div>
@@ -753,7 +750,7 @@ export function RequestWizard(props: Props) {
         </button>
         <small>{step===2?ux.local:step===1?ui.noDebit:""}</small>
         {step < 3 ? (
-          <button type="button" onClick={goNext} disabled={pending||(step===1?(!visa||!nameDraft.trim()||!nationalityDraft):completedDocs<requiredDocs.length||batch.length>0)} className="btn-primary">
+          <button type="button" onClick={goNext} disabled={pending||(step===1?(!visa||!applicantReady):completedDocs<requiredDocs.length||batch.length>0)} className="btn-primary">
             {step===1?ui.continue:ui.review} <span className="directional" aria-hidden>→</span>
           </button>
         ) : null}
