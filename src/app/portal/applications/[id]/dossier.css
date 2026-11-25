@@ -137,3 +137,53 @@
 .dossier-workspace .case-viewer-file-info{font-size:15px;padding-block:10px;color:var(--dash-secondary);overflow-wrap:anywhere}
 .dossier-workspace .case-viewer-file-info summary{cursor:pointer;color:var(--dash-ink);font-weight:500}
 @media(max-width:767px){.dossier-workspace .r08-row{grid-template-columns:20px minmax(0,1fr) auto;gap:8px}.dossier-workspace .r08-row .dossier-doc-state{grid-column:2;grid-row:2}.dossier-workspace .r08-row>.case-document-preview-action,.dossier-workspace .r08-row>.r08-request-link{grid-column:3;grid-row:1/span 2;min-height:44px}.dossier-workspace .r08-file-name{grid-column:2}.dossier-workspace .r08-item>.r08-details{margin-inline-start:28px}}
+
+/* R09: workspace, not a form. Existing dashboard typography and logical RTL spacing. */
+.dossier-workspace .r09-workspace{min-width:0;color:var(--dash-ink)}
+.dossier-workspace .r09-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-block:0 10px}
+.dossier-workspace .r09-heading h2{font-size:22px;font-weight:600}
+.dossier-workspace .r09-summary{display:flex;flex-wrap:wrap;gap:14px;color:var(--dash-secondary);font-size:15px}
+.dossier-workspace .r09-split{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);border-block-start:1px solid var(--dash-rule);align-items:start;gap:0}
+.dossier-workspace .r09-library{min-width:0;padding-inline-end:22px}
+.dossier-workspace .r09-tools,.dossier-workspace .r09-inspector-nav{min-height:46px;display:flex;align-items:center;gap:8px;border-block-end:1px solid var(--dash-rule)}
+.dossier-workspace .r09-filters{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-block:4px}
+.dossier-workspace :is(.r09-filters,.r09-inspector-nav) button{font-size:15px;color:var(--dash-secondary);min-height:36px;padding:4px 0;border-block-end:2px solid transparent}
+.dossier-workspace :is(.r09-filters,.r09-inspector-nav) button[aria-pressed=true]{font-weight:600;color:var(--dash-ink);border-block-end-color:var(--dash-ink)}
+.dossier-workspace .r09-search{min-width:100px;flex:1;font-size:15px;max-height:40px}
+.dossier-workspace .r09-group h3{font-size:15px;font-weight:600;padding:8px 0 4px}
+.dossier-workspace .r09-group h3 span{font-weight:400;color:var(--dash-secondary)}
+.dossier-workspace .r09-document-row{display:flex;align-items:center;gap:4px;border-block-end:1px solid var(--dash-rule);min-height:54px}
+.dossier-workspace .r09-document-row[data-selected=true],.dossier-workspace .r09-document-row:hover{background:var(--dash-hover,#f4f6f8)}
+.dossier-workspace .r09-row-select{flex:1;min-width:0;display:grid;grid-template-columns:24px minmax(0,1fr) minmax(88px,auto);align-items:center;gap:10px;text-align:start;padding:7px 8px;min-height:54px}
+.dossier-workspace .r09-row-name{display:grid;min-width:0;gap:1px}
+.dossier-workspace .r09-row-name strong{font-size:16px;font-weight:600;overflow-wrap:anywhere}
+.dossier-workspace .r09-row-name small,.dossier-workspace .r09-file-label{font-size:15px;color:var(--dash-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dossier-workspace .r09-icon,.dossier-workspace .r09-eye{color:var(--dash-secondary)}
+.dossier-workspace .r09-eye{display:grid;place-items:center;min-width:44px;min-height:44px;border-radius:5px}
+.dossier-workspace .r09-eye:hover{background:#e8edf2;color:var(--dash-ink)}
+.dossier-workspace .r09-inspector{min-width:0;border-inline-start:1px solid var(--dash-rule);padding-inline-start:22px;display:flex;flex-direction:column}
+.dossier-workspace .r09-inspector-nav{gap:18px}
+.dossier-workspace .r09-inspector-body{min-width:0;display:grid;align-content:start;gap:10px;padding-block:12px}
+.dossier-workspace .r09-inspector-title{display:flex;align-items:start;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.dossier-workspace .r09-inspector-title h3{font-size:20px;font-weight:600;overflow-wrap:anywhere}
+.dossier-workspace .r09-inspector-actions{display:flex;flex-wrap:wrap;gap:8px}
+.dossier-workspace .r09-inspector-actions button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px}
+.dossier-workspace .r09-meta{margin:0;display:grid;gap:0}
+.dossier-workspace .r09-meta>div{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-block-end:1px solid var(--dash-rule);font-size:15px}
+.dossier-workspace .r09-meta dt,.dossier-workspace .r09-hint,.dossier-workspace .r09-policy,.dossier-workspace .r09-empty{color:var(--dash-secondary);font-size:15px}
+.dossier-workspace .r09-meta dd{font-weight:500;text-align:end;overflow-wrap:anywhere}
+.dossier-workspace .r09-policy{border-block-start:1px solid var(--dash-rule);padding-block:8px}
+.dossier-workspace .r09-policy summary{cursor:pointer}
+.dossier-workspace .r09-policy p{margin-block:6px}
+.dossier-workspace .r09-inline-preview{background:#f5f6f8;display:grid;place-items:center;min-height:160px;height:clamp(180px,30dvh,350px);overflow:auto}
+.dossier-workspace .r09-inline-preview iframe{width:100%;height:100%;border:0}
+.dossier-workspace .r09-inline-preview img{max-width:100%;max-height:100%;object-fit:contain}
+.dossier-workspace .r09-inline-preview p{padding:12px;color:var(--dash-secondary)}
+.dossier-workspace .r09-history-row,.dossier-workspace .r09-version{border-block-end:1px solid var(--dash-rule);padding-block:8px;overflow-wrap:anywhere;font-size:15px}
+.dossier-workspace .r09-history-row p,.dossier-workspace .r09-request p{color:var(--dash-secondary);margin-block:4px;overflow-wrap:anywhere}
+.dossier-workspace .r09-version{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.dossier-workspace .r09-request{border-block-start:1px solid var(--dash-rule);padding-block:8px}
+.dossier-workspace .r09-workspace button:focus-visible{outline:2px solid #285582;outline-offset:2px}
+@media(min-width:1000px) and (min-height:650px){.dossier-workspace .r09-library,.dossier-workspace .r09-inspector{max-height:calc(100dvh - 300px);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}.dossier-workspace .r09-tools,.dossier-workspace .r09-inspector-nav{position:sticky;top:0;background:#fff;z-index:2}}
+@media(max-width:999px){.dossier-workspace .r09-split{grid-template-columns:1fr}.dossier-workspace .r09-library{padding-inline-end:0}.dossier-workspace .r09-inspector{border-inline-start:0;border-block-start:1px solid var(--dash-rule);padding-inline-start:0;margin-block-start:16px}.dossier-workspace .r09-tools{flex-wrap:wrap}}
+@media(max-width:520px){.dossier-workspace .r09-row-select{grid-template-columns:20px minmax(0,1fr);gap:3px 8px}.dossier-workspace .r09-row-select .dossier-doc-state{grid-column:2}.dossier-workspace .r09-filters{gap:10px}}

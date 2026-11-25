@@ -1,0 +1,53 @@
+"use client";
+import {useEffect,useRef,useState,type ReactNode,type KeyboardEvent} from "react";
+import {DocumentPreviewButton} from "./document-viewer";
+type Locale="fr"|"en"|"ar";
+type FileInfo={id:string;name:string;mime:string;version:number;size:string;date:string};
+export type DocumentWorkspaceEntry={key:string;group:"required"|"other"|"decision"|"action";title:string;filename:string;statusCode:string;status:string;priority?:boolean;file?:FileInfo;content?:ReactNode;requestKey?:string};
+type Props={locale:Locale;entries:DocumentWorkspaceEntry[];summary:string;complete:boolean;missing:number;requestCount:number;historyCount:number;policy:string;history:ReactNode};
+const labels={
+ fr:{documents:"Documents",required:"Pièces requises",other:"Autres documents",decision:"Décision officielle",action:"À traiter",history:"Historique",all:"Tous",search:"Rechercher une pièce…",none:"Aucun document dans cette vue.",select:"Document sélectionné",preview:"Aperçu",expand:"Agrandir l’aperçu",version:"Version",size:"Taille",date:"Ajouté le",noAction:"Aucune demande ouverte",missing:"manquantes",policy:"Conditions de téléversement",loading:"Chargement…",error:"Aperçu indisponible",retry:"Réessayer",unsupported:"Aperçu non pris en charge. Ouvrez la visionneuse pour télécharger.",openRequest:"Traiter la demande",check:"Vérifiez le contenu et le destinataire avant transmission.",files:"pièces",historyEmpty:"Aucune demande clôturée.",back:"Revenir aux documents"},
+ en:{documents:"Documents",required:"Required documents",other:"Other documents",decision:"Official decision",action:"To do",history:"History",all:"All",search:"Find a document…",none:"No documents in this view.",select:"Selected document",preview:"Preview",expand:"Expand preview",version:"Version",size:"Size",date:"Added on",noAction:"No open requests",missing:"missing",policy:"Upload requirements",loading:"Loading…",error:"Preview unavailable",retry:"Retry",unsupported:"Preview not supported. Open the viewer to download.",openRequest:"Handle request",check:"Check the content and recipient before sharing.",files:"items",historyEmpty:"No closed requests.",back:"Back to documents"},
+ ar:{documents:"الوثائق",required:"الوثائق المطلوبة",other:"وثائق أخرى",decision:"القرار الرسمي",action:"إجراءات مطلوبة",history:"السجل",all:"الكل",search:"ابحث عن وثيقة…",none:"لا توجد وثائق في هذا العرض.",select:"الوثيقة المحددة",preview:"معاينة",expand:"تكبير المعاينة",version:"الإصدار",size:"الحجم",date:"تاريخ الإضافة",noAction:"لا توجد طلبات مفتوحة",missing:"ناقصة",policy:"شروط رفع الوثائق",loading:"جارٍ التحميل…",error:"المعاينة غير متاحة",retry:"إعادة المحاولة",unsupported:"المعاينة غير مدعومة. افتح العارض للتنزيل.",openRequest:"معالجة الطلب",check:"تحقق من المحتوى والمستلم قبل المشاركة.",files:"وثائق",historyEmpty:"لا توجد طلبات مغلقة.",back:"العودة إلى الوثائق"}
+};
+const fileIcon=<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M6 3h8l4 4v14H6zM14 3v5h4M9 13h6m-6 4h6"/></svg>;
+const eye=<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg>;
+function InlinePreview({file,locale}:{file:FileInfo;locale:Locale}){
+ const t=labels[locale],[url,setUrl]=useState(""),[error,setError]=useState(false),[retry,setRetry]=useState(0);
+ const supported=["application/pdf","image/jpeg","image/png","image/webp"].includes(file.mime);
+ useEffect(()=>{setUrl("");setError(false);if(!supported)return;const a=new AbortController();let objectUrl="";
+ void (async()=>{try{const r=await fetch("/api/documents/"+encodeURIComponent(file.id),{cache:"no-store",signal:a.signal,headers:{"X-Document-Intent":"preview"}});if(!r.ok)throw Error("preview");const b=await r.blob();if(b.type.split(";")[0]!==file.mime)throw Error("mime");if(a.signal.aborted)return;objectUrl=URL.createObjectURL(b);setUrl(objectUrl)}catch{if(!a.signal.aborted)setError(true)}})();
+ return()=>{a.abort();if(objectUrl)URL.revokeObjectURL(objectUrl)}},[file.id,file.mime,supported,retry]);
+ return <div className="r09-inline-preview" aria-busy={supported&&!url&&!error}>{!supported?<p>{t.unsupported}</p>:error?<div role="alert"><p>{t.error}</p><button type="button" className="btn-secondary btn-sm" onClick={()=>setRetry(v=>v+1)}>{t.retry}</button></div>:!url?<p role="status">{t.loading}</p>:file.mime==="application/pdf"?<iframe title={file.name} src={url} sandbox=""/>:<img alt={file.name} src={url} onError={()=>setError(true)}/>}</div>
+}
+export function DocumentWorkspace({locale,entries,summary,complete,missing,requestCount,historyCount,policy,history}:Props){
+ const t=labels[locale],defaultEntry=entries.find(e=>e.group==="action")??entries.find(e=>e.priority)??entries.find(e=>e.group==="decision")??entries[0];
+ const [selected,setSelected]=useState(defaultEntry?.key??""),[filter,setFilter]=useState<"all"|"action"|"required"|"other"|"decision">("all"),[query,setQuery]=useState(""),[preview,setPreview]=useState(false),[showHistory,setShowHistory]=useState(false);
+ const list=useRef<HTMLDivElement>(null),inspector=useRef<HTMLElement>(null);
+ const current=entries.find(e=>e.key===selected)??defaultEntry;
+ const visible=entries.filter(e=>(filter==="all"||(filter==="action"?e.group==="action"||e.priority:e.group===filter))&&(!query.trim()||(e.title+" "+e.filename+" "+e.status).toLocaleLowerCase(locale).includes(query.trim().toLocaleLowerCase(locale))));
+ function choose(key:string,show=false){setSelected(key);setPreview(show);setShowHistory(false)}
+ useEffect(()=>{const hash=()=>{const key=window.location.hash.slice(1);if(entries.some(e=>e.key===key)){setSelected(key);setFilter("all");setShowHistory(false);setPreview(false)}};hash();window.addEventListener("hashchange",hash);return()=>window.removeEventListener("hashchange",hash)},[entries]);
+ function keydown(e:KeyboardEvent<HTMLButtonElement>,key:string){const i=visible.findIndex(x=>x.key===key);if(e.key==="ArrowDown"||e.key==="ArrowUp"||e.key==="Home"||e.key==="End"){e.preventDefault();const next=visible[e.key==="Home"?0:e.key==="End"?visible.length-1:Math.max(0,Math.min(visible.length-1,i+(e.key==="ArrowDown"?1:-1)))];if(next){choose(next.key);list.current?.querySelector<HTMLButtonElement>('[data-entry="'+next.key+'"]')?.focus()}}else if(e.key==="Escape"){setPreview(false)}else if(e.key==="Enter"&&current?.key===key&&current.file){e.preventDefault();setPreview(true)}}
+ const groups=["action","required","decision","other"] as const;
+ return <section className="dossier-documents r09-workspace" aria-label={t.documents}>
+ <header className="r09-heading"><h2>{t.documents}</h2><div className="r09-summary"><span className={complete?"r08-complete":""}>{summary}</span>{missing>0?<span>{missing} {t.missing}</span>:null}{requestCount>0?<span className="r08-warning">{requestCount} {t.action}</span>:<span>{t.noAction}</span>}</div></header>
+ <div className="r09-split">
+ <div className="r09-library" ref={list}>
+ <div className="r09-tools"><div className="r09-filters">{(["all","action","required","decision","other"] as const).filter(g=>g==="all"||entries.some(e=>g==="action"?e.group==="action"||e.priority:e.group===g)).map(g=><button type="button" key={g} aria-pressed={filter===g} onClick={()=>{setFilter(g);setQuery("")}}>{t[g]}{g==="action"&&requestCount>0?" "+requestCount:""}</button>)}</div>{entries.length>8?<input className="input r09-search" aria-label={t.search} placeholder={t.search} value={query} onChange={e=>setQuery(e.target.value)}/>:null}</div>
+ <div className="r09-list">{groups.map(g=>{const rows=visible.filter(e=>e.group===g);return rows.length?<section key={g} className="r09-group"><h3>{t[g]} <span>{rows.length}</span></h3>{rows.map(entry=><div key={entry.key} className="r09-document-row" data-selected={!showHistory&&entry.key===current?.key}><button type="button" data-entry={entry.key} aria-pressed={!showHistory&&entry.key===current?.key} onClick={()=>choose(entry.key)} onKeyDown={e=>keydown(e,entry.key)} className="r09-row-select"><span className="r09-icon">{fileIcon}</span><span className="r09-row-name"><strong>{entry.title}</strong><small><bdi>{entry.filename}</bdi></small></span><span className="dossier-doc-state" data-doc-state={entry.statusCode}>{entry.status}</span></button>{entry.file?<button type="button" className="r09-eye" aria-label={t.preview+" "+entry.title} onClick={()=>{choose(entry.key,true);if(window.matchMedia("(max-width: 999px)").matches)inspector.current?.scrollIntoView({block:"nearest"})}}>{eye}</button>:null}</div>)}</section>:null})}{!visible.length?<p className="r09-empty">{t.none}</p>:null}</div>
+ </div>
+ <aside className="r09-inspector" ref={inspector} aria-label={t.select}>
+ <div className="r09-inspector-nav"><button type="button" aria-pressed={!showHistory} onClick={()=>setShowHistory(false)}>{t.select}</button><button type="button" aria-pressed={showHistory} onClick={()=>{setShowHistory(true);setPreview(false)}}>{t.history} ({historyCount})</button></div>
+ {showHistory?<div className="r09-inspector-body">{historyCount?history:<p>{t.historyEmpty}</p>}</div>:current?<div className="r09-inspector-body" key={current.key}>
+ <div className="r09-inspector-title"><h3>{current.title}</h3><span className="dossier-doc-state" data-doc-state={current.statusCode}>{current.status}</span></div>
+ {current.file?<><p className="r09-file-label"><bdi>{current.file.name}</bdi></p>{preview?<InlinePreview key={current.file.id} file={current.file} locale={locale}/>:null}
+ <div className="r09-inspector-actions">{!preview?<button type="button" className="btn-primary btn-sm" onClick={()=>setPreview(true)}>{eye}{t.preview}</button>:null}<DocumentPreviewButton id={current.file.id} variant={preview?"primary":"button"} locale={locale}>{t.expand}</DocumentPreviewButton></div>
+ <dl className="r09-meta"><div><dt>{t.version}</dt><dd><bdi>v{current.file.version}</bdi></dd></div><div><dt>{t.size}</dt><dd><bdi>{current.file.size}</bdi></dd></div><div><dt>{t.date}</dt><dd><bdi>{current.file.date}</bdi></dd></div></dl></>:null}
+ {current.group==="decision"?<p className="r09-hint">{t.check}</p>:null}
+ {current.requestKey?<button className="btn-primary btn-sm" type="button" onClick={()=>choose(current.requestKey!)}>{t.openRequest}</button>:null}
+ {current.content}</div>:<p className="r09-empty">{t.none}</p>}
+ <details className="r09-policy"><summary>{t.policy}</summary><p>{policy}</p><p>PDF, JPEG, PNG, WEBP, DOC, DOCX · 2 MB</p></details>
+ </aside></div>
+ </section>
+}

@@ -34,6 +34,7 @@ import { safeCaseReturn, processingDuration, caseDateTime, usableCaseDocument } 
 import { CopyCaseReference } from "../copy-case-reference";
 import { hasPermission } from "@/lib/rbac";
 import { DocumentViewerProvider, DocumentPreviewButton } from "../document-viewer";
+import { DocumentWorkspace, type DocumentWorkspaceEntry } from "../document-workspace";
 import { LiveCaseDuration } from "../live-case-duration";
 import { readCaseVfsReference } from "@/lib/case-vfs-reference";
 import { CaseMessagesRead } from "../case-messages-read";
@@ -122,7 +123,7 @@ export default async function PortalApplicationDetailPage({
   }[uiLocale];
 
   const dc={fr:{required:"Pièces requises",optional:"Autres pièces",other:"Documents annexes",requests:"Historique des demandes",accepted:"pièces acceptées",received:"pièces requises reçues",actions:"demandes ouvertes",missing:"pièces manquantes",versions:"Versions précédentes",details:"Informations du fichier",inactive:"Exigence inactive",noFile:"Aucun fichier",decision:"Documents de décision",files:"fichiers",treated:"demandes clôturées",closed:"Aucune action requise.",locked:"Les documents soumis sont verrouillés. Seuls les remplacements ou compléments demandés peuvent être envoyés.",unavailable:"Aucune action de téléversement disponible.",draft:"Complétez les pièces requises avant soumission.",request:"Demande ESSAFARIA",current:"Version actuelle"},en:{required:"Required documents",optional:"Other requirements",other:"Additional files",requests:"Request history",accepted:"documents accepted",received:"required documents received",actions:"open requests",missing:"missing documents",versions:"Previous versions",details:"File information",inactive:"Inactive requirement",noFile:"No file",decision:"Decision documents",files:"files",treated:"closed requests",closed:"No action required.",locked:"Submitted documents are locked. Only requested replacements or additional files may be uploaded.",unavailable:"No upload action available.",draft:"Complete required documents before submission.",request:"ESSAFARIA request",current:"Current version"},ar:{required:"الوثائق المطلوبة",optional:"متطلبات أخرى",other:"وثائق إضافية",requests:"سجل طلبات الوثائق",accepted:"وثائق مقبولة",received:"وثائق مطلوبة مستلمة",actions:"طلبات مفتوحة",missing:"وثائق ناقصة",versions:"الإصدارات السابقة",details:"معلومات الملف",inactive:"متطلب غير نشط",noFile:"لا يوجد ملف",decision:"وثائق القرار",files:"ملفات",treated:"طلبات مغلقة",closed:"لا يلزم أي إجراء.",locked:"الوثائق المقدمة مقفلة. يمكن رفع البدائل أو الوثائق الإضافية المطلوبة فقط.",unavailable:"لا يتوفر إجراء رفع.",draft:"أكمل الوثائق المطلوبة قبل تقديم الطلب.",request:"طلب ESSAFARIA",current:"الإصدار الحالي"}}[uiLocale];
-  const docLabel=(code:string,name:string)=>code==="INVITATION_LETTER"?({fr:"Lettre d’invitation",en:"Invitation letter",ar:"خطاب الدعوة"}[uiLocale]):localizedDocTypeName(code,name,uiLocale);
+  const docLabel=(code:string,name:string)=>(code==="TRAVEL_INSURANCE"||/^travel insurance$/i.test(name.trim()))?({fr:"Assurance voyage",en:"Travel insurance",ar:"تأمين السفر"}[uiLocale]):code==="INVITATION_LETTER"?({fr:"Lettre d’invitation",en:"Invitation letter",ar:"خطاب الدعوة"}[uiLocale]):localizedDocTypeName(code,name,uiLocale);
   const requestFor=(item:typeof checklist[number])=>openRequests.filter(r=>r.req.checklistItemId===item.id||(!r.req.checklistItemId&&r.req.documentTypeId===item.documentTypeId));
   const latestFor=(item:typeof checklist[number])=>documentGroups.byItem.get(item.id)?.[0]?.doc;
   const requiredItems=checklist.filter(item=>item.active&&item.required);
@@ -134,23 +135,16 @@ export default async function PortalApplicationDetailPage({
   const decisionRows=documentGroups.unassigned.filter(r=>["DECISION_VISA_APPROVAL","DECISION_REFUSAL_LETTER"].includes(r.documentTypeCode));
   const annexRows=documentGroups.unassigned.filter(r=>!["DECISION_VISA_APPROVAL","DECISION_REFUSAL_LETTER"].includes(r.documentTypeCode));
   const closedRequests=docRequests.filter(r=>r.req.status!=="OPEN");
-  const fileIcon=<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M6 3h8l4 4v14H6zM14 3v5h4M9 13h6m-6 4h6"/></svg>;
-  const fileRow=(doc:typeof docs[number]["doc"],title:string,showState=true)=><div key={doc.id} className="r08-row">
-    <span className="r08-file-icon">{fileIcon}</span>
-    <div className="r08-file-name"><strong>{title}</strong><span className="r08-filename"><bdi>{doc.originalFilename}</bdi></span></div>
-    {showState?<span className="dossier-doc-state" data-doc-state={doc.status}>{localizedDocStatus(doc.status,uiLocale,doc.status)}</span>:null}
-    <DocumentPreviewButton id={doc.id} variant="button" locale={uiLocale}/>
-  </div>;
-  const renderItem=(item:typeof checklist[number])=>{
+
+  const fileMeta=(doc:typeof docs[number]["doc"])=>({id:doc.id,name:doc.originalFilename,mime:doc.mimeType,version:doc.version,size:bytes(doc.sizeBytes),date:caseDateTime(doc.createdAt,uiLocale)});
+  const entryForItem=(item:typeof checklist[number],group:"required"|"other"):DocumentWorkspaceEntry=>{
     const itemDocs=documentGroups.byItem.get(item.id)??[],latest=itemDocs[0]?.doc,requests=requestFor(item),firstRequest=requests[0],requested=Boolean(firstRequest);
     const title=docLabel(item.documentTypeCode,item.documentTypeName);
-    return <div key={item.id} className="r08-item">
-      <div className="r08-row"><span className="r08-file-icon">{fileIcon}</span><div className="r08-file-name"><strong id={`checklist-document-label-${item.id}`}>{title}{!item.active?<small> · {dc.inactive}</small>:!item.required?<small> · {ct("Optional")}</small>:null}</strong><span className="r08-filename">{latest?<bdi>{latest.originalFilename}</bdi>:dc.noFile}</span></div>
-      <span className="dossier-doc-state" data-doc-state={requested?"RESUBMISSION_REQUIRED":latest?.status??"MISSING"}>{requested?ct("Action required"):latest?localizedDocStatus(latest.status,uiLocale,latest.status):ct("Missing")}</span>
-      {firstRequest&&!terminal?<a className="btn-secondary btn-sm r08-request-link" href={`#request-${firstRequest.req.id}`}>{dc.request}</a>:latest?<DocumentPreviewButton id={latest.id} variant="button" locale={uiLocale}/>:null}
-      </div>
+    return {key:"item-"+item.id,group,title,filename:latest?.originalFilename??dc.noFile,statusCode:requested?"RESUBMISSION_REQUIRED":latest?.status??"MISSING",status:requested?ct("Action required"):latest?localizedDocStatus(latest.status,uiLocale,latest.status):ct("Missing"),priority:requested||(!terminal&&isDraft&&item.active&&item.required&&!usableCaseDocument(latest?.status,false)),file:latest?fileMeta(latest):undefined,
+      content:<div className="r09-inspector-extra"><span id={`checklist-document-label-${item.id}`} className="sr-only">{title}</span>
+      {!item.active?<p>{dc.inactive}</p>:null}
       {item.notes?<details className="r08-details"><summary>{ct("Reason")}</summary><p>{item.notes}</p></details>:null}
-      {itemDocs.length>1?<details className="r08-details"><summary>{dc.versions} ({itemDocs.length-1})</summary>{itemDocs.slice(1).map(({doc})=>fileRow(doc,"v"+doc.version+" · "+caseDateTime(doc.createdAt,uiLocale)))}</details>:null}
+      {itemDocs.length>1?<details className="r08-details"><summary>{dc.versions} ({itemDocs.length-1})</summary>{itemDocs.slice(1).map(({doc})=><div className="r09-version" key={doc.id}><span><bdi>v{doc.version} · {caseDateTime(doc.createdAt,uiLocale)}</bdi><br/><bdi>{doc.originalFilename}</bdi></span><DocumentPreviewButton id={doc.id} locale={uiLocale}/></div>)}</details>:null}
       {isDraft && canUpload && item.active && !requested ? (
                       <form action={uploadDocumentAction} encType="multipart/form-data" className="r08-upload">
                         <input type="hidden" name="applicationId" value={id} />
@@ -158,12 +152,29 @@ export default async function PortalApplicationDetailPage({
                         <input type="hidden" name="back" value={`${back}?tab=documents${returnSuffix}`} />
                         <input type="file" name="file" aria-labelledby={`checklist-document-label-${item.id}`} required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="r08-file-input" />
                         <button type="submit" className="btn-secondary btn-sm">{latest ? ct("Replace") : ct("Upload")}</button>
-                      </form>
-                    ) : null}
-    </div>;
+                      </form> ) : null}
+      </div>,requestKey:firstRequest?"request-"+firstRequest.req.id:undefined};
   };
+  const requestEntries:DocumentWorkspaceEntry[]=openRequests.map(r=>{
+    const match=checklist.find(item=>r.req.checklistItemId===item.id||(!r.req.checklistItemId&&r.req.documentTypeId===item.documentTypeId)),prior=match?latestFor(match):undefined;
+    const title=docLabel(r.docTypeCode,r.docTypeName);
+    return {key:"request-"+r.req.id,group:"action",title,filename:r.req.type==="REPLACEMENT"?ct("Replacement requested"):ct("Additional document requested"),statusCode:"RESUBMISSION_REQUIRED",status:ct("Action required"),priority:true,file:prior?fileMeta(prior):undefined,
+      content:<div id={`request-${r.req.id}`} className="r09-request"><strong id={`request-document-label-${r.req.id}`}>{ct("Reason")}</strong><p>{r.req.reason}</p>
+      {canUpload?<form action={uploadDocumentAction} encType="multipart/form-data" className="r08-upload">
+                      <input type="hidden" name="applicationId" value={id} />
+                      {r.req.checklistItemId ? <input type="hidden" name="checklistItemId" value={r.req.checklistItemId} /> : null}
+                      <input type="hidden" name="documentTypeId" value={r.req.documentTypeId} />
+                      <input type="hidden" name="back" value={`${back}?tab=documents${returnSuffix}`} />
+                      <input type="file" name="file" aria-labelledby={`request-document-label-${r.req.id}`} required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="r08-file-input" />
+                      <button type="submit" className="btn-primary btn-sm">{r.req.type==="REPLACEMENT"?ct("Upload replacement"):ct("Upload")}</button>
+                    </form>:null}
+      {!canUpload?<p>{dc.unavailable}</p>:null}</div>};
+  });
+  const decisionEntries:DocumentWorkspaceEntry[]=decisionRows.map(({doc,documentTypeCode,documentTypeName})=>({key:"decision-"+doc.id,group:"decision",title:docLabel(documentTypeCode,documentTypeName),filename:doc.originalFilename,statusCode:doc.status,status:localizedDocStatus(doc.status,uiLocale,doc.status),file:fileMeta(doc)}));
+  const otherEntries:DocumentWorkspaceEntry[]=annexRows.map(({doc,documentTypeCode,documentTypeName})=>({key:"file-"+doc.id,group:"other",title:docLabel(documentTypeCode,documentTypeName),filename:doc.originalFilename,statusCode:doc.status,status:localizedDocStatus(doc.status,uiLocale,doc.status),file:fileMeta(doc)}));
+  const workspaceEntries:DocumentWorkspaceEntry[]=[...requestEntries,...orderItems(requiredItems).map(item=>entryForItem(item,"required")),...decisionEntries,...orderItems(otherItems).map(item=>entryForItem(item,"other")),...otherEntries];
   return (
-    <div className="essafaria-cases dossier-workspace" dir={uiLocale==="ar"?"rtl":"ltr"}>
+    <div className={"essafaria-cases dossier-workspace"+(tab==="documents"?" dossier-r09":"")} dir={uiLocale==="ar"?"rtl":"ltr"}>
       <div className="dossier-navigation"><Link href={returnTo} className="dossier-back"><span className="directional" aria-hidden="true">←</span> {copy.back}</Link><CaseNavigation scope={user.id} context={returnTo} id={id} tab={tab} locale={uiLocale}/></div>
       <div className="dossier-masthead"><PageHeader
         title={applicantName}
@@ -285,37 +296,10 @@ export default async function PortalApplicationDetailPage({
       ) : null}
 
       {tab === "documents" ? (
-        <DocumentViewerProvider locale={uiLocale} files={docs.map(({doc,documentTypeCode,documentTypeName})=>({id:doc.id,name:doc.originalFilename,mime:doc.mimeType,label:docLabel(documentTypeCode,documentTypeName),version:doc.version,size:bytes(doc.sizeBytes),date:caseDateTime(doc.createdAt,uiLocale),status:localizedDocStatus(doc.status,uiLocale,doc.status)}))}>
-        <div className="dossier-documents r08-documents">
-          <header className="r08-heading"><h2>{ct("Documents")}</h2><div className="r08-counts" aria-label={dc.required}>
-            {requiredItems.length>0?<span className={acceptedCount===requiredItems.length?"r08-complete":""}><bdi>{acceptedCount===requiredItems.length?acceptedCount:receivedCount}/{requiredItems.length}</bdi> {acceptedCount===requiredItems.length?dc.accepted:dc.received}</span>:null}
-            {missingCount>0?<span>{missingCount} {dc.missing}</span>:null}
-            {openRequests.length>0?<span className="r08-warning">{openRequests.length} {dc.actions}</span>:null}
-          </div></header>
-          <details className="r08-details r08-policy"><summary>{isDraft?dc.draft:dc.locked}</summary><p>{ct("PDF, JPEG, PNG, WEBP, DOC, DOCX · 2 MB max")}</p></details>
-          {!isDraft&&openRequests.length===0&&receivedCount===requiredItems.length?<p className="r08-complete">{dc.closed}</p>:null}
-          {openRequests.length>0?<section className="r08-section r08-attention"><h3>{ct("Action required")} <span>{openRequests.length}</span></h3>
-            {openRequests.map(r=>{const match=checklist.find(item=>r.req.checklistItemId===item.id||(!r.req.checklistItemId&&r.req.documentTypeId===item.documentTypeId)),prior=match?latestFor(match):undefined;return <div key={r.req.id} id={`request-${r.req.id}`} className="r08-request scroll-mt-24">
-              <div className="r08-request-heading"><strong id={`request-document-label-${r.req.id}`}>{docLabel(r.docTypeCode,r.docTypeName)}</strong><span className="dossier-doc-state" data-doc-state="RESUBMISSION_REQUIRED">{r.req.type==="REPLACEMENT"?ct("Replacement requested"):ct("Additional document requested")}</span></div>
-              <p>{ct("Reason")}: {r.req.reason}</p>
-              {prior?<DocumentPreviewButton id={prior.id} variant="button" locale={uiLocale}/>:null}
-              {canUpload?<form action={uploadDocumentAction} encType="multipart/form-data" className="r08-upload">
-                      <input type="hidden" name="applicationId" value={id} />
-                      {r.req.checklistItemId ? <input type="hidden" name="checklistItemId" value={r.req.checklistItemId} /> : null}
-                      <input type="hidden" name="documentTypeId" value={r.req.documentTypeId} />
-                      <input type="hidden" name="back" value={`${back}?tab=documents${returnSuffix}`} />
-                      <input type="file" name="file" aria-labelledby={`request-document-label-${r.req.id}`} required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="r08-file-input" />
-                      <button type="submit" className="btn-primary btn-sm">{r.req.type==="REPLACEMENT"?ct("Upload replacement"):ct("Upload")}</button>
-                    </form>:null}
-              {!canUpload?<p>{dc.unavailable}</p>:null}
-            </div>})}
-          </section>:null}
-          {decisionRows.length>0?<section className="r08-section"><h3>{dc.decision}</h3>{decisionRows.map(({doc,documentTypeCode,documentTypeName})=>fileRow(doc,docLabel(documentTypeCode,documentTypeName),false))}</section>:null}
-          <section className="r08-section"><h3>{dc.required} <span>{requiredItems.length}</span></h3>{orderItems(requiredItems).map(renderItem)}{!requiredItems.length?<p className="r08-muted">{ct("No document requirements for this visa.")}</p>:null}</section>
-          {otherItems.length>0?<details className="r08-section r08-disclosure" open={isDraft&&otherItems.some(item=>item.active)?true:undefined}><summary><strong>{dc.optional}</strong><span>{otherItems.length}</span></summary>{orderItems(otherItems).map(renderItem)}</details>:null}
-          {annexRows.length>0?<details className="r08-section r08-disclosure"><summary><strong>{dc.other}</strong><span>{annexRows.length} {dc.files}</span></summary>{annexRows.map(({doc,documentTypeCode,documentTypeName})=>fileRow(doc,docLabel(documentTypeCode,documentTypeName)))}</details>:null}
-          {closedRequests.length>0?<details className="r08-section r08-disclosure"><summary><strong>{dc.requests}</strong><span>{closedRequests.length} {dc.treated}</span></summary>{closedRequests.map(r=><div key={r.req.id} className="r08-history-row"><div><strong>{docLabel(r.docTypeCode,r.docTypeName)}</strong><p>{r.req.type==="REPLACEMENT"?ct("Replacement requested"):ct("Additional document requested")} · {r.req.reason}</p><p>{caseDateTime(r.req.createdAt,uiLocale)}{r.req.fulfilledAt?` · ${ct("Received")} ${caseDateTime(r.req.fulfilledAt,uiLocale)}`:""}</p></div><span className="dossier-doc-state" data-doc-state={r.req.status==="FULFILLED"?"ACCEPTED":"CANCELLED"}>{r.req.status==="FULFILLED"?ct("Received"):ct("Cancelled")}</span></div>)}</details>:null}
-        </div></DocumentViewerProvider>
+        <DocumentViewerProvider locale={uiLocale} files={docs.map(({doc,documentTypeCode,documentTypeName})=>({...fileMeta(doc),label:docLabel(documentTypeCode,documentTypeName),status:localizedDocStatus(doc.status,uiLocale,doc.status)}))}>
+          <DocumentWorkspace key={id} locale={uiLocale} entries={workspaceEntries} summary={requiredItems.length?(acceptedCount===requiredItems.length?acceptedCount+"/"+requiredItems.length+" "+dc.accepted:receivedCount+"/"+requiredItems.length+" "+dc.received):""} complete={requiredItems.length>0&&acceptedCount===requiredItems.length} missing={missingCount} requestCount={openRequests.length} historyCount={closedRequests.length} policy={isDraft?dc.draft:dc.locked}
+           history={<>{closedRequests.map(r=><div key={r.req.id} className="r09-history-row"><strong>{docLabel(r.docTypeCode,r.docTypeName)}</strong><p>{r.req.type==="REPLACEMENT"?ct("Replacement requested"):ct("Additional document requested")} · {r.req.reason}</p><p>{caseDateTime(r.req.createdAt,uiLocale)}{r.req.fulfilledAt?` · ${ct("Received")} ${caseDateTime(r.req.fulfilledAt,uiLocale)}`:""}</p><span className="dossier-doc-state" data-doc-state={r.req.status==="FULFILLED"?"ACCEPTED":"CANCELLED"}>{r.req.status==="FULFILLED"?ct("Received"):ct("Cancelled")}</span></div>)}</>}/>
+        </DocumentViewerProvider>
       ) : null}
 
       {tab==="messages"&&Number(unreadRows[0]?.total??0)>0?<CaseMessagesRead key={id} id={id}/>:null}

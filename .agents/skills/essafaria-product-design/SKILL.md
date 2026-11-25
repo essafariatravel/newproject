@@ -179,3 +179,9 @@ Do not claim coverage for screen sizes, locales, routes, states, interactions, o
 | Gold used as ornament | Restrict it to meaningful orientation and accent roles. |
 | RTL inferred from code | Render and inspect Arabic mobile and directional behavior. |
 | Polish presented as proof | Provide rendered before/after evidence and state what remains unresolved. |
+
+## Priority 1 — Intelligent simplicity (owner decision, 2026-11-25)
+
+For all future ESSAFARIA product changes, optimize the user's time and cognitive effort before visual decoration or feature count. Use the full usable viewport on desktop: show the essential state, relevant information and next action together wherever practical. Prefer an operational workspace with context-sensitive panels over long administrative forms. Use clear, sufficiently large readable text and controls, intelligent defaults, progressive disclosure, keyboard/touch support and minimal clicks. Never shrink typography, hide required actions, or compromise authorization to meet a one-screen target; use local scrolling for large datasets and natural responsive layouts on mobile. Operational pages use pure white, existing System UI FR/EN and Arabic typography, navy #0B1C30, slate #647182, fine dividers and status dots. Preserve the established design system and business logic.
+
+A commit alone is not completion: verify the exact Preview commit, build success, deployed version and actual rendered experience where access permits; report any missing evidence explicitly. Do not publish to Production or modify Supabase without separate authorization.
