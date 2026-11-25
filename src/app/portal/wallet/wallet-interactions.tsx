@@ -65,7 +65,7 @@ export function WalletViewport({per,page}:{per:number;page:number}){
    // Changing viewport must not lose the first transaction on the current page.
    const nextPage=Math.floor((page-1)*per/next)+1;
    const p=new URLSearchParams(window.location.search);p.set("per",String(next));if(nextPage>1)p.set("page",String(nextPage));else p.delete("page");
-   p.delete("success");p.delete("error");router.replace("/portal/wallet?"+p.toString(),{scroll:false});
+   p.delete("success");p.delete("error");router.replace("/portal/wallet?"+p.toString()+window.location.hash,{scroll:false});
   };
   const schedule=()=>{if(timer)clearTimeout(timer);timer=setTimeout(measure,250)};
   schedule();window.addEventListener("resize",schedule);

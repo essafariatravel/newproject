@@ -12,7 +12,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ code: "UNAUTHENTICATED" }, { status: 401 });
   if (user.mustChangePassword) return NextResponse.json({ code: "PASSWORD_CHANGE_REQUIRED" }, { status: 403 });
   const locale = await getUiLocale();
-  if(user.agencyId){const [events,unread]=await Promise.all([agencyBellEvents(user.id,user.agencyId,locale,hasPermission(user,"wallet.view.own")),unreadNotificationCount(user.id)]);return NextResponse.json({unread,events},{headers:{"Cache-Control":"private, no-store"}});}
+  if(user.agencyId){const [events,unread]=await Promise.all([agencyBellEvents(user.id,user.agencyId,locale,hasPermission(user,"wallet.view.own")&&hasPermission(user,"transactions.view.own")),unreadNotificationCount(user.id)]);return NextResponse.json({unread,events},{headers:{"Cache-Control":"private, no-store"}});}
   const [rows, unread] = await Promise.all([notificationBellEventsForUser(user.id,user.agencyId??undefined), unreadNotificationCount(user.id)]);
   return NextResponse.json({ unread, events: rows.map((n) => ({
     id: n.id, title: businessLabel(n.type, locale), link: user.agencyId&&(n.type.includes('WALLET')||n.type==='TOPUP_REQUESTED')&&!hasPermission(user,'wallet.view.own')?null:n.link,

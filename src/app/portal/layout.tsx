@@ -32,7 +32,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
   const unread=await unreadNotificationCount(user.id);
   const locale = await getUiLocale();
   const tr = chromeT(locale);
-  const initialEvents=await agencyBellEvents(user.id,user.agencyId,locale,hasPermission(user,"wallet.view.own"));
+  const initialEvents=await agencyBellEvents(user.id,user.agencyId,locale,hasPermission(user,"wallet.view.own")&&hasPermission(user,"transactions.view.own"));
   const agencyRows = await db
     .select({ logoKey: agencies.logoKey, logoUploadedAt: agencies.logoUploadedAt })
     .from(agencies)
