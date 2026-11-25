@@ -1,5 +1,5 @@
 "use client";
-import {useId,useRef,useState} from "react";
+import {useEffect,useId,useRef,useState} from "react";
 import {SubmitButton} from "./forms";
 import {postMessageAction} from "@/app/actions/communications";
 type Locale="fr"|"en"|"ar";
@@ -8,14 +8,18 @@ const copy={
  en:{title:"New message",templates:"Message templates",placeholder:"Write a message…",send:"Send",pending:"Sending…",private:"Visible only to your agency and the ESSAFARIA team.",items:[{label:"Case update",body:"Hello, could you please provide an update on this case? Thank you."},{label:"Additional documents",body:"Hello, could you confirm whether additional documents are needed? Thank you."}]},
  ar:{title:"رسالة جديدة",templates:"نماذج الرسائل",placeholder:"اكتب رسالة…",send:"إرسال",pending:"جارٍ الإرسال…",private:"مرئية لوكالتكم وفريق ESSAFARIA فقط.",items:[{label:"متابعة الطلب",body:"مرحبًا، هل يمكنكم إبلاغنا بمستجدات هذا الطلب؟ شكرًا."},{label:"وثائق إضافية",body:"مرحبًا، هل يمكنكم تأكيد ما إذا كانت هناك وثائق إضافية مطلوبة؟ شكرًا."}]}
 };
-export function CaseMessageComposer({locale,applicationId,back}:{locale:Locale;applicationId:string;back:string}){
+export function CaseMessageComposer({locale,applicationId,back,requestTitle,terminal}:{locale:Locale;applicationId:string;back:string;requestTitle?:string;terminal?:boolean}){
  const t=copy[locale],id=useId(),input=useRef<HTMLTextAreaElement>(null),[body,setBody]=useState("");
+ const context=requestTitle?({fr:{label:"Question sur le document",body:"Bonjour, pourriez-vous nous préciser les conditions relatives à la pièce demandée (« "+requestTitle+" ») ? Merci."},en:{label:"Ask about this document",body:"Hello, could you clarify the requirements for "+requestTitle+"? Thank you."},ar:{label:"استفسار عن الوثيقة",body:"مرحبًا، هل يمكنكم توضيح شروط الوثيقة المطلوبة ("+requestTitle+")؟ شكرًا."}}[locale]):null;
+ const decision={fr:{label:"Question sur la décision",body:"Bonjour, nous souhaitons obtenir une précision concernant la décision de ce dossier. Merci."},en:{label:"Ask about the decision",body:"Hello, we would like clarification about the decision on this case. Thank you."},ar:{label:"استفسار عن القرار",body:"مرحبًا، نود الحصول على توضيح بشأن قرار هذا الطلب. شكرًا."}}[locale];
+ const items=terminal?[decision]:context?[context,t.items[0]]:t.items;
+ useEffect(()=>{const el=input.current;if(!el)return;el.style.height="auto";el.style.height=Math.min(el.scrollHeight,180)+"px"},[body]);
  const append=(text:string)=>{setBody(previous=>{const joined=previous.trim()?previous+"\n"+text:text;return joined.length<=4000?joined:previous});input.current?.focus()};
  return <form action={postMessageAction} className="card dossier-message-composer">
   <input type="hidden" name="applicationId" value={applicationId}/><input type="hidden" name="back" value={back}/>
-  <label htmlFor={id} className="dossier-compose-title">{t.title}</label>
-  <div className="case-message-templates" role="group" aria-label={t.templates}><span className="dossier-template-label">{t.templates}</span>{t.items.map(item=><button key={item.label} type="button" className="btn-secondary btn-sm dossier-template-button" disabled={body.length+item.body.length+(body.trim()?1:0)>4000} onClick={()=>append(item.body)}>{item.label}</button>)}</div>
-  <textarea ref={input} id={id} name="body" className="input dossier-message-input" dir="auto" value={body} onChange={e=>setBody(e.target.value)} rows={4} required minLength={2} maxLength={4000} placeholder={t.placeholder}/>
-  <div className="dossier-compose-footer"><p className="dossier-message-privacy"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>{t.private}</p><span className="dossier-message-count"><bdi>{body.length}/4000</bdi></span><SubmitButton className="btn-primary btn-sm dossier-send" pendingLabel={t.pending} disabled={body.trim().length<2}>{t.send}<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="directional"><path d="m3 3 18 9-18 9 4-9-4-9Zm4 9h14"/></svg></SubmitButton></div>
+  <label htmlFor={id} className="sr-only">{t.title}</label>
+  <div className="case-message-templates" role="group" aria-label={t.templates}>{items.map(item=><button key={item.label} type="button" className="btn-secondary btn-sm dossier-template-button" disabled={body.length+item.body.length+(body.trim()?1:0)>4000} onClick={()=>append(item.body)}>{item.label}</button>)}</div>
+  <textarea ref={input} id={id} name="body" className="input dossier-message-input" dir="auto" value={body} onChange={e=>setBody(e.target.value)} rows={2} required minLength={2} maxLength={4000} placeholder={t.placeholder}/>
+  <div className="dossier-compose-footer"><p className="dossier-message-privacy"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>{t.private}</p>{body.length>3600?<span className="dossier-message-count"><bdi>{body.length}/4000</bdi></span>:null}<SubmitButton className="btn-primary btn-sm dossier-send" pendingLabel={t.pending} disabled={body.trim().length<2}>{t.send}<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="directional"><path d="m3 3 18 9-18 9 4-9-4-9Zm4 9h14"/></svg></SubmitButton></div>
  </form>
 }

@@ -139,6 +139,24 @@ export default async function PortalApplicationDetailPage({
   const annexRows=documentGroups.unassigned.filter(r=>!["DECISION_VISA_APPROVAL","DECISION_REFUSAL_LETTER"].includes(r.documentTypeCode));
   const closedRequests=docRequests.filter(r=>r.req.status!=="OPEN");
 
+  const adaptive={
+    fr:{action:"À compléter",actions:"Documents à compléter",go:"Compléter",open:"Consulter",draft:"Complétez votre dossier",detail:"Informations du voyageur",wallet:"Consulter le portefeuille",docs:"Consulter les documents",accepted:"Acceptées",received:"Reçues",statusDate:"Dernier changement de statut",activityDate:"Dernière activité connue",journey:"Suivi de votre visa",request:"Document complémentaire demandé",replacement:"Remplacement demandé",receivedEvent:"Document reçu",conversation:"Équipe ESSAFARIA"},
+    en:{action:"To complete",actions:"Documents to complete",go:"Complete",open:"View",draft:"Complete your case",detail:"Traveller information",wallet:"View wallet",docs:"View documents",accepted:"Accepted",received:"Received",statusDate:"Last status change",activityDate:"Latest known activity",journey:"Your visa journey",request:"Additional document requested",replacement:"Replacement requested",receivedEvent:"Document received",conversation:"ESSAFARIA team"},
+    ar:{action:"مطلوب استكماله",actions:"وثائق تحتاج إلى استكمال",go:"استكمال",open:"عرض",draft:"استكمل طلبك",detail:"معلومات المسافر",wallet:"عرض المحفظة",docs:"عرض الوثائق",accepted:"مقبولة",received:"مستلمة",statusDate:"آخر تغيير للحالة",activityDate:"آخر نشاط معروف",journey:"متابعة التأشيرة",request:"طلب وثيقة إضافية",replacement:"طلب استبدال وثيقة",receivedEvent:"تم استلام الوثيقة",conversation:"فريق ESSAFARIA"}
+  }[uiLocale];
+  const firstRequest=openRequests[0];
+  const actionHref=`${back}?tab=documents${returnSuffix}${firstRequest?"#request-"+firstRequest.req.id:""}`;
+  const requestTitle=firstRequest?docLabel(firstRequest.docTypeCode,firstRequest.docTypeName):undefined;
+  const activityEvents=[
+    ...history.map(h=>({key:"status-"+h.history.id,at:h.history.createdAt,kind:"status" as const,title:h.toStatus.name,code:h.toStatus.code,reason:h.history.reason?(h.toStatus.code==="SUBMITTED"&&h.history.reason==="Request submitted"?ct("Request submitted"):h.history.reason):null,href:null as string|null})),
+    ...docRequests.flatMap(r=>{
+      const title=docLabel(r.docTypeCode,r.docTypeName);
+      const href=`${back}?tab=documents${returnSuffix}${r.req.status==="OPEN"?"#request-"+r.req.id:""}`;
+      return [{key:"request-"+r.req.id,at:r.req.createdAt,kind:"request" as const,title:r.req.type==="REPLACEMENT"?adaptive.replacement:adaptive.request,code:"RESUBMISSION_REQUIRED",reason:title+(r.req.reason?" · "+r.req.reason:""),href},...(r.req.fulfilledAt?[{key:"received-"+r.req.id,at:r.req.fulfilledAt,kind:"received" as const,title:adaptive.receivedEvent,code:"UPLOADED",reason:title,href:`${back}?tab=documents${returnSuffix}`}]:[])];
+    })
+  ].sort((a,b)=>b.at.getTime()-a.at.getTime()||a.key.localeCompare(b.key));
+  const dateGroup=(at:Date)=>new Intl.DateTimeFormat(uiLocale==="ar"?"ar-DZ":uiLocale==="fr"?"fr-DZ":"en-GB",{dateStyle:"long",timeZone:"Africa/Algiers"}).format(at);
+  const latestKnown=activityEvents[0]?.at;
   const fileMeta=(doc:typeof docs[number]["doc"])=>({id:doc.id,name:doc.originalFilename,mime:doc.mimeType,version:doc.version,size:bytes(doc.sizeBytes),date:caseDateTime(doc.createdAt,uiLocale)});
   const entryForItem=(item:typeof checklist[number],group:"required"|"other"):DocumentWorkspaceEntry=>{
     const itemDocs=documentGroups.byItem.get(item.id)??[],latest=itemDocs[0]?.doc,requests=requestFor(item),requested=requests.length>0;
@@ -205,35 +223,20 @@ export default async function PortalApplicationDetailPage({
 
       <nav className="case-queues dossier-tabs" aria-label={ct("Applications")}>{TABS.map(t=><Link key={t.id} aria-current={t.id===tab?"page":undefined} href={`${back}?tab=${t.id}${returnSuffix}`}>{ct(t.label)}{t.id==="documents"&&openRequests.length>0?<span className="case-count">{openRequests.length}</span>:null}{t.id==="messages"&&Number(unreadRows[0]?.total??0)>0?<span className="case-count" title={uiLocale==="fr"?"Notifications de messages non lues":uiLocale==="ar"?"إشعارات الرسائل غير المقروءة":"Unread message notifications"}>{Number(unreadRows[0]?.total??0)}</span>:null}</Link>)}</nav>
 
-      {(openRequests.length>0||isDraft)&&!terminal&&tab!=="documents"?<section className="dossier-attention fluid-next-action" aria-labelledby="agency-next-action">
-        <p id="agency-next-action" className="agency-v2-section-label font-semibold text-slate-600">{ct("Next action")}</p>
-        {openRequests.length > 0 ? (
-          <>
-            <p className="mt-2 text-base font-semibold text-navy-900">{ct("Action required")} — {openRequests.length} {ct("document(s) requested")}</p>
-            <ul className="mt-2 space-y-1 text-base text-slate-600">
-              {openRequests.map((r) => (
-                <li key={r.req.id}>• {localizedDocTypeName(r.docTypeCode, r.docTypeName, uiLocale)}: {r.req.reason}</li>
-              ))}
-            </ul>
-            <Link href={`${back}?tab=documents${returnSuffix}#request-${openRequests[0]?.req.id}`} className="btn-primary btn-sm mt-4">{ct(canUpload?"Upload requested documents":"Open documents")}</Link>
-          </>
-        ) : isDraft ? (
-          <>
-            <p className="mt-2 text-base text-navy-900">{ct("Review the dossier details and required documents.")}</p>
-            <Link href={`${back}?tab=documents${returnSuffix}`} className="btn-secondary btn-sm mt-4">{ct("Open documents")}</Link>
-          </>
-        ) : (
-          <p className="mt-2 text-base text-navy-900">{ct("No action is required from your agency right now.")}</p>
-        )}
+      {!terminal&&tab==="overview"&&(openRequests.length>0||isDraft)?<section className="adaptive-next-action" aria-label={ct("Next action")}>
+        <span className="adaptive-action-dot" aria-hidden="true"/>
+        <div className="adaptive-action-copy"><strong>{firstRequest?(openRequests.length===1?requestTitle:adaptive.actions+" · "+openRequests.length):adaptive.draft}</strong>{firstRequest?<p>{openRequests.length===1?firstRequest.req.reason:openRequests.map(r=>docLabel(r.docTypeCode,r.docTypeName)).join(" · ")}</p>:<p>{ct("Review the dossier details and required documents.")}</p>}</div>
+        <Link href={actionHref} className="btn-primary btn-sm">{canUpload?adaptive.go:adaptive.open}<span className="directional" aria-hidden="true"> →</span></Link>
       </section>:null}
+      {!terminal&&tab==="messages"&&firstRequest?<Link href={actionHref} className="adaptive-message-reminder"><span className="adaptive-action-dot" aria-hidden="true"/><span>{openRequests.length===1?requestTitle:adaptive.actions+" · "+openRequests.length}</span><span className="adaptive-reminder-link">{adaptive.open} <span className="directional" aria-hidden="true">→</span></span></Link>:null}
 
       {tab === "overview" ? (
         <div className="dossier-overview">
           <div className="dossier-main">
             {decisionDocs.length>0?<DocumentViewerProvider locale={uiLocale} files={decisionDocs.map(doc=>({id:doc.id,name:doc.originalFilename,mime:doc.mimeType}))}><section id="official-decision" className="dossier-delivery"><h2>{copy.official}</h2>{decisionDocs.map(doc=><div key={doc.id} className="dossier-delivery-row"><div><strong>{localizedDocTypeName(doc.typeCode,doc.typeName,uiLocale)}</strong><p>{caseDateTime(doc.createdAt,uiLocale)}</p></div><DocumentPreviewButton id={doc.id} variant="primary" locale={uiLocale}/></div>)}</section></DocumentViewerProvider>:null}
-            {vfsReference?<section className="dossier-vfs"><h2>{({fr:"Référence VFS Chine",en:"VFS China reference",ar:"مرجع VFS للصين"}[uiLocale])}</h2><CopyCaseReference reference={vfsReference} label={copy.copy} copied={copy.copied} failed={copy.failed}/></section>:null}<section className="dossier-tracking"><h2>{copy.tracking}</h2>{!terminal&&!isDraft&&openRequests.length===0?<p className="dossier-no-action">{copy.noAction}</p>:null}<div className="dossier-metrics"><div><span>{elapsed?.terminal?copy.duration:copy.elapsed}</span><strong>{elapsed?<LiveCaseDuration submitted={app.submittedAt?.toISOString()??""} initialMinutes={elapsed.minutes} terminal={elapsed.terminal} locale={uiLocale}/>:"—"}</strong></div><div><span>{copy.estimate}</span><strong>{formatProcessingDays(app.processingMinDays,app.processingMaxDays,uiLocale)}</strong></div><div><span>{ct("Last updated")}</span><strong>{caseDateTime(app.updatedAt,uiLocale)}</strong></div></div></section>
+            {vfsReference?<section className="dossier-vfs"><h2>{({fr:"Référence VFS Chine",en:"VFS China reference",ar:"مرجع VFS للصين"}[uiLocale])}</h2><CopyCaseReference reference={vfsReference} label={copy.copy} copied={copy.copied} failed={copy.failed}/></section>:null}<section className="dossier-tracking"><h2>{adaptive.journey}</h2>{!terminal&&!isDraft&&openRequests.length===0?<p className="dossier-no-action">{copy.noAction}</p>:null}<div className="dossier-metrics"><div><span>{elapsed?.terminal?copy.duration:copy.elapsed}</span><strong>{elapsed?<LiveCaseDuration submitted={app.submittedAt?.toISOString()??""} initialMinutes={elapsed.minutes} terminal={elapsed.terminal} locale={uiLocale}/>:"—"}</strong></div><div><span>{copy.estimate}</span><strong>{formatProcessingDays(app.processingMinDays,app.processingMaxDays,uiLocale)}</strong></div><div><span>{adaptive.activityDate}</span><strong>{caseDateTime(latestKnown??app.updatedAt,uiLocale)}</strong></div></div></section>
                 {app.submittedAt ? <section className="agency-v2-journey" aria-label={ct("Progress")}>
-                  <h3>{ct("Progress")}</h3>
+                  <h3 className="sr-only">{ct("Progress")}</h3>
                   <ol data-testid="application-progress">
                     {progress.filter(step=>detail.statusCode!=="CANCELLED"||step.at!==null).map(step=>(
                       <li key={step.key} data-step={step.key} data-state={step.state} aria-current={step.state==="current"?"step":undefined}>
@@ -245,7 +248,7 @@ export default async function PortalApplicationDetailPage({
                   </ol>
                 </section>:null}
             <details className="dossier-details">
-              <summary>{ct("Application overview")}</summary>
+              <summary>{adaptive.detail}</summary>
               <dl className="dossier-details-grid">
                 <div><dt>{ct("Nationality")}</dt><dd>{nationalityLabel(applicantNationality,uiLocale)}</dd></div>
                 <div><dt>{ct("Destination")}</dt><dd>{countryName({name:app.countryName,iso2:detail.countryIso2},uiLocale)} · {visaDisplayName} · {app.categoryName}</dd></div>
@@ -278,28 +281,17 @@ export default async function PortalApplicationDetailPage({
                 ) : (
                   <p className="text-xs text-slate-500">{ct("No charge recorded yet.")}</p>
                 )}
-                <Link href="/portal/wallet" className="btn-secondary btn-sm mt-2 w-full text-center">{ct("View wallet")}</Link>
+                <Link href="/portal/wallet" className="adaptive-text-link">{adaptive.wallet} <span className="directional" aria-hidden="true">→</span></Link>
               </div>
             </Card>
 
             <Card>
               <CardHeader title={ct("Documents")} />
-              <div className="px-4 py-4 text-base">
-                <p className="text-xs text-slate-500">{checklist.filter(c=>c.required&&c.active&&usableCaseDocument(documentGroups.byItem.get(c.id)?.[0]?.doc.status,openRequests.some(r=>r.req.checklistItemId===c.id||(!r.req.checklistItemId&&r.req.documentTypeId===c.documentTypeId)))).length}/{checklist.filter(c=>c.required&&c.active).length} {({fr:"pièces requises reçues",en:"required items received",ar:"الوثائق المطلوبة المستلمة"}[uiLocale])} · {docs.length} {({fr:"fichiers",en:"files",ar:"ملفات"}[uiLocale])}</p>
-                <div className="mt-2 space-y-2">
-                  {checklist.filter(c=>c.active).map((c) => {
-                    const latest=documentGroups.byItem.get(c.id)?.[0]?.doc;
-                    const requested=openRequests.some(r=>r.req.checklistItemId===c.id||(!r.req.checklistItemId&&r.req.documentTypeId===c.documentTypeId));
-                    const hasDoc=usableCaseDocument(latest?.status,requested);
-                    return (
-                      <div key={c.id} className="flex items-center justify-between text-xs">
-                        <span className="dossier-document-name">{localizedDocTypeName(c.documentTypeCode, c.documentTypeName, uiLocale)} {c.required ? "*" : ""}</span>
-                        <span className={hasDoc ? "text-emerald-600" : "text-amber-600"}>{hasDoc ? "✓" : "—"}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <Link href={`${back}?tab=documents${returnSuffix}`} className="btn-secondary btn-sm mt-4">{ct("Open documents")}</Link>
+              <div className="adaptive-doc-summary">
+                <Link className="adaptive-doc-count" href={`${back}?tab=documents${returnSuffix}`}><strong><bdi>{receivedCount}/{requiredItems.length}</bdi></strong><span>{dc.received}</span><span className="directional" aria-hidden="true">→</span></Link>
+                <div className="adaptive-doc-progress" role="progressbar" aria-label={dc.received} aria-valuemin={0} aria-valuemax={Math.max(1,requiredItems.length)} aria-valuenow={receivedCount}><span style={{width:(requiredItems.length?receivedCount/requiredItems.length*100:0)+"%"}}/></div>
+                <p>{acceptedCount} {adaptive.accepted} · {Math.max(0,receivedCount-acceptedCount)} {adaptive.received}</p>
+                <details className="dossier-details"><summary>{adaptive.docs}</summary>{checklist.filter(c=>c.active).map(c=>{const latest=latestFor(c),requested=requestFor(c).length>0;return <Link className="adaptive-doc-link" key={c.id} href={`${back}?tab=documents${returnSuffix}#item-${c.id}`}><span>{docLabel(c.documentTypeCode,c.documentTypeName)}{c.required?" *":""}</span><span className="dossier-doc-state" data-doc-state={requested?"RESUBMISSION_REQUIRED":latest?.status??"MISSING"}>{requested?ct("Action required"):latest?localizedDocStatus(latest.status,uiLocale,latest.status):ct("Missing")}</span></Link>})}</details>
               </div>
             </Card>
           </div>
@@ -315,7 +307,7 @@ export default async function PortalApplicationDetailPage({
 
       {tab==="messages"&&Number(unreadRows[0]?.total??0)>0?<CaseMessagesRead key={id} id={id}/>:null}
       {tab === "messages" ? (
-        <CommunicationsPanel applicationId={id} messages={messages} user={user} back={`${back}?tab=messages${returnSuffix}`} locale={uiLocale} caseWorkspace olderPage={typeof sp.messagesBefore==="string"} />
+        <CommunicationsPanel applicationId={id} messages={messages} user={user} back={`${back}?tab=messages${returnSuffix}`} locale={uiLocale} caseWorkspace requestTitle={requestTitle} caseTerminal={terminal} olderPage={typeof sp.messagesBefore==="string"} />
       ) : null}
 
       {tab === "activity" ? (
@@ -323,7 +315,7 @@ export default async function PortalApplicationDetailPage({
           <Card>
             <CardHeader title={copy.activity} />
             <div className="px-4 py-4">
-              {history.length===0?<p className="dossier-muted">{copy.noHistory}</p>:<ol className="dossier-activity">{history.map(h=><li key={h.history.id}><div><span className="case-state" data-status={h.toStatus.code}><StatusBadge code={h.toStatus.code} name={h.toStatus.name}/></span>{h.history.reason?<p>{h.toStatus.code==="SUBMITTED"&&h.history.reason==="Request submitted"?ct("Request submitted"):h.history.reason}</p>:null}</div><time dateTime={h.history.createdAt.toISOString()}>{caseDateTime(h.history.createdAt,uiLocale)}</time></li>)}</ol>}
+              {activityEvents.length===0?<p className="dossier-muted">{copy.noHistory}</p>:<ol className="dossier-activity adaptive-activity">{activityEvents.map((event,index)=><li key={event.key} className="adaptive-event">{index===0||dateGroup(activityEvents[index-1]!.at)!==dateGroup(event.at)?<h3>{dateGroup(event.at)}</h3>:null}<div className="adaptive-event-line"><span className="adaptive-event-dot" data-kind={event.kind} aria-hidden="true"/><div>{event.kind==="status"?<span className="case-state" data-status={event.code}><StatusBadge code={event.code} name={event.title}/></span>:event.href?<Link href={event.href} className="adaptive-text-link">{event.title} <span className="directional" aria-hidden="true">→</span></Link>:<strong>{event.title}</strong>}{event.reason?<p>{event.reason}</p>:null}</div><time dateTime={event.at.toISOString()}>{caseDateTime(event.at,uiLocale)}</time></div></li>)}</ol>}
             </div>
           </Card>
         </div>
