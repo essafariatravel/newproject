@@ -11,7 +11,7 @@ type Labels={search:string;placeholder:string;filters:string;status:string;all:s
 function fold(s:string){return s.normalize("NFD").replace(/\p{M}/gu,"").toLowerCase().replace(/[أإآٱ]/g,"ا").trim()}
 export function CaseFilters({locale,labels:t,query,currentPage,recent,statuses,countries,resetHref}:{locale:"fr"|"en"|"ar";labels:Labels;query:Record<string,string|undefined>;currentPage:number;recent:Item[];statuses:{value:string;label:string}[];countries:{value:string;label:string}[];resetHref:string}){
  const router=useRouter(),uid=useId(),root=useRef<HTMLDivElement>(null),input=useRef<HTMLInputElement>(null),filterDialog=useRef<HTMLDialogElement>(null),filterButton=useRef<HTMLButtonElement>(null);
- const [value,setValue]=useState(query.q??""),[open,setOpen]=useState(false),[active,setActive]=useState(-1),[advanced,setAdvanced]=useState(false),[remote,setRemote]=useState<{q:string;items:Item[];error:boolean}|null>(null);
+ const [value,setValue]=useState(query.q??""),[open,setOpen]=useState(false),[active,setActive]=useState(-1),[advanced,setAdvanced]=useState(false),[filterVersion,setFilterVersion]=useState(0),[remote,setRemote]=useState<{q:string;items:Item[];error:boolean}|null>(null);
  const [pending,startTransition]=useTransition();
  const cache=useRef(new Map<string,Item[]>());
  useAgencyPopover(root,open,setOpen,input);
@@ -39,9 +39,10 @@ export function CaseFilters({locale,labels:t,query,currentPage,recent,statuses,c
  useEffect(()=>{if(open&&active>=0)document.getElementById(uid+"-"+active)?.scrollIntoView({block:"nearest"})},[open,active,uid]);
  function choose(item:Item){setOpen(false);setActive(-1);startTransition(()=>router.push(detailLink(item.id,caseLink({...query,page:String(currentPage)}))))}
  function submit(e:FormEvent<HTMLFormElement>){
-  e.preventDefault();setOpen(false);setActive(-1);filterDialog.current?.close();
+  e.preventDefault();setOpen(false);setActive(-1);
   const params:Record<string,string>={};
   for(const [k,v] of new FormData(e.currentTarget))if(typeof v==="string"&&v.trim())params[k]=v.trim();
+  if(filterDialog.current?.open)filterDialog.current.close();
   startTransition(()=>router.push(caseLink(params)));
  }
  const busy=open&&searchable&&remote?.q!==q;
@@ -76,10 +77,10 @@ export function CaseFilters({locale,labels:t,query,currentPage,recent,statuses,c
    <button type="submit" className="btn-primary fluid-search-submit" disabled={pending}><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>{t.search}</button></div>
    <button ref={filterButton} className="btn-secondary case-filter-toggle" type="button" aria-haspopup="dialog" aria-expanded={advanced} aria-controls={uid+"-filters"} onClick={()=>{setOpen(false);filterDialog.current?.showModal();setAdvanced(true)}}><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 5h14M6 10h8m-5 5h2"/></svg>{t.filters}{count?" ("+count+")":""}<span aria-hidden="true">{advanced?"⌃":"⌄"}</span></button>
   <div className="case-sort-line"><label htmlFor={uid+"-sort"}>{extra.sort}</label><CaseSelectField id={uid+"-sort"} name="sort" label={extra.sort} value={query.sort??"recent"} compact options={[{value:"recent",label:extra.recent},{value:"submitted",label:extra.submitted},{value:"oldest",label:extra.oldest},{value:"priority",label:extra.priority}]} onChange={(next,form)=>{setOpen(false);const params:Record<string,string>={};if(form)for(const [k,v] of new FormData(form))if(typeof v==="string"&&v.trim())params[k]=v.trim();startTransition(()=>router.push(caseLink({...params,sort:next})))}}/></div></div>
-  <dialog ref={filterDialog} id={uid+"-filters"} className="fluid-filter-dialog" aria-labelledby={uid+"-filter-title"} onClose={()=>{setAdvanced(false);filterButton.current?.focus({preventScroll:true})}} onClick={e=>{if(e.target===e.currentTarget)filterDialog.current?.close()}}>
+  <dialog ref={filterDialog} id={uid+"-filters"} className="fluid-filter-dialog" aria-labelledby={uid+"-filter-title"} onClose={()=>{setAdvanced(false);setFilterVersion(v=>v+1);filterButton.current?.focus({preventScroll:true})}} onClick={e=>{if(e.target===e.currentTarget)filterDialog.current?.close()}}>
    <div className="fluid-filter-inner"><header className="fluid-filter-header"><h2 id={uid+"-filter-title"}>{fluid.title}</h2><button className="fluid-close" type="button" aria-label={fluid.close} onClick={()=>filterDialog.current?.close()}>×</button></header>
-   <div className="fluid-filter-shortcuts"><h3>{fluid.shortcuts}</h3><div>{(["unread","cancellation","stale","decision"] as const).map(v=><Link key={v} href={caseLink({...query,focus:query.focus===v?undefined:v})} aria-current={query.focus===v?"true":undefined} onClick={()=>filterDialog.current?.close()}>{viewLabels[v]}</Link>)}</div></div>
-   <div className="case-advanced case-advanced-v4 fluid-filter-fields">
+   <div className="fluid-filter-shortcuts"><h3>{fluid.shortcuts}</h3><div>{(["unread","cancellation","stale","decision"] as const).map(v=><Link key={v} href={caseLink({...query,focus:query.focus===v?undefined:v})} aria-current={query.focus===v?"true":undefined} onClick={()=>filterDialog.current?.close()}>{viewLabels[v]}</Link>)}<Link href={caseLink({...query,missing:query.missing==="1"?undefined:"1"})} aria-current={query.missing==="1"?"true":undefined} onClick={()=>filterDialog.current?.close()}>{viewLabels.missing}</Link></div></div>
+   <div key={filterVersion} className="case-advanced case-advanced-v4 fluid-filter-fields">
    <div><label htmlFor={uid+"-status"}>{t.status}</label><CaseSelectField key={query.status??""} name="status" id={uid+"-status"} label={t.status} defaultValue={query.status??""} options={[{value:"",label:t.all},...statuses]}/></div>
    <div><label htmlFor={uid+"-from"}>{t.from}</label><DatePicker id={uid+"-from"} ariaLabel={t.from} name="from" defaultValue={query.from??""} locale={locale} displayDayFirst placeholder={extra.date}/></div>
    <div><label htmlFor={uid+"-to"}>{t.to}</label><DatePicker id={uid+"-to"} ariaLabel={t.to} name="to" defaultValue={query.to??""} locale={locale} displayDayFirst placeholder={extra.date}/></div>
@@ -88,7 +89,6 @@ export function CaseFilters({locale,labels:t,query,currentPage,recent,statuses,c
   <footer className="case-filter-actions fluid-filter-footer"><Link href={resetHref} className="case-reset" onClick={()=>filterDialog.current?.close()}>{t.reset}</Link><button type="submit" className="btn-primary" disabled={pending}>{t.apply}</button></footer></div></dialog>
   {(interpreted.statusCode||interpreted.missing||interpretedPeriod.period)&&query.q?<p className="case-interpreted" role="status">{({fr:"Recherche interprétée :",en:"Interpreted search:",ar:"تفسير البحث:"}[locale])} {[(interpreted.q??""),statuses.find(s=>s.value===interpreted.statusCode)?.label,interpreted.missing?extra.missing:null,interpretedPeriod.period?({fr:{today:"Aujourd’hui",week:"Cette semaine",month:"Ce mois-ci"},en:{today:"Today",week:"This week",month:"This month"},ar:{today:"اليوم",week:"هذا الأسبوع",month:"هذا الشهر"}}[locale][interpretedPeriod.period]):null].filter(Boolean).join(" · ")}</p>:null}
   {chips.length>0?<div className="case-filter-chips">{chips.map(c=><Link key={c.key} href={caseLink({...query,[c.key]:undefined})} aria-label={viewLabels.clear+" "+c.label}>{c.label} <span aria-hidden="true">×</span></Link>)}</div>:null}
-  <details className="case-quick-views fluid-quick-views"><summary><svg className="case-disclosure-chevron" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg>{viewLabels.views}</summary><div>{(["unread","cancellation","stale","decision"] as const).map(v=><Link key={v} href={caseLink({...query,focus:query.focus===v?undefined:v})} aria-current={query.focus===v?"true":undefined}>{viewLabels[v]}</Link>)}<Link href={caseLink({...query,missing:query.missing==="1"?undefined:"1"})} aria-current={query.missing==="1"?"true":undefined}>{viewLabels.missing}</Link></div></details>
   {!advanced&&(query.q||count)?<Link href={resetHref} className="case-reset">{t.reset}</Link>:null}
   {pending?<p className="case-loading" role="status" aria-live="polite">{t.loading}</p>:null}
  </form>;

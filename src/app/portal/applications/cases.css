@@ -310,3 +310,8 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-cases){font-fa
 }
 @media(prefers-reduced-motion:reduce){.fluid-cases *,.fluid-cases *::before,.fluid-cases *::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 @media(max-width:767px){.fluid-cases .fluid-search-shell{flex-basis:100%;min-width:0}.fluid-cases .fluid-search-submit{padding-inline:10px;font-size:15px}.fluid-cases .fluid-search-submit svg{display:none}.fluid-cases .fluid-filter-inner{padding:16px}.essafaria-cases.fluid-cases .fluid-filter-fields:not([hidden]){grid-template-columns:1fr}.fluid-cases .case-quick-dialog{padding:20px}}
+
+/* Keep the single search surface usable at narrow widths. */
+.fluid-cases .fluid-search-shell .case-search{flex:1 1 0;min-width:0}
+.fluid-cases .fluid-search-shell .case-search-input{min-width:0}
+@media(max-width:767px){.fluid-cases .fluid-search-shell .case-search{flex-basis:0;min-width:0}.fluid-cases .fluid-search-submit{flex:none}.fluid-cases .fluid-search-line .case-sort-line{min-width:0;max-width:100%}}
