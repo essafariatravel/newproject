@@ -193,7 +193,7 @@ export function RequestWizard(props: Props) {
   const [reviewFile,setReviewFile]=useState<File|null>(null);
   const [reviewUrl,setReviewUrl]=useState("");
   const reviewDialog=useRef<HTMLDialogElement>(null);
-  useEffect(()=>{if(!reviewFile){setReviewUrl("");return;}const url=URL.createObjectURL(reviewFile);setReviewUrl(url);setZoom(false);reviewDialog.current?.showModal();return()=>URL.revokeObjectURL(url)},[reviewFile]);
+  useEffect(()=>{if(!reviewFile){setReviewUrl("");return;}const url=URL.createObjectURL(reviewFile);setReviewUrl(url);setZoom(false);if(reviewDialog.current&&!reviewDialog.current.open)reviewDialog.current.showModal();return()=>URL.revokeObjectURL(url)},[reviewFile]);
   const [destinationOpen, setDestinationOpen] = useState(false);
   const destinationPickerRef = useRef<HTMLDivElement>(null);
   const destinationListRef = useRef<HTMLDivElement>(null);
@@ -211,9 +211,9 @@ export function RequestWizard(props: Props) {
   // Controlled state is the single source of truth for the gate and the submitted payload.
   const applicantReady = Boolean(nameDraft.trim() && props.nationalities.some(n => n.code === nationalityDraft));
   const checkout = {
-    fr:{heading:"Un dernier regard avant l’envoi.",subtitle:"Vérifiez les informations de votre voyageur.",selected:"pièces requises sélectionnées",selectedShort:"Sélectionné",check:"À vérifier"},
-    en:{heading:"One last look before submitting.",subtitle:"Review your traveller’s details.",selected:"required documents selected",selectedShort:"Selected",check:"Review"},
-    ar:{heading:"نظرة أخيرة قبل الإرسال.",subtitle:"راجعوا معلومات المسافر.",selected:"وثائق إلزامية محددة",selectedShort:"محدد",check:"للمراجعة"}
+    fr:{heading:"Récapitulatif de votre demande",subtitle:"",selected:"pièces requises sélectionnées",selectedShort:"Sélectionné",check:"À vérifier",replace:"Remplacer",add:"Ajouter",previous:"Précédent",next:"Suivant",tourist:"Tourisme",destination:"Destination",missing:"Non sélectionné"},
+    en:{heading:"Application summary",subtitle:"",selected:"required documents selected",selectedShort:"Selected",check:"Review",replace:"Replace",add:"Add",previous:"Previous",next:"Next",tourist:"Tourism",destination:"Destination",missing:"Not selected"},
+    ar:{heading:"ملخص الطلب",subtitle:"",selected:"وثائق إلزامية محددة",selectedShort:"محدد",check:"للمراجعة",replace:"استبدال",add:"إضافة",previous:"السابق",next:"التالي",tourist:"سياحة",destination:"الوجهة",missing:"غير محدد"}
   }[props.locale];
   const ui = {
     fr:{title:"Nouvelle demande",reservation:"Votre demande",travel:"Voyage et voyageur",documents:"Documents",confirm:"Confirmation",suggestions:"Destinations suggérées",ready:"Prêt à vérifier",select:"Choisissez un programme",noDebit:"Aucun débit avant la confirmation.",estimate:"Solde estimé après confirmation",covered:"Votre solde couvre cette demande.",missing:"Montant manquant",drop:"Déposez votre document ici",browse:"Parcourir les fichiers",nextDoc:"Pièce suivante",review:"Vérifier le dossier",continue:"Préparer les documents",preview:"Aperçu",unavailable:"Aperçu indisponible pour ce format. Vérifiez le fichier sur votre appareil.",replace:"Changer de fichier",changeWarning:"Changer de programme supprimera les fichiers déjà sélectionnés. Continuer ?",invalid:"Format non accepté",duplicate:"Ce fichier est déjà sélectionné. Vérifiez la pièce choisie.",local:"Fichiers sur cet appareil jusqu’à la confirmation",empty:"À préparer",optional:"Facultatif",edit:"Modifier",download:"Ouvrir le fichier",payment:"Votre paiement",check:"Votre dossier est prêt à être vérifié",selected:"Pièce sélectionnée",working:"Délai indicatif",notes:"Instructions facultatives"},
@@ -316,12 +316,16 @@ export function RequestWizard(props: Props) {
       const name=normalize(f.name);
       if(/passport|passeport|جواز/.test(key))return /visa.grant|e.?visa|visa.approval|releve.bancaire|bank.statement|photo.identite|تأشيرة/.test(name);
       if(/photo|portrait|صورة/.test(key))return /passport|passeport|جواز|mrz|visa.grant|bank.statement/.test(name);
-      if(/bank|bancaire|بنك|مصرف/.test(key))return /passport|passeport|mrz|visa.grant/.test(name);
+      if(/bank|bancaire|بنك|مصرف/.test(key))return /passport|passeport|mrz|visa.grant|photo.identite|identity.photo|portrait|صورة.شخصية/.test(name);
       return false;
     });
     return [...(mismatch?[smart.mismatch]:[]),...(localWarnings[r.documentTypeId]??[]).map(k=>smart[k])];
   }
   const flaggedRequirements=requirements.filter(r=>warningMessages(r).length>0);
+  const checkoutFiles=requirements.flatMap(r=>files[r.documentTypeId]??[]);
+  const checkoutFileIndex=reviewFile?checkoutFiles.indexOf(reviewFile):-1;
+  const checkoutCategory=/^(tourist|tourism|tourisme|touristique|سياحة)$/i.test(visa?.categoryName.trim()??"")?checkout.tourist:visa?.categoryName;
+  const genericProgramme=Boolean(visa&&country&&[normalize(country.name),normalize("Visa "+country.name),normalize(country.name+" Visa"),normalize("تأشيرة "+country.name)].includes(normalize(visa.name)));
   useEffect(()=>{if(!selectedFile){setPreviewUrl("");return;}const url=URL.createObjectURL(selectedFile);setPreviewUrl(url);return ()=>URL.revokeObjectURL(url);},[selectedFile]);
   function selectDoc(id:string){setActiveDoc(id);setPreviewIndex(0);setFileError("");}
   function clearForProgrammeChange(){if((Object.values(files).some(a=>a.length)||batch.length)&&!window.confirm(ui.changeWarning))return false;setFiles({});setBatch([]);setActiveDoc("");setPreviewIndex(0);setFileError("");return true;}
@@ -829,26 +833,40 @@ export function RequestWizard(props: Props) {
       {/* STEP 3 — review & submit */}
       <section data-wizard-section="3" hidden={step!==3} className="wizard-panel booking-grid" data-direction={wizardDirection}>
         <div className="booking-main booking-review checkout-review">
-          <div className="checkout-heading"><h2>{checkout.heading}</h2><small>{checkout.subtitle}</small></div>
+          <div className="checkout-heading"><h2>{checkout.heading}</h2></div>
           <div className="checkout-ticket">
-            <div className="checkout-ticket-image" aria-hidden="true"><img src="/images/departure-atelier.webp" alt="" decoding="async"/></div>
-            <div className="checkout-ticket-info"><small>{t.sectionVisa} · {country?.name}</small><h3>{visa?.name}</h3><span>{visa?.categoryName} · {visa?processingLabel(visa):"—"}</span></div>
+            <div className="checkout-ticket-image" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></div>
+            <div className="checkout-ticket-info"><small>{checkout.destination}</small><h3>{country?.name}</h3>{!genericProgramme&&visa?.name?<strong className="checkout-programme">{visa.name}</strong>:null}<span>{[checkoutCategory,visa?processingLabel(visa):null].filter(Boolean).join(" · ")}</span></div>
             <button type="button" className="checkout-edit" disabled={pending} onClick={()=>editStep(1)} aria-label={ui.edit+" · "+t.sectionVisa}><CheckoutIcon kind="edit"/><span>{ui.edit}</span></button>
           </div>
           <div className="checkout-traveller">
-            <span className="checkout-avatar" aria-hidden="true">{nameDraft.trim().split(/\s+/).slice(0,2).map(part=>Array.from(part)[0]??"").join("").toLocaleUpperCase()||"—"}</span>
-            <div className="checkout-traveller-info" data-testid="wizard-applicant-summary"><small>{t.sectionApplicant}</small><strong>{nameDraft||"—"}</strong><span>{props.nationalities.find(n=>n.code===nationalityDraft)?.label??nationalityDraft}</span></div>
+            <div className="checkout-traveller-info" data-testid="wizard-applicant-summary"><small>{t.sectionApplicant}</small><strong>{nameDraft||"—"}</strong><span>{t.nationality}: {props.nationalities.find(n=>n.code===nationalityDraft)?.label??nationalityDraft}</span></div>
             <button type="button" className="checkout-edit" disabled={pending} onClick={()=>editStep(1)} aria-label={ui.edit+" · "+t.sectionApplicant}><CheckoutIcon kind="edit"/><span>{ui.edit}</span></button>
           </div>
           {reviewReady&&reviewCheck?.status==="ready"&&reviewCheck.possibleDuplicate?<div className="booking-duplicate-note" role="status"><div><strong>{({fr:"Dossier similaire détecté",en:"Similar application found",ar:"تم العثور على طلب مشابه"}[props.locale])}</strong><p>{({fr:"Vérifiez s’il s’agit du même voyageur ou d’un homonyme.",en:"Check whether this is the same traveller or a different person with the same name.",ar:"تحققوا مما إذا كان المسافر نفسه أو شخصاً آخر يحمل الاسم نفسه."}[props.locale])}</p></div>{typeof reviewCheck.similarApplicationId==="string"&&/^[0-9a-f-]{36}$/i.test(reviewCheck.similarApplicationId)?<a className="booking-link" href={`/portal/applications/${encodeURIComponent(reviewCheck.similarApplicationId)}`} target="_blank" rel="noopener noreferrer">{({fr:"Consulter le dossier ↗",en:"View application ↗",ar:"عرض الطلب ↗"}[props.locale])}</a>:null}</div>:null}
           <div className="checkout-documents">
             <div className="checkout-doc-heading"><h3>{t.summaryDocuments}</h3><span className="checkout-count"><bdi>{completedDocs}/{requiredDocs.length}</bdi> {checkout.selected}</span><button type="button" className="checkout-edit" disabled={pending} onClick={()=>editStep(2)} aria-label={ui.edit+" · "+t.summaryDocuments}><CheckoutIcon kind="edit"/><span>{ui.edit}</span></button></div>
-            {flaggedRequirements.length?<div className="booking-smart-review" role="status"><strong>{smart.checks} · {flaggedRequirements.length}</strong>{flaggedRequirements.map(r=><div key={r.documentTypeId} className="booking-line"><div><strong>{r.name}</strong>{warningMessages(r).map(message=><p key={message} className="booking-warning">{message}</p>)}</div><button type="button" className="booking-link" disabled={pending} onClick={()=>{selectDoc(r.documentTypeId);editStep(2)}}>{smart.inspect} →</button></div>)}<small>{smart.noValidation}</small></div>:null}
-            {requirements.length===0?<p className="booking-muted">{t.noDocumentsRequired}</p>:<div className="checkout-gallery" role="group" aria-label={t.summaryDocuments}>
-              {requirements.map(r=>{const attached=files[r.documentTypeId]??[];const flagged=warningMessages(r).length>0;return <div className="checkout-document" key={r.documentTypeId} data-flagged={flagged}>
-                <div className="checkout-document-label"><strong>{r.name}</strong><span className={flagged?"booking-warning":attached.length?"booking-success":"booking-muted"}>{flagged?checkout.check:attached.length?checkout.selectedShort:r.required?t.required:ui.optional}</span></div>
-                {attached.length?attached.map((f,i)=><button key={i} type="button" className="checkout-document-preview" disabled={pending} onClick={()=>setReviewFile(f)} aria-label={ui.preview+" · "+r.name+" · "+f.name}><CheckoutThumbnail file={f} active={step===3}/><span className="checkout-file-caption"><span title={f.name}>{f.name}</span><CheckoutIcon kind="expand"/></span></button>):<button type="button" className="checkout-missing" disabled={pending} onClick={()=>{selectDoc(r.documentTypeId);editStep(2)}}><CheckoutIcon kind="file"/><span>{r.required?t.missingPrefix:ui.optional} · {ui.edit}</span></button>}
-              </div>})}
+            {fileError?<p role="alert" className="booking-warning" data-testid="checkout-file-error">{fileError}</p>:null}
+            {flaggedRequirements.length?<div className="checkout-attention" role="status"><strong>{smart.checks} · <bdi>{flaggedRequirements.length}</bdi></strong><small>{smart.noValidation}</small></div>:null}
+            {requirements.length===0?<p className="booking-muted">{t.noDocumentsRequired}</p>:<div className="checkout-gallery" data-single={requirements.length===1} role="group" aria-label={t.summaryDocuments}>
+              {requirements.map(r=>{
+                const attached=files[r.documentTypeId]??[];
+                const warnings=warningMessages(r);
+                const flagged=warnings.length>0;
+                return <div className="checkout-document" key={r.documentTypeId} data-flagged={flagged}>
+                  <div className="checkout-document-label">
+                    <strong>{r.name}</strong>
+                    <span className={flagged?"booking-warning":"booking-muted"}><span className="checkout-status-dot" aria-hidden="true"/>{flagged?checkout.check:attached.length?checkout.selectedShort:r.required?checkout.missing:ui.optional}</span>
+                  </div>
+                  {attached.length?attached.map((f,i)=><button key={i} type="button" className="checkout-document-preview" disabled={pending} onClick={()=>setReviewFile(f)} aria-label={ui.preview+" · "+r.name+" · "+f.name}><CheckoutThumbnail file={f} active={step===3}/><span className="checkout-file-caption"><span title={f.name} dir="auto">{f.name}</span><CheckoutIcon kind="expand"/></span></button>):<div className="checkout-missing"><CheckoutIcon kind="file"/><span>{r.required?checkout.missing:ui.optional}</span></div>}
+                  {flagged?<details className="checkout-document-warning"><summary>{smart.inspect} ({warnings.length})</summary>{warnings.map(message=><p key={message}>{message}</p>)}</details>:null}
+                  <label className="checkout-replace" data-disabled={pending}>
+                    <CheckoutIcon kind="edit"/><span>{attached.length?checkout.replace:checkout.add}</span>
+                    <input className="sr-only" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" disabled={pending} aria-label={(attached.length?checkout.replace:checkout.add)+" · "+r.name} onChange={e=>{if(!submittingRef.current)onFileChange(r.documentTypeId,e.currentTarget.files);e.currentTarget.value=""}}/>
+                  </label>
+                </div>;
+              })}
+            </div>})}
             </div>}
             <small className="checkout-verify">{ux.verify}</small>
           </div>
@@ -878,7 +896,7 @@ export function RequestWizard(props: Props) {
         ) : null}
       </div>
       <dialog ref={reviewDialog} className="booking-review-dialog" onClose={()=>setReviewFile(null)} onCancel={()=>setReviewFile(null)} aria-label={ui.preview}>
-        {reviewFile?<><div className="booking-dialog-head"><strong>{reviewFile.name}</strong>{reviewFile.type.startsWith("image/")?<button type="button" className="btn-secondary" onClick={()=>setZoom(v=>!v)}>{zoom?assist.fit:ux.full}</button>:null}<button type="button" className="btn-secondary" onClick={()=>reviewDialog.current?.close()}>{ux.close}</button></div><div className="booking-dialog-body" data-zoom={zoom}>{reviewUrl&&/^image\/(jpeg|png|webp)$/.test(reviewFile.type)?<img src={reviewUrl} alt={reviewFile.name}/>:reviewUrl&&reviewFile.type==="application/pdf"?<iframe title={reviewFile.name} src={reviewUrl}/>:<p>{ui.unavailable}</p>}</div></>:null}
+        {reviewFile?<><div className="booking-dialog-head"><strong>{reviewFile.name}</strong>{step===3&&checkoutFileIndex>=0&&checkoutFiles.length>1?<div className="checkout-dialog-navigation"><button type="button" className="btn-secondary" disabled={checkoutFileIndex===0} onClick={()=>setReviewFile(checkoutFiles[checkoutFileIndex-1]??null)}>{checkout.previous}</button><small><bdi>{checkoutFileIndex+1}/{checkoutFiles.length}</bdi></small><button type="button" className="btn-secondary" disabled={checkoutFileIndex===checkoutFiles.length-1} onClick={()=>setReviewFile(checkoutFiles[checkoutFileIndex+1]??null)}>{checkout.next}</button></div>:null}{reviewFile.type.startsWith("image/")?<button type="button" className="btn-secondary" onClick={()=>setZoom(v=>!v)}>{zoom?assist.fit:ux.full}</button>:null}<button type="button" className="btn-secondary" onClick={()=>reviewDialog.current?.close()}>{ux.close}</button></div><div className="booking-dialog-body" data-zoom={zoom}>{reviewUrl&&/^image\/(jpeg|png|webp)$/.test(reviewFile.type)?<img src={reviewUrl} alt={reviewFile.name}/>:reviewUrl&&reviewFile.type==="application/pdf"?<iframe title={reviewFile.name} src={reviewUrl}/>:<p>{ui.unavailable}</p>}</div></>:null}
       </dialog>
     </form>
   );
@@ -961,4 +979,54 @@ const checkoutCss = `
 .booking-experience .checkout-payment{position:sticky;top:90px;gap:14px}
 @media(max-width:850px){.booking-experience .checkout-payment{position:static}.booking-experience .checkout-gallery{max-height:none;overflow:visible;scrollbar-gutter:auto}.booking-experience .checkout-ticket{grid-template-columns:72px minmax(0,1fr) auto;gap:10px}.booking-experience .checkout-ticket-image{width:72px;height:70px}.booking-experience .checkout-edit span{display:none}.booking-experience .checkout-edit{min-width:44px;padding:8px}.booking-experience .checkout-doc-heading{gap:6px}.booking-experience .checkout-count{font-size:13px}}
 @media(prefers-reduced-motion:reduce){.booking-experience .checkout-edit,.booking-experience .checkout-thumb,.booking-experience .checkout-thumb img{transition:none}.booking-experience .checkout-document-preview:hover .checkout-thumb img{transform:none}}
+
+/* Checkout revision 02: scoped to confirmation; intrinsic sizing must not leak from global button styles. */
+.booking-experience .booking-grid[data-wizard-section="3"]:not([hidden]){grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:clamp(24px,3vw,44px);align-items:start}
+.booking-experience .checkout-review{min-width:0;gap:18px}
+.booking-experience .checkout-heading h2{font-size:20px!important;font-weight:600;letter-spacing:-.015em}
+.booking-experience .checkout-ticket{border:0;border-bottom:1px solid #e2e5e9;border-radius:0;padding:4px 0 16px;grid-template-columns:64px minmax(0,1fr) auto;gap:14px}
+.booking-experience .checkout-ticket-image{display:grid;place-items:center;width:64px;height:64px;background:#f3f5f7;color:#647182;border-radius:10px}
+.booking-experience .checkout-ticket-info h3{font-size:23px!important;font-weight:600}
+.booking-experience .checkout-programme{font-size:16px;font-weight:600;overflow-wrap:anywhere}
+.booking-experience .checkout-traveller{padding:0;min-width:0}
+.booking-experience .checkout-traveller-info strong{font-size:19px;font-weight:600}
+.booking-experience .checkout-review .booking-duplicate-note{padding:8px 0 12px;background:transparent;border:0;border-bottom:1px solid #e2e5e9;border-radius:0;gap:8px;flex-wrap:wrap}
+.booking-experience .checkout-review .booking-duplicate-note p{font-size:14px;margin:2px 0 0}
+.booking-experience .checkout-documents{gap:12px;min-width:0}
+.booking-experience .checkout-doc-heading h3{font-weight:600;min-width:0;flex:1 1 auto}
+.booking-experience .checkout-count{color:#647182}
+.booking-experience .checkout-attention{display:grid;gap:3px;padding:9px 12px;border-inline-start:2px solid #aa762a;background:#faf7f1;color:#85551c;border-radius:4px;overflow-wrap:anywhere}
+.booking-experience .checkout-attention strong{font-size:15px;font-weight:600}
+.booking-experience .checkout-attention small{color:#647182;font-size:13px}
+.booking-experience .checkout-gallery{grid-template-columns:repeat(auto-fit,minmax(min(100%,185px),1fr));gap:12px;align-items:start;max-height:none;overflow:visible;scrollbar-gutter:auto;padding:0;min-width:0}
+.booking-experience .checkout-gallery[data-single=true]{grid-template-columns:minmax(0,300px)}
+.booking-experience .checkout-document{grid-template-columns:minmax(0,1fr);box-sizing:border-box;min-inline-size:0;max-inline-size:100%;width:100%;gap:9px;padding:10px;border-radius:9px}
+.booking-experience .checkout-document[data-flagged=true]{border-color:#dfc9aa}
+.booking-experience .checkout-document-label{grid-template-columns:minmax(0,1fr);gap:4px;min-width:0}
+.booking-experience .checkout-document-label strong{font-size:16px;line-height:1.35}
+.booking-experience .checkout-document-label>span{display:flex;align-items:center;gap:6px;font-size:13px}
+.booking-experience .checkout-status-dot{width:7px;height:7px;flex:none;border-radius:50%;background:currentColor}
+.booking-experience .checkout-document-preview,.booking-experience .checkout-missing{display:grid;grid-template-columns:minmax(0,1fr);box-sizing:border-box;width:100%;min-width:0!important;max-width:100%;padding:0;border:0;background:transparent;white-space:normal;overflow:hidden}
+.booking-experience .checkout-thumb{width:100%;min-width:0;max-width:100%;height:112px;grid-template-columns:minmax(0,1fr);overflow:hidden}
+.booking-experience .checkout-thumb img{width:100%;height:112px;max-width:100%;max-height:112px;object-fit:contain}
+.booking-experience .checkout-file-glyph{justify-self:center}
+.booking-experience .checkout-file-caption{display:grid;grid-template-columns:minmax(0,1fr) 18px;min-width:0;max-width:100%;width:100%;text-align:start}
+.booking-experience .checkout-file-caption>span{display:block;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.booking-experience .checkout-file-caption svg{width:18px;height:18px}
+.booking-experience .checkout-missing{min-height:112px;background:#f3f5f7;padding:10px;justify-items:center}
+.booking-experience .checkout-document-warning{font-size:13px;color:#85551c;overflow-wrap:anywhere;line-height:1.4}
+.booking-experience .checkout-document-warning summary{cursor:pointer}
+.booking-experience .checkout-document-warning p{margin:5px 0 0}
+.booking-experience .checkout-replace{display:flex;gap:6px;align-items:center;justify-content:center;min-height:44px;border-top:1px solid #e2e5e9;color:#285582;font-size:14px;cursor:pointer;position:relative;text-align:center}
+.booking-experience .checkout-replace svg{width:15px;height:15px;flex:none}
+.booking-experience .checkout-replace:hover{background:#f3f5f7}
+.booking-experience .checkout-replace:focus-within{outline:2px solid #285582;outline-offset:2px}
+.booking-experience .checkout-replace[data-disabled=true]{opacity:.55;cursor:not-allowed}
+.booking-experience .checkout-verify{margin:0;overflow-wrap:anywhere}
+.booking-experience .checkout-payment{min-width:0;align-self:start;font-variant-numeric:tabular-nums}
+.booking-experience .checkout-payment .booking-line{gap:10px;flex-wrap:wrap}
+.booking-experience .checkout-payment .booking-line strong{white-space:nowrap}
+.booking-experience .checkout-dialog-navigation{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+@media(max-width:850px){.booking-experience .booking-grid[data-wizard-section="3"]:not([hidden]){grid-template-columns:minmax(0,1fr);gap:24px}.booking-experience .checkout-payment{position:static}.booking-experience .checkout-ticket{grid-template-columns:52px minmax(0,1fr) auto;gap:10px}.booking-experience .checkout-ticket-image{width:52px;height:52px}.booking-experience .checkout-gallery{grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}}
+@media(max-width:360px){.booking-experience .checkout-gallery{grid-template-columns:minmax(0,1fr)}}
 `;
