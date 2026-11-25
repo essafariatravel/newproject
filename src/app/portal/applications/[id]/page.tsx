@@ -42,6 +42,7 @@ import { readCaseVfsReference } from "@/lib/case-vfs-reference";
 import { CaseMessagesRead } from "../case-messages-read";
 import { CaseNavigation } from "../case-navigation";
 import { SmartTimeline } from "../smart-timeline";
+import { JourneyMotion } from "../journey-motion";
 import { HomeCaseVisit } from "../../home-case-tools";
 import { db } from "@/lib/db";
 import { notifications } from "@/db/schema";
@@ -168,6 +169,21 @@ export default async function PortalApplicationDetailPage({
     ...messages.map(({message})=>({key:"message-"+message.id,at:message.createdAt,kind:"message" as const,title:({fr:"Message échangé",en:"Message exchanged",ar:"تم تبادل رسالة"}[uiLocale]),code:"MESSAGE",reason:null,href:`${back}?tab=messages${returnSuffix}`}))
   ].sort((a,b)=>b.at.getTime()-a.at.getTime()||a.key.localeCompare(b.key));
   const latestKnown=detail.caseActivity??app.updatedAt;
+  const activityLink=(key?:string)=>`${back}?tab=activity${returnSuffix}${key?"&event="+encodeURIComponent(key):""}`;
+  const stageCodes={submitted:["SUBMITTED"],documents:["DOCUMENTS_CHECKING","DOCUMENTS_REQUESTED"],processing:["IN_PROCESS"],embassy:["EMBASSY_SENT","EMBASSY_SUBMISSION"],decision:["APPROVED","REJECTED","COMPLETED","REFUSED"]};
+  const latestEvent=activityEvents.find(e=>e.at.getTime()===(latestKnown??app.updatedAt).getTime());
+  const overviewUi={
+    fr:{elapsed:"Temps écoulé (calendaire)",duration:"Durée réelle (calendaire)",pending:"en attente de validation",accepted:"acceptées",missing:"non reçues",view:"Consulter"},
+    en:{elapsed:"Elapsed time (calendar)",duration:"Actual duration (calendar)",pending:"awaiting review",accepted:"accepted",missing:"not received",view:"View"},
+    ar:{elapsed:"الوقت المنقضي (تقويمي)",duration:"المدة الفعلية (تقويمية)",pending:"بانتظار التحقق",accepted:"مقبولة",missing:"غير مستلمة",view:"عرض"}
+  }[uiLocale];
+  const pendingCount=Math.max(0,receivedCount-acceptedCount);
+  const outstandingCount=Math.max(0,requiredItems.length-receivedCount);
+  const acceptedItem=requiredItems.find(item=>latestFor(item)?.status==="ACCEPTED"&&!requestFor(item).length);
+  const pendingItem=requiredItems.find(item=>usableCaseDocument(latestFor(item)?.status,requestFor(item).length>0)&&latestFor(item)?.status!=="ACCEPTED");
+  const outstandingItem=requiredItems.find(item=>!usableCaseDocument(latestFor(item)?.status,requestFor(item).length>0));
+  const docLink=(item?:typeof checklist[number])=>`${back}?tab=documents${returnSuffix}${item?"#item-"+item.id:""}`;
+  const countPercent=(n:number)=>requiredItems.length?100*n/requiredItems.length:0;
   const existingFiles=docs.map(({doc,documentTypeName})=>({name:doc.originalFilename,size:doc.sizeBytes,sha256:doc.sha256,label:documentTypeName}));
   const fileMeta=(doc:typeof docs[number]["doc"])=>({id:doc.id,name:doc.originalFilename,mime:doc.mimeType,version:doc.version,size:bytes(doc.sizeBytes),date:caseDateTime(doc.createdAt,uiLocale)});
   const entryForItem=(item:typeof checklist[number],group:"required"|"other"):DocumentWorkspaceEntry=>{
@@ -248,27 +264,28 @@ export default async function PortalApplicationDetailPage({
         <div className="dossier-overview">
           <div className="dossier-main">
             {decisionDocs.length>0?<DocumentViewerProvider locale={uiLocale} files={decisionDocs.map(doc=>({id:doc.id,name:doc.originalFilename,mime:doc.mimeType}))}><section id="official-decision" className="dossier-delivery"><h2>{copy.official}</h2>{decisionDocs.map(doc=><div key={doc.id} className="dossier-delivery-row"><div><strong>{localizedDocTypeName(doc.typeCode,doc.typeName,uiLocale)}</strong><p>{caseDateTime(doc.createdAt,uiLocale)}</p></div><DocumentPreviewButton id={doc.id} variant="primary" locale={uiLocale}/></div>)}</section></DocumentViewerProvider>:null}
-            {vfsReference?<section className="dossier-vfs"><h2>{({fr:"Référence VFS Chine",en:"VFS China reference",ar:"مرجع VFS للصين"}[uiLocale])}</h2><CopyCaseReference reference={vfsReference} label={copy.copy} copied={copy.copied} failed={copy.failed}/></section>:null}<section className="dossier-tracking"><h2>{adaptive.journey}</h2>{!terminal&&openRequests.length>0?<p className="adaptive-pending-note">{({fr:"Les étapes retracent l’historique du dossier ; des pièces restent demandées.",en:"Steps show the case history; additional documents are still requested.",ar:"تعرض المراحل سجل الطلب؛ لا تزال هناك وثائق مطلوبة."}[uiLocale])}</p>:null}{!terminal&&!isDraft&&openRequests.length===0?<p className="dossier-no-action">{copy.noAction}</p>:null}<div className="dossier-metrics"><div><span>{elapsed?.terminal?copy.duration:copy.elapsed}</span><strong>{elapsed?<LiveCaseDuration submitted={app.submittedAt?.toISOString()??""} initialMinutes={elapsed.minutes} terminal={elapsed.terminal} locale={uiLocale}/>:"—"}</strong></div><div><span>{copy.estimate}</span><strong>{formatProcessingDays(app.processingMinDays,app.processingMaxDays,uiLocale)}</strong></div><div><span>{adaptive.activityDate}</span><strong>{caseDateTime(latestKnown??app.updatedAt,uiLocale)}</strong></div></div></section>
+            {vfsReference?<section className="dossier-vfs"><h2>{({fr:"Référence VFS Chine",en:"VFS China reference",ar:"مرجع VFS للصين"}[uiLocale])}</h2><CopyCaseReference reference={vfsReference} label={copy.copy} copied={copy.copied} failed={copy.failed}/></section>:null}<section className="dossier-tracking"><h2>{adaptive.journey}</h2>{!terminal&&openRequests.length>0?<p className="adaptive-pending-note">{({fr:"Les étapes retracent l’historique du dossier ; des pièces restent demandées.",en:"Steps show the case history; additional documents are still requested.",ar:"تعرض المراحل سجل الطلب؛ لا تزال هناك وثائق مطلوبة."}[uiLocale])}</p>:null}{!terminal&&!isDraft&&openRequests.length===0?<p className="dossier-no-action">{copy.noAction}</p>:null}<div className="dossier-metrics"><div><span>{elapsed?.terminal?overviewUi.duration:overviewUi.elapsed}</span><strong>{elapsed?<LiveCaseDuration submitted={app.submittedAt?.toISOString()??""} initialMinutes={elapsed.minutes} terminal={elapsed.terminal} locale={uiLocale}/>:"—"}</strong></div><div><span>{copy.estimate}</span><strong>{formatProcessingDays(app.processingMinDays,app.processingMaxDays,uiLocale)}</strong></div><div><span>{adaptive.activityDate}</span><strong><Link className="overview-value-link" href={activityLink(latestEvent?.key)}>{caseDateTime(latestKnown??app.updatedAt,uiLocale)}<span className="directional" aria-hidden="true"> ↗</span></Link></strong></div></div></section>
                 {app.submittedAt ? <section className="case-journey-rail essafaria-trajectory" aria-label={journeyUi.title} data-outcome={terminal?detail.statusCode:"ACTIVE"} data-attention={!terminal&&openRequests.length>0}>
                   <div className="trajectory-top">
                     <div className="trajectory-identity"><h3>{journeyUi.title}</h3>{progress.length===0?<p>{localizedStatusName(detail.statusCode,detail.statusName,uiLocale)}</p>:null}</div>
                     <Link className="case-journey-history" href={`${back}?tab=activity${returnSuffix}`}>{journeyUi.history}<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></Link>
                   </div>
-                  <ol data-testid="application-progress" className="trajectory-stages">
+                  <JourneyMotion caseId={id} status={detail.statusCode}>
                     {progress.filter(step=>!terminal||step.key==="submitted"||step.at!==null||(step.key==="decision"&&["APPROVED","REJECTED","COMPLETED","REFUSED"].includes(detail.statusCode))).map(step=>{
                       const final=terminal&&step.key==="decision"&&["APPROVED","REJECTED","COMPLETED","REFUSED"].includes(detail.statusCode);
                       const at=step.key==="submitted"?app.submittedAt:step.at??(final?(app.decisionAt??app.completedAt):null);
                       const state=final?"done":step.state;
                       const label=final?localizedStatusName(detail.statusCode,detail.statusName,uiLocale):step.key==="documents"?journeyUi.checking:step.key==="submitted"?journeyUi.submitted:ct(step.label);
+                      const event=at?activityEvents.find(e=>e.kind==="status"&&stageCodes[step.key].includes(e.code)&&e.at.getTime()===at.getTime()):undefined;
                       return <li key={step.key} data-step={step.key} data-state={state} data-final={final||undefined} aria-current={state==="current"?"step":undefined}>
                         <div className="trajectory-track" aria-hidden="true"><svg className="trajectory-arc" viewBox="0 0 100 36" preserveAspectRatio="none"><path d="M0 18 C 32 18 33 4 50 4 S 68 18 100 18" vectorEffect="non-scaling-stroke"/></svg><span className="trajectory-node">{state==="current"?<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="m3 12 17-8-5 17-4-8-8-1Z"/><path d="m11 13 9-9"/></svg>:final?<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{["REJECTED","REFUSED"].includes(detail.statusCode)?<path d="m7 7 10 10M17 7 7 17"/>:<path d="m6 12 4 4 8-8"/>}</svg>:<span/>}</span></div>
-                        <strong>{label}</strong>
-                        {state==="current"?<span className="trajectory-current-label">{journeyUi.current}</span>:state==="done"&&!final?<span className="sr-only">{journeyUi.recorded}</span>:null}
+                        <strong>{event?<Link className="trajectory-event-link" href={activityLink(event.key)}>{label}</Link>:label}</strong>
                         {at&&state!=="pending"?<time dateTime={at.toISOString()}>{caseDateTime(at,uiLocale)}</time>:<span className="case-journey-time">{state==="pending"?journeyUi.upcoming:journeyUi.unrecorded}</span>}
+                        {state==="current"?<span className="trajectory-current-label">{journeyUi.current}</span>:state==="done"&&!final?<span className="sr-only">{journeyUi.recorded}</span>:null}
                       </li>
                     })}
                     {detail.statusCode==="CANCELLED"?<li data-state="done" data-step="cancelled" data-final="true"><div className="trajectory-track" aria-hidden="true"><span className="trajectory-node"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M7 12h10"/></svg></span></div><strong>{localizedStatusName(detail.statusCode,detail.statusName,uiLocale)}</strong>{app.completedAt?<time dateTime={app.completedAt.toISOString()}>{caseDateTime(app.completedAt,uiLocale)}</time>:<span className="case-journey-time">{journeyUi.unrecorded}</span>}</li>:null}
-                  </ol>
+                  </JourneyMotion>
                 </section>:null}
             <details className="dossier-details">
               <summary>{adaptive.detail}</summary>
@@ -312,8 +329,8 @@ export default async function PortalApplicationDetailPage({
               <CardHeader title={ct("Documents")} />
               <div className="adaptive-doc-summary">
                 <Link className="adaptive-doc-count" href={`${back}?tab=documents${returnSuffix}`}><strong><bdi>{receivedCount}/{requiredItems.length}</bdi></strong><span>{dc.received}</span><span className="directional" aria-hidden="true">→</span></Link>
-                <div className="adaptive-doc-progress" role="progressbar" aria-label={dc.received} aria-valuemin={0} aria-valuemax={Math.max(1,requiredItems.length)} aria-valuenow={receivedCount}><span style={{width:(requiredItems.length?receivedCount/requiredItems.length*100:0)+"%"}}/></div>
-                <p>{acceptedCount} {adaptive.accepted} · {Math.max(0,receivedCount-acceptedCount)} {adaptive.received}</p>
+                {requiredItems.length>0?<><div className="adaptive-doc-progress overview-doc-segments" role="progressbar" aria-label={dc.received} aria-valuemin={0} aria-valuemax={requiredItems.length} aria-valuenow={receivedCount} aria-valuetext={`${acceptedCount} ${overviewUi.accepted} · ${pendingCount} ${overviewUi.pending} · ${outstandingCount} ${overviewUi.missing}`}><span data-tone="accepted" style={{width:countPercent(acceptedCount)+"%"}}/><span data-tone="pending" style={{width:countPercent(pendingCount)+"%"}}/></div>
+                <div className="overview-doc-legend">{acceptedCount>0?<Link data-tone="accepted" href={docLink(acceptedItem)}><bdi>{acceptedCount}</bdi> {overviewUi.accepted}</Link>:null}{pendingCount>0?<Link data-tone="pending" href={docLink(pendingItem)}><bdi>{pendingCount}</bdi> {overviewUi.pending}</Link>:null}{outstandingCount>0?<Link data-tone="missing" href={docLink(outstandingItem)}><bdi>{outstandingCount}</bdi> {overviewUi.missing}</Link>:null}</div></>:null}
                 <details className="dossier-details"><summary>{adaptive.docs}</summary>{checklist.filter(c=>c.active).map(c=>{const latest=latestFor(c),requested=requestFor(c).length>0;return <Link className="adaptive-doc-link" key={c.id} href={`${back}?tab=documents${returnSuffix}#item-${c.id}`}><span>{docLabel(c.documentTypeCode,c.documentTypeName)}{c.required?" *":""}</span><span className="dossier-doc-state" data-doc-state={requested?"RESUBMISSION_REQUIRED":latest?.status??"MISSING"}>{requested?ct("Action required"):latest?localizedDocStatus(latest.status,uiLocale,latest.status):ct("Missing")}</span></Link>})}</details>
               </div>
             </Card>
@@ -338,7 +355,7 @@ export default async function PortalApplicationDetailPage({
           <Card>
             <CardHeader title={copy.activity} />
             <div className="px-4 py-4">
-              <SmartTimeline key={id} locale={uiLocale} events={activityEvents.map(e=>({...e,at:e.at.toISOString()}))} empty={copy.noHistory}/>
+              <SmartTimeline key={id+":"+(typeof sp.event==="string"?sp.event:"")} initialEvent={typeof sp.event==="string"?sp.event:undefined} locale={uiLocale} events={activityEvents.map(e=>({...e,at:e.at.toISOString()}))} empty={copy.noHistory}/>
             </div>
           </Card>
         </div>

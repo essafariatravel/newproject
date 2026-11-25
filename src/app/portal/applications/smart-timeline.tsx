@@ -5,11 +5,11 @@ type Locale="fr"|"en"|"ar";
 type Event={key:string;at:string;kind:"status"|"request"|"received"|"message";title:string;code:string;reason:string|null;href:string|null};
 const copy={fr:{all:"Tout",documents:"Documents",status:"Statuts",message:"Messages",details:"Détail de l’événement",open:"Consulter",events:"événements",none:"Aucun événement dans cette vue."},en:{all:"All",documents:"Documents",status:"Statuses",message:"Messages",details:"Event details",open:"View",events:"events",none:"No events in this view."},ar:{all:"الكل",documents:"الوثائق",status:"الحالات",message:"الرسائل",details:"تفاصيل الحدث",open:"عرض",events:"أحداث",none:"لا توجد أحداث في هذا العرض."}};
 function tone(e:Event){return e.kind==="request"?"warning":e.kind==="received"?"received":e.kind==="status"&&["APPROVED","COMPLETED"].includes(e.code)?"received":e.kind==="status"&&["REJECTED","REFUSED","CANCELLED"].includes(e.code)?"danger":e.kind==="status"&&["IN_PROCESS","EMBASSY_SENT"].includes(e.code)?"warning":"neutral"}
-export function SmartTimeline({locale,events,empty}:{locale:Locale;events:Event[];empty:string}){
+export function SmartTimeline({locale,events,empty,initialEvent}:{locale:Locale;events:Event[];empty:string;initialEvent?:string}){
  const t=copy[locale],fmt=locale==="fr"?"fr-DZ":locale==="ar"?"ar-DZ":"en-GB";
  const day=(at:string)=>new Intl.DateTimeFormat(fmt,{dateStyle:"long",timeZone:"Africa/Algiers"}).format(new Date(at));
  const hour=(at:string)=>new Intl.DateTimeFormat(fmt,{hour:"2-digit",minute:"2-digit",timeZone:"Africa/Algiers"}).format(new Date(at));
- const [filter,setFilter]=useState<"all"|"documents"|"status"|"message">("all"),[selected,setSelected]=useState(events[0]?.key??""),[expanded,setExpanded]=useState<string[]>([]);
+ const [filter,setFilter]=useState<"all"|"documents"|"status"|"message">("all"),[selected,setSelected]=useState(events.find(e=>e.key===initialEvent)?.key??events[0]?.key??""),[expanded,setExpanded]=useState<string[]>([]);
  const visible=events.filter(e=>filter==="all"||(filter==="documents"?e.kind==="request"||e.kind==="received":e.kind===filter));
  const active=visible.find(e=>e.key===selected)??visible[0];
  const groups=Array.from(new Set(visible.map(e=>day(e.at))));
