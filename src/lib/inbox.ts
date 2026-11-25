@@ -2,7 +2,7 @@ import { pool } from "@/lib/db";
 import { qualifiedTable } from "@/lib/database-schema";
 import { requirePermission } from "@/lib/rbac";
 import type { AuthUser } from "@/lib/types";
-export interface InboxThread { applicationId:string;reference:string;traveller:string;destination:string;visa:string;agencyName:string;body:string;createdAt:Date;unread:boolean;needsReply:boolean;visibility:string }
+export interface InboxThread { applicationId:string;reference:string;traveller:string;destination:string;destinationIso:string|null;visa:string;agencyName:string;body:string;createdAt:Date;unread:boolean;needsReply:boolean;visibility:string }
 export async function conversationInbox(actor:AuthUser,input:{q?:string;filter?:string;page?:number;agencyWorkspace?:boolean;thread?:string}={}):Promise<InboxThread[]>{
   requirePermission(actor,actor.agencyId ? "communications.post.agency" : "communications.view.all");
   const t=qualifiedTable;
@@ -15,7 +15,7 @@ export async function conversationInbox(actor:AuthUser,input:{q?:string;filter?:
       and ($6::uuid is null or dossier.id=$6)
   ), threads as (
     select dossier.id as "applicationId", dossier.reference, coalesce(traveller.full_name,concat_ws(' ',traveller.first_name,traveller.last_name),'') as traveller,
-      dossier.country_name as destination,dossier.visa_type_name as visa,coalesce(agency.trading_name,agency.legal_name) as "agencyName",
+      dossier.country_name as destination,(select c.iso2 from ${t("countries")} c where c.id=dossier.country_id) as "destinationIso",dossier.visa_type_name as visa,coalesce(agency.trading_name,agency.legal_name) as "agencyName",
       message.body,message.created_at as "createdAt",message.visibility,
       exists(select 1 from ${t("notifications")} event where event.user_id=$2 and event.application_id=dossier.id and event.type='MESSAGE_POSTED' and event.read_at is null) as unread,
       coalesce((select (($1::uuid is null and sender.agency_id is not null) or ($1::uuid is not null and sender.agency_id is null))
