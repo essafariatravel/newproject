@@ -354,3 +354,53 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-dashboard){fon
 .home-case-preview dd{font-size:16px;text-align:end;overflow-wrap:anywhere}
 .home-case-preview .btn-primary{width:100%;justify-content:center}
 @media(prefers-reduced-motion:no-preference){.home-case-preview[open]{animation:home-preview-in 220ms ease-out}@keyframes home-preview-in{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}}
+
+/* Home 4.1 — an editorial surface, not a decorative hero. */
+.workspace-agency.workspace-agency:has(.smart-home) #workspace-main{max-width:1800px;padding-block-start:16px;padding-inline:clamp(24px,3.5vw,64px)}
+.workspace-agency #workspace-main .smart-home{gap:14px}
+.smart-home .home-heading{min-height:42px}
+.smart-home .home-heading h1{font-size:clamp(26px,2vw,32px)}
+.smart-home .home-active{border:1px solid transparent;border-radius:6px;padding:0 8px;transition:background-color 160ms ease}
+.smart-home .home-active:hover{background:var(--dash-hover)}
+.smart-home .home-news{display:grid;grid-template-columns:minmax(0,1fr) minmax(160px,25%);position:relative;isolation:isolate;min-height:124px;border-radius:8px;background:#0b1c30;color:#fff;overflow:hidden}
+.smart-home .home-news-main{display:flex;align-items:center;gap:22px;justify-content:space-between;padding:15px 20px 15px 24px;min-width:0;z-index:1}
+.smart-home .home-news-content{min-width:0;display:grid;gap:3px}
+.smart-home .home-news-kicker{font-size:13px;font-weight:500;color:#c5d6e6}
+.smart-home .home-news h2{font-size:clamp(23px,2vw,30px);line-height:1.2;letter-spacing:-.025em;color:#fff;font-weight:600;overflow-wrap:anywhere}
+.smart-home .home-news p{font-size:15px;color:#e1eaf1;line-height:1.35}
+.smart-home .home-news-cta{background:#fff;color:#0b1c30;border-radius:6px;padding:10px 14px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:12px;flex:none;font-size:15px;font-weight:600;text-decoration:none}
+.smart-home .home-news-cta:hover{background:#e8eef4}
+.smart-home .home-news-art{position:relative;overflow:hidden;background:#20374e;min-width:0}
+.smart-home .home-news-art img,.smart-home .home-news-art svg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center}
+.smart-home .home-news-art::after{content:"";position:absolute;inset:0;background:#0b1c3026}
+.smart-home .home-news-controls{position:absolute;z-index:2;inset-inline-end:9px;inset-block-end:8px;display:flex;align-items:center;gap:2px;background:#0b1c30e8;border:1px solid #ffffff40;border-radius:6px;padding:0 2px}
+.smart-home .home-news-controls button{color:#fff;min-width:36px;min-height:36px;font-size:23px;line-height:1;display:grid;place-items:center}
+.smart-home .home-news-controls button:hover{background:#ffffff20}
+.smart-home .home-news-index{font-size:12px;color:#e1eaf1;white-space:nowrap;font-variant-numeric:tabular-nums}
+.smart-home .home-news :is(a,button):focus-visible{outline:2px solid #fff!important;outline-offset:2px}
+.smart-home .home-news-collapsed{display:flex;justify-content:flex-end}
+.smart-home .home-news-collapsed button{min-height:44px;color:#285582;font-size:15px}
+.smart-home .home-operational{grid-template-columns:minmax(0,1.75fr) minmax(0,1fr);gap:24px;border-block-start:0;padding-block:4px 12px}
+.smart-home .home-actions{min-width:0}
+.smart-home .home-actions .home-destination{margin-block-end:8px}
+.smart-home .home-attention-heading{min-height:34px;border-block-start:1px solid var(--dash-rule);padding-block-start:4px}
+.smart-home .home-attention-heading h2{font-size:18px}
+.smart-home .home-clear{min-height:0;padding:3px 0 5px;font-size:15px}
+.smart-home .home-action-row{min-height:44px;padding:5px 6px}
+.smart-home .home-action-row:last-child{border-block-end:0}
+.smart-home .home-wallet{padding-inline-start:24px;align-self:stretch}
+.smart-home .home-wallet .home-section-heading{min-height:34px}
+.smart-home .home-wallet .dash-metric>strong{font-size:clamp(30px,2.7vw,40px)}
+.smart-home .home-wallet-estimate{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:15px;color:#647182;margin:8px 0 0}
+.smart-home .home-wallet-estimate strong{font-weight:600;color:#0b1c30;font-variant-numeric:tabular-nums}
+.smart-home .dash-record-row{min-height:60px;padding-block:7px}
+.smart-home .dash-record-row:hover .dash-record-link{text-decoration:underline;text-underline-offset:3px}
+.smart-home .home-row-action{position:relative;z-index:2;color:#285582;display:inline-flex;align-items:center;gap:5px}
+.smart-home .home-row-action:hover{text-decoration:underline;text-underline-offset:3px}
+.smart-home .home-row-action:focus-visible{outline:2px solid #285582;outline-offset:2px}
+.smart-home[dir=rtl] .home-news h2{letter-spacing:normal}
+.smart-home[dir=rtl] .home-news-controls button:first-child span,.smart-home[dir=rtl] .home-news-controls button:nth-child(3) span,.smart-home[dir=rtl] .home-news-cta span{transform:scaleX(-1)}
+@media(prefers-reduced-motion:no-preference){.smart-home .home-news-content{animation:home-editorial-in 200ms ease-out}@keyframes home-editorial-in{from{opacity:.35;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}.smart-home .home-news-cta,.smart-home .dash-record-row,.smart-home .dash-destination-shortcuts button{transition:background-color 160ms ease, color 160ms ease}}
+@media(max-width:1050px){.smart-home .home-news-main{gap:10px;flex-wrap:wrap;padding:14px 16px}.smart-home .home-news{grid-template-columns:minmax(0,1fr) 160px}.smart-home .home-news-cta{min-height:40px}}
+@media(max-width:767px){.workspace-agency.workspace-agency:has(.smart-home) #workspace-main{padding-inline:16px}.smart-home .home-news{grid-template-columns:1fr;min-height:0}.smart-home .home-news-main{padding:16px 16px 58px}.smart-home .home-news-art{display:none}.smart-home .home-news-controls button{min-width:44px;min-height:44px}.smart-home .home-news-controls{inset-inline-end:12px;inset-block-end:8px}.smart-home .home-operational{grid-template-columns:1fr;gap:12px}.smart-home .home-wallet{padding-inline-start:0}.smart-home .home-action-row{min-height:48px}.smart-home .dash-record-row{min-height:94px}}
+@media(prefers-reduced-motion:reduce){.smart-home .home-news-content,.smart-home .home-active,.smart-home .home-news-cta,.smart-home .dash-record-row{animation:none;transition:none}}

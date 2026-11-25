@@ -228,3 +228,5 @@
 .workspace-agency .agency-command-trigger.agency-command-in-header{position:static;inset:auto;z-index:auto;min-width:44px;width:44px;height:44px;padding:0;justify-content:center;border-radius:8px;box-shadow:none;background:#fff;flex:none}
 .workspace-agency .agency-command-in-header kbd{display:none}.workspace-agency .agency-command-in-header:hover{background:#f5f7fa}
 @media(min-width:1600px){.workspace-agency.workspace-agency .agency-desktop-navigation{max-width:calc(100% - 570px)}}
+
+.agency-command-dialog .command-item-label{display:flex;align-items:center;gap:12px;min-width:0}.agency-command-dialog .command-item-label>span:last-child{min-width:0}.agency-command-dialog .command-item-icon{width:24px;flex:none;text-align:center;color:#647182;font-size:19px}.agency-command-dialog .command-key-hints{display:flex;justify-content:space-between;align-items:center;border-block-start:1px solid #e2e5e9;padding-block-start:10px;margin-block-start:8px;color:#647182;font-size:13px}.agency-command-dialog .command-key-hints kbd{font-family:inherit;font-size:13px;padding:2px 5px;border:1px solid #dce2e8;border-radius:4px}

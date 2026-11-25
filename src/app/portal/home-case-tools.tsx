@@ -7,11 +7,11 @@ const TTL=30*60*1000;
 export function HomeCaseVisit({scope,id,tab}:{scope:string;id:string;tab:string}){
  useEffect(()=>{if(!scope||!id)return;recent.clear();recent.set(scope,{id,tab,at:Date.now()})},[scope,id,tab]);return null;
 }
-export function HomeResume({scope,locale,exclude}:{scope:string;locale:Locale;exclude?:string}){
+export function HomeResume({scope,locale,exclude,knownCases=[]}:{scope:string;locale:Locale;exclude?:string;knownCases?:{id:string;name:string}[]}){
  const [visit,setVisit]=useState<{id:string;tab:string}|null>(null);
  useEffect(()=>{const value=recent.get(scope);setVisit(value&&Date.now()-value.at<TTL&&value.id!==exclude?value:null)},[scope,exclude]);
  const t={fr:"Reprendre le dernier dossier consulté",en:"Resume last viewed case",ar:"متابعة آخر طلب تمت معاينته"}[locale];
- return visit?<Link className="home-action-row" href={"/portal/applications/"+encodeURIComponent(visit.id)+"?tab="+encodeURIComponent(visit.tab)}><span className="home-message-dot"/><strong>{t}</strong><span className="home-action-cta" aria-hidden="true">→</span></Link>:null;
+ return visit?<Link className="home-action-row" href={"/portal/applications/"+encodeURIComponent(visit.id)+"?tab="+encodeURIComponent(visit.tab)}><span className="home-message-dot"/><span><strong>{t}</strong>{knownCases.find(c=>c.id===visit.id)?.name?<small><bdi>{knownCases.find(c=>c.id===visit.id)?.name}</bdi></small>:null}</span><span className="home-action-cta" aria-hidden="true">→</span></Link>:null;
 }
 const labels={fr:{preview:"Aperçu du dossier",close:"Fermer",destination:"Destination",status:"Statut",activity:"Dernière activité",reference:"Référence",open:"Ouvrir le dossier",document:"Compléter les documents",decision:"Consulter la décision"},en:{preview:"Case preview",close:"Close",destination:"Destination",status:"Status",activity:"Last activity",reference:"Reference",open:"Open case",document:"Complete documents",decision:"View decision"},ar:{preview:"معاينة الطلب",close:"إغلاق",destination:"الوجهة",status:"الحالة",activity:"آخر نشاط",reference:"المرجع",open:"فتح الطلب",document:"استكمال الوثائق",decision:"عرض القرار"}};
 export function HomeCasePreview({locale,name,reference,destination,status,activity,href,action}:{locale:Locale;name:string;reference:string;destination:string;status:string;activity:string;href:string;action:"documents"|"decision"|"view"}){
