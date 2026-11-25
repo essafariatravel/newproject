@@ -226,6 +226,37 @@ export function RequestWizard(props: Props) {
     ar:{nationality:"البحث عن الجنسية",batch:"إضافة عدة ملفات",batchHint:"اختاروا الوثيقة ثم خصصوا الملف المناسب.",assign:"تخصيص",unassigned:"ملفات غير مخصصة",fit:"ملاءمة",leave:"مغادرة الطلب دون حفظ؟",noNationality:"لا نتائج.",ready:"تم تحديد جميع الوثائق الإلزامية.",download:"فتح الملف"}
   }[props.locale];
   const [files, setFiles] = useState<Record<string, File[]>>({});
+  const smart = {
+    fr:{mismatch:"Le nom du fichier suggère un autre type de document. Vérifiez son contenu.",identical:"Un fichier au contenu identique est associé à plusieurs pièces.",small:"Image de faible résolution : vérifiez sa lisibilité.",checks:"Points à vérifier avant l’envoi",inspect:"Vérifier cette pièce",ready:"Toutes les pièces requises sont sélectionnées",remaining:"Pièces obligatoires restantes",selected:"Sélectionné",programmeDocs:"pièces requises",noValidation:"Ces contrôles locaux ne valident ni le contenu ni l’authenticité du document."},
+    en:{mismatch:"The filename suggests another document type. Check its contents.",identical:"An identical file is assigned to multiple requirements.",small:"Low-resolution image: check readability.",checks:"Items to check before submitting",inspect:"Review this document",ready:"All required documents are selected",remaining:"Required documents remaining",selected:"Selected",programmeDocs:"required documents",noValidation:"These local checks do not validate document contents or authenticity."},
+    ar:{mismatch:"يشير اسم الملف إلى نوع آخر من الوثائق. تحققوا من محتواه.",identical:"تم تخصيص ملف مطابق لعدة وثائق.",small:"صورة منخفضة الدقة: تحققوا من وضوحها.",checks:"نقاط للتحقق قبل الإرسال",inspect:"مراجعة الوثيقة",ready:"تم تحديد جميع الوثائق المطلوبة",remaining:"الوثائق الإلزامية المتبقية",selected:"محدد",programmeDocs:"وثائق مطلوبة",noValidation:"لا تتحقق هذه الفحوص المحلية من محتوى الوثائق أو أصالتها."}
+  }[props.locale];
+  const [localWarnings,setLocalWarnings]=useState<Record<string,("identical"|"small")[]>>({});
+  useEffect(()=>{
+    let active=true;
+    setLocalWarnings({});
+    const entries=Object.entries(files).flatMap(([id,list])=>list.map(file=>({id,file})));
+    if(!entries.length)return;
+    void (async()=>{
+      const warnings:Record<string,("identical"|"small")[]>={};
+      const add=(id:string,kind:"identical"|"small")=>{const list=warnings[id]??(warnings[id]=[]);if(!list.includes(kind))list.push(kind)};
+      const hashes=new Map<string,string>();
+      for(const {id,file} of entries){
+        if(!active)return;
+        try{
+          const digest=await crypto.subtle.digest("SHA-256",await file.arrayBuffer());
+          const key=Array.from(new Uint8Array(digest),x=>x.toString(16).padStart(2,"0")).join("");
+          const prior=hashes.get(key);
+          if(prior!==undefined&&prior!==id){add(prior,"identical");add(id,"identical")}else if(prior===undefined)hashes.set(key,id);
+        }catch{/* Optional local check. */}
+        if(file.type.startsWith("image/")&&typeof createImageBitmap==="function"){
+          try{const bitmap=await createImageBitmap(file);try{if(Math.min(bitmap.width,bitmap.height)<250)add(id,"small")}finally{bitmap.close()}}catch{/* Unsupported image decoding. */}
+        }
+      }
+      if(active)setLocalWarnings(warnings);
+    })();
+    return()=>{active=false};
+  },[files]);
   const [pending, setPending] = useState(false);
   const submittingRef = useRef(false);
   const leavingAfterSuccess = useRef(false);
@@ -274,8 +305,18 @@ export function RequestWizard(props: Props) {
   const selectedRequirement=requirements.find(r=>r.documentTypeId===activeDoc)??requirements.find(r=>r.required&&!(files[r.documentTypeId]??[]).length)??requirements[0];
   const selectedFiles=selectedRequirement?files[selectedRequirement.documentTypeId]??[]:[];
   const selectedFile=selectedFiles[previewIndex]??selectedFiles[0];
-  const suspicious=(r:WizardRequirement,f:File)=>{const key=normalize(r.code+" "+r.name);return /photo|portrait|صورة/.test(key)&&/passport|passeport|جواز|mrz/i.test(f.name)};
-  const suspectCount=requirements.reduce((n,r)=>n+(files[r.documentTypeId]??[]).filter(f=>suspicious(r,f)).length,0);
+  function warningMessages(r:WizardRequirement):string[]{
+    const key=normalize(r.code+" "+r.name);
+    const mismatch=(files[r.documentTypeId]??[]).some(f=>{
+      const name=normalize(f.name);
+      if(/passport|passeport|جواز/.test(key))return /visa.grant|e.?visa|visa.approval|releve.bancaire|bank.statement|photo.identite|تأشيرة/.test(name);
+      if(/photo|portrait|صورة/.test(key))return /passport|passeport|جواز|mrz|visa.grant|bank.statement/.test(name);
+      if(/bank|bancaire|بنك|مصرف/.test(key))return /passport|passeport|mrz|visa.grant/.test(name);
+      return false;
+    });
+    return [...(mismatch?[smart.mismatch]:[]),...(localWarnings[r.documentTypeId]??[]).map(k=>smart[k])];
+  }
+  const flaggedRequirements=requirements.filter(r=>warningMessages(r).length>0);
   useEffect(()=>{if(!selectedFile){setPreviewUrl("");return;}const url=URL.createObjectURL(selectedFile);setPreviewUrl(url);return ()=>URL.revokeObjectURL(url);},[selectedFile]);
   function selectDoc(id:string){setActiveDoc(id);setPreviewIndex(0);setFileError("");}
   function clearForProgrammeChange(){if((Object.values(files).some(a=>a.length)||batch.length)&&!window.confirm(ui.changeWarning))return false;setFiles({});setBatch([]);setActiveDoc("");setPreviewIndex(0);setFileError("");return true;}
@@ -484,7 +525,7 @@ export function RequestWizard(props: Props) {
       {countryId ? <input type="hidden" name="countryId" value={countryId} /> : null}
       <input type="hidden" name="locale" value={props.locale} />
 
-      <style>{bookingCss+bookingRefinementCss+bookingAssistCss}</style>
+      <style>{bookingCss+bookingRefinementCss+bookingAssistCss+smartBookingCss}</style>
       <ol ref={stepHeadingRef} tabIndex={-1} className="booking-rail" data-testid="wizard-steps">
         {[ui.travel,ui.documents,ui.confirm].map((label,i)=>(
           <li key={label} aria-current={step===i+1?"step":undefined} data-state={step===i+1?"active":step>i+1?"complete":"pending"}>
@@ -658,7 +699,7 @@ export function RequestWizard(props: Props) {
                         className="wizard-choice inline-flex min-h-11 items-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-base font-semibold text-navy-900 hover:bg-ivory-50"
                         onClick={(event) => chooseDestination(c, event.detail === 0)}
                       >
-                        <span>{c.name}</span><small>{c.visaTypes.length}</small>
+                        <span>{c.name}</span>{c.visaTypes.length>1?<small>{c.visaTypes.length}</small>:null}
                       </button>
                     ))}
                   </div>
@@ -679,7 +720,7 @@ export function RequestWizard(props: Props) {
               <div className="booking-programmes" role="group" aria-label={t.availableProgrammes}>
                 {visibleProgrammes.map(v=><label key={v.id} className="booking-programme" data-testid="wizard-visa-type" data-selected={visaTypeId===v.id}>
                   <input type="radio" name="visaTypeId" value={v.id} data-country-id={v.countryId} checked={visaTypeId===v.id} onChange={()=>changeProgramme(v.id)}/>
-                  <span className="booking-programme-title"><strong>{v.name}</strong><small>{v.categoryName} · {processingLabel(v)}</small></span>
+                  <span className="booking-programme-title"><strong>{v.name}</strong><small>{v.categoryName} · {processingLabel(v)} · {(props.requirementsByVisaType[v.id]??[]).filter(r=>r.required).length} {smart.programmeDocs}</small></span>
                   <strong className="booking-programme-fee"><bdi>{formatDZD(v.fee)}</bdi></strong>
                 </label>)}
                 {!visibleProgrammes.length?<p className="booking-muted">{ux.noMatch} <button type="button" className="booking-link" onClick={()=>{setProgrammeSearch("");setProgrammeCategory("")}}>{ux.reset}</button></p>:null}
@@ -736,11 +777,11 @@ export function RequestWizard(props: Props) {
           <div className="booking-doc-list" role="group" aria-label={t.summaryDocuments}>
             <label className="booking-batch btn-secondary"><span>＋ {assist.batch}</span><input className="sr-only" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" onChange={e=>{const incoming=Array.from(e.currentTarget.files??[]);if(incoming.length){setBatch(prev=>[...prev,...incoming]);setDirty(true)}e.currentTarget.value=""}}/></label>
             {batch.length?<div className="booking-inbox"><strong>{assist.unassigned} ({batch.length})</strong><small>{assist.batchHint}</small>{batch.map((f,i)=><div className="booking-batch-row" key={i}><span>{f.name}</span><button type="button" className="booking-link" disabled={!selectedRequirement} aria-label={assist.assign+" "+f.name+" → "+selectedRequirement?.name} onClick={()=>{if(selectedRequirement&&onFileChange(selectedRequirement.documentTypeId,[...(files[selectedRequirement.documentTypeId]??[]),f]))setBatch(prev=>prev.filter((_,j)=>j!==i))}}>{assist.assign}</button><button type="button" className="booking-link" aria-label={t.remove+" "+f.name} onClick={()=>setBatch(prev=>prev.filter((_,j)=>j!==i))}>×</button></div>)}</div>:null}
-            {requirements.map(r=><button type="button" key={r.documentTypeId} className="booking-doc-row" aria-pressed={selectedRequirement?.documentTypeId===r.documentTypeId} onClick={()=>selectDoc(r.documentTypeId)}><span className="booking-doc-icon" aria-hidden>▤</span><span><strong>{r.name}</strong><small>{r.required?t.required:ui.optional}</small></span><span className={(files[r.documentTypeId]??[]).length?"booking-success":"booking-muted"}>{(files[r.documentTypeId]??[]).length?"✓ "+t.uploaded:ui.empty}</span></button>)}
+            {requirements.map(r=><button type="button" key={r.documentTypeId} className="booking-doc-row" aria-pressed={selectedRequirement?.documentTypeId===r.documentTypeId} onClick={()=>selectDoc(r.documentTypeId)}><span className="booking-doc-icon" aria-hidden>▤</span><span><strong>{r.name}</strong><small>{r.required?t.required:ui.optional}</small></span><span className={(files[r.documentTypeId]??[]).length?"booking-success":"booking-muted"}>{warningMessages(r).length?<span className="booking-warning">• {smart.inspect}</span>:(files[r.documentTypeId]??[]).length?"✓ "+smart.selected:ui.empty}</span></button>)}
           </div>
           {selectedRequirement?<div className="booking-doc-panel">
             <div className="booking-doc-head"><h3>{selectedRequirement.name}</h3>{selectedFiles.length?<span className="booking-success">✓ {ui.selected}</span>:null}</div>
-            {selectedRequirement.notes?<p className="booking-muted">{selectedRequirement.notes}</p>:null}{selectedFiles.some(f=>suspicious(selectedRequirement,f))?<p role="status" className="booking-warning">{ux.wrong}</p>:null}
+            {selectedRequirement.notes?<p className="booking-muted">{selectedRequirement.notes}</p>:null}{warningMessages(selectedRequirement).length?<div role="status" className="booking-warning">{warningMessages(selectedRequirement).map(message=><p key={message}>{message}</p>)}<small>{smart.noValidation}</small></div>:null}
             <label className={selectedFiles.length?"booking-file-replace":"booking-drop"} data-dragging={dragging} onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={e=>{e.preventDefault();setDragging(false);onFileChange(selectedRequirement.documentTypeId,e.dataTransfer.files)}}>
               {!selectedFiles.length?<><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5"/></svg><strong>{ui.drop}</strong></>:null}
               <span className={selectedFiles.length?"btn-secondary":"btn-primary"}>{selectedFiles.length?ui.replace:ui.browse}</span>
@@ -760,7 +801,7 @@ export function RequestWizard(props: Props) {
           <h2>{ui.check}</h2>
           <div className="booking-rule"><div className="booking-line"><h3>{t.sectionVisa}</h3><button type="button" className="booking-link" disabled={pending} onClick={()=>editStep(1)}>{ui.edit}</button></div><h3>{country?.name} · {visa?.name}</h3><p className="booking-muted">{visa?processingLabel(visa):"—"}</p></div>
           <div className="booking-rule"><div className="booking-line"><h3>{t.sectionApplicant}</h3><button type="button" className="booking-link" disabled={pending} onClick={()=>editStep(1)}>{ui.edit}</button></div><p data-testid="wizard-applicant-summary">{nameDraft||"—"} · {props.nationalities.find(n=>n.code===nationalityDraft)?.label??nationalityDraft}</p></div>
-          <div className="booking-rule"><div className="booking-line"><h3>{t.summaryDocuments}</h3><button type="button" className="booking-link" disabled={pending} onClick={()=>editStep(2)}>{ui.edit}</button></div>{requirements.map(r=><div className="booking-line" key={r.documentTypeId}><span>{r.name}</span><div className="booking-review-files">{(files[r.documentTypeId]??[]).length?(files[r.documentTypeId]??[]).map((f,i)=><button key={i} type="button" disabled={pending} className="booking-link" onClick={()=>setReviewFile(f)}>{ui.preview}{(files[r.documentTypeId]??[]).length>1?" "+(i+1):""} →</button>):<small>{r.required?t.missingPrefix:ui.optional}</small>}</div></div>)}{suspectCount>0?<p className="booking-warning">{ux.wrong}</p>:null}<small>{ux.verify}</small></div>
+          <div className="booking-rule"><div className="booking-line"><h3>{t.summaryDocuments}</h3><button type="button" className="booking-link" disabled={pending} onClick={()=>editStep(2)}>{ui.edit}</button></div>{requirements.map(r=><div className="booking-line" key={r.documentTypeId}><span>{r.name}</span><div className="booking-review-files">{(files[r.documentTypeId]??[]).length?(files[r.documentTypeId]??[]).map((f,i)=><button key={i} type="button" disabled={pending} className="booking-link" onClick={()=>setReviewFile(f)}>{ui.preview}{(files[r.documentTypeId]??[]).length>1?" "+(i+1):""} →</button>):<small>{r.required?t.missingPrefix:ui.optional}</small>}</div></div>)}{flaggedRequirements.length?<div className="booking-smart-review" role="status"><strong>{smart.checks} · {flaggedRequirements.length}</strong>{flaggedRequirements.map(r=><div key={r.documentTypeId} className="booking-line"><div><strong>{r.name}</strong>{warningMessages(r).map(message=><p key={message} className="booking-warning">{message}</p>)}</div><button type="button" className="booking-link" disabled={pending} onClick={()=>{selectDoc(r.documentTypeId);editStep(2)}}>{smart.inspect} →</button></div>)}<small>{smart.noValidation}</small></div>:null}<small>{ux.verify}</small></div>
         </div>
         <aside className="booking-side">
           <h2>{ui.payment}</h2><div className="booking-product"><small>{ux.payment}</small><strong className="booking-price"><bdi>{visa?formatDZD(visa.fee):"—"}</bdi></strong></div>
@@ -776,7 +817,7 @@ export function RequestWizard(props: Props) {
         <button type="button" onClick={goBack} hidden={step===1} disabled={step === 1 || pending} className="btn-secondary">
           <span className="directional" aria-hidden>←</span> {t.back}
         </button>
-        <small>{step===2?ux.local:step===1?ui.noDebit:""}</small>
+        <small aria-live="polite">{step===2?(batch.length?assist.batchHint:completedDocs<requiredDocs.length?smart.remaining+" : "+(requiredDocs.length-completedDocs):smart.ready+" · "+ux.local):step===1?ui.noDebit:""}</small>
         {step < 3 ? (
           <button type="button" onClick={goNext} disabled={pending||(step===1?(!visa||!applicantReady):completedDocs<requiredDocs.length||batch.length>0)} className="btn-primary">
             {step===1?ui.continue:ui.review} <span className="directional" aria-hidden>→</span>
@@ -795,3 +836,17 @@ const bookingCss = "/* ESSAFARIA Dashboard 04 — only /portal. Typography and s
 const bookingRefinementCss="\n.booking-rail{max-width:760px;width:100%;padding-block:0 10px;gap:18px}.booking-rail button{flex-direction:row;align-items:center;gap:10px;min-height:42px}.booking-rail li:not(:last-child):after{inset-inline-start:0;inset-inline-end:0;top:auto;bottom:-5px}.booking-marker{width:30px;height:30px;flex:none}.booking-grid:not([hidden]){grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr);gap:clamp(24px,3vw,48px)}\n.booking-catalogue{display:grid;gap:10px}.booking-catalogue-tools{display:flex;flex-wrap:wrap;gap:8px}.booking-catalogue-tools input{flex:2 1 180px;min-width:0}.booking-catalogue-tools select{flex:1 1 140px;min-width:0;max-width:100%}.booking-programmes{max-height:clamp(200px,32vh,350px);overflow:auto;overscroll-behavior:contain;border-block:1px solid #e2e5e9}.booking-programme{display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:center;gap:12px;padding:10px 12px;min-height:60px;cursor:pointer;border-bottom:1px solid #e2e5e9;transition:background 160ms ease}.booking-programme:last-child{border-bottom:0}.booking-programme[data-selected=true]{background:#edf2f6}.booking-programme:hover{background:#f5f7fa}.booking-programme input{accent-color:#0b1c30}.booking-programme-title{min-width:0;overflow-wrap:anywhere;display:grid}.booking-programme-title strong{font-weight:600}.booking-programme-fee{white-space:nowrap;font-variant-numeric:tabular-nums}.booking-empty{display:grid;gap:8px}.booking-empty h3{color:#0b1c30}.booking-experience .wizard-choice small{margin-inline-start:10px}\n.booking-preview-image{width:100%;display:grid;place-items:center;cursor:zoom-in}.booking-preview-image img{height:clamp(200px,38vh,430px)}.booking-review-files{display:flex;flex-wrap:wrap;justify-content:end}.booking-review-dialog{width:min(1000px,94vw);max-height:90dvh;margin:auto;border:1px solid #dce3e9;border-radius:14px;padding:18px;background:#fff;color:#0b1c30}.booking-review-dialog::backdrop{background:#0b1c3066}.booking-dialog-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}.booking-dialog-head strong{flex:1;overflow-wrap:anywhere}.booking-dialog-body{height:min(70dvh,750px);overflow:auto;background:#f5f7fa;display:grid;place-items:center}.booking-dialog-body img{max-width:100%;max-height:100%;object-fit:contain}.booking-dialog-body iframe{width:100%;height:100%;border:0}.booking-footer{position:sticky;bottom:0;background:white;z-index:10}.booking-footer button:disabled{opacity:.5;cursor:not-allowed}.booking-experience :is(button,a,input,select,textarea):focus-visible{outline:2px solid #285582;outline-offset:3px}\n@media(max-width:850px){.booking-grid:not([hidden]){grid-template-columns:1fr}.booking-rail{gap:8px}.booking-rail button{flex-direction:column;align-items:start;font-size:13px}.booking-footer{position:static}.booking-dialog-head{flex-wrap:wrap}.booking-programme{grid-template-columns:18px minmax(0,1fr);gap:6px}.booking-programme-fee{grid-column:2}}\n@media(prefers-reduced-motion:reduce){.booking-programme{transition:none}}\n";
 
 const bookingAssistCss=".booking-experience .wizard-panel[data-wizard-section=\"1\"]:has(.booking-nationality-pop,.wizard-destination-popover,[data-testid=\"wizard-destination-popover\"]){position:relative;z-index:11}.booking-nationality{position:relative}.booking-nationality>button{width:100%;text-align:start}.booking-nationality-pop{position:absolute;z-index:45;inset-inline:0;top:100%;padding:8px;background:#fff;border:1px solid #e2e5e9;border-radius:12px;box-shadow:0 12px 32px #0b1c301a}.booking-nationality-pop[data-placement=above]{top:auto;bottom:100%;margin-bottom:4px}.booking-nationality-pop[data-placement=below]{margin-top:4px}.booking-nationality-pop{box-sizing:border-box}.booking-nationality-list{max-height:240px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;touch-action:pan-y}.booking-nationality-pop input{width:100%;min-width:0}.booking-nationality-list button{display:block;width:100%;text-align:start;padding:9px;border-radius:5px}.booking-nationality-list button:hover,.booking-nationality-list button[aria-pressed=true]{background:#edf2f6}.booking-batch{display:flex!important;justify-content:center;cursor:pointer;margin-bottom:8px}.booking-batch:focus-within{outline:2px solid #0b1c30;outline-offset:2px}.booking-inbox{display:grid;gap:6px;padding:10px 0;border-bottom:1px solid #e2e5e9}.booking-batch-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px;align-items:center}.booking-batch-row>span{overflow-wrap:anywhere}.booking-dialog-body[data-zoom=true] img{max-width:none;max-height:none;width:150%;height:auto}@media(max-width:850px){.booking-batch-row{grid-template-columns:minmax(0,1fr) auto}.booking-batch-row>span{grid-column:1/-1}}";
+
+const smartBookingCss = `
+.booking-experience .booking-smart-review{display:grid;gap:10px;padding-block:12px;border-block-start:1px solid #e2e5e9;margin-block:12px}
+.booking-experience .booking-smart-review .booking-line{align-items:flex-start;gap:16px}
+.booking-experience .booking-smart-review .booking-line>div{min-width:0}
+.booking-experience .booking-smart-review .booking-line button{flex-shrink:0}
+.booking-experience .booking-doc-progress progress{accent-color:#206b52;border:0;height:5px;border-radius:6px;overflow:hidden}
+.booking-experience .booking-doc-progress progress::-webkit-progress-bar{background:#e2e5e9}
+.booking-experience .booking-doc-progress progress::-webkit-progress-value{background:#206b52;transition:width 180ms ease}
+.booking-experience .booking-doc-progress progress::-moz-progress-bar{background:#206b52}
+.booking-experience .booking-doc-row{transition:background-color 140ms ease}
+@media(prefers-reduced-motion:reduce){.booking-experience .booking-doc-row,.booking-experience .booking-doc-progress progress::-webkit-progress-value{transition:none}}
+@media(max-width:600px){.booking-experience .booking-smart-review .booking-line{flex-wrap:wrap}}
+`;
