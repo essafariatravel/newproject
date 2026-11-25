@@ -339,3 +339,18 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-dashboard){fon
 .home-programme-detail details p{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:8px;font-size:15px}.home-programme-warning{color:#80500e}.home-programme-detail .btn-primary{justify-self:start}
 @media(prefers-reduced-motion:no-preference){.home-programme-dialog[open]{animation:home-dialog-in 200ms ease-out}.home-programme-detail{animation:home-dialog-in 160ms ease-out}.smart-home .home-action-row{transition:background-color 150ms ease}@keyframes home-dialog-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}}
 @media(max-width:767px){.workspace-agency.workspace-agency:has(.smart-home) #workspace-main{padding-inline:16px}.smart-home .home-operational,.home-programme-grid{grid-template-columns:1fr;gap:12px}.smart-home .home-wallet,.home-programme-detail{border-inline-start:0;padding-inline-start:0;border-block-start:1px solid #e2e5e9;padding-block-start:12px}.home-programme-dialog{padding:16px}.home-programme-list{max-height:28dvh;overflow:auto}.smart-home .home-editorial{flex-wrap:wrap}}
+
+.smart-home .home-case-preview-trigger{position:relative;z-index:2;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;border-radius:6px;color:#285582;flex:none}
+.smart-home .home-case-preview-trigger:hover{background:#edf2f6}
+.smart-home .home-case-preview-trigger:focus-visible{outline:2px solid #285582;outline-offset:2px}
+.home-case-preview{position:fixed;inset-block:0;inset-inline-start:auto;inset-inline-end:0;margin:0;height:100dvh;max-height:none;max-width:none;width:min(480px,100vw);padding:28px;background:#fff;color:#0b1c30;border:0;border-inline-start:1px solid #e2e5e9;overflow:auto}
+.home-case-preview::backdrop{background:#0b1c3045}
+.home-case-preview header{display:flex;justify-content:space-between;gap:16px;align-items:start}
+.home-case-preview header p,.home-case-preview dt{font-size:15px;color:#647182}
+.home-case-preview h2{font-size:24px;font-weight:600;overflow-wrap:anywhere}
+.home-case-preview header button{min-width:44px;min-height:44px;font-size:24px}
+.home-case-preview dl{margin-block:20px}
+.home-case-preview dl>div{display:flex;justify-content:space-between;gap:12px;border-block-end:1px solid #e2e5e9;padding:14px 0;align-items:baseline}
+.home-case-preview dd{font-size:16px;text-align:end;overflow-wrap:anywhere}
+.home-case-preview .btn-primary{width:100%;justify-content:center}
+@media(prefers-reduced-motion:no-preference){.home-case-preview[open]{animation:home-preview-in 220ms ease-out}@keyframes home-preview-in{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}}

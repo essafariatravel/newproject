@@ -42,6 +42,7 @@ import { readCaseVfsReference } from "@/lib/case-vfs-reference";
 import { CaseMessagesRead } from "../case-messages-read";
 import { CaseNavigation } from "../case-navigation";
 import { SmartTimeline } from "../smart-timeline";
+import { HomeCaseVisit } from "../../home-case-tools";
 import { db } from "@/lib/db";
 import { notifications } from "@/db/schema";
 import { and, count, eq, isNull } from "drizzle-orm";
@@ -210,6 +211,7 @@ export default async function PortalApplicationDetailPage({
   const workspaceEntries:DocumentWorkspaceEntry[]=[...requestEntries.filter(r=>!matchedRequestKeys.has(r.key)),...mergedItems.filter(e=>e.group==="action"),...decisionEntries,...mergedItems.filter(e=>e.group!=="action"),...otherEntries];
   return (
     <div className={"essafaria-cases fluid-cases fluid-case-detail dossier-workspace"+(tab==="documents"?" dossier-r09":"")} dir={uiLocale==="ar"?"rtl":"ltr"}>
+      <HomeCaseVisit scope={user.id+":"+user.agencyId} id={id} tab={tab} />
       <div className="dossier-navigation"><Link href={returnTo} className="dossier-back"><span className="directional" aria-hidden="true">←</span> {copy.back}</Link><CaseNavigation scope={user.id} context={returnTo} id={id} tab={tab} locale={uiLocale}/></div>
       <div className="dossier-masthead"><PageHeader
         title={applicantName}

@@ -467,7 +467,7 @@ export async function agencyDashboard(agencyId: string, userId: string) {
     .from(agencies)
     .where(eq(agencies.id, agencyId));
 
-  const needsAttention = await db.select({...applicationSelection,requestId:sql<string | null>`(select r.id::text from ${sql.raw(qualifiedTable("document_requests"))} r where r.application_id=applications.id and r.status='OPEN' order by r.created_at,r.id limit 1)`}).from(applications)
+  const needsAttention = await db.select({...applicationSelection,requestId:sql<string | null>`(select r.id::text from ${sql.raw(qualifiedTable("document_requests"))} r where r.application_id=applications.id and r.status='OPEN' order by r.created_at,r.id limit 1)`,requestDocument:sql<{name:string;nameFr:string|null;nameAr:string|null;code:string}|null>`(select json_build_object('name',dt.name,'nameFr',dt.name_fr,'nameAr',dt.name_ar,'code',dt.code) from ${sql.raw(qualifiedTable("document_requests"))} r join ${sql.raw(qualifiedTable("document_types"))} dt on dt.id=r.document_type_id where r.application_id=applications.id and r.status='OPEN' order by r.created_at,r.id limit 1)`}).from(applications)
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
     .innerJoin(priorities, eq(applications.priorityId, priorities.id))
     .where(and(eq(applications.agencyId, agencyId), agencyAttentionCondition()))
