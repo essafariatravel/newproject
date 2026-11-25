@@ -462,8 +462,36 @@ export function RequestWizard(props: Props) {
     setFiles((prev) => ({ ...prev, [documentTypeId]: (prev[documentTypeId] ?? []).filter((_, i) => i !== index) }));
   }
 
+  const preflightText = {
+    fr:{checking:"Vérification du tarif et du solde…",unavailable:"La vérification n’a pas abouti. Réessayez avant de soumettre.",retry:"Réessayer",changed:"Ce programme ou son tarif a changé. Actualisez le catalogue avant de confirmer. Les fichiers sélectionnés seront à ajouter de nouveau.",refresh:"Actualiser le catalogue",duplicate:"Un dossier actif similaire existe pour ce nom, cette nationalité et ce programme. Vérifiez avant de soumettre ; il peut s’agir d’un homonyme.",checked:"Tarif et solde vérifiés."},
+    en:{checking:"Checking price and balance…",unavailable:"The check could not be completed. Try again before submitting.",retry:"Retry",changed:"This programme or its price has changed. Refresh the catalogue before confirming. Selected files will need to be added again.",refresh:"Refresh catalogue",duplicate:"A similar active application exists for this name, nationality and programme. Check before submitting; it may be a different person with the same name.",checked:"Price and balance checked."},
+    ar:{checking:"جارٍ التحقق من السعر والرصيد…",unavailable:"تعذر إتمام التحقق. أعيدوا المحاولة قبل الإرسال.",retry:"إعادة المحاولة",changed:"تغير هذا البرنامج أو سعره. حدّثوا القائمة قبل التأكيد. ستحتاجون إلى إضافة الملفات مجدداً.",refresh:"تحديث القائمة",duplicate:"يوجد طلب نشط مشابه بالاسم والجنسية والبرنامج نفسه. تحققوا قبل الإرسال، فقد يكون شخصاً آخر بالاسم نفسه.",checked:"تم التحقق من السعر والرصيد."}
+  }[props.locale];
+  type ReviewCheck = { key:string; status:"checking"|"unavailable" } | {key:string;status:"ready";fee:string|null;balance:string;possibleDuplicate:boolean};
+  const [preflight,setPreflight]=useState<ReviewCheck|null>(null);
+  const [preflightRetry,setPreflightRetry]=useState(0);
+  const preflightKey=JSON.stringify([countryId,visaTypeId,nameDraft.trim(),nationalityDraft,visa?.fee]);
+  useEffect(()=>{
+    if(step!==3||!visaTypeId||!countryId)return;
+    let current=true;
+    const controller=new AbortController();
+    setPreflight({key:preflightKey,status:"checking"});
+    void (async()=>{
+      try{
+        const response=await fetch("/api/agency/requests",{method:"POST",headers:{"Content-Type":"application/json"},signal:controller.signal,body:JSON.stringify({action:"preflight",countryId,visaTypeId,fullName:nameDraft.trim(),nationality:nationalityDraft})});
+        const data=await readRequestResponse<{fee:string|null;balance:string;possibleDuplicate:boolean}>(response,props.locale);
+        if(!data||typeof data.balance!=="string"||!Number.isFinite(Number(data.balance))||!(data.fee===null||typeof data.fee==="string")||typeof data.possibleDuplicate!=="boolean")throw Error("Invalid review data");
+        if(current)setPreflight({key:preflightKey,status:"ready",...data});
+      }catch{if(current)setPreflight({key:preflightKey,status:"unavailable"})}
+    })();
+    return()=>{current=false;controller.abort()};
+  },[step,preflightKey,preflightRetry,countryId,visaTypeId,nameDraft,nationalityDraft,props.locale]);
+  const reviewCheck=step===3&&preflight?.key===preflightKey?preflight:null;
+  const quoteChanged=reviewCheck?.status==="ready"&&(reviewCheck.fee===null||Number(reviewCheck.fee)!==Number(visa?.fee));
+  const reviewReady=reviewCheck?.status==="ready"&&!quoteChanged;
+  const displayedBalance=reviewCheck?.status==="ready"?reviewCheck.balance:props.walletBalance;
   const feeNumber = visa ? Number(visa.fee) : 0;
-  const balanceNumber = Number(props.walletBalance);
+  const balanceNumber = Number(displayedBalance);
   const afterNum = balanceNumber - feeNumber;
   const canAfford = visa ? afterNum >= 0 : false;
   const missing = canAfford ? 0 : Math.max(0, feeNumber - balanceNumber);
@@ -477,7 +505,7 @@ export function RequestWizard(props: Props) {
 
 
   async function submit(form: HTMLFormElement) {
-    if (step !== 3 || submittingRef.current || !canAfford || catalogueRecovery || sessionRecovery || !validateStep(1) || !validateStep(2)) return;
+    if (step !== 3 || submittingRef.current || !reviewReady || !canAfford || catalogueRecovery || sessionRecovery || !validateStep(1) || !validateStep(2)) return;
     submittingRef.current = true;
     setPending(true);
     const fields = new FormData(form);
@@ -503,7 +531,7 @@ export function RequestWizard(props: Props) {
       }
       setTransfer({done:received,total,phase:"confirm"});
       const response = await fetch("/api/agency/requests", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attempt: idempotencyKey, countryId, visaTypeId, tokens,
+        body: JSON.stringify({ attempt: idempotencyKey, countryId, visaTypeId, expectedFee: visa?.fee, tokens,
           fullName: nameDraft.trim(), nationality: nationalityDraft, notes: String(fields.get("agencyNotes") ?? "") }) });
       const data = await readRequestResponse<{applicationId:string}>(response,props.locale);
       leavingAfterSuccess.current = true;
@@ -805,10 +833,13 @@ export function RequestWizard(props: Props) {
         </div>
         <aside className="booking-side">
           <h2>{ui.payment}</h2><div className="booking-product"><small>{ux.payment}</small><strong className="booking-price"><bdi>{visa?formatDZD(visa.fee):"—"}</bdi></strong></div>
-          <div className="booking-rule"><p className="booking-line"><span>{t.currentBalance}</span><strong><bdi>{formatDZD(props.walletBalance)}</bdi></strong></p><p className="booking-line"><span>{t.balanceAfter}</span><strong className={canAfford?"booking-success":"booking-warning"}><bdi>{canAfford?formatDZD(afterNum):"—"}</bdi></strong></p></div>
+          <div className="booking-rule"><p className="booking-line"><span>{t.currentBalance}</span><strong><bdi>{formatDZD(displayedBalance)}</bdi></strong></p><p className="booking-line"><span>{t.balanceAfter}</span><strong className={canAfford?"booking-success":"booking-warning"}><bdi>{canAfford?formatDZD(afterNum):"—"}</bdi></strong></p></div>
           <p className="booking-muted">{t.chargeNote}</p>
+          <div className="booking-preflight" aria-live="polite">
+            {!reviewCheck||reviewCheck.status==="checking"?<p className="booking-muted">{preflightText.checking}</p>:reviewCheck.status==="unavailable"?<div className="booking-line"><p className="booking-warning">{preflightText.unavailable}</p><button type="button" className="booking-link" disabled={pending} onClick={()=>{setPreflight(null);setPreflightRetry(n=>n+1)}}>{preflightText.retry}</button></div>:quoteChanged?<div><p className="booking-warning">{preflightText.changed}</p><button type="button" className="booking-link" disabled={pending} onClick={()=>window.location.reload()}>{preflightText.refresh}</button></div>:<><p className="booking-success">✓ {preflightText.checked}</p>{reviewCheck.status==="ready"&&reviewCheck.possibleDuplicate?<p className="booking-warning">{preflightText.duplicate}</p>:null}</>}
+          </div>
           {pending&&transfer?<div className="agency-v2-submit-progress" role="status" aria-live="polite"><strong>{transfer.phase==="files"?`${progressCopy.files}: ${transfer.done} / ${transfer.total}`:progressCopy.confirm}</strong>{transfer.phase==="files"&&transfer.total>0?<progress aria-label={progressCopy.files} value={transfer.done} max={transfer.total}/>:null}<p>{progressCopy.notice}</p></div>:null}
-          {canAfford?<button type="submit" className="btn-primary w-full" disabled={pending||catalogueRecovery||sessionRecovery} data-testid="wizard-submit">{pending?t.submitting:<>{t.submitApplication} — <bdi>{visa?formatDZD(visa.fee):"—"}</bdi></>}</button>:<><p className="booking-warning">{t.insufficientTitle} · <bdi>{formatDZD(missing)}</bdi></p><a href={topupHref} className="btn-primary" data-testid="wizard-topup-cta">{t.requestTopup}</a></>}
+          {canAfford||!reviewReady?<button type="submit" className="btn-primary w-full" disabled={pending||!reviewReady||catalogueRecovery||sessionRecovery} data-testid="wizard-submit">{pending?t.submitting:<>{t.submitApplication} — <bdi>{visa?formatDZD(visa.fee):"—"}</bdi></>}</button>:<><p className="booking-warning">{t.insufficientTitle} · <bdi>{formatDZD(missing)}</bdi></p><a href={topupHref} className="btn-primary" data-testid="wizard-topup-cta">{t.requestTopup}</a></>}
         </aside>
       </section>
 
@@ -838,7 +869,7 @@ const bookingRefinementCss="\n.booking-rail{max-width:760px;width:100%;padding-b
 const bookingAssistCss=".booking-experience .wizard-panel[data-wizard-section=\"1\"]:has(.booking-nationality-pop,.wizard-destination-popover,[data-testid=\"wizard-destination-popover\"]){position:relative;z-index:11}.booking-nationality{position:relative}.booking-nationality>button{width:100%;text-align:start}.booking-nationality-pop{position:absolute;z-index:45;inset-inline:0;top:100%;padding:8px;background:#fff;border:1px solid #e2e5e9;border-radius:12px;box-shadow:0 12px 32px #0b1c301a}.booking-nationality-pop[data-placement=above]{top:auto;bottom:100%;margin-bottom:4px}.booking-nationality-pop[data-placement=below]{margin-top:4px}.booking-nationality-pop{box-sizing:border-box}.booking-nationality-list{max-height:240px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;touch-action:pan-y}.booking-nationality-pop input{width:100%;min-width:0}.booking-nationality-list button{display:block;width:100%;text-align:start;padding:9px;border-radius:5px}.booking-nationality-list button:hover,.booking-nationality-list button[aria-pressed=true]{background:#edf2f6}.booking-batch{display:flex!important;justify-content:center;cursor:pointer;margin-bottom:8px}.booking-batch:focus-within{outline:2px solid #0b1c30;outline-offset:2px}.booking-inbox{display:grid;gap:6px;padding:10px 0;border-bottom:1px solid #e2e5e9}.booking-batch-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px;align-items:center}.booking-batch-row>span{overflow-wrap:anywhere}.booking-dialog-body[data-zoom=true] img{max-width:none;max-height:none;width:150%;height:auto}@media(max-width:850px){.booking-batch-row{grid-template-columns:minmax(0,1fr) auto}.booking-batch-row>span{grid-column:1/-1}}";
 
 const smartBookingCss = `
-.booking-experience .booking-smart-review{display:grid;gap:10px;padding-block:12px;border-block-start:1px solid #e2e5e9;margin-block:12px}
+.booking-experience .booking-preflight{display:grid;gap:8px;margin-block:10px}.booking-experience .booking-preflight p{margin:0}.booking-experience .booking-preflight .booking-line{align-items:flex-start;gap:12px}.booking-experience .booking-smart-review{display:grid;gap:10px;padding-block:12px;border-block-start:1px solid #e2e5e9;margin-block:12px}
 .booking-experience .booking-smart-review .booking-line{align-items:flex-start;gap:16px}
 .booking-experience .booking-smart-review .booking-line>div{min-width:0}
 .booking-experience .booking-smart-review .booking-line button{flex-shrink:0}
