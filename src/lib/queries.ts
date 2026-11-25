@@ -74,6 +74,11 @@ export interface ApplicationFilters {
   pageSize?: number;
 }
 
+// Agency-visible case activity, shared by listing, sorting and stale filters.
+const agencyCaseActivity = sql`greatest(${applications.updatedAt},
+ (select max(greatest(r.created_at,r.fulfilled_at)) from ${sql.raw(qualifiedTable("document_requests"))} r where r.application_id=applications.id),
+ (select max(c.created_at) from ${sql.raw(qualifiedTable("communications"))} c where c.application_id=applications.id and c.visibility='AGENCY'))`;
+const agencyCaseActivityText=sql<string>`${agencyCaseActivity}::text`;
 const applicationSelection = {
   visaNameFr: sql<string | null>`(select v.name_fr from ${sql.raw(qualifiedTable("visa_types"))} v where v.id = applications.visa_type_id and v.name = applications.visa_type_name)`,
   visaNameAr: sql<string | null>`(select v.name_ar from ${sql.raw(qualifiedTable("visa_types"))} v where v.id = applications.visa_type_id and v.name = applications.visa_type_name)`,
@@ -147,7 +152,7 @@ export async function buildApplicationConditions(user: AuthUser, filters: Applic
     if(from)conditions.push(gte(applications.createdAt,from));if(to)conditions.push(lt(applications.createdAt,to));
     if(filters.caseFocus==="unread")conditions.push(sql`exists(select 1 from ${sql.raw(qualifiedTable("notifications"))} n where n.application_id=applications.id and n.user_id=${user.id} and n.agency_id=${user.agencyId} and n.type='MESSAGE_POSTED' and n.read_at is null)`);
     if(filters.caseFocus==="cancellation")conditions.push(sql`exists(select 1 from ${sql.raw(qualifiedTable("application_cancellation_requests"))} c where c.application_id=applications.id and c.status='PENDING')`);
-    if(filters.caseFocus==="stale")conditions.push(eq(statuses.isTerminal,false),sql`${applications.updatedAt} <= now() - interval '7 days'`);
+    if(filters.caseFocus==="stale")conditions.push(eq(statuses.isTerminal,false),sql`${agencyCaseActivity} <= now() - interval '7 days'`);
     if(filters.caseFocus==="decision")conditions.push(inArray(statuses.code,["APPROVED","REJECTED"]));
   }else{
     if (filters.dateFrom) conditions.push(gte(applications.createdAt, new Date(filters.dateFrom)));
@@ -225,10 +230,10 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
   const conditions = await buildApplicationConditions(user, filters);
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
-  const order = user.agencyId && filters.caseSort === "recent" ? [desc(applications.updatedAt),desc(applications.id)]
+  const order = user.agencyId && filters.caseSort === "recent" ? [desc(agencyCaseActivity),desc(applications.id)]
     : user.agencyId && filters.caseSort === "submitted" ? [desc(sql`coalesce(${applications.submittedAt},${applications.createdAt})`),desc(applications.id)]
     : user.agencyId && filters.caseSort === "oldest" ? [asc(applications.createdAt),asc(applications.id)]
-    : user.agencyId && filters.caseSort === "priority" ? [desc(sql`case when ${agencyAttentionCondition()} then 1 else 0 end`),desc(applications.updatedAt),desc(applications.id)]
+    : user.agencyId && filters.caseSort === "priority" ? [desc(sql`case when ${agencyAttentionCondition()} then 1 else 0 end`),desc(agencyCaseActivity),desc(applications.id)]
     : [desc(applications.createdAt),desc(applications.id)];
   // Bound the page before evaluating dossier details. A wide OFFSET query
   // otherwise runs correlated detail reads for every discarded row.
@@ -243,7 +248,7 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
     .offset((page - 1) * pageSize);
 
   const [rows,totalRows] = await Promise.all([
-    db.select(applicationSelection).from(applications).innerJoin(statuses,eq(applications.statusId,statuses.id)).innerJoin(priorities,eq(applications.priorityId,priorities.id)).where(inArray(applications.id,pageIds)).orderBy(...order),
+    db.select({...applicationSelection,caseActivity:user.agencyId&&filters.caseSort?agencyCaseActivityText:sql<string | null>`null`}).from(applications).innerJoin(statuses,eq(applications.statusId,statuses.id)).innerJoin(priorities,eq(applications.priorityId,priorities.id)).where(inArray(applications.id,pageIds)).orderBy(...order),
     db.select({total:count()}).from(applications).innerJoin(statuses,eq(applications.statusId,statuses.id)).where(where)
   ]);
   const total = Number(totalRows[0]?.total ?? 0);
@@ -309,7 +314,7 @@ export async function getApplicationDetail(applicationId: string, user: AuthUser
   if (!UUID_RE.test(applicationId)) return null;
   if (user.agencyId) {
     const rows = await db
-      .select(applicationSelection)
+      .select({...applicationSelection,caseActivity:agencyCaseActivityText})
       .from(applications)
       .innerJoin(statuses, eq(applications.statusId, statuses.id))
       .innerJoin(priorities, eq(applications.priorityId, priorities.id))
@@ -318,7 +323,7 @@ export async function getApplicationDetail(applicationId: string, user: AuthUser
     return rows[0] ?? null;
   }
   const rows = await db
-    .select(applicationSelection)
+    .select({...applicationSelection,caseActivity:sql<string | null>`null`})
     .from(applications)
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
     .innerJoin(priorities, eq(applications.priorityId, priorities.id))

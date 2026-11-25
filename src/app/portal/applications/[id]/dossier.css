@@ -338,3 +338,41 @@
 .fluid-case-detail .r092-local-preview :is(img,iframe){height:clamp(160px,32dvh,400px)}
 @media(min-width:1200px){.workspace-agency #workspace-main .fluid-case-detail{gap:10px}.fluid-case-detail .dossier-overview{grid-template-columns:minmax(0,1.8fr) minmax(280px,1fr);gap:clamp(24px,3vw,48px)}.fluid-case-detail .dossier-metrics{margin-block-start:8px;padding-block-end:10px}.fluid-case-detail .dossier-main{gap:12px}}
 @media(max-width:767px){.fluid-case-detail .adaptive-next-action{flex-wrap:wrap}.fluid-case-detail .adaptive-next-action .btn-primary{margin-inline-start:22px}.fluid-case-detail .adaptive-thread>[data-message-side]{max-width:94%}.fluid-case-detail .adaptive-event-line{grid-template-columns:10px minmax(0,1fr)}.fluid-case-detail .adaptive-event-line time{grid-column:2}.fluid-case-detail .adaptive-message-reminder{flex-wrap:wrap}}
+
+/* Adaptive Workspace 2 — timeline, conversation and document assistance */
+.fluid-case-detail .smart-timeline{font-size:16px}
+.fluid-case-detail .smart-timeline-filters{display:flex;gap:20px;border-block-end:1px solid var(--dash-rule)}
+.fluid-case-detail .smart-timeline-filters button{min-height:44px;border-block-end:2px solid transparent;color:var(--dash-secondary)}
+.fluid-case-detail .smart-timeline-filters button[aria-pressed=true]{border-color:var(--dash-ink);color:var(--dash-ink);font-weight:600}
+.fluid-case-detail .smart-timeline-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px;padding-block-start:12px}
+.fluid-case-detail .smart-timeline-list{max-height:clamp(260px,55dvh,650px);overflow:auto;overscroll-behavior:contain;padding-inline-end:12px}
+.fluid-case-detail .smart-timeline-day{width:100%;display:flex;justify-content:space-between;align-items:center;min-height:44px;text-align:start;gap:8px;color:var(--dash-secondary);font-size:15px}
+.fluid-case-detail .smart-timeline-day strong{font-weight:600;color:var(--dash-ink)}
+.fluid-case-detail .smart-timeline-day:disabled{opacity:1;cursor:default}
+.fluid-case-detail .smart-timeline-rail{position:relative;padding-inline-start:12px;margin-inline-start:4px;border-inline-start:1px solid var(--dash-rule)}
+.fluid-case-detail .smart-timeline-row{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;text-align:start;min-height:54px;padding:8px 10px;border-radius:8px;color:var(--dash-ink)}
+.fluid-case-detail .smart-timeline-row:is(:hover,[aria-pressed=true]){background:#f0f3f6}
+.fluid-case-detail .smart-timeline-row strong{font-weight:500;font-size:16px}
+.fluid-case-detail .smart-timeline-row small{display:block;color:var(--dash-secondary);font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fluid-case-detail .smart-timeline-row time{font-size:15px;color:var(--dash-secondary);font-variant-numeric:tabular-nums}
+.fluid-case-detail .smart-timeline-dot{width:8px;height:8px;border-radius:50%;background:#285582}
+.fluid-case-detail .smart-timeline-dot[data-tone=warning]{background:#80500e}
+.fluid-case-detail .smart-timeline-dot[data-tone=received]{background:#21684f}
+.fluid-case-detail .smart-timeline-dot[data-tone=danger]{background:#a12622}
+.fluid-case-detail .smart-timeline-detail{border-inline-start:1px solid var(--dash-rule);padding:12px 0 16px 24px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;min-width:0}
+.fluid-case-detail[dir=rtl] .smart-timeline-detail{padding:12px 24px 16px 0}
+.fluid-case-detail .smart-timeline-detail h3{font-size:22px;font-weight:600}
+.fluid-case-detail .smart-timeline-caption,.fluid-case-detail .smart-timeline-detail time{font-size:15px;color:var(--dash-secondary)}
+.fluid-case-detail .smart-timeline-reason{white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%}
+.fluid-case-detail .smart-timeline-detail .btn-primary{min-height:44px}
+.workspace-agency #workspace-main .fluid-case-detail .adaptive-thread>[data-message-side]{padding:14px 18px!important;max-width:min(68%,680px);border-radius:12px;overflow-wrap:anywhere}
+.fluid-case-detail .adaptive-compose-shell{display:flex;align-items:flex-end;gap:10px;padding:8px;border:1px solid #b7c0ca;border-radius:12px}
+.workspace-agency #workspace-main .fluid-case-detail .adaptive-compose-shell .dossier-message-input{border:0!important;box-shadow:none!important;min-height:48px;flex:1;padding:10px;background:transparent}
+.fluid-case-detail .adaptive-compose-shell .dossier-send{flex:none}
+.fluid-case-detail .adaptive-compose-shell:focus-within{border-color:#647182}
+.fluid-case-detail .agency-cancel-reasons{display:flex;flex-wrap:wrap;gap:8px;margin-block:8px}
+.fluid-case-detail .agency-cancel-reasons button[aria-pressed=true]{background:#eef2f6;border-color:#0b1c30}
+.fluid-case-detail .adaptive-upload-warning,.fluid-case-detail .adaptive-pending-note{color:#80500e;font-size:15px;line-height:1.5}
+.fluid-case-detail .r092-drop{min-height:175px}
+@media(prefers-reduced-motion:no-preference){.fluid-case-detail .smart-timeline-detail{animation:fluid-reveal 180ms var(--fluid-ease) both}.fluid-case-detail .smart-timeline-row{transition:background-color 140ms}}
+@media(max-width:767px){.fluid-case-detail .smart-timeline-grid{grid-template-columns:1fr;gap:12px}.fluid-case-detail .smart-timeline-detail{border-inline-start:0;border-block-start:1px solid var(--dash-rule);padding-inline:0}.fluid-case-detail .smart-timeline-list{max-height:360px}.workspace-agency #workspace-main .fluid-case-detail .adaptive-thread>[data-message-side]{max-width:94%}.fluid-case-detail .adaptive-compose-shell .dossier-send{padding-inline:10px}}

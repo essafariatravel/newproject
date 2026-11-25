@@ -15,7 +15,7 @@ import { listDocumentRequests } from "@/lib/document-requests";
 import { findTransactionByApplication } from "@/lib/wallet";
 import { listCommunications } from "@/lib/queries";
 import { flashFrom } from "@/lib/action-helpers";
-import { getUiLocale, localizedDocTypeName, localizedDocStatus } from "@/lib/ui-i18n";
+import { getUiLocale, localizedDocTypeName, localizedDocStatus, localizedStatusName } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { countryName } from "@/lib/country-names";
 import { getApplicationPricing } from "@/lib/price-adjustments";
@@ -41,6 +41,7 @@ import { LiveCaseDuration } from "../live-case-duration";
 import { readCaseVfsReference } from "@/lib/case-vfs-reference";
 import { CaseMessagesRead } from "../case-messages-read";
 import { CaseNavigation } from "../case-navigation";
+import { SmartTimeline } from "../smart-timeline";
 import { db } from "@/lib/db";
 import { notifications } from "@/db/schema";
 import { and, count, eq, isNull } from "drizzle-orm";
@@ -84,7 +85,7 @@ export default async function PortalApplicationDetailPage({
       tab==="overview"||tab==="documents"?listDocumentsForApplication(id):Promise.resolve([]),
       tab==="overview"||tab==="documents"?getChecklist(id):Promise.resolve([]),
       tab==="overview"||tab==="activity"?getStatusHistory(id):Promise.resolve([]),
-      tab==="messages"?listCommunications(id, user,sp.messagesBefore):Promise.resolve([]),
+      tab==="messages"||tab==="activity"?listCommunications(id,user,tab==="messages"?sp.messagesBefore:undefined):Promise.resolve([]),
       tab==="overview"||sp.submitted==="1"?findTransactionByApplication(id):Promise.resolve(null),
       tab==="overview"&&["APPROVED","REJECTED"].includes(detail.statusCode)?getDecisionDocuments(id):Promise.resolve([]),
       listDocumentRequests(id),
@@ -148,15 +149,16 @@ export default async function PortalApplicationDetailPage({
   const actionHref=`${back}?tab=documents${returnSuffix}${firstRequest?"#request-"+firstRequest.req.id:""}`;
   const requestTitle=firstRequest?docLabel(firstRequest.docTypeCode,firstRequest.docTypeName):undefined;
   const activityEvents=[
-    ...history.map(h=>({key:"status-"+h.history.id,at:h.history.createdAt,kind:"status" as const,title:h.toStatus.name,code:h.toStatus.code,reason:h.history.reason?(h.toStatus.code==="SUBMITTED"&&h.history.reason==="Request submitted"?ct("Request submitted"):h.history.reason):null,href:null as string|null})),
+    ...history.map(h=>({key:"status-"+h.history.id,at:h.history.createdAt,kind:"status" as const,title:localizedStatusName(h.toStatus.code,h.toStatus.name,uiLocale),code:h.toStatus.code,reason:h.history.reason?(h.toStatus.code==="SUBMITTED"&&h.history.reason==="Request submitted"?ct("Request submitted"):h.history.reason):null,href:null as string|null})),
     ...docRequests.flatMap(r=>{
       const title=docLabel(r.docTypeCode,r.docTypeName);
       const href=`${back}?tab=documents${returnSuffix}${r.req.status==="OPEN"?"#request-"+r.req.id:""}`;
       return [{key:"request-"+r.req.id,at:r.req.createdAt,kind:"request" as const,title:r.req.type==="REPLACEMENT"?adaptive.replacement:adaptive.request,code:"RESUBMISSION_REQUIRED",reason:title+(r.req.reason?" · "+r.req.reason:""),href},...(r.req.fulfilledAt?[{key:"received-"+r.req.id,at:r.req.fulfilledAt,kind:"received" as const,title:adaptive.receivedEvent,code:"UPLOADED",reason:title,href:`${back}?tab=documents${returnSuffix}`}]:[])];
-    })
+    }),
+    ...messages.map(({message})=>({key:"message-"+message.id,at:message.createdAt,kind:"message" as const,title:({fr:"Message échangé",en:"Message exchanged",ar:"تم تبادل رسالة"}[uiLocale]),code:"MESSAGE",reason:null,href:`${back}?tab=messages${returnSuffix}`}))
   ].sort((a,b)=>b.at.getTime()-a.at.getTime()||a.key.localeCompare(b.key));
-  const dateGroup=(at:Date)=>new Intl.DateTimeFormat(uiLocale==="ar"?"ar-DZ":uiLocale==="fr"?"fr-DZ":"en-GB",{dateStyle:"long",timeZone:"Africa/Algiers"}).format(at);
-  const latestKnown=activityEvents[0]?.at;
+  const latestKnown=detail.caseActivity??app.updatedAt;
+  const existingFiles=docs.map(({doc})=>({name:doc.originalFilename,size:doc.sizeBytes}));
   const fileMeta=(doc:typeof docs[number]["doc"])=>({id:doc.id,name:doc.originalFilename,mime:doc.mimeType,version:doc.version,size:bytes(doc.sizeBytes),date:caseDateTime(doc.createdAt,uiLocale)});
   const entryForItem=(item:typeof checklist[number],group:"required"|"other"):DocumentWorkspaceEntry=>{
     const itemDocs=documentGroups.byItem.get(item.id)??[],latest=itemDocs[0]?.doc,requests=requestFor(item),requested=requests.length>0;
@@ -171,7 +173,7 @@ export default async function PortalApplicationDetailPage({
                         <input type="hidden" name="applicationId" value={id} />
                         <input type="hidden" name="checklistItemId" value={item.id} />
                         <input type="hidden" name="back" value={`${back}?tab=documents${returnSuffix}`} />
-                        <SmartDocumentUpload locale={uiLocale} label={title} submitLabel={latest ? ct("Replace") : ct("Upload")} />
+                        <SmartDocumentUpload locale={uiLocale} label={title} existingFiles={existingFiles} submitLabel={latest ? ct("Replace") : ct("Upload")} />
                       </form> ) : null}
       </div>};
   };
@@ -185,7 +187,7 @@ export default async function PortalApplicationDetailPage({
                       {r.req.checklistItemId ? <input type="hidden" name="checklistItemId" value={r.req.checklistItemId} /> : null}
                       <input type="hidden" name="documentTypeId" value={r.req.documentTypeId} />
                       <input type="hidden" name="back" value={`${back}?tab=documents${returnSuffix}`} />
-                      <SmartDocumentUpload locale={uiLocale} label={title} submitLabel={r.req.type==="REPLACEMENT"?ct("Upload replacement"):ct("Upload")}/>
+                      <SmartDocumentUpload locale={uiLocale} label={title} existingFiles={existingFiles} submitLabel={r.req.type==="REPLACEMENT"?ct("Upload replacement"):ct("Upload")}/>
                     </form>:null}
       {!canUpload?<p>{dc.unavailable}</p>:null}</div>};
   });
@@ -234,7 +236,7 @@ export default async function PortalApplicationDetailPage({
         <div className="dossier-overview">
           <div className="dossier-main">
             {decisionDocs.length>0?<DocumentViewerProvider locale={uiLocale} files={decisionDocs.map(doc=>({id:doc.id,name:doc.originalFilename,mime:doc.mimeType}))}><section id="official-decision" className="dossier-delivery"><h2>{copy.official}</h2>{decisionDocs.map(doc=><div key={doc.id} className="dossier-delivery-row"><div><strong>{localizedDocTypeName(doc.typeCode,doc.typeName,uiLocale)}</strong><p>{caseDateTime(doc.createdAt,uiLocale)}</p></div><DocumentPreviewButton id={doc.id} variant="primary" locale={uiLocale}/></div>)}</section></DocumentViewerProvider>:null}
-            {vfsReference?<section className="dossier-vfs"><h2>{({fr:"Référence VFS Chine",en:"VFS China reference",ar:"مرجع VFS للصين"}[uiLocale])}</h2><CopyCaseReference reference={vfsReference} label={copy.copy} copied={copy.copied} failed={copy.failed}/></section>:null}<section className="dossier-tracking"><h2>{adaptive.journey}</h2>{!terminal&&!isDraft&&openRequests.length===0?<p className="dossier-no-action">{copy.noAction}</p>:null}<div className="dossier-metrics"><div><span>{elapsed?.terminal?copy.duration:copy.elapsed}</span><strong>{elapsed?<LiveCaseDuration submitted={app.submittedAt?.toISOString()??""} initialMinutes={elapsed.minutes} terminal={elapsed.terminal} locale={uiLocale}/>:"—"}</strong></div><div><span>{copy.estimate}</span><strong>{formatProcessingDays(app.processingMinDays,app.processingMaxDays,uiLocale)}</strong></div><div><span>{adaptive.activityDate}</span><strong>{caseDateTime(latestKnown??app.updatedAt,uiLocale)}</strong></div></div></section>
+            {vfsReference?<section className="dossier-vfs"><h2>{({fr:"Référence VFS Chine",en:"VFS China reference",ar:"مرجع VFS للصين"}[uiLocale])}</h2><CopyCaseReference reference={vfsReference} label={copy.copy} copied={copy.copied} failed={copy.failed}/></section>:null}<section className="dossier-tracking"><h2>{adaptive.journey}</h2>{!terminal&&openRequests.length>0?<p className="adaptive-pending-note">{({fr:"Les étapes retracent l’historique du dossier ; des pièces restent demandées.",en:"Steps show the case history; additional documents are still requested.",ar:"تعرض المراحل سجل الطلب؛ لا تزال هناك وثائق مطلوبة."}[uiLocale])}</p>:null}{!terminal&&!isDraft&&openRequests.length===0?<p className="dossier-no-action">{copy.noAction}</p>:null}<div className="dossier-metrics"><div><span>{elapsed?.terminal?copy.duration:copy.elapsed}</span><strong>{elapsed?<LiveCaseDuration submitted={app.submittedAt?.toISOString()??""} initialMinutes={elapsed.minutes} terminal={elapsed.terminal} locale={uiLocale}/>:"—"}</strong></div><div><span>{copy.estimate}</span><strong>{formatProcessingDays(app.processingMinDays,app.processingMaxDays,uiLocale)}</strong></div><div><span>{adaptive.activityDate}</span><strong>{caseDateTime(latestKnown??app.updatedAt,uiLocale)}</strong></div></div></section>
                 {app.submittedAt ? <section className="agency-v2-journey" aria-label={ct("Progress")}>
                   <h3 className="sr-only">{ct("Progress")}</h3>
                   <ol data-testid="application-progress">
@@ -315,7 +317,7 @@ export default async function PortalApplicationDetailPage({
           <Card>
             <CardHeader title={copy.activity} />
             <div className="px-4 py-4">
-              {activityEvents.length===0?<p className="dossier-muted">{copy.noHistory}</p>:<ol className="dossier-activity adaptive-activity">{activityEvents.map((event,index)=><li key={event.key} className="adaptive-event">{index===0||dateGroup(activityEvents[index-1]!.at)!==dateGroup(event.at)?<h3>{dateGroup(event.at)}</h3>:null}<div className="adaptive-event-line"><span className="adaptive-event-dot" data-kind={event.kind} aria-hidden="true"/><div>{event.kind==="status"?<span className="case-state" data-status={event.code}><StatusBadge code={event.code} name={event.title}/></span>:event.href?<Link href={event.href} className="adaptive-text-link">{event.title} <span className="directional" aria-hidden="true">→</span></Link>:<strong>{event.title}</strong>}{event.reason?<p>{event.reason}</p>:null}</div><time dateTime={event.at.toISOString()}>{caseDateTime(event.at,uiLocale)}</time></div></li>)}</ol>}
+              <SmartTimeline key={id} locale={uiLocale} events={activityEvents.map(e=>({...e,at:e.at.toISOString()}))} empty={copy.noHistory}/>
             </div>
           </Card>
         </div>

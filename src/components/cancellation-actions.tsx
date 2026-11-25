@@ -98,6 +98,7 @@ export function CancellationActionMenu({id,staff,requestId,requestReason,netPaid
     </div>:null}
    </div>:staff?<p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">{t.refuseBody}</p>:null}
    <div><label className="label" htmlFor={uid+"-reason"}>{staff?t.decisionReason:t.reason} *</label>
+   {!staff?<div className="agency-cancel-reasons">{({fr:["Annulation à la demande du client","Changement de programme de voyage","Erreur lors de la soumission"],en:["Cancellation requested by the traveller","Change of travel plans","Submission error"],ar:["إلغاء بطلب من المسافر","تغيير برنامج السفر","خطأ أثناء تقديم الطلب"]}[locale]).map(choice=><button type="button" key={choice} aria-pressed={reason===choice} className="btn-secondary btn-sm" onClick={()=>{setReason(choice);setConfirmed(false)}}>{choice}</button>)}</div>:null}
    <textarea id={uid+"-reason"} name="reason" required minLength={8} maxLength={1000} rows={3} value={reason} onChange={e=>{setReason(e.target.value);setConfirmed(false)}} className="input"/>
    <p className="mt-1 text-end text-xs text-slate-500 tabular-nums">{reason.length}/1000</p></div>
    {staff?<label className="flex items-start gap-3 text-sm"><input type="checkbox" required name="confirm" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/><span>{approved?t.confirm:t.confirmRefusal}</span></label>:null}

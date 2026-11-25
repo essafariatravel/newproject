@@ -315,3 +315,11 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-cases){font-fa
 .fluid-cases .fluid-search-shell .case-search{flex:1 1 0;min-width:0}
 .fluid-cases .fluid-search-shell .case-search-input{min-width:0}
 @media(max-width:767px){.fluid-cases .fluid-search-shell .case-search{flex-basis:0;min-width:0}.fluid-cases .fluid-search-submit{flex:none}.fluid-cases .fluid-search-line .case-sort-line{min-width:0;max-width:100%}}
+
+/* Adaptive period selection */
+.fluid-cases .adaptive-period{grid-column:1/-1;display:grid;gap:10px;padding-block:12px;border-block:1px solid var(--dash-rule)}
+.fluid-cases .adaptive-period h3{font-size:16px;font-weight:600}
+.fluid-cases .adaptive-period-presets{display:flex;flex-wrap:wrap;gap:8px}
+.fluid-cases .adaptive-period-presets button{border-radius:20px;min-height:40px}
+.fluid-cases .adaptive-period-range{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fluid-cases .fluid-filter-fields .case-missing{display:none}
