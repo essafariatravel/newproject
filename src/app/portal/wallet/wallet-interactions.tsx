@@ -11,7 +11,7 @@ export function WalletDrawer({id,title,trigger,close,children,className="btn-pri
    check();window.addEventListener("hashchange",check);return()=>window.removeEventListener("hashchange",check);
  },[id,openFromHash]);
  return <><button ref={button} type="button" className={className} onClick={open}>{trigger}</button>
- <dialog id={id} ref={dialog} className="wallet-drawer" aria-labelledby={id+"-title"} onClose={()=>{if(openFromHash&&window.location.hash==="#"+id)window.history.replaceState(null,"",window.location.pathname+window.location.search);button.current?.focus()}}>
+ <dialog id={id+"-dialog"} ref={dialog} className="wallet-drawer" aria-labelledby={id+"-title"} onClose={()=>{if(openFromHash&&window.location.hash==="#"+id)window.history.replaceState(null,"",window.location.pathname+window.location.search);button.current?.focus()}}>
  <div className="wallet-drawer-head"><h2 id={id+"-title"}>{title}</h2><button type="button" className="wallet-close" onClick={()=>dialog.current?.close()} aria-label={close}>×</button></div>
  <div className="wallet-drawer-body">{children}</div></dialog></>
 }
