@@ -97,3 +97,43 @@
 .dossier-workspace .dossier-vfs h2{font-size:20px;font-weight:600}
 .dossier-workspace .dossier-document-history summary{cursor:pointer;color:#285582;font-size:15px;padding-block:8px}
 .dossier-workspace .case-nav-position{font-size:14px;color:var(--dash-secondary)}
+
+/* R08 — compact document workspace; no global overrides. */
+.dossier-workspace .r08-documents{display:grid;gap:8px;color:var(--dash-ink)}
+.dossier-workspace .r08-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.dossier-workspace .r08-heading h2{font-size:22px;font-weight:600;margin:0}
+.dossier-workspace .r08-counts{display:flex;flex-wrap:wrap;gap:10px;font-size:15px;color:var(--dash-secondary)}
+.dossier-workspace .r08-counts bdi{font-variant-numeric:tabular-nums;font-weight:600}
+.dossier-workspace .r08-complete{color:#21684f;font-size:15px}
+.dossier-workspace .r08-warning,.dossier-workspace .r08-attention h3{color:#923c16}
+.dossier-workspace .r08-section{border-block-start:1px solid var(--dash-rule)}
+.dossier-workspace .r08-section h3{font-size:17px;font-weight:600;padding-block:12px 4px;margin:0}
+.dossier-workspace .r08-section h3>span,.dossier-workspace .r08-disclosure summary>span{font-weight:400;font-size:15px;color:var(--dash-secondary)}
+.dossier-workspace .r08-item,.dossier-workspace .r08-section>.r08-row{border-block-end:1px solid var(--dash-rule)}
+.dossier-workspace .r08-row{display:grid;grid-template-columns:24px minmax(0,1fr) minmax(120px,auto) 116px;gap:12px;align-items:center;min-height:66px;padding-block:8px}
+.dossier-workspace .r08-row>.case-document-preview-action,.dossier-workspace .r08-row>.r08-request-link{grid-column:4;justify-self:end;min-height:40px}
+.dossier-workspace .r08-file-icon{color:var(--dash-secondary)}
+.dossier-workspace .r08-file-name{display:grid;gap:3px;min-width:0}
+.dossier-workspace .r08-file-name strong{font-weight:600;font-size:16px;overflow-wrap:anywhere}
+.dossier-workspace .r08-file-name small{font-weight:400;color:var(--dash-secondary);font-size:14px}
+.dossier-workspace .r08-filename{font-size:15px;color:var(--dash-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dossier-workspace .r08-row .dossier-doc-state{grid-column:3;justify-self:start}
+.dossier-workspace .r08-details{font-size:15px;color:var(--dash-secondary)}
+.dossier-workspace .r08-details summary{cursor:pointer;padding-block:6px}
+.dossier-workspace .r08-policy summary{font-size:15px}
+.dossier-workspace .r08-item>.r08-details{margin-inline-start:36px}
+.dossier-workspace .r08-disclosure>summary{cursor:pointer;min-height:52px;display:flex;align-items:center;gap:10px;list-style:none}
+.dossier-workspace .r08-disclosure>summary::-webkit-details-marker{display:none}
+.dossier-workspace .r08-disclosure>summary::after{content:"";width:8px;height:8px;border-inline-end:1.5px solid currentColor;border-block-end:1.5px solid currentColor;transform:rotate(45deg);margin-inline-start:auto;margin-inline-end:8px}
+.dossier-workspace .r08-disclosure[open]>summary::after{transform:rotate(225deg)}
+.dossier-workspace .r08-disclosure strong{font-size:16px;font-weight:600}
+.dossier-workspace .r08-request{padding:12px 0;border-block-end:1px solid var(--dash-rule)}
+.dossier-workspace .r08-request-heading,.dossier-workspace .r08-history-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.dossier-workspace .r08-request p,.dossier-workspace .r08-history-row p,.dossier-workspace .r08-muted{font-size:15px;color:var(--dash-secondary);margin-block:6px}
+.dossier-workspace .r08-history-row{padding-block:12px;border-block-end:1px solid var(--dash-rule)}
+.dossier-workspace .r08-upload{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-block:10px}
+.dossier-workspace .r08-file-input{max-width:100%;font:inherit;font-size:15px;color:var(--dash-secondary)}
+.dossier-workspace .r08-file-input::file-selector-button{font:inherit;background:white;color:var(--dash-ink);border:1px solid #a7b1bd;border-radius:6px;padding:9px 12px;margin-inline-end:10px;cursor:pointer}
+.dossier-workspace .case-viewer-file-info{font-size:15px;padding-block:10px;color:var(--dash-secondary);overflow-wrap:anywhere}
+.dossier-workspace .case-viewer-file-info summary{cursor:pointer;color:var(--dash-ink);font-weight:500}
+@media(max-width:767px){.dossier-workspace .r08-row{grid-template-columns:20px minmax(0,1fr) auto;gap:8px}.dossier-workspace .r08-row .dossier-doc-state{grid-column:2;grid-row:2}.dossier-workspace .r08-row>.case-document-preview-action,.dossier-workspace .r08-row>.r08-request-link{grid-column:3;grid-row:1/span 2;min-height:44px}.dossier-workspace .r08-file-name{grid-column:2}.dossier-workspace .r08-item>.r08-details{margin-inline-start:28px}}
