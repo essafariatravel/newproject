@@ -1034,7 +1034,12 @@ export async function listWalletTransactions(filters: WalletLedgerFilters) {
   const page = Number.isFinite(filters.page)?Math.max(1,Math.floor(filters.page!)):1;
   const conditions = [];
   if (filters.agencyId) conditions.push(eq(walletTransactions.agencyId, filters.agencyId));
-  if (filters.type) conditions.push(eq(walletTransactions.type, filters.type));
+  // Direction filters are opt-in for the agency ledger; exact accounting types remain unchanged.
+  if (filters.agencyId && filters.type === "MONEY_IN") {
+    conditions.push(sql`${walletTransactions.balanceAfter} > ${walletTransactions.balanceBefore}`);
+  } else if (filters.agencyId && filters.type === "MONEY_OUT") {
+    conditions.push(sql`${walletTransactions.balanceAfter} < ${walletTransactions.balanceBefore}`);
+  } else if (filters.type) conditions.push(eq(walletTransactions.type, filters.type));
   if (filters.from) conditions.push(gte(walletTransactions.createdAt, filters.from));
   if (filters.to) conditions.push(lt(walletTransactions.createdAt, filters.to));
   if (filters.q?.trim()) {
