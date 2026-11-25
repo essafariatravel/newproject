@@ -96,6 +96,8 @@ export interface RequestDocument {
 export interface SubmitVisaRequestInput {
   actor: AuthUser;
   idempotencyKey: string;
+  /** Client-confirmed price; absent for legacy callers. */
+  expectedFee?: string;
   /** Phase 2-Final: the country the user picked in step 1 (correction 3). */
   countryId: string;
   visaTypeId: string;
@@ -348,6 +350,9 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
     )
     .limit(1);
   const cfg = cfgRows[0];
+  if (cfg && input.expectedFee !== undefined && (!Number.isFinite(Number(input.expectedFee)) || Number(input.expectedFee) !== Number(cfg.fee))) {
+    throw new AppError("VISA_TYPE_INVALID", "The displayed price has changed. Reopen the request preview before confirming.");
+  }
 
   const requirements = cfg ? await listRequirementsForVisaType(cfg.visaTypeId) : [];
 
