@@ -47,6 +47,7 @@ export function TopupRequestForm({
   copy,
   disabled,
   disabledReason,
+  smart = false,
 }: {
   action: (formData: FormData) => Promise<void>;
   back: string;
@@ -55,12 +56,15 @@ export function TopupRequestForm({
   copy: TopupCopy;
   disabled?: boolean;
   disabledReason?: string;
+  smart?: boolean;
 }) {
   const [amount, setAmount] = useState("");
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [proofError, setProofError] = useState<string | null>(null);
+  const [proofName,setProofName]=useState("");
+  const smartCopy={fr:{quick:"Montants suggérés",choose:"Choisir le justificatif",change:"Remplacer le justificatif"},en:{quick:"Suggested amounts",choose:"Choose receipt",change:"Replace receipt"},ar:{quick:"مبالغ مقترحة",choose:"اختيار الإيصال",change:"استبدال الإيصال"}}[locale];
   const ct = contentT(locale);
-  const numeric = Number(amount.replace(/[^\d.]/g, ""));
+  const numeric = Number(amount);
   const valid = Number.isFinite(numeric) && numeric > 0;
   const after = valid ? Number(currentBalance) + numeric : null;
 
@@ -86,6 +90,7 @@ export function TopupRequestForm({
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
+          {smart?<div className="wallet-quick-amounts" aria-label={smartCopy.quick}>{[10000,25000,50000,100000].map(n=><button key={n} type="button" aria-pressed={numeric===n} onClick={()=>setAmount(String(n))}>{formatAmount(String(n),"DZD",locale)}</button>)}</div>:null}
         </div>
         <div>
           <label className="label" htmlFor="topup-note">
@@ -102,8 +107,8 @@ export function TopupRequestForm({
       </div>
       <div>
         <label className="label" htmlFor="topup-proof">{ct("Bank transfer receipt")} *</label>
-        <input id="topup-proof" name="proof" type="file" required accept=".pdf,.jpg,.jpeg,.png" className="input" aria-describedby="topup-proof-help"
-          onChange={(event) => setProofError(event.target.files?.[0] && event.target.files[0].size > MAX_UPLOAD_BYTES ? ct("Files must be 2 MB or smaller.") : null)} />
+        <div className={smart?"wallet-proof":undefined}>{smart?<label className="wallet-proof-picker" htmlFor="topup-proof"><strong>{proofName?smartCopy.change:smartCopy.choose}</strong>{proofName?<span dir="auto">{proofName}</span>:null}</label>:null}<input id="topup-proof" name="proof" type="file" required accept=".pdf,.jpg,.jpeg,.png" className={smart?"wallet-proof-input":"input"} aria-describedby="topup-proof-help"
+          onChange={(event) => {const file=event.target.files?.[0];setProofName(file?.name??"");setProofError(file&&file.size>MAX_UPLOAD_BYTES?ct("Files must be 2 MB or smaller."):null)}} /></div>
         <p id="topup-proof-help" className="mt-1 text-base text-slate-500">{ct("PDF, JPG or PNG, up to 2 MB. Your balance changes only after ESSAFARIA confirms the transfer.")}</p>
         {proofError ? <p role="alert" className="mt-1 text-base text-red-700">{proofError}</p> : null}
       </div>
@@ -127,7 +132,7 @@ export function TopupRequestForm({
         <p className="rounded-lg border border-gold-200 bg-gold-50 px-4 py-2 text-base text-gold-800">{disabledReason}</p>
       ) : null}
 
-      <SubmitButton className="btn-primary" pendingLabel={copy.sending} disabled={disabled || Boolean(proofError)}>
+      <SubmitButton className="btn-primary" pendingLabel={copy.sending} disabled={disabled || Boolean(proofError) || (smart&&(!valid||!proofName))}>
         {copy.submit}
       </SubmitButton>
     </form>
