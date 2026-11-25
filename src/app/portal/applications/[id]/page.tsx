@@ -171,7 +171,8 @@ export default async function PortalApplicationDetailPage({
   const latestKnown=detail.caseActivity??app.updatedAt;
   const activityLink=(key?:string)=>`${back}?tab=activity${returnSuffix}${key?"&event="+encodeURIComponent(key):""}`;
   const stageCodes={submitted:["SUBMITTED"],documents:["DOCUMENTS_CHECKING","DOCUMENTS_REQUESTED"],processing:["IN_PROCESS"],embassy:["EMBASSY_SENT","EMBASSY_SUBMISSION"],decision:["APPROVED","REJECTED","COMPLETED","REFUSED"]};
-  const latestEvent=activityEvents.find(e=>e.at.getTime()===(latestKnown??app.updatedAt).getTime());
+  const latestMillis=typeof latestKnown==="string"?Date.parse(latestKnown):latestKnown.getTime();
+  const latestEvent=activityEvents.find(e=>e.at.getTime()===latestMillis);
   const overviewUi={
     fr:{elapsed:"Temps écoulé (calendaire)",duration:"Durée réelle (calendaire)",pending:"en attente de validation",accepted:"acceptées",missing:"non reçues",view:"Consulter"},
     en:{elapsed:"Elapsed time (calendar)",duration:"Actual duration (calendar)",pending:"awaiting review",accepted:"accepted",missing:"not received",view:"View"},
