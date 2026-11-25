@@ -191,9 +191,10 @@ export function RequestWizard(props: Props) {
   const [programmeCategory,setProgrammeCategory]=useState("");
   const [programmeSort,setProgrammeSort]=useState<"catalogue"|"price"|"time">("catalogue");
   const [reviewFile,setReviewFile]=useState<File|null>(null);
-  const [reviewUrl,setReviewUrl]=useState("");
+  const [reviewObject,setReviewObject]=useState<{file:File;url:string}|null>(null);
+  const reviewUrl=reviewObject?.file===reviewFile?reviewObject?.url??"":"";
   const reviewDialog=useRef<HTMLDialogElement>(null);
-  useEffect(()=>{if(!reviewFile){setReviewUrl("");return;}const url=URL.createObjectURL(reviewFile);setReviewUrl(url);setZoom(false);if(reviewDialog.current&&!reviewDialog.current.open)reviewDialog.current.showModal();return()=>URL.revokeObjectURL(url)},[reviewFile]);
+  useEffect(()=>{if(!reviewFile){setReviewObject(null);return;}const url=URL.createObjectURL(reviewFile);setReviewObject({file:reviewFile,url});setZoom(false);if(reviewDialog.current&&!reviewDialog.current.open)reviewDialog.current.showModal();return()=>URL.revokeObjectURL(url)},[reviewFile]);
   const [destinationOpen, setDestinationOpen] = useState(false);
   const destinationPickerRef = useRef<HTMLDivElement>(null);
   const destinationListRef = useRef<HTMLDivElement>(null);
@@ -211,9 +212,9 @@ export function RequestWizard(props: Props) {
   // Controlled state is the single source of truth for the gate and the submitted payload.
   const applicantReady = Boolean(nameDraft.trim() && props.nationalities.some(n => n.code === nationalityDraft));
   const checkout = {
-    fr:{heading:"Récapitulatif de votre demande",subtitle:"",selected:"pièces requises sélectionnées",selectedShort:"Sélectionné",check:"À vérifier",replace:"Remplacer",add:"Ajouter",previous:"Précédent",next:"Suivant",tourist:"Tourisme",destination:"Destination",missing:"Non sélectionné"},
-    en:{heading:"Application summary",subtitle:"",selected:"required documents selected",selectedShort:"Selected",check:"Review",replace:"Replace",add:"Add",previous:"Previous",next:"Next",tourist:"Tourism",destination:"Destination",missing:"Not selected"},
-    ar:{heading:"ملخص الطلب",subtitle:"",selected:"وثائق إلزامية محددة",selectedShort:"محدد",check:"للمراجعة",replace:"استبدال",add:"إضافة",previous:"السابق",next:"التالي",tourist:"سياحة",destination:"الوجهة",missing:"غير محدد"}
+    fr:{heading:"Récapitulatif de votre demande",subtitle:"",selected:"pièces requises sélectionnées",selectedShort:"Sélectionné",check:"À vérifier",replace:"Remplacer",add:"Ajouter",previous:"Précédent",next:"Suivant",tourist:"Tourisme",destination:"Destination",missing:"Non sélectionné",attention:"Documents à vérifier",replaceAll:"Remplacer les fichiers",loading:"Chargement de l’aperçu…",portrait:"Cette image a des proportions proches d’une photo d’identité. Vérifiez qu’il s’agit bien du relevé bancaire.",format:"Le format déclaré et l’extension du fichier semblent différents. Vérifiez le fichier."},
+    en:{heading:"Application summary",subtitle:"",selected:"required documents selected",selectedShort:"Selected",check:"Review",replace:"Replace",add:"Add",previous:"Previous",next:"Next",tourist:"Tourism",destination:"Destination",missing:"Not selected",attention:"Documents to review",replaceAll:"Replace files",loading:"Loading preview…",portrait:"This image has proportions similar to an identity photo. Check that it is the bank statement.",format:"The declared file format and extension appear different. Check the file."},
+    ar:{heading:"ملخص الطلب",subtitle:"",selected:"وثائق إلزامية محددة",selectedShort:"محدد",check:"للمراجعة",replace:"استبدال",add:"إضافة",previous:"السابق",next:"التالي",tourist:"سياحة",destination:"الوجهة",missing:"غير محدد",attention:"وثائق للمراجعة",replaceAll:"استبدال الملفات",loading:"جارٍ تحميل المعاينة…",portrait:"أبعاد الصورة قريبة من أبعاد صورة الهوية. تحققوا من أنها كشف الحساب البنكي.",format:"يبدو أن نوع الملف وامتداده مختلفان. تحققوا من الملف."}
   }[props.locale];
   const ui = {
     fr:{title:"Nouvelle demande",reservation:"Votre demande",travel:"Voyage et voyageur",documents:"Documents",confirm:"Confirmation",suggestions:"Destinations suggérées",ready:"Prêt à vérifier",select:"Choisissez un programme",noDebit:"Aucun débit avant la confirmation.",estimate:"Solde estimé après confirmation",covered:"Votre solde couvre cette demande.",missing:"Montant manquant",drop:"Déposez votre document ici",browse:"Parcourir les fichiers",nextDoc:"Pièce suivante",review:"Vérifier le dossier",continue:"Préparer les documents",preview:"Aperçu",unavailable:"Aperçu indisponible pour ce format. Vérifiez le fichier sur votre appareil.",replace:"Changer de fichier",changeWarning:"Changer de programme supprimera les fichiers déjà sélectionnés. Continuer ?",invalid:"Format non accepté",duplicate:"Ce fichier est déjà sélectionné. Vérifiez la pièce choisie.",local:"Fichiers sur cet appareil jusqu’à la confirmation",empty:"À préparer",optional:"Facultatif",edit:"Modifier",download:"Ouvrir le fichier",payment:"Votre paiement",check:"Votre dossier est prêt à être vérifié",selected:"Pièce sélectionnée",working:"Délai indicatif",notes:"Instructions facultatives"},
@@ -236,15 +237,16 @@ export function RequestWizard(props: Props) {
     en:{mismatch:"The filename suggests another document type. Check its contents.",identical:"An identical file is assigned to multiple requirements.",small:"Low-resolution image: check readability.",checks:"Items to check before submitting",inspect:"Review this document",ready:"All required documents are selected",remaining:"Required documents remaining",selected:"Selected",programmeDocs:"required documents",noValidation:"These local checks do not validate document contents or authenticity."},
     ar:{mismatch:"يشير اسم الملف إلى نوع آخر من الوثائق. تحققوا من محتواه.",identical:"تم تخصيص ملف مطابق لعدة وثائق.",small:"صورة منخفضة الدقة: تحققوا من وضوحها.",checks:"نقاط للتحقق قبل الإرسال",inspect:"مراجعة الوثيقة",ready:"تم تحديد جميع الوثائق المطلوبة",remaining:"الوثائق الإلزامية المتبقية",selected:"محدد",programmeDocs:"وثائق مطلوبة",noValidation:"لا تتحقق هذه الفحوص المحلية من محتوى الوثائق أو أصالتها."}
   }[props.locale];
-  const [localWarnings,setLocalWarnings]=useState<Record<string,("identical"|"small")[]>>({});
+  type LocalWarning="identical"|"small"|"portrait"|"format";
+  const [localWarnings,setLocalWarnings]=useState<Record<string,LocalWarning[]>>({});
   useEffect(()=>{
     let active=true;
     setLocalWarnings({});
     const entries=Object.entries(files).flatMap(([id,list])=>list.map(file=>({id,file})));
     if(!entries.length)return;
     void (async()=>{
-      const warnings:Record<string,("identical"|"small")[]>={};
-      const add=(id:string,kind:"identical"|"small")=>{const list=warnings[id]??(warnings[id]=[]);if(!list.includes(kind))list.push(kind)};
+      const warnings:Record<string,LocalWarning[]>={};
+      const add=(id:string,kind:LocalWarning)=>{const list=warnings[id]??(warnings[id]=[]);if(!list.includes(kind))list.push(kind)};
       const hashes=new Map<string,string>();
       for(const {id,file} of entries){
         if(!active)return;
@@ -254,14 +256,22 @@ export function RequestWizard(props: Props) {
           const prior=hashes.get(key);
           if(prior!==undefined&&prior!==id){add(prior,"identical");add(id,"identical")}else if(prior===undefined)hashes.set(key,id);
         }catch{/* Optional local check. */}
-        if(file.type.startsWith("image/")&&typeof createImageBitmap==="function"){
-          try{const bitmap=await createImageBitmap(file);try{if(Math.min(bitmap.width,bitmap.height)<250)add(id,"small")}finally{bitmap.close()}}catch{/* Unsupported image decoding. */}
+        const requirement=(props.requirementsByVisaType[visaTypeId]??[]).find(r=>r.documentTypeId===id);
+        if(checkoutFormatMismatch(file))add(id,"format");
+        if((file.type.startsWith("image/")||/\.(jpe?g|png|webp)$/i.test(file.name))&&typeof createImageBitmap==="function"){
+          try{
+            const bitmap=await createImageBitmap(file);
+            try{
+              if(Math.min(bitmap.width,bitmap.height)<250)add(id,"small");
+              if(requirement&&checkoutBankRequirement(requirement)&&checkoutPortraitLike(bitmap.width,bitmap.height))add(id,"portrait");
+            }finally{bitmap.close()}
+          }catch{/* Unsupported image decoding: no claim about contents. */}
         }
       }
       if(active)setLocalWarnings(warnings);
     })();
     return()=>{active=false};
-  },[files]);
+  },[files,props.requirementsByVisaType,visaTypeId]);
   const [pending, setPending] = useState(false);
   const submittingRef = useRef(false);
   const leavingAfterSuccess = useRef(false);
@@ -316,13 +326,15 @@ export function RequestWizard(props: Props) {
       const name=normalize(f.name);
       if(/passport|passeport|جواز/.test(key))return /visa.grant|e.?visa|visa.approval|releve.bancaire|bank.statement|photo.identite|تأشيرة/.test(name);
       if(/photo|portrait|صورة/.test(key))return /passport|passeport|جواز|mrz|visa.grant|bank.statement/.test(name);
-      if(/bank|bancaire|بنك|مصرف/.test(key))return /passport|passeport|mrz|visa.grant|photo.identite|identity.photo|portrait|صورة.شخصية/.test(name);
+      if(checkoutBankRequirement(r))return checkoutBankFilenameMismatch(name);
       return false;
     });
-    return [...(mismatch?[smart.mismatch]:[]),...(localWarnings[r.documentTypeId]??[]).map(k=>smart[k])];
+    return [...(mismatch?[smart.mismatch]:[]),...(localWarnings[r.documentTypeId]??[]).map(k=>k==="portrait"||k==="format"?checkout[k]:smart[k])];
   }
   const flaggedRequirements=requirements.filter(r=>warningMessages(r).length>0);
   const checkoutFiles=requirements.flatMap(r=>files[r.documentTypeId]??[]);
+  const destinationMatches=country?props.nationalities.filter(n=>/^[A-Z]{2}$/.test(n.code)&&normalize(n.label)===normalize(country.name)):[];
+  const destinationCode=destinationMatches.length===1?destinationMatches[0]?.code:undefined;
   const checkoutFileIndex=reviewFile?checkoutFiles.indexOf(reviewFile):-1;
   const checkoutCategory=/^(tourist|tourism|tourisme|touristique|سياحة)$/i.test(visa?.categoryName.trim()??"")?checkout.tourist:visa?.categoryName;
   const genericProgramme=Boolean(visa&&country&&[normalize(country.name),normalize("Visa "+country.name),normalize(country.name+" Visa"),normalize("تأشيرة "+country.name)].includes(normalize(visa.name)));
@@ -835,8 +847,7 @@ export function RequestWizard(props: Props) {
         <div className="booking-main booking-review checkout-review">
           <div className="checkout-heading"><h2>{checkout.heading}</h2></div>
           <div className="checkout-ticket">
-            <div className="checkout-ticket-image" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></div>
-            <div className="checkout-ticket-info"><small>{checkout.destination}</small><h3>{country?.name}</h3>{!genericProgramme&&visa?.name?<strong className="checkout-programme">{visa.name}</strong>:null}<span>{[checkoutCategory,visa?processingLabel(visa):null].filter(Boolean).join(" · ")}</span></div>
+            <div className="checkout-ticket-info"><small>{checkout.destination}</small><h3 className="checkout-country-name">{country?.name}{destinationCode?<span className="checkout-country-code" dir="ltr" aria-hidden="true">{String.fromCodePoint(...Array.from(destinationCode,c=>127397+c.charCodeAt(0)))}</span>:null}</h3>{!genericProgramme&&visa?.name?<strong className="checkout-programme">{visa.name}</strong>:null}<span>{[checkoutCategory,visa?processingLabel(visa):null].filter(Boolean).join(" · ")}</span></div>
             <button type="button" className="checkout-edit" disabled={pending} onClick={()=>editStep(1)} aria-label={ui.edit+" · "+t.sectionVisa}><CheckoutIcon kind="edit"/><span>{ui.edit}</span></button>
           </div>
           <div className="checkout-traveller">
@@ -847,7 +858,7 @@ export function RequestWizard(props: Props) {
           <div className="checkout-documents">
             <div className="checkout-doc-heading"><h3>{t.summaryDocuments}</h3><span className="checkout-count"><bdi>{completedDocs}/{requiredDocs.length}</bdi> {checkout.selected}</span><button type="button" className="checkout-edit" disabled={pending} onClick={()=>editStep(2)} aria-label={ui.edit+" · "+t.summaryDocuments}><CheckoutIcon kind="edit"/><span>{ui.edit}</span></button></div>
             {fileError?<p role="alert" className="booking-warning" data-testid="checkout-file-error">{fileError}</p>:null}
-            {flaggedRequirements.length?<div className="checkout-attention" role="status"><strong>{smart.checks} · <bdi>{flaggedRequirements.length}</bdi></strong><small>{smart.noValidation}</small></div>:null}
+            {flaggedRequirements.length?<details className="checkout-attention"><summary><span className="checkout-attention-dot" aria-hidden="true"/><span>{checkout.attention} · <bdi>{flaggedRequirements.length}</bdi></span></summary><small>{smart.noValidation}</small></details>:null}
             {requirements.length===0?<p className="booking-muted">{t.noDocumentsRequired}</p>:<div className="checkout-gallery" data-single={requirements.length===1} role="group" aria-label={t.summaryDocuments}>
               {requirements.map(r=>{
                 const attached=files[r.documentTypeId]??[];
@@ -861,8 +872,8 @@ export function RequestWizard(props: Props) {
                   {attached.length?attached.map((f,i)=><button key={i} type="button" className="checkout-document-preview" disabled={pending} onClick={()=>setReviewFile(f)} aria-label={ui.preview+" · "+r.name+" · "+f.name}><CheckoutThumbnail file={f} active={step===3}/><span className="checkout-file-caption"><span title={f.name} dir="auto">{f.name}</span><CheckoutIcon kind="expand"/></span></button>):<div className="checkout-missing"><CheckoutIcon kind="file"/><span>{r.required?checkout.missing:ui.optional}</span></div>}
                   {flagged?<details className="checkout-document-warning"><summary>{smart.inspect} ({warnings.length})</summary>{warnings.map(message=><p key={message}>{message}</p>)}</details>:null}
                   <label className="checkout-replace" data-disabled={pending}>
-                    <CheckoutIcon kind="edit"/><span>{attached.length?checkout.replace:checkout.add}</span>
-                    <input className="sr-only" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" disabled={pending} aria-label={(attached.length?checkout.replace:checkout.add)+" · "+r.name} onChange={e=>{if(!submittingRef.current)onFileChange(r.documentTypeId,e.currentTarget.files);e.currentTarget.value=""}}/>
+                    <CheckoutIcon kind="edit"/><span>{attached.length>1?checkout.replaceAll:attached.length?checkout.replace:checkout.add}</span>
+                    <input className="sr-only" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" disabled={pending} aria-label={(attached.length>1?checkout.replaceAll:attached.length?checkout.replace:checkout.add)+" · "+r.name} onChange={e=>{if(!submittingRef.current&&!pending)onFileChange(r.documentTypeId,e.currentTarget.files);e.currentTarget.value=""}}/>
                   </label>
                 </div>;
               })}
@@ -895,7 +906,7 @@ export function RequestWizard(props: Props) {
         ) : null}
       </div>
       <dialog ref={reviewDialog} className="booking-review-dialog" onClose={()=>setReviewFile(null)} onCancel={()=>setReviewFile(null)} aria-label={ui.preview}>
-        {reviewFile?<><div className="booking-dialog-head"><strong>{reviewFile.name}</strong>{step===3&&checkoutFileIndex>=0&&checkoutFiles.length>1?<div className="checkout-dialog-navigation"><button type="button" className="btn-secondary" disabled={checkoutFileIndex===0} onClick={()=>setReviewFile(checkoutFiles[checkoutFileIndex-1]??null)}>{checkout.previous}</button><small><bdi>{checkoutFileIndex+1}/{checkoutFiles.length}</bdi></small><button type="button" className="btn-secondary" disabled={checkoutFileIndex===checkoutFiles.length-1} onClick={()=>setReviewFile(checkoutFiles[checkoutFileIndex+1]??null)}>{checkout.next}</button></div>:null}{reviewFile.type.startsWith("image/")?<button type="button" className="btn-secondary" onClick={()=>setZoom(v=>!v)}>{zoom?assist.fit:ux.full}</button>:null}<button type="button" className="btn-secondary" onClick={()=>reviewDialog.current?.close()}>{ux.close}</button></div><div className="booking-dialog-body" data-zoom={zoom}>{reviewUrl&&/^image\/(jpeg|png|webp)$/.test(reviewFile.type)?<img src={reviewUrl} alt={reviewFile.name}/>:reviewUrl&&reviewFile.type==="application/pdf"?<iframe title={reviewFile.name} src={reviewUrl}/>:<p>{ui.unavailable}</p>}</div></>:null}
+        {reviewFile?<><div className="booking-dialog-head"><strong dir="auto">{reviewFile.name}</strong>{step===3&&checkoutFileIndex>=0&&checkoutFiles.length>1?<div className="checkout-dialog-navigation"><button type="button" className="btn-secondary" disabled={checkoutFileIndex===0} onClick={()=>setReviewFile(checkoutFiles[checkoutFileIndex-1]??null)}>{checkout.previous}</button><small><bdi>{checkoutFileIndex+1}/{checkoutFiles.length}</bdi></small><button type="button" className="btn-secondary" disabled={checkoutFileIndex===checkoutFiles.length-1} onClick={()=>setReviewFile(checkoutFiles[checkoutFileIndex+1]??null)}>{checkout.next}</button></div>:null}{reviewFile.type.startsWith("image/")?<button type="button" className="btn-secondary" onClick={()=>setZoom(v=>!v)}>{zoom?assist.fit:ux.full}</button>:null}<button type="button" className="btn-secondary" onClick={()=>reviewDialog.current?.close()}>{ux.close}</button></div><div className="booking-dialog-body" data-zoom={zoom}>{!reviewUrl?<p role="status">{checkout.loading}</p>:/^image\/(jpeg|png|webp)$/.test(reviewFile.type)?<img src={reviewUrl} alt={reviewFile.name}/>:reviewUrl&&reviewFile.type==="application/pdf"?<iframe title={reviewFile.name} src={reviewUrl}/>:<p>{ui.unavailable}</p>}</div></>:null}
       </dialog>
     </form>
   );
@@ -922,6 +933,25 @@ const smartBookingCss = `
 @media(prefers-reduced-motion:reduce){.booking-experience .booking-doc-row,.booking-experience .booking-doc-progress progress::-webkit-progress-value{transition:none}}
 @media(max-width:600px){.booking-experience .booking-smart-review .booking-line{flex-wrap:wrap}}
 `;
+
+/** Advisory only: no OCR, content identification or authentication. */
+function checkoutBankRequirement(r:WizardRequirement):boolean{
+  return /bank|bancaire|بنك|مصرف|كشف.الحساب/.test(normalize(r.code+" "+r.name));
+}
+function checkoutBankFilenameMismatch(name:string):boolean{
+  const value=normalize(name);
+  const explicitBank=/bank|bancaire|releve|statement|كشف.الحساب/.test(value);
+  return /passport|passeport|mrz|visa.grant|photo.identite|identity.photo|portrait|صورة.شخصية/.test(value)||(!explicitBank&&/(^|[^a-z])photo([^a-z]|$)|صورة/.test(value));
+}
+function checkoutPortraitLike(width:number,height:number):boolean{
+  return width>0&&height>0&&width/height>=0.68&&width/height<=0.9&&Math.max(width,height)<=1100;
+}
+function checkoutFormatMismatch(file:File):boolean{
+  const extension=file.name.split(".").pop()?.toLowerCase();
+  const type=file.type.toLowerCase();
+  const expected:Record<string,string[]>={pdf:["application/pdf"],jpg:["image/jpeg","image/jpg"],jpeg:["image/jpeg","image/jpg"],png:["image/png"],webp:["image/webp"],doc:["application/msword"],docx:["application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/zip"]};
+  return Boolean(extension&&expected[extension]&&type&&type!=="application/octet-stream"&&!expected[extension].includes(type));
+}
 
 function CheckoutIcon({kind}:{kind:"edit"|"expand"|"file"}){
   return <svg aria-hidden="true" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">{kind==="edit"?<><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z"/></>:kind==="expand"?<path d="M14 4h6v6M20 4l-6 6M10 20H4v-6M4 20l6-6"/>:<><path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6M9 16h6"/></>}</svg>;
@@ -1028,4 +1058,32 @@ const checkoutCss = `
 .booking-experience .checkout-dialog-navigation{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 @media(max-width:850px){.booking-experience .booking-grid[data-wizard-section="3"]:not([hidden]){grid-template-columns:minmax(0,1fr);gap:24px}.booking-experience .checkout-payment{position:static}.booking-experience .checkout-ticket{grid-template-columns:52px minmax(0,1fr) auto;gap:10px}.booking-experience .checkout-ticket-image{width:52px;height:52px}.booking-experience .checkout-gallery{grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}}
 @media(max-width:360px){.booking-experience .checkout-gallery{grid-template-columns:minmax(0,1fr)}}
+
+/* Revision 03 — final signature, confirmation only. */
+.booking-experience .checkout-ticket{grid-template-columns:minmax(0,1fr) auto;gap:12px}
+.booking-experience .checkout-country-name{display:flex;align-items:center;gap:10px;flex-wrap:wrap;overflow-wrap:anywhere}
+.booking-experience .checkout-country-code{font-size:19px;line-height:1;flex:none;font-family:"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif}
+.booking-experience .checkout-attention{display:block;background:transparent;padding:0;border:0;border-radius:0;color:#85551c}
+.booking-experience .checkout-attention summary{display:flex;align-items:center;gap:8px;cursor:pointer;min-height:34px;font-size:14px;font-weight:600;list-style:none}
+.booking-experience .checkout-attention summary::-webkit-details-marker{display:none}
+.booking-experience .checkout-attention summary::after{content:"";width:7px;height:7px;border-inline-end:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);margin-inline-start:4px;flex:none}
+.booking-experience .checkout-attention[open] summary::after{transform:rotate(225deg)}
+.booking-experience .checkout-attention small{display:block;margin-inline-start:15px;padding-block-end:6px}
+.booking-experience .checkout-attention-dot{width:7px;height:7px;border-radius:50%;background:#a66a28;flex:none}
+.booking-experience .checkout-gallery{align-items:stretch}
+.booking-experience .checkout-document{display:flex;flex-direction:column;align-items:stretch;height:100%;min-height:0}
+.booking-experience .checkout-document-label{min-height:48px;align-content:start}
+.booking-experience .checkout-document-preview,.booking-experience .checkout-missing{flex:none}
+.booking-experience .checkout-document-warning{margin-block:0;font-size:13px}
+.booking-experience .checkout-document-warning summary{min-height:30px;line-height:1.4}
+.booking-experience .checkout-document-warning p{padding-inline-start:10px}
+.booking-experience .checkout-replace{margin-block-start:auto;padding-block:7px;flex:none}
+.booking-experience .booking-footer[data-step="3"]{position:static;inset:auto;z-index:auto}
+.booking-experience .booking-footer[data-step="3"] small:empty{display:none}
+.booking-experience .checkout-doc-heading,.booking-experience .checkout-dialog-navigation{min-width:0}
+.booking-experience .checkout-dialog-navigation button{min-width:0;max-width:100%}
+.booking-experience .booking-review-dialog .booking-dialog-head strong{min-width:0}
+.booking-experience .checkout-document-warning summary:focus-visible,.booking-experience .checkout-attention summary:focus-visible{outline:2px solid #285582;outline-offset:3px}
+@media(max-width:850px){.booking-experience .checkout-ticket{grid-template-columns:minmax(0,1fr) auto}.booking-experience .checkout-doc-heading{row-gap:2px}.booking-experience .checkout-dialog-navigation{flex-wrap:wrap}.booking-experience .checkout-country-code{font-size:18px}}
+@media(max-width:480px){.booking-experience .checkout-gallery{grid-template-columns:minmax(0,1fr)}.booking-experience .checkout-gallery[data-single=true]{grid-template-columns:minmax(0,1fr)}.booking-experience .checkout-document-label{min-height:0}.booking-experience .checkout-payment .booking-price{overflow-wrap:anywhere}.booking-experience .checkout-dialog-navigation{width:100%;justify-content:space-between}}
 `;
