@@ -14,5 +14,6 @@ export async function GET() {
   return NextResponse.json({ unread, events: rows.map((n) => ({
     id: n.id, title: businessLabel(n.type, locale), link: n.link,
     createdAt: n.createdAt.toISOString(),
+    ...(user.agencyId ? {readAt:n.readAt?.toISOString()??null,type:n.type,applicationId:n.applicationId} : {}),
   })) }, { headers: { "Cache-Control": "private, no-store" } });
 }
