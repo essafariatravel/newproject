@@ -154,12 +154,18 @@ export function RequestWizard(props: Props) {
   const [visaTypeId, setVisaTypeId] = useState(()=>props.countries.find(c=>c.id===props.initialCountryId)?.visaTypes.some(v=>v.id===props.initialVisaTypeId)?props.initialVisaTypeId??"":"");
   const [countrySearch, setCountrySearch] = useState("");
   const [programmeSearch,setProgrammeSearch]=useState("");
+  const [nationalitySearch,setNationalitySearch]=useState("");
+  const [nationalityOpen,setNationalityOpen]=useState(false);
+  const nationalityRef=useRef<HTMLDivElement>(null);
+  useAgencyPopover(nationalityRef,nationalityOpen,setNationalityOpen);
+  const [batch,setBatch]=useState<File[]>([]);
+  const [zoom,setZoom]=useState(false);
   const [programmeCategory,setProgrammeCategory]=useState("");
   const [programmeSort,setProgrammeSort]=useState<"catalogue"|"price"|"time">("catalogue");
   const [reviewFile,setReviewFile]=useState<File|null>(null);
   const [reviewUrl,setReviewUrl]=useState("");
   const reviewDialog=useRef<HTMLDialogElement>(null);
-  useEffect(()=>{if(!reviewFile){setReviewUrl("");return;}const url=URL.createObjectURL(reviewFile);setReviewUrl(url);reviewDialog.current?.showModal();return()=>URL.revokeObjectURL(url)},[reviewFile]);
+  useEffect(()=>{if(!reviewFile){setReviewUrl("");return;}const url=URL.createObjectURL(reviewFile);setReviewUrl(url);setZoom(false);reviewDialog.current?.showModal();return()=>URL.revokeObjectURL(url)},[reviewFile]);
   const [destinationOpen, setDestinationOpen] = useState(false);
   const destinationPickerRef = useRef<HTMLDivElement>(null);
   const destinationListRef = useRef<HTMLDivElement>(null);
@@ -184,6 +190,11 @@ export function RequestWizard(props: Props) {
     en:{search:"Search programmes",all:"All categories",catalogue:"Catalogue order",price:"Lowest price",time:"Shortest processing time",programmes:"programmes",noMatch:"No matching programmes.",reset:"Clear filters",start:"Choose your destination",hint:"Compare programmes, processing times and required documents.",traveller:"Your traveller",full:"Enlarge",close:"Close",verify:"Check the type and contents of each document before submitting.",wrong:"The filename suggests a passport. Check that it matches the requested document.",local:"Files are not sent until confirmation.",payment:"Amount to charge"},
     ar:{search:"ابحثوا عن برنامج",all:"كل الفئات",catalogue:"ترتيب القائمة",price:"السعر الأقل",time:"أقصر مدة معالجة",programmes:"برامج",noMatch:"لا توجد برامج مطابقة.",reset:"مسح الفلاتر",start:"اختاروا وجهتكم",hint:"قارنوا البرامج والمدد والوثائق المطلوبة.",traveller:"المسافر",full:"تكبير",close:"إغلاق",verify:"تحققوا من نوع ومحتوى كل وثيقة قبل الإرسال.",wrong:"يشير اسم الملف إلى جواز سفر. تحققوا من مطابقته للوثيقة المطلوبة.",local:"لا ترسل الملفات قبل التأكيد.",payment:"المبلغ المراد خصمه"}
   }[props.locale];
+  const assist={
+    fr:{nationality:"Rechercher une nationalité",batch:"Ajouter plusieurs fichiers",batchHint:"Sélectionnez une pièce puis attribuez-lui le fichier correspondant.",assign:"Attribuer",unassigned:"Fichiers à attribuer",fit:"Ajuster",leave:"Quitter cette demande sans l’enregistrer ?",noNationality:"Aucun résultat.",ready:"Toutes les pièces obligatoires sont sélectionnées.",download:"Ouvrir le fichier"},
+    en:{nationality:"Search nationality",batch:"Add multiple files",batchHint:"Select a requirement and assign the matching file.",assign:"Assign",unassigned:"Unassigned files",fit:"Fit",leave:"Leave this application without saving?",noNationality:"No results.",ready:"All required documents are selected.",download:"Open file"},
+    ar:{nationality:"البحث عن الجنسية",batch:"إضافة عدة ملفات",batchHint:"اختاروا الوثيقة ثم خصصوا الملف المناسب.",assign:"تخصيص",unassigned:"ملفات غير مخصصة",fit:"ملاءمة",leave:"مغادرة الطلب دون حفظ؟",noNationality:"لا نتائج.",ready:"تم تحديد جميع الوثائق الإلزامية.",download:"فتح الملف"}
+  }[props.locale];
   const [files, setFiles] = useState<Record<string, File[]>>({});
   const [pending, setPending] = useState(false);
   const submittingRef = useRef(false);
@@ -199,6 +210,11 @@ export function RequestWizard(props: Props) {
     window.addEventListener("beforeunload", protect);
     return () => window.removeEventListener("beforeunload", protect);
   }, [dirty,pending]);
+  useEffect(()=>{
+    if(!dirty&&!pending)return;
+    const guard=(e:MouseEvent)=>{if(leavingAfterSuccess.current||e.defaultPrevented||e.button!==0||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;const a=(e.target instanceof Element?e.target.closest("a[href]"):null) as HTMLAnchorElement|null;if(!a||a.target==="_blank"||a.download||a.origin!==location.origin||a.pathname===location.pathname)return;if(pending||!window.confirm(assist.leave)){e.preventDefault();e.stopPropagation();}};
+    document.addEventListener("click",guard,true);return()=>document.removeEventListener("click",guard,true);
+  },[dirty,pending,assist.leave]);
   const [transfer, setTransfer] = useState<{done:number;total:number;phase:"files"|"confirm"} | null>(null);
   const feedbackRef = useRef<HTMLDivElement>(null);
   const stepHeadingRef = useRef<HTMLOListElement>(null);
@@ -232,7 +248,7 @@ export function RequestWizard(props: Props) {
   const suspectCount=requirements.reduce((n,r)=>n+(files[r.documentTypeId]??[]).filter(f=>suspicious(r,f)).length,0);
   useEffect(()=>{if(!selectedFile){setPreviewUrl("");return;}const url=URL.createObjectURL(selectedFile);setPreviewUrl(url);return ()=>URL.revokeObjectURL(url);},[selectedFile]);
   function selectDoc(id:string){setActiveDoc(id);setPreviewIndex(0);setFileError("");}
-  function clearForProgrammeChange(){if(Object.values(files).some(a=>a.length)&&!window.confirm(ui.changeWarning))return false;setFiles({});setActiveDoc("");setPreviewIndex(0);setFileError("");return true;}
+  function clearForProgrammeChange(){if((Object.values(files).some(a=>a.length)||batch.length)&&!window.confirm(ui.changeWarning))return false;setFiles({});setBatch([]);setActiveDoc("");setPreviewIndex(0);setFileError("");return true;}
   function changeProgramme(id:string){if(id===visaTypeId)return;if(!clearForProgrammeChange())return;setVisaTypeId(id);setDirty(true);}
   function editStep(n:number){if(submittingRef.current||pending||n>=step)return;setClientError("");setWizardDirection("back");setStep(n);}
   // All destinations with a bookable programme remain visible without typing.
@@ -310,7 +326,7 @@ export function RequestWizard(props: Props) {
       const form = formRef.current;
       if (form) {
         const fullName = (form.elements.namedItem("t0_fullName") as HTMLInputElement | null)?.value?.trim() ?? "";
-        const nationality = (form.elements.namedItem("t0_nationality") as HTMLSelectElement | null)?.value?.trim() ?? "";
+        const nationality = (form.elements.namedItem("t0_nationality") as HTMLInputElement | null)?.value?.trim() ?? "";
         if (!fullName || !nationality) {
           setClientError(t.validationApplicant);
           return false;
@@ -318,6 +334,7 @@ export function RequestWizard(props: Props) {
       }
     }
     if (n === 2) {
+      if(batch.length){setClientError(assist.batchHint);return false;}
       for (const r of requirements) {
         if (r.required && (files[r.documentTypeId] ?? []).length === 0) {
           selectDoc(r.documentTypeId);setClientError(`${t.missingPrefix}: ${r.name}`);
@@ -355,23 +372,24 @@ export function RequestWizard(props: Props) {
     setStep((s) => Math.max(1, s - 1));
   }
 
-  function onFileChange(documentTypeId: string, list: FileList | null) {
-    if (!list) return;
+  function onFileChange(documentTypeId: string, list: FileList | File[] | null): boolean {
+    if (!list) return false;
     const incoming = Array.from(list);
-    if(!incoming.length)return;
+    if(!incoming.length)return false;
     const invalid=incoming.find(f=>!(/\.(pdf|jpe?g|png|webp|docx?)$/i.test(f.name))||f.size===0);
-    if(invalid){setFileError(ui.invalid+" ("+invalid.name+")");return;}
+    if(invalid){setFileError(ui.invalid+" ("+invalid.name+")");return false;}
     const signature=(f:File)=>f.name+"|"+f.size+"|"+f.lastModified;
-    if(new Set(incoming.map(signature)).size!==incoming.length||incoming.some(f=>Object.entries(files).some(([id,arr])=>id!==documentTypeId&&arr.some(other=>signature(other)===signature(f))))){setFileError(ui.duplicate);return;}
+    if(new Set(incoming.map(signature)).size!==incoming.length||incoming.some(f=>Object.entries(files).some(([id,arr])=>id!==documentTypeId&&arr.some(other=>signature(other)===signature(f))))){setFileError(ui.duplicate);return false;}
     const tooBig = incoming.find((f) => f.size > MAX_FILE_BYTES);
     if (tooBig) {
       setFileError(`${t.fileTooLarge} (${tooBig.name})`);
-      return;
+      return false;
     }
     setFileError("");
     setDirty(true);
     setFiles((prev) => ({ ...prev, [documentTypeId]: incoming }));
-    setPreviewIndex(0);
+    setClientError("");setPreviewIndex(0);
+    return true;
   }
 
   function removeFile(documentTypeId: string, index: number) {
@@ -441,7 +459,7 @@ export function RequestWizard(props: Props) {
       {countryId ? <input type="hidden" name="countryId" value={countryId} /> : null}
       <input type="hidden" name="locale" value={props.locale} />
 
-      <style>{bookingCss+bookingRefinementCss}</style>
+      <style>{bookingCss+bookingRefinementCss+bookingAssistCss}</style>
       <ol ref={stepHeadingRef} tabIndex={-1} className="booking-rail" data-testid="wizard-steps">
         {[ui.travel,ui.documents,ui.confirm].map((label,i)=>(
           <li key={label} aria-current={step===i+1?"step":undefined} data-state={step===i+1?"active":step>i+1?"complete":"pending"}>
@@ -664,19 +682,14 @@ export function RequestWizard(props: Props) {
             </div>
             <div>
               <label className="label" htmlFor="t0_nationality">{t.nationality} *</label>
-              <select
-                id="t0_nationality"
-                name="t0_nationality"
-                required
-                value={nationalityDraft} onChange={e=>setNationalityDraft(e.target.value)}
-                className="input"
-                data-testid="wizard-nationality"
-                aria-label={t.nationality}
-              >
-                {props.nationalities.map((n) => (
-                  <option key={n.code} value={n.code}>{n.label}</option>
-                ))}
-              </select>
+              <div ref={nationalityRef} className="booking-nationality">
+                <input type="hidden" name="t0_nationality" value={nationalityDraft}/>
+                <button type="button" id="t0_nationality" className="input booking-line" data-testid="wizard-nationality" aria-expanded={nationalityOpen} aria-controls="booking-nationality-options" onClick={()=>{setNationalitySearch("");setNationalityOpen(v=>!v)}}>{props.nationalities.find(n=>n.code===nationalityDraft)?.label??nationalityDraft}<span aria-hidden>⌄</span></button>
+                {nationalityOpen?<div className="booking-nationality-pop" id="booking-nationality-options" onKeyDown={e=>{if(e.key==="Escape"){setNationalityOpen(false);document.getElementById("t0_nationality")?.focus()}}}>
+                  <input autoFocus type="search" className="input" aria-label={assist.nationality} placeholder={assist.nationality} value={nationalitySearch} onChange={e=>setNationalitySearch(e.target.value)}/>
+                  <div className="booking-nationality-list">{props.nationalities.filter(n=>normalize(n.label+" "+n.code).includes(normalize(nationalitySearch))).map(n=><button key={n.code} type="button" aria-pressed={n.code===nationalityDraft} onClick={()=>{setNationalityDraft(n.code);setDirty(true);setNationalityOpen(false);document.getElementById("t0_nationality")?.focus()}}>{n.label}{n.code===nationalityDraft?" ✓":""}</button>)}{!props.nationalities.some(n=>normalize(n.label+" "+n.code).includes(normalize(nationalitySearch)))?<p className="booking-muted">{assist.noNationality}</p>:null}</div>
+                </div>:null}
+              </div>
             </div>
           </div>
           <details className="booking-notes"><summary>{ui.notes}</summary><label className="label sr-only" htmlFor="agencyNotes">{t.notes}</label><textarea id="agencyNotes" name="agencyNotes" rows={2} className="input mt-3" placeholder={t.notesPlaceholder} /></details>
@@ -696,6 +709,8 @@ export function RequestWizard(props: Props) {
         {fileError?<p role="alert" className="booking-warning" data-testid="wizard-file-error">{fileError}</p>:null}
         {requirements.length===0?<p>{t.noDocumentsRequired}</p>:<div className="booking-doc-grid">
           <div className="booking-doc-list" role="group" aria-label={t.summaryDocuments}>
+            <label className="booking-batch btn-secondary"><span>＋ {assist.batch}</span><input className="sr-only" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" onChange={e=>{const incoming=Array.from(e.currentTarget.files??[]);if(incoming.length){setBatch(prev=>[...prev,...incoming]);setDirty(true)}e.currentTarget.value=""}}/></label>
+            {batch.length?<div className="booking-inbox"><strong>{assist.unassigned} ({batch.length})</strong><small>{assist.batchHint}</small>{batch.map((f,i)=><div className="booking-batch-row" key={i}><span>{f.name}</span><button type="button" className="booking-link" disabled={!selectedRequirement} aria-label={assist.assign+" "+f.name+" → "+selectedRequirement?.name} onClick={()=>{if(selectedRequirement&&onFileChange(selectedRequirement.documentTypeId,[...(files[selectedRequirement.documentTypeId]??[]),f]))setBatch(prev=>prev.filter((_,j)=>j!==i))}}>{assist.assign}</button><button type="button" className="booking-link" aria-label={t.remove+" "+f.name} onClick={()=>setBatch(prev=>prev.filter((_,j)=>j!==i))}>×</button></div>)}</div>:null}
             {requirements.map(r=><button type="button" key={r.documentTypeId} className="booking-doc-row" aria-pressed={selectedRequirement?.documentTypeId===r.documentTypeId} onClick={()=>selectDoc(r.documentTypeId)}><span className="booking-doc-icon" aria-hidden>▤</span><span><strong>{r.name}</strong><small>{r.required?t.required:ui.optional}</small></span><span className={(files[r.documentTypeId]??[]).length?"booking-success":"booking-muted"}>{(files[r.documentTypeId]??[]).length?"✓ "+t.uploaded:ui.empty}</span></button>)}
           </div>
           {selectedRequirement?<div className="booking-doc-panel">
@@ -738,13 +753,13 @@ export function RequestWizard(props: Props) {
         </button>
         <small>{step===2?ux.local:step===1?ui.noDebit:""}</small>
         {step < 3 ? (
-          <button type="button" onClick={goNext} disabled={pending||(step===1?(!visa||!nameDraft.trim()||!nationalityDraft):completedDocs<requiredDocs.length)} className="btn-primary">
+          <button type="button" onClick={goNext} disabled={pending||(step===1?(!visa||!nameDraft.trim()||!nationalityDraft):completedDocs<requiredDocs.length||batch.length>0)} className="btn-primary">
             {step===1?ui.continue:ui.review} <span className="directional" aria-hidden>→</span>
           </button>
         ) : null}
       </div>
       <dialog ref={reviewDialog} className="booking-review-dialog" onClose={()=>setReviewFile(null)} onCancel={()=>setReviewFile(null)} aria-label={ui.preview}>
-        {reviewFile?<><div className="booking-dialog-head"><strong>{reviewFile.name}</strong><button type="button" className="btn-secondary" onClick={()=>reviewDialog.current?.close()}>{ux.close}</button></div><div className="booking-dialog-body">{reviewUrl&&/^image\/(jpeg|png|webp)$/.test(reviewFile.type)?<img src={reviewUrl} alt={reviewFile.name}/>:reviewUrl&&reviewFile.type==="application/pdf"?<iframe title={reviewFile.name} src={reviewUrl}/>:<p>{ui.unavailable}</p>}</div></>:null}
+        {reviewFile?<><div className="booking-dialog-head"><strong>{reviewFile.name}</strong>{reviewFile.type.startsWith("image/")?<button type="button" className="btn-secondary" onClick={()=>setZoom(v=>!v)}>{zoom?assist.fit:ux.full}</button>:null}<button type="button" className="btn-secondary" onClick={()=>reviewDialog.current?.close()}>{ux.close}</button></div><div className="booking-dialog-body" data-zoom={zoom}>{reviewUrl&&/^image\/(jpeg|png|webp)$/.test(reviewFile.type)?<img src={reviewUrl} alt={reviewFile.name}/>:reviewUrl&&reviewFile.type==="application/pdf"?<iframe title={reviewFile.name} src={reviewUrl}/>:<p>{ui.unavailable}</p>}</div></>:null}
       </dialog>
     </form>
   );
@@ -753,3 +768,5 @@ export function RequestWizard(props: Props) {
 const bookingCss = "/* ESSAFARIA Dashboard 04 — only /portal. Typography and surface tokens have one source. */\n.workspace-agency.workspace-agency:has(.booking-experience){\n --agency-paper:#fff;--agency-ink:#0b1c30;--agency-muted:#344457;--agency-rule:#e2e5e9;--agency-hover:#f5f7fa;\n background:#fff;color:#0b1c30;font-family:system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",Arial,sans-serif;\n}\nhtml[lang=\"ar\"] .workspace-agency.workspace-agency:has(.booking-experience){font-family:\"Plex Arabic\",Barlow,Arial,sans-serif}\n.workspace-agency.workspace-agency:has(.booking-experience) #workspace-main{background:#fff;padding-block-start:24px}\n.workspace-agency.workspace-agency:has(.booking-experience) .workspace-header-context{display:none}\n.workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation a[href=\"/portal/notifications\"] .badge{display:none}\n.workspace-agency.workspace-agency:has(.booking-experience) .agency-header-brand small{font-size:15px;letter-spacing:normal}\n.workspace-agency.workspace-agency:has(.booking-experience) .workspace-topbar button,.workspace-agency.workspace-agency:has(.booking-experience) .workspace-topbar summary{font-family:inherit}\n.workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation .workspace-nav-link{font-size:16px;font-weight:500}\n.workspace-agency.workspace-agency:has(.booking-experience) :is(.workspace-topbar,.agency-desktop-navigation) :is(a,button,summary):focus-visible{outline:2px solid #304b64;outline-offset:3px}\n@media(min-width:1280px){\n .workspace-agency.workspace-agency:has(.booking-experience) .workspace-topbar{flex-shrink:0}\n .workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation{position:sticky;top:64px;z-index:29;flex-shrink:0;background:white}\n .workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation a:is([href=\"/portal/notifications\"],[href=\"/portal/profile\"]){display:none}\n}\n@media(min-width:1600px){\n .workspace-agency.workspace-agency:has(.booking-experience) .workspace-topbar{height:68px;padding-inline:24px}\n .workspace-agency.workspace-agency:has(.booking-experience) .workspace-topbar > div:last-child > span.hidden{display:none}\n .workspace-agency.workspace-agency:has(.booking-experience) .account-menu-identity{display:none}\n .workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation{top:0;z-index:31;align-self:center;width:calc(100% - 480px);min-height:68px;height:68px;margin-block-start:-68px;padding:0;gap:8px;justify-content:center;border:0;background:transparent}\n .workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation .workspace-nav-link{padding:8px 12px;min-height:44px;white-space:nowrap;border-radius:6px}\n .workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation .workspace-nav-link:not([href=\"/portal/applications/new\"]) .workspace-nav-icon{display:none}\n .workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation .workspace-nav-link[aria-current]:not([href=\"/portal/applications/new\"]){background:transparent;box-shadow:inset 0 -2px #0b1c30;border-radius:0;color:#0b1c30;font-weight:600}\n .workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation .workspace-nav-link:hover:not([href=\"/portal/applications/new\"]){background:#f5f7fa}\n .workspace-agency.workspace-agency:has(.booking-experience) .agency-desktop-navigation a[href=\"/portal/applications/new\"]{margin-inline:6px}\n}\n\n.workspace-agency.workspace-agency:has(.booking-experience){--agency-muted:#647182}\n.workspace-agency:has(.booking-experience) #workspace-main{max-width:1700px;width:100%;padding-inline:clamp(20px,4vw,64px)}\n.workspace-agency:has(.booking-experience) #workspace-main .page-header{margin-block-end:12px}\n.workspace-agency:has(.booking-experience) #workspace-main .page-header-subtitle{display:none}\n.workspace-agency #workspace-main .booking-experience{color:#0b1c30;font-size:16px;line-height:1.5;display:grid;gap:20px;font-family:inherit}\n.workspace-agency #workspace-main .booking-experience :is(h1,h2,h3,button,input,select,textarea){font-family:inherit}\n.workspace-agency #workspace-main .booking-experience h2{font-size:22px;font-weight:600;letter-spacing:-.018em}\n.workspace-agency #workspace-main .booking-experience h3{font-size:17px;font-weight:600}\n.workspace-agency #workspace-main .booking-experience small,.booking-muted{font-size:15px;color:#647182}\n.workspace-agency #workspace-main .booking-experience :is(.input,.btn-primary,.btn-secondary){border-radius:7px;font-weight:500}\n.booking-experience [hidden]{display:none!important}\n.booking-rail{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding-block:5px 12px;border-bottom:1px solid #e2e5e9;gap:12px}\n.booking-rail li{position:relative;min-width:0}\n.booking-rail li:not(:last-child):after{content:\"\";position:absolute;inset-inline-start:42px;inset-inline-end:8px;top:18px;border-top:1px dashed #b8c6d4;z-index:0}\n.booking-rail li[data-state=complete]:after{border-top:1px solid #6b899f}\n.booking-rail button{display:flex;flex-direction:column;align-items:start;gap:7px;position:relative;z-index:1;text-align:start;font-size:15px;color:#647182;min-height:58px}\n.booking-rail li[data-state=active] button{color:#0b1c30;font-weight:600}\n.booking-rail li[data-state=complete] button{color:#0b1c30;cursor:pointer}\n.booking-marker{width:36px;height:36px;display:grid;place-items:center;border:1px solid #c7d1db;border-radius:50%;background:white;color:#647182;font-size:15px}\n.booking-rail li[data-state=active] .booking-marker{background:#0b1c30;color:white;box-shadow:0 0 0 4px #e6edf3;border-color:#0b1c30}\n.booking-rail li[data-state=complete] .booking-marker{color:#23685c;border-color:#8cb4a8}\n.booking-grid:not([hidden]){display:grid;grid-template-columns:minmax(0,1.55fr) minmax(300px,1fr);gap:clamp(24px,4vw,64px);align-items:start}\n.booking-main,.booking-side{display:grid;gap:18px;min-width:0}\n.booking-side{border-inline-start:1px solid #e2e5e9;padding-inline-start:clamp(20px,3vw,44px)}\n.booking-traveller{border-top:1px solid #e2e5e9;padding-top:20px}\n.booking-selected-country{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #e2e5e9;padding-block:10px}\n.booking-notes summary{cursor:pointer;color:#647182;min-height:44px;display:list-item;padding-block:10px}\n.booking-product{display:grid;gap:5px}\n.booking-product h3{font-size:24px!important;line-height:1.25}\n.booking-price{font-size:34px;line-height:1.2;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.025em;margin-top:8px}\n.booking-rule{border-top:1px solid #e2e5e9;padding-top:12px;display:grid;gap:8px}\n.booking-line{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:30px}\n.booking-line strong{font-weight:600;text-align:end;font-variant-numeric:tabular-nums}\n.booking-success{color:#21684f;font-size:15px}\n.booking-warning{color:#934516;font-size:15px}\n.booking-empty{color:#647182;padding-block:14px}\n.booking-doc-head{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}\n.booking-doc-progress{display:flex;align-items:center;gap:8px;color:#647182;font-size:15px}\n.booking-doc-progress strong{font-size:22px;color:#0b1c30;font-weight:600}\n.booking-doc-progress progress{width:90px;height:5px;accent-color:#23685c}\n.booking-doc-grid{display:grid;grid-template-columns:minmax(260px, .75fr) minmax(0,1.25fr);gap:24px;border-top:1px solid #e2e5e9;margin-top:14px}\n.booking-doc-list{padding-block:8px;min-width:0}\n.booking-doc-row{width:100%;display:grid;grid-template-columns:22px minmax(0,1fr) auto;align-items:center;text-align:start;gap:12px;min-height:64px;padding:10px 12px;border-bottom:1px solid #e2e5e9;transition:background 160ms ease;border-radius:5px}\n.booking-doc-row[aria-pressed=true]{background:#edf2f6;box-shadow:inset 3px 0 #0b1c30}\n[dir=rtl] .booking-doc-row[aria-pressed=true]{box-shadow:inset -3px 0 #0b1c30}\n.booking-doc-row:hover{background:#f5f7fa}\n.booking-doc-row strong,.booking-doc-row small{display:block;font-weight:500}\n.booking-doc-icon{color:#647182;font-size:20px}\n.booking-doc-panel{display:grid;gap:14px;align-content:start;padding:16px 0 0 24px;border-inline-start:1px solid #e2e5e9;min-width:0}\n[dir=rtl] .booking-doc-panel{padding:16px 24px 0 0}\n.booking-drop{display:grid;justify-items:center;align-content:center;gap:10px;min-height:218px;border:1px dashed #aab8c7;border-radius:12px;text-align:center;padding:18px;cursor:pointer;transition:background 160ms ease,border-color 160ms ease}\n.booking-drop:hover,.booking-drop[data-dragging=true]{background:#f5f8fb;border-color:#0b1c30}\n.booking-drop:focus-within,.booking-file-replace:focus-within{outline:2px solid #0b1c30;outline-offset:3px}\n.booking-file-replace{justify-self:start;cursor:pointer}\n.booking-preview{display:grid;place-items:center;background:#f6f7f9;border-radius:7px;min-height:150px;overflow:hidden}\n.booking-preview img{max-width:100%;height:clamp(160px,25vh,310px);object-fit:contain}\n.booking-preview iframe{width:100%;height:clamp(220px,33vh,390px);border:0}\n.booking-preview p{padding:18px;color:#647182}\n.booking-files{display:grid;gap:4px}\n.booking-file-name{text-align:start;overflow-wrap:anywhere;min-width:0}\n.booking-file-name[aria-pressed=true]{font-weight:600}\n.booking-link{color:#285582;min-height:44px;padding-inline:6px;text-decoration:underline;text-underline-offset:3px}\n.booking-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-block:12px;border-top:1px solid #e2e5e9}\n.booking-footer>button:last-child{margin-inline-start:auto}\n.workspace-agency #workspace-main .booking-experience .wizard-choice{font-weight:500;border-radius:6px}\n.workspace-agency #workspace-main .booking-experience .wizard-panel:not([hidden]){animation:booking-enter 200ms cubic-bezier(.2,.7,.2,1) both}\n@keyframes booking-enter{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}\n@media(max-width:850px){.booking-grid:not([hidden]),.booking-doc-grid{grid-template-columns:1fr;gap:16px}.booking-side,.booking-doc-panel,[dir=rtl] .booking-doc-panel{border-inline-start:0;padding-inline:0;border-top:1px solid #e2e5e9;padding-top:16px}.booking-doc-row{min-height:56px}.booking-rail button{font-size:14px}.booking-footer{position:static}}\n@media(prefers-reduced-motion:reduce){.workspace-agency #workspace-main .booking-experience .wizard-panel:not([hidden]){animation:none}.booking-doc-row,.booking-drop{transition:none}}\n";
 
 const bookingRefinementCss="\n.booking-rail{max-width:760px;width:100%;padding-block:0 10px;gap:18px}.booking-rail button{flex-direction:row;align-items:center;gap:10px;min-height:42px}.booking-rail li:not(:last-child):after{inset-inline-start:0;inset-inline-end:0;top:auto;bottom:-5px}.booking-marker{width:30px;height:30px;flex:none}.booking-grid:not([hidden]){grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr);gap:clamp(24px,3vw,48px)}\n.booking-catalogue{display:grid;gap:10px}.booking-catalogue-tools{display:flex;flex-wrap:wrap;gap:8px}.booking-catalogue-tools input{flex:2 1 180px;min-width:0}.booking-catalogue-tools select{flex:1 1 140px;min-width:0;max-width:100%}.booking-programmes{max-height:clamp(200px,32vh,350px);overflow:auto;overscroll-behavior:contain;border-block:1px solid #e2e5e9}.booking-programme{display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:center;gap:12px;padding:10px 12px;min-height:60px;cursor:pointer;border-bottom:1px solid #e2e5e9;transition:background 160ms ease}.booking-programme:last-child{border-bottom:0}.booking-programme[data-selected=true]{background:#edf2f6}.booking-programme:hover{background:#f5f7fa}.booking-programme input{accent-color:#0b1c30}.booking-programme-title{min-width:0;overflow-wrap:anywhere;display:grid}.booking-programme-title strong{font-weight:600}.booking-programme-fee{white-space:nowrap;font-variant-numeric:tabular-nums}.booking-empty{display:grid;gap:8px}.booking-empty h3{color:#0b1c30}.booking-experience .wizard-choice small{margin-inline-start:10px}\n.booking-preview-image{width:100%;display:grid;place-items:center;cursor:zoom-in}.booking-preview-image img{height:clamp(200px,38vh,430px)}.booking-review-files{display:flex;flex-wrap:wrap;justify-content:end}.booking-review-dialog{width:min(1000px,94vw);max-height:90dvh;margin:auto;border:1px solid #dce3e9;border-radius:14px;padding:18px;background:#fff;color:#0b1c30}.booking-review-dialog::backdrop{background:#0b1c3066}.booking-dialog-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}.booking-dialog-head strong{flex:1;overflow-wrap:anywhere}.booking-dialog-body{height:min(70dvh,750px);overflow:auto;background:#f5f7fa;display:grid;place-items:center}.booking-dialog-body img{max-width:100%;max-height:100%;object-fit:contain}.booking-dialog-body iframe{width:100%;height:100%;border:0}.booking-footer{position:sticky;bottom:0;background:white;z-index:10}.booking-footer button:disabled{opacity:.5;cursor:not-allowed}.booking-experience :is(button,a,input,select,textarea):focus-visible{outline:2px solid #285582;outline-offset:3px}\n@media(max-width:850px){.booking-grid:not([hidden]){grid-template-columns:1fr}.booking-rail{gap:8px}.booking-rail button{flex-direction:column;align-items:start;font-size:13px}.booking-footer{position:static}.booking-dialog-head{flex-wrap:wrap}.booking-programme{grid-template-columns:18px minmax(0,1fr);gap:6px}.booking-programme-fee{grid-column:2}}\n@media(prefers-reduced-motion:reduce){.booking-programme{transition:none}}\n";
+
+const bookingAssistCss=".booking-nationality{position:relative}.booking-nationality>button{width:100%;text-align:start}.booking-nationality-pop{position:absolute;z-index:45;inset-inline:0;top:100%;padding:8px;background:#fff;border:1px solid #e2e5e9;border-radius:12px;box-shadow:0 12px 32px #0b1c301a}.booking-nationality-list{max-height:240px;overflow:auto}.booking-nationality-list button{display:block;width:100%;text-align:start;padding:9px;border-radius:5px}.booking-nationality-list button:hover,.booking-nationality-list button[aria-pressed=true]{background:#edf2f6}.booking-batch{display:flex!important;justify-content:center;cursor:pointer;margin-bottom:8px}.booking-batch:focus-within{outline:2px solid #0b1c30;outline-offset:2px}.booking-inbox{display:grid;gap:6px;padding:10px 0;border-bottom:1px solid #e2e5e9}.booking-batch-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px;align-items:center}.booking-batch-row>span{overflow-wrap:anywhere}.booking-dialog-body[data-zoom=true] img{max-width:none;max-height:none;width:150%;height:auto}@media(max-width:850px){.booking-batch-row{grid-template-columns:minmax(0,1fr) auto}.booking-batch-row>span{grid-column:1/-1}}";
