@@ -866,7 +866,6 @@ export function RequestWizard(props: Props) {
                   </label>
                 </div>;
               })}
-            </div>})}
             </div>}
             <small className="checkout-verify">{ux.verify}</small>
           </div>
