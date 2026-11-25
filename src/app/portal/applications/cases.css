@@ -323,3 +323,5 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-cases){font-fa
 .fluid-cases .adaptive-period-presets button{border-radius:20px;min-height:40px}
 .fluid-cases .adaptive-period-range{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .fluid-cases .fluid-filter-fields .case-missing{display:none}
+
+.fluid-cases .adaptive-range-error{color:#a12622;font-size:15px;line-height:1.4}

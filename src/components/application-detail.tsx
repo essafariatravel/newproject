@@ -13,6 +13,7 @@ import {
   deleteDocumentAction,
 } from "@/app/actions/documents";
 import { caseDateTime } from "@/app/portal/applications/case-workspace";
+import { CaseConversationMotion } from "@/app/portal/applications/case-conversation-motion";
 import { CaseMessageComposer } from "./case-message-templates";
 import { hasPermission } from "@/lib/rbac";
 import { postMessageAction } from "@/app/actions/communications";
@@ -276,13 +277,14 @@ export function CommunicationsPanel(props: {
   caseWorkspace?: boolean;
   requestTitle?: string;
   caseTerminal?: boolean;
+  messagePosted?: boolean;
   olderPage?: boolean;
 }) {
   const isStaff = !props.user.agencyId;
   const t = contentT(props.locale ?? "en");
   return (
     <div className={props.caseWorkspace?"space-y-4 dossier-messages":"space-y-4"}>
-      {props.caseWorkspace?<header className="adaptive-conversation-header"><span className="adaptive-conversation-avatar" aria-hidden="true">E</span><div><h2>{t("ESSAFARIA Team")}</h2><p>{({fr:"Conversation liée au dossier",en:"Conversation for this case",ar:"محادثة مرتبطة بالطلب"}[props.locale??"en"])}</p></div></header>:null}
+      {props.caseWorkspace?<header className="adaptive-conversation-header"><span className="adaptive-conversation-avatar" aria-hidden="true">E</span><div><h2>{t("ESSAFARIA Team")}</h2><p>{({fr:"Conversation liée au dossier",en:"Conversation for this case",ar:"محادثة مرتبطة بالطلب"}[props.locale??"en"])}</p></div><CaseConversationMotion key={props.applicationId} locale={props.locale??"en"} latest={props.messages.at(-1)?.message.id??""} older={Boolean(props.olderPage)}/></header>:null}
       <div className={"card divide-y divide-slate-100"+(props.caseWorkspace?" adaptive-thread":"")}>
         {props.messages.length === 0 ? (
           <p className="px-4 py-8 text-center text-base text-slate-500">{t("No messages on this application yet.")}</p>
@@ -307,7 +309,7 @@ export function CommunicationsPanel(props: {
         )}
       </div>
 
-      {props.caseWorkspace?(hasPermission(props.user,"communications.post.agency")?<CaseMessageComposer key={props.applicationId} locale={props.locale??"en"} applicationId={props.applicationId} back={props.back} requestTitle={props.requestTitle} terminal={props.caseTerminal}/>:null):<form action={postMessageAction} className="card p-4">
+      {props.caseWorkspace?(hasPermission(props.user,"communications.post.agency")?<CaseMessageComposer key={props.applicationId} locale={props.locale??"en"} applicationId={props.applicationId} back={props.back} requestTitle={props.requestTitle} terminal={props.caseTerminal} draftScope={props.user.id} messagePosted={props.messagePosted}/>:null):<form action={postMessageAction} className="card p-4">
         <input type="hidden" name="applicationId" value={props.applicationId} />
         <input type="hidden" name="back" value={props.back} />
         <label htmlFor="msg-body" className="label">{t("New message")}</label>

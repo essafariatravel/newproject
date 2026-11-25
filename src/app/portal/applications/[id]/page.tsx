@@ -152,13 +152,14 @@ export default async function PortalApplicationDetailPage({
     ...history.map(h=>({key:"status-"+h.history.id,at:h.history.createdAt,kind:"status" as const,title:localizedStatusName(h.toStatus.code,h.toStatus.name,uiLocale),code:h.toStatus.code,reason:h.history.reason?(h.toStatus.code==="SUBMITTED"&&h.history.reason==="Request submitted"?ct("Request submitted"):h.history.reason):null,href:null as string|null})),
     ...docRequests.flatMap(r=>{
       const title=docLabel(r.docTypeCode,r.docTypeName);
-      const href=`${back}?tab=documents${returnSuffix}${r.req.status==="OPEN"?"#request-"+r.req.id:""}`;
-      return [{key:"request-"+r.req.id,at:r.req.createdAt,kind:"request" as const,title:r.req.type==="REPLACEMENT"?adaptive.replacement:adaptive.request,code:"RESUBMISSION_REQUIRED",reason:title+(r.req.reason?" · "+r.req.reason:""),href},...(r.req.fulfilledAt?[{key:"received-"+r.req.id,at:r.req.fulfilledAt,kind:"received" as const,title:adaptive.receivedEvent,code:"UPLOADED",reason:title,href:`${back}?tab=documents${returnSuffix}`}]:[])];
+      const anchor=r.req.status==="OPEN"?"#request-"+r.req.id:r.req.checklistItemId?"#item-"+r.req.checklistItemId:"";
+      const href=`${back}?tab=documents${returnSuffix}${anchor}`;
+      return [{key:"request-"+r.req.id,at:r.req.createdAt,kind:"request" as const,title:r.req.type==="REPLACEMENT"?adaptive.replacement:adaptive.request,code:"RESUBMISSION_REQUIRED",reason:title+(r.req.reason?" · "+r.req.reason:""),href},...(r.req.fulfilledAt?[{key:"received-"+r.req.id,at:r.req.fulfilledAt,kind:"received" as const,title:adaptive.receivedEvent,code:"UPLOADED",reason:title,href}]:[])];
     }),
     ...messages.map(({message})=>({key:"message-"+message.id,at:message.createdAt,kind:"message" as const,title:({fr:"Message échangé",en:"Message exchanged",ar:"تم تبادل رسالة"}[uiLocale]),code:"MESSAGE",reason:null,href:`${back}?tab=messages${returnSuffix}`}))
   ].sort((a,b)=>b.at.getTime()-a.at.getTime()||a.key.localeCompare(b.key));
   const latestKnown=detail.caseActivity??app.updatedAt;
-  const existingFiles=docs.map(({doc})=>({name:doc.originalFilename,size:doc.sizeBytes}));
+  const existingFiles=docs.map(({doc})=>({name:doc.originalFilename,size:doc.sizeBytes,sha256:doc.sha256}));
   const fileMeta=(doc:typeof docs[number]["doc"])=>({id:doc.id,name:doc.originalFilename,mime:doc.mimeType,version:doc.version,size:bytes(doc.sizeBytes),date:caseDateTime(doc.createdAt,uiLocale)});
   const entryForItem=(item:typeof checklist[number],group:"required"|"other"):DocumentWorkspaceEntry=>{
     const itemDocs=documentGroups.byItem.get(item.id)??[],latest=itemDocs[0]?.doc,requests=requestFor(item),requested=requests.length>0;
@@ -309,7 +310,7 @@ export default async function PortalApplicationDetailPage({
 
       {tab==="messages"&&Number(unreadRows[0]?.total??0)>0?<CaseMessagesRead key={id} id={id}/>:null}
       {tab === "messages" ? (
-        <CommunicationsPanel applicationId={id} messages={messages} user={user} back={`${back}?tab=messages${returnSuffix}`} locale={uiLocale} caseWorkspace requestTitle={requestTitle} caseTerminal={terminal} olderPage={typeof sp.messagesBefore==="string"} />
+        <CommunicationsPanel applicationId={id} messages={messages} user={user} back={`${back}?tab=messages${returnSuffix}`} locale={uiLocale} caseWorkspace requestTitle={requestTitle} caseTerminal={terminal} messagePosted={flash.success===ct("Message posted.")} olderPage={typeof sp.messagesBefore==="string"} />
       ) : null}
 
       {tab === "activity" ? (
