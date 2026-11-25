@@ -12,7 +12,7 @@ export function CaseMessageComposer({locale,applicationId,back,requestTitle,term
  const t=copy[locale],id=useId(),input=useRef<HTMLTextAreaElement>(null),[body,setBody]=useState("");
  const context=requestTitle?({fr:{label:"Question sur le document",body:"Bonjour, pourriez-vous nous préciser les conditions relatives à la pièce demandée (« "+requestTitle+" ») ? Merci."},en:{label:"Ask about this document",body:"Hello, could you clarify the requirements for "+requestTitle+"? Thank you."},ar:{label:"استفسار عن الوثيقة",body:"مرحبًا، هل يمكنكم توضيح شروط الوثيقة المطلوبة ("+requestTitle+")؟ شكرًا."}}[locale]):null;
  const decision={fr:{label:"Question sur la décision",body:"Bonjour, nous souhaitons obtenir une précision concernant la décision de ce dossier. Merci."},en:{label:"Ask about the decision",body:"Hello, we would like clarification about the decision on this case. Thank you."},ar:{label:"استفسار عن القرار",body:"مرحبًا، نود الحصول على توضيح بشأن قرار هذا الطلب. شكرًا."}}[locale];
- const items=terminal?[decision]:context?[context,t.items[0]]:t.items;
+ const items=terminal?[decision]:context?[context,...t.items.slice(0,1)]:t.items;
  useEffect(()=>{const el=input.current;if(!el)return;el.style.height="auto";el.style.height=Math.min(el.scrollHeight,180)+"px"},[body]);
  const append=(text:string)=>{setBody(previous=>{const joined=previous.trim()?previous+"\n"+text:text;return joined.length<=4000?joined:previous});input.current?.focus()};
  return <form action={postMessageAction} className="card dossier-message-composer">
