@@ -35,7 +35,7 @@ export function WalletFilters({q,type,period,from,to,types,periods,locale,labels
  function apply(next:{q?:string;type?:string;period?:string;from?:string;to?:string}={}){
   clearTimer();const v={q:search.trim(),type,period,from,to,...next};const p=new URLSearchParams({lang:locale});const per=new URLSearchParams(window.location.search).get("per");if(per)p.set("per",per);if(v.q)p.set("q",v.q);if(v.type)p.set("type",v.type);if(v.period&&v.period!=="all")p.set("period",v.period);if(v.period==="custom"){if(v.from)p.set("from",v.from);if(v.to)p.set("to",v.to)}setMenu(null);startTransition(()=>router.replace("/portal/wallet?"+p.toString(),{scroll:false}));
  }
- const quick=types.filter(x=>["","CREDIT","DEBIT","APPLICATION_CHARGE"].includes(x.value));
+ const quick=types.filter(x=>["","MONEY_IN","MONEY_OUT","APPLICATION_CHARGE"].includes(x.value));
  const extra=types.filter(x=>!quick.some(y=>y.value===x.value));
  const currentPeriod=periods.find(x=>x.value===period)?.label??labels.all;
  return <div className="wallet-smart-controls" ref={root} aria-busy={busy}>
