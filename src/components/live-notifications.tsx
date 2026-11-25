@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAgencyPopover } from "./agency-popover-controller";
-import { NotificationRead, NotificationOpen, NotificationIcon, notificationCopy } from "@/app/portal/notifications/notification-interactions";
+import { NotificationRead, NotificationOpen, NotificationIcon } from "@/app/portal/notifications/notification-interactions";
+import { notificationCopy } from "@/app/portal/notifications/notification-copy";
 import { startNotificationPolling } from "@/lib/notification-polling";
 
 type Event = { id: string; title: string; link: string | null; createdAt: string; readAt?:string|null; type?:string; applicationId?:string|null };
