@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { startNotificationPolling } from "@/lib/notification-polling";
 
 type Event = { id: string; title: string; link: string | null; createdAt: string };
-export function LiveNotifications({ initialCount, href, label, soundLabel, closeLabel }: {
-  initialCount: number; href: string; label: string; soundLabel: string; closeLabel: string;
+export function LiveNotifications({ initialCount, href, label, soundLabel, closeLabel, refreshFirstEvent=false }: {
+  initialCount: number; href: string; label: string; soundLabel: string; closeLabel: string; refreshFirstEvent?: boolean;
 }) {
   const router = useRouter();
   const [count, setCount] = useState(initialCount);
@@ -26,7 +26,7 @@ export function LiveNotifications({ initialCount, href, label, soundLabel, close
         const fresh = seen && data.events.find((n) => !seen!.has(n.id) && Date.parse(n.createdAt) > onlineSince);
         const freshAfterStart = data.events.some(n => Date.parse(n.createdAt) > onlineSince && !seen?.has(n.id));
         seen = new Set(data.events.map((n) => n.id));
-        if(freshAfterStart&&!fresh&&document.visibilityState==="visible")router.refresh();
+        if(refreshFirstEvent&&freshAfterStart&&!fresh&&document.visibilityState==="visible")router.refresh();
         if (fresh) {
           setToast(fresh);
           router.refresh();
@@ -38,7 +38,7 @@ export function LiveNotifications({ initialCount, href, label, soundLabel, close
           }
         }
     });
-  }, [router]);
+  }, [router,refreshFirstEvent]);
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(null), 7000); return () => clearTimeout(timer); }, [toast]);
   return <>
     <Link href={href} aria-label={`${label}: ${count}`} className="relative grid h-11 w-11 shrink-0 place-items-center rounded-lg text-navy-900 hover:bg-ivory-100">

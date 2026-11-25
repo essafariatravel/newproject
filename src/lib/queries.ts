@@ -231,7 +231,7 @@ export async function agencyFocusQueue(user:AuthUser,current?:{id:string;created
  conditions.push(eq(statuses.isTerminal,false));
  const [totals,next]=await Promise.all([
  db.select({total:count()}).from(applications).innerJoin(statuses,eq(applications.statusId,statuses.id)).where(and(...conditions)),
- db.select({id:applications.id}).from(applications).innerJoin(statuses,eq(applications.statusId,statuses.id)).where(and(...conditions,...(current?[sql`(${applications.createdAt},${applications.id})>(${current.createdAt},${current.id}::uuid)`]:[]))).orderBy(asc(applications.createdAt),asc(applications.id)).limit(1)]);
+ db.select({id:applications.id}).from(applications).innerJoin(statuses,eq(applications.statusId,statuses.id)).where(and(...conditions,...(current?[sql`(${applications.createdAt},${applications.id})>(${current.createdAt.toISOString()}::timestamptz,${current.id}::uuid)`]:[]))).orderBy(asc(applications.createdAt),asc(applications.id)).limit(1)]);
  return {total:Number(totals[0]?.total??0),nextId:next[0]?.id??null};
 }
 export async function searchCaseSuggestions(user: AuthUser, filters: ApplicationFilters) {

@@ -44,7 +44,7 @@ export function CaseFilters({locale,labels:t,query,currentPage,recent,statuses,c
   e.preventDefault();setOpen(false);setActive(-1);
   const params:Record<string,string>={};
   for(const [k,v] of new FormData(e.currentTarget))if(typeof v==="string"&&v.trim())params[k]=v.trim();
-  if(params.from&&params.to&&params.from>params.to){setRangeError(true);filterDialog.current?.showModal();setAdvanced(true);return}setRangeError(false);
+  if(params.from&&params.to&&params.from>params.to){setRangeError(true);if(!filterDialog.current?.open)filterDialog.current?.showModal();setAdvanced(true);return}setRangeError(false);
   if(filterDialog.current?.open)filterDialog.current.close();
   startTransition(()=>router.push(caseLink(params)));
  }
