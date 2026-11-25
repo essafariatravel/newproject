@@ -129,7 +129,7 @@ export default async function PortalApplicationDetailPage({
   const otherItems=checklist.filter(item=>!item.active||!item.required);
   const acceptedCount=requiredItems.filter(item=>latestFor(item)?.status==="ACCEPTED"&&!requestFor(item).length).length;
   const receivedCount=requiredItems.filter(item=>usableCaseDocument(latestFor(item)?.status,requestFor(item).length>0)).length;
-  const missingCount=requiredItems.length-receivedCount;
+  const missingCount=requiredItems.filter(item=>!latestFor(item)).length;
   const orderItems=(items:typeof checklist)=>[...items].sort((a,b)=>Number(!usableCaseDocument(latestFor(b)?.status,requestFor(b).length>0))-Number(!usableCaseDocument(latestFor(a)?.status,requestFor(a).length>0)));
   const decisionRows=documentGroups.unassigned.filter(r=>["DECISION_VISA_APPROVAL","DECISION_REFUSAL_LETTER"].includes(r.documentTypeCode));
   const annexRows=documentGroups.unassigned.filter(r=>!["DECISION_VISA_APPROVAL","DECISION_REFUSAL_LETTER"].includes(r.documentTypeCode));
@@ -142,12 +142,12 @@ export default async function PortalApplicationDetailPage({
     <DocumentPreviewButton id={doc.id} variant="button" locale={uiLocale}/>
   </div>;
   const renderItem=(item:typeof checklist[number])=>{
-    const itemDocs=documentGroups.byItem.get(item.id)??[],latest=itemDocs[0]?.doc,requests=requestFor(item),requested=requests.length>0;
+    const itemDocs=documentGroups.byItem.get(item.id)??[],latest=itemDocs[0]?.doc,requests=requestFor(item),firstRequest=requests[0],requested=Boolean(firstRequest);
     const title=docLabel(item.documentTypeCode,item.documentTypeName);
     return <div key={item.id} className="r08-item">
       <div className="r08-row"><span className="r08-file-icon">{fileIcon}</span><div className="r08-file-name"><strong id={`checklist-document-label-${item.id}`}>{title}{!item.active?<small> · {dc.inactive}</small>:!item.required?<small> · {ct("Optional")}</small>:null}</strong><span className="r08-filename">{latest?<bdi>{latest.originalFilename}</bdi>:dc.noFile}</span></div>
       <span className="dossier-doc-state" data-doc-state={requested?"RESUBMISSION_REQUIRED":latest?.status??"MISSING"}>{requested?ct("Action required"):latest?localizedDocStatus(latest.status,uiLocale,latest.status):ct("Missing")}</span>
-      {requested&&!terminal?<a className="btn-secondary btn-sm r08-request-link" href={`#request-${requests[0].req.id}`}>{dc.request}</a>:latest?<DocumentPreviewButton id={latest.id} variant="button" locale={uiLocale}/>:null}
+      {firstRequest&&!terminal?<a className="btn-secondary btn-sm r08-request-link" href={`#request-${firstRequest.req.id}`}>{dc.request}</a>:latest?<DocumentPreviewButton id={latest.id} variant="button" locale={uiLocale}/>:null}
       </div>
       {item.notes?<details className="r08-details"><summary>{ct("Reason")}</summary><p>{item.notes}</p></details>:null}
       {itemDocs.length>1?<details className="r08-details"><summary>{dc.versions} ({itemDocs.length-1})</summary>{itemDocs.slice(1).map(({doc})=>fileRow(doc,"v"+doc.version+" · "+caseDateTime(doc.createdAt,uiLocale)))}</details>:null}
@@ -293,7 +293,7 @@ export default async function PortalApplicationDetailPage({
             {openRequests.length>0?<span className="r08-warning">{openRequests.length} {dc.actions}</span>:null}
           </div></header>
           <details className="r08-details r08-policy"><summary>{isDraft?dc.draft:dc.locked}</summary><p>{ct("PDF, JPEG, PNG, WEBP, DOC, DOCX · 2 MB max")}</p></details>
-          {!isDraft&&openRequests.length===0&&missingCount===0?<p className="r08-complete">{dc.closed}</p>:null}
+          {!isDraft&&openRequests.length===0&&receivedCount===requiredItems.length?<p className="r08-complete">{dc.closed}</p>:null}
           {openRequests.length>0?<section className="r08-section r08-attention"><h3>{ct("Action required")} <span>{openRequests.length}</span></h3>
             {openRequests.map(r=>{const match=checklist.find(item=>r.req.checklistItemId===item.id||(!r.req.checklistItemId&&r.req.documentTypeId===item.documentTypeId)),prior=match?latestFor(match):undefined;return <div key={r.req.id} id={`request-${r.req.id}`} className="r08-request scroll-mt-24">
               <div className="r08-request-heading"><strong id={`request-document-label-${r.req.id}`}>{docLabel(r.docTypeCode,r.docTypeName)}</strong><span className="dossier-doc-state" data-doc-state="RESUBMISSION_REQUIRED">{r.req.type==="REPLACEMENT"?ct("Replacement requested"):ct("Additional document requested")}</span></div>
