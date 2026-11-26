@@ -79,30 +79,7 @@ export async function listAgencyNotifications(userId: string, limit: number, fil
       ledgerType: options.financial ? sql<string|null>`(select tx.type from ${table("wallet_transactions")} tx where tx.agency_id=${options.agencyId} and ${notifications.type}='WALLET_ADJUSTED' and tx.reference=substring(${notifications.body} from 'Reference (WLT-[0-9]{4}-[0-9]+)[.]$') limit 1)` : sql<string|null>`null`,
       ledgerReference: options.financial ? sql<string|null>`(select tx.reference from ${table("wallet_transactions")} tx where tx.agency_id=${options.agencyId} and ${notifications.type}='WALLET_ADJUSTED' and tx.reference=substring(${notifications.body} from 'Reference (WLT-[0-9]{4}-[0-9]+)[.]$') limit 1)` : sql<string|null>`null`,
       resolvedTopupId: options.financial ? sql<string|null>`(select topup.id::text from ${table("wallet_topup_requests")} topup where topup.agency_id=${options.agencyId} and (topup.id=${notifications.topupRequestId} or (${notifications.type}='WALLET_TOPUP_DECIDED' and topup.reference=substring(${notifications.body} from '^Request (TOP-[0-9]{4}-[0-9]+) was '))) limit 1)` : sql<string|null>`null`,
-      ledgerDirection: options.financial ? sql<string|null>`(select case when tx.balance_after>tx.balance_before then 'in' when tx.balance_after<tx.balance_before then 'out' else null end from ${table("wallet_transactions")} tx where tx.agency_id=${options.agencyId} and ${notifications.type}='WALLET_ADJUSTED' and tx.reference=substring(${notifications.body} from 'Reference (WLT-[0-9]{4}-[0-9]+)[.] options.financial ? sql<string|null>`(select tx.id::text from ${table("wallet_transactions")} tx where tx.agency_id=${options.agencyId} and ${notifications.type}='WALLET_ADJUSTED' and tx.reference=substring(${notifications.body} from 'Reference (WLT-[0-9]{4}-[0-9]+)[.]$') and tx.currency='DZD' limit 1)` : sql<string|null>`null`,
-      travellerName: sql<string | null>`(select coalesce(traveller.full_name, concat_ws(' ',traveller.first_name,traveller.last_name)) from ${table("applicants")} traveller where traveller.application_id = ${table("notifications")}.application_id limit 1)`,
-      destination: applications.countryName,
-      countryIso2: countries.iso2,
-      visaName: applications.visaTypeName,
-      // Match the immutable snapshot before using today's catalogue translation.
-      // This mirrors applicationSelection and avoids relabelling an old programme
-      // with a materially different name after an administrator renames it.
-      visaNameFr: sql<string | null>`case when ${visaTypes.name} = ${applications.visaTypeName} then ${visaTypes.nameFr} else null end`,
-      visaNameAr: sql<string | null>`case when ${visaTypes.name} = ${applications.visaTypeName} then ${visaTypes.nameAr} else null end`,
-      reference: applications.reference,
-      agencyName: sql<string | null>`(select coalesce(agency.trading_name,agency.legal_name) from ${table("agencies")} agency where agency.id = ${notifications.agencyId})`,
-    })
-    .from(notifications)
-    .leftJoin(applications, eq(notifications.applicationId, applications.id))
-    .leftJoin(countries, eq(applications.countryId, countries.id))
-    .leftJoin(visaTypes, eq(applications.visaTypeId, visaTypes.id))
-    .where(and(...conditions))
-    .orderBy(desc(notifications.createdAt),desc(notifications.id));
-  if(options.groupPage)return selection;
-  return selection.limit(Number.isFinite(limit)?Math.min(100,Math.max(1,Math.floor(limit))):50).offset(options?Math.max(0,Math.min(100000,Math.floor(options.offset??0))):0);
-}
-
-) and tx.currency='DZD' limit 1)` : sql<string|null>`null`,
+      ledgerDirection: options.financial ? sql<string|null>`(select case when tx.balance_after>tx.balance_before then 'in' when tx.balance_after<tx.balance_before then 'out' else null end from ${table("wallet_transactions")} tx where tx.agency_id=${options.agencyId} and ${notifications.type}='WALLET_ADJUSTED' and tx.reference=substring(${notifications.body} from 'Reference (WLT-[0-9]{4}-[0-9]+)[.]$') and tx.currency='DZD' limit 1)` : sql<string|null>`null`,
       ledgerId: options.financial ? sql<string|null>`(select tx.id::text from ${table("wallet_transactions")} tx where tx.agency_id=${options.agencyId} and ${notifications.type}='WALLET_ADJUSTED' and tx.reference=substring(${notifications.body} from 'Reference (WLT-[0-9]{4}-[0-9]+)[.]$') and tx.currency='DZD' limit 1)` : sql<string|null>`null`,
       travellerName: sql<string | null>`(select coalesce(traveller.full_name, concat_ws(' ',traveller.first_name,traveller.last_name)) from ${table("applicants")} traveller where traveller.application_id = ${table("notifications")}.application_id limit 1)`,
       destination: applications.countryName,
