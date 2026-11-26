@@ -12,7 +12,7 @@ export function AccountMenu({user,locale}:{user:AuthUser;locale:UiLocale}) {
     <div className="account-menu-panel">
       <p>{user.name}</p>
       {user.agencyId && user.agencyName ? <p className="hidden dash-account-agency"><bdi>{user.agencyName}</bdi></p> : null}
-      <Link href={user.agencyId ? "/portal/profile" : "/change-password"}>{ct("My account")}</Link>
+      <Link href={user.agencyId ? "/portal/profile?tab=account" : "/change-password"}>{ct("My account")}</Link>
       {user.role === "AGENCY_ADMIN" ? <Link href="/portal/profile">{ct("Agency profile")}</Link> : null}
       <Link href="/change-password">{ct("Change password")}</Link>
       <form action={logoutAction}><button type="submit">{ct("Sign out")}</button></form>

@@ -12,12 +12,13 @@ import { request } from "./helpers/request";
 suiteSetup();
 afterEach(() => { request.cookie = ""; });
 describe("profile financial visibility", () => {
-  it("renders operational balance but excludes billing administration for Agency User", async () => {
+  it("renders operational currency but excludes billing administration for Agency User", async () => {
     const member = await userByEmail("a-user@test.example");
     await db.update(agencies).set({ billingName: "PRIVATE-BILLING-NAME", billingEmail: "private-billing@example.test", billingTaxId: "PRIVATE-TAX-ID" }).where(eq(agencies.id, member.agencyId!));
     request.cookie = (await createSession(member.id)).token;
     const html = renderToStaticMarkup(await PortalProfilePage({ searchParams: Promise.resolve({}) }));
     expect(html).toContain("DZD");
+    expect(html).not.toContain("Prepaid balance available for application charges.");
     expect(html).not.toContain("PRIVATE-BILLING-NAME");
     expect(html).not.toContain("private-billing@example.test");
     expect(html).not.toContain("PRIVATE-TAX-ID");

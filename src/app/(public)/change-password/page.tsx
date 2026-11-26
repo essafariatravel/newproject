@@ -9,6 +9,8 @@ import { chromeT, getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { identityT } from "@/lib/identity-copy";
 import Link from "next/link";
+import { profileCopy } from "@/app/portal/profile/profile-copy";
+import "./account-password.css";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Set your password", robots: { index: false, follow: false }, referrer: "no-referrer" as const };
@@ -31,9 +33,12 @@ export default async function ChangePasswordPage({
   const it = identityT(uiLocale);
   const cc = chromeT(uiLocale);
   const flash = flashFrom(await searchParams);
+  const agencyVoluntary = Boolean(user.agencyId && !user.mustChangePassword && (user.role === "AGENCY_ADMIN" || user.role === "AGENCY_USER"));
+  const c = profileCopy(uiLocale);
 
   return (
-    <div className="mx-auto max-w-md px-4 py-8">
+    <div className={agencyVoluntary ? "agency-password-r01" : "mx-auto max-w-md px-4 py-8"}>
+      {agencyVoluntary ? <div className="agency-password-brand"><img src="/images/essafaria-logo-header.webp" alt="ESSAFARIA TRAVEL" width="80" height="57"/><Link href="/portal/profile?tab=account">{c.back}</Link></div> : null}
       <h1 className="font-serif text-[32px] text-navy-900">{user.mustChangePassword ? ct("Set your password") : it("Change password")}</h1>
       <p className="mt-2 text-base text-slate-500">
         {user.mustChangePassword ? ct("For security, you must choose a new password before you can continue.") : it("Keep your account secure with a password you do not use elsewhere.")}
@@ -41,7 +46,7 @@ export default async function ChangePasswordPage({
       <div className="mt-6">
         <Flash {...flash} />
       </div>
-      <ChangePasswordForm config={publicTurnstileConfig()} locale={uiLocale} pendingLabel={ct("Saving…")}
+      <ChangePasswordForm agencyVoluntary={agencyVoluntary} config={publicTurnstileConfig()} locale={uiLocale} pendingLabel={ct("Saving…")}
         label={user.mustChangePassword ? ct("Set password and continue") : it("Save password")}>
         <PasswordField
           id="cp-current"
@@ -49,7 +54,8 @@ export default async function ChangePasswordPage({
           label={user.mustChangePassword ? ct("Current (temporary) password") : it("Current password")}
           required
           autoComplete="current-password"
-          hint={user.mustChangePassword ? ct("The password you were given by ESSAFARIA.") : undefined}
+          minLength={agencyVoluntary ? 1 : undefined}
+          hint={user.mustChangePassword ? ct("The password you were given by ESSAFARIA.") : agencyVoluntary ? c.currentHint : undefined}
           showLabel={ct("Show")}
           hideLabel={ct("Hide")}
         />
@@ -76,12 +82,12 @@ export default async function ChangePasswordPage({
         />
       </ChangePasswordForm>
       <div className="mt-4 flex items-center justify-between text-xs text-slate-400">
-        <span dir="ltr">{user.username ?? user.email}</span>
+        <span dir="ltr">{agencyVoluntary ? user.email : user.username ?? user.email}</span>
         <form action={logoutAction}>
           <button className="text-iris-600 hover:underline">{cc("Sign out")}</button>
         </form>
       </div>
-      {!user.mustChangePassword ? <Link href={user.agencyId ? "/portal/profile" : "/admin"} className="mt-4 block text-base text-iris-700 underline">{ct("Back")}</Link> : null}
+      {!user.mustChangePassword && !agencyVoluntary ? <Link href={user.agencyId ? "/portal/profile" : "/admin"} className="mt-4 block text-base text-iris-700 underline">{ct("Back")}</Link> : null}
     </div>
   );
 }
