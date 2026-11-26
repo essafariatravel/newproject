@@ -68,3 +68,12 @@ export function uniqueVerifiedOcr(readings:readonly string[]):string|null{
  const candidates=new Set(readings.flatMap(verifiedOcrCandidates));
  return candidates.size===1?[...candidates][0]!:null;
 }
+
+/** Technical framing comparison against a user-selected reference, never consular validation. */
+export function photoRatioDifference(width:number,height:number,targetWidth:number,targetHeight:number):number|null{
+ if(![width,height,targetWidth,targetHeight].every(n=>Number.isFinite(n)&&n>0))return null;
+ return Math.abs((width/height)/(targetWidth/targetHeight)-1)*100;
+}
+export function expiryMatchesMrz(expiry:string,raw:string):boolean{
+ return passportValidity(expiry,expiry)===0&&/^\d{6}$/.test(raw)&&expiry.slice(2).replace(/-/g,"")===raw;
+}

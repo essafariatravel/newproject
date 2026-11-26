@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
-import {readTd3,passportValidity,type ImageSignals} from "@/lib/document-intelligence";
+import {readTd3,passportValidity,expiryMatchesMrz,type ImageSignals} from "@/lib/document-intelligence";
+import {PhotoReview} from "./photo-review";
 import {FULL_QUAD,validQuad,type Quad} from "@/lib/document-geometry";
 import {PerspectiveEditor} from "./perspective-editor";
 import {findLocalDuplicates,inspectImage,localImage,localPassportOcr,nativeOcrAvailable,scanCopy} from "@/lib/document-local-browser";
@@ -18,7 +19,7 @@ export function PassportAssistant({locale,today,departure,nationalities,onApply}
  const parsed=readTd3(mrz),iso=parsed?codes[parsed.nationality]:undefined,match=nationalities.find(n=>n.code===iso);
  const departureDays=passportValidity(departure,today);
  const reference=departureDays!==null&&departureDays>=0?departure:today;
- const remaining=passportValidity(expiry,reference);
+ const remaining=passportValidity(expiry,reference),expiryMismatch=Boolean(parsed&&expiry&&!expiryMatchesMrz(expiry,parsed.expiryRaw));
  function reset(){setFile(null);setMrz("");setExpiry("");setConfirmed(false);setFailure(false)}
  async function read(){if(!file||busy)return;setBusy(true);setFailure(false);setConfirmed(false);try{const value=await localPassportOcr(file);setMrz(value);setExpiry("");if(!readTd3(value)?.checksPassed)setFailure(true)}catch{setFailure(true)}finally{setBusy(false)}}
  return <details className="di-assistant" open={open} onToggle={e=>{setOpen(e.currentTarget.open)}}><summary>{t.passport}</summary>
@@ -31,7 +32,8 @@ export function PassportAssistant({locale,today,departure,nationalities,onApply}
  {parsed?<div className="di-result"><strong className={parsed.checksPassed?"di-good":"di-warning"}>{parsed.checksPassed?t.checks:t.badChecks}</strong><dl><div><dt>{t.name}</dt><dd dir="auto">{parsed.name}</dd></div><div><dt>{t.nationality}</dt><dd>{match?.label??parsed.nationality}</dd></div></dl><label className="di-confirm"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>{t.verify}</label>{!match?<small>{t.unknownNationality}</small>:null}<button type="button" className="btn-secondary" disabled={!confirmed||!parsed.checksPassed||!match||busy} onClick={()=>onApply(parsed.name,match?.code??null)}>{t.apply}</button></div>:null}
  <label className="di-field">{t.expiry}<input type="text" className="input" dir="ltr" placeholder="YYYY-MM-DD" value={expiry} maxLength={10} onChange={e=>setExpiry(e.target.value)}/></label>
  {parsed?<small>{t.expiryHint} <bdi>MRZ: {parsed.expiryRaw}</bdi></small>:null}
- {remaining!==null?<p className={remaining<0?"di-warning":"di-good"}>{remaining<0?t.expired:t.remaining+": "+remaining} <small>{t.reference}: <bdi>{reference}</bdi></small></p>:null}<small>{t.validityNote}</small>
+ {expiryMismatch?<p role="alert" className="di-warning">{({fr:"La date saisie ne correspond pas à la MRZ. Vérifiez le passeport original.",en:"The entered date does not match the MRZ. Check the original passport.",ar:"التاريخ المدخل لا يطابق المنطقة المقروءة آلياً. تحققوا من جواز السفر الأصلي."}[locale])}</p>:null}
+ {remaining!==null&&!expiryMismatch?<p className={remaining<0?"di-warning":"di-good"}>{remaining<0?t.expired:t.remaining+": "+remaining} <small>{t.reference}: <bdi>{reference}</bdi></small></p>:null}<small>{t.validityNote}</small>
  <button type="button" className="booking-link" disabled={busy} onClick={reset}>{t.clear}</button></div>:null}</details>
 }
 export function DuplicateNotice({items,locale}:{items:Record<string,File[]>;locale:Locale}){
@@ -52,7 +54,7 @@ export function DocumentStudio({file,locale,photo}:{file:File;locale:Locale;phot
  const warnings=signals?[Math.min(signals.width,signals.height)<300?t.low:null,signals.sharpness<60?t.blur:null,signals.mean<45||signals.mean>240?t.dark:null,signals.contrast<18?t.contrast:null].filter(Boolean):[];
  return <details className="di-assistant" open={open} onToggle={e=>setOpen(e.currentTarget.open)}><summary>{t.quality} · {t.scan}</summary>{open?<div className="di-body">
  {failure?<p className="di-warning" role="status">{t.failed}</p>:null}
- {signals?<div className="di-result"><div className="di-metrics"><div><small>{t.resolution}</small><strong><bdi>{signals.width} × {signals.height} px</bdi></strong></div>{photo?<div><small>{t.ratio}</small><strong><bdi>{signals.ratio.toFixed(2)}</bdi></strong></div>:null}</div>{warnings.length?<ul className="di-warning">{warnings.map(w=><li key={w}>{w}</li>)}</ul>:<p className="di-good">{t.noWarning}</p>}<small>{t.advisory}</small>{photo?<p><strong>{t.photo}</strong> · {t.photoNote}</p>:null}</div>:null}
+ {signals?<div className="di-result"><div className="di-metrics"><div><small>{t.resolution}</small><strong><bdi>{signals.width} × {signals.height} px</bdi></strong></div>{photo?<div><small>{t.ratio}</small><strong><bdi>{signals.ratio.toFixed(2)}</bdi></strong></div>:null}</div>{warnings.length?<ul className="di-warning">{warnings.map(w=><li key={w}>{w}</li>)}</ul>:<p className="di-good">{t.noWarning}</p>}<small>{t.advisory}</small>{photo?<><p><strong>{t.photo}</strong> · {t.photoNote}</p><PhotoReview locale={locale} signals={signals} src={original}/></>:null}</div>:null}
  <div className="di-scanner"><strong>{t.scan}</strong><small>{t.original}</small>{original?<PerspectiveEditor locale={locale} src={original} corners={corners} enabled={perspective} disabled={busy} onEnabled={v=>{setPerspective(v);invalidate()}} onChange={v=>{setCorners(v);invalidate()}}/>:null}<button type="button" className="btn-secondary" disabled={busy} onClick={()=>{setTurn(v=>(v+90)%360);invalidate()}}>{t.rotate} · <bdi>{turn}°</bdi></button><label className="di-field">{t.crop} · <bdi>{crop}</bdi><input type="range" min="0" max="20" step="1" value={crop} disabled={busy} onChange={e=>{setCrop(Number(e.target.value));invalidate()}}/></label>
  <div className="di-format"><button type="button" aria-pressed={!pdf} disabled={busy} onClick={()=>{setPdf(false);invalidate()}}>{t.jpeg}</button><button type="button" aria-pressed={pdf} disabled={busy} onClick={()=>{setPdf(true);invalidate()}}>{t.pdf}</button></div>
  <button type="button" className="btn-secondary" disabled={busy||(perspective&&!validQuad(corners))} onClick={()=>void prepare()}>{busy?t.busy:t.preview}</button>

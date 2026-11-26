@@ -18,3 +18,7 @@ New unit tests for TD3, dates, signals and duplicates; branch guard disables mig
 
 ## R03 — Manual perspective scanner
 - Four-corner projective rectification, convexity validation, bounded sampling, accessible sliders and localized controls. Explicit JPEG/PDF copy; rotation and crop retained. No source rewrite. No automatic edge detection or biometric compliance claims.
+
+## R04/R05 — Photo review and UX
+- Reference framing ratios explicitly chosen by operator; no inferred country or visa requirements. Visual manual checklist, original image, ratio difference, no biometric verdict. MRZ expiry mismatch warning before validity display. Focus-visible and touch-target adjustments. No image retouch or file replacement.
+- Remaining qualification: universal packaged OCR, face/background measurement if explicitly approved, automated edge detection if needed, authenticated FR/EN/AR/mobile flow. Do not label unqualified functions complete.
