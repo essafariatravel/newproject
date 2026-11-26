@@ -7,7 +7,7 @@ import { sessionPolicy } from "@/lib/identity-policy";
 import { AppError,isAgencyRole,type AuthUser } from "@/lib/types";
 const userEvents=["USER_LOGIN","PASSWORD_CHANGED","SESSION_REVOKED","AGENCY_OTHER_SESSIONS_REVOKED"];
 const agencyEvents=["AGENCY_CONTACT_UPDATED","AGENCY_LOGO_UPLOADED","AGENCY_LOGO_REMOVED"];
-function assertAgency(actor:AuthUser){if(!actor.agencyId||!isAgencyRole(actor.role)||actor.mustChangePassword||!actor.sessionId)throw new AppError("FORBIDDEN","Please sign in to continue.")}
+function assertAgency(actor:AuthUser){if(!actor.agencyId||!isAgencyRole(actor.role)||actor.mustChangePassword||!actor.sessionId||actor.credentialVersion===undefined)throw new AppError("FORBIDDEN","Please sign in to continue.")}
 export async function personalProfileSecurity(actor:AuthUser){
  assertAgency(actor);
  const [devices,events]=await Promise.all([activeSessions(actor),db.select({id:auditLogs.id,action:auditLogs.action,createdAt:auditLogs.createdAt}).from(auditLogs).where(and(eq(auditLogs.agencyId,actor.agencyId!),eq(auditLogs.actorId,actor.id),or(and(eq(auditLogs.entity,"user"),eq(auditLogs.entityId,actor.id),inArray(auditLogs.action,userEvents)),and(eq(auditLogs.entity,"agency"),eq(auditLogs.entityId,actor.agencyId!),inArray(auditLogs.action,agencyEvents))))).orderBy(desc(auditLogs.createdAt),desc(auditLogs.id)).limit(12)]);
