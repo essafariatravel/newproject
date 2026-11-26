@@ -19,6 +19,7 @@ export function nativeOcrAvailable(){return typeof detectorConstructor()==="func
 /** Experimental browser-native OCR only; no external service or model fetch. */
 export async function localPassportOcr(file:File):Promise<string>{
  const Detector=detectorConstructor();if(!Detector)throw Error("Native OCR unavailable");
+ const detector=new Detector();
  const b=await bitmap(file);
  const readings:string[]=[];
  const deadline=performance.now()+12000;
@@ -28,7 +29,7 @@ export async function localPassportOcr(file:File):Promise<string>{
   let timer:ReturnType<typeof setTimeout>|undefined;
   try{
    const result=await Promise.race([
-    new Detector().detect(source),
+    detector.detect(source),
     new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(Error("OCR timeout")),remaining)})
    ]);
    return result.slice(0,100).map(r=>(r.rawValue??"").slice(0,2048)).join("\n");
@@ -37,7 +38,8 @@ export async function localPassportOcr(file:File):Promise<string>{
  try{
   // First read the original. Then try the lower portion at bounded resolution
   // because passport MRZ lines are usually located near the lower edge.
-  readings.push(await detect(b));
+  try{readings.push(await detect(b))}catch{ /* Try the bounded crop if time remains. */ }
+  if(performance.now()>=deadline)throw Error("OCR timeout");
   const sy=Math.floor(b.height*.45),sh=b.height-sy;
   const scale=Math.min(1,1800/b.width,1200/sh);
   const {c,ctx}=canvas(Math.max(1,Math.round(b.width*scale)),Math.max(1,Math.round(sh*scale)));
