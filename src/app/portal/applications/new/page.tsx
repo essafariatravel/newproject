@@ -7,7 +7,8 @@ import { PageHeader, EmptyState } from "@/components/ui";
 import { getUiLocale, localizedDocTypeName } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { countryName } from "@/lib/country-names";
-import { NATIONALITIES, DEFAULT_NATIONALITY, nationalityLabel } from "@/lib/nationalities";
+import { NATIONALITIES, nationalityLabel } from "@/lib/nationalities";
+import { readAgencyPrefs } from "@/lib/agency-preferences";
 import { RequestWizard, type WizardCountry, type WizardLabels, type WizardRequirement } from "./request-wizard";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,7 @@ export default async function NewApplicationPage({
 }) {
   const sp = await searchParams;
   const user = await portalPageUser();
+  const prefs=await readAgencyPrefs(user.id);
   const locale = await getUiLocale(sp);
   const ct = contentT(locale);
 
@@ -152,7 +154,7 @@ export default async function NewApplicationPage({
       <RequestWizard
         countries={countries}
         nationalities={NATIONALITIES.map((n) => ({ code: n.code, label: nationalityLabel(n.code, uiLocale) }))}
-        defaultNationality={DEFAULT_NATIONALITY}
+        defaultNationality={prefs.nationality}
         requirementsByVisaType={requirementMaps}
         walletBalance={wallet.balance}
         walletCurrency={wallet.currency}

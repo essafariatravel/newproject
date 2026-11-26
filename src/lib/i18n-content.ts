@@ -1368,10 +1368,11 @@ const CONTENT: Record<string, Entry> = {
 export const REGISTERED_CONTENT_KEYS: string[] = [...new Set([...Object.keys(CONTENT), ...Object.keys(PRODUCT_COPY)])];
 
 /** Translate registered page content; unknown strings pass through (EN). */
+const PROFILE_FEEDBACK:Record<string,{fr:string;ar:string}>={"Agency logo updated.":{"fr":"Logo de l’agence enregistré.","ar":"تم حفظ شعار الوكالة."},"Agency logo removed.":{"fr":"Logo de l’agence retiré.","ar":"تم إزالة شعار الوكالة."},"Agency saved.":{"fr":"Coordonnées enregistrées.","ar":"تم حفظ بيانات الاتصال."},"Password updated. Welcome!":{"fr":"Mot de passe mis à jour.","ar":"تم تحديث كلمة المرور."},"Workspace preferences saved.":{"fr":"Préférences enregistrées.","ar":"تم حفظ التفضيلات."},"Other sessions disconnected.":{"fr":"Autres sessions déconnectées.","ar":"تم إنهاء الجلسات الأخرى."},"Select another session.":{"fr":"Sélectionnez une autre session.","ar":"اختر جلسة أخرى."},"No other session to disconnect.":{"fr":"Aucune autre session à déconnecter.","ar":"لا توجد جلسة أخرى لإنهائها."}};
 export function contentT(locale: UiLocale): (s: string) => string {
   return (s: string) => {
     if (locale === "en") return s;
-    const entry = PRODUCT_COPY[s] ?? CONTENT[s];
+    const entry = PROFILE_FEEDBACK[s] ?? PRODUCT_COPY[s] ?? CONTENT[s];
     if (!entry) return identityT(locale)(s);
     return locale === "fr" ? entry.fr : entry.ar;
 };
@@ -1386,7 +1387,7 @@ export function localizedGreeting(kind: "morning" | "afternoon" | "evening", loc
 
 /** True when a content key carries an explicit translation in both locales. */
 export function contentHas(key: string): boolean {
-  return key in CONTENT || key in PRODUCT_COPY;
+  return key in PROFILE_FEEDBACK || key in CONTENT || key in PRODUCT_COPY;
 }
 
 /** Expected errors never leak untranslated schema or browser messages. */

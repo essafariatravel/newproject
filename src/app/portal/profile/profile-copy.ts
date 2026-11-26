@@ -25,14 +25,65 @@ const copy = {
   login: ["Identifiant de connexion","Sign-in username","معرّف تسجيل الدخول"],
   password: ["Mot de passe","Password","كلمة المرور"],
   preview: ["Aperçu du logo","Logo preview","معاينة الشعار"],
+  preferences: ["Préférences","Preferences","التفضيلات"],
+  support: ["Assistance","Support","المساعدة"],
+  workspace: ["Votre environnement de travail","Your workspace","مساحة عملك"],
+  browser: ["Ces préférences sont mémorisées pour votre compte sur ce navigateur, pas sur vos autres appareils.","These preferences are saved for your account in this browser, not on other devices.","تُحفظ هذه التفضيلات لحسابك في هذا المتصفح، وليس على الأجهزة الأخرى."],
+  nationality: ["Nationalité par défaut","Default nationality","الجنسية الافتراضية"],
+  nationalityHint: ["Présélection uniquement : vérifiez la nationalité de chaque voyageur.","Preselection only: verify each traveller’s nationality.","اختيار مسبق فقط: تحقق من جنسية كل مسافر."],
+  sort: ["Tri initial des dossiers","Default case sorting","الترتيب الافتراضي للطلبات"],
+  recent: ["Dernière activité","Latest activity","آخر نشاط"],
+  submitted: ["Date de soumission","Submission date","تاريخ الإرسال"],
+  oldest: ["Plus anciens","Oldest first","الأقدم أولاً"],
+  priority: ["Prioritaires","Priority first","الأولوية"],
+  density: ["Densité des dossiers","Case list density","كثافة عرض الطلبات"],
+  standard: ["Standard","Standard","عادي"],
+  compact: ["Compacte","Compact","مضغوط"],
+  favorites: ["Destinations favorites","Favourite destinations","الوجهات المفضلة"],
+  favoritesHint: ["Jusqu’à quatre destinations dans les raccourcis de l’accueil.","Up to four destinations in home shortcuts.","حتى أربع وجهات في اختصارات الصفحة الرئيسية."],
+  sound: ["Sons des notifications","Notification sounds","أصوات الإشعارات"],
+  soundHint: ["Réglage de ce navigateur ; les notifications métier restent actives.","Browser setting; operational notifications remain active.","إعداد المتصفح؛ تبقى إشعارات العمل نشطة."],
+  on: ["Activé","On","مفعّل"],
+  off: ["Désactivé","Off","معطّل"],
+  devices: ["Appareils et sessions","Devices and sessions","الأجهزة والجلسات"],
+  current: ["Session actuelle","Current session","الجلسة الحالية"],
+  disconnect: ["Déconnecter","Disconnect","قطع الاتصال"],
+  disconnectAll: ["Déconnecter les autres sessions","Disconnect other sessions","إنهاء الجلسات الأخرى"],
+  confirmSession: ["Confirmer la déconnexion ?","Confirm disconnect?","تأكيد قطع الاتصال؟"],
+  noOther: ["Aucune autre session active identifiée.","No other active session identified.","لم يتم العثور على جلسات نشطة أخرى."],
+  unknownDevice: ["Navigateur non identifié","Unidentified browser","متصفح غير معروف"],
+  activity: ["Activité du compte","Account activity","نشاط الحساب"],
+  noActivity: ["Aucune activité enregistrée dans cet historique.","No activity recorded in this history.","لا يوجد نشاط مسجل في هذا السجل."],
+  lastActivity: ["Dernière activité","Last activity","آخر نشاط"],
+  historyHint: ["Vos 12 dernières opérations enregistrées, sans données internes.","Your last 12 recorded actions, without internal data.","آخر 12 عملية مسجلة لك دون بيانات داخلية."],
+  supportTitle: ["Service partenaires ESSAFARIA","ESSAFARIA partner service","خدمة شركاء ESSAFARIA"],
+  supportBody: ["Pour une question administrative, commerciale ou technique, utilisez les coordonnées officielles.","For administrative, commercial or technical questions, use the official contact details.","للأسئلة الإدارية أو التجارية أو التقنية استخدم بيانات الاتصال الرسمية."],
+  contactUs: ["Contacter ESSAFARIA","Contact ESSAFARIA","اتصل بـ ESSAFARIA"],
+  caseMessages: ["Messages liés aux dossiers","Case-related messages","رسائل الطلبات"],
+  teamHint: ["Pour toute modification de vos accès professionnels, contactez ESSAFARIA.","Contact ESSAFARIA to change your professional access.","اتصل بـ ESSAFARIA لتعديل صلاحياتك المهنية."],
+  completeTitle: ["À compléter","To complete","بيانات للاستكمال"],
+  editContact: ["Compléter les coordonnées","Complete contact details","أكمل بيانات الاتصال"],
+  copyId: ["Copier l’identifiant","Copy username","نسخ المعرّف"],
+  copied: ["Copié","Copied","تم النسخ"],
+  showId: ["Afficher l’identifiant","Show username","عرض المعرّف"],
+  hideId: ["Masquer l’identifiant","Hide username","إخفاء المعرّف"],
+  unavailable: ["Information temporairement indisponible.","Information temporarily unavailable.","المعلومات غير متاحة مؤقتاً."],
+  loginEvent: ["Connexion au compte","Account sign-in","تسجيل الدخول"],
+  passwordEvent: ["Mot de passe modifié","Password changed","تم تغيير كلمة المرور"],
+  sessionEvent: ["Sessions déconnectées","Sessions disconnected","تم إنهاء الجلسات"],
+  contactEvent: ["Coordonnées modifiées","Contact details updated","تم تحديث بيانات الاتصال"],
+  logoEvent: ["Logo importé","Logo uploaded","تم رفع الشعار"],
+  logoRemoved: ["Logo retiré","Logo removed","تم إزالة الشعار"],
+  hours: ["Horaires","Office hours","ساعات العمل"],
+  language: ["Langue de l’interface","Interface language","لغة الواجهة"],
 } as const;
 export type ProfileCopy = { [K in keyof typeof copy]: string };
 export function profileCopy(locale: UiLocale): ProfileCopy {
   const i = locale === "fr" ? 0 : locale === "ar" ? 2 : 1;
   return Object.fromEntries(Object.entries(copy).map(([k,v])=>[k,v[i]])) as ProfileCopy;
 }
-export function profileTab(value: unknown): "agency"|"account"|"team" {
-  return value === "account" || value === "team" ? value : "agency";
+export function profileTab(value: unknown): "agency"|"account"|"team"|"preferences"|"support" {
+  return value === "account" || value === "team" || value === "preferences" || value === "support" ? value : "agency";
 }
 export function validLogoFile(file: {type:string;size:number;name:string}): boolean {
   return ["image/png","image/jpeg","image/webp"].includes(file.type) && file.size > 0 && file.size <= 2*1024*1024 && file.name.length <= 200;

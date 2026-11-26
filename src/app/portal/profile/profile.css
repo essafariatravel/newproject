@@ -72,3 +72,22 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.agency-profile-r01){font
 }
 
 .workspace-agency.workspace-agency:has(.agency-profile-r01) .account-menu-panel .dash-account-agency{display:block;padding-block:0 12px;font-size:15px;font-weight:400;color:#344457;overflow-wrap:anywhere;border-bottom:1px solid #e2e5e9;margin-bottom:4px}
+
+/* R02: aligned editorial grid, account controls, and compact spacing. */
+.agency-profile-r01{max-width:1080px;padding-block:0 24px}
+.agency-profile-r01 h1{margin-block-end:20px}
+.profile-masthead{padding-block-end:16px}
+.profile-content{max-width:none}
+.profile-section{padding-block:20px}.profile-section>header{margin-block-end:14px}
+.profile-tabs{gap:clamp(16px,3vw,30px)}
+.profile-fields{gap:18px 24px}
+.profile-name h2{font-size:24px}
+.profile-logo-controls{justify-self:start;text-align:start}.profile-logo-actions{justify-content:flex-start}
+.profile-attention{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:12px 0;border-block-end:1px solid #e2e5e9;font-size:15px;color:#85551c}.profile-attention a{color:#285582;font-weight:600}
+.profile-username>div{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.profile-username bdi{overflow-wrap:anywhere;font-weight:400}
+.profile-setting-row{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:58px;padding:12px 0;border-block-end:1px solid #e2e5e9;flex-wrap:wrap;overflow-wrap:anywhere}
+.profile-setting-row strong{font-size:16px;font-weight:500}.profile-setting-row p,.profile-setting-row time,.profile-pref-form small,.profile-favorites p{font-size:15px;color:#647182}
+.profile-current{font-size:15px;color:#23685c}.profile-revoke{color:#9b3434}.profile-pref-form{margin-block-start:16px}.profile-pref-form .profile-fields{margin-block:18px}.profile-pref-form select{width:100%}
+.profile-favorites{margin-block:20px;border:0;padding:0}.profile-favorites legend{font-size:16px;font-weight:600}.profile-favorite-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 16px;max-height:240px;overflow:auto;padding:8px 4px}.profile-favorite-list label{display:flex;align-items:center;gap:8px;min-height:36px}.profile-favorite-list input{accent-color:#0b1c30}
+#profile-contact{scroll-margin-top:150px}
+@media(max-width:680px){.profile-favorite-list{grid-template-columns:repeat(2,minmax(0,1fr))}.profile-tabs{gap:18px}.profile-setting-row{gap:8px}.profile-logo-controls{grid-column:1/-1}.profile-section{padding-block:16px}}

@@ -20,12 +20,15 @@ import { countryName } from "@/lib/country-names";
 import { configName, configDescription } from "@/lib/config-localization";
 import { hasPermission } from "@/lib/rbac";
 import { CountryFlag } from "./dashboard-interactions";
+import { readAgencyPrefs } from "@/lib/agency-preferences";
+import { prioritizeFavorites } from "@/lib/agency-preference-values";
 import "./dashboard.css";
 
 export const dynamic = "force-dynamic";
 
 export default async function PortalDashboardPage() {
  const user=await portalPageUser();
+ const prefs=await readAgencyPrefs(user.id);
  const locale=await getUiLocale();
  const ct=contentT(locale);
  const [data,options,usage]=await Promise.all([
@@ -106,7 +109,7 @@ export default async function PortalDashboardPage() {
  <HomeEditorial locale={locale} items={editorial}/>
  <div className="home-operational" data-wallet={canWallet}>
  <section className="home-actions" aria-labelledby="home-attention">
- {canCreate?<section className="dash-command home-destination" aria-label={ct("Create application")}><HomeDestinations programmes={programmes} requirements={programmeRequirements} scope={user.id+":"+user.agencyId} balance={canWallet?String(wallet.balance):""} canTopup={canTopup} options={destinations} shortcutIds={shortcutIds} locale={locale} labels={{title:searchLabel,choose:copy.choose,search:copy.destinationSearch,none:copy.none,noMatch:copy.noMatch,all:copy.all,shortcuts,opening}}/></section>:null}
+ {canCreate?<section className="dash-command home-destination" aria-label={ct("Create application")}><HomeDestinations programmes={programmes} requirements={programmeRequirements} scope={user.id+":"+user.agencyId} balance={canWallet?String(wallet.balance):""} canTopup={canTopup} options={destinations} shortcutIds={prioritizeFavorites(prefs.favorites,shortcutIds,destinations.map(d=>d.id))} locale={locale} labels={{title:searchLabel,choose:copy.choose,search:copy.destinationSearch,none:copy.none,noMatch:copy.noMatch,all:copy.all,shortcuts,opening}}/></section>:null}
  <div className="home-section-heading home-attention-heading"><h2 id="home-attention">{actionRequired>0?h.today:ui.follow}{actionRequired>0?<span className="home-count">{actionRequired}</span>:null}</h2>{actionRequired>0&&canUpload?<Link href="/portal/applications?documents=requested&sort=oldest&work=1">{h.process} →</Link>:null}</div>
  {actionRequired>0?<div className="home-action-list">{data.needsAttention.slice(0,3).map(r=><Link key={r.app.id} className="home-action-row" href={"/portal/applications/"+r.app.id+"?tab=documents"+(r.requestId?"#request-"+r.requestId:"")}><span className="home-action-dot"/><span><strong><bdi>{r.applicantSummary}</bdi></strong><small>{countryName({name:r.app.countryName,iso2:r.countryIso2},locale)} · {requestName(r.requestDocument)}</small></span><span className="home-action-cta">{canUpload?h.complete:h.view} →</span></Link>)}{actionRequired>3?<Link className="home-more" href="/portal/applications?documents=requested">{smartCopy.all} →</Link>:null}</div>:<p className="home-clear"><span aria-hidden="true">✓</span> {ui.allClear}</p>}
  {data.unreadMessages>0?<Link className="home-action-row" href="/portal/applications?focus=unread"><span className="home-message-dot"/><strong>{h.messages}</strong><span className="home-action-cta">{data.unreadMessages} →</span></Link>:null}

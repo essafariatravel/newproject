@@ -12,13 +12,13 @@ export function ContactEditor({initial,labels,c,canEdit}:{initial:Contact;labels
   const first=useRef<HTMLInputElement>(null);
   const keys=["phone","city","addressLine"] as const;
   useEffect(()=>{if(editing) first.current?.focus()},[editing]);
-  return <section className="profile-section">
+  return <section className="profile-section" id="profile-contact">
     <header><h2>{c.contact}</h2>{canEdit&&!editing?<button ref={edit} type="button" className="profile-text-action" onClick={()=>{setDraft(initial);setEditing(true)}}>{c.edit} <span aria-hidden="true">↗</span></button>:null}</header>
     {editing?<form action={updateOwnAgencyContactAction} className="profile-editor">
       <div className="profile-fields">{keys.map(k=><label key={k}><span>{labels[k]}</span><input ref={k==="phone"?first:undefined} className="input" name={k} value={draft[k]} onChange={e=>setDraft(d=>({...d,[k]:e.target.value}))} maxLength={k==="phone"?40:k==="city"?80:300} type={k==="phone"?"tel":"text"} dir={k==="phone"?"ltr":undefined} autoComplete={k==="phone"?"tel":k==="city"?"address-level2":"street-address"}/></label>)}</div>
       <div className="profile-actions"><button type="button" className="btn-secondary" onClick={()=>{setEditing(false);requestAnimationFrame(()=>edit.current?.focus())}}>{c.cancel}</button><SubmitButton className="btn-primary" disabled={!contactChanged(initial,draft)} pendingLabel="…">{c.save}</SubmitButton></div>
     </form>:<dl className="profile-fields">{keys.map(k=><div key={k}><dt>{labels[k]}</dt><dd dir={k==="phone"?"ltr":undefined} className={!initial[k].trim()?"profile-muted":undefined}>{initial[k].trim()||c.missing}</dd></div>)}</dl>}
-    {!editing&&canEdit&&keys.some(k=>!initial[k].trim())?<p className="profile-note">{c.complete}</p>:null}
+    
   </section>
 }
 export function LogoEditor({src,name,initials,canEdit,c}:{src:string|null;name:string;initials:string;canEdit:boolean;c:ProfileCopy}) {

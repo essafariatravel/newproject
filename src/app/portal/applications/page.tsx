@@ -25,6 +25,7 @@ import { CaseQuickView, CaseQuickViewProvider } from "./case-quick-view";
 import { CaseSelectionProvider, CaseSelect, CaseSelectAll, CaseSelectionToolbar } from "./case-selection";
 import { CaseListMemory } from "./case-navigation";
 import { agencyAttentionCondition } from "@/lib/attention";
+import { readAgencyPrefs } from "@/lib/agency-preferences";
 import "./cases.css";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,8 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
  const locale=await getUiLocale(raw), ct=contentT(locale), user=await portalPageUser();
  const sp:Record<string,string|undefined>={};
  for(const [k,v] of Object.entries(raw))sp[k]=typeof v==="string"?v:undefined;
+ const prefs=await readAgencyPrefs(user.id);
+ if(!sp.sort)sp.sort=prefs.sort;
  const queue:CaseQueue=sp.documents==="requested"?"attention":sp.queue==="active"?"active":sp.queue==="completed"?"completed":"all";
  const page=Math.min(100000,Math.max(1,Math.floor(Number(sp.page)||1)));
  const per=resolvePageSize(sp.per);
@@ -86,7 +89,7 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
  const quick=(r:typeof rows[number],decision=false)=><CaseQuickView id={r.id} reference={r.reference} decisionTrigger={decision} locale={locale}/>;
  const action=(r:typeof rows[number])=>["APPROVED","REJECTED"].includes(r.status)?quick(r,true):r.actionText?<Link className="case-action" href={r.actionHref}>{r.actionText}<span aria-hidden="true" className="case-arrow">→</span></Link>:<span className="case-none" aria-label={copy.none}>—</span>;
  const state=(r:typeof rows[number])=><div className="case-status-cell"><span className="case-state" data-status={r.status}><StatusBadge code={r.status} name={r.statusName}/></span>{r.elapsed?<small>{r.terminal?({fr:"Durée :",en:"Duration:",ar:"المدة:"}[locale]):({fr:"Depuis",en:"Since",ar:"منذ"}[locale])} <bdi>{r.elapsed}</bdi></small>:null}</div>;
- return <div className="essafaria-cases fluid-cases fluid-case-list" dir={locale==="ar"?"rtl":"ltr"}><CaseQuickViewProvider rows={quickRows} locale={locale}><CaseSelectionProvider key={caseLink({...query,page:String(result.page)})} locale={locale} rows={rows.map(r=>({id:r.id,reference:r.reference,traveller:r.traveller,country:r.country,visa:r.visa,status:localizedStatusName(r.status,r.statusName,locale),fee:r.fee,updated:r.updated}))}><CaseListMemory scope={user.id} context={caseLink({...query,page:String(result.page)})} rows={rows.map(r=>({id:r.id,href:r.base}))}/>
+ return <div className="essafaria-cases fluid-cases fluid-case-list" data-density={prefs.density} dir={locale==="ar"?"rtl":"ltr"}><CaseQuickViewProvider rows={quickRows} locale={locale}><CaseSelectionProvider key={caseLink({...query,page:String(result.page)})} locale={locale} rows={rows.map(r=>({id:r.id,reference:r.reference,traveller:r.traveller,country:r.country,visa:r.visa,status:localizedStatusName(r.status,r.statusName,locale),fee:r.fee,updated:r.updated}))}><CaseListMemory scope={user.id} context={caseLink({...query,page:String(result.page)})} rows={rows.map(r=>({id:r.id,href:r.base}))}/>
    <header className="case-title fluid-title"><h1>{ct("Applications")}</h1>{(counts[2]??0)>0&&queue!=="attention"?<Link className="fluid-attention-link" href={singleAttention?.actionHref??caseLink({...shared,...queueFilters("attention")})}><span className="fluid-attention-dot" aria-hidden="true"/><span>{singleAttention?<><bdi>{singleAttention.traveller}</bdi> · {singleAttention.actionText??copy.documents}</>:({fr:"Dossiers à traiter",en:"Cases to review",ar:"طلبات تحتاج إلى إجراء"}[locale])}</span><span className="directional" aria-hidden="true">→</span></Link>:null}</header>
    <Flash {...flashFrom(sp)}/>
    <nav className="case-queues" aria-label={ct("Applications")}>

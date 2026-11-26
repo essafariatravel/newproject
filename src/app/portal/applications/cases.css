@@ -334,3 +334,5 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-cases){font-fa
 .case-range-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));text-align:center;gap:2px}.case-range-grid span{font-size:13px;color:#647182}.case-range-grid button{min-height:40px;border-radius:6px;font-size:15px}.case-range-grid button[data-range=true]{background:#eaf0f6}.case-range-grid button[aria-pressed=true]{background:#0b1c30;color:white}
 .essafaria-cases .case-viewer-expanded[open]{width:98vw;height:96dvh;max-height:96dvh;display:flex;flex-direction:column;padding:16px;overflow:hidden}.essafaria-cases .case-viewer-expanded .case-viewer-stage{flex:1;min-height:0;max-height:none}.essafaria-cases .case-viewer-expanded .case-viewer-stage iframe{height:100%}.essafaria-cases .case-viewer-expanded .case-viewer-fit{max-height:100%}
 @media(max-width:767px){.smart-focus-bar>div{display:grid;gap:4px}.case-range-grid button{min-height:44px}}
+
+.fluid-case-list[data-density="compact"] .case-row td{height:56px;padding-block:6px}.fluid-case-list[data-density="compact"] .case-mobile-record{padding-block:10px}
