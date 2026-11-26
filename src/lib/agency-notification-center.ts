@@ -3,10 +3,11 @@ import {db} from "@/lib/db";
 import {notifications,applications,countries,visaTypes} from "@/db/schema";
 import {qualifiedTable} from "./database-schema";
 import type {NotificationFilter} from "./queries";
+import {parseNotificationSearch,escapeNotificationLike,notificationCountryCodes} from "./notification-search";
 
 // Agency-only read model derived from the existing recipient/action predicates.
 // Staff feeds and notification delivery continue to use the original query.
-export async function listAgencyNotifications(userId: string, limit: number, filter: NotificationFilter, options: {agencyId:string;unread?:boolean;q?:string;offset?:number;financial?:boolean;excludeAction?:boolean;groupPage?:{page:number;size:number}}) {
+export async function listAgencyNotifications(userId: string, limit: number, filter: NotificationFilter, options: {agencyId:string;unread?:boolean;q?:string;offset?:number;financial?:boolean;excludeAction?:boolean;detail?:boolean;groupPage?:{page:number;size:number}}) {
   const conditions = [
     eq(notifications.userId, userId),
 
@@ -15,28 +16,32 @@ export async function listAgencyNotifications(userId: string, limit: number, fil
   if (filter === "messages") conditions.push(eq(notifications.type, "MESSAGE_POSTED"));
   if (filter === "wallet") conditions.push(sql`(${notifications.type} like '%WALLET%' or ${notifications.type} = 'TOPUP_REQUESTED')`);
   if (filter === "applications") conditions.push(sql`${notifications.applicationId} is not null and ${notifications.type} <> 'MESSAGE_POSTED' and ${notifications.type} not like '%WALLET%'`);
+  // Agency action projection: the request must still be open, or the latest public message awaits a reply.
   const actionCondition=sql`(
-    exists (select 1 from ${table("users")} recipient
-      join ${table("applications")} dossier on dossier.id = ${notifications.applicationId}
-      join ${table("statuses")} state on state.id = dossier.status_id
-      where recipient.id = ${userId} and not state.is_terminal and (
-        (recipient.agency_id = dossier.agency_id and ${notifications.type} in ('DOCUMENT_REQUESTED','DOCUMENT_REJECTED','RESUBMISSION_REQUIRED')
-          and exists (select 1 from ${table("document_requests")} requested where requested.application_id = dossier.id and requested.status = 'OPEN'
-            and requested.id = ${notifications.documentRequestId}))
-        or (recipient.agency_id is null and (
-          (${notifications.type} = 'APPLICATION_SUBMITTED' and state.code = 'SUBMITTED')
-          or (${notifications.type} = 'CANCELLATION_REQUESTED' and exists (
-            select 1 from ${table("application_cancellation_requests")} cancellation
-            where cancellation.application_id=dossier.id and cancellation.status='PENDING'))
-          or (${notifications.type} = 'DOCUMENT_REQUEST_FULFILLED' and exists (
-            select 1 from ${table("document_requests")} requested join ${table("documents")} file on file.id=requested.fulfilled_document_id
-            where requested.id=${notifications.documentRequestId} and requested.application_id=dossier.id and requested.status='FULFILLED' and file.status in ('UPLOADED','UNDER_REVIEW') and file.version = (
-              select max(history.version) from ${table("documents")} history where history.application_id = dossier.id and history.checklist_item_id = file.checklist_item_id)))))))
-    or (${notifications.type} = 'TOPUP_REQUESTED' and exists (
-      select 1 from ${table("wallet_topup_requests")} topup where topup.id=${notifications.topupRequestId} and topup.agency_id = ${notifications.agencyId} and topup.status = 'PENDING'))
-    or (${notifications.type} = 'REGISTRATION_SUBMITTED' and exists (
-      select 1 from ${table("agency_registrations")} registration where ${notifications.link}='/admin/registrations/' || registration.id::text and registration.status in ('PENDING','UNDER_REVIEW')))
+    (${notifications.type} in ('DOCUMENT_REQUESTED','DOCUMENT_REJECTED','RESUBMISSION_REQUIRED') and exists (
+      select 1 from ${table("applications")} dossier join ${table("statuses")} state on state.id=dossier.status_id
+      join ${table("document_requests")} requested on requested.application_id=dossier.id
+      where dossier.id=${notifications.applicationId} and dossier.agency_id=${options.agencyId}
+      and not state.is_terminal and requested.status='OPEN' and requested.id=${notifications.documentRequestId}
+    ) and not exists (
+      select 1 from ${table("notifications")} newer where newer.user_id=${userId}
+      and newer.application_id=${notifications.applicationId} and newer.document_request_id=${notifications.documentRequestId}
+      and newer.type in ('DOCUMENT_REQUESTED','DOCUMENT_REJECTED','RESUBMISSION_REQUIRED')
+      and (newer.created_at,newer.id)>(${notifications.createdAt},${notifications.id})
+    ))
+    or (${notifications.type}='MESSAGE_POSTED' and coalesce((
+      select sender.agency_id is null from ${table("communications")} external
+      join ${table("users")} sender on sender.id=external.author_id
+      where external.application_id=${notifications.applicationId} and external.visibility='AGENCY'
+      order by external.created_at desc,external.id desc limit 1
+    ),false) and not exists (
+      select 1 from ${table("notifications")} newer where newer.user_id=${userId}
+      and newer.application_id=${notifications.applicationId} and newer.type='MESSAGE_POSTED'
+      and (newer.created_at,newer.id)>(${notifications.createdAt},${notifications.id})
+    ))
   )`;
+  const topupMatch=sql`topup.agency_id=${options.agencyId} and (topup.id=${notifications.topupRequestId} or (${notifications.type}='WALLET_TOPUP_DECIDED' and topup.reference=substring(${notifications.body} from '^Request (TOP-[0-9]{4}-[0-9]+) was ')))`;
+  const txMatch=sql`tx.agency_id=${options.agencyId} and tx.currency='DZD' and ((${notifications.type}='WALLET_ADJUSTED' and tx.reference=substring(${notifications.body} from 'Reference (WLT-[0-9]{4}-[0-9]+)[.]$')) or (${notifications.type}='WALLET_TOPUP_DECIDED' and exists (select 1 from ${table("wallet_topup_requests")} topup where ${topupMatch} and topup.wallet_transaction_id=tx.id and topup.status='PROCESSED')))`;
   if (filter === "action") conditions.push(actionCondition);
   if (options) {
     // Agency opt-in only. Never change the shared Staff feed defaults.
@@ -45,12 +50,30 @@ export async function listAgencyNotifications(userId: string, limit: number, fil
     conditions.push(sql`(${notifications.applicationId} is null or ${applications.agencyId}=${options.agencyId})`);
     if (options.unread) conditions.push(isNull(notifications.readAt));
     if(options.excludeAction) conditions.push(sql`not (${actionCondition})`);
-    const q=options.q?.trim().slice(0,160);
-    if(q){const pattern="%"+q.replace(/[\\%_]/g,"\\$&")+"%";conditions.push(sql`(${applications.reference} ilike ${pattern} or ${applications.countryName} ilike ${pattern} or ${applications.visaTypeName} ilike ${pattern} or ${notifications.title} ilike ${pattern} or exists (select 1 from ${table("applicants")} a where a.application_id=${applications.id} and coalesce(a.full_name,concat_ws(' ',a.first_name,a.last_name)) ilike ${pattern}))`);}
+    if(options.q?.trim()){
+      const search=parseNotificationSearch(options.q);
+      if(search.unread)conditions.push(isNull(notifications.readAt));
+      if(search.date)conditions.push(sql`(${notifications.createdAt} at time zone 'Africa/Algiers')::date=(now() at time zone 'Africa/Algiers')::date - ${search.date==="yesterday"?1:0}::integer`);
+      if(search.approved)conditions.push(sql`${notifications.type} in ('APPLICATION_DECISION','APPLICATION_COMPLETED') and exists(select 1 from ${table("statuses")} s where s.id=${applications.statusId} and s.code='APPROVED')`);
+      if(search.types.length)conditions.push(sql`${notifications.type} in (${sql.join(search.types.map(t=>sql`${t}`),sql`, `)})`);
+      const fold=(value:ReturnType<typeof sql>)=>sql`translate(lower(coalesce(${value},'')),'àáâäãåçèéêëìíîïñòóôöõùúûüýÿ','aaaaaaceeeeiiiinooooouuuuyy')`;
+      if(search.amount){
+        conditions.push(options.financial?sql`(exists(select 1 from ${table("wallet_transactions")} tx where ${txMatch} and tx.amount=${search.amount}::numeric) or exists(select 1 from ${table("wallet_topup_requests")} topup where ${topupMatch} and topup.currency='DZD' and topup.amount=${search.amount}::numeric))`:sql`false`);
+      }else for(const term of search.terms){
+        const pattern=escapeNotificationLike(term),codes=notificationCountryCodes(term);
+        const countryMatch=codes.length?sql`or exists(select 1 from ${table("countries")} cc where cc.id=${applications.countryId} and cc.iso2 in (${sql.join(codes.map(code=>sql`${code}`),sql`, `)}))`:sql``;
+        const financialMatch=options.financial?sql`or exists(select 1 from ${table("wallet_topup_requests")} topup where ${topupMatch} and topup.reference ilike ${pattern}) or exists(select 1 from ${table("wallet_transactions")} tx where ${txMatch} and tx.reference ilike ${pattern})`:sql``;
+        conditions.push(sql`(${fold(sql`concat_ws(' ',${applications.reference},${applications.countryName},${applications.visaTypeName},${notifications.title},${notifications.type})`)} ilike ${pattern}
+        or exists(select 1 from ${table("countries")} c where c.id=${applications.countryId} and ${fold(sql`concat_ws(' ',c.name,c.name_fr,c.name_ar,c.iso2)`)} ilike ${pattern})
+        or exists(select 1 from ${table("applicants")} a where a.application_id=${applications.id} and ${fold(sql`coalesce(a.full_name,concat_ws(' ',a.first_name,a.last_name))`)} ilike ${pattern})
+        or (${notifications.type} in ('MESSAGE_POSTED','DOCUMENT_REQUESTED','DOCUMENT_REJECTED') and ${fold(sql`${notifications.body}`)} ilike ${pattern})
+        ${financialMatch} ${countryMatch})`);
+      }
+    }
   }
 
   // Group by the same Algiers calendar day before pagination. An actionable event stays independent.
-  const groupKey=sql<string>`case when ${notifications.applicationId} is not null and not (${actionCondition}) then 'case:' || ${notifications.applicationId}::text || ':' || to_char(${notifications.createdAt} at time zone 'Africa/Algiers','YYYY-MM-DD') else 'event:' || ${notifications.id}::text end`;
+  const groupKey=sql<string>`case when ${notifications.applicationId} is not null and ${notifications.type} not in ('APPLICATION_DECISION','APPLICATION_COMPLETED') and not (${actionCondition}) then 'case:' || ${notifications.applicationId}::text || ':' || to_char(${notifications.createdAt} at time zone 'Africa/Algiers','YYYY-MM-DD') else 'event:' || ${notifications.id}::text end`;
   let groupTotal:number|undefined;
   if(options.groupPage){
     const size=Math.max(3,Math.min(16,Math.floor(options.groupPage.size)));
@@ -81,6 +104,14 @@ export async function listAgencyNotifications(userId: string, limit: number, fil
       resolvedTopupId: options.financial ? sql<string|null>`(select topup.id::text from ${table("wallet_topup_requests")} topup where topup.agency_id=${options.agencyId} and (topup.id=${notifications.topupRequestId} or (${notifications.type}='WALLET_TOPUP_DECIDED' and topup.reference=substring(${notifications.body} from '^Request (TOP-[0-9]{4}-[0-9]+) was '))) limit 1)` : sql<string|null>`null`,
       ledgerDirection: options.financial ? sql<string|null>`(select case when tx.balance_after>tx.balance_before then 'in' when tx.balance_after<tx.balance_before then 'out' else null end from ${table("wallet_transactions")} tx where tx.agency_id=${options.agencyId} and ${notifications.type}='WALLET_ADJUSTED' and tx.reference=substring(${notifications.body} from 'Reference (WLT-[0-9]{4}-[0-9]+)[.]$') and tx.currency='DZD' limit 1)` : sql<string|null>`null`,
       ledgerId: options.financial ? sql<string|null>`(select tx.id::text from ${table("wallet_transactions")} tx where tx.agency_id=${options.agencyId} and ${notifications.type}='WALLET_ADJUSTED' and tx.reference=substring(${notifications.body} from 'Reference (WLT-[0-9]{4}-[0-9]+)[.]$') and tx.currency='DZD' limit 1)` : sql<string|null>`null`,
+      decisionAvailable:options.detail?sql<boolean>`exists(select 1 from ${table("documents")} doc join ${table("document_types")} dt on dt.id=doc.document_type_id where doc.application_id=${applications.id} and dt.code in ('DECISION_VISA_APPROVAL','DECISION_REFUSAL_LETTER') and doc.status='ACCEPTED')`:sql<boolean>`false`,
+      requestStatus: options.detail?sql<string|null>`(select requested.status from ${table("document_requests")} requested where requested.id=${notifications.documentRequestId} and requested.application_id=${applications.id})`:sql<string|null>`null`,
+      requestName: options.detail?sql<string|null>`(select dt.name from ${table("document_requests")} requested join ${table("document_types")} dt on dt.id=requested.document_type_id where requested.id=${notifications.documentRequestId} and requested.application_id=${applications.id})`:sql<string|null>`null`,
+      requestNameFr: options.detail?sql<string|null>`(select dt.name_fr from ${table("document_requests")} requested join ${table("document_types")} dt on dt.id=requested.document_type_id where requested.id=${notifications.documentRequestId} and requested.application_id=${applications.id})`:sql<string|null>`null`,
+      requestNameAr: options.detail?sql<string|null>`(select dt.name_ar from ${table("document_requests")} requested join ${table("document_types")} dt on dt.id=requested.document_type_id where requested.id=${notifications.documentRequestId} and requested.application_id=${applications.id})`:sql<string|null>`null`,
+      beforeBalance:options.detail&&options.financial?sql<string|null>`(select tx.balance_before::text from ${table("wallet_transactions")} tx where ${txMatch} limit 1)`:sql<string|null>`null`,
+      afterBalance:options.detail&&options.financial?sql<string|null>`(select tx.balance_after::text from ${table("wallet_transactions")} tx where ${txMatch} limit 1)`:sql<string|null>`null`,
+      decisionNote:options.detail&&options.financial?sql<string|null>`(select topup.decision_note from ${table("wallet_topup_requests")} topup where ${topupMatch} and topup.status='REJECTED' limit 1)`:sql<string|null>`null`,
       travellerName: sql<string | null>`(select coalesce(traveller.full_name, concat_ws(' ',traveller.first_name,traveller.last_name)) from ${table("applicants")} traveller where traveller.application_id = ${table("notifications")}.application_id limit 1)`,
       destination: applications.countryName,
       countryIso2: countries.iso2,
