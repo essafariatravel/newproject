@@ -5,7 +5,7 @@ import {notificationCopy} from "@/app/portal/notifications/notification-copy";
 import {formatAmount} from "./format";
 import {localizedDocTypeName} from "./ui-i18n";
 export async function agencyBellEvents(userId:string,agencyId:string,locale:"fr"|"en"|"ar",financial:boolean){
- const options={agencyId,financial,detail:true};
+ const options={agencyId,financial,requestContext:true};
  const [recent,attention]=await Promise.all([listAgencyNotifications(userId,20,"all",options),listAgencyNotifications(userId,3,"action",options)]);
  const unique=new Map([...recent,...attention].map(n=>[n.id,n]));
  return [...unique.values()].sort((a,b)=>b.createdAt.getTime()-a.createdAt.getTime()||b.id.localeCompare(a.id)).map(n=>{
