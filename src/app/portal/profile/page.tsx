@@ -13,7 +13,7 @@ import { getUiLocale } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { businessLabel } from "@/lib/business-labels";
 import { profileCopy, profileTab } from "./profile-copy";
-import { ContactEditor, LogoEditor } from "./profile-interactions";
+import { ContactEditor, ContactCompletion, LogoEditor } from "./profile-interactions";
 import { readAgencyPrefs } from "@/lib/agency-preferences";
 import { personalProfileSecurity } from "@/lib/agency-profile-security";
 import { NATIONALITIES,nationalityLabel } from "@/lib/nationalities";
@@ -64,7 +64,7 @@ export default async function PortalProfilePage({searchParams}:{searchParams:Pro
     </nav>
     <div className="profile-content">
       {tab==="agency"?<>
-        {canEdit&&missingContact?<div className="profile-attention"><strong>{c.completeTitle}</strong><a href="#profile-contact">{c.editContact} <span aria-hidden="true">→</span></a></div>:null}
+        {canEdit&&missingContact?<ContactCompletion c={c}/>:null}
         <section className="profile-section"><header><h2>{c.identity}</h2></header><dl className="profile-fields"><div><dt>{ct("Legal name")}</dt><dd>{agency.legalName}</dd></div><div><dt>{ct("Trading name")}</dt><dd>{value(agency.tradingName)}</dd></div><div><dt>{ct("Email")}</dt><dd><bdi>{agency.email}</bdi></dd></div>{agency.country?<div><dt>{ct("Country")}</dt><dd>{agency.country}</dd></div>:null}</dl><p className="profile-note">{c.managed}</p></section>
         <ContactEditor key={[agency.phone,agency.city,agency.addressLine].join("|")} initial={{phone:agency.phone??"",city:agency.city??"",addressLine:agency.addressLine??""}} labels={{phone:ct("Phone"),city:ct("City"),addressLine:ct("Address")}} c={c} canEdit={canEdit}/>
         <section className="profile-section"><header><h2>{canBill?c.billing:ct("Wallet currency")}</h2></header><dl className="profile-fields">{canBill?<><div><dt>{ct("Legal name")}</dt><dd>{value(agency.billingName)}</dd></div><div><dt>{ct("Email")}</dt><dd><bdi>{value(agency.billingEmail)}</bdi></dd></div>{agency.billingTaxId?<div><dt>{ct("Billing tax ID")}</dt><dd><bdi>{agency.billingTaxId}</bdi></dd></div>:null}</>:null}<div><dt>{ct("Wallet currency")}</dt><dd>DZD</dd></div></dl></section>

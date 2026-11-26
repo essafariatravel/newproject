@@ -3,19 +3,40 @@ import { useEffect, useRef, useState } from "react";
 import { SubmitButton } from "@/components/forms";
 import { updateOwnAgencyContactAction } from "@/app/actions/admin";
 import { uploadOwnAgencyLogoAction, removeOwnAgencyLogoAction } from "@/app/actions/branding";
-import { contactChanged, validLogoFile, type ProfileCopy } from "./profile-copy";
+import { contactChanged, firstMissingContactField, validLogoFile, type ProfileCopy } from "./profile-copy";
 type Contact = {phone:string;city:string;addressLine:string};
+const CONTACT_EDIT_EVENT="essafaria-profile-edit-contact";
+export function ContactCompletion({c}:{c:ProfileCopy}){
+ return <div className="profile-attention"><strong>{c.completeTitle}</strong><button type="button" className="profile-text-action" aria-controls="profile-contact" onClick={()=>window.dispatchEvent(new Event(CONTACT_EDIT_EVENT))}>{c.editContact} <span aria-hidden="true">→</span></button></div>
+}
 export function ContactEditor({initial,labels,c,canEdit}:{initial:Contact;labels:{phone:string;city:string;addressLine:string};c:ProfileCopy;canEdit:boolean}) {
   const [editing,setEditing]=useState(false);
   const [draft,setDraft]=useState(initial);
   const edit=useRef<HTMLButtonElement>(null);
-  const first=useRef<HTMLInputElement>(null);
+  const formRef=useRef<HTMLFormElement>(null);
+  const sectionRef=useRef<HTMLElement>(null);
   const keys=["phone","city","addressLine"] as const;
-  useEffect(()=>{if(editing) first.current?.focus()},[editing]);
-  return <section className="profile-section" id="profile-contact">
+  useEffect(()=>{
+    if(!canEdit)return;
+    function open(){
+      setEditing(true);
+      if(formRef.current){
+        sectionRef.current?.scrollIntoView({block:"start"});
+        formRef.current.querySelector<HTMLInputElement>('input[name="'+firstMissingContactField(draft)+'"]')?.focus({preventScroll:true});
+      }
+    }
+    window.addEventListener(CONTACT_EDIT_EVENT,open);
+    return()=>window.removeEventListener(CONTACT_EDIT_EVENT,open);
+  },[canEdit,draft]);
+  useEffect(()=>{
+    if(!editing||!canEdit)return;
+    sectionRef.current?.scrollIntoView({block:"start"});
+    formRef.current?.querySelector<HTMLInputElement>('input[name="'+firstMissingContactField(initial)+'"]')?.focus({preventScroll:true});
+  },[editing,canEdit,initial.phone,initial.city,initial.addressLine]);
+  return <section ref={sectionRef} className="profile-section" id="profile-contact">
     <header><h2>{c.contact}</h2>{canEdit&&!editing?<button ref={edit} type="button" className="profile-text-action" onClick={()=>{setDraft(initial);setEditing(true)}}>{c.edit} <span aria-hidden="true">↗</span></button>:null}</header>
-    {editing?<form action={updateOwnAgencyContactAction} className="profile-editor">
-      <div className="profile-fields">{keys.map(k=><label key={k}><span>{labels[k]}</span><input ref={k==="phone"?first:undefined} className="input" name={k} value={draft[k]} onChange={e=>setDraft(d=>({...d,[k]:e.target.value}))} maxLength={k==="phone"?40:k==="city"?80:300} type={k==="phone"?"tel":"text"} dir={k==="phone"?"ltr":undefined} autoComplete={k==="phone"?"tel":k==="city"?"address-level2":"street-address"}/></label>)}</div>
+    {editing&&canEdit?<form ref={formRef} action={updateOwnAgencyContactAction} className="profile-editor">
+      <div className="profile-fields">{keys.map(k=><label key={k}><span>{labels[k]}</span><input className="input" name={k} value={draft[k]} onChange={e=>setDraft(d=>({...d,[k]:e.target.value}))} maxLength={k==="phone"?40:k==="city"?80:300} type={k==="phone"?"tel":"text"} dir={k==="phone"?"ltr":undefined} autoComplete={k==="phone"?"tel":k==="city"?"address-level2":"street-address"}/></label>)}</div>
       <div className="profile-actions"><button type="button" className="btn-secondary" onClick={()=>{setEditing(false);requestAnimationFrame(()=>edit.current?.focus())}}>{c.cancel}</button><SubmitButton className="btn-primary" disabled={!contactChanged(initial,draft)} pendingLabel="…">{c.save}</SubmitButton></div>
     </form>:<dl className="profile-fields">{keys.map(k=><div key={k}><dt>{labels[k]}</dt><dd dir={k==="phone"?"ltr":undefined} className={!initial[k].trim()?"profile-muted":undefined}>{initial[k].trim()||c.missing}</dd></div>)}</dl>}
     

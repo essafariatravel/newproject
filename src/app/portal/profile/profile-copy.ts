@@ -94,3 +94,7 @@ export function contactChanged(a: {phone:string;city:string;addressLine:string},
 export function passwordChecks(current:string,password:string,confirm:string) {
   return {length:password.length>=12 && password.length<=200,different:current.length>0 && password.length>0 && current!==password,match:password.length>0 && password===confirm};
 }
+
+export function firstMissingContactField(contact:{phone:string;city:string;addressLine:string}):"phone"|"city"|"addressLine" {
+ return (["phone","city","addressLine"] as const).find(k=>!contact[k].trim())??"phone";
+}
