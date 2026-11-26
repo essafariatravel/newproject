@@ -123,6 +123,8 @@ async function verifyPublicPages() {
     const resourcesPath = seoLocalizedPublicPath("resources", locale);
     assert(body.includes(`href="${resourcesPath}"`), `${path} lacks a localized resource link`);
     if (entry.key === "resources") assert(body.includes('id="resource-document-check"'), `${path} lacks guide content`);
+    const headingFont = locale === "ar" ? "/fonts/IBMPlexSansArabic-SemiBold.ttf" : "/fonts/Barlow-SemiBold.ttf";
+    assert((body.split("</head>", 1)[0] ?? "").includes(`href="${headingFont}"`), `${path} lacks an early heading font hint`);
     const forbidden = forbiddenMetadataHost(body);
     assert(!forbidden, `${path} leaked non-Production metadata host ${forbidden}`);
 

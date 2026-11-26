@@ -70,7 +70,7 @@ export function PublicHeader({ brandName, homeHref = "/", tagline: _tagline, log
     <header className="premium-public-header sticky top-0 z-40 border-b border-white/10 bg-navy-950 text-white">
       <div className="ess-container flex h-16 items-center justify-between gap-2">
         {/* Brand — logo artwork when uploaded, otherwise monogram + wordmark */}
-        <Link href={homeHref} className="platform-brand flex min-w-0 shrink items-center gap-2" aria-label={brandName}>
+        <Link prefetch={false} href={homeHref} className="platform-brand flex min-w-0 shrink items-center gap-2" aria-label={brandName}>
           {logoUrl ? (
             <img
               src={logoUrl}
@@ -93,7 +93,7 @@ export function PublicHeader({ brandName, homeHref = "/", tagline: _tagline, log
         {/* Desktop navigation */}
         <nav className="public-desktop-nav hidden items-center gap-2 lg:flex" aria-label={labels.menu}>
           {nav.map((item) => (
-            <Link
+            <Link prefetch={false}
               key={item.href}
               href={item.href}
               aria-current={pathname === item.href ? "page" : undefined}
@@ -108,12 +108,12 @@ export function PublicHeader({ brandName, homeHref = "/", tagline: _tagline, log
           {/* Language switcher: desktop only — mobile gets it inside the menu */}
           <span className="public-desktop-controls hidden xl:inline-flex">{localeSwitcher}</span>
           <span className="public-desktop-controls hidden xl:inline-flex">
-            <Link href="/login" className="btn btn-sm platform-sign-in">
+            <Link prefetch={false} href="/login" className="btn btn-sm platform-sign-in">
               {labels.signIn}
             </Link>
           </span>
           {/* The ONE register CTA (visible on every viewport, mobile included) */}
-          <Link
+          <Link prefetch={false}
             href="/agency/register"
             data-testid="public-register-cta"
             className="btn-gold btn-sm public-partner-action whitespace-nowrap px-4 text-base"
@@ -146,7 +146,7 @@ export function PublicHeader({ brandName, homeHref = "/", tagline: _tagline, log
         <div id={panelId} className="public-menu-panel border-t border-white/10 bg-navy-950 xl:hidden">
           <nav className="ess-container flex flex-col py-2" aria-label={labels.menu}>
             {nav.map((item) => (
-              <Link
+              <Link prefetch={false}
                 key={item.href}
                 href={item.href}
                 aria-current={pathname === item.href ? "page" : undefined}
@@ -158,7 +158,7 @@ export function PublicHeader({ brandName, homeHref = "/", tagline: _tagline, log
             ))}
             <div className="mt-2 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 px-2 pb-4 pt-4">
               {localeSwitcher}
-              <Link href="/login" className="btn btn-sm border border-white/35 bg-transparent text-white" onClick={() => setOpen(false)}>
+              <Link prefetch={false} href="/login" className="btn btn-sm border border-white/35 bg-transparent text-white" onClick={() => setOpen(false)}>
                 {labels.signIn}
               </Link>
             </div>

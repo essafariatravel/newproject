@@ -85,3 +85,25 @@ describe("public SEO performance guardrails", () => {
     }
   });
 });
+
+describe("public startup performance", () => {
+  it("preloads only the current marketing language heading font", () => {
+    const layout = source("src/app/(public)/layout.tsx");
+    expect(layout).toContain('publicPage ? <link rel="preload" as="font"');
+    expect(layout).toContain('locale === "ar" ? "/fonts/IBMPlexSansArabic-SemiBold.ttf" : "/fonts/Barlow-SemiBold.ttf"');
+    expect(layout).toContain('crossOrigin="anonymous"');
+  });
+  it("reserves responsive demonstration image dimensions before image decoding", () => {
+    const component = source("src/components/public-visa-chapters.tsx");
+    const css = source("src/app/public-premium.css");
+    expect(component).toContain("--proof-wide-ratio");
+    expect(component).toContain("--proof-small-ratio");
+    expect(component).toContain('media="(max-width: 639px)"');
+    expect(css).toContain("aspect-ratio: var(--proof-wide-ratio)");
+    expect(css).toContain("aspect-ratio: var(--proof-small-ratio)");
+  });
+  it("does not eagerly prefetch public header routes during initial load", () => {
+    const header = source("src/components/public-header.tsx");
+    expect([...header.matchAll(/<Link\b[^>]*>/g)].every(m => m[0].includes("prefetch={false}"))).toBe(true);
+  });
+});

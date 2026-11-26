@@ -30,6 +30,7 @@ export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
   "seo/v2-live-production-20261124",
   "seo/v2-resources-20261124",
   "seo/production-recovery-20261126",
+  "seo/mobile-performance-20261126",
   // Agency UX branch: no migration or seed even without environment overrides.
   "codex/agency-experience-2-0-preview-20261124",
   "codex/phase2a-intelligent-core-20261126",
