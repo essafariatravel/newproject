@@ -105,3 +105,14 @@ describe("Preview build database-change guard", () => {
 
 
 describe("Intelligent Core build guard",()=>{it("blocks all automatic database changes on the dedicated branch",()=>{expect(automaticDatabaseChangesForbidden("codex/phase2a-intelligent-core-20261126")).toBe(true)})});
+
+
+describe("SEO release recovery build guard", () => {
+  it("blocks automatic database changes and deployments for the restored SEO release", () => {
+    const config = JSON.parse(readFileSync(path.join(process.cwd(), "vercel.json"), "utf8"));
+    for (const branch of ["seo/v2-algeria-20261124", "seo/v2-live-production-20261124", "seo/v2-resources-20261124", "seo/production-recovery-20261126"]) {
+      expect(automaticDatabaseChangesForbidden(branch)).toBe(true);
+      expect(config.git?.deploymentEnabled?.[branch]).toBe(false);
+    }
+  });
+});

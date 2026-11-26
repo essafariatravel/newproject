@@ -5,6 +5,7 @@ import B2BPage from "../../b2b/page";
 import AboutPage from "../../about/page";
 import ContactPage from "../../contact/page";
 import FaqPage from "../../faq/page";
+import ResourcesPage from "../../resources/page";
 import { buildPublicMetadata } from "@/lib/seo";
 import {
   seoIndexablePageForPath,
@@ -23,6 +24,7 @@ const PAGE_COMPONENTS = {
   about: AboutPage,
   contact: ContactPage,
   faq: FaqPage,
+  resources: ResourcesPage,
 } satisfies Record<IndexablePublicSeoPage, typeof HomePage>;
 
 async function resolvePublicPage(params: Params): Promise<{

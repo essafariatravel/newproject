@@ -11,6 +11,8 @@ import { UiLanguageSwitcher } from "@/components/ui-language-switcher";
 import { PublicMotion } from "@/components/public-motion";
 import { PublicOrganizationData } from "@/components/public-organization-data";
 import { TravelPhotoCredits } from "@/components/travel-photo-credits";
+import { PublicLanguageLinks } from "@/components/public-language-links";
+import { PUBLIC_RESOURCE_COPY } from "@/lib/public-resources";
 import {
   SEO_INDEXABLE_PUBLIC_ENTRIES,
   seoLocalizedPublicPath,
@@ -87,6 +89,8 @@ export default async function PublicLayout({ children }: { children: ReactNode }
             <p className="text-base font-semibold text-white">{tr("Platform")}</p>
             <ul className="mt-4 space-y-2 text-base">
               <li><Link className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("b2b", locale)}>{tr("For Agencies")}</Link></li>
+              <li><Link className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("faq", locale)}>{ct("FAQ")}</Link></li>
+              <li><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("resources", locale)}>{PUBLIC_RESOURCE_COPY[locale].nav}</Link></li>
               <li><Link className="text-white/70 transition-colors hover:text-white" href="/login">{tr("Sign in")}</Link></li>
               <li><Link className="text-white/70 transition-colors hover:text-white" href="/agency/register">{tr("Register your agency")}</Link></li>
             </ul>
@@ -128,6 +132,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
           <div className="ess-container flex flex-wrap items-center justify-between gap-2 py-4 text-xs text-white/50">
             <span>© {new Date().getFullYear()} {brandName}. {tr("All rights reserved.")}</span>
             <span>{ct("Professional B2B visa operations platform.")}</span>
+            {publicPage ? <PublicLanguageLinks page={publicPage} locale={locale} label={tr("Language")} /> : null}
           </div>
         </div>
       </footer>

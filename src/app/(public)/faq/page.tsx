@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { getUiLocale, type UiLocale } from "@/lib/ui-i18n";
 import { buildPublicMetadata } from "@/lib/seo";
+import Link from "next/link";
+import { PUBLIC_RESOURCE_COPY } from "@/lib/public-resources";
+import { seoLocalizedPublicPath } from "@/lib/seo-manifest";
 
 export const dynamic = "force-dynamic";
 
@@ -17,13 +20,18 @@ const FAQ_COPY: Record<
   }
 > = {
   en: {
-    title: "Frequently asked questions",
+    title: "B2B visa services FAQ",
     intro: "Practical information for travel agencies in Algeria considering or using ESSAFARIA's B2B visa services.",
     items: [
       {
         question: "Who can use ESSAFARIA's services?",
         answer:
           "ESSAFARIA's professional services are intended for travel agencies and authorized partners using its B2B services.",
+      },
+      {
+        question: "What can a travel agency outsource to a B2B visa partner?",
+        answer:
+          "An agency can coordinate file preparation, document review and request follow-up with ESSAFARIA. The agency remains responsible for checking the traveller's information and providing accurate documents. The competent authority alone decides on the visa.",
       },
       {
         question: "How can an agency request access?",
@@ -63,13 +71,18 @@ const FAQ_COPY: Record<
     ],
   },
   fr: {
-    title: "Questions fréquentes",
+    title: "FAQ visas B2B",
     intro: "Informations pratiques pour les agences de voyages en Algérie qui souhaitent utiliser les services visa B2B d’ESSAFARIA.",
     items: [
       {
         question: "À qui s’adressent les services d’ESSAFARIA ?",
         answer:
           "ESSAFARIA Visa OS est destiné aux agences de voyages et partenaires professionnels autorisés qui utilisent les services B2B d’ESSAFARIA.",
+      },
+      {
+        question: "Que peut sous-traiter une agence de voyages pour ses dossiers visa ?",
+        answer:
+          "L’agence peut confier à ESSAFARIA la coordination de la préparation du dossier, le contrôle des pièces et le suivi de la demande. Elle reste responsable de vérifier les informations du voyageur et de transmettre des justificatifs exacts. Seule l’autorité compétente décide de la délivrance du visa.",
       },
       {
         question: "Comment une agence peut-elle demander un accès ?",
@@ -109,13 +122,18 @@ const FAQ_COPY: Record<
     ],
   },
   ar: {
-    title: "الأسئلة الشائعة",
+    title: "أسئلة شائعة حول خدمات التأشيرات",
     intro: "معلومات عملية لوكالات السفر في الجزائر التي ترغب في استخدام خدمات التأشيرات من ESSAFARIA بنظام B2B.",
     items: [
       {
         question: "لمن صُممت خدمات ESSAFARIA؟",
         answer:
           "صُممت ESSAFARIA Visa OS لوكالات السفر والشركاء المهنيين المعتمدين الذين يستخدمون خدمات ESSAFARIA بنظام B2B.",
+      },
+      {
+        question: "ما المهام التي يمكن لوكالة السفر إسنادها إلى شريك في خدمات التأشيرات؟",
+        answer:
+          "يمكن للوكالة تكليف ESSAFARIA بتنسيق إعداد الملف ومراجعة الوثائق ومتابعة الطلب. وتظل الوكالة مسؤولة عن التحقق من بيانات المسافر وتقديم مستندات صحيحة. أما قرار منح التأشيرة فيبقى من اختصاص السلطة المختصة وحدها.",
       },
       {
         question: "كيف يمكن للوكالة طلب الوصول إلى المنصة؟",
@@ -166,6 +184,7 @@ export default async function FaqPage() {
         <header className="faq-intro">
           <h1 id="faq-heading">{copy.title}</h1>
           <p className="interior-lede">{copy.intro}</p>
+          <Link prefetch={false} href={seoLocalizedPublicPath("resources", locale)} className="interior-link mt-4 inline-block">{PUBLIC_RESOURCE_COPY[locale].nav}</Link>
         </header>
         <div className="faq-register">
           {copy.items.map((item, index) => (

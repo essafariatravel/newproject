@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { downloadContentDisposition } from "@/lib/download-content-disposition";
 
 function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), "utf-8");
@@ -55,7 +56,15 @@ describe("private resource indexation and download safety", () => {
       "src/app/api/topups/[id]/proof/route.ts",
     ]) {
       expect(source(path), `${path} must use attachment disposition`).toContain("Content-Disposition");
-      expect(source(path), `${path} must use attachment disposition`).toContain("attachment");
+      if (path === "src/app/api/documents/[id]/route.ts") {
+        expect(source(path)).toContain('import { downloadContentDisposition } from "@/lib/download-content-disposition"');
+        expect(source(path)).toMatch(/"Content-Disposition":\s*downloadContentDisposition\(/);
+        for (const name of ["passport.pdf", "وثيقة.pdf", "pièce.pdf"]) {
+          expect(downloadContentDisposition(name)).toMatch(/^attachment; filename="/);
+        }
+      } else {
+        expect(source(path), `${path} must use attachment disposition`).toContain("attachment");
+      }
     }
   });
 

@@ -47,6 +47,14 @@ export const SEO_PUBLIC_ROUTE_MANIFEST = {
     cacheNoStore: false,
     noReferrer: false,
   },
+  resources: {
+    path: "/resources",
+    classification: "indexable",
+    sitemap: true,
+    headerSource: "/resources",
+    cacheNoStore: false,
+    noReferrer: false,
+  },
   login: {
     path: "/login",
     classification: "noindex",
