@@ -1,0 +1,11 @@
+# Smart Operational Intelligence — Phase II-B
+Base: c8215af8437dcb9b846ef99a056b38342a796a30. Branch: codex/phase2a-intelligent-core-20261126.
+## Delivered without migration
+- Decision assistance: initial server-generated catalogue fingerprint (price, indicative working days and raw active requirements, independent of locale). Preflight compares live configuration; final request forwards the same fingerprint and server rejects changes before storage/charge. Existing transaction locks, idempotency, checklist snapshot and accounting unchanged. Legacy callers retain existing protections. No consular eligibility inference.
+- Travel Deadline: optional civil date with Algerian Sunday–Thursday reference planning calendar, excluding today and departure; no inferred holidays, no guarantee. Date stays in form state; not persisted. Warnings are advisory, not a consular refusal. Do not use notes or visa_rule_snapshot as a substitute for an explicit trip field.
+- Change Intelligence: authenticated read-only 30-day history of currently bookable DZD programmes; allowlisted projection of existing audit actions, never actor or raw metadata; group latest programme/type/day, capped 30 rows out of 100 matching audit records. Existing historical requirement events lack explicit publication provenance, so only future events marked programmeWasActive are displayed. No retroactive fabrication. Dashboard and notification page links, no fan-out or unread mutation.
+## Deferred pending explicit approval
+- Dedicated departure date column and persistence, dossier/Staff priority queries, countdown and reminder notification workflow; prepare a migration proposal and test on disposable local DB, not on Supabase.
+- Notification fan-out, unread semantics and targeted subscription policy, suspension of a non-bookable programme without exposing unpublished data, document type/global country/category change events.
+- Real authenticated E2E, SQL integration/race checks, visual FR/EN/AR and mobile. Full build and exact branch status must be verified separately.
+No schema change, production deployment, new dependency, external service or paid resource. Do not certify consular deadlines or actual performance.

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { operationalCopy } from "@/lib/operational-copy";
 import { and, count, eq, inArray, isNotNull, max, sql } from "drizzle-orm";
 import { qualifiedTable } from "@/lib/database-schema";
 import { capacity, caseAction } from "./dashboard-smart";
@@ -107,6 +108,7 @@ export default async function PortalDashboardPage() {
  return <div className="essafaria-dashboard smart-home" dir={locale==="ar"?"rtl":"ltr"}>
  <header className="dash-title home-heading"><div><h1>{agencyDisplay?<>{h.hello}, <bdi>{agencyDisplay}</bdi></>:h.workspace}</h1>{!totals.total?<p>{h.noCases}</p>:null}</div><Link className="home-active" href="/portal/applications?queue=active"><strong>{totals.active}</strong> {h.active} <span className="dash-arrow" aria-hidden="true">→</span></Link></header>
  <HomeEditorial locale={locale} items={editorial}/>
+ <Link className="ops-catalogue-entry" href="/portal/catalogue-updates">{operationalCopy[locale].allUpdates} <span aria-hidden="true">→</span></Link>
  <div className="home-operational" data-wallet={canWallet}>
  <section className="home-actions" aria-labelledby="home-attention">
  {canCreate?<section className="dash-command home-destination" aria-label={ct("Create application")}><HomeDestinations programmes={programmes} requirements={programmeRequirements} scope={user.id+":"+user.agencyId} balance={canWallet?String(wallet.balance):""} canTopup={canTopup} options={destinations} shortcutIds={prioritizeFavorites(prefs.favorites,shortcutIds,destinations.map(d=>d.id))} locale={locale} labels={{title:searchLabel,choose:copy.choose,search:copy.destinationSearch,none:copy.none,noMatch:copy.noMatch,all:copy.all,shortcuts,opening}}/></section>:null}

@@ -1,3 +1,4 @@
+import { bookingCatalogueFingerprint } from "@/lib/booking-catalogue-fingerprint";
 import { validateDocumentFormat } from "@/lib/upload-validation";
 /* ------------------------------------------------------------------ */
 /* Atomic 3-step visa request submission (Phase 2.3 §5–§12)            */
@@ -98,6 +99,7 @@ export interface SubmitVisaRequestInput {
   idempotencyKey: string;
   /** Client-confirmed price; absent for legacy callers. */
   expectedFee?: string;
+  expectedCatalogue?: string;
   /** Phase 2-Final: the country the user picked in step 1 (correction 3). */
   countryId: string;
   visaTypeId: string;
@@ -384,6 +386,7 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
   }
 
   const requirements = cfg ? await listRequirementsForVisaType(cfg.visaTypeId) : [];
+  if(input.expectedCatalogue!==undefined&&(!cfg||bookingCatalogueFingerprint({fee:cfg.fee,minDays:cfg.processingMinDays,maxDays:cfg.processingMaxDays},requirements)!==input.expectedCatalogue))throw new AppError("VISA_TYPE_INVALID","The catalogue changed. Review the programme again before confirming.");
 
   const priorityRow = await db
     .select({ id: priorities.id, code: priorities.code })
