@@ -18,7 +18,7 @@ export function DashboardCampaigns({items,labels}:{items:Campaign[];labels:Campa
  return <section className="dash-campaign" aria-label={labels.campaigns} onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)} onFocusCapture={()=>setFocused(true)} onBlurCapture={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setFocused(false)}}>
   <div className="dash-campaign-slides" aria-live={stopped||reduced?"polite":"off"}>
    {items.map((item,i)=><div key={item.id} className="dash-campaign-content" data-campaign={item.id} data-current={i===current} aria-hidden={i!==current}>
-    <picture className="dash-campaign-photo" aria-hidden="true"><source media="(max-width: 767px)" srcSet={item.smallImage}/>{/* Local pre-encoded images: no new image service or third-party request. */}{/* eslint-disable-next-line @next/next/no-img-element */}<img src={item.image} alt="" loading={i===0?"eager":"lazy"} fetchPriority={i===0?"high":"low"} decoding="async"/></picture>
+    <picture className="dash-campaign-photo" aria-hidden="true"><source media="(max-width: 767px)" srcSet={item.smallImage}/>{/* Local pre-encoded images: no new image service or third-party request. */}<img src={item.image} alt="" loading={i===0?"eager":"lazy"} fetchPriority={i===0?"high":"low"} decoding="async"/></picture>
     <div className="dash-campaign-copy"><h2>{item.title}</h2><p>{item.body}</p><Link href={item.href} tabIndex={i===current?0:-1}>{item.cta} <span className="dash-arrow" aria-hidden="true">→</span></Link></div>
    </div>)}
   </div>
