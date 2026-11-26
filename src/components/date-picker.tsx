@@ -29,6 +29,10 @@ export interface DatePickerProps {
   placeholder?: string;
   displayDayFirst?: boolean;
   ariaLabel?: string;
+  /** Optional observer; existing form submission behavior is unchanged. */
+  onValueChange?: (value: string) => void;
+  todayValue?: string;
+  invalid?: boolean;
 }
 
 const ISO = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -89,8 +93,8 @@ export function DatePicker(props: DatePickerProps) {
   }[locale];
   const today = useMemo(() => {
     const t = new Date();
-    return { y: t.getFullYear(), m: t.getMonth(), d: t.getDate() };
-  }, []);
+    return parseIso(props.todayValue) ?? { y: t.getFullYear(), m: t.getMonth(), d: t.getDate() };
+  }, [props.todayValue]);
 
   const initial = parseIso(props.defaultValue);
   const [value, setValue] = useState<string>(props.defaultValue ?? "");
@@ -175,12 +179,14 @@ export function DatePicker(props: DatePickerProps) {
   function select(v: string) {
     if (!parseIso(v) || !allowed(v)) return;
     setValue(v);
+    props.onValueChange?.(v);
     setTyped(null);
     closePicker();
   }
   function applyText(v: string) {
     if(props.displayDayFirst){setTyped(v);const match=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v);v=match?match[3]+"-"+match[2]+"-"+match[1]:v}
     setValue(v);
+    props.onValueChange?.(v);
     const p = parseIso(v);
     if (p && allowed(v)) {
       setViewYear(p.y); setViewMonth(p.m); setFocusedDay(p.d);
@@ -251,6 +257,7 @@ export function DatePicker(props: DatePickerProps) {
           placeholder={props.placeholder ?? "YYYY-MM-DD"}
           onChange={(e) => applyText(e.target.value)}
           className={`input ${props.className ?? ""}`.trim()}
+          aria-invalid={props.invalid||undefined}
           aria-label={props.ariaLabel??(props.id?undefined:props.placeholder??"YYYY-MM-DD")}
         />
         <button
@@ -437,7 +444,7 @@ export function DatePicker(props: DatePickerProps) {
               type="button"
               className="inline-flex min-h-11 items-center text-base font-semibold text-slate-500 hover:underline"
               disabled={props.required}
-              onClick={() => { if (!props.required) { setValue(""); setTyped(null); closePicker(); } }}
+              onClick={() => { if (!props.required) { setValue(""); props.onValueChange?.(""); setTyped(null); closePicker(); } }}
             >
               {locale === "fr" ? "Effacer" : locale === "ar" ? "مسح" : "Clear"}
             </button>

@@ -271,7 +271,93 @@ html[lang="ar"] .workspace-agency.workspace-agency.workspace-agency :is(.workspa
 
 .workspace-agency .core-transfer-details{margin-block:8px}.workspace-agency .core-transfer-details summary{cursor:pointer;color:#344457;font-size:14px}.workspace-agency .core-transfer-details>div{display:flex;justify-content:space-between;gap:12px;padding-block:4px;font-size:14px}.workspace-agency .core-transfer-details bdi{font-variant-numeric:tabular-nums;flex:none}
 
-/* Operational intelligence: quiet inline guidance, no new checkout step. */
-.workspace-agency .ops-departure{display:grid;gap:6px;max-width:100%}.workspace-agency .ops-departure .input{max-width:260px}.workspace-agency .ops-departure small,.workspace-agency .ops-deadline small,.workspace-agency .ops-review small{display:block;color:#647182;font-size:13px;line-height:1.5}.workspace-agency .ops-deadline{display:grid;gap:5px;padding:10px 0;border-block-start:1px solid #e2e5e9;font-size:14px;color:#0b1c30}.workspace-agency .ops-deadline[data-state=risk],.workspace-agency .ops-deadline[data-state=tight],.workspace-agency .ops-deadline[data-state=invalid],.workspace-agency .ops-deadline[data-state=unknown]{color:#87500d}.workspace-agency .ops-deadline[data-state=favourable]{color:#23685c}.workspace-agency .ops-review{border-block-start:1px solid #e2e5e9;padding-block:9px;font-size:14px}.workspace-agency .ops-review summary{cursor:pointer;font-weight:500}.workspace-agency .ops-review p{margin-block:5px}
+/* Operational intelligence — use the existing shared calendar, scoped to this wizard. */
+.workspace-agency .ops-departure{display:grid;gap:8px;max-width:100%;min-width:0}
+.workspace-agency .ops-departure-heading{display:flex;align-items:baseline;gap:10px}
+.workspace-agency .ops-departure-heading label{font-size:16px;font-weight:600;color:#0b1c30}
+.workspace-agency .ops-departure-heading>span,.workspace-agency .ops-departure>small{font-size:14px;color:#647182}
+.workspace-agency .ops-departure .date-picker{width:min(100%,320px);position:relative;min-width:0}
+.workspace-agency #workspace-main .ops-departure .date-picker-control{border:1px solid #98a6b5;border-radius:6px;min-height:46px}
+.workspace-agency #workspace-main .ops-departure .date-picker-control .input{width:100%;min-width:0;border:0!important;box-shadow:none!important;background:transparent;font-size:16px;font-variant-numeric:tabular-nums}
+.workspace-agency #workspace-main .ops-departure .date-picker-control:focus-within{border-color:#304b64;box-shadow:0 0 0 2px #304b6422}
+.workspace-agency .ops-departure .date-picker-control>button[aria-expanded=true]{background:#0b1c30;color:white}
+.workspace-agency .ops-departure .date-picker-panel{width:min(22rem,calc(100vw - 24px));border-radius:8px;box-shadow:0 8px 24px #0b1c301c;z-index:50}
+.workspace-agency .ops-departure .date-picker-heading{background:white;color:#0b1c30;border-radius:0;border-block-end:1px solid #e2e5e9;padding-block:6px}
+.workspace-agency .ops-departure .date-picker-heading button{color:#0b1c30;font-weight:600}
+.workspace-agency .ops-departure .date-picker-heading button:hover{background:#f5f7fa}
+.workspace-agency .ops-departure .date-picker-panel button[aria-pressed=true]{background:#0b1c30;color:white}
+.workspace-agency .ops-departure .date-picker-panel [aria-current=date]:not([aria-pressed=true]){box-shadow:inset 0 0 0 1px #647182;color:#0b1c30}
+.workspace-agency .ops-departure .date-picker-panel button:focus-visible{outline:2px solid #304b64;outline-offset:-2px}
+.workspace-agency .ops-departure .date-picker-footer button{color:#344457;font-size:14px}
+.workspace-agency .ops-departure-error{color:#9b3030;font-size:14px}
+.workspace-agency .ops-deadline{display:grid;gap:12px;min-width:0;max-width:100%;padding:12px 0;border-block-start:1px solid #e2e5e9;color:#0b1c30}
+.workspace-agency .ops-timing-status{display:flex;align-items:baseline;gap:8px;font-size:15px;font-weight:500;color:#647182}
+.workspace-agency .ops-timing-status strong{font-weight:500}
+.workspace-agency .ops-status-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none;align-self:center}
+.workspace-agency .ops-deadline[data-state=risk] .ops-timing-status,.workspace-agency .ops-deadline[data-state=invalid] .ops-timing-status{color:#9b3030}
+.workspace-agency .ops-deadline[data-state=tight] .ops-timing-status,.workspace-agency .ops-deadline[data-state=unknown] .ops-timing-status{color:#87500d}
+.workspace-agency .ops-deadline[data-state=favourable] .ops-timing-status{color:#23685c}
+.workspace-agency .ops-timing-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.workspace-agency .ops-timing-grid>div{display:grid;align-content:start;gap:4px;min-width:0}
+.workspace-agency .ops-timing-grid>div+div{border-inline-start:1px solid #e2e5e9;padding-inline-start:16px}
+.workspace-agency .ops-timing-grid>div>span{font-size:14px;color:#647182}
+.workspace-agency .ops-timing-grid strong{font-size:clamp(18px,2vw,22px);font-weight:600;line-height:1.35;font-variant-numeric:tabular-nums}
+.workspace-agency .ops-timing-grid small,.workspace-agency .ops-timing-foot small,.workspace-agency .ops-review small{font-size:13px;color:#647182;line-height:1.5}
+.workspace-agency .ops-timing-foot{display:flex;gap:8px 18px;flex-wrap:wrap;align-items:baseline}
+.workspace-agency .ops-timing-foot details{font-size:13px;color:#647182;min-width:0}
+.workspace-agency .ops-timing-foot summary{cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.workspace-agency .ops-timing-foot details[open]{flex-basis:100%}
+.workspace-agency .ops-timing-foot p{margin-block:6px 0}
+.workspace-agency .ops-trip-heading{display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap;font-size:15px}
+.workspace-agency .ops-review{border-block-start:1px solid #e2e5e9;padding-block:9px;font-size:14px}.workspace-agency .ops-review summary{cursor:pointer;font-weight:500}.workspace-agency .ops-review p{margin-block:5px}
+@media(max-width:380px){.workspace-agency .ops-timing-grid{gap:10px}.workspace-agency .ops-timing-grid>div+div{padding-inline-start:10px}}
 
-.workspace-agency .ops-catalogue-entry{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;color:#0b1c30;font-size:15px;text-decoration:none;border-block-end:1px solid #e2e5e9}.workspace-agency .ops-catalogue-entry:hover{text-decoration:underline}.workspace-agency .ops-catalogue{max-width:980px;margin-inline:auto;background:white;color:#0b1c30;padding:24px 0;font-family:system-ui,sans-serif}.workspace-agency .ops-catalogue[dir=rtl]{font-family:"Plex Arabic",Arial,sans-serif}.ops-catalogue header{margin-block-end:24px}.ops-catalogue h1{font-size:clamp(26px,3vw,36px);font-weight:600;margin-block:12px}.ops-catalogue header p,.ops-catalogue li small,.ops-catalogue time{font-size:14px;color:#647182}.ops-catalogue ol{list-style:none;padding:0;margin:0}.ops-catalogue li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:12px;padding:16px 0;border-block-start:1px solid #e2e5e9}.ops-catalogue li strong{font-size:16px;font-weight:600}.ops-catalogue li p{margin:4px 0}.ops-catalogue li time{display:block;margin-block-start:6px}.ops-catalogue li a{font-size:14px;text-decoration:none;color:#284b68}.ops-catalogue li a:hover{text-decoration:underline}@media(max-width:600px){.ops-catalogue li{grid-template-columns:auto minmax(0,1fr)}.ops-catalogue li a{grid-column:2}}
+/* Catalogue Intelligence — editorial chronology on the same white workspace. */
+.workspace-agency.workspace-agency:has(.ops-catalogue) #workspace-main{background:#fff;width:100%;max-width:1680px;margin-inline:auto;padding:24px clamp(24px,3.5vw,64px) 48px}
+.workspace-agency .ops-catalogue{max-width:1400px;margin-inline:auto;min-width:0;color:#0b1c30;background:#fff;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;font-size:16px}
+.workspace-agency .ops-catalogue[dir=rtl]{font-family:"Plex Arabic",Barlow,Arial,sans-serif}
+.workspace-agency .ops-catalogue-header{display:grid;gap:8px;margin-block-end:28px}
+.workspace-agency .ops-back{display:inline-flex;gap:8px;align-items:center;justify-self:start;font-size:15px;color:#647182;min-height:32px;text-decoration:none}
+.workspace-agency .ops-back:hover{color:#0b1c30;text-decoration:underline}
+.workspace-agency .ops-catalogue h1{font-size:clamp(28px,3vw,36px);font-weight:600;line-height:1.2;margin:0}
+.workspace-agency .ops-catalogue-header p{font-size:15px;line-height:1.55;color:#647182;margin:0;max-width:75ch}
+.workspace-agency .ops-feed-controls{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.workspace-agency .ops-feed-search{position:relative;display:flex;align-items:center;flex:0 1 430px;min-width:0}
+.workspace-agency .ops-feed-search svg{position:absolute;inset-inline-start:14px;pointer-events:none;color:#647182}
+.workspace-agency #workspace-main .ops-feed-search .input{width:100%;padding-inline-start:44px;min-height:46px;border-radius:6px;font-size:16px}
+.workspace-agency .ops-feed-period{color:#647182;font-size:14px}
+.workspace-agency .ops-feed-tabs{display:flex;gap:24px;border-block-end:1px solid #e2e5e9;margin-block-start:12px;overflow-x:auto;scrollbar-width:thin}
+.workspace-agency .ops-feed-tabs button{border:0;border-block-end:2px solid transparent;background:transparent;padding:12px 0;min-height:44px;white-space:nowrap;color:#647182;font-weight:500;font-size:15px;cursor:pointer}
+.workspace-agency .ops-feed-tabs button[aria-pressed=true]{border-block-end-color:#0b1c30;color:#0b1c30;font-weight:600}
+.workspace-agency .ops-feed-tabs button:hover{color:#0b1c30}
+.workspace-agency .ops-feed-count{display:flex;justify-content:space-between;align-items:center;gap:12px;color:#647182;font-size:14px;min-height:42px}
+.workspace-agency .ops-feed-count button{background:none;border:0;cursor:pointer;text-decoration:underline;color:#344457}
+.workspace-agency .ops-feed-group{display:grid;grid-template-columns:180px minmax(0,1fr);gap:24px;border-block-start:1px solid #e2e5e9}
+.workspace-agency .ops-feed-group h2{font-size:15px;color:#647182;font-weight:500;padding-block:22px;margin:0;line-height:1.45}
+.workspace-agency .ops-feed-group ol{list-style:none;padding:0;margin:0;min-width:0}
+.workspace-agency .ops-feed-row{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) auto;gap:24px;align-items:center;padding:20px 0;min-width:0}
+.workspace-agency .ops-feed-row+.ops-feed-row{border-block-start:1px solid #e2e5e9}
+.workspace-agency .ops-feed-destination{display:flex;align-items:flex-start;gap:12px;min-width:0}
+.workspace-agency .ops-feed-destination .agency-country-flag{width:32px;height:22px;margin-block-start:2px;flex:none}
+.workspace-agency .ops-feed-destination>div{display:grid;gap:4px;min-width:0}
+.workspace-agency .ops-feed-destination strong{font-size:17px;font-weight:600;line-height:1.35}
+.workspace-agency .ops-feed-destination span{color:#647182;font-size:15px;line-height:1.45;overflow-wrap:anywhere}
+.workspace-agency .ops-feed-change{display:grid;gap:8px;min-width:0}
+.workspace-agency .ops-feed-event{display:flex;align-items:center;gap:8px;color:#344457}
+.workspace-agency .ops-feed-event svg{flex:none}
+.workspace-agency .ops-feed-event strong{font-weight:500;font-size:15px}
+.workspace-agency .ops-feed-row[data-kind=published] .ops-feed-event{color:#23685c}
+.workspace-agency .ops-feed-values{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;font-size:15px;font-variant-numeric:tabular-nums}
+.workspace-agency .ops-feed-values>div{display:grid;gap:2px;min-width:0}
+.workspace-agency .ops-feed-values small{color:#647182;font-size:12px}
+.workspace-agency .ops-feed-values>div:first-child>bdi{color:#647182}
+.workspace-agency .ops-feed-values strong{font-weight:600;color:#0b1c30}
+.workspace-agency .ops-feed-values>.ops-direction{color:#647182;padding-block-end:1px}
+.workspace-agency .ops-feed-action{display:inline-flex;align-items:center;justify-content:flex-end;gap:8px;min-height:44px;white-space:nowrap;color:#0b1c30;text-decoration:none;font-size:14px;font-weight:500}
+.workspace-agency .ops-feed-action:hover{text-decoration:underline;text-underline-offset:4px}
+.workspace-agency .ops-catalogue :is(button,a,input):focus-visible{outline:2px solid #304b64;outline-offset:3px}
+.workspace-agency .ops-feed-empty{padding:24px 0;color:#647182;font-size:15px;border-block-start:1px solid #e2e5e9}
+.workspace-agency .ops-catalogue[dir=rtl] .ops-direction{display:inline-block;transform:scaleX(-1)}
+.workspace-agency .ops-catalogue-entry{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;color:#0b1c30;font-size:15px;text-decoration:none;border-block-end:1px solid #e2e5e9}.workspace-agency .ops-catalogue-entry:hover{text-decoration:underline}
+@media(max-width:1050px){.workspace-agency .ops-feed-group{grid-template-columns:130px minmax(0,1fr);gap:16px}.workspace-agency .ops-feed-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}.workspace-agency .ops-feed-action{grid-column:2;justify-self:end}}
+@media(max-width:720px){.workspace-agency.workspace-agency:has(.ops-catalogue) #workspace-main{padding:16px 16px 32px}.workspace-agency .ops-catalogue-header{margin-block-end:20px}.workspace-agency .ops-feed-search{flex:1 1 100%}.workspace-agency .ops-feed-period{display:none}.workspace-agency .ops-feed-tabs{gap:18px}.workspace-agency .ops-feed-group{display:block}.workspace-agency .ops-feed-group h2{padding-block:14px 6px}.workspace-agency .ops-feed-row{grid-template-columns:minmax(0,1fr);padding:14px 0;gap:12px}.workspace-agency .ops-feed-action{grid-column:1;justify-self:start;min-height:44px}.workspace-agency .ops-feed-destination .agency-country-flag{width:28px;height:20px}.workspace-agency .ops-feed-change{padding-inline-start:40px}.workspace-agency .ops-feed-action{margin-inline-start:40px}}

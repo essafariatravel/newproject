@@ -20,6 +20,7 @@ import { useAgencyPopover } from "@/components/agency-popover-controller";
 import { useMemo, useRef, useState, useEffect } from "react";
 import { assessTravelDeadline,algeriaToday } from "@/lib/travel-deadline";
 import { operationalCopy } from "@/lib/operational-copy";
+import { TravelDeparture,TravelTiming } from "./travel-departure";
 import { runBoundedUploads } from "@/lib/bounded-upload";
 import { stagingReceiptKey,reusableStagingToken,type StagedReceipt } from "@/lib/request-upload-retry";
 import { contentT } from "@/lib/i18n-content";
@@ -837,7 +838,7 @@ export function RequestWizard(props: Props) {
               </div>
             </div>
           </div>
-          <div className="ops-departure"><label className="label" htmlFor="travel-departure">{ops.date}</label><input className="input" id="travel-departure" type="date" min={props.today} value={departure} disabled={pending} onChange={e=>setDeparture(e.target.value)}/><small>{ops.dateHint}</small>{departure&&visa?<div data-state={deadline.state} className="ops-deadline" role="status"><strong>{deadline.state==="none"?"":ops[deadline.state]}</strong>{deadline.workingDays!==null?<span>{ops.calendar}: <bdi>{deadline.calendarDays}</bdi> · {ops.working}: <bdi>{deadline.workingDays}</bdi></span>:null}<small>{ops.basis}</small></div>:null}</div>
+          <TravelDeparture locale={props.locale} today={props.today??algeriaToday()} value={departure} programme={visa} disabled={pending||step!==1} onChange={value=>{setDeparture(value);setDirty(true);if(clientError===ops.invalid)setClientError("")}}/>
           <details className="booking-notes"><summary>{ui.notes}</summary><label className="label sr-only" htmlFor="agencyNotes">{t.notes}</label><textarea id="agencyNotes" name="agencyNotes" rows={2} className="input mt-3" placeholder={t.notesPlaceholder} /></details>
         </div>
         </div>
@@ -887,7 +888,7 @@ export function RequestWizard(props: Props) {
             <div className="checkout-traveller-info" data-testid="wizard-applicant-summary"><small>{t.sectionApplicant}</small><strong>{nameDraft||"—"}</strong><span>{t.nationality}: {props.nationalities.find(n=>n.code===nationalityDraft)?.label??nationalityDraft}</span></div>
             <button type="button" className="checkout-edit" disabled={pending} onClick={()=>editStep(1)} aria-label={ui.edit+" · "+t.sectionApplicant}><CheckoutIcon kind="edit"/><span>{ui.edit}</span></button>
           </div>
-          {departure?<div className="ops-deadline" data-state={deadline.state}><div className="booking-line"><strong>{ops.date}: <bdi>{departure}</bdi></strong><button type="button" className="booking-link" disabled={pending} onClick={()=>editStep(1)}>{ops.edit}</button></div><span>{deadline.state==="none"?"":ops[deadline.state]}</span>{deadline.workingDays!==null?<span>{ops.working}: <bdi>{deadline.workingDays}</bdi></span>:null}<small>{ops.basis}</small><small>{ops.dateHint}</small></div>:null}
+          {departure?<TravelTiming locale={props.locale} today={props.today??algeriaToday()} value={departure} programme={visa} onEdit={pending?undefined:()=>editStep(1)}/>:null}
           {reviewReady&&reviewCheck?.status==="ready"&&reviewCheck.possibleDuplicate?<div className="booking-duplicate-note" role="status"><div><strong>{({fr:"Dossier similaire détecté",en:"Similar application found",ar:"تم العثور على طلب مشابه"}[props.locale])}</strong><p>{({fr:"Vérifiez s’il s’agit du même voyageur ou d’un homonyme.",en:"Check whether this is the same traveller or a different person with the same name.",ar:"تحققوا مما إذا كان المسافر نفسه أو شخصاً آخر يحمل الاسم نفسه."}[props.locale])}</p></div>{typeof reviewCheck.similarApplicationId==="string"&&/^[0-9a-f-]{36}$/i.test(reviewCheck.similarApplicationId)?<a className="booking-link" href={`/portal/applications/${encodeURIComponent(reviewCheck.similarApplicationId)}`} target="_blank" rel="noopener noreferrer">{({fr:"Consulter le dossier ↗",en:"View application ↗",ar:"عرض الطلب ↗"}[props.locale])}</a>:null}</div>:null}
           <div className="checkout-documents">
             <div className="checkout-doc-heading"><h3>{t.summaryDocuments}</h3><span className="checkout-count"><bdi>{completedDocs}/{requiredDocs.length}</bdi> {checkout.selected}</span><button type="button" className="checkout-edit" disabled={pending} onClick={()=>editStep(2)} aria-label={ui.edit+" · "+t.summaryDocuments}><CheckoutIcon kind="edit"/><span>{ui.edit}</span></button></div>
@@ -935,7 +936,7 @@ export function RequestWizard(props: Props) {
         </button>
         <small aria-live="polite">{step===2?(batch.length?assist.batchHint:completedDocs<requiredDocs.length?smart.remaining+" : "+(requiredDocs.length-completedDocs):smart.ready+" · "+ux.local):step===1?ui.noDebit:""}</small>
         {step < 3 ? (
-          <button type="button" onClick={goNext} disabled={pending||(step===1?(!visa||!applicantReady):completedDocs<requiredDocs.length||batch.length>0)} className="btn-primary">
+          <button type="button" onClick={goNext} disabled={pending||(step===1?(!visa||!applicantReady||deadline.state==="invalid"):completedDocs<requiredDocs.length||batch.length>0)} className="btn-primary">
             {step===1?ui.continue:ui.review} <span className="directional" aria-hidden>→</span>
           </button>
         ) : null}
