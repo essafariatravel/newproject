@@ -7,16 +7,17 @@ import { db } from "@/lib/db";
 import { applications, applicants, statuses, visaTypes, countries, visaCategories } from "@/db/schema";
 import { getBalance } from "@/lib/wallet";
 import { AppError } from "@/lib/types";
-import { submitVisaRequest,coalesceVisaSubmission } from "@/lib/requests";
+import { submitVisaRequest,coalesceVisaSubmission,listRequirementsForVisaType } from "@/lib/requests";
 import { stageRequestUpload, resolveRequestUploads, clearRequestUploads } from "@/lib/request-uploads";
 import { requestErrorMessage } from "@/lib/request-feedback";
 import { getUiLocale, UI_LOCALE_COOKIE } from "@/lib/ui-i18n";
+import { bookingCatalogueFingerprint } from "@/lib/booking-catalogue-fingerprint";
 import { readRequestBodyLimited } from "@/lib/http-body";
 
 export const runtime = "nodejs";
 const submission = z.object({ locale: z.enum(["en","fr","ar"]).optional(), attempt: z.string().uuid(), visaTypeId: z.string().uuid(), countryId: z.string().uuid(),
-  fullName: z.string().max(200), nationality: z.string().max(80), notes: z.string().max(1000), tokens: z.array(z.string()).max(60), expectedFee: z.string().max(32).regex(/^\d+(?:\.\d+)?$/).optional() });
-const preflight = z.object({ action: z.literal("preflight"), visaTypeId: z.string().uuid(), countryId: z.string().uuid(), fullName: z.string().trim().min(1).max(200), nationality: z.string().trim().min(1).max(80) });
+  fullName: z.string().max(200), nationality: z.string().max(80), notes: z.string().max(1000), tokens: z.array(z.string()).max(60), expectedFee: z.string().max(32).regex(/^\d+(?:\.\d+)?$/).optional(), expectedCatalogue: z.string().regex(/^[a-f0-9]{64}$/).optional() });
+const preflight = z.object({ expectedCatalogue:z.string().regex(/^[a-f0-9]{64}$/).optional(), action: z.literal("preflight"), visaTypeId: z.string().uuid(), countryId: z.string().uuid(), fullName: z.string().trim().min(1).max(200), nationality: z.string().trim().min(1).max(80) });
 
 export async function POST(request: Request) {
   try {
@@ -45,8 +46,8 @@ export async function POST(request: Request) {
     }
     if (typeof json === "object" && json !== null && "action" in json && json.action === "preflight") {
       const input = preflight.parse(json);
-      const [programmes, wallet, matching] = await Promise.all([
-        db.select({fee:visaTypes.fee}).from(visaTypes)
+      const [programmes, wallet, matching, requirements] = await Promise.all([
+        db.select({fee:visaTypes.fee,minDays:visaTypes.processingMinDays,maxDays:visaTypes.processingMaxDays}).from(visaTypes)
           .innerJoin(countries,eq(visaTypes.countryId,countries.id))
           .innerJoin(visaCategories,eq(visaTypes.categoryId,visaCategories.id))
           .where(and(eq(visaTypes.id,input.visaTypeId),eq(visaTypes.countryId,input.countryId),eq(visaTypes.active,true),eq(countries.active,true),eq(visaCategories.active,true),eq(visaTypes.currency,"DZD"))).limit(1),
@@ -56,9 +57,12 @@ export async function POST(request: Request) {
           .innerJoin(statuses,eq(applications.statusId,statuses.id))
           .where(and(eq(applications.agencyId,actor.agencyId),eq(applications.visaTypeId,input.visaTypeId),eq(statuses.isTerminal,false),eq(statuses.isDraft,false),
             sql`lower(regexp_replace(trim(coalesce(nullif(${applicants.fullName}, ''), concat_ws(' ', ${applicants.firstName}, ${applicants.lastName}))), '[[:space:]]+', ' ', 'g')) = lower(regexp_replace(trim(${input.fullName}), '[[:space:]]+', ' ', 'g'))`,
-            sql`lower(trim(${applicants.nationality})) = lower(trim(${input.nationality}))`)).limit(1)
+            sql`lower(trim(${applicants.nationality})) = lower(trim(${input.nationality}))`)).limit(1),
+        input.expectedCatalogue?listRequirementsForVisaType(input.visaTypeId):Promise.resolve([])
       ]);
-      return NextResponse.json({fee:programmes[0]?.fee??null,balance:wallet.balance,possibleDuplicate:matching.length>0, similarApplicationId:matching[0]?.id??null}, {headers:{"Cache-Control":"no-store"}});
+      const programme=programmes[0];
+      const catalogueChanged=!!input.expectedCatalogue&&(!programme||bookingCatalogueFingerprint(programme,requirements)!==input.expectedCatalogue);
+      return NextResponse.json({catalogueChanged,fee:programme?.fee??null,balance:wallet.balance,possibleDuplicate:matching.length>0, similarApplicationId:matching[0]?.id??null}, {headers:{"Cache-Control":"no-store"}});
     }
     const input = submission.parse(json);
     // A retry after a lost response works even after temporary files are removed.
@@ -66,7 +70,7 @@ export async function POST(request: Request) {
     const [existing] = await db.select({ id: applications.id }).from(applications)
       .where(and(eq(applications.idempotencyKey, input.attempt), eq(applications.agencyId, actor.agencyId)));
     const committedId = existing?.id ?? (await submitVisaRequest({ actor, idempotencyKey: input.attempt, countryId: input.countryId,
-      visaTypeId: input.visaTypeId, expectedFee: input.expectedFee, agencyNotes: input.notes, travellers: [{ fullName: input.fullName, nationality: input.nationality }],
+      visaTypeId: input.visaTypeId, expectedFee: input.expectedFee, expectedCatalogue:input.expectedCatalogue, agencyNotes: input.notes, travellers: [{ fullName: input.fullName, nationality: input.nationality }],
       documents: await resolveRequestUploads(actor, input.attempt, input.visaTypeId, input.tokens) })).applicationId;
     await clearRequestUploads(actor, input.attempt).catch(() => {});
     return committedId;

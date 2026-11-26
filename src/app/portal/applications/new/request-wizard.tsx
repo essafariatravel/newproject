@@ -18,6 +18,8 @@ import { useAgencyPopover } from "@/components/agency-popover-controller";
  */
 
 import { useMemo, useRef, useState, useEffect } from "react";
+import { assessTravelDeadline,algeriaToday } from "@/lib/travel-deadline";
+import { operationalCopy } from "@/lib/operational-copy";
 import { stagingReceiptKey,reusableStagingToken,type StagedReceipt } from "@/lib/request-upload-retry";
 import { contentT } from "@/lib/i18n-content";
 import { formatDZD, formatProcessingDays } from "@/lib/format";
@@ -118,6 +120,8 @@ export interface WizardLabels {
 }
 
 interface Props {
+  catalogueFingerprints?: Record<string,string>;
+  today?:string;
   countries: WizardCountry[];
   nationalities: WizardNationality[];
   defaultNationality: string;
@@ -211,6 +215,8 @@ export function RequestWizard(props: Props) {
   const [previewUrl,setPreviewUrl]=useState("");
   const [dragging,setDragging]=useState(false);
   const [nameDraft,setNameDraft]=useState("");
+  const [departure,setDeparture]=useState("");
+  const ops=operationalCopy[props.locale];
   const [nationalityDraft,setNationalityDraft]=useState(props.defaultNationality);
   // Controlled state is the single source of truth for the gate and the submitted payload.
   const applicantReady = Boolean(nameDraft.trim() && props.nationalities.some(n => n.code === nationalityDraft));
@@ -317,6 +323,8 @@ export function RequestWizard(props: Props) {
     if(programmeSort==="time")list.sort((a,b)=>(a.maxDays>0?a.maxDays:Infinity)-(b.maxDays>0?b.maxDays:Infinity));
     return list;
   },[country,programmeSearch,programmeCategory,programmeSort]);
+  const deadline=assessTravelDeadline(departure,props.today??algeriaToday(),visa?.minDays??0,visa?.maxDays??0);
+  const expectedCatalogue=props.catalogueFingerprints?.[visaTypeId];
   const requirements = useMemo(() => (visaTypeId ? (props.requirementsByVisaType[visaTypeId] ?? []) : []), [props.requirementsByVisaType, visaTypeId]);
 
   const requiredDocs=requirements.filter(r=>r.required);
@@ -417,6 +425,7 @@ export function RequestWizard(props: Props) {
         setClientError(t.validationChooseVisa);
         return false;
       }
+      if(deadline.state==="invalid"){setClientError(ops.invalid);return false;}
       if (!applicantReady) {
         setClientError(t.validationApplicant);
         return false;
@@ -490,10 +499,11 @@ export function RequestWizard(props: Props) {
     en:{checking:"Checking price and balance…",unavailable:"The check could not be completed. Try again before submitting.",retry:"Retry",changed:"This programme or its price has changed. Refresh the catalogue before confirming. Selected files will need to be added again.",refresh:"Refresh catalogue",duplicate:"A similar active application exists for this name, nationality and programme. Check before submitting; it may be a different person with the same name.",checked:"Price and balance checked."},
     ar:{checking:"جارٍ التحقق من السعر والرصيد…",unavailable:"تعذر إتمام التحقق. أعيدوا المحاولة قبل الإرسال.",retry:"إعادة المحاولة",changed:"تغير هذا البرنامج أو سعره. حدّثوا القائمة قبل التأكيد. ستحتاجون إلى إضافة الملفات مجدداً.",refresh:"تحديث القائمة",duplicate:"يوجد طلب نشط مشابه بالاسم والجنسية والبرنامج نفسه. تحققوا قبل الإرسال، فقد يكون شخصاً آخر بالاسم نفسه.",checked:"تم التحقق من السعر والرصيد."}
   }[props.locale];
-  type ReviewCheck = { key:string; status:"checking"|"unavailable" } | {key:string;status:"ready";fee:string|null;balance:string;possibleDuplicate:boolean;similarApplicationId?:string|null};
+  type PreflightResponse = {fee:string|null;balance:string;possibleDuplicate:boolean;catalogueChanged?:boolean;similarApplicationId?:string|null};
+  type ReviewCheck = { key:string; status:"checking"|"unavailable" } | ({key:string;status:"ready"} & PreflightResponse);
   const [preflight,setPreflight]=useState<ReviewCheck|null>(null);
   const [preflightRetry,setPreflightRetry]=useState(0);
-  const preflightKey=JSON.stringify([countryId,visaTypeId,nameDraft.trim(),nationalityDraft,visa?.fee]);
+  const preflightKey=JSON.stringify([countryId,visaTypeId,nameDraft.trim(),nationalityDraft,visa?.fee,expectedCatalogue]);
   useEffect(()=>{
     if(step!==3||!visaTypeId||!countryId)return;
     let current=true;
@@ -501,16 +511,16 @@ export function RequestWizard(props: Props) {
     setPreflight({key:preflightKey,status:"checking"});
     void (async()=>{
       try{
-        const response=await fetch("/api/agency/requests",{method:"POST",headers:{"Content-Type":"application/json"},signal:controller.signal,body:JSON.stringify({action:"preflight",countryId,visaTypeId,fullName:nameDraft.trim(),nationality:nationalityDraft})});
-        const data=await readRequestResponse<{fee:string|null;balance:string;possibleDuplicate:boolean;similarApplicationId?:string|null}>(response,props.locale);
-        if(!data||typeof data.balance!=="string"||!Number.isFinite(Number(data.balance))||!(data.fee===null||typeof data.fee==="string")||typeof data.possibleDuplicate!=="boolean")throw Error("Invalid review data");
+        const response=await fetch("/api/agency/requests",{method:"POST",headers:{"Content-Type":"application/json"},signal:controller.signal,body:JSON.stringify({action:"preflight",countryId,visaTypeId,fullName:nameDraft.trim(),nationality:nationalityDraft,expectedCatalogue})});
+        const data=await readRequestResponse<PreflightResponse>(response,props.locale);
+        if(!data||typeof data.balance!=="string"||!Number.isFinite(Number(data.balance))||!(data.fee===null||typeof data.fee==="string")||typeof data.possibleDuplicate!=="boolean"||(expectedCatalogue&&typeof data.catalogueChanged!=="boolean"))throw Error("Invalid review data");
         if(current)setPreflight({key:preflightKey,status:"ready",...data});
       }catch{if(current)setPreflight({key:preflightKey,status:"unavailable"})}
     })();
     return()=>{current=false;controller.abort()};
-  },[step,preflightKey,preflightRetry,countryId,visaTypeId,nameDraft,nationalityDraft,props.locale]);
+  },[step,preflightKey,preflightRetry,countryId,visaTypeId,nameDraft,nationalityDraft,props.locale,expectedCatalogue]);
   const reviewCheck=step===3&&preflight?.key===preflightKey?preflight:null;
-  const quoteChanged=reviewCheck?.status==="ready"&&(reviewCheck.fee===null||Number(reviewCheck.fee)!==Number(visa?.fee));
+  const quoteChanged=reviewCheck?.status==="ready"&&(reviewCheck.catalogueChanged===true||reviewCheck.fee===null||Number(reviewCheck.fee)!==Number(visa?.fee));
   const reviewReady=reviewCheck?.status==="ready"&&!quoteChanged;
   const displayedBalance=reviewCheck?.status==="ready"?reviewCheck.balance:props.walletBalance;
   const feeNumber = visa ? Number(visa.fee) : 0;
@@ -567,7 +577,7 @@ export function RequestWizard(props: Props) {
       setTransfer({done:received,total,phase:"confirm"});
       finalAttemptStarted=true;
       const response = await fetch("/api/agency/requests", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ locale:props.locale, attempt: idempotencyKey, countryId, visaTypeId, expectedFee: visa?.fee, tokens,
+        body: JSON.stringify({ locale:props.locale, attempt: idempotencyKey, countryId, visaTypeId, expectedFee: visa?.fee, expectedCatalogue, tokens,
           fullName: nameDraft.trim(), nationality: nationalityDraft, notes: String(fields.get("agencyNotes") ?? "") }) });
       const data = await readRequestResponse<{applicationId:string}>(response,props.locale);
       leavingAfterSuccess.current = true;
@@ -826,6 +836,7 @@ export function RequestWizard(props: Props) {
               </div>
             </div>
           </div>
+          <div className="ops-departure"><label className="label" htmlFor="travel-departure">{ops.date}</label><input className="input" id="travel-departure" type="date" min={props.today} value={departure} disabled={pending} onChange={e=>setDeparture(e.target.value)}/><small>{ops.dateHint}</small>{departure&&visa?<div data-state={deadline.state} className="ops-deadline" role="status"><strong>{deadline.state==="none"?"":ops[deadline.state]}</strong>{deadline.workingDays!==null?<span>{ops.calendar}: <bdi>{deadline.calendarDays}</bdi> · {ops.working}: <bdi>{deadline.workingDays}</bdi></span>:null}<small>{ops.basis}</small></div>:null}</div>
           <details className="booking-notes"><summary>{ui.notes}</summary><label className="label sr-only" htmlFor="agencyNotes">{t.notes}</label><textarea id="agencyNotes" name="agencyNotes" rows={2} className="input mt-3" placeholder={t.notesPlaceholder} /></details>
         </div>
         </div>
@@ -875,6 +886,7 @@ export function RequestWizard(props: Props) {
             <div className="checkout-traveller-info" data-testid="wizard-applicant-summary"><small>{t.sectionApplicant}</small><strong>{nameDraft||"—"}</strong><span>{t.nationality}: {props.nationalities.find(n=>n.code===nationalityDraft)?.label??nationalityDraft}</span></div>
             <button type="button" className="checkout-edit" disabled={pending} onClick={()=>editStep(1)} aria-label={ui.edit+" · "+t.sectionApplicant}><CheckoutIcon kind="edit"/><span>{ui.edit}</span></button>
           </div>
+          {departure?<div className="ops-deadline" data-state={deadline.state}><div className="booking-line"><strong>{ops.date}: <bdi>{departure}</bdi></strong><button type="button" className="booking-link" disabled={pending} onClick={()=>editStep(1)}>{ops.edit}</button></div><span>{deadline.state==="none"?"":ops[deadline.state]}</span>{deadline.workingDays!==null?<span>{ops.working}: <bdi>{deadline.workingDays}</bdi></span>:null}<small>{ops.basis}</small><small>{ops.dateHint}</small></div>:null}
           {reviewReady&&reviewCheck?.status==="ready"&&reviewCheck.possibleDuplicate?<div className="booking-duplicate-note" role="status"><div><strong>{({fr:"Dossier similaire détecté",en:"Similar application found",ar:"تم العثور على طلب مشابه"}[props.locale])}</strong><p>{({fr:"Vérifiez s’il s’agit du même voyageur ou d’un homonyme.",en:"Check whether this is the same traveller or a different person with the same name.",ar:"تحققوا مما إذا كان المسافر نفسه أو شخصاً آخر يحمل الاسم نفسه."}[props.locale])}</p></div>{typeof reviewCheck.similarApplicationId==="string"&&/^[0-9a-f-]{36}$/i.test(reviewCheck.similarApplicationId)?<a className="booking-link" href={`/portal/applications/${encodeURIComponent(reviewCheck.similarApplicationId)}`} target="_blank" rel="noopener noreferrer">{({fr:"Consulter le dossier ↗",en:"View application ↗",ar:"عرض الطلب ↗"}[props.locale])}</a>:null}</div>:null}
           <div className="checkout-documents">
             <div className="checkout-doc-heading"><h3>{t.summaryDocuments}</h3><span className="checkout-count"><bdi>{completedDocs}/{requiredDocs.length}</bdi> {checkout.selected}</span><button type="button" className="checkout-edit" disabled={pending} onClick={()=>editStep(2)} aria-label={ui.edit+" · "+t.summaryDocuments}><CheckoutIcon kind="edit"/><span>{ui.edit}</span></button></div>
@@ -907,8 +919,9 @@ export function RequestWizard(props: Props) {
           <div className="booking-rule"><p className="booking-line"><span>{t.currentBalance}</span><strong><bdi>{formatDZD(displayedBalance)}</bdi></strong></p><p className="booking-line"><span>{t.balanceAfter}</span><strong className={canAfford?"booking-success":"booking-warning"}><bdi>{canAfford?formatDZD(afterNum):"—"}</bdi></strong></p></div>
           <p className="booking-muted">{t.chargeNote}</p>
           <div className="booking-preflight" aria-live="polite">
-            {!reviewCheck||reviewCheck.status==="checking"?<p className="booking-muted">{preflightText.checking}</p>:reviewCheck.status==="unavailable"?<div className="booking-line"><p className="booking-warning">{preflightText.unavailable}</p><button type="button" className="booking-link" disabled={pending} onClick={()=>{setPreflight(null);setPreflightRetry(n=>n+1)}}>{preflightText.retry}</button></div>:quoteChanged?<div><p className="booking-warning">{preflightText.changed}</p><button type="button" className="booking-link" disabled={pending} onClick={()=>window.location.reload()}>{preflightText.refresh}</button></div>:<><p className="booking-success">✓ {preflightText.checked}</p></>}
+            {!reviewCheck||reviewCheck.status==="checking"?<p className="booking-muted">{preflightText.checking}</p>:reviewCheck.status==="unavailable"?<div className="booking-line"><p className="booking-warning">{preflightText.unavailable}</p><button type="button" className="booking-link" disabled={pending} onClick={()=>{setPreflight(null);setPreflightRetry(n=>n+1)}}>{preflightText.retry}</button></div>:quoteChanged?<div><p className="booking-warning">{reviewCheck.catalogueChanged?ops.changed:preflightText.changed}</p><button type="button" className="booking-link" disabled={pending} onClick={()=>window.location.reload()}>{preflightText.refresh}</button></div>:<><p className="booking-success">✓ {expectedCatalogue?ops.checklist:preflightText.checked}</p></>}
           </div>
+          <details className="ops-review"><summary>{ops.decision}</summary><p>{ops.traveller}: {applicantReady?"✓":"—"}</p><p>{ops.documents}: <bdi>{completedDocs}/{requiredDocs.length}</bdi></p><small>{ops.notReviewed}</small></details>
           {pending&&transfer?<div className="agency-v2-submit-progress" role="status" aria-live="polite"><strong>{transfer.phase==="files"?`${progressCopy.files}: ${transfer.done} / ${transfer.total}`:progressCopy.confirm}</strong>{transfer.phase==="files"&&transfer.total>0?<progress aria-label={progressCopy.files} value={transfer.done} max={transfer.total}/>:null}<p>{progressCopy.notice}</p></div>:null}
           {canAfford||!reviewReady?<button type="submit" className="btn-primary w-full" disabled={pending||!reviewReady||catalogueRecovery||sessionRecovery} data-testid="wizard-submit">{pending?t.submitting:<>{t.submitApplication} — <bdi>{visa?formatDZD(visa.fee):"—"}</bdi></>}</button>:<><p className="booking-warning">{t.insufficientTitle} · <bdi>{formatDZD(missing)}</bdi></p><a href={topupHref} className="btn-primary" data-testid="wizard-topup-cta">{t.requestTopup}</a></>}
         </aside>

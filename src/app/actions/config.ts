@@ -329,13 +329,14 @@ export async function addRequirementAction(formData: FormData): Promise<void> {
     const required = formData.get("required") === "on" || formData.get("required") === "true";
     const notes = z.string().trim().max(50000).optional().nullable().parse(formData.get("notes") || null);
     const sortOrder = z.coerce.number().int().min(0).max(999).default(0).parse(formData.get("sortOrder") ?? 0);
-    const inserted = await tx.transaction(async (tx) => {
-      const [visa] = await tx.select({ id: visaTypes.id }).from(visaTypes).where(eq(visaTypes.id, visaTypeId)).for("update");
+    const {inserted,programmeWasActive} = await tx.transaction(async (tx) => {
+      const [visa] = await tx.select({ id: visaTypes.id,active:visaTypes.active }).from(visaTypes).where(eq(visaTypes.id, visaTypeId)).for("update");
       if (!visa) throw new AppError("NOT_FOUND", "Visa type not found.");
       const [type] = await tx.select().from(documentTypes).where(eq(documentTypes.id, documentTypeId)).for("share");
       if (!type?.active) throw new AppError("NOT_FOUND", "Document type not found or inactive.");
       assertProgrammeRequirementType(type.code);
-      return tx.insert(visaRequirements).values({ visaTypeId, documentTypeId, required, notes: notes ?? null, sortOrder }).onConflictDoNothing().returning();
+      const inserted=await tx.insert(visaRequirements).values({ visaTypeId, documentTypeId, required, notes: notes ?? null, sortOrder }).onConflictDoNothing().returning();
+      return {inserted,programmeWasActive:visa.active};
     });
     if (!inserted[0]) throw new AppError("DUPLICATE", "This document type is already a requirement for the visa.");
     // Propagate to draft applications of this visa type (additions only).
@@ -346,7 +347,7 @@ export async function addRequirementAction(formData: FormData): Promise<void> {
       action: "CONFIG_REQUIREMENT_ADDED",
       entity: "visa_requirement",
       entityId: inserted[0].id,
-      metadata: { visaTypeId, documentTypeId, required, draftsResynced: draftIds.length },
+      metadata: { visaTypeId, documentTypeId, required, draftsResynced: draftIds.length,programmeWasActive },
     }, tx);
     revalidatePath(`/admin/config/visa-types/${visaTypeId}`);
     return "Requirement added. Draft applications were re-synced.";
@@ -374,12 +375,12 @@ export async function updateRequirementAction(formData: FormData): Promise<void>
       } else if (formData.get("toggleRequired")) {
         await tx.update(visaRequirements).set({ required: !row.required, updatedAt: new Date() }).where(eq(visaRequirements.id, id));
       }
-      return row;
+      return {...row,programmeWasActive:visa.active};
     });
     if (formData.get("toggleActive")) {
-      await recordAudit({ actor: staff, action: "CONFIG_REQUIREMENT_TOGGLED", entity: "visa_requirement", entityId: id, metadata: { active: !req.active } }, tx);
+      await recordAudit({ actor: staff, action: "CONFIG_REQUIREMENT_TOGGLED", entity: "visa_requirement", entityId: id, metadata: { active: !req.active,visaTypeId,programmeWasActive:req.programmeWasActive } }, tx);
     } else if (formData.get("toggleRequired")) {
-      await recordAudit({ actor: staff, action: "CONFIG_REQUIREMENT_TOGGLED", entity: "visa_requirement", entityId: id, metadata: { required: !req.required } }, tx);
+      await recordAudit({ actor: staff, action: "CONFIG_REQUIREMENT_TOGGLED", entity: "visa_requirement", entityId: id, metadata: { required: !req.required,visaTypeId,programmeWasActive:req.programmeWasActive } }, tx);
     }
     revalidatePath(`/admin/config/visa-types/${visaTypeId}`);
     return "Requirement updated.";
@@ -390,7 +391,7 @@ export async function removeRequirementAction(formData: FormData): Promise<void>
   const visaTypeId = idSchema.parse(formData.get("visaTypeId"));
   await runConfigAction(`/admin/config/visa-types/${visaTypeId}`, async (tx, staff) => {
     const id = idSchema.parse(formData.get("id"));
-    await tx.transaction(async (tx) => {
+    const programmeWasActive=await tx.transaction(async (tx) => {
       const [visa] = await tx.select().from(visaTypes).where(eq(visaTypes.id, visaTypeId)).for("update");
       const [req] = await tx.select().from(visaRequirements).where(and(eq(visaRequirements.id, id), eq(visaRequirements.visaTypeId, visaTypeId)));
       if (!visa || !req) throw new AppError("NOT_FOUND", "Requirement not found.");
@@ -399,8 +400,9 @@ export async function removeRequirementAction(formData: FormData): Promise<void>
         assertActiveProgrammeChecklist(visa.active, remaining.length);
       }
       await tx.delete(visaRequirements).where(eq(visaRequirements.id, id));
+      return visa.active;
     });
-    await recordAudit({ actor: staff, action: "CONFIG_REQUIREMENT_REMOVED", entity: "visa_requirement", entityId: id, metadata: { visaTypeId } }, tx);
+    await recordAudit({ actor: staff, action: "CONFIG_REQUIREMENT_REMOVED", entity: "visa_requirement", entityId: id, metadata: { visaTypeId,programmeWasActive } }, tx);
     revalidatePath(`/admin/config/visa-types/${visaTypeId}`);
     return "Requirement removed. Existing application checklists are preserved.";
   });

@@ -8,6 +8,8 @@ import { getUiLocale, localizedDocTypeName } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { countryName } from "@/lib/country-names";
 import { NATIONALITIES, nationalityLabel } from "@/lib/nationalities";
+import { bookingCatalogueFingerprint } from "@/lib/booking-catalogue-fingerprint";
+import { algeriaToday } from "@/lib/travel-deadline";
 import { readAgencyPrefs } from "@/lib/agency-preferences";
 import { RequestWizard, type WizardCountry, type WizardLabels, type WizardRequirement } from "./request-wizard";
 
@@ -65,6 +67,8 @@ export default async function NewApplicationPage({
   const requirementMaps: Record<string, WizardRequirement[]> = {};
   const grouped=await listRequirementsForVisaTypes(visaOptions.map(v=>v.id)).catch(()=>null);
   const requirementsLoaded=grouped!==null;
+  const catalogueFingerprints:Record<string,string>={};
+  if(grouped)for(const v of visaOptions)catalogueFingerprints[v.id]=bookingCatalogueFingerprint(v,grouped[v.id]??[]);
   if(grouped)for(const v of visaOptions)requirementMaps[v.id]=(grouped[v.id]??[]).map(r=>({...r,name:(locale==="fr"?r.nameFr:locale==="ar"?r.nameAr:null)?.trim()||localizedDocTypeName(r.code,r.name,locale)}));
   if (!requirementsLoaded) return <div className="card"><EmptyState title={ct("Visa services are temporarily unavailable")} body={ct("Please try again. Your wallet has not been charged.")} action={<a href="/portal/applications/new" className="btn-primary">{ct("Try again")}</a>} /></div>;
 
@@ -150,6 +154,8 @@ export default async function NewApplicationPage({
         subtitle={ct("Three steps: choose the destination and visa, upload the documents, preview and submit. Nothing is saved before the final confirmation.")}
       />
       <RequestWizard
+        catalogueFingerprints={catalogueFingerprints}
+        today={algeriaToday()}
         countries={countries}
         nationalities={NATIONALITIES.map((n) => ({ code: n.code, label: nationalityLabel(n.code, uiLocale) }))}
         defaultNationality={prefs.nationality}
