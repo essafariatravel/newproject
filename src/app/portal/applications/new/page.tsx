@@ -1,7 +1,7 @@
 import { configName, configDescription } from "@/lib/config-localization";
 import { portalPageUser } from "@/lib/page-auth";
 import { activeVisaOptions } from "@/lib/queries";
-import { listRequirementsForVisaType } from "@/lib/requests";
+import { listRequirementsForVisaTypes } from "@/lib/requests";
 import { getBalance } from "@/lib/wallet";
 import { PageHeader, EmptyState } from "@/components/ui";
 import { getUiLocale, localizedDocTypeName } from "@/lib/ui-i18n";
@@ -63,11 +63,9 @@ export default async function NewApplicationPage({
   }
 
   const requirementMaps: Record<string, WizardRequirement[]> = {};
-  const requirementsLoaded = await Promise.all(
-    visaOptions.map(async (v) => {
-      requirementMaps[v.id] = (await listRequirementsForVisaType(v.id)).map((r) => ({ ...r, name: (locale === "fr" ? r.nameFr : locale === "ar" ? r.nameAr : null)?.trim() || localizedDocTypeName(r.code, r.name, locale) }));
-    }),
-  ).then(() => true).catch(() => false);
+  const grouped=await listRequirementsForVisaTypes(visaOptions.map(v=>v.id)).catch(()=>null);
+  const requirementsLoaded=grouped!==null;
+  if(grouped)for(const v of visaOptions)requirementMaps[v.id]=(grouped[v.id]??[]).map(r=>({...r,name:(locale==="fr"?r.nameFr:locale==="ar"?r.nameAr:null)?.trim()||localizedDocTypeName(r.code,r.name,locale)}));
   if (!requirementsLoaded) return <div className="card"><EmptyState title={ct("Visa services are temporarily unavailable")} body={ct("Please try again. Your wallet has not been charged.")} action={<a href="/portal/applications/new" className="btn-primary">{ct("Try again")}</a>} /></div>;
 
   // ?destination=<countryId> deep link — shareable destination, and the only

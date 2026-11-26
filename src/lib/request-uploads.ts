@@ -1,5 +1,5 @@
 import { validateDocumentFormat } from "@/lib/upload-validation";
-import { and, eq, like, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, like, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { documentBlobs } from "@/db/schema";
@@ -51,15 +51,19 @@ export async function stageRequestUpload(input: { actor: AuthUser; attempt: stri
 export async function resolveRequestUploads(actor: AuthUser, attempt: string, visaTypeId: string, tokens: string[]): Promise<RequestDocument[]> {
   const base = prefix(actor, attempt);
   if (tokens.length > 60 || new Set(tokens).size !== tokens.length) throw new AppError("VALIDATION", "Invalid upload list.");
-  return Promise.all(tokens.map(async (token) => {
-    if (!/^[0-9a-f-]{36}\/[012]$/i.test(token)) throw new AppError("VALIDATION", "Invalid upload.");
-    const [row] = await db.select().from(documentBlobs).where(eq(documentBlobs.key, base + token));
-    if (!row || row.createdAt.getTime() < Date.now() - TTL) throw new AppError("EMPTY_FILE", "The upload expired. Please retry with the selected files.");
+  for(const token of tokens)if (!/^[0-9a-f-]{36}\/[012]$/i.test(token)) throw new AppError("VALIDATION", "Invalid upload.");
+  if(!tokens.length)return [];
+  const rows=await db.select().from(documentBlobs).where(inArray(documentBlobs.key,tokens.map(token=>base+token)));
+  const byKey=new Map(rows.map(row=>[row.key,row]));
+  const now=Date.now();
+  return tokens.map(token=>{
+    const row=byKey.get(base+token);
+    if (!row || row.createdAt.getTime() < now - TTL) throw new AppError("EMPTY_FILE", "The upload expired. Please retry with the selected files.");
     const value = metadata.parse(JSON.parse(row.data.toString("utf8")));
     if (value.visaTypeId !== visaTypeId) throw new AppError("VALIDATION", "The visa changed. Please upload the documents again.");
     const data = Buffer.from(value.data, "base64");
     return { documentTypeId: token.split("/")[0]!, file: { name: value.name, type: value.type, size: data.length, data } };
-  }));
+  });
 }
 
 export async function clearRequestUploads(actor: AuthUser, attempt: string) {

@@ -18,7 +18,7 @@ import { configuredStorageProvider } from "@/lib/storage-config";
  *     mutation primitive, so all wallet invariants (no negative balance,
  *     immutable ledger, DZD only) hold identically.
  */
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { db, pool } from "@/lib/db";
 import {
   agencies,
@@ -173,7 +173,7 @@ export async function createTopupRequest(params: {
 }
 
 /** Agency-facing list: always scoped to the caller's own agency. */
-export async function listTopupRequestsForAgency(agencyId: string, limit = 25): Promise<TopupRequestRow[]> {
+export async function listTopupRequestsForAgency(agencyId: string, limit = 25, filters: {offset?:number; status?:TopupStatus; reference?:string; from?:Date; to?:Date} = {}): Promise<TopupRequestRow[]> {
   const rows = await db
     .select({
       id: walletTopupRequests.id,
@@ -192,9 +192,9 @@ export async function listTopupRequestsForAgency(agencyId: string, limit = 25): 
     })
     .from(walletTopupRequests)
     .leftJoin(walletTransactions, eq(walletTopupRequests.walletTransactionId, walletTransactions.id))
-    .where(eq(walletTopupRequests.agencyId, agencyId))
-    .orderBy(desc(walletTopupRequests.createdAt))
-    .limit(limit);
+    .where(and(eq(walletTopupRequests.agencyId, agencyId),filters.status?eq(walletTopupRequests.status,filters.status):undefined,filters.reference?sql`strpos(lower(${walletTopupRequests.reference}),lower(${filters.reference})) > 0`:undefined,filters.from?gte(walletTopupRequests.createdAt,filters.from):undefined,filters.to?lt(walletTopupRequests.createdAt,filters.to):undefined))
+    .orderBy(desc(walletTopupRequests.createdAt),desc(walletTopupRequests.id))
+    .limit(limit).offset(filters.offset??0);
   return rows.map((r) => ({ ...r, requestedByName: null, processedByName: null }));
 }
 

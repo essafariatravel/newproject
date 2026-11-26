@@ -10,7 +10,7 @@ import { db } from "@/lib/db";
 import { applications } from "@/db/schema";
 import { portalPageUser } from "@/lib/page-auth";
 import { activeVisaOptions, agencyDashboard } from "@/lib/queries";
-import { listRequirementsForVisaType } from "@/lib/requests";
+import { listRequirementsForVisaTypes } from "@/lib/requests";
 import { formatAmount } from "@/lib/format";
 import { EmptyState } from "@/components/ui";
 import { StatusBadge } from "@/components/badges";
@@ -95,10 +95,10 @@ export default async function PortalDashboardPage() {
  const requestName=(doc:typeof data.needsAttention[number]["requestDocument"])=>!doc?smartCopy.review:(doc.code==="MARRIAGE_CERTIFICATE"||/^marriage certificate$/i.test(doc.name.trim()))?({fr:"Acte de mariage",en:"Marriage certificate",ar:"عقد الزواج"}[locale]):(doc.code==="TRAVEL_INSURANCE"||/^travel insurance$/i.test(doc.name.trim()))?({fr:"Assurance voyage",en:"Travel insurance",ar:"تأمين السفر"}[locale]):configName(doc,locale);
  const programmes=options.map(v=>({id:v.id,countryId:v.countryId,name:configName(v,locale),description:configDescription(v,locale),fee:String(v.fee),minDays:Number(v.minDays??0),maxDays:Number(v.maxDays??0)}));
  const programmeRequirements:Record<string,{id:string;name:string;required:boolean;notes:string|null}[]|null>={};
- if(canCreate)await Promise.all(programmes.map(async p=>{
-  try{programmeRequirements[p.id]=(await listRequirementsForVisaType(p.id)).map(r=>({id:r.documentTypeId,name:(locale==="fr"?r.nameFr:locale==="ar"?r.nameAr:null)?.trim()||localizedDocTypeName(r.code,r.name,locale),required:r.required,notes:r.notes??null}));}
-  catch{programmeRequirements[p.id]=null;}
- }));
+ if(canCreate){
+  const grouped=await listRequirementsForVisaTypes(programmes.map(p=>p.id)).catch(()=>null);
+  for(const p of programmes)programmeRequirements[p.id]=grouped?(grouped[p.id]??[]).map(r=>({id:r.documentTypeId,name:(locale==="fr"?r.nameFr:locale==="ar"?r.nameAr:null)?.trim()||localizedDocTypeName(r.code,r.name,locale),required:r.required,notes:r.notes??null})):null;
+ }
  const recentIds=new Set(recent.map(r=>r.app.id)),decisionRows=data.recentDecisions.filter(r=>!recentIds.has(r.app.id));
  const agencyDisplay=user.agencyName?.trim().replace(/[;,]+$/u,"").trim();
  const ui={fr:{news:"Nouveauté · Espace agence",newsTitle:"Vos dossiers, plus rapides à gérer.",newsBody:"Aperçus instantanés, actions ciblées et recherche universelle.",newsCta:"Découvrir les dossiers",catalog:"Programmes visa",catalogTitle:"Préparez le prochain départ.",catalogBody:"Explorez les programmes disponibles et leurs délais.",catalogCta:"Voir les programmes",follow:"Votre suivi",last:"Dernier dossier consulté",estimate:"Capacité estimée",unit:"dossiers",allClear:"Aucune action requise"},en:{news:"New · Agency workspace",newsTitle:"Manage your applications faster.",newsBody:"Quick previews, focused actions and universal search.",newsCta:"Explore applications",catalog:"Visa programmes",catalogTitle:"Prepare the next departure.",catalogBody:"Explore available programmes and processing times.",catalogCta:"View programmes",follow:"Your activity",last:"Last viewed case",estimate:"Estimated capacity",unit:"applications",allClear:"No action required"},ar:{news:"جديد · مساحة الوكالة",newsTitle:"أديروا طلباتكم بسرعة أكبر.",newsBody:"معاينة سريعة وإجراءات مباشرة وبحث شامل.",newsCta:"استكشاف الطلبات",catalog:"برامج التأشيرات",catalogTitle:"استعدوا للرحلة القادمة.",catalogBody:"استكشفوا البرامج المتاحة ومدد المعالجة.",catalogCta:"عرض البرامج",follow:"متابعة الطلبات",last:"آخر طلب تمت معاينته",estimate:"القدرة التقديرية",unit:"طلبات",allClear:"لا توجد إجراءات مطلوبة"}}[locale];

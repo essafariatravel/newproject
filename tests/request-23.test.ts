@@ -7,7 +7,7 @@ suiteSetup();
 import { db } from "@/lib/db";
 import { applications, checklistItems, documents, walletTransactions } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
-import { REQUEST_VALIDATION_CODES, submitVisaRequest } from "@/lib/requests";
+import { REQUEST_VALIDATION_CODES, submitVisaRequest,listRequirementsForVisaType,listRequirementsForVisaTypes } from "@/lib/requests";
 import { MAX_UPLOAD_BYTES } from "@/lib/types";
 import { adjustWallet } from "@/lib/wallet";
 import { userByEmail, agencyByEmail } from "./helpers/fixtures";
@@ -270,4 +270,17 @@ describe("Phase 2-Final — atomic simplified request submission", () => {
       expect(item.required).toBe(src.required);
     }
   });
+});
+
+
+describe("Phase 01 grouped catalogue requirements",()=>{
+ it("matches existing single-programme reads without changing requirement eligibility",async()=>{
+  const ids=(await db.execute(sql`select id from visa_types order by id limit 5`)).rows.map(r=>String(r.id));
+  expect(ids.length).toBeGreaterThan(0);
+  const grouped=await listRequirementsForVisaTypes([...ids,ids[0]!]);
+  expect(Object.keys(grouped).sort()).toEqual([...ids].sort());
+  for(const id of ids){const byDoc=(a:{documentTypeId:string},b:{documentTypeId:string})=>a.documentTypeId.localeCompare(b.documentTypeId);expect([...grouped[id]!].sort(byDoc)).toEqual((await listRequirementsForVisaType(id)).sort(byDoc));}
+  expect(await listRequirementsForVisaTypes([])).toEqual({});
+  const missing=crypto.randomUUID();expect(await listRequirementsForVisaTypes([missing])).toEqual({[missing]:[]});
+ });
 });

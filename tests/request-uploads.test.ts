@@ -15,6 +15,12 @@ describe("bounded final-confirmation uploads", () => {
       file: { name: "passport.pdf", type: "application/pdf", size: 2 * 1024 * 1024, data: Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(2 * 1024 * 1024 - 9, 1)]) } };
     const before = (await db.execute(sql`select count(*)::int as n from applications`)).rows[0];
     const token = await stageRequestUpload(input);
+    const token2=await stageRequestUpload({...input,slot:1,file:{...input.file,name:"other.pdf"}});
+    const grouped=await resolveRequestUploads(actor,attempt,config.visa,[token2,token]);
+    expect(grouped.map(d=>d.file.name)).toEqual(["other.pdf","passport.pdf"]);
+    await expect(resolveRequestUploads(actor,attempt,config.visa,[token,token])).rejects.toMatchObject({code:"VALIDATION"});
+    await expect(resolveRequestUploads(actor,attempt,config.visa,[token,"bad"])).rejects.toMatchObject({code:"VALIDATION"});
+    expect(await resolveRequestUploads(actor,attempt,config.visa,[])).toEqual([]);
     expect((await resolveRequestUploads(actor, attempt, config.visa, [token]))[0]!.file.size).toBe(2 * 1024 * 1024);
     await expect(resolveRequestUploads(other, attempt, config.visa, [token])).rejects.toMatchObject({ code: "EMPTY_FILE" });
     await expect(resolveRequestUploads(actor, crypto.randomUUID(), config.visa, [token])).rejects.toMatchObject({ code: "EMPTY_FILE" });

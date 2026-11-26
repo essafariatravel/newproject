@@ -381,3 +381,20 @@ describe("§10 — money can never be invented or duplicated", () => {
     await clearPending(agencyA.id);
   });
 });
+
+
+describe("Phase 01 recharge history read model",()=>{
+ it("pages and filters within one agency and finds pending independently",async()=>{
+  const {agencyA,agencyB}=await actors();
+  const rows=await listTopupRequestsForAgency(agencyA.id,100);
+  const first=await listTopupRequestsForAgency(agencyA.id,1);
+  const next=await listTopupRequestsForAgency(agencyA.id,1,{offset:1});
+  expect(first.map(r=>r.id)).toEqual(rows.slice(0,1).map(r=>r.id));
+  expect(next.map(r=>r.id)).toEqual(rows.slice(1,2).map(r=>r.id));
+  expect(rows.every(r=>r.agencyId===agencyA.id)).toBe(true);
+  const pending=await listTopupRequestsForAgency(agencyA.id,1,{status:"PENDING"});
+  expect(pending.every(r=>r.status==="PENDING"&&r.agencyId===agencyA.id)).toBe(true);
+  if(rows[0]){const result=await listTopupRequestsForAgency(agencyA.id,25,{reference:rows[0].reference.toLowerCase()});expect(result.some(r=>r.id===rows[0]!.id)).toBe(true);expect((await listTopupRequestsForAgency(agencyB.id,25,{reference:rows[0].reference})).some(r=>r.id===rows[0]!.id)).toBe(false)}
+  expect(await listTopupRequestsForAgency(agencyA.id,25,{from:new Date("2999-01-01T00:00:00Z")})).toEqual([]);
+ });
+});

@@ -29,15 +29,14 @@ export default async function PortalLayout({ children }: { children: ReactNode }
   if (!isAgencyRole(user.role)) redirect("/admin"); // staff belong in the Back Office
   if (!user.agencyId) redirect("/login");
 
-  const unread=await unreadNotificationCount(user.id);
-  const locale = await getUiLocale();
-  const tr = chromeT(locale);
-  const initialEvents=await agencyBellEvents(user.id,user.agencyId,locale,hasPermission(user,"wallet.view.own")&&hasPermission(user,"transactions.view.own"));
-  const agencyRows = await db
-    .select({ logoKey: agencies.logoKey, logoUploadedAt: agencies.logoUploadedAt })
-    .from(agencies)
-    .where(eq(agencies.id, user.agencyId))
-    .limit(1);
+  const locale=await getUiLocale();
+  const tr=chromeT(locale);
+  const [unread,initialEvents,agencyRows,platformBranding]=await Promise.all([
+    unreadNotificationCount(user.id),
+    agencyBellEvents(user.id,user.agencyId,locale,hasPermission(user,"wallet.view.own")&&hasPermission(user,"transactions.view.own")),
+    db.select({logoKey:agencies.logoKey,logoUploadedAt:agencies.logoUploadedAt}).from(agencies).where(eq(agencies.id,user.agencyId)).limit(1),
+    readBranding().catch(()=>null),
+  ]);
   const agencyLogo = agencyRows[0]
     ? agencyLogoUrl({ id: user.agencyId, logoKey: agencyRows[0].logoKey, logoUploadedAt: agencyRows[0].logoUploadedAt })
     : null;
@@ -65,7 +64,6 @@ export default async function PortalLayout({ children }: { children: ReactNode }
     },
   ];
 
-  const platformBranding = await readBranding().catch(() => null);
 
   return (
     <AppShell

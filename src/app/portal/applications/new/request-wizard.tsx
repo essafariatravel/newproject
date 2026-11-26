@@ -17,6 +17,7 @@ import { useAgencyPopover } from "@/components/agency-popover-controller";
  */
 
 import { useMemo, useRef, useState, useEffect } from "react";
+import { stagingReceiptKey,reusableStagingToken,type StagedReceipt } from "@/lib/request-upload-retry";
 import { contentT } from "@/lib/i18n-content";
 import { formatDZD, formatProcessingDays } from "@/lib/format";
 import { readRequestResponse, requestFailureFeedback } from "@/lib/request-feedback";
@@ -300,6 +301,7 @@ export function RequestWizard(props: Props) {
   const [catalogueRecovery, setCatalogueRecovery] = useState(false);
   const [sessionRecovery, setSessionRecovery] = useState(false);
   const [idempotencyKey] = useState(() => crypto.randomUUID());
+  const stagingReceipts=useRef(new Map<string,StagedReceipt>());
   const formRef = useRef<HTMLFormElement>(null);
 
   const country = useMemo(() => props.countries.find((c) => c.id === countryId) ?? null, [props.countries, countryId]);
@@ -530,6 +532,10 @@ export function RequestWizard(props: Props) {
     const fields = new FormData(form);
     const total = requirements.reduce((sum,r)=>sum+(files[r.documentTypeId]??[]).length,0);
     let received = 0;
+    let finalAttemptStarted=false;
+    // Keep only receipts for the current set of file objects, not previous selections.
+    const currentKeys=new Set(requirements.flatMap(r=>(files[r.documentTypeId]??[]).map((_,slot)=>stagingReceiptKey(visaTypeId,r.documentTypeId,slot))));
+    for(const key of stagingReceipts.current.keys())if(!currentKeys.has(key))stagingReceipts.current.delete(key);
     setTransfer({done:0,total,phase:total?"files":"confirm"});
     try {
       const tokens: string[] = [];
@@ -538,17 +544,28 @@ export function RequestWizard(props: Props) {
       for (const requirement of requirements) {
         const selected = files[requirement.documentTypeId] ?? [];
         for (let slot = 0; slot < selected.length; slot++) {
-          const body = new FormData();
-          body.set("attempt", idempotencyKey); body.set("visaTypeId", visaTypeId);
-          body.set("documentTypeId", requirement.documentTypeId); body.set("slot", String(slot)); body.set("file", selected[slot]!);
-          const response = await fetch("/api/agency/requests", { method: "POST", body });
-          const data = await readRequestResponse<{token:string}>(response,props.locale);
-          tokens.push(data.token);
+          const file=selected[slot]!;
+          const key=stagingReceiptKey(visaTypeId,requirement.documentTypeId,slot);
+          const expectedToken=String(requirement.documentTypeId)+"/"+slot;
+          let token=reusableStagingToken(stagingReceipts.current.get(key),file,expectedToken);
+          if(token===null){
+            stagingReceipts.current.delete(key);
+            const body = new FormData();
+            body.set("attempt", idempotencyKey); body.set("visaTypeId", visaTypeId);
+            body.set("documentTypeId", requirement.documentTypeId); body.set("slot", String(slot)); body.set("file", file);
+            const response = await fetch("/api/agency/requests", { method: "POST", body });
+            const data = await readRequestResponse<{token:string}>(response,props.locale);
+            if(data.token!==expectedToken)throw Error("Invalid staging receipt");
+            token=data.token;
+            stagingReceipts.current.set(key,{file,token,at:Date.now()});
+          }
+          tokens.push(token);
           received += 1;
           setTransfer({done:received,total,phase:"files"});
         }
       }
       setTransfer({done:received,total,phase:"confirm"});
+      finalAttemptStarted=true;
       const response = await fetch("/api/agency/requests", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ locale:props.locale, attempt: idempotencyKey, countryId, visaTypeId, expectedFee: visa?.fee, tokens,
           fullName: nameDraft.trim(), nationality: nationalityDraft, notes: String(fields.get("agencyNotes") ?? "") }) });
@@ -556,7 +573,11 @@ export function RequestWizard(props: Props) {
       leavingAfterSuccess.current = true;
       window.location.assign(`/portal/applications/${data.applicationId}?submitted=1`);
     } catch (error) {
+      // After any final commit failure, retry from a fresh staging set. The existing
+      // idempotency key is intentionally unchanged: a lost response must not debit twice.
+      if(finalAttemptStarted)stagingReceipts.current.clear();
       const feedback=requestFailureFeedback(error,props.locale);
+      if(feedback.session||feedback.catalogue)stagingReceipts.current.clear();
       setClientError(feedback.message);
       setCatalogueRecovery(feedback.catalogue);
       setSessionRecovery(feedback.session);

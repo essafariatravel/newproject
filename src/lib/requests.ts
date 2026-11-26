@@ -21,7 +21,7 @@ import { validateDocumentFormat } from "@/lib/upload-validation";
 
 import { fileNameProblem, fileNameErrorMessage } from "@/lib/filename";
 import { randomUUID } from "node:crypto";
-import { and, asc, eq,gt,sql } from "drizzle-orm";
+import { and, asc, eq,gt,inArray,sql } from "drizzle-orm";
 import { db, pool } from "@/lib/db";
 import { databaseSchema, qualifiedTable } from "@/lib/database-schema";
 import {
@@ -214,6 +214,35 @@ export async function listRequirementsForVisaType(visaTypeId: string): Promise<R
       ),
     )
     .orderBy(asc(visaRequirements.sortOrder));
+}
+
+export async function listRequirementsForVisaTypes(visaTypeIds: readonly string[]): Promise<Record<string, RequirementRow[]>> {
+  const ids=[...new Set(visaTypeIds)];
+  const result:Record<string,RequirementRow[]>=Object.fromEntries(ids.map(id=>[id,[]]));
+  if(!ids.length)return result;
+  const rows=await db
+    .select({
+      visaTypeId: visaRequirements.visaTypeId,
+      documentTypeId: documentTypes.id,
+      name: documentTypes.name,
+      nameFr: documentTypes.nameFr, nameAr: documentTypes.nameAr,
+      code: documentTypes.code,
+      required: visaRequirements.required,
+      sortOrder: visaRequirements.sortOrder,
+      notes: visaRequirements.notes,
+    })
+    .from(visaRequirements)
+    .innerJoin(documentTypes, eq(visaRequirements.documentTypeId, documentTypes.id))
+    .where(
+      and(
+        inArray(visaRequirements.visaTypeId, ids),
+        eq(visaRequirements.active, true),
+        eq(documentTypes.active, true),
+      ),
+    )
+    .orderBy(asc(visaRequirements.visaTypeId),asc(visaRequirements.sortOrder));
+  for(const {visaTypeId,...row} of rows)result[visaTypeId]!.push(row);
+  return result;
 }
 
 /** Validate (throwing AppError with a REQUEST_VALIDATION_CODES code). */
