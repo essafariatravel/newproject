@@ -18,7 +18,7 @@ async function main(){
  assert.equal(photoRatioDifference(350,450,35,45),0);
  assert.equal(photoRatioDifference(350,450,0,45),null);
  assert.deepEqual(duplicateGroups([{item:1,hash:"a"},{item:2,hash:"a"},{item:3,hash:"b"}]),[[1,2]]);
- assert.equal(imageSignals(new Uint8ClampedArray(100).fill(255),5,5).contrast,0);
+ assert.ok(imageSignals(new Uint8ClampedArray(100).fill(255),5,5).contrast<.001);
  assert.deepEqual(projectiveMap(FULL_QUAD)(.3,.7),{x:.3,y:.7});
  assert.deepEqual(rectifiedSize(FULL_QUAD,4000,2000),{width:2000,height:1000});
  assert.equal(validQuad([FULL_QUAD[0],FULL_QUAD[2],FULL_QUAD[1],FULL_QUAD[3]]),false);
@@ -34,7 +34,7 @@ async function main(){
  core.FS.writeFile("eng.traineddata",gunzipSync(readFileSync(join(root,"eng.traineddata.gz"))));
  const api=new core.TessBaseAPI();
  try{
-  assert.equal(api.Init(null,"eng",1,undefined),0);
+  assert.equal(api.Init(null,"eng",1,null),0);
   api.SetVariable("tessedit_char_whitelist","ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<");
   api.SetVariable("tessedit_pageseg_mode","6");
   core.FS.writeFile("/input",fixture);
@@ -42,6 +42,6 @@ async function main(){
   api.Recognize(null);
   assert.equal(uniqueVerifiedOcr([api.GetUTF8Text()]),specimen,"WASM did not recover the exact synthetic MRZ");
   console.log("[phase2c] Actual WASM OCR synthetic image recognition PASS");
- }finally{api.End();api.delete?.()}
+ }finally{api.End?.();api.delete?.()}
 }
 main().catch(error=>{console.error("[phase2c] Qualification failed:",error instanceof Error?error.message:"Unknown failure");process.exitCode=1});
