@@ -10,3 +10,8 @@ Production baseline verified: 98a237e6f16a15ff34efa10b4cb83c650a8024d2, deployme
 - Native OCR availability varies and recognition quality unqualified; next iteration needs a pinned offline OCR engine/worker, locally hosted language assets, real synthetic fixture and device tests, no paid API. No dependency changes now.
 ## Verification
 New unit tests for TD3, dates, signals and duplicates; branch guard disables migrations/seed. Actual Vercel build and browser FR/EN/AR/mobile must be verified. No real passports used in tests. Production remains unchanged. No new paid service; normal build consumption not measured.
+
+## R02 — Native OCR hardening (Preview only)
+- Two bounded native detection passes (original and lower-page crop), 12-second detection budget. Complete TD3 pairs only; checksum verification, duplicate reading collapse, conflicting verified readings rejected. No guessed OCR characters. Manual entry remains available and human confirmation remains mandatory.
+- Native TextDetector still depends on the browser. Offline portable OCR engine and language assets are not included or claimed in R02; they require dependency review and device qualification.
+- Integrate the exact published Document Viewer hotfix 78074f0 into this Preview branch only to prevent future regressions. No migration or Production deployment.

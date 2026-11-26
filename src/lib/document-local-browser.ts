@@ -1,5 +1,5 @@
 "use client";
-import {imageSignals,duplicateGroups} from "./document-intelligence";
+import {imageSignals,duplicateGroups,uniqueVerifiedOcr} from "./document-intelligence";
 export const LOCAL_FILE_LIMIT=2*1024*1024;
 export function localImage(file:File):boolean{return file.size>0&&file.size<=LOCAL_FILE_LIMIT&&/^image\/(jpeg|png|webp)$/.test(file.type)}
 async function bitmap(file:File):Promise<ImageBitmap>{
@@ -13,13 +13,41 @@ export async function inspectImage(file:File){
  const b=await bitmap(file);
  try{const scale=Math.min(1,384/Math.max(b.width,b.height));const w=Math.max(3,Math.round(b.width*scale)),h=Math.max(3,Math.round(b.height*scale));const {c,ctx}=canvas(w,h);try{ctx.drawImage(b,0,0,w,h);return imageSignals(ctx.getImageData(0,0,w,h).data,w,h,b.width,b.height)}finally{c.width=c.height=0}}finally{b.close()}
 }
-type Detector={detect:(source:ImageBitmap)=>Promise<{rawValue?:string}[]>};
+type Detector={detect:(source:ImageBitmap|HTMLCanvasElement)=>Promise<{rawValue?:string}[]>};
 function detectorConstructor(){return (globalThis as unknown as {TextDetector?:new()=>Detector}).TextDetector}
 export function nativeOcrAvailable(){return typeof detectorConstructor()==="function"}
+/** Experimental browser-native OCR only; no external service or model fetch. */
 export async function localPassportOcr(file:File):Promise<string>{
  const Detector=detectorConstructor();if(!Detector)throw Error("Native OCR unavailable");
  const b=await bitmap(file);
- try{return (await new Detector().detect(b)).map(r=>r.rawValue??"").join("\n")}finally{b.close()}
+ const readings:string[]=[];
+ const deadline=performance.now()+12000;
+ async function detect(source:ImageBitmap|HTMLCanvasElement):Promise<string>{
+  const remaining=deadline-performance.now();
+  if(remaining<=0)throw Error("OCR timeout");
+  let timer:ReturnType<typeof setTimeout>|undefined;
+  try{
+   const result=await Promise.race([
+    new Detector().detect(source),
+    new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(Error("OCR timeout")),remaining)})
+   ]);
+   return result.slice(0,100).map(r=>(r.rawValue??"").slice(0,2048)).join("\n");
+  }finally{if(timer!==undefined)clearTimeout(timer)}
+ }
+ try{
+  // First read the original. Then try the lower portion at bounded resolution
+  // because passport MRZ lines are usually located near the lower edge.
+  readings.push(await detect(b));
+  const sy=Math.floor(b.height*.45),sh=b.height-sy;
+  const scale=Math.min(1,1800/b.width,1200/sh);
+  const {c,ctx}=canvas(Math.max(1,Math.round(b.width*scale)),Math.max(1,Math.round(sh*scale)));
+  try{ctx.fillStyle="#fff";ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(b,0,sy,b.width,sh,0,0,c.width,c.height);readings.push(await detect(c))}
+  catch{ /* A failed second pass must not invalidate a complete first pass. */ }
+  finally{c.width=c.height=0}
+  const result=uniqueVerifiedOcr(readings);
+  if(!result)throw Error("OCR incomplete or ambiguous");
+  return result;
+ }finally{b.close()}
 }
 const digests=new WeakMap<File,Promise<string>>();
 async function hash(file:File){

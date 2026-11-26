@@ -46,3 +46,25 @@ export function duplicateGroups<T>(rows:readonly {item:T;hash:string}[]):T[][]{
  for(const {item,hash} of rows){const list=groups.get(hash)??[];list.push(item);groups.set(hash,list)}
  return [...groups.values()].filter(group=>group.length>1);
 }
+
+/** Recover only complete TD3 pairs from noisy OCR. Never substitute O/0, I/1,
+ * invent check digits or resolve conflicting valid readings automatically. */
+export function verifiedOcrCandidates(input:string):string[]{
+ const lines=input.slice(0,8192).toUpperCase().split(/\r?\n/).map(s=>s.replace(/\s/g,"")).filter(Boolean);
+ const candidates=new Set<string>();
+ const add=(a:string,b:string)=>{
+  if(a.length!==44||b.length!==44)return;
+  const pair=a+"\n"+b;
+  if(readTd3(pair)?.checksPassed)candidates.add(pair);
+ };
+ for(let i=0;i<lines.length;i++){
+  const line=lines[i]!;
+  if(line.length===88)add(line.slice(0,44),line.slice(44));
+  if(i+1<lines.length)add(line,lines[i+1]!);
+ }
+ return [...candidates];
+}
+export function uniqueVerifiedOcr(readings:readonly string[]):string|null{
+ const candidates=new Set(readings.flatMap(verifiedOcrCandidates));
+ return candidates.size===1?[...candidates][0]!:null;
+}
