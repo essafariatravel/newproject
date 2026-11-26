@@ -66,6 +66,9 @@ function main(): void {
     );
   }
 
+  if (isVercelPreview && process.env.VERCEL_GIT_COMMIT_REF === "codex/phase2c-document-intelligence-20261126") {
+    if (run("scripts/prepare-local-ocr.mjs", []) !== 0) process.exit(1);
+  }
   process.exit(run("node_modules/next/dist/bin/next", ["build"]));
 }
 

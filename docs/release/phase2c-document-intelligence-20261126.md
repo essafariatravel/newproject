@@ -22,3 +22,7 @@ New unit tests for TD3, dates, signals and duplicates; branch guard disables mig
 ## R04/R05 — Photo review and UX
 - Reference framing ratios explicitly chosen by operator; no inferred country or visa requirements. Visual manual checklist, original image, ratio difference, no biometric verdict. MRZ expiry mismatch warning before validity display. Focus-visible and touch-target adjustments. No image retouch or file replacement.
 - Remaining qualification: universal packaged OCR, face/background measurement if explicitly approved, automated edge detection if needed, authenticated FR/EN/AR/mobile flow. Do not label unqualified functions complete.
+
+## R02 portable OCR implementation — qualification pending
+- Preview-only build fetches exact SHA-512-pinned Tesseract.js 6.0.1, core 6.1.2 and English data 1.0.0 archives from npm; no install hooks, no new application dependency, only allowlisted asset extraction. Native first, portable LSTM fallback for lower passport MRZ, same-origin worker/core/model, no IndexedDB caching, bounded worker, no API. Build fails closed if archive or assets cannot be verified.
+- Browser recognition and device qualification still required; portable implementation is not a claim of recognition accuracy or support for every passport format. No Production activation.

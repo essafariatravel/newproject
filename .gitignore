@@ -62,3 +62,6 @@ work/*.sha256
 ESSAFARIA-PROD-*.manifest.json
 ESSAFARIA-SYNTHETIC-*.manifest.json
 *.dr-key
+
+# Generated, integrity-pinned Preview-only OCR assets
+/public/ocr/phase2c-v1/

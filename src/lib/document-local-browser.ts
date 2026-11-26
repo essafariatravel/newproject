@@ -1,6 +1,7 @@
 "use client";
 import {imageSignals,duplicateGroups,uniqueVerifiedOcr} from "./document-intelligence";
 import {rectifiedSize,rectifyPixels,type Quad} from "./document-geometry";
+import {portableOcrAvailable,portablePassportOcr} from "./document-ocr-portable";
 export const LOCAL_FILE_LIMIT=2*1024*1024;
 export function localImage(file:File):boolean{return file.size>0&&file.size<=LOCAL_FILE_LIMIT&&/^image\/(jpeg|png|webp)$/.test(file.type)}
 async function bitmap(file:File):Promise<ImageBitmap>{
@@ -17,8 +18,9 @@ export async function inspectImage(file:File){
 type Detector={detect:(source:ImageBitmap|HTMLCanvasElement)=>Promise<{rawValue?:string}[]>};
 function detectorConstructor(){return (globalThis as unknown as {TextDetector?:new()=>Detector}).TextDetector}
 export function nativeOcrAvailable(){return typeof detectorConstructor()==="function"}
+export function localOcrAvailable(){return nativeOcrAvailable()||portableOcrAvailable()}
 /** Experimental browser-native OCR only; no external service or model fetch. */
-export async function localPassportOcr(file:File):Promise<string>{
+async function nativePassportOcr(file:File):Promise<string>{
  const Detector=detectorConstructor();if(!Detector)throw Error("Native OCR unavailable");
  const detector=new Detector();
  const b=await bitmap(file);
@@ -50,6 +52,19 @@ export async function localPassportOcr(file:File):Promise<string>{
   const result=uniqueVerifiedOcr(readings);
   if(!result)throw Error("OCR incomplete or ambiguous");
   return result;
+ }finally{b.close()}
+}
+export async function localPassportOcr(file:File):Promise<string>{
+ if(nativeOcrAvailable()){try{return await nativePassportOcr(file)}catch{/* Fall back to bundled engine. */}}
+ if(!portableOcrAvailable())throw Error("Local OCR unavailable");
+ const b=await bitmap(file);
+ try{
+  const sy=Math.floor(b.height*.45),sh=b.height-sy,scale=Math.min(1,2000/b.width,1400/sh);
+  const {c,ctx}=canvas(Math.max(3,Math.round(b.width*scale)),Math.max(3,Math.round(sh*scale)));
+  try{ctx.fillStyle="#fff";ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(b,0,sy,b.width,sh,0,0,c.width,c.height);
+   const image=await new Promise<Blob>((resolve,reject)=>c.toBlob(v=>v?resolve(v):reject(Error("OCR input unavailable")),"image/png"));
+   return await portablePassportOcr(image);
+  }finally{c.width=c.height=0}
  }finally{b.close()}
 }
 const digests=new WeakMap<File,Promise<string>>();
