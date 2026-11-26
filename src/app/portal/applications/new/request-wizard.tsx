@@ -502,7 +502,8 @@ export function RequestWizard(props: Props) {
     en:{checking:"Checking price and balance…",unavailable:"The check could not be completed. Try again before submitting.",retry:"Retry",changed:"This programme or its price has changed. Refresh the catalogue before confirming. Selected files will need to be added again.",refresh:"Refresh catalogue",duplicate:"A similar active application exists for this name, nationality and programme. Check before submitting; it may be a different person with the same name.",checked:"Price and balance checked."},
     ar:{checking:"جارٍ التحقق من السعر والرصيد…",unavailable:"تعذر إتمام التحقق. أعيدوا المحاولة قبل الإرسال.",retry:"إعادة المحاولة",changed:"تغير هذا البرنامج أو سعره. حدّثوا القائمة قبل التأكيد. ستحتاجون إلى إضافة الملفات مجدداً.",refresh:"تحديث القائمة",duplicate:"يوجد طلب نشط مشابه بالاسم والجنسية والبرنامج نفسه. تحققوا قبل الإرسال، فقد يكون شخصاً آخر بالاسم نفسه.",checked:"تم التحقق من السعر والرصيد."}
   }[props.locale];
-  type ReviewCheck = { key:string; status:"checking"|"unavailable" } | {key:string;status:"ready";fee:string|null;balance:string;possibleDuplicate:boolean;catalogueChanged?:boolean;similarApplicationId?:string|null};
+  type PreflightResponse = {fee:string|null;balance:string;possibleDuplicate:boolean;catalogueChanged?:boolean;similarApplicationId?:string|null};
+  type ReviewCheck = { key:string; status:"checking"|"unavailable" } | ({key:string;status:"ready"} & PreflightResponse);
   const [preflight,setPreflight]=useState<ReviewCheck|null>(null);
   const [preflightRetry,setPreflightRetry]=useState(0);
   const preflightKey=JSON.stringify([countryId,visaTypeId,nameDraft.trim(),nationalityDraft,visa?.fee,expectedCatalogue]);
@@ -514,7 +515,7 @@ export function RequestWizard(props: Props) {
     void (async()=>{
       try{
         const response=await fetch("/api/agency/requests",{method:"POST",headers:{"Content-Type":"application/json"},signal:controller.signal,body:JSON.stringify({action:"preflight",countryId,visaTypeId,fullName:nameDraft.trim(),nationality:nationalityDraft,expectedCatalogue})});
-        const data=await readRequestResponse<{fee:string|null;balance:string;possibleDuplicate:boolean;similarApplicationId?:string|null}>(response,props.locale);
+        const data=await readRequestResponse<PreflightResponse>(response,props.locale);
         if(!data||typeof data.balance!=="string"||!Number.isFinite(Number(data.balance))||!(data.fee===null||typeof data.fee==="string")||typeof data.possibleDuplicate!=="boolean"||(expectedCatalogue&&typeof data.catalogueChanged!=="boolean"))throw Error("Invalid review data");
         if(current)setPreflight({key:preflightKey,status:"ready",...data});
       }catch{if(current)setPreflight({key:preflightKey,status:"unavailable"})}
