@@ -8,23 +8,23 @@ import { NotificationRead, NotificationOpen, NotificationIcon } from "@/app/port
 import { notificationCopy } from "@/app/portal/notifications/notification-copy";
 import { startNotificationPolling } from "@/lib/notification-polling";
 
-type Event = { id: string; title: string; link: string | null; createdAt: string; readAt?:string|null; type?:string; applicationId?:string|null; context?:string; priority?:boolean; reference?:string|null; digestKey?:string; actionTotal?:number };
+type NotificationEvent = { id: string; title: string; link: string | null; createdAt: string; readAt?:string|null; type?:string; applicationId?:string|null; context?:string; priority?:boolean; reference?:string|null; digestKey?:string; actionTotal?:number };
 export function LiveNotifications({ initialCount, href, label, soundLabel, closeLabel, refreshFirstEvent=false, agencyLocale, initialEvents }: {
-  initialCount: number; href: string; label: string; soundLabel: string; closeLabel: string; refreshFirstEvent?: boolean; agencyLocale?:"fr"|"en"|"ar"; initialEvents?:Event[];
+  initialCount: number; href: string; label: string; soundLabel: string; closeLabel: string; refreshFirstEvent?: boolean; agencyLocale?:"fr"|"en"|"ar"; initialEvents?:NotificationEvent[];
 }) {
   const router = useRouter();
   const [count, setCount] = useState(initialCount);
-  const [events,setEvents]=useState<Event[]|null>(initialEvents??null),[open,setOpen]=useState(false),[unreadOnly,setUnreadOnly]=useState(false);const root=useRef<HTMLDivElement>(null),trigger=useRef<HTMLButtonElement>(null);
+  const [events,setEvents]=useState<NotificationEvent[]|null>(initialEvents??null),[open,setOpen]=useState(false),[unreadOnly,setUnreadOnly]=useState(false);const root=useRef<HTMLDivElement>(null),trigger=useRef<HTMLButtonElement>(null);
   useAgencyPopover(root,open,setOpen,trigger);
   const countRef=useRef(initialCount); useEffect(()=>{countRef.current=initialCount},[initialCount]);
-  const feedSignature=(rows:Event[])=>rows.map(n=>n.id+":"+n.readAt+":"+n.priority).sort().join("|")+":"+(rows[0]?.actionTotal??0);
+  const feedSignature=(rows:NotificationEvent[])=>rows.map(n=>n.id+":"+n.readAt+":"+n.priority).sort().join("|")+":"+(rows[0]?.actionTotal??0);
   const feedRef=useRef(feedSignature(initialEvents??[]));
   const priorityRef=useRef((initialEvents??[]).filter(n=>n.priority).map(n=>n.id).sort().join(",")+":"+(initialEvents?.[0]?.actionTotal??0));
   const actionTotal=events?.find(n=>typeof n.actionTotal==="number")?.actionTotal??0;
   const hasPriority=actionTotal>0||!!events?.some(n=>n.priority);
-  const bellItems=(()=>{const selected=(events??[]).filter(n=>!unreadOnly||n.readAt===null).sort((a,b)=>Number(!!b.priority)-Number(!!a.priority)||Date.parse(b.createdAt)-Date.parse(a.createdAt));const groups=new Map<string,Event[]>();for(const n of selected){const key=!unreadOnly&&!n.priority&&n.digestKey?.startsWith("case:")?n.digestKey:n.id;const existing=groups.get(key);if(existing)existing.push(n);else groups.set(key,[n]);}return [...groups.values()].slice(0,8);})();
+  const bellItems=(()=>{const selected=(events??[]).filter(n=>!unreadOnly||n.readAt===null).sort((a,b)=>Number(!!b.priority)-Number(!!a.priority)||Date.parse(b.createdAt)-Date.parse(a.createdAt));const groups=new Map<string,NotificationEvent[]>();for(const n of selected){const key=!unreadOnly&&!n.priority&&n.digestKey?.startsWith("case:")?n.digestKey:n.id;const existing=groups.get(key);if(existing)existing.push(n);else groups.set(key,[n]);}return [...groups.values()].slice(0,8);})();
   useEffect(()=>{priorityRef.current=(initialEvents??[]).filter(n=>n.priority).map(n=>n.id).sort().join(",")+":"+(initialEvents?.[0]?.actionTotal??0)},[initialEvents]);
-  const [toast, setToast] = useState<Event | null>(null);
+  const [toast, setToast] = useState<NotificationEvent | null>(null);
   const [sound, setSound] = useState(false);
   const audio = useRef<AudioContext | null>(null);
   const soundEnabled = useRef(false);
@@ -34,7 +34,7 @@ export function LiveNotifications({ initialCount, href, label, soundLabel, close
     try { const enabled = localStorage.getItem("essafaria.notification-sound") === "on"; soundEnabled.current = enabled; setSound(enabled); } catch { /* Storage may be disabled. */ }
     let seen: Set<string> | null = null;
     const onlineSince = Date.now();
-    return startNotificationPolling<{ unread: number; events: Event[] }>((data) => {
+    return startNotificationPolling<{ unread: number; events: NotificationEvent[] }>((data) => {
         const previous=countRef.current;countRef.current=data.unread;
         setCount(data.unread);
         if(agencyLocale){setEvents(data.events);const priority=data.events.filter(n=>n.priority).map(n=>n.id).sort().join(",")+":"+(data.events[0]?.actionTotal??0);const signature=feedSignature(data.events);const changed=priorityRef.current!==priority||feedRef.current!==signature;priorityRef.current=priority;feedRef.current=signature;if((previous!==data.unread||changed)&&window.location.pathname==="/portal/notifications"&&document.visibilityState==="visible")router.refresh();}
@@ -55,7 +55,7 @@ export function LiveNotifications({ initialCount, href, label, soundLabel, close
         }
     });
   }, [router,refreshFirstEvent,agencyLocale]);
-  useEffect(()=>{if(!agencyLocale)return;const handler=(event:Event)=>{const next=(event as CustomEvent<unknown>).detail;if(typeof next!=="boolean")return;soundEnabled.current=next;setSound(next);try{localStorage.setItem("essafaria.notification-sound",next?"on":"off")}catch{};if(next){try{audio.current??=new AudioContext();void audio.current.resume().catch(()=>{})}catch{}}window.dispatchEvent(new Event("essafaria-sound-changed"))};window.addEventListener("essafaria-sound-request",handler);return()=>window.removeEventListener("essafaria-sound-request",handler)},[agencyLocale]);
+  useEffect(()=>{if(!agencyLocale)return;const handler:EventListener=(event)=>{if(!(event instanceof CustomEvent))return;const next:unknown=event.detail;if(typeof next!=="boolean")return;soundEnabled.current=next;setSound(next);try{localStorage.setItem("essafaria.notification-sound",next?"on":"off")}catch{};if(next){try{audio.current??=new AudioContext();void audio.current.resume().catch(()=>{})}catch{}}window.dispatchEvent(new Event("essafaria-sound-changed"))};window.addEventListener("essafaria-sound-request",handler);return()=>window.removeEventListener("essafaria-sound-request",handler)},[agencyLocale]);
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(null), 7000); return () => clearTimeout(timer); }, [toast]);
   return <>
     {agencyLocale?<div ref={root} className="sn-bell-root"><style>{bellCss}</style><button ref={trigger} type="button" aria-label={label+": "+count+(hasPriority?" · "+notificationCopy[agencyLocale].action:"")} aria-expanded={open} onClick={()=>setOpen(v=>!v)} className="relative grid h-11 w-11 shrink-0 place-items-center rounded-lg text-navy-900 hover:bg-ivory-100"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>{count>0?<span className="absolute end-0 top-0 min-w-4 rounded-full bg-red-600 px-1 text-center text-xs text-white">{count>99?"99+":count}</span>:null}{hasPriority?<span className="sn-bell-attention" aria-hidden="true"/>:null}</button>
