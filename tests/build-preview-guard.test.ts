@@ -105,3 +105,6 @@ describe("Preview build database-change guard", () => {
 
 
 describe("Intelligent Core build guard",()=>{it("blocks all automatic database changes on the dedicated branch",()=>{expect(automaticDatabaseChangesForbidden("codex/phase2a-intelligent-core-20261126")).toBe(true)})});
+
+
+describe("Document Intelligence preview guard",()=>{it("forbids automatic database changes",()=>expect(automaticDatabaseChangesForbidden("codex/phase2c-document-intelligence-20261126")).toBe(true))});

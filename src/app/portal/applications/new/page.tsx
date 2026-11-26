@@ -156,6 +156,7 @@ export default async function NewApplicationPage({
         subtitle={ct("Three steps: choose the destination and visa, upload the documents, preview and submit. Nothing is saved before the final confirmation.")}
       />
       <RequestWizard
+        documentIntelligence={process.env.VERCEL_ENV==="preview"&&process.env.VERCEL_GIT_COMMIT_REF==="codex/phase2c-document-intelligence-20261126"}
         parallelStaging={process.env.VERCEL_ENV==="preview" && process.env.ESSAFARIA_PARALLEL_STAGING!=="false"}
         catalogueFingerprints={catalogueFingerprints}
         today={algeriaToday()}

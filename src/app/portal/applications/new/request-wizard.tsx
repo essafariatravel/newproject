@@ -21,6 +21,7 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import { assessTravelDeadline,algeriaToday } from "@/lib/travel-deadline";
 import { operationalCopy } from "@/lib/operational-copy";
 import { TravelDeparture,TravelTiming } from "./travel-departure";
+import { PassportAssistant,DuplicateNotice,DocumentStudio } from "./document-studio";
 import { runBoundedUploads } from "@/lib/bounded-upload";
 import { stagingReceiptKey,reusableStagingToken,type StagedReceipt } from "@/lib/request-upload-retry";
 import { contentT } from "@/lib/i18n-content";
@@ -122,6 +123,7 @@ export interface WizardLabels {
 }
 
 interface Props {
+  documentIntelligence?:boolean;
   catalogueFingerprints?: Record<string,string>;
   today?:string;
   parallelStaging?: boolean;
@@ -812,6 +814,7 @@ export function RequestWizard(props: Props) {
         {/* Applicant — one traveler, minimal data (§12) */}
         <div className="booking-traveller space-y-4">
           <h2>{ux.traveller}</h2>
+          {props.documentIntelligence&&step===1?<PassportAssistant locale={props.locale} today={props.today??algeriaToday()} departure={departure} nationalities={props.nationalities} onApply={(name,nat)=>{setNameDraft(name);if(nat)setNationalityDraft(nat);setDirty(true);setClientError("")}}/>:null}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor="t0_fullName">{t.fullName} *</label>
@@ -854,6 +857,7 @@ export function RequestWizard(props: Props) {
       <section data-wizard-section="2" hidden={step!==2} className="wizard-panel booking-docs" data-direction={wizardDirection}>
         <div className="booking-doc-head"><div><h2>{t.documents}</h2><small>{country?.name} · {visa?.name} · <bdi>{visa?formatDZD(visa.fee):"—"}</bdi></small></div><div className="booking-doc-progress" role="status"><strong>{completedDocs}/{requiredDocs.length}</strong> <span>{progressCopy.selected}</span>{requiredDocs.length>0?<progress value={completedDocs} max={requiredDocs.length} aria-label={progressCopy.selected}/>:null}</div></div>
         {fileError?<p role="alert" className="booking-warning" data-testid="wizard-file-error">{fileError}</p>:null}
+        {props.documentIntelligence&&step===2?<DuplicateNotice items={files} locale={props.locale}/>:null}
         {requirements.length===0?<p>{t.noDocumentsRequired}</p>:<div className="booking-doc-grid" data-single={requirements.length===1&&batch.length===0}>
           <div className="booking-doc-list" role="group" aria-label={t.summaryDocuments} hidden={requirements.length===1&&batch.length===0}>
             <label className="booking-batch btn-secondary"><span>＋ {assist.batch}</span><input className="sr-only" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" onChange={e=>{const incoming=Array.from(e.currentTarget.files??[]);if(incoming.length){setBatch(prev=>[...prev,...incoming]);setDirty(true)}e.currentTarget.value=""}}/></label>
@@ -871,6 +875,7 @@ export function RequestWizard(props: Props) {
             </label>
             {selectedFiles.length?<><div className="booking-files">{selectedFiles.map((f,i)=><div key={i} className="booking-line"><button type="button" className="booking-file-name" aria-pressed={i===previewIndex} onClick={()=>setPreviewIndex(i)}>{f.name} <small>{Math.ceil(f.size/1024)} KB</small></button><button type="button" className="booking-link" onClick={()=>{removeFile(selectedRequirement.documentTypeId,i);setPreviewIndex(0)}}>{t.remove}</button></div>)}</div>
             {selectedFile&&previewUrl?<div className="booking-preview">{/^image\/(jpeg|png|webp)$/.test(selectedFile.type)?<button type="button" className="booking-preview-image" onClick={()=>setReviewFile(selectedFile)} aria-label={ux.full}><img src={previewUrl} alt={selectedFile.name}/></button>:selectedFile.type==="application/pdf"?<iframe title={selectedFile.name} src={previewUrl}/>:<p>{ui.unavailable}</p>}</div>:null}</>:null}
+            {props.documentIntelligence&&step===2&&selectedFile?<DocumentStudio key={selectedRequirement.documentTypeId+":"+previewIndex+":"+selectedFile.name+":"+selectedFile.lastModified} file={selectedFile} locale={props.locale} photo={/photo|portrait|picture/i.test(selectedRequirement.code)} />:null}
             <div className="booking-line"><small>{ux.verify}</small>{selectedFile?<button type="button" className="booking-link" onClick={()=>setReviewFile(selectedFile)}>{ux.full}</button>:null}{requirements.some(r=>r.documentTypeId!==selectedRequirement.documentTypeId&&r.required&&!(files[r.documentTypeId]??[]).length)?<button type="button" className="btn-secondary" onClick={()=>{const next=requirements.find(r=>r.documentTypeId!==selectedRequirement.documentTypeId&&r.required&&!(files[r.documentTypeId]??[]).length);if(next)selectDoc(next.documentTypeId)}}>{ui.nextDoc} →</button>:null}</div>
           </div>:null}
         </div>}
