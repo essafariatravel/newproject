@@ -5,28 +5,6 @@
 }
 html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-dashboard){font-family:"Plex Arabic",Barlow,Arial,sans-serif}
 .workspace-agency.workspace-agency:has(.essafaria-dashboard) #workspace-main{background:#fff;padding-block-start:24px}
-.workspace-agency.workspace-agency:has(.essafaria-dashboard) .workspace-header-context{display:none}
-.workspace-agency.workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation a[href="/portal/notifications"] .badge{display:none}
-.workspace-agency.workspace-agency:has(.essafaria-dashboard) .agency-header-brand small{font-size:15px;letter-spacing:normal}
-.workspace-agency.workspace-agency:has(.essafaria-dashboard) .workspace-topbar button,.workspace-agency.workspace-agency:has(.essafaria-dashboard) .workspace-topbar summary{font-family:inherit}
-.workspace-agency.workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation .workspace-nav-link{font-size:16px;font-weight:500}
-.workspace-agency.workspace-agency:has(.essafaria-dashboard) :is(.workspace-topbar,.agency-desktop-navigation) :is(a,button,summary):focus-visible{outline:2px solid #304b64;outline-offset:3px}
-@media(min-width:1280px){
- .workspace-agency.workspace-agency:has(.essafaria-dashboard) .workspace-topbar{flex-shrink:0}
- .workspace-agency.workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation{position:sticky;top:64px;z-index:29;flex-shrink:0;background:white}
- .workspace-agency.workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation a:is([href="/portal/notifications"],[href="/portal/profile"]){display:none}
-}
-@media(min-width:1600px){
- .workspace-agency.workspace-agency:has(.essafaria-dashboard) .workspace-topbar{height:68px;padding-inline:24px}
- .workspace-agency.workspace-agency:has(.essafaria-dashboard) .workspace-topbar > div:last-child > span.hidden{display:none}
- .workspace-agency.workspace-agency:has(.essafaria-dashboard) .account-menu-identity{display:none}
- .workspace-agency.workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation{top:0;z-index:31;align-self:center;width:calc(100% - 480px);min-height:68px;height:68px;margin-block-start:-68px;padding:0;gap:8px;justify-content:center;border:0;background:transparent}
- .workspace-agency.workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation .workspace-nav-link{padding:8px 12px;min-height:44px;white-space:nowrap;border-radius:6px}
- .workspace-agency.workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation .workspace-nav-link:not([href="/portal/applications/new"]) .workspace-nav-icon{display:none}
- .workspace-agency.workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation .workspace-nav-link[aria-current]:not([href="/portal/applications/new"]){background:transparent;box-shadow:inset 0 -2px #0b1c30;border-radius:0;color:#0b1c30;font-weight:600}
- .workspace-agency.workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation .workspace-nav-link:hover:not([href="/portal/applications/new"]){background:#f5f7fa}
- .workspace-agency.workspace-agency:has(.essafaria-dashboard) .agency-desktop-navigation a[href="/portal/applications/new"]{margin-inline:6px}
-}
 .essafaria-dashboard{
  --dash-ink:#0b1c30;--dash-muted:#344457;--dash-secondary:#647182;--dash-rule:#e2e5e9;--dash-hover:#f5f7fa;
  display:grid;gap:24px;color:var(--dash-ink);font-size:16px;line-height:1.5;
@@ -238,7 +216,6 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-dashboard){fon
 @media(prefers-reduced-motion:reduce){.essafaria-dashboard .dash-campaign-content{transition:none!important}}
 
 /* 06.1 — final dashboard-only finish. Account identity stays available in the account panel. */
-.workspace-agency.workspace-agency:has(.essafaria-dashboard) .account-menu-panel .dash-account-agency{display:block;padding-block:0 12px;font-size:15px;font-weight:400;color:#344457;overflow-wrap:anywhere;border-bottom:1px solid #e2e5e9;margin-bottom:4px}
 .essafaria-dashboard .dash-campaign-content[data-campaign="visa-services"] .dash-campaign-photo img{object-position:center 56%}
 .essafaria-dashboard .dash-campaign-content[data-campaign="case-tracking"] .dash-campaign-photo img{object-position:center 60%}
 .essafaria-dashboard .dash-campaign-controls{gap:2px;padding-inline:4px}

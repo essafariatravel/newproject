@@ -20,6 +20,7 @@ import { countryName } from "@/lib/country-names";
 import { configName, configDescription } from "@/lib/config-localization";
 import { hasPermission } from "@/lib/rbac";
 import { CountryFlag } from "./dashboard-interactions";
+import { coreTimed } from "@/lib/core-timing";
 import { readAgencyPrefs } from "@/lib/agency-preferences";
 import { prioritizeFavorites } from "@/lib/agency-preference-values";
 import "./dashboard.css";
@@ -28,16 +29,15 @@ export const dynamic = "force-dynamic";
 
 export default async function PortalDashboardPage() {
  const user=await portalPageUser();
- const prefs=await readAgencyPrefs(user.id);
- const locale=await getUiLocale();
+ const [prefs,locale]=await Promise.all([readAgencyPrefs(user.id),getUiLocale()]);
  const ct=contentT(locale);
- const [data,options,usage]=await Promise.all([
+ const [data,options,usage]=await coreTimed("agency.dashboard.read",()=>Promise.all([
   agencyDashboard(user.agencyId,user.id),activeVisaOptions(),
   // Read only, authenticated tenant scope; count actual submissions, not drafts or clicks.
   db.select({countryId:applications.countryId,total:count(),lastUsed:max(applications.submittedAt)})
     .from(applications).where(and(eq(applications.agencyId,user.agencyId),isNotNull(applications.submittedAt)))
     .groupBy(applications.countryId).catch(()=>{console.warn("Dashboard destination ranking unavailable");return [];})
- ]);
+ ]));
  const regionAliases=new Map<string,string[]>();
  const commonAliases:Record<string,string[]>={AE:["Dubai","Dubaï","Abu Dhabi","UAE","EAU","دبي","أبو ظبي"],TR:["Turkey","Türkiye","Turkiye"],GB:["UK","United Kingdom","Royaume-Uni","Grande-Bretagne"],US:["USA","États-Unis","United States"],CN:["China","PRC"],KR:["South Korea","Corée du Sud"]};
  const destinations=[...new Map(options.map(o=>[o.countryId,o])).values()].map(o=>{
@@ -96,7 +96,7 @@ export default async function PortalDashboardPage() {
  const programmes=options.map(v=>({id:v.id,countryId:v.countryId,name:configName(v,locale),description:configDescription(v,locale),fee:String(v.fee),minDays:Number(v.minDays??0),maxDays:Number(v.maxDays??0)}));
  const programmeRequirements:Record<string,{id:string;name:string;required:boolean;notes:string|null}[]|null>={};
  if(canCreate){
-  const grouped=await listRequirementsForVisaTypes(programmes.map(p=>p.id)).catch(()=>null);
+  const grouped=await coreTimed("agency.catalogue.requirements",()=>listRequirementsForVisaTypes(programmes.map(p=>p.id))).catch(()=>null);
   for(const p of programmes)programmeRequirements[p.id]=grouped?(grouped[p.id]??[]).map(r=>({id:r.documentTypeId,name:(locale==="fr"?r.nameFr:locale==="ar"?r.nameAr:null)?.trim()||localizedDocTypeName(r.code,r.name,locale),required:r.required,notes:r.notes??null})):null;
  }
  const recentIds=new Set(recent.map(r=>r.app.id)),decisionRows=data.recentDecisions.filter(r=>!recentIds.has(r.app.id));

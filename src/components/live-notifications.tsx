@@ -7,10 +7,11 @@ import { useAgencyPopover } from "./agency-popover-controller";
 import { NotificationRead, NotificationOpen, NotificationIcon } from "@/app/portal/notifications/notification-interactions";
 import { notificationCopy } from "@/app/portal/notifications/notification-copy";
 import { startNotificationPolling } from "@/lib/notification-polling";
+import { createNotificationSharing } from "@/lib/notification-sharing";
 
 type NotificationEvent = { id: string; title: string; link: string | null; createdAt: string; readAt?:string|null; type?:string; applicationId?:string|null; context?:string; priority?:boolean; reference?:string|null; digestKey?:string; actionTotal?:number };
-export function LiveNotifications({ initialCount, href, label, soundLabel, closeLabel, refreshFirstEvent=false, agencyLocale, initialEvents }: {
-  initialCount: number; href: string; label: string; soundLabel: string; closeLabel: string; refreshFirstEvent?: boolean; agencyLocale?:"fr"|"en"|"ar"; initialEvents?:NotificationEvent[];
+export function LiveNotifications({ initialCount, href, label, soundLabel, closeLabel, refreshFirstEvent=false, agencyLocale, initialEvents, notificationScope }: {
+  initialCount: number; href: string; label: string; soundLabel: string; closeLabel: string; refreshFirstEvent?: boolean; agencyLocale?:"fr"|"en"|"ar"; initialEvents?:NotificationEvent[]; notificationScope?:string|null;
 }) {
   const router = useRouter();
   const [count, setCount] = useState(initialCount);
@@ -34,7 +35,8 @@ export function LiveNotifications({ initialCount, href, label, soundLabel, close
     try { const enabled = localStorage.getItem("essafaria.notification-sound") === "on"; soundEnabled.current = enabled; setSound(enabled); } catch { /* Storage may be disabled. */ }
     let seen: Set<string> | null = null;
     const onlineSince = Date.now();
-    return startNotificationPolling<{ unread: number; events: NotificationEvent[] }>((data) => {
+    const shared=notificationScope?createNotificationSharing(notificationScope):null;
+    const stop=startNotificationPolling<{ unread: number; events: NotificationEvent[] }>((data) => {
         const previous=countRef.current;countRef.current=data.unread;
         setCount(data.unread);
         if(agencyLocale){setEvents(data.events);const priority=data.events.filter(n=>n.priority).map(n=>n.id).sort().join(",")+":"+(data.events[0]?.actionTotal??0);const signature=feedSignature(data.events);const changed=priorityRef.current!==priority||feedRef.current!==signature;priorityRef.current=priority;feedRef.current=signature;if((previous!==data.unread||changed)&&window.location.pathname==="/portal/notifications"&&document.visibilityState==="visible")router.refresh();}
@@ -53,8 +55,9 @@ export function LiveNotifications({ initialCount, href, label, soundLabel, close
             tone.connect(gain); gain.connect(ctx.destination); tone.start(); tone.stop(ctx.currentTime + .2);
           }
         }
-    });
-  }, [router,refreshFirstEvent,agencyLocale]);
+    },shared?.read,()=>{if(notificationScope){setCount(0);setEvents([]);setToast(null);router.refresh()}});
+    return()=>{stop();shared?.close()};
+  }, [router,refreshFirstEvent,agencyLocale,notificationScope]);
   useEffect(()=>{if(!agencyLocale)return;const handler:EventListener=(event)=>{if(!(event instanceof CustomEvent))return;const next:unknown=event.detail;if(typeof next!=="boolean")return;soundEnabled.current=next;setSound(next);try{localStorage.setItem("essafaria.notification-sound",next?"on":"off")}catch{};if(next){try{audio.current??=new AudioContext();void audio.current.resume().catch(()=>{})}catch{}}window.dispatchEvent(new Event("essafaria-sound-changed"))};window.addEventListener("essafaria-sound-request",handler);return()=>window.removeEventListener("essafaria-sound-request",handler)},[agencyLocale]);
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(null), 7000); return () => clearTimeout(timer); }, [toast]);
   return <>

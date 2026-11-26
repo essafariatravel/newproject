@@ -1,5 +1,5 @@
 /** One owned request at a time; polling never weakens session/API controls. */
-export function startNotificationPolling<T>(publish:(payload:T)=>void):()=>void {
+export function startNotificationPolling<T>(publish:(payload:T)=>void,read?:(signal:AbortSignal)=>Promise<Response>,onDenied?:()=>void):()=>void {
  let stopped=false,inFlight=false,failures=0,retryAt=0;
  let timer:ReturnType<typeof setTimeout>|undefined,timeout:ReturnType<typeof setTimeout>|undefined;
  let controller:AbortController|undefined;
@@ -22,9 +22,9 @@ export function startNotificationPolling<T>(publish:(payload:T)=>void):()=>void 
   // Aborting the browser request does not claim cancellation of server SQL.
   timeout=setTimeout(()=>request.abort(),20_000);
   try{
-   const response=await fetch('/api/notifications',{cache:'no-store',signal:request.signal});
+   const response=await (read?read(request.signal):fetch('/api/notifications',{cache:'no-store',signal:request.signal}));
    if(stopped||request.signal.aborted)return;
-   if(response.status===401||response.status===403){stop();return;}
+   if(response.status===401||response.status===403){stop();onDenied?.();return;}
    if(!response.ok){failures++;return;}
    const data=await response.json() as T;
    if(!stopped&&!request.signal.aborted){publish(data);failures=0;}

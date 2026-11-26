@@ -28,6 +28,7 @@ export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
   "design/agency-identity-home-20261118",
   // Agency UX branch: no migration or seed even without environment overrides.
   "codex/agency-experience-2-0-preview-20261124",
+  "codex/phase2a-intelligent-core-20261126",
 ] as const;
 
 export function automaticDatabaseChangesForbidden(branch: string | null | undefined): boolean {

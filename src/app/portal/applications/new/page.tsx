@@ -8,6 +8,7 @@ import { getUiLocale, localizedDocTypeName } from "@/lib/ui-i18n";
 import { contentT } from "@/lib/i18n-content";
 import { countryName } from "@/lib/country-names";
 import { NATIONALITIES, nationalityLabel } from "@/lib/nationalities";
+import { coreTimed } from "@/lib/core-timing";
 import { readAgencyPrefs } from "@/lib/agency-preferences";
 import { RequestWizard, type WizardCountry, type WizardLabels, type WizardRequirement } from "./request-wizard";
 
@@ -29,25 +30,26 @@ export default async function NewApplicationPage({
 }) {
   const sp = await searchParams;
   const user = await portalPageUser();
-  const prefs=await readAgencyPrefs(user.id);
-  const locale = await getUiLocale(sp);
+  const [prefs,locale]=await Promise.all([readAgencyPrefs(user.id),getUiLocale(sp)]);
   const ct = contentT(locale);
 
-  const load = await Promise.all([
+  const load = await coreTimed("agency.booking.read",()=>Promise.all([
     activeVisaOptions(),
     getBalance(user.agencyId),
-  ]).catch(() => null);
+  ])).catch(() => null);
   if (!load) return <div className="card"><EmptyState title={ct("Visa services are temporarily unavailable")} body={ct("Please try again. Your wallet has not been charged.")} action={<a href="/portal/applications/new" className="btn-primary">{ct("Try again")}</a>} /></div>;
   const [visaOptions, wallet] = load;
 
   // Correction 3: group ACTIVE visa types under their ACTIVE destination
   // country; a country appears only when it has at least one active type.
   const countries: WizardCountry[] = [];
+  const countryIndex=new Map<string,WizardCountry>();
   for (const v of visaOptions) {
-    let c = countries.find((x) => x.id === v.countryId);
+    let c = countryIndex.get(v.countryId);
     if (!c) {
       c = { id: v.countryId, name: countryName({ name: v.countryName, iso2: v.countryIso2 }, locale), iso: v.countryIso2, visaTypes: [] };
       countries.push(c);
+      countryIndex.set(v.countryId,c);
     }
     c.visaTypes.push({
       id: v.id,
@@ -63,7 +65,7 @@ export default async function NewApplicationPage({
   }
 
   const requirementMaps: Record<string, WizardRequirement[]> = {};
-  const grouped=await listRequirementsForVisaTypes(visaOptions.map(v=>v.id)).catch(()=>null);
+  const grouped=await coreTimed("agency.catalogue.requirements",()=>listRequirementsForVisaTypes(visaOptions.map(v=>v.id))).catch(()=>null);
   const requirementsLoaded=grouped!==null;
   if(grouped)for(const v of visaOptions)requirementMaps[v.id]=(grouped[v.id]??[]).map(r=>({...r,name:(locale==="fr"?r.nameFr:locale==="ar"?r.nameAr:null)?.trim()||localizedDocTypeName(r.code,r.name,locale)}));
   if (!requirementsLoaded) return <div className="card"><EmptyState title={ct("Visa services are temporarily unavailable")} body={ct("Please try again. Your wallet has not been charged.")} action={<a href="/portal/applications/new" className="btn-primary">{ct("Try again")}</a>} /></div>;
@@ -150,6 +152,7 @@ export default async function NewApplicationPage({
         subtitle={ct("Three steps: choose the destination and visa, upload the documents, preview and submit. Nothing is saved before the final confirmation.")}
       />
       <RequestWizard
+        parallelStaging={process.env.VERCEL_ENV==="preview" && process.env.ESSAFARIA_PARALLEL_STAGING!=="false"}
         countries={countries}
         nationalities={NATIONALITIES.map((n) => ({ code: n.code, label: nationalityLabel(n.code, uiLocale) }))}
         defaultNationality={prefs.nationality}

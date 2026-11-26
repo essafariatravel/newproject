@@ -102,3 +102,6 @@ describe("Preview build database-change guard", () => {
     expect(config.git?.deploymentEnabled?.["security/pre-codex-gate-2026-10-03"]).toBe(false);
   });
 });
+
+
+describe("Intelligent Core build guard",()=>{it("blocks all automatic database changes on the dedicated branch",()=>{expect(automaticDatabaseChangesForbidden("codex/phase2a-intelligent-core-20261126")).toBe(true)})});

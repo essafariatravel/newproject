@@ -268,3 +268,5 @@ html[lang="ar"] .workspace-agency.workspace-agency.workspace-agency :is(.workspa
 .workspace-agency .profile-country-flag{width:24px;height:18px;margin-inline-end:7px}
 .workspace-agency .checkout-country-code.agency-country-flag{width:28px;height:21px}
 .workspace-agency [data-testid="wizard-popular-destination"]{gap:8px}
+
+.workspace-agency .core-transfer-details{margin-block:8px}.workspace-agency .core-transfer-details summary{cursor:pointer;color:#344457;font-size:14px}.workspace-agency .core-transfer-details>div{display:flex;justify-content:space-between;gap:12px;padding-block:4px;font-size:14px}.workspace-agency .core-transfer-details bdi{font-variant-numeric:tabular-nums;flex:none}

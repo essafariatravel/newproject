@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { getSessionUser } from "@/lib/auth";
 import { isAgencyRole, type AuthUser } from "@/lib/types";
 
@@ -7,8 +8,10 @@ import { isAgencyRole, type AuthUser } from "@/lib/types";
  * components and layouts render in parallel, so a redirect is the correct
  * denial mechanism at page level). Server actions keep using requireUser().
  */
+export const getPageSessionUser = cache(() => getSessionUser());
+
 export async function pageUser(): Promise<AuthUser> {
-  const user = await getSessionUser();
+  const user = await getPageSessionUser();
   if (!user) redirect("/login?reason=session-expired");
   // Phase 2.2 §11 — every authenticated page funnels through pageUser(), so
   // a forced password change blocks ALL portal/admin routes (no URL bypass:

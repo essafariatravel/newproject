@@ -18,6 +18,7 @@ import { useAgencyPopover } from "@/components/agency-popover-controller";
  */
 
 import { useMemo, useRef, useState, useEffect } from "react";
+import { runBoundedUploads } from "@/lib/bounded-upload";
 import { stagingReceiptKey,reusableStagingToken,type StagedReceipt } from "@/lib/request-upload-retry";
 import { contentT } from "@/lib/i18n-content";
 import { formatDZD, formatProcessingDays } from "@/lib/format";
@@ -118,6 +119,7 @@ export interface WizardLabels {
 }
 
 interface Props {
+  parallelStaging?: boolean;
   countries: WizardCountry[];
   nationalities: WizardNationality[];
   defaultNationality: string;
@@ -294,6 +296,7 @@ export function RequestWizard(props: Props) {
     const guard=(e:MouseEvent)=>{if(leavingAfterSuccess.current||e.defaultPrevented||e.button!==0||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;const a=(e.target instanceof Element?e.target.closest("a[href]"):null) as HTMLAnchorElement|null;if(!a||a.target==="_blank"||a.download||a.origin!==location.origin||a.pathname===location.pathname)return;if(pending||!window.confirm(assist.leave)){e.preventDefault();e.stopPropagation();}};
     document.addEventListener("click",guard,true);return()=>document.removeEventListener("click",guard,true);
   },[dirty,pending,assist.leave]);
+  const [transferItems,setTransferItems]=useState<Record<string,number>>({});
   const [transfer, setTransfer] = useState<{done:number;total:number;phase:"files"|"confirm"} | null>(null);
   const feedbackRef = useRef<HTMLDivElement>(null);
   const stepHeadingRef = useRef<HTMLOListElement>(null);
@@ -536,15 +539,13 @@ export function RequestWizard(props: Props) {
     // Keep only receipts for the current set of file objects, not previous selections.
     const currentKeys=new Set(requirements.flatMap(r=>(files[r.documentTypeId]??[]).map((_,slot)=>stagingReceiptKey(visaTypeId,r.documentTypeId,slot))));
     for(const key of stagingReceipts.current.keys())if(!currentKeys.has(key))stagingReceipts.current.delete(key);
+    setTransferItems({});
     setTransfer({done:0,total,phase:total?"files":"confirm"});
     try {
-      const tokens: string[] = [];
-      // Each file travels in its own bounded request. Only final confirmation
-      // starts uploading; navigating away from earlier steps persists nothing.
-      for (const requirement of requirements) {
-        const selected = files[requirement.documentTypeId] ?? [];
-        for (let slot = 0; slot < selected.length; slot++) {
-          const file=selected[slot]!;
+      // Two independent bounded HTTP requests may overlap; the existing
+      // transaction lock still serializes per-user quota checks and writes.
+      const jobs=requirements.flatMap(requirement=>(files[requirement.documentTypeId]??[]).map((file,slot)=>({requirement,file,slot})));
+      const tokens=await runBoundedUploads(jobs,props.parallelStaging?2:1,async({requirement,file,slot})=>{
           const key=stagingReceiptKey(visaTypeId,requirement.documentTypeId,slot);
           const expectedToken=String(requirement.documentTypeId)+"/"+slot;
           let token=reusableStagingToken(stagingReceipts.current.get(key),file,expectedToken);
@@ -559,11 +560,11 @@ export function RequestWizard(props: Props) {
             token=data.token;
             stagingReceipts.current.set(key,{file,token,at:Date.now()});
           }
-          tokens.push(token);
           received += 1;
+          setTransferItems(prev=>({...prev,[requirement.documentTypeId]:(prev[requirement.documentTypeId]??0)+1}));
           setTransfer({done:received,total,phase:"files"});
-        }
-      }
+          return token;
+      });
       setTransfer({done:received,total,phase:"confirm"});
       finalAttemptStarted=true;
       const response = await fetch("/api/agency/requests", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -909,7 +910,7 @@ export function RequestWizard(props: Props) {
           <div className="booking-preflight" aria-live="polite">
             {!reviewCheck||reviewCheck.status==="checking"?<p className="booking-muted">{preflightText.checking}</p>:reviewCheck.status==="unavailable"?<div className="booking-line"><p className="booking-warning">{preflightText.unavailable}</p><button type="button" className="booking-link" disabled={pending} onClick={()=>{setPreflight(null);setPreflightRetry(n=>n+1)}}>{preflightText.retry}</button></div>:quoteChanged?<div><p className="booking-warning">{preflightText.changed}</p><button type="button" className="booking-link" disabled={pending} onClick={()=>window.location.reload()}>{preflightText.refresh}</button></div>:<><p className="booking-success">✓ {preflightText.checked}</p></>}
           </div>
-          {pending&&transfer?<div className="agency-v2-submit-progress" role="status" aria-live="polite"><strong>{transfer.phase==="files"?`${progressCopy.files}: ${transfer.done} / ${transfer.total}`:progressCopy.confirm}</strong>{transfer.phase==="files"&&transfer.total>0?<progress aria-label={progressCopy.files} value={transfer.done} max={transfer.total}/>:null}<p>{progressCopy.notice}</p></div>:null}
+          {pending&&transfer?<div className="agency-v2-submit-progress" role="status" aria-live="polite"><strong>{transfer.phase==="files"?`${progressCopy.files}: ${transfer.done} / ${transfer.total}`:progressCopy.confirm}</strong>{transfer.phase==="files"&&transfer.total>0?<progress aria-label={progressCopy.files} value={transfer.done} max={transfer.total}/>:null}{transfer.phase==="files"?<details className="core-transfer-details"><summary>{t.documents}</summary>{requirements.filter(r=>(files[r.documentTypeId]??[]).length>0).map(r=><div key={r.documentTypeId}><span>{r.name}</span><bdi>{transferItems[r.documentTypeId]??0}/{(files[r.documentTypeId]??[]).length}</bdi></div>)}</details>:null}<p>{progressCopy.notice}</p></div>:null}
           {canAfford||!reviewReady?<button type="submit" className="btn-primary w-full" disabled={pending||!reviewReady||catalogueRecovery||sessionRecovery} data-testid="wizard-submit">{pending?t.submitting:<>{t.submitApplication} — <bdi>{visa?formatDZD(visa.fee):"—"}</bdi></>}</button>:<><p className="booking-warning">{t.insufficientTitle} · <bdi>{formatDZD(missing)}</bdi></p><a href={topupHref} className="btn-primary" data-testid="wizard-topup-cta">{t.requestTopup}</a></>}
         </aside>
       </section>

@@ -6,7 +6,9 @@ import { LiveNotifications } from "@/components/live-notifications";
 import { contentT } from "@/lib/i18n-content";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { getSessionUser } from "@/lib/auth";
+import { getPageSessionUser } from "@/lib/page-auth";
+import { coreTimed } from "@/lib/core-timing";
+import { agencyNotificationScope } from "@/lib/notification-scope";
 import { isAgencyRole } from "@/lib/types";
 import { agencyBellEvents } from "@/lib/agency-notification-bell";
 import { unreadNotificationCount } from "@/lib/queries";
@@ -24,19 +26,22 @@ export const metadata: Metadata = buildNoIndexMetadata("Agency workspace");
 export const dynamic = "force-dynamic";
 
 export default async function PortalLayout({ children }: { children: ReactNode }) {
-  const user = await getSessionUser();
+  const user = await getPageSessionUser();
   if (!user) redirect("/login");
   if (!isAgencyRole(user.role)) redirect("/admin"); // staff belong in the Back Office
   if (!user.agencyId) redirect("/login");
 
+  const agencyId=user.agencyId;
   const locale=await getUiLocale();
+  const financial=hasPermission(user,"wallet.view.own")&&hasPermission(user,"transactions.view.own");
+  const scope=process.env.VERCEL_ENV==="preview"&&process.env.ESSAFARIA_NOTIFICATION_SHARING!=="false"?agencyNotificationScope(user,locale,financial):null;
   const tr=chromeT(locale);
-  const [unread,initialEvents,agencyRows,platformBranding]=await Promise.all([
+  const [unread,initialEvents,agencyRows,platformBranding]=await coreTimed("agency.shell.read",()=>Promise.all([
     unreadNotificationCount(user.id),
-    agencyBellEvents(user.id,user.agencyId,locale,hasPermission(user,"wallet.view.own")&&hasPermission(user,"transactions.view.own")),
-    db.select({logoKey:agencies.logoKey,logoUploadedAt:agencies.logoUploadedAt}).from(agencies).where(eq(agencies.id,user.agencyId)).limit(1),
+    agencyBellEvents(user.id,agencyId,locale,financial),
+    db.select({logoKey:agencies.logoKey,logoUploadedAt:agencies.logoUploadedAt}).from(agencies).where(eq(agencies.id,agencyId)).limit(1),
     readBranding().catch(()=>null),
-  ]);
+  ]));
   const agencyLogo = agencyRows[0]
     ? agencyLogoUrl({ id: user.agencyId, logoKey: agencyRows[0].logoKey, logoUploadedAt: agencyRows[0].logoUploadedAt })
     : null;
@@ -76,7 +81,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
       agencyLogoUrl={agencyLogo}
       platformLogoUrl={platformBranding ? brandLogoUrl(platformBranding) : null}
       brandName={platformBranding?.name}
-      headerExtras={<><AgencyCommand locale={locale} canCreate={hasPermission(user,"applications.create")} canUpload={hasPermission(user,"documents.upload.own")} canWallet={hasPermission(user,"wallet.view.own")} /><LiveNotifications initialEvents={initialEvents} agencyLocale={locale} refreshFirstEvent initialCount={unread} href="/portal/notifications" label={tr("Notifications")} soundLabel={contentT(locale)("Notification sounds")} closeLabel={contentT(locale)("Close")} /><UiLanguageSwitcher locale={locale} compact /></>}
+      headerExtras={<><AgencyCommand locale={locale} canCreate={hasPermission(user,"applications.create")} canUpload={hasPermission(user,"documents.upload.own")} canWallet={hasPermission(user,"wallet.view.own")} /><LiveNotifications key={scope??user.id} notificationScope={scope} initialEvents={initialEvents} agencyLocale={locale} refreshFirstEvent initialCount={unread} href="/portal/notifications" label={tr("Notifications")} soundLabel={contentT(locale)("Notification sounds")} closeLabel={contentT(locale)("Close")} /><UiLanguageSwitcher locale={locale} compact /></>}
     >
       <AgencyPopoverController />
       {children}
