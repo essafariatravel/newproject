@@ -262,3 +262,9 @@ html[lang="ar"] .workspace-agency.workspace-agency.workspace-agency :is(.workspa
  .workspace-agency.workspace-agency.workspace-agency .agency-desktop-navigation a[href="/portal/applications/new"]{margin-inline:6px}
 }
 .workspace-agency.workspace-agency.workspace-agency .account-menu-panel .dash-account-agency{display:block;padding-block:0 12px;font-size:15px;font-weight:400;color:#344457;overflow-wrap:anywhere;border-bottom:1px solid #e2e5e9;margin-bottom:4px}
+
+/* Local catalogue flags: stable dimensions, no OS-dependent emoji rendering. */
+.workspace-agency .agency-country-flag{display:inline-block;vertical-align:middle;width:26px;height:18px;flex:none;object-fit:contain;border:1px solid #10243b16;border-radius:2px}
+.workspace-agency .profile-country-flag{width:24px;height:18px;margin-inline-end:7px}
+.workspace-agency .checkout-country-code.agency-country-flag{width:28px;height:21px}
+.workspace-agency [data-testid="wizard-popular-destination"]{gap:8px}

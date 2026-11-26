@@ -46,7 +46,7 @@ export default async function NewApplicationPage({
   for (const v of visaOptions) {
     let c = countries.find((x) => x.id === v.countryId);
     if (!c) {
-      c = { id: v.countryId, name: countryName({ name: v.countryName, iso2: v.countryIso2 }, locale), visaTypes: [] };
+      c = { id: v.countryId, name: countryName({ name: v.countryName, iso2: v.countryIso2 }, locale), iso: v.countryIso2, visaTypes: [] };
       countries.push(c);
     }
     c.visaTypes.push({

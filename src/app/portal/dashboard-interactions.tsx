@@ -3,6 +3,7 @@ import {useEffect,useId,useMemo,useRef,useState,useTransition} from "react";
 import {rankDestinations,type SearchDestination} from "./dashboard-search";
 import {useRouter} from "next/navigation";
 import Link from "next/link";
+import { CountryFlag } from "@/components/country-flag";
 import { useAgencyPopover } from "@/components/agency-popover-controller";
 
 export type Campaign={id:string;title:string;body:string;cta:string;href:string;image:string;smallImage:string};
@@ -30,15 +31,7 @@ export function DashboardCampaigns({items,labels}:{items:Campaign[];labels:Campa
  </section>;
 }
 
-export function CountryFlag({iso}:{iso:string}){
- const code=iso.toUpperCase();
- // The four current preview destinations use scalable local inline flag artwork;
- // any additional country uses its Unicode flag with a visible country name.
- if(["CN","FR","TR","AE"].includes(code))return <svg className="dash-flag" aria-hidden="true" viewBox="0 0 30 20">
- {code==="FR"?<><path fill="#1b3988" d="M0 0h10v20H0z"/><path fill="#fff" d="M10 0h10v20H10z"/><path fill="#e33d42" d="M20 0h10v20H20z"/></>:code==="AE"?<><path fill="#19834b" d="M0 0h30v7H0z"/><path fill="#fff" d="M0 7h30v6H0z"/><path fill="#171717" d="M0 13h30v7H0z"/><path fill="#dc303b" d="M0 0h8v20H0z"/></>:code==="TR"?<><path fill="#df2435" d="M0 0h30v20H0z"/><circle cx="12" cy="10" r="5.6" fill="white"/><circle cx="13.8" cy="9.6" r="4.5" fill="#df2435"/><path fill="white" d="m18 6.7 1 2.3 2.6.2-2 1.7.7 2.4-2.3-1.4-2.1 1.4.6-2.4-2-1.7 2.6-.2z"/></>:<><path fill="#de292e" d="M0 0h30v20H0z"/><path fill="#ffdb36" d="m5.5 2 1 2.8 3 .1-2.4 1.8.9 2.8-2.5-1.7L3 9.5l.9-2.8-2.4-1.8 3-.1z"/>{[[11,2.8],[13,5],[13,8],[11,10]].map(([x,y],i)=><path key={i} fill="#ffdb36" transform={`translate(${x},${y}) scale(.34)`} d="m0 -4 1 2.8 3 .1-2.4 1.8.9 2.8L0 1.8l-2.5 1.7.9-2.8-2.4-1.8 3-.1z"/>)}</>}
- </svg>;
- return <span className="dash-flag-emoji" aria-hidden="true">{/^[A-Z]{2}$/.test(code)?String.fromCodePoint(...Array.from(code,c=>127397+c.charCodeAt(0))):"◌"}</span>;
-}
+export { CountryFlag };
 type Destination=SearchDestination;
 type DestinationLabels={title:string;choose:string;search:string;none:string;noMatch:string;all:string;shortcuts:string;opening:string};
 export function DashboardDestination({options,shortcutIds,locale,labels:t,onChoose}:{options:Destination[];shortcutIds:string[];locale:string;labels:DestinationLabels;onChoose?:(id:string)=>void}){

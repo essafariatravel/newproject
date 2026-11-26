@@ -1,4 +1,5 @@
 "use client";
+import { CountryFlag } from "@/components/country-flag";
 import { useAgencyPopover } from "@/components/agency-popover-controller";
 
 /**
@@ -37,6 +38,7 @@ export interface WizardVisaOption {
 export interface WizardCountry {
   id: string;
   name: string;
+  iso?: string | null;
   visaTypes: WizardVisaOption[];
 }
 
@@ -335,8 +337,6 @@ export function RequestWizard(props: Props) {
   }
   const flaggedRequirements=requirements.filter(r=>warningMessages(r).length>0);
   const checkoutFiles=requirements.flatMap(r=>files[r.documentTypeId]??[]);
-  const destinationMatches=country?props.nationalities.filter(n=>/^[A-Z]{2}$/.test(n.code)&&normalize(n.label)===normalize(country.name)):[];
-  const destinationCode=destinationMatches.length===1?destinationMatches[0]?.code:undefined;
   const checkoutFileIndex=reviewFile?checkoutFiles.indexOf(reviewFile):-1;
   const checkoutCategory=/^(tourist|tourism|tourisme|touristique|سياحة)$/i.test(visa?.categoryName.trim()??"")?checkout.tourist:visa?.categoryName;
   const genericProgramme=Boolean(visa&&country&&[normalize(country.name),normalize("Visa "+country.name),normalize(country.name+" Visa"),normalize("تأشيرة "+country.name)].includes(normalize(visa.name)));
@@ -624,8 +624,8 @@ export function RequestWizard(props: Props) {
             <div className="booking-selected-country">
               <p className="text-base">
                 <span className="text-slate-500">{t.destination}: </span>
-                <span className="font-semibold text-navy-900" data-testid="wizard-destination-selected">
-                  {country.name}
+                <span className="font-semibold text-navy-900 inline-flex items-center gap-2" data-testid="wizard-destination-selected">
+                  <CountryFlag iso={country.iso}/>{country.name}
                 </span>
               </p>
               <button
@@ -739,9 +739,9 @@ export function RequestWizard(props: Props) {
                               event.preventDefault();
                               chooseDestination(c, event.detail === 0);
                             }}
-                            className={`flex min-h-9 items-center px-4 py-2 text-base font-normal text-navy-900 hover:bg-slate-50 ${activeDestination === index ? "bg-slate-50" : ""}`}
+                            className={`flex min-h-9 items-center gap-2 px-4 py-2 text-base font-normal text-navy-900 hover:bg-slate-50 ${activeDestination === index ? "bg-slate-50" : ""}`}
                           >
-                            {c.name}
+                            <CountryFlag iso={c.iso}/><span>{c.name}</span>
                           </a>
                         ))
                       )}
@@ -767,7 +767,7 @@ export function RequestWizard(props: Props) {
                         className="wizard-choice inline-flex min-h-11 items-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-base font-semibold text-navy-900 hover:bg-ivory-50"
                         onClick={(event) => chooseDestination(c, event.detail === 0)}
                       >
-                        <span>{c.name}</span>{c.visaTypes.length>1?<small>{c.visaTypes.length}</small>:null}
+                        <CountryFlag iso={c.iso}/><span>{c.name}</span>{c.visaTypes.length>1?<small>{c.visaTypes.length}</small>:null}
                       </button>
                     ))}
                   </div>
@@ -868,7 +868,7 @@ export function RequestWizard(props: Props) {
         <div className="booking-main booking-review checkout-review">
           <div className="checkout-heading"><h2>{checkout.heading}</h2></div>
           <div className="checkout-ticket">
-            <div className="checkout-ticket-info"><small>{checkout.destination}</small><h3 className="checkout-country-name">{country?.name}{destinationCode?<span className="checkout-country-code" dir="ltr" aria-hidden="true">{String.fromCodePoint(...Array.from(destinationCode,c=>127397+c.charCodeAt(0)))}</span>:null}</h3>{!genericProgramme&&visa?.name?<strong className="checkout-programme">{visa.name}</strong>:null}<span>{[checkoutCategory,visa?processingLabel(visa):null].filter(Boolean).join(" · ")}</span></div>
+            <div className="checkout-ticket-info"><small>{checkout.destination}</small><h3 className="checkout-country-name">{country?.name}{country?<CountryFlag iso={country.iso} className="checkout-country-code"/>:null}</h3>{!genericProgramme&&visa?.name?<strong className="checkout-programme">{visa.name}</strong>:null}<span>{[checkoutCategory,visa?processingLabel(visa):null].filter(Boolean).join(" · ")}</span></div>
             <button type="button" className="checkout-edit" disabled={pending} onClick={()=>editStep(1)} aria-label={ui.edit+" · "+t.sectionVisa}><CheckoutIcon kind="edit"/><span>{ui.edit}</span></button>
           </div>
           <div className="checkout-traveller">
