@@ -22,7 +22,7 @@ import { countryName } from "@/lib/country-names";
 import { getSiteSettings } from "@/lib/settings";
 import { publicContactDetails } from "@/lib/public-contact";
 import { UiLanguageSwitcher } from "@/components/ui-language-switcher";
-import { PreferencesForm,SessionDisconnect,UsernameReveal,ActivityTimeline,ProfileIcon } from "./profile-extras";
+import { PreferencesForm,SessionDisconnect,UsernameReveal,ActivityTimeline,ProfileIcon,ProfileTabScroll } from "./profile-extras";
 import {PartnerCare} from "./profile-care";
 import {missingContactFields} from "./profile-r03-utils";
 import "./profile.css";
@@ -54,9 +54,9 @@ export default async function PortalProfilePage({searchParams}:{searchParams:Pro
   const flash=flashFrom(sp);
   const eventNames:Record<string,string>={USER_LOGIN:c.loginEvent,PASSWORD_CHANGED:c.passwordEvent,SESSION_REVOKED:c.sessionEvent,AGENCY_OTHER_SESSIONS_REVOKED:c.sessionEvent,AGENCY_CONTACT_UPDATED:c.contactEvent,AGENCY_LOGO_UPLOADED:c.logoEvent,AGENCY_LOGO_REMOVED:c.logoRemoved};
   const deviceLabel=(ua:string|null)=>{if(!ua)return c.unknownDevice;const browser=/Edg\//i.test(ua)?"Edge":/Firefox\//i.test(ua)?"Firefox":/Chrome\//i.test(ua)?"Chrome":/Safari\//i.test(ua)?"Safari":c.unknownDevice;const os=/Android/i.test(ua)?"Android":/iPhone|iPad/i.test(ua)?"iOS":/Windows/i.test(ua)?"Windows":/Macintosh/i.test(ua)?"macOS":/Linux/i.test(ua)?"Linux":"";return [browser,os].filter(Boolean).join(" · ")};
-  const destinations=options?Array.from(new Map<string,{id:string;name:string}>(options.map(v=>[v.countryId,{id:v.countryId,name:countryName({name:v.countryName,iso2:v.countryIso2},locale)}] as const)).values()).sort((a,b)=>a.name.localeCompare(b.name,locale)):[];
+  const destinations=options?Array.from(new Map<string,{id:string;name:string;iso:string|null}>(options.map(v=>[v.countryId,{id:v.countryId,iso:v.countryIso2??null,name:countryName({name:v.countryName,iso2:v.countryIso2},locale)}] as const)).values()).sort((a,b)=>a.name.localeCompare(b.name,locale)):[];
   return <div className="agency-profile-r01">
-    <h1>{ct("Profile")}</h1>{flash.error||flash.success?<div className="profile-flash" data-error={!!flash.error} role={flash.error?"alert":"status"}>{ct(flash.error??flash.success??"")}</div>:null}
+    <ProfileTabScroll tab={tab}/><h1>{ct("Profile")}</h1>{flash.error||flash.success?<div className="profile-flash" data-error={!!flash.error} role={flash.error?"alert":"status"}>{ct(flash.error??flash.success??"")}</div>:null}
     <div className="profile-masthead">
       <div className="profile-identity">
         {tab==="agency"?<LogoEditor key={agency.logoUploadedAt?.toString()??"none"} src={agencyLogoUrl(agency)} name={name} initials={initials(name)} canEdit={canEdit} c={c} partnerSince={ct("Partner since")+" · "+formatMonthYear(agency.createdAt,locale)}/>:<><div className="profile-logo-mark">{agencyLogoUrl(agency)?<img src={agencyLogoUrl(agency)!} alt={name}/>:<span aria-hidden="true">{initials(name)}</span>}</div><div className="profile-name"><h2>{name}</h2><p>{ct("Partner since")} · {formatMonthYear(agency.createdAt,locale)}</p></div></>}
