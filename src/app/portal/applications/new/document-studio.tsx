@@ -1,6 +1,8 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
 import {readTd3,passportValidity,type ImageSignals} from "@/lib/document-intelligence";
+import {FULL_QUAD,validQuad,type Quad} from "@/lib/document-geometry";
+import {PerspectiveEditor} from "./perspective-editor";
 import {findLocalDuplicates,inspectImage,localImage,localPassportOcr,nativeOcrAvailable,scanCopy} from "@/lib/document-local-browser";
 type Locale="fr"|"en"|"ar";
 const copy={
@@ -39,19 +41,20 @@ export function DuplicateNotice({items,locale}:{items:Record<string,File[]>;loca
  return <div className="di-duplicates" role="status">{result.groups.length?<><strong>{t.duplicate}</strong>{result.groups.map((g,i)=><p key={i}>{g.map(x=>x.file.name).join(" · ")}</p>)}<small>{t.duplicateNote}</small></>:null}{result.skipped?<small>{t.partial}</small>:null}</div>
 }
 export function DocumentStudio({file,locale,photo}:{file:File;locale:Locale;photo:boolean}){
- const t=copy[locale];const liveRef=useRef(true);const [open,setOpen]=useState(false),[signals,setSignals]=useState<ImageSignals|null>(null),[failure,setFailure]=useState(false),[busy,setBusy]=useState(false),[turn,setTurn]=useState(0),[crop,setCrop]=useState(0),[url,setUrl]=useState(""),[pdf,setPdf]=useState(false),[size,setSize]=useState(0);
+ const t=copy[locale];const liveRef=useRef(true);const [open,setOpen]=useState(false),[signals,setSignals]=useState<ImageSignals|null>(null),[failure,setFailure]=useState(false),[busy,setBusy]=useState(false),[turn,setTurn]=useState(0),[crop,setCrop]=useState(0),[url,setUrl]=useState(""),[pdf,setPdf]=useState(false),[size,setSize]=useState(0),[corners,setCorners]=useState<Quad>(FULL_QUAD),[perspective,setPerspective]=useState(false),[original,setOriginal]=useState("");
  useEffect(()=>{if(!open)return;let live=true;setSignals(null);setFailure(false);void inspectImage(file).then(s=>{if(live)setSignals(s)}).catch(()=>{if(live)setFailure(true)});return()=>{live=false}},[file,open]);
  useEffect(()=>{liveRef.current=true;return()=>{liveRef.current=false}},[]);
  useEffect(()=>()=>{if(url)URL.revokeObjectURL(url)},[url]);
+ useEffect(()=>{if(!open||!localImage(file))return;const u=URL.createObjectURL(file);setOriginal(u);return()=>{URL.revokeObjectURL(u)}},[file,open]);
  function invalidate(){setUrl("");setSize(0)}
- async function prepare(){if(busy)return;setBusy(true);setFailure(false);invalidate();try{const blob=await scanCopy(file,turn,crop,pdf);if(liveRef.current){setSize(blob.size);setUrl(URL.createObjectURL(blob))}}catch{if(liveRef.current)setFailure(true)}finally{if(liveRef.current)setBusy(false)}}
+ async function prepare(){if(busy)return;setBusy(true);setFailure(false);invalidate();try{const blob=await scanCopy(file,turn,crop,pdf,perspective?corners:undefined);if(liveRef.current){setSize(blob.size);setUrl(URL.createObjectURL(blob))}}catch{if(liveRef.current)setFailure(true)}finally{if(liveRef.current)setBusy(false)}}
  if(!localImage(file))return null;
  const warnings=signals?[Math.min(signals.width,signals.height)<300?t.low:null,signals.sharpness<60?t.blur:null,signals.mean<45||signals.mean>240?t.dark:null,signals.contrast<18?t.contrast:null].filter(Boolean):[];
  return <details className="di-assistant" open={open} onToggle={e=>setOpen(e.currentTarget.open)}><summary>{t.quality} · {t.scan}</summary>{open?<div className="di-body">
  {failure?<p className="di-warning" role="status">{t.failed}</p>:null}
  {signals?<div className="di-result"><div className="di-metrics"><div><small>{t.resolution}</small><strong><bdi>{signals.width} × {signals.height} px</bdi></strong></div>{photo?<div><small>{t.ratio}</small><strong><bdi>{signals.ratio.toFixed(2)}</bdi></strong></div>:null}</div>{warnings.length?<ul className="di-warning">{warnings.map(w=><li key={w}>{w}</li>)}</ul>:<p className="di-good">{t.noWarning}</p>}<small>{t.advisory}</small>{photo?<p><strong>{t.photo}</strong> · {t.photoNote}</p>:null}</div>:null}
- <div className="di-scanner"><strong>{t.scan}</strong><small>{t.original}</small><button type="button" className="btn-secondary" disabled={busy} onClick={()=>{setTurn(v=>(v+90)%360);invalidate()}}>{t.rotate} · <bdi>{turn}°</bdi></button><label className="di-field">{t.crop} · <bdi>{crop}</bdi><input type="range" min="0" max="20" step="1" value={crop} disabled={busy} onChange={e=>{setCrop(Number(e.target.value));invalidate()}}/></label>
+ <div className="di-scanner"><strong>{t.scan}</strong><small>{t.original}</small>{original?<PerspectiveEditor locale={locale} src={original} corners={corners} enabled={perspective} disabled={busy} onEnabled={v=>{setPerspective(v);invalidate()}} onChange={v=>{setCorners(v);invalidate()}}/>:null}<button type="button" className="btn-secondary" disabled={busy} onClick={()=>{setTurn(v=>(v+90)%360);invalidate()}}>{t.rotate} · <bdi>{turn}°</bdi></button><label className="di-field">{t.crop} · <bdi>{crop}</bdi><input type="range" min="0" max="20" step="1" value={crop} disabled={busy} onChange={e=>{setCrop(Number(e.target.value));invalidate()}}/></label>
  <div className="di-format"><button type="button" aria-pressed={!pdf} disabled={busy} onClick={()=>{setPdf(false);invalidate()}}>{t.jpeg}</button><button type="button" aria-pressed={pdf} disabled={busy} onClick={()=>{setPdf(true);invalidate()}}>{t.pdf}</button></div>
- <button type="button" className="btn-secondary" disabled={busy} onClick={()=>void prepare()}>{busy?t.busy:t.preview}</button>
+ <button type="button" className="btn-secondary" disabled={busy||(perspective&&!validQuad(corners))} onClick={()=>void prepare()}>{busy?t.busy:t.preview}</button>
  {url?<>{pdf?<iframe title={t.preview} src={url}/>:<img src={url} alt={t.preview}/>}<a className="booking-link" href={url} download={"scan-copy."+(pdf?"pdf":"jpg")}>{t.download} · <bdi>{Math.ceil(size/1024)} KB</bdi></a>{size>2*1024*1024?<small className="di-warning">{t.large}</small>:null}</>:null}</div></div>:null}</details>
 }
