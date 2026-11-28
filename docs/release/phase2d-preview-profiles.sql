@@ -52,7 +52,7 @@ with raw as (
  nullif(upper(trim(t.passport_number)),'' ) passport_number,t.passport_expiry_date,t.date_of_birth,t.created_at,t.updated_at
  from visa_os_preview.applicants t join visa_os_preview.applications a on a.id=t.application_id join visa_os_preview.statuses s on s.id=a.status_id where not s.is_draft and not exists(select 1 from visa_os_preview.traveller_profile_links l where l.applicant_id=t.id)
 ), keyed as (
- select *,case when passport_number ~ '^[A-Z0-9]{6,20}$' and passport_number ~ '[0-9]' and passport_number !~ '^([A-Z0-9])\1+<>'—' and nationality<>'—' and (passport_expiry_date is not null or date_of_birth is not null)
+ select *,case when passport_number ~ '^[A-Z0-9]{6,20}$' and passport_number ~ '[0-9]' and passport_number !~ '^([A-Z0-9])\1+$' and full_name<>'—' and nationality<>'—' and (passport_expiry_date is not null or date_of_birth is not null)
  then jsonb_build_array(passport_number,nationality,lower(regexp_replace(trim(full_name),'[[:space:]]+',' ','g')),date_of_birth,passport_expiry_date)::text else id::text end identity_key from raw
 )
 select *,first_value(id) over(partition by agency_id,identity_key order by created_at,id) profile_id from keyed;
