@@ -61,7 +61,7 @@ export async function vaultDirectorySummary(user:Actor,ids:string[]){
  const agency=authorize(user);const keys=[...new Set(ids.filter(uuid))].slice(0,20);
  const result:Record<string,{stored:number;eligible:number;passport:boolean;photo:boolean}>={};
  if(!keys.length)return result;
- const r=await pool.query<Row>(projection().replace("v.profile_id=$2","v.profile_id=any($2::uuid[])")+" and not exists(select 1 from ${qt("traveller_vault_files")} n where n.agency_id=v.agency_id and n.profile_id=v.profile_id and n.type_id=v.type_id and n.version>v.version)",[agency,keys]);
+ const r=await pool.query<Row>(projection().replace("v.profile_id=$2","v.profile_id=any($2::uuid[])")+` and not exists(select 1 from ${qt("traveller_vault_files")} n where n.agency_id=v.agency_id and n.profile_id=v.profile_id and n.type_id=v.type_id and n.version>v.version)`,[agency,keys]);
  for(const row of r.rows){const item=result[row.profile_id]??={stored:0,eligible:0,passport:false,photo:false};item.stored++;if(eligible(row)){item.eligible++;if(row.code==="PASSPORT")item.passport=true;if(row.code==="PHOTO")item.photo=true}}
  return result;
 }
