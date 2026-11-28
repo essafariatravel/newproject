@@ -913,3 +913,22 @@ html[lang="ar"] .workspace-agency.workspace-agency.workspace-agency.workspace-ag
 .workspace-agency .group-wizard .group-document-grid>nav button{min-height:56px;overflow-wrap:anywhere}
 .workspace-agency .group-wizard .group-footer-guidance{min-width:0;max-width:100%;overflow-wrap:anywhere}
 @media(max-width:950px){.workspace-agency .group-wizard .group-document-grid{grid-template-columns:1fr}.workspace-agency .group-wizard .group-document-grid>nav{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(140px,100%),1fr));border-inline-end:0;padding-inline:0}.workspace-agency .group-wizard .group-footer{flex-wrap:wrap}.workspace-agency .group-wizard .group-footer-guidance{flex-basis:100%;order:-1}}
+
+
+/* Group Booking R04–R05 — tracking and safe roster reuse. */
+.workspace-agency .group-history{max-width:1080px;margin-inline:auto;width:100%}
+.workspace-agency .group-history-search{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.workspace-agency .group-history-search input{flex:1;min-inline-size:min(240px,100%);font-size:16px}
+.workspace-agency .group-history-tabs{display:flex;flex-wrap:wrap;gap:8px 24px;border-block-end:1px solid #e2e5e9}
+.workspace-agency .group-history-tabs a{display:flex;align-items:center;min-height:44px;padding-block:8px;border-block-end:2px solid transparent;color:#647182}
+.workspace-agency .group-history-tabs a[aria-current=page]{border-color:#0b1c30;color:#0b1c30;font-weight:600}
+.workspace-agency .group-history-entry{border:0;border-block-end:1px solid #dce2e8;padding:20px 0;gap:12px;min-width:0}
+.workspace-agency .group-history-entry .group-heading>div{display:grid;gap:4px}
+.workspace-agency .group-history-progress{display:flex;align-items:center;flex-wrap:wrap;gap:8px 20px;color:#647182;font-size:15px}
+.workspace-agency .group-history-progress bdi{font-variant-numeric:tabular-nums;color:#0b1c30;font-weight:600}
+.workspace-agency .group-history-entry progress{inline-size:100%;block-size:5px;accent-color:#0b1c30}
+.workspace-agency .group-history-entry .group-review-row{min-width:0;padding-block:12px}
+.workspace-agency .group-history-entry .group-review-row>div{min-width:0;overflow-wrap:anywhere}
+.workspace-agency .group-history-entry .booking-link{min-height:44px;display:inline-flex;align-items:center;gap:6px;white-space:normal}
+.workspace-agency .group-roster-notice{color:#647182;font-size:15px;border-inline-start:2px solid #0b1c30;padding-inline-start:12px;margin:0}
+@media(max-width:600px){.workspace-agency .group-history-search input{flex-basis:100%}.workspace-agency .group-history-entry .group-review-row{flex-wrap:wrap}.workspace-agency .group-history-tabs{gap:4px 16px}}
