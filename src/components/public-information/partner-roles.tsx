@@ -21,7 +21,7 @@ export function PartnerRoles({ locale, title, roles, alt }: {
     <div className="info-desk-signature"><bdi dir="ltr">Visa OS</bdi><span>{rolesLabel[locale]}</span></div>
     <h2 id="desk-title">{title}</h2>
     <div className="info-role-tabs" role="tablist" aria-label={rolesLabel[locale]} ref={list}>
-      {roles.map((role, index) => <button key={index} type="button" role="tab"
+      {roles.map((role, index) => <button key={index} type="button" role="tab" aria-description={role.title}
         id={`${id}-tab-${index}`} aria-controls={`${id}-panel-${index}`}
         aria-selected={index === current} tabIndex={index === current ? 0 : -1}
         onClick={() => setCurrent(index)}
@@ -38,7 +38,7 @@ export function PartnerRoles({ locale, title, roles, alt }: {
           event.preventDefault();
           setCurrent(next);
           list.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
-        }}><span className="role-full">{role.title}</span><span className="role-short">{shortRoles[locale][index]}</span></button>)}
+        }}>{shortRoles[locale][index]}</button>)}
     </div>
     {roles.map((role, index) => <div key={index} role="tabpanel" className="info-role-panel"
       id={`${id}-panel-${index}`} aria-labelledby={`${id}-tab-${index}`} hidden={index !== current} tabIndex={0}>

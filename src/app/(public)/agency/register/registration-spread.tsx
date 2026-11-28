@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { RegistrationLocale } from "@/lib/i18n";
 import { registrationSections, registrationUi, type RegistrationSection } from "./registration-ui";
+import { restoreRegistrationLanguage } from "./registration-language-link";
 
 export function RegistrationSpread({ locale, title, introduction, alreadyPartner, signIn, available, children }: {
   locale: RegistrationLocale;
@@ -16,11 +18,18 @@ export function RegistrationSpread({ locale, title, introduction, alreadyPartner
 }) {
   const text = registrationUi[locale];
   const sheet = useRef<HTMLDivElement>(null);
+  const router = useRouter();
   const [agencyName, setAgencyName] = useState("");
   const [activeSection, setActiveSection] = useState<RegistrationSection>("company");
 
   useEffect(() => {
     if (!available || !sheet.current) return;
+    const form = sheet.current.querySelector<HTMLFormElement>("form.registration-form");
+    const layoutIsCurrent = document.documentElement.lang === locale;
+    if (form) restoreRegistrationLanguage(form, locale, layoutIsCurrent);
+    // A client navigation can reuse the existing public layout. Refresh its
+    // translated header, footer and document direction with the chosen cookie.
+    if (!layoutIsCurrent) router.refresh();
     // Native autofill or typing can precede hydration. The visible cover follows
     // the real control, including when the browser restores it on navigation.
     const nameField = sheet.current.querySelector<HTMLInputElement>('input[name="legalName"]');
@@ -44,7 +53,7 @@ export function RegistrationSpread({ locale, title, introduction, alreadyPartner
       window.removeEventListener("scroll", onScroll);
       window.cancelAnimationFrame(frame);
     };
-  }, [available, locale]);
+  }, [available, locale, router]);
 
   return (
     <section className="public-front-page front-register" dir={locale === "ar" ? "rtl" : "ltr"}

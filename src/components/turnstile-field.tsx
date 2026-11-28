@@ -106,7 +106,7 @@ export const TurnstileField = forwardRef<TurnstileHandle, {
   }, [config.enabled, config.siteKey, action, locale, onVerified, attempt]);
 
   if (!config.enabled) return null;
-  return <div className="space-y-2" data-status={status} aria-label={text.label}>
+  return <div className="space-y-2" data-status={status} role="group" aria-label={text.label}>
     <input type="hidden" name="cf-turnstile-response" value={token} />
     <div ref={container} />
     <p role="status" aria-live="polite" aria-atomic="true" className="text-sm text-slate-600">

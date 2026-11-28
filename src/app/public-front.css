@@ -37,10 +37,12 @@
   .public-site:has(.public-front-page) .public-footer-grid > :first-child { grid-column: 1 / -1; }
 }
 @media (max-width: 399px) {
-  .public-site:has(.public-front-page) > .home-header {
+  .public-site > .home-header {
     --home-width: calc(100% - 1.5rem);
     --public-logo-width: 3.15rem;
     --public-logo-gap: .35rem;
   }
+}
+@media (max-width: 479px) {
   .public-site:has(.public-front-page) .public-footer-grid { grid-template-columns: minmax(0,1fr); }
 }

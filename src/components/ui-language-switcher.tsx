@@ -1,6 +1,7 @@
 import { pickUiLocale, UI_LOCALES, UI_LOCALE_NAMES, type UiLocale } from "@/lib/ui-locale-values";
 import { setUiLocaleAction } from "@/app/actions/ui-locale";
 import { seoLocalizedPublicPath, type IndexablePublicSeoPage } from "@/lib/seo-manifest";
+import { RegistrationLanguageLink } from "@/app/(public)/agency/register/registration-language-link";
 
 /**
  * Locale forms also work before hydration. On one-time access links, a
@@ -33,7 +34,12 @@ export function UiLanguageSwitcher({
   const languageLabel = "English / Français / العربية";
   const locales = login ? (["fr", "en", "ar"] as const) : UI_LOCALES;
   const shortLabel = (l: UiLocale) => l === "ar" ? (login ? UI_LOCALE_NAMES.ar : "ع") : l.toUpperCase();
-  const options = locales.map((l) => sameDocument ? (
+  const options = locales.map((l) => nextPath === "/agency/register" ? (
+    <RegistrationLanguageLink key={l} locale={l} current={l === current}
+      className={`flex min-h-11 items-center rounded-md px-4 text-base font-semibold ${l === current ? active : ""}`}>
+      {UI_LOCALE_NAMES[l]}
+    </RegistrationLanguageLink>
+  ) : sameDocument ? (
     <a key={l} href={`?lang=${l}${receiptReference ? `&ref=${receiptReference}` : ""}`} referrerPolicy="no-referrer" lang={l}
       aria-current={l === current ? "true" : undefined}
       className={`flex min-h-11 items-center rounded-md px-4 text-base font-semibold ${l === current ? active : ""}`}>

@@ -49,18 +49,12 @@
 .info-page .info-desk-signature { display: flex; align-items: center; justify-content: space-between; gap: .7rem; font-size: .9rem; color: var(--info-inverse-text); }
 .info-page .info-desk-signature bdi { color: var(--info-paper); font-family: var(--font-sans); font-size: 1.45rem; font-weight: 600; letter-spacing: -.04em; }
 .info-page .info-desk h2 { margin-block-start: 1.4rem; font-size: clamp(1.75rem, 2.55vw, 2.35rem); }
-.info-page .info-role-tabs { display: flex; gap: .5rem; margin-block-start: 1.15rem; border-block-end: 1px solid var(--info-inverse-line); }
+.info-page .info-role-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; margin-block-start: 1.15rem; border-block-end: 1px solid var(--info-inverse-line); }
 .info-page .info-role-tabs button {
   padding: .6rem .45rem; min-width: 0; min-height: 44px; background: transparent;
-  border-block-end: 3px solid transparent; font-size: .975rem; line-height: 1.35; color: var(--info-inverse-text);
+  border-block-end: 3px solid transparent; font-size: .975rem; line-height: 1.35; white-space: nowrap; color: var(--info-inverse-text);
 }
 .info-page .info-role-tabs button[aria-selected="true"] { color: var(--info-paper); font-weight: 600; border-color: var(--public-gold); }
-.info-role-tabs .role-short { display: none; }
-@media (max-width: 600px) {
-  .info-role-tabs .role-full { display: none; }
-  .info-role-tabs .role-short { display: inline; }
-  .info-page .info-role-tabs button { white-space: nowrap; padding-inline: .2rem; }
-}
 .info-page .info-role-tabs button:hover { text-decoration: underline; text-underline-offset: .24em; }
 .info-page .info-role-panel { padding-block-start: 1rem; min-height: 4.6em; color: var(--info-inverse-text); }
 .info-page .info-role-panel p { max-width: 52ch; }
@@ -76,9 +70,7 @@
 .info-page .info-capture img, .info-page .info-capture-dialog img { display: block; width: 100%; height: auto; }
 .info-page .info-capture-preview { margin-block-start: .5rem; }
 .info-page .info-capture-preview .info-capture-action { justify-content: space-between; flex-wrap: wrap; gap: .25rem .65rem; font-size: .875rem; }
-.info-page .info-capture-preview picture { height: clamp(5.75rem,8.5vw,7.625rem); overflow: clip; background: var(--info-paper); border: 2px solid var(--info-paper); border-block-end: none; border-radius: .25rem .25rem 0 0; }
-.info-page .info-capture-preview img { transition: transform .22s var(--public-ease); transform-origin: center top; }
-@media (hover:hover) { .info-page .info-capture-preview:hover img { transform: translateY(-2px); } }
+.info-page .info-capture-preview picture { max-height: clamp(9.5rem,16vw,14rem); overflow: clip; background: var(--info-paper); border: 2px solid var(--info-paper); border-block-end: none; border-radius: .25rem .25rem 0 0; }
 .info-page .info-capture-dialog {
   width: min(65rem, calc(100% - 2rem)); max-height: 88dvh; margin: auto; padding: clamp(.75rem,2vw,1.5rem);
   overflow: auto; border: 1px solid var(--public-divider); border-radius: var(--public-radius); background: var(--info-paper); color: var(--public-ink);
@@ -142,7 +134,7 @@
 @media (min-width:681px) and (max-width:920px) {
   .info-page .info-hero-pair, .info-page .info-questions { grid-template-columns: minmax(0,.87fr) minmax(0,1.13fr); gap: 1.75rem; }
   .info-page .info-role-tabs { gap: .15rem; }
-  .info-page .info-role-tabs button { flex: 1; padding-inline: .2rem; font-size: .9rem; }
+  .info-page .info-role-tabs button { padding-inline: .2rem; font-size: .95rem; }
   .info-page .info-capture-preview .info-capture-action { font-size: .85rem; }
 }
 @media (max-width:680px) {
@@ -152,7 +144,7 @@
   .info-page .info-hero-pair, .info-page .info-questions { padding-block: 2rem; }
   .info-page .info-hero-copy > .info-lead, .info-page .info-hero-copy > .info-actions { margin-block-start: .85rem; }
   .info-page .info-role-tabs { gap: .2rem; }
-  .info-page .info-role-tabs button { flex: 1; font-size: .92rem; padding-inline: .15rem; }
+  .info-page .info-role-tabs button { font-size: .95rem; padding-inline: .15rem; }
   .info-page .info-role-panel { min-height: 0; }
   .info-page .info-capture-preview { margin-block-start: .7rem; }
   .info-page .info-about-hero { padding-block: 2rem .8rem; }
@@ -164,6 +156,5 @@
   .info-page .info-paths p { margin-block-end: .35rem; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .info-page .info-capture-preview img { transition: none; }
-  .info-page .info-capture-preview:hover img, .info-page .info-primary:active { transform: none; }
+  .info-page .info-primary:active { transform: none; }
 }
