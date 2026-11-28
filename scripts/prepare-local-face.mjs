@@ -5,7 +5,7 @@ import {join} from "node:path";
 import {pathToFileURL} from "node:url";
 import assert from "node:assert/strict";
 const branch="codex/phase2c-document-intelligence-20261126";
-if(process.env.VERCEL!=="1"||process.env.VERCEL_ENV!=="preview"||process.env.VERCEL_GIT_COMMIT_REF!==branch)throw Error("Preview-only face assets");
+if(process.env.VERCEL!=="1"||!(process.env.VERCEL_ENV==="preview"||process.env.VERCEL_ENV==="production"&&process.env.DATABASE_SCHEMA==="visa_os")||process.env.VERCEL_GIT_COMMIT_REF!==branch)throw Error("Preview-only face assets");
 const root=join(process.cwd(),"public","document-guard","face-v1");
 const rev="189226d63aabb48cb40776fd1c453ebc0fa722f1";
 const base="https://raw.githubusercontent.com/vladmandic/face-api/"+rev+"/";
