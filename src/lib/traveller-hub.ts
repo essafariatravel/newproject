@@ -4,7 +4,7 @@ import {qualifiedTable as qt} from "@/lib/database-schema";
 import {hasPermission} from "@/lib/rbac";
 import {isAgencyRole,type AuthUser} from "@/lib/types";
 import {uuid,passportKey,normalizedQuery,pageNumber,minimumExpiry,reusableDocument,tripSpecificDocument,hubEnabled,nameKey,type ReuseFile} from "./traveller-hub-policy";
-import {vaultOptions} from "./traveller-vault";
+import {vaultOptions,vaultList} from "./traveller-vault";
 import {autoEligible,vaultEnabled} from "./traveller-hub-policy";
 import {algeriaToday} from "./travel-deadline";
 export type Actor=AuthUser&{agencyId:string};
@@ -50,6 +50,6 @@ export async function repeatSource(user:Actor,id:string){
  const a=profile.anchor;
  const documents=hasPermission(user,"documents.upload.own")?await travellerDocuments(user,profile):[];
  const reusable:ReuseFile[]=documents.filter(d=>d.reusable).slice(0,40).map(d=>({id:d.id,typeId:d.type_id,code:d.code,name:d.filename,mime:d.mime,size:d.size,sourceReference:d.reference,createdAt:d.created_at.toISOString(),programmeId:d.programme_id,tripSpecific:tripSpecificDocument(d.code),automatic:d.automatic}));
- if(vaultEnabled()&&hasPermission(user,"documents.upload.own")&&hasPermission(user,"documents.view.all"))reusable.unshift(...await vaultOptions(user,a.id));
+ if(vaultEnabled()&&hasPermission(user,"documents.upload.own")&&hasPermission(user,"documents.view.all")){const stored=await vaultList(user,a.id);const current=new Set(stored.filter(d=>d.latest).map(d=>d.type_id));const direct=await vaultOptions(user,a.id);return {id:a.id,name:a.name,nationality:a.nationality,passport:passportKey(a.passport),expiry:a.expiry??"",reference:a.reference,reusable:[...direct,...reusable.filter(d=>!current.has(d.typeId))]};}
  return {id:a.id,name:a.name,nationality:a.nationality,passport:passportKey(a.passport),expiry:a.expiry??"",reference:a.reference,reusable};
 }
