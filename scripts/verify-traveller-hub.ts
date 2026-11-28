@@ -98,3 +98,8 @@ console.log("[traveller-hub] Explicit corroborated merge policy PASS (4 assertio
 
 import {directorySort} from "../src/lib/traveller-hub-policy";
 assert.equal(directorySort("name"),"name");assert.equal(directorySort("expiry"),"expiry");assert.equal(directorySort("recent"),"recent");assert.equal(directorySort("expiry;drop table"),"recent");assert.equal(directorySort(undefined),"recent");console.log("[traveller-directory] Safe server-side sort PASS (5 assertions)");
+
+assert.equal(hubEnabled({VERCEL_ENV:"production",VERCEL_GIT_COMMIT_REF:CONSOLIDATED_BRANCH,DATABASE_SCHEMA:"visa_os"}),true);
+assert.equal(vaultEnabled({VERCEL_ENV:"production",VERCEL_GIT_COMMIT_REF:CONSOLIDATED_BRANCH,DATABASE_SCHEMA:"visa_os"}),true);
+assert.equal(hubEnabled({VERCEL_ENV:"production",VERCEL_GIT_COMMIT_REF:CONSOLIDATED_BRANCH,DATABASE_SCHEMA:"visa_os_preview"}),false);
+console.log("[hub-release] Production exact schema boundary PASS (3 assertions)");
