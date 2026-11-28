@@ -1,6 +1,7 @@
 import {NextResponse} from "next/server";
 import {requireAgencyUser} from "@/lib/auth";
 import {readRequestBodyLimited} from "@/lib/http-body";
+import {AppError} from "@/lib/types";
 import {vaultSave} from "@/lib/traveller-vault";
 import {vaultEnabled,uuid} from "@/lib/traveller-hub-policy";
 export const dynamic="force-dynamic";export const runtime="nodejs";
@@ -12,5 +13,5 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
  const data=await readRequestBodyLimited(request,2097152);
  const result=await vaultSave(user,id,type,version,{name,type:mime,data},url.searchParams.get("issued"));
  return NextResponse.json({id:result},{headers:{"Cache-Control":"private, no-store"}});
- }catch{return NextResponse.json({error:"Unable to save document"},{status:400})}
+ }catch(error){const capacity=error instanceof AppError&&error.code==="VAULT_CAPACITY";return NextResponse.json({error:"Unable to save document",...(capacity?{code:"VAULT_CAPACITY"}:{})},{status:capacity?409:400,headers:{"Cache-Control":"private, no-store"}})}
 }
