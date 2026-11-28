@@ -1,4 +1,4 @@
-import {groupEnabled,groupWithinBudget,distinctGroupIdentities,sharedDocumentCode} from "@/lib/group-policy";
+import {groupEnabled,groupWithinBudget,distinctGroupIdentities,groupDocumentConflict} from "@/lib/group-policy";
 import {uuid} from "@/lib/traveller-hub-policy";
 import {hasPermission} from "@/lib/rbac";
 import {linkTravellerInSubmission} from "@/lib/traveller-profile-write";
@@ -672,7 +672,7 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
 export async function submitVisaGroup(actorInput:AuthUser,groupId:string,manifest:string,inputs:SubmitVisaRequestInput[]):Promise<SubmitVisaRequestResult[]> {
  const agencyId=actorInput.agencyId;
  if(!groupEnabled()||databaseSchema()!=="visa_os_preview"||!agencyId||!isAgencyRole(actorInput.role)||!hasPermission(actorInput,"applications.create")||!hasPermission(actorInput,"documents.upload.own")||actorInput.mustChangePassword)throw new AppError("FORBIDDEN","Group unavailable");
- const input=inputs[0];if(!input||!uuid(groupId)||!/^[a-f0-9]{64}$/.test(manifest)||!groupWithinBudget(inputs.length,inputs.reduce((n,x)=>n+x.documents.length,0),inputs.reduce((n,x)=>n+x.documents.reduce((a,d)=>a+d.file.data.length,0),0))||!distinctGroupIdentities(inputs.map(x=>x.travellers[0]??{passportNumber:null}))||new Set(inputs.map(x=>x.idempotencyKey)).size!==inputs.length||inputs.some(x=>x.travellers.length!==1||x.visaTypeId!==input.visaTypeId||x.countryId!==input.countryId||x.expectedFee!==input.expectedFee||x.expectedCatalogue!==input.expectedCatalogue||!uuid(x.idempotencyKey)||!validApplicationPassport(x.travellers[0]!.passportNumber,x.travellers[0]!.passportExpiryDate,algeriaToday())))throw new AppError("VALIDATION","Invalid group");
+ const input=inputs[0];if(!input||!uuid(groupId)||!/^[a-f0-9]{64}$/.test(manifest)||!groupWithinBudget(inputs.length,inputs.reduce((n,x)=>n+x.documents.length,0),inputs.reduce((n,x)=>n+x.documents.reduce((a,d)=>a+d.file.data.length,0),0))||!distinctGroupIdentities(inputs.map(x=>x.travellers[0]??{passportNumber:null}))||new Set(inputs.map(x=>x.idempotencyKey)).size!==inputs.length||inputs.some(x=>x.travellers.length!==1||x.visaTypeId!==input.visaTypeId||x.countryId!==input.countryId||x.expectedFee!==input.expectedFee||x.expectedCatalogue!==input.expectedCatalogue||!uuid(x.idempotencyKey)||!x.expectedCatalogue||x.expectedFee===undefined||!validApplicationPassport(x.travellers[0]!.passportNumber,x.travellers[0]!.passportExpiryDate,algeriaToday())))throw new AppError("VALIDATION","Invalid group");
  await db.transaction(async tx=>{await currentOperationActor(tx,actorInput)});
   const cfgRows = await db
     .select({
@@ -718,11 +718,9 @@ export async function submitVisaGroup(actorInput:AuthUser,groupId:string,manifes
   const priorityOk = (!input.priorityCode || input.priorityCode === "STANDARD") && !!priorityRow[0];
 
 
- const prepared=inputs.map(x=>({input:x,applicationId:randomUUID(),docRows:validateRequest(x,cfg,requirements,priorityOk).map(d=>({...d,id:randomUUID(),sha256:sha256Hex(d.file.data)}))}));
- const hashes=new Map<string,number>();const kinds=new Map(requirements.map(r=>[r.documentTypeId,r.code]));
- for(let i=0;i<prepared.length;i++)for(const d of prepared[i]!.docRows){if(!sharedDocumentCode(kinds.get(d.documentTypeId)??"")){const old=hashes.get(d.sha256);if(old!==undefined&&old!==i)throw new AppError("VALIDATION","Personal document repeated across travellers");hashes.set(d.sha256,i);}}
- // Also reject a personal file reused in another traveller's shared slot.
- for(let i=0;i<prepared.length;i++)for(const d of prepared[i]!.docRows){const old=hashes.get(d.sha256);if(old!==undefined&&old!==i)throw new AppError("VALIDATION","Personal document repeated across travellers");}
+ const prepared=inputs.map(x=>{const validated=validateRequest(x,cfg,requirements,priorityOk);if(validated.length!==x.documents.length)throw new AppError("VALIDATION","Unknown document");return {input:x,applicationId:randomUUID(),docRows:validated.map(d=>({...d,id:randomUUID(),sha256:sha256Hex(d.file.data)}))}});
+ const kinds=new Map(requirements.map(r=>[r.documentTypeId,r.code]));
+ if(groupDocumentConflict(prepared.flatMap((m,i)=>m.docRows.map(d=>({member:i,code:kinds.get(d.documentTypeId)??"",sha256:d.sha256})))))throw new AppError("VALIDATION","Personal document repeated across travellers");
  const writtenKeys:string[]=[];let committed=false,uncertain=false;
  try{
  for(const m of prepared)for(const d of m.docRows){const key=buildStorageKey(m.applicationId,d.id);await storageProvider().put(key,d.file.data,d.file.type);writtenKeys.push(key);}
@@ -869,7 +867,7 @@ export async function submitVisaGroup(actorInput:AuthUser,groupId:string,manifes
          values ($1,$2,$3,$4,'APPLICATION_SUBMITTED','application',$5,$6,$7)`,
         [
           actor.id, actor.email, actor.role, agencyId, applicationId,
-          JSON.stringify({ reference, visaTypeCode: cfg.visaTypeCode, fee: cfg.fee, currency: "DZD", source: "three-step-request",
+          JSON.stringify({ reference, visaTypeCode: cfg.visaTypeCode, fee: cfg.fee, currency: "DZD", source: "group-request", groupId,
             actorName: actor.name, actorUsername: actor.username }),
           input.ipAddress ?? null,
         ],

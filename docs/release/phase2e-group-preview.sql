@@ -3,7 +3,7 @@ begin;
 set local lock_timeout='5s';
 create unique index if not exists group_application_scope_uq on visa_os_preview.applications(agency_id,id);
 create table if not exists visa_os_preview.visa_request_groups (
- id uuid not null, agency_id uuid not null references visa_os_preview.agencies(id), created_by uuid not null references visa_os_preview.users(id),
+ id uuid not null, agency_id uuid not null references visa_os_preview.agencies(id) on delete cascade, created_by uuid references visa_os_preview.users(id) on delete set null,
  manifest text not null check(manifest ~ '^[a-f0-9]{64}$'), member_count integer not null check(member_count between 2 and 5),
  created_at timestamptz not null default now(), primary key(agency_id,id)
 );
