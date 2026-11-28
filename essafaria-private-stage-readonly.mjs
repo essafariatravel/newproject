@@ -86,6 +86,14 @@ try {
  const owner=(await client.query("select count(*)::int n from visa_os.users where lower(btrim(email))=$1 and role='SUPER_ADMIN' and status='ACTIVE' and agency_id is null and must_change_password=false",["admin@essafariavoyages.com"])).rows[0];assert.equal(owner.n,1);
  gateStage="HISTORICAL_ADMINS";
  const historical=(await client.query("select count(*)::int n from visa_os.users where lower(btrim(email))<>$1 and role='SUPER_ADMIN' and status='ACTIVE' and agency_id is null",["admin@essafariavoyages.com"])).rows[0];assert.equal(historical.n,2);
+ if(process.env.VERCEL_GIT_COMMIT_REF==="codex/phase2c-document-intelligence-20261126"){
+ gateStage="GROUP_RELEASE_PRIVATE_TABLES";
+ const tables=["traveller_profiles","traveller_profile_links","traveller_renewal_events","traveller_renewal_scan","traveller_vault_files","traveller_visa_dates","traveller_visa_renewal_events","visa_request_groups","visa_request_group_members","saved_traveller_groups"];
+ const checks=(await client.query(`select c.relname,c.relrowsecurity rls,has_table_privilege('anon',c.oid,'SELECT,INSERT,UPDATE,DELETE') anon_access,has_table_privilege('authenticated',c.oid,'SELECT,INSERT,UPDATE,DELETE') authenticated_access,has_table_privilege('service_role',c.oid,'SELECT,INSERT,UPDATE,DELETE') service_access,has_table_privilege(current_user,c.oid,'SELECT') app_read from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='visa_os' and c.relname=any($1::text[])`,[tables])).rows;
+ assert.equal(checks.length,tables.length);for(const row of checks){assert.equal(row.rls,true);assert.equal(row.anon_access,false);assert.equal(row.authenticated_access,false);assert.equal(row.service_access,false);assert.equal(row.app_read,true)}
+ const groupScope=(await client.query(`select exists(select 1 from pg_index i join pg_class c on c.oid=i.indexrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='visa_os' and c.relname='visa_request_groups_id_global_uq' and i.indisunique and i.indisvalid) ok`)).rows[0];assert.equal(groupScope.ok,true);
+ console.log("GROUP_RELEASE_PRIVATE_SCHEMA_PASS (10 tables, RLS, public denial and global group identity)");
+ }
  await client.query("rollback");
  console.log("ESSAFARIA_PRIVATE_STAGE_TLS_READONLY_LEDGER39_CANCELLATION_REGISTRATION_EMAIL_STAFF_PUSH_OWNER_GATE_PASS");
 }catch {
