@@ -20,7 +20,7 @@ import { hasPermission } from "@/lib/rbac";
 import { CountryFlag } from "../dashboard-interactions";
 import { caseAction } from "../dashboard-smart";
 import { CaseFilters } from "./case-filters";
-import { caseLink, queueFilters, caseSort, detailLink, processingDuration, durationLabel, caseDateTime, caseResponsibility, caseQueryFilters, type CaseQueue } from "./case-workspace";
+import { caseLink, queueFilters, caseSort, detailLink, caseTabLink, processingDuration, durationLabel, caseDateTime, caseResponsibility, caseQueryFilters, type CaseQueue } from "./case-workspace";
 import { CaseQuickView, CaseQuickViewProvider } from "./case-quick-view";
 import { CaseSelectionProvider, CaseSelect, CaseSelectAll, CaseSelectionToolbar } from "./case-selection";
 import { CaseListMemory } from "./case-navigation";
@@ -42,7 +42,7 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
  const per=resolvePageSize(sp.per);
  const filters:ApplicationFilters=caseQueryFilters(sp),from=filters.dateFrom,to=filters.dateTo,country=filters.countryId;
  const shared={q:sp.q,status:sp.status,from,to,per:sp.per,country,sort:caseSort(sp.sort),missing:sp.missing==="1"?"1":undefined,focus:filters.caseFocus};
- const query={...shared,...queueFilters(queue)};
+ const query={...shared,...queueFilters(queue),work:queue==="attention"&&sp.work==="1"?"1":undefined};
  const hasFilters=Boolean(sp.q||sp.status||from||to||country||sp.missing==="1"||filters.caseFocus);
  const copy={
   fr:{all:"Tous",active:"Actifs",attention:"Action requise",completed:"Terminés",traveller:"Voyageur",destination:"Destination / visa",action:"Action",filters:"Filtres",search:"Nom, référence, pays ou visa…",suggestions:"Suggestions de dossiers",searching:"Recherche…",unavailable:"Suggestions indisponibles. La recherche reste accessible.",noSuggestions:"Aucune suggestion.",ready:"Vous êtes à jour",readyBody:"Aucun dossier ne nécessite votre intervention.",emptyQueue:"Aucun dossier dans cette vue.",decision:"Voir le dossier",cancelled:"Consulter l’annulation",cancellation:"Suivre l’annulation",documents:"Compléter les documents",openDocuments:"Consulter les documents",none:"Aucune action nécessaire",docsComplete:"Documents complets",docsPending:"Documents à compléter",loading:"Chargement des dossiers…"},
@@ -71,10 +71,10 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
  const workLabel=({fr:"Traiter les dossiers",en:"Process cases",ar:"معالجة الطلبات"}[locale]);
  const rows=result.rows.map(r=>{
    const base=detailLink(r.app.id,caseLink({...query,page:String(result.page)}));
-   const separator=base.includes("?")?"&":"?";
+   const returnContext=caseLink({...query,page:String(result.page)});
    const requested=r.agencyNextAction==="Upload requested documents";
    const action=caseAction(r.statusCode,requested,pendingIds.has(r.app.id));
-   const actionHref=action==="documents"?base+separator+"tab=documents":action==="cancellation"||action==="cancelled"?base+"#cancellation":base;
+   const actionHref=action==="documents"?caseTabLink(r.app.id,returnContext,"documents"):action==="cancellation"||action==="cancelled"?base+"#cancellation":base;
    const actionText=action==="documents"?(canUpload?copy.documents:copy.openDocuments):action==="view"?r.isTerminal?copy.decision:null:copy[action];
    const p=checklists.get(r.app.id);
    const elapsed=processingDuration(r.app.submittedAt,r.app.decisionAt,r.app.completedAt,r.isTerminal||["APPROVED","REJECTED","REFUSED","COMPLETED","CANCELLED"].includes(r.statusCode));
@@ -95,8 +95,9 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
    <nav className="case-queues" aria-label={ct("Applications")}>
      {queues.map((key,i)=><Link key={key} href={caseLink({...shared,...queueFilters(key)})} aria-current={queue===key?"page":undefined}><span>{copy[key]}</span><span className="case-count">{counts[i]}</span></Link>)}
    </nav>
-   {canUpload&&(counts[2]??0)>0?<div className="smart-focus-launch"><span>{({fr:"Traitement continu",en:"Continuous processing",ar:"المعالجة المتتابعة"}[locale])}</span><Link className="btn-primary btn-sm" href={focusQueue?.nextId?detailLink(focusQueue.nextId,workReturn)+"&tab=documents":workReturn}>{focusMode?({fr:"Commencer",en:"Start",ar:"ابدأ"}[locale]):workLabel} <span aria-hidden="true">→</span></Link></div>:null}
-   <CaseFilters key={caseLink(query)} locale={locale} labels={labels} query={query} currentPage={result.page} recent={recent} statuses={statuses.map(s=>({value:s.code,label:localizedStatusName(s.code,s.name,locale)}))} countries={Array.from(new Map(countryRows.map(r=>[r.id,{value:r.id,label:r.name}])).values()).sort((a,b)=>a.label.localeCompare(b.label,locale))} resetHref={resetHref}/>
+   {canUpload&&(counts[2]??0)>0?<div className="smart-focus-launch"><span>{({fr:"Traitement continu",en:"Continuous processing",ar:"المعالجة المتتابعة"}[locale])}{focusQueue?<small className="smart-workflow-count"> · <bdi>{focusQueue.total}</bdi> {({fr:"à traiter",en:"remaining",ar:"متبقية"}[locale])}</small>:null}</span><Link className="btn-primary btn-sm" href={focusQueue?.nextId?caseTabLink(focusQueue.nextId,workReturn,"documents"):workReturn}>{focusMode?({fr:"Commencer",en:"Start",ar:"ابدأ"}[locale]):workLabel} <span aria-hidden="true">→</span></Link></div>:null}
+   <nav className="smart-workflow-shortcuts" aria-label={({fr:"Vues de suivi",en:"Follow-up views",ar:"عروض المتابعة"}[locale])}>{(["unread","cancellation","stale","decision"] as const).map(focus=><Link key={focus} aria-current={query.focus===focus?"true":undefined} href={caseLink({...query,focus:query.focus===focus?undefined:focus,work:undefined})}>{({fr:{unread:"Messages non lus",cancellation:"Annulations en attente",stale:"Sans activité depuis 7 jours",decision:"Décisions"},en:{unread:"Unread messages",cancellation:"Pending cancellations",stale:"No activity for 7 days",decision:"Decisions"},ar:{unread:"رسائل غير مقروءة",cancellation:"إلغاءات قيد الانتظار",stale:"دون نشاط منذ 7 أيام",decision:"القرارات"}}[locale])[focus]}</Link>)}</nav>
+    <CaseFilters key={caseLink(query)} locale={locale} labels={labels} query={query} currentPage={result.page} recent={recent} statuses={statuses.map(s=>({value:s.code,label:localizedStatusName(s.code,s.name,locale)}))} countries={Array.from(new Map(countryRows.map(r=>[r.id,{value:r.id,label:r.name}])).values()).sort((a,b)=>a.label.localeCompare(b.label,locale))} resetHref={resetHref}/>
    {rows.length===0?<section className="case-empty" role="status">
      <h2>{hasFilters?ct("No applications match these filters."):queue==="attention"?copy.ready:queue==="all"?ct("No applications yet"):copy.emptyQueue}</h2>
      <p>{hasFilters?ct("Adjust or clear the filters to see other applications."):queue==="attention"?copy.readyBody:queue==="all"?ct("Submit your first visa application to see it tracked here."):""}</p>
