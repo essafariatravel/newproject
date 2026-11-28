@@ -12,8 +12,8 @@ import {vaultEnabled,uuid,personalCode,passportKey,civilDate,nameKey,autoEligibl
 import {algeriaToday} from "./travel-deadline";
 type Actor=AuthUser&{agencyId:string};
 function authorize(u:Actor,write=false){if(!vaultEnabled()||!uuid(u.agencyId)||u.mustChangePassword||u.userStatus!=="ACTIVE"||u.agencyStatus!=="ACTIVE"||!["AGENCY_ADMIN","AGENCY_USER"].includes(u.role)||!hasPermission(u,"applicants.view.all")||!hasPermission(u,"documents.view.all")||(write&&(!hasPermission(u,"documents.upload.own")||!hasPermission(u,"applications.create"))))throw new AppError("FORBIDDEN","Vault access denied");return u.agencyId}
-type Row={id:string;type_id:string;code:string;label:string;filename:string;mime:string;size:number;sha256:string;issued_at:string|null;created_at:Date;version:number;latest:boolean;identity_name:string;identity_nationality:string;identity_passport:string;identity_expiry:string;name:string;nationality:string;passport:string;expiry:string|null;archived_at:Date|null};
-const projection=()=>`select v.id,v.type_id,dt.code,dt.name label,v.original_filename filename,v.mime_type mime,v.size_bytes size,v.sha256,v.issued_at::text issued_at,v.created_at,v.version,
+type Row={profile_id:string;id:string;type_id:string;code:string;label:string;filename:string;mime:string;size:number;sha256:string;issued_at:string|null;created_at:Date;version:number;latest:boolean;identity_name:string;identity_nationality:string;identity_passport:string;identity_expiry:string;name:string;nationality:string;passport:string;expiry:string|null;archived_at:Date|null};
+const projection=()=>`select v.profile_id,v.id,v.type_id,dt.code,dt.name label,v.original_filename filename,v.mime_type mime,v.size_bytes size,v.sha256,v.issued_at::text issued_at,v.created_at,v.version,
  not exists(select 1 from ${qt("traveller_vault_files")} n where n.agency_id=v.agency_id and n.profile_id=v.profile_id and n.type_id=v.type_id and n.version>v.version) latest,
  v.identity_name,v.identity_nationality,v.identity_passport,v.identity_expiry::text identity_expiry,p.full_name name,p.nationality,coalesce(p.passport_number,'') passport,p.passport_expiry::text expiry,p.archived_at
  from ${qt("traveller_vault_files")} v join ${qt("traveller_profiles")} p on p.id=v.profile_id and p.agency_id=v.agency_id join ${qt("document_types")} dt on dt.id=v.type_id
@@ -54,4 +54,14 @@ export async function vaultRead(user:Actor,id:string,fileId:string,forReuse=fals
  assertStoredFileIntegrity({data,expectedSizeBytes:row.size,expectedSha256:row.sha256});
  await recordAuditPg(c,{actor,agencyId:agency,action:"TRAVELLER_VAULT_READ",entity:"traveller_vault",entityId:fileId,metadata:{profileId:id,reuse:forReuse}});await c.query("commit");return {data,filename:row.filename,mime:row.mime,size:row.size,typeId:row.type_id};
  }catch(e){await c.query("rollback");throw e}finally{c.release()}
+}
+
+/** Bounded single query for directory metadata. No file content or identity data returned to the browser. */
+export async function vaultDirectorySummary(user:Actor,ids:string[]){
+ const agency=authorize(user);const keys=[...new Set(ids.filter(uuid))].slice(0,20);
+ const result:Record<string,{stored:number;eligible:number;passport:boolean;photo:boolean}>={};
+ if(!keys.length)return result;
+ const r=await pool.query<Row>(projection().replace("v.profile_id=$2","v.profile_id=any($2::uuid[])")+" and not exists(select 1 from ${qt("traveller_vault_files")} n where n.agency_id=v.agency_id and n.profile_id=v.profile_id and n.type_id=v.type_id and n.version>v.version)",[agency,keys]);
+ for(const row of r.rows){const item=result[row.profile_id]??={stored:0,eligible:0,passport:false,photo:false};item.stored++;if(eligible(row)){item.eligible++;if(row.code==="PASSPORT")item.passport=true;if(row.code==="PHOTO")item.photo=true}}
+ return result;
 }
