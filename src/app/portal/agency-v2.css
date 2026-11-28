@@ -382,3 +382,193 @@ html[lang="ar"] .workspace-agency.workspace-agency.workspace-agency :is(.workspa
 .th-lookup{display:grid;gap:10px}.th-lookup>.booking-link{justify-self:start}.th-lookup-body{border-block:1px solid #e2e5e9;padding-block:12px;display:grid;gap:10px;min-width:0}.th-lookup-body .th-search{max-width:none}.th-lookup-body strong{font-weight:600;font-size:15px}.th-lookup-body small{color:#647182;font-size:14px}.th-wizard-fields .label{display:block;margin-block-end:6px}.th-lookup-body .th-reuse-row{padding:10px 0}
 
 .workspace-agency .th-profile-editor{display:grid;justify-items:start;gap:12px}.workspace-agency .th-profile-form{width:min(100%,760px);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;border-block:1px solid #e2e5e9;padding-block:18px}.th-profile-form>label{display:grid;gap:6px;font-size:15px}.th-profile-form>p{grid-column:1/-1}.th-profile-form .date-picker{width:100%;max-width:100%}.th-profile-form>.btn-primary{justify-self:start}@media(max-width:640px){.workspace-agency .th-profile-form{grid-template-columns:1fr}}
+
+
+/* PROJECT ONE UI — 3.0
+ * Agency-only foundation. The shared portal layout imports this stylesheet.
+ * Keep specialized workflow geometry, status semantics and document previews.
+ * Tokens are scoped to the agency shell; no public/staff theme changes.
+ */
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency {
+  --one-canvas: #fff;
+  --one-ink: #0b1c30;
+  --one-body: #344457;
+  --one-muted: #647182;
+  --one-rule: #e2e5e9;
+  --one-control: #8a8f98;
+  --one-hover: #f5f7fa;
+  --one-focus: #285582;
+  --one-positive: #23685c;
+  --one-danger: #a32b2b;
+  --one-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  --one-arabic: "Plex Arabic", Barlow, Arial, sans-serif;
+  --one-title: 2rem;
+  --one-section: 1.375rem;
+  --one-subsection: 1.125rem;
+  --one-text: 1rem;
+  --one-secondary: .9375rem;
+  --one-meta: .8125rem;
+  --one-weight: 600;
+  --one-space-1: 4px;
+  --one-space-2: 8px;
+  --one-space-3: 12px;
+  --one-space-4: 16px;
+  --one-space-6: 24px;
+  --one-space-8: 32px;
+  --one-space-12: 48px;
+  --one-space-16: 64px;
+  --one-gutter: var(--one-space-8);
+  --one-max: 1440px;
+  --one-hit: 44px;
+  --one-field: 46px;
+  --one-radius: 8px;
+  --one-panel-radius: 12px;
+  --agency-paper: var(--one-canvas);
+  --agency-ink: var(--one-ink);
+  --agency-muted: var(--one-muted);
+  --agency-rule: var(--one-rule);
+  --agency-hover: var(--one-hover);
+  background: var(--one-canvas);
+  color: var(--one-ink);
+  font-family: var(--one-sans);
+  font-size: var(--one-text);
+  line-height: 1.5;
+}
+html[lang="ar"] .workspace-agency.workspace-agency.workspace-agency.workspace-agency {font-family: var(--one-arabic);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main {
+  width:100%;
+  max-width:var(--one-max);
+  margin-inline:auto;
+  padding-inline:var(--one-gutter);
+  padding-block-start:var(--one-space-8);
+  min-width:0;
+  background:var(--one-canvas);
+  color:var(--one-ink);
+  font-family:inherit;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .workspace-page {min-width:0;max-width:100%;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.essafaria-dashboard,.essafaria-cases,.dossier-workspace,.booking-experience,.essafaria-wallet,.essafaria-notifications,.essafaria-communication,.agency-profile-r01,.th-hub,.ops-catalogue) {
+  --dash-ink:var(--one-ink);
+  --dash-muted:var(--one-body);
+  --dash-secondary:var(--one-muted);
+  --dash-rule:var(--one-rule);
+  --dash-hover:var(--one-hover);
+  --profile-ink:var(--one-ink);
+  --profile-muted:var(--one-muted);
+  --profile-rule:var(--one-rule);
+  font-family:inherit;
+  font-size:var(--one-text);
+  color:var(--one-ink);
+  min-width:0;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.essafaria-dashboard,.essafaria-cases,.dossier-workspace,.booking-experience,.th-hub) {gap:var(--one-space-6);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.agency-profile-r01,.ops-catalogue) {margin-inline:0;max-width:100%;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.page-header-title,.dash-title h1,.case-title h1,.wallet-title-line h1,.essafaria-wallet > h1,.sn-header h1,.comm-title h1,.agency-profile-r01 h1,.th-header h1,.ops-catalogue-header h1) {
+  font-size:var(--one-title);
+  font-weight:var(--one-weight);
+  line-height:1.2;
+  letter-spacing:-.025em;
+  color:var(--one-ink);
+  overflow-wrap:anywhere;
+}
+html[lang="ar"] .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(h1,h2,h3,.page-header-title) {letter-spacing:normal;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.page-header,.dash-title,.case-title,.sn-header,.comm-title,.th-header,.ops-catalogue-header,.wallet-title-line) {gap:var(--one-space-4);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.page-header-subtitle,.dash-title p,.profile-muted,.profile-note,.wallet-muted,.booking-muted,.r08-muted,.r09-hint,.r09-empty,.comm-empty-inbox,.sn-meta) {
+  color:var(--one-muted);
+  font-size:var(--one-secondary);
+  line-height:1.5;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.card-header h2,.dash-section-heading h2,.home-section-heading h2,.case-empty h2,.case-dialog-header h2,.dossier-workspace .dossier-tracking h2,.dossier-workspace .dossier-delivery h2,.r08-heading h2,.r09-heading h2,.booking-experience h2,.wallet-bank-directory h2,.sn-empty h2,.comm-empty h2,.comm-header h2,.profile-section h2) {
+  font-size:var(--one-section);
+  line-height:1.3;
+  font-weight:var(--one-weight);
+  letter-spacing:-.015em;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.r08-section h3,.r09-inspector-title h3,.r091-toolbar h3,.booking-experience h3,.wallet-bank-name h3,.wallet-receipt-section h3,.comm-picker-body h3) {
+  font-size:var(--one-subsection);
+  line-height:1.35;
+  font-weight:var(--one-weight);
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.tabular-nums,.wallet-money,.wallet-ledger-values,.case-fee,.dash-wallet-number,.sn-money,.case-count,.checkout-count) {font-variant-numeric:tabular-nums;}
+/* Shared controls, without changing custom combobox positioning or file inputs. */
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(button,input,select,textarea,summary) {font-family:inherit;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.btn,.btn-primary,.btn-secondary,.btn-danger,.btn-gold,.input,.case-select-trigger) {
+  border-radius:var(--one-radius);
+  font-size:var(--one-text);
+  line-height:1.35;
+  min-width:0;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.btn,.btn-primary,.btn-secondary,.btn-danger,.btn-gold,.case-select-trigger) {min-height:var(--one-hit);font-weight:500;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.btn-primary,.btn-gold):not(:disabled,[aria-disabled="true"]) {background:var(--one-ink);border-color:var(--one-ink);color:white;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.btn-primary,.btn-gold):not(:disabled,[aria-disabled="true"]):hover {background:#1c3a56;border-color:#1c3a56;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .btn-secondary:not(:disabled,[aria-disabled="true"]) {color:var(--one-ink);border-color:var(--one-control);background:white;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .btn-secondary:not(:disabled,[aria-disabled="true"]):hover {background:var(--one-hover);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(input.input,select.input,.case-select-trigger) {min-height:var(--one-field);border-color:var(--one-control);max-width:100%;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main textarea.input {min-height:calc(var(--one-field) * 2);border-color:var(--one-control);max-width:100%;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .input::placeholder {color:var(--one-muted);opacity:1;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.input,.case-select-trigger)[aria-invalid="true"] {border-color:var(--one-danger);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.btn,.btn-primary,.btn-secondary,.btn-danger,.btn-gold):is(:disabled,[aria-disabled="true"]) {cursor:not-allowed;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.label,.profile-fields label>span) {font-size:var(--one-secondary);font-weight:500;}
+/* Unified flat tabs, preserving each route's current selection semantics. */
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.case-queues,.wallet-tabs,.sn-tabs,.profile-tabs,.th-tabs,.ops-feed-tabs,.workspace-tabs) {
+  display:flex;gap:var(--one-space-6);max-width:100%;
+  overflow-x:auto;scrollbar-width:thin;
+  border:0;border-block-end:1px solid var(--one-rule);
+  border-radius:0;background:transparent;padding:0;box-shadow:none;
+  flex-wrap:nowrap;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.case-queues,.wallet-tabs,.sn-tabs,.profile-tabs,.th-tabs,.ops-feed-tabs,.workspace-tabs,.comm-filters) > :is(a,button) {
+  display:inline-flex;align-items:center;gap:var(--one-space-2);
+  min-height:var(--one-hit);flex-shrink:0;
+  padding:var(--one-space-2) 0;
+  font-size:var(--one-secondary);font-weight:500;white-space:nowrap;
+  color:var(--one-muted);background:transparent;
+  border:0;border-block-end:2px solid transparent;border-radius:0;box-shadow:none;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.case-queues,.wallet-tabs,.sn-tabs,.profile-tabs,.th-tabs,.ops-feed-tabs,.workspace-tabs,.comm-filters) > :is([aria-current="page"],[aria-current="true"],[aria-selected="true"],[aria-pressed="true"]) {
+  color:var(--one-ink);border-block-end-color:var(--one-ink);font-weight:var(--one-weight);
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.case-queues,.wallet-tabs,.sn-tabs,.profile-tabs,.th-tabs,.ops-feed-tabs,.workspace-tabs,.comm-filters) > :is(a,button):hover {color:var(--one-ink);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.table-scroll,.agency-v2-directory-list) {max-width:100%;border-radius:var(--one-panel-radius);box-shadow:none;border-color:var(--one-rule);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .table-scroll thead {background:var(--one-hover);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .table-scroll .th {color:var(--one-muted);font-size:var(--one-secondary);font-weight:500;padding:var(--one-space-3) var(--one-space-4);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .table-scroll .td {padding:var(--one-space-4);font-size:var(--one-text);border-color:var(--one-rule);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.case-table,.th-table,.wallet-ledger-list,.comm-inbox,.comm-detail,.sn-feed) {min-width:0;max-width:100%;}
+/* Focus, touch and outlined icon family. Do not resize flags, passport
+ * thumbnails, charts, SVG illustrations, or inline status indicators. */
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency :is(a,button,summary,input,select,textarea,[tabindex]):focus-visible {outline:2px solid var(--one-focus);outline-offset:3px;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.profile-text-action,.profile-logo-actions .btn-primary,.wallet-page-button,.checkout-edit,.checkout-replace,.dossier-reference button,.dossier-template-button,.sn-signature-actions a,.sn-signature-actions button,.comm-text-action) {min-height:var(--one-hit)!important;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.wallet-page-button,.dossier-reference button) {min-width:var(--one-hit);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency .workspace-nav-icon {width:18px;height:18px;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.btn,.btn-primary,.btn-secondary,.dossier-back,.ops-back,.th-back,.profile-text-action) > svg[viewBox="0 0 24 24"][fill="none"][stroke="currentColor"] {width:20px;height:20px;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.btn,.btn-primary,.btn-secondary,.input):focus-visible {outline:2px solid var(--one-focus);outline-offset:3px;}
+/* Shared empty, error and pending presentations. Keep existing labels,
+ * live-region semantics and event handling intact. */
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.case-empty,.sn-empty,.comm-empty,.comm-empty-inbox,.th-empty,.ops-feed-empty,.booking-empty) {
+  overflow-wrap:anywhere;
+  line-height:1.5;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.case-empty,.sn-empty,.th-empty,.ops-feed-empty) {padding-block:var(--one-space-12);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.case-empty,.sn-empty,.comm-empty,.th-empty,.ops-feed-empty) p {color:var(--one-muted);font-size:var(--one-secondary);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is([role="alert"],[role="status"]).rounded-lg {border-radius:var(--one-radius);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main [role="status"][aria-busy="true"] {padding:var(--one-space-8) 0;max-width:100%;margin-inline:0;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main [role="status"][aria-busy="true"] > p {font-size:var(--one-secondary);color:var(--one-muted);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main [role="status"][aria-busy="true"] [aria-hidden="true"] > div {background:var(--one-hover);border-radius:var(--one-radius);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main progress {accent-color:var(--one-positive);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.booking-review-dialog,.case-quick-dialog,.case-viewer-dialog) {border-radius:var(--one-panel-radius);max-width:calc(100% - 24px);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.checkout-document,.checkout-gallery,.booking-catalogue,.booking-docs,.profile-fields,.th-columns) {min-width:0;max-width:100%;}
+@media(max-width:1023px) {
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency {--one-gutter:var(--one-space-6);}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main {padding-block-start:var(--one-space-6);}
+}
+@media(max-width:767px) {
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency {--one-gutter:var(--one-space-4);--one-title:1.75rem;--one-section:1.25rem;}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main {padding-block-start:var(--one-space-6);padding-block-end:calc(110px + env(safe-area-inset-bottom,0px));}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.case-queues,.wallet-tabs,.sn-tabs,.profile-tabs,.th-tabs,.ops-feed-tabs,.workspace-tabs) {gap:var(--one-space-4);}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.essafaria-dashboard,.essafaria-cases,.dossier-workspace,.booking-experience,.th-hub) {gap:var(--one-space-4);}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.case-empty,.sn-empty,.th-empty,.ops-feed-empty) {padding-block:var(--one-space-8);}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.btn,.btn-primary,.btn-secondary,.input) {max-width:100%;white-space:normal;}
+}
+@media(prefers-reduced-motion:reduce) {
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency :is(.btn,.btn-primary,.btn-secondary,.workspace-nav-link,.case-row,.dash-record-row,.comm-row,.sn-row,.wallet-ledger-trigger) {transition:none;animation:none;}
+}
