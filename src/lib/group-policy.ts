@@ -5,7 +5,7 @@ export function distinctGroupIdentities(rows:readonly {passportNumber?:string|nu
  const passports=rows.map(r=>passportKey(r.passportNumber)),ids=rows.flatMap(r=>r.travellerProfileId?[r.travellerProfileId]:[]);
  return passports.every(Boolean)&&new Set(passports).size===rows.length&&new Set(ids).size===ids.length;
 }
-export function sharedDocumentCode(code:string){return ["ACCOMMODATION_PROOF","FLIGHT_RESERVATION","HOTEL_RESERVATION","INVITATION_LETTER"].includes(code)}
+export function sharedDocumentCode(code:string){return ["ACCOMMODATION_PROOF","FLIGHT_RESERVATION","HOTEL_RESERVATION","INVITATION_LETTER","LEGACY-4b8e7617dd7309fd040d63f2814f33fd","LEGACY-8626bc732ffa233f4e105ee5e1002c16","LEGACY-d42cf2b07d29646d145578d1740bf6d3","LEGACY-ee25dc3ac5f96746f7a664765d716072"].includes(code)}
 export function groupWithinBudget(count:number,files:number,bytes:number){return Number.isSafeInteger(count)&&count>=GROUP_MIN&&count<=GROUP_MAX&&Number.isSafeInteger(files)&&files>=0&&files<=GROUP_FILES_MAX&&Number.isSafeInteger(bytes)&&bytes>=0&&bytes<=GROUP_BYTES_MAX}
 export function groupMoney(value:string|number,count:number){const s=String(value);if(!/^\d{1,12}(?:\.\d{1,2})?$/.test(s)||!Number.isSafeInteger(count)||count<0||count>GROUP_MAX)return null;const [a,b=""]=s.split(".");return Number(a)*100*count+Number(b.padEnd(2,"0"))*count}
 
