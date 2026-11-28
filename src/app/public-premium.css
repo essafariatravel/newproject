@@ -149,8 +149,22 @@
   .hero-content { padding-block: clamp(4.5rem,20vw,6.625rem) 3.5rem; }
   .hero-content h1 { max-width: 100%; font-size: clamp(2.125rem,8.3vw,2.875rem); letter-spacing: -.034em; line-height: 1.06; }
   .hero-content > p { max-width: 45ch; font-size: 1.0625rem; margin-block-start: .8125rem; line-height: 1.55; }
-  .hero-actions { flex-wrap: wrap; align-items: center; gap: .5rem; margin-block-start: 1.1875rem; }
+  .hero-actions {
+    display: grid;
+    grid-template-columns: minmax(0,1.12fr) minmax(0,1fr);
+    align-items: stretch;
+    gap: .5rem;
+    margin-block-start: 1.1875rem;
+  }
   .hero-actions a { min-width: 0; }
+  .platform-home .hero-actions :is(.platform-primary,.platform-secondary) {
+    min-height: 3.5rem;
+    padding: .375rem .625rem;
+    line-height: 1.25;
+    text-align: center;
+  }
+  .hero-actions .hero-demo-link { grid-column: 1 / -1; justify-self: start; padding-inline: 0; }
+  .hero-actions svg { flex: none; }
   .platform-home :is(.platform-primary,.platform-secondary) { padding-inline: .8125rem; font-size: 1rem; gap: .5rem; }
   .workspace-tour { margin-block: -1.1875rem 2.25rem; border-radius: .625rem; }
   .tour-heading { padding: 1.1875rem 1.0625rem .9375rem; flex-wrap: wrap; gap: .375rem .625rem; }
@@ -164,7 +178,8 @@
   .public-site:has(.platform-home, .public-front-page) footer > .ess-container { padding-block: 1.6875rem 1.3125rem; gap: 1.5625rem; }
 }
 @media (max-width:359px) {
-  .hero-actions { display: grid; justify-items: start; }
+  .hero-actions { grid-template-columns: minmax(0,1fr); justify-items: start; }
+  .platform-home .hero-actions :is(.platform-primary,.platform-secondary) { min-height: var(--public-action-height); }
   .public-site > .home-header .platform-access .public-partner-action { padding-inline: .375rem; }
 }
 @media (prefers-reduced-motion:reduce) {
