@@ -81,3 +81,16 @@ export function canConsolidate(a:TravellerIdentity&{dob:string|null},b:Traveller
 }
 
 export const directorySort=(v:unknown):"recent"|"name"|"expiry"=>v==="name"||v==="expiry"?v:"recent";
+
+/** Explicit, conservative byte budgets. Preview remains isolated; Production has per-agency fairness and a physical database guard. */
+export function vaultStorageLimits(env:Record<string,string|undefined>=process.env){
+ const mib=1024*1024;
+ return consolidatedProductionEnabled(env)?{global:100*mib,agency:25*mib,database:400*mib}:{global:20*mib,agency:20*mib,database:null};
+}
+export function vaultStorageFits(usage:{global:number;agency:number;database:number},bytes:number,env:Record<string,string|undefined>=process.env){
+ const limit=vaultStorageLimits(env);
+ if(![usage.global,usage.agency,usage.database,bytes].every(x=>Number.isSafeInteger(x)&&x>=0)||bytes===0)return false;
+ return usage.global+bytes<=limit.global&&usage.agency+bytes<=limit.agency&&(limit.database===null||usage.database+2*bytes<=limit.database);
+}
+export function profileIdentityComplete(passport:string|null|undefined,expiry:string|null|undefined){return Boolean(passportKey(passport)&&civilDate(expiry))}
+export function parallelStagingEnabled(env:Record<string,string|undefined>=process.env){return env.ESSAFARIA_PARALLEL_STAGING!=="false"&&(consolidatedProductionEnabled(env)||env.VERCEL_ENV==="preview")}
