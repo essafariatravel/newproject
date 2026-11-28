@@ -4,6 +4,9 @@ import { configName } from "@/lib/config-localization";
 import { ReconciliationWarning } from "@/components/reconciliation-warning";
 import { businessLabel } from "@/lib/business-labels";
 import Link from "next/link";
+import {groupEnabled} from "@/lib/group-policy";
+import {pool} from "@/lib/db";
+import {qualifiedTable as qt} from "@/lib/database-schema";
 import { notFound } from "next/navigation";
 import { pageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
@@ -69,6 +72,7 @@ export default async function AdminApplicationDetailPage({
   const detail = await getApplicationDetail(id, user);
   if (!detail) notFound();
   const app = detail.app;
+  const groupRef=groupEnabled()&&hasPermission(user,"applications.view.all")&&hasPermission(user,"applicants.view.all")?(await pool.query<{group_id:string}>(`select group_id from ${qt("visa_request_group_members")} where application_id=$1 and agency_id=$2 limit 1`,[app.id,app.agencyId])).rows[0]?.group_id:null;
   const cancellations = await listApplicationCancellations(id,user);
 
   const canAdjustPrice = hasPermission(user, "applications.pricing.adjust");
@@ -146,6 +150,7 @@ export default async function AdminApplicationDetailPage({
           </>
         }
       />
+      {groupRef?<Link href={"/admin/applications/groups?group="+encodeURIComponent(groupRef)} className="btn-secondary btn-sm">{({fr:"Voir le groupe",en:"View group",ar:"عرض المجموعة"}[uiLocale])} →</Link>:null}
       <ReconciliationWarning applicationId={id} user={user} locale={uiLocale}/>
       <Flash {...flash} />
       <CancellationPanel rows={cancellations} staff={true} locale={uiLocale}/>
