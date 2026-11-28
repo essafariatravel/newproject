@@ -66,6 +66,7 @@ function main(): void {
     );
   }
 
+  if (run("node_modules/tsx/dist/cli.mjs", ["scripts/verify-decision-dialog.ts"]) !== 0) process.exit(1);
   process.exit(run("node_modules/next/dist/bin/next", ["build"]));
 }
 

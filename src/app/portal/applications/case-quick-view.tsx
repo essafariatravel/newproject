@@ -1,6 +1,7 @@
 "use client";
 import {createContext,useContext,useEffect,useRef,useState,type ReactNode} from "react";
 import Link from "next/link";
+import {ownsClosedDialog,isDialogBackdrop} from "./dialog-lifecycle";
 import {CopyCaseReference} from "./copy-case-reference";
 import {DocumentViewerProvider,DocumentPreviewButton} from "./document-viewer";
 type Locale="fr"|"en"|"ar";
@@ -19,12 +20,14 @@ export function CaseQuickViewProvider({rows,locale,children}:{rows:Summary[];loc
  function move(i:number){const row=rows[i];if(!row)return;abort.current?.abort();setSelected(row.id);setFiles([]);setPhase("idle")}
  const tabHref=(href:string,tab:string)=>href+(href.includes("?")?"&":"?")+"tab="+tab;
  useEffect(()=>()=>abort.current?.abort(),[]);
+ // Never leave an empty native modal trapping the rest of the page if rows change.
+ useEffect(()=>{if(ref.current?.open&&!p)ref.current.close()},[p]);
  async function verify(id:string){
   abort.current?.abort();const a=new AbortController();abort.current=a;setPhase("loading");setFiles([]);
   try{const r=await fetch("/api/agency/cases/"+encodeURIComponent(id)+"/decision",{method:"POST",cache:"no-store",signal:a.signal});if(!r.ok)throw Error("decision");const data=await r.json() as {files:Verified[]};if(!a.signal.aborted){setFiles(data.files);setPhase("ready")}}catch{if(!a.signal.aborted)setPhase("error")}
  }
- function show(id:string,decision:boolean,source:HTMLElement){const row=rows.find(r=>r.id===id);if(!row)return;abort.current?.abort();trigger.current=source;setSelected(id);setFiles([]);setPhase("idle");ref.current?.showModal();if(decision&&row.official)void verify(id)}
- return <Context.Provider value={show}>{children}<dialog ref={ref} className="case-quick-dialog" aria-label={t.preview} onClose={()=>{abort.current?.abort();setSelected(null);setFiles([]);trigger.current?.focus({preventScroll:true})}}>
+ function show(id:string,decision:boolean,source:HTMLElement){const row=rows.find(r=>r.id===id);if(!row)return;abort.current?.abort();trigger.current=source;setSelected(id);setFiles([]);setPhase("idle");if(ref.current&&!ref.current.open)ref.current.showModal();if(decision&&row.official)void verify(id)}
+ return <Context.Provider value={show}>{children}<dialog ref={ref} className="case-quick-dialog" aria-label={t.preview} onClick={e=>{if(isDialogBackdrop(e.target,e.currentTarget,e.clientX,e.clientY))e.currentTarget.close()}} onClose={e=>{if(!ownsClosedDialog(e.target,e.currentTarget))return;abort.current?.abort();setSelected(null);setFiles([]);setPhase("idle");trigger.current?.focus({preventScroll:true})}}>
  {p?<><div className="case-dialog-header"><h2><bdi>{p.traveller}</bdi></h2><button type="button" className="case-dialog-close" aria-label={t.close} onClick={()=>ref.current?.close()}>×</button></div>
  <CopyCaseReference key={p.id} reference={p.reference} label={extra.copy} copied={extra.copied} failed={extra.failed}/><p>{p.destination}</p>
  <div className="case-quick-state"><span className="case-state" data-status={p.statusCode}><span>{p.status}</span></span><span>{p.elapsed??"—"}</span></div>
