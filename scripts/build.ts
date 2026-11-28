@@ -67,6 +67,8 @@ function main(): void {
   }
 
   if (isVercelPreview && process.env.VERCEL_GIT_COMMIT_REF === "codex/phase2c-document-intelligence-20261126") {
+    // Pure UX regression checks for this protected Preview only.
+    if (run("node_modules/tsx/dist/cli.mjs", ["scripts/verify-agency-ux.ts"]) !== 0) process.exit(1);
     if (run("scripts/prepare-local-face.mjs", []) !== 0) process.exit(1);
     if (run("scripts/prepare-local-pdf.mjs", []) !== 0) process.exit(1);
     if (run("scripts/prepare-local-analysis.mjs", []) !== 0) process.exit(1);
