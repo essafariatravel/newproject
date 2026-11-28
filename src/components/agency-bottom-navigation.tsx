@@ -19,7 +19,7 @@ export function AgencyBottomNavigation({ sections, label, locale }: { sections: 
     badge: item.href.endsWith("/notifications") ? unread : item.badge,
   }));
   const matched = activeNavigationHref(allItems, pathname);
-  const active = matched === "/portal/applications/new" ? "/portal/applications" : matched;
+  const active = matched === "/portal/applications/new" ? "/portal/applications" : matched === "/portal" && pathname !== "/portal" ? undefined : matched;
   useEffect(() => {
     const root = document.querySelector<HTMLElement>(".workspace-agency");
     const viewport = window.visualViewport;
