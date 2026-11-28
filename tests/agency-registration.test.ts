@@ -336,6 +336,9 @@ describe("public registration action — anti-automation & safe errors", () => {
     const form = new FormData();
     for (const [k, v] of Object.entries({
       ...data,
+      contactLastName: "Benali",
+      phoneCountry: "DZ",
+      phone: "550123456",
       locale: "en",
       renderedAt: String(Date.now() - 10_000),
       termsVersion: "1",
@@ -371,6 +374,19 @@ describe("public registration action — anti-automation & safe errors", () => {
     const result = await submitRegistrationAction({}, form);
     expect(result.fieldErrors?.legalName).toBe("Ce champ est obligatoire.");
     expect(result.fieldErrors?.email).toBeTruthy();
+    expect(await countRegistrations()).toBe(before);
+  });
+
+  it("rejects invalid contact names and phone length before persisting a public request", async () => {
+    const before = await countRegistrations();
+    const result = await submitRegistrationAction({}, actionFormData({
+      locale: "fr", contactFirstName: "123", contactLastName: "Benali!", phone: "5501234567",
+    }));
+    expect(result.fieldErrors).toMatchObject({
+      contactFirstName: "Utilisez des lettres pour ce nom.",
+      contactLastName: "Utilisez des lettres pour ce nom.",
+      phone: "Vérifiez le numéro de téléphone.",
+    });
     expect(await countRegistrations()).toBe(before);
   });
 

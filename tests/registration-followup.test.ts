@@ -20,7 +20,7 @@ async function reviewed() {
 describe("partnership review", () => {
   it("rejects stale legal acceptance rather than assigning a version never shown", async () => {
     const form=new FormData();
-    for(const [key,value] of Object.entries({legalName:"Stale Consent Voyages",contactFirstName:"Amine Benali",email:"stale@consent.example",phone:"+213 550 111 222",locale:"en",renderedAt:String(Date.now()-10_000),terms:"true",privacy:"true",accuracy:"true",termsVersion:"999",privacyVersion:"999"})) form.set(key,value);
+    for(const [key,value] of Object.entries({legalName:"Stale Consent Voyages",contactFirstName:"Amine",contactLastName:"Benali",email:"stale@consent.example",phoneCountry:"DZ",phone:"550111222",locale:"en",renderedAt:String(Date.now()-10_000),terms:"true",privacy:"true",accuracy:"true",termsVersion:"999",privacyVersion:"999"})) form.set(key,value);
     const result=await submitRegistrationAction({},form);
     expect(result.error).toBeTruthy();
     expect(await db.select().from(agencyRegistrations).where(eq(agencyRegistrations.legalName,"Stale Consent Voyages"))).toHaveLength(0);

@@ -230,7 +230,8 @@ async function main() {
     {
       const { ctx, page } = await context('fr', 375); await page.goto(origin + '/agency/register?lang=fr'); await ready(page);
       await page.locator('[name="legalName"]').fill('Agence fictive de recette');
-      await page.locator('[name="contactFirstName"]').fill('Lina'); await page.locator('[name="email"]').fill('partner@example.test');
+      await page.locator('[name="contactFirstName"]').fill('Lina'); await page.locator('[name="contactLastName"]').fill('Benali');
+      await page.locator('[name="email"]').fill('partner@example.test');
       await page.locator('[name="phone"]').fill('+213555123456');
       for (const name of ['terms', 'privacy', 'accuracy']) await page.locator(`[name="${name}"]`).check();
       await checkLayout(page, 'registration-fr-375'); await page.waitForTimeout(1600);

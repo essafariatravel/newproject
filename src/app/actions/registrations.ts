@@ -27,6 +27,10 @@ import { safeErrorCode } from "@/lib/safe-error";
 import { assertPublicBotProtection, publicClientIp } from "@/lib/bot-protection";
 import { botProtectionError } from "@/lib/bot-protection-copy";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
+import {
+  assessRegistrationPhone, contactFields, normalizeRegistrationName, registrationContactError,
+  registrationContactProblems, type ContactDraft,
+} from "@/lib/registration-contact";
 
 
 export interface RegistrationFormState {
@@ -98,19 +102,28 @@ export async function submitRegistrationAction(
   }
 
   // Strict whitelisted input — privileged keys simply do not exist here.
+  const contact = Object.fromEntries(contactFields.map(name => [name, field(formData, name) ?? ""])) as ContactDraft;
+  const phone = assessRegistrationPhone(contact.phone, contact.phoneCountry);
+  const issues = registrationContactProblems(contact, phone);
+  const contactErrors: Record<string, string> = {};
+  for (const name of contactFields) {
+    const problem = issues[name];
+    if (problem) contactErrors[name] = registrationContactError(locale, copy.errors, problem);
+  }
   const schema = registrationFormSchema(copy.errors);
   const parsed = schema.safeParse({
     legalName: field(formData, "legalName"),
-    contactFirstName: field(formData, "contactFirstName"),
+    contactFirstName: normalizeRegistrationName(contact.contactFirstName),
+    contactLastName: normalizeRegistrationName(contact.contactLastName),
     city: field(formData, "city"),
-    phone: field(formData, "phone"),
+    phone: phone.status === "valid" ? phone.e164 : field(formData, "phone"),
     email: field(formData, "email"),
     terms: field(formData, "terms"),
     privacy: field(formData, "privacy"),
     accuracy: field(formData, "accuracy"),
   });
-  if (!parsed.success) {
-    const fieldErrors = fieldErrorsFrom(parsed.error);
+  if (!parsed.success || Object.keys(contactErrors).length) {
+    const fieldErrors = { ...(parsed.success ? {} : fieldErrorsFrom(parsed.error)), ...contactErrors };
     return { error: Object.values(fieldErrors)[0] ?? copy.errors.required, fieldErrors };
   }
 

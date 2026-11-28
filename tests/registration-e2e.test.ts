@@ -62,7 +62,8 @@ async function publicForm(): Promise<FormData> {
   form.set("region", "Oran");
   form.set("city", "Oran");
   form.set("addressLine", "44 Boulevard de la Soummam");
-  form.set("phone", "+213 41 00 00 00");
+  form.set("phoneCountry", "DZ");
+  form.set("phone", "550123456");
   form.set("email", "contact@atlas-cristal.example");
   form.set("website", "https://www.atlas-cristal.example");
   form.set("commercialRegistrationNumber", "RC-31-445566");
@@ -118,6 +119,9 @@ describe("Phase 2 E2E — registration to portal", () => {
     )[0]!;
     expect(reg.status).toBe("PENDING");
     expect(reg.locale).toBe("fr");
+    expect(reg.contactFirstName).toBe("Yasmine");
+    expect(reg.contactLastName).toBe("Kaci");
+    expect(reg.phone).toBe("+213550123456");
     // mass-assignment attempt did nothing
     expect(reg.agencyId).toBeNull();
     expect(reg.internalNotes).toBeNull();
