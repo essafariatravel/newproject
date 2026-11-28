@@ -92,3 +92,15 @@ assert.equal(groupFinancialTotals([debit,{...debit,valid:false}],2),null);
 assert.equal(groupFinancialTotals([debit,{...debit,refund:"30.001"}],2),null);
 assert.equal(groupFinancialTotals([debit,{...debit,net:"-1"}],2),null);
 console.log("[group-finance] Exact cents, refunds, discounts, reconciliation and incomplete-ledger denial PASS (6 assertions)");
+
+
+import {canRestartRejectedGroup} from "../src/lib/group-policy";
+assert.equal(canRestartRejectedGroup(false,400,"INSUFFICIENT_FUNDS"),true);
+assert.equal(canRestartRejectedGroup(false,400,"VISA_TYPE_INVALID"),true);
+assert.equal(canRestartRejectedGroup(false,400,"TRAVELLER_CHANGED"),true);
+assert.equal(canRestartRejectedGroup(true,400,"INSUFFICIENT_FUNDS"),false);
+assert.equal(canRestartRejectedGroup(false,500,"INTERNAL"),false);
+assert.equal(canRestartRejectedGroup(false,400,"INTERNAL"),false);
+assert.equal(canRestartRejectedGroup(false,403,"FORBIDDEN"),false);
+assert.equal(canRestartRejectedGroup(false,400,undefined),false);
+console.log("[group-recovery] Definitive rejection unlocks only first attempts; uncertain submissions keep receipt identity PASS (8 assertions)");
