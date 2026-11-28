@@ -1,0 +1,50 @@
+/** Read-only regression contracts. No network, credentials, database or test user. */
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { capacity, caseAction } from "../src/app/portal/dashboard-smart";
+import { caseTabLink, caseResponsibility, safeCaseReturn, validCaseDate, caseDateBoundary, processingDuration } from "../src/app/portal/applications/case-workspace";
+import { supportsDocumentPreview, verifiedPreviewBlob } from "../src/app/portal/applications/document-preview-blob";
+import { activeNavigationHref, agencyPrimaryItems } from "../src/components/workspace-route";
+import { automaticDatabaseChangesForbidden } from "./lib/build-policy";
+
+async function main() {
+  assert.equal(automaticDatabaseChangesForbidden("codex/phase2c-document-intelligence-20261126"), true);
+  assert.deepEqual(capacity("100000", ["18000", "25000", "0"]), {minimum:18000,count:5,shortfall:0});
+  assert.deepEqual(capacity("99.99", ["100.00"]), {minimum:100,count:0,shortfall:.01});
+  assert.equal(capacity("100000", ["0", "invalid"]), null);
+  assert.equal(capacity("invalid", ["18000"]), null);
+  assert.equal(caseAction("IN_PROCESS", true, true), "cancellation");
+  assert.equal(caseResponsibility("IN_PROCESS",false,true,true),"cancellation");
+  assert.equal(caseAction("APPROVED", true, true), "decision");
+  assert.equal(caseResponsibility("APPROVED",true,true,true),"closed");
+  assert.equal(caseAction("IN_PROCESS",true,false),"documents");
+  const returnTo="/portal/applications?documents=requested&sort=oldest&work=1";
+  const target=new URL(caseTabLink("test",returnTo,"documents","request-1"),"https://example.invalid");
+  assert.equal(target.pathname,"/portal/applications/test");
+  assert.equal(target.searchParams.get("returnTo"),returnTo);
+  assert.equal(target.searchParams.get("tab"),"documents");
+  assert.equal(target.hash,"#request-1");
+  assert.equal(safeCaseReturn("https://example.invalid"),"/portal/applications");
+  assert.equal(safeCaseReturn("/portal/applications?work=1&redirect=https://example.invalid"),"/portal/applications?work=1");
+  assert.equal(validCaseDate("2026-02-30"),undefined);
+  assert.equal(caseDateBoundary("2026-11-28")?.toISOString(),"2026-11-27T23:00:00.000Z");
+  assert.deepEqual(processingDuration("2026-11-01T10:00:00Z","2026-11-01T11:00:00Z",null,true,new Date("2026-11-02")), {minutes:60,terminal:true});
+  const nav=[{href:"/portal",label:"Home"},{href:"/portal/applications",label:"Cases"},{href:"/portal/communications",label:"Messages"}];
+  assert.equal(activeNavigationHref(nav,"/portal/applications/abc"),"/portal/applications");
+  assert.equal(activeNavigationHref(nav,"/portal/communications"),"/portal/communications");
+  assert.deepEqual(agencyPrimaryItems(nav).map(x=>x.href),["/portal","/portal/applications"]);
+  assert.equal(supportsDocumentPreview("text/html"),false);
+  assert.equal(supportsDocumentPreview("application/pdf"),true);
+  const pdf=await verifiedPreviewBlob(new Response("%PDF-1.7",{headers:{"Content-Type":"application/pdf"}}),"application/pdf");
+  assert.equal(pdf.type,"application/pdf");
+  await assert.rejects(verifiedPreviewBlob(new Response("<html>",{headers:{"Content-Type":"application/pdf"}}),"application/pdf"));
+  await assert.rejects(verifiedPreviewBlob(new Response("",{headers:{"Content-Type":"application/pdf"}}),"application/pdf"));
+  await assert.rejects(verifiedPreviewBlob(new Response("error",{status:403,headers:{"Content-Type":"application/pdf"}}),"application/pdf"));
+  await assert.rejects(verifiedPreviewBlob(new Response("<html>",{headers:{"Content-Type":"text/html"}}),"application/pdf"));
+  const css=readFileSync("src/app/portal/agency-v2.css","utf8");
+  const tokens=new Set(Array.from(css.matchAll(/(--one-[\w-]+)\s*:/g),m=>m[1]));
+  for(const match of css.matchAll(/var\((--one-[\w-]+)/g)) assert.ok(tokens.has(match[1]),"Undefined ONE UI token: "+match[1]);
+  for(const token of ["--one-ink","--one-canvas","--one-muted","--one-hit","--one-field"]) assert.ok(tokens.has(token));
+  console.log("AGENCY_UX_CONTRACTS_PASS: booking capacity, case navigation, cancellation priority, preview safety, route matching, design tokens and protected branch.");
+}
+main().catch(error=>{console.error(error);process.exitCode=1});
