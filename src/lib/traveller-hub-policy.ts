@@ -1,0 +1,18 @@
+/** Conservative Traveller Hub policy; pure, no database or external services. */
+export const HUB_BRANCH="codex/phase2d-traveller-hub-20261128";
+export function hubEnabled(env:Record<string,string|undefined>=process.env){return env.VERCEL_ENV==="preview"&&env.VERCEL_GIT_COMMIT_REF===HUB_BRANCH}
+export const uuid=(v:unknown):v is string=>typeof v==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+export const nameKey=(v:string)=>v.trim().replace(/\s+/g," ").toLowerCase();
+export const passportKey=(v:string|null|undefined)=>{const s=(v??"").trim().toUpperCase();return /^[A-Z0-9]{6,20}$/.test(s)&&/[0-9]/.test(s)&&!/^([A-Z0-9])\1+$/.test(s)?s:""};
+export function civilDate(v:string|null|undefined):string|null{if(!v||!/^\d{4}-\d{2}-\d{2}$/.test(v))return null;const t=Date.parse(v+"T00:00:00Z");return Number.isFinite(t)&&new Date(t).toISOString().slice(0,10)===v?v:null}
+export function minimumExpiry(today:string):string|null{if(!civilDate(today))return null;const [y,m,d]=today.split("-").map(Number);const x=new Date(Date.UTC(y!,m!-1+7,1));x.setUTCDate(Math.min(d!,new Date(Date.UTC(x.getUTCFullYear(),x.getUTCMonth()+1,0)).getUTCDate()));return x.toISOString().slice(0,10)}
+export function expiryState(expiry:string|null,today:string){const e=civilDate(expiry),min=minimumExpiry(today);return !e||!min?"unknown":e<=today?"expired":e<min?"renew":"valid"}
+export function maskPassport(v:string|null){const k=passportKey(v);return k?"•••• "+k.slice(-4):"—"}
+export function normalizedQuery(v:unknown){return typeof v==="string"?v.trim().slice(0,100):""}
+export function pageNumber(v:unknown){const n=Number(v);return Number.isSafeInteger(n)&&n>=1?Math.min(n,10000):1}
+export type TravellerIdentity={name:string;nationality:string;passport:string;expiry:string};
+export function identityMatches(a:TravellerIdentity,b:TravellerIdentity){return Boolean(passportKey(a.passport)&&passportKey(a.passport)===passportKey(b.passport)&&nameKey(a.name)===nameKey(b.name)&&a.nationality.trim().toUpperCase()===b.nationality.trim().toUpperCase()&&civilDate(a.expiry)&&a.expiry===b.expiry)}
+export type ReuseFile={id:string;typeId:string;code:string;name:string;mime:string;size:number;sourceReference:string;createdAt:string};
+export function reusablePassport(input:{code:string;status:string;size:number;mime:string;sha256:string|null;expiry:string|null;today:string;latest:boolean;openRequest:boolean;attributable:boolean}){
+ return input.code==="PASSPORT"&&input.status==="ACCEPTED"&&input.size>0&&input.size<=2*1024*1024&&["application/pdf","image/jpeg","image/png","image/webp"].includes(input.mime)&&/^[a-f0-9]{64}$/i.test(input.sha256??"")&&expiryState(input.expiry,input.today)==="valid"&&input.latest&&!input.openRequest&&input.attributable
+}

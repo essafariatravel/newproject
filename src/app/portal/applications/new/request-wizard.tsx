@@ -1,4 +1,7 @@
 "use client";
+import {hubCopy} from "@/lib/traveller-hub-copy";
+import {passportKey,civilDate,identityMatches,type ReuseFile} from "@/lib/traveller-hub-policy";
+import {TravellerReuse} from "./traveller-reuse";
 import { CountryFlag } from "@/components/country-flag";
 import { useAgencyPopover } from "@/components/agency-popover-controller";
 
@@ -122,6 +125,8 @@ export interface WizardLabels {
 }
 
 interface Props {
+  travellerHub?:boolean;
+  travellerSource?:{id:string;name:string;nationality:string;passport:string;expiry:string;reference:string;reusable:ReuseFile[]}|null;
   catalogueFingerprints?: Record<string,string>;
   today?:string;
   parallelStaging?: boolean;
@@ -217,10 +222,13 @@ export function RequestWizard(props: Props) {
   const [previewIndex,setPreviewIndex]=useState(0);
   const [previewUrl,setPreviewUrl]=useState("");
   const [dragging,setDragging]=useState(false);
-  const [nameDraft,setNameDraft]=useState("");
+  const [nameDraft,setNameDraft]=useState(props.travellerSource?.name??"");
+  const [passportDraft,setPassportDraft]=useState(props.travellerSource?.passport??"");
+  const [expiryDraft,setExpiryDraft]=useState(props.travellerSource?.expiry??"");
+  const hubText=hubCopy[props.locale];
   const [departure,setDeparture]=useState("");
   const ops=operationalCopy[props.locale];
-  const [nationalityDraft,setNationalityDraft]=useState(props.defaultNationality);
+  const [nationalityDraft,setNationalityDraft]=useState(()=>props.travellerSource&&props.nationalities.some(n=>n.code===props.travellerSource!.nationality)?props.travellerSource.nationality:props.defaultNationality);
   // Controlled state is the single source of truth for the gate and the submitted payload.
   const applicantReady = Boolean(nameDraft.trim() && props.nationalities.some(n => n.code === nationalityDraft));
   const checkout = {
@@ -244,6 +252,9 @@ export function RequestWizard(props: Props) {
     ar:{nationality:"البحث عن الجنسية",batch:"إضافة عدة ملفات",batchHint:"اختاروا الوثيقة ثم خصصوا الملف المناسب.",assign:"تخصيص",unassigned:"ملفات غير مخصصة",fit:"ملاءمة",leave:"مغادرة الطلب دون حفظ؟",noNationality:"لا نتائج.",ready:"تم تحديد جميع الوثائق الإلزامية.",download:"فتح الملف"}
   }[props.locale];
   const [files, setFiles] = useState<Record<string, File[]>>({});
+  const reused=useRef(new WeakSet<File>());
+  const sourceMatches=Boolean(props.travellerSource&&identityMatches({name:nameDraft,nationality:nationalityDraft,passport:passportDraft,expiry:expiryDraft},props.travellerSource));
+  function clearReused(){if(Object.values(files).some(list=>list.some(f=>reused.current.has(f)))){setFiles(prev=>Object.fromEntries(Object.entries(prev).map(([id,list])=>[id,list.filter(f=>!reused.current.has(f))])));setFileError(hubText.reuseChanged)}}
   const smart = {
     fr:{mismatch:"Le nom du fichier suggère un autre type de document. Vérifiez son contenu.",identical:"Un fichier au contenu identique est associé à plusieurs pièces.",small:"Image de faible résolution : vérifiez sa lisibilité.",checks:"Points à vérifier avant l’envoi",inspect:"Vérifier cette pièce",ready:"Toutes les pièces requises sont sélectionnées",remaining:"Pièces obligatoires restantes",selected:"Sélectionné",programmeDocs:"pièces requises",noValidation:"Ces contrôles locaux ne valident ni le contenu ni l’authenticité du document."},
     en:{mismatch:"The filename suggests another document type. Check its contents.",identical:"An identical file is assigned to multiple requirements.",small:"Low-resolution image: check readability.",checks:"Items to check before submitting",inspect:"Review this document",ready:"All required documents are selected",remaining:"Required documents remaining",selected:"Selected",programmeDocs:"required documents",noValidation:"These local checks do not validate document contents or authenticity."},
@@ -430,6 +441,7 @@ export function RequestWizard(props: Props) {
         return false;
       }
       if(deadline.state==="invalid"){setClientError(ops.invalid);return false;}
+      if(props.travellerHub&&((passportDraft.trim()&&!passportKey(passportDraft))||(expiryDraft&&!civilDate(expiryDraft)))){setClientError(hubText.badPassport);return false;}
       if (!applicantReady) {
         setClientError(t.validationApplicant);
         return false;
@@ -580,7 +592,7 @@ export function RequestWizard(props: Props) {
       finalAttemptStarted=true;
       const response = await fetch("/api/agency/requests", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ locale:props.locale, attempt: idempotencyKey, countryId, visaTypeId, expectedFee: visa?.fee, expectedCatalogue, tokens,
-          fullName: nameDraft.trim(), nationality: nationalityDraft, notes: String(fields.get("agencyNotes") ?? "") }) });
+          fullName: nameDraft.trim(), nationality: nationalityDraft, ...(props.travellerHub?{passportNumber:passportKey(passportDraft),passportExpiry:expiryDraft}:{}), notes: String(fields.get("agencyNotes") ?? "") }) });
       const data = await readRequestResponse<{applicationId:string}>(response,props.locale);
       leavingAfterSuccess.current = true;
       window.location.assign(`/portal/applications/${data.applicationId}?submitted=1`);
@@ -822,7 +834,7 @@ export function RequestWizard(props: Props) {
                 autoComplete="off"
                 className="input"
                 data-testid="wizard-full-name"
-                value={nameDraft} onChange={e=>{setNameDraft(e.target.value);if(clientError===t.validationApplicant)setClientError("")}}
+                value={nameDraft} onChange={e=>{clearReused();setNameDraft(e.target.value);if(clientError===t.validationApplicant)setClientError("")}}
                 placeholder={t.fullNamePlaceholder}
               />
             </div>
@@ -833,11 +845,12 @@ export function RequestWizard(props: Props) {
                 <button type="button" id="wizard-nationality-trigger" ref={nationalityTriggerRef} className="input booking-line" data-testid="wizard-nationality" aria-expanded={nationalityOpen} aria-controls="booking-nationality-options" onClick={()=>{setNationalitySearch("");setNationalityOpen(v=>!v)}}>{props.nationalities.find(n=>n.code===nationalityDraft)?.label??nationalityDraft}<span aria-hidden>⌄</span></button>
                 {nationalityOpen?<div className="booking-nationality-pop" data-placement={nationalityMenu.above?"above":"below"} id="booking-nationality-options" onKeyDown={e=>{if(e.key==="Escape"){setNationalityOpen(false);document.getElementById("wizard-nationality-trigger")?.focus()}}}>
                   <input ref={nationalitySearchRef} type="search" className="input" aria-label={assist.nationality} placeholder={assist.nationality} value={nationalitySearch} onChange={e=>setNationalitySearch(e.target.value)}/>
-                  <div className="booking-nationality-list" style={{maxHeight:nationalityMenu.listHeight}}>{props.nationalities.filter(n=>normalize(n.label+" "+n.code).includes(normalize(nationalitySearch))).map(n=><button key={n.code} type="button" aria-pressed={n.code===nationalityDraft} onClick={()=>{setNationalityDraft(n.code);if(clientError===t.validationApplicant)setClientError("");setDirty(true);setNationalityOpen(false);document.getElementById("wizard-nationality-trigger")?.focus()}}>{n.label}{n.code===nationalityDraft?" ✓":""}</button>)}{!props.nationalities.some(n=>normalize(n.label+" "+n.code).includes(normalize(nationalitySearch)))?<p className="booking-muted">{assist.noNationality}</p>:null}</div>
+                  <div className="booking-nationality-list" style={{maxHeight:nationalityMenu.listHeight}}>{props.nationalities.filter(n=>normalize(n.label+" "+n.code).includes(normalize(nationalitySearch))).map(n=><button key={n.code} type="button" aria-pressed={n.code===nationalityDraft} onClick={()=>{clearReused();setNationalityDraft(n.code);if(clientError===t.validationApplicant)setClientError("");setDirty(true);setNationalityOpen(false);document.getElementById("wizard-nationality-trigger")?.focus()}}>{n.label}{n.code===nationalityDraft?" ✓":""}</button>)}{!props.nationalities.some(n=>normalize(n.label+" "+n.code).includes(normalize(nationalitySearch)))?<p className="booking-muted">{assist.noNationality}</p>:null}</div>
                 </div>:null}
               </div>
             </div>
           </div>
+          {props.travellerHub?<div className="th-wizard-fields">{props.travellerSource?<p className="th-note">{hubText.prefilled} · <bdi>{props.travellerSource.reference}</bdi></p>:<a className="booking-link" href="/portal/applicants">{hubText.lookup}</a>}<div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><label>{hubText.number}<input className="input" autoComplete="off" maxLength={20} value={passportDraft} onChange={e=>{clearReused();setPassportDraft(e.target.value);setDirty(true)}}/></label><label>{hubText.date}<input className="input" type="date" value={expiryDraft} onChange={e=>{clearReused();setExpiryDraft(e.target.value);setDirty(true)}}/></label></div></div>:null}
           <TravelDeparture locale={props.locale} today={props.today??algeriaToday()} value={departure} programme={visa} disabled={pending||step!==1} onChange={value=>{setDeparture(value);setDirty(true);if(clientError===ops.invalid)setClientError("")}}/>
           <details className="booking-notes"><summary>{ui.notes}</summary><label className="label sr-only" htmlFor="agencyNotes">{t.notes}</label><textarea id="agencyNotes" name="agencyNotes" rows={2} className="input mt-3" placeholder={t.notesPlaceholder} /></details>
         </div>
@@ -862,6 +875,7 @@ export function RequestWizard(props: Props) {
           </div>
           {selectedRequirement?<div className="booking-doc-panel">
             <div className="booking-doc-head"><h3>{selectedRequirement.name}</h3>{selectedFiles.length?<span className="booking-success">✓ {ui.selected}</span>:null}</div>
+            {props.travellerHub&&step===2&&sourceMatches&&!selectedFiles.length&&props.travellerSource?<TravellerReuse key={selectedRequirement.documentTypeId} locale={props.locale} options={props.travellerSource.reusable.filter(d=>d.typeId===selectedRequirement.documentTypeId)} onFile={file=>{if(onFileChange(selectedRequirement.documentTypeId,[file])){reused.current.add(file);return true}return false}}/>:null}
             {selectedRequirement.notes?<p className="booking-muted">{selectedRequirement.notes}</p>:null}{warningMessages(selectedRequirement).length?<div role="status" className="booking-warning">{warningMessages(selectedRequirement).map(message=><p key={message}>{message}</p>)}<small>{smart.noValidation}</small></div>:null}
             <label className={selectedFiles.length?"booking-file-replace":"booking-drop"} data-dragging={dragging} onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={e=>{e.preventDefault();setDragging(false);onFileChange(selectedRequirement.documentTypeId,e.dataTransfer.files)}}>
               {!selectedFiles.length?<><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5"/></svg><strong>{ui.drop}</strong></>:null}

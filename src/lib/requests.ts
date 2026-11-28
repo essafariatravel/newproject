@@ -1,3 +1,4 @@
+import {hubEnabled,passportKey,civilDate} from "@/lib/traveller-hub-policy";
 import { bookingCatalogueFingerprint } from "@/lib/booking-catalogue-fingerprint";
 import { validateDocumentFormat } from "@/lib/upload-validation";
 /* ------------------------------------------------------------------ */
@@ -546,8 +547,8 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
         `insert into ${qualifiedTable("applicants")}
            (application_id, first_name, last_name, full_name, date_of_birth, nationality,
             passport_number, passport_issue_date, passport_expiry_date, email, phone)
-         values ($1,$2,'',$3,null,$4,null,null,null,null,null)`,
-        [applicationId, fullName, fullName, t.nationality.trim().toUpperCase()],
+         values ($1,$2,'',$3,null,$4,$5,null,$6::date,null,null)`,
+        [applicationId, fullName, fullName, t.nationality.trim().toUpperCase(),hubEnabled()?passportKey(t.passportNumber)||null:null,hubEnabled()?civilDate(t.passportExpiryDate):null],
       );
 
       // Document records (blobs are already in storage).

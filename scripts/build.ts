@@ -66,6 +66,7 @@ function main(): void {
     );
   }
 
+  if(isVercelPreview&&process.env.VERCEL_GIT_COMMIT_REF==="codex/phase2d-traveller-hub-20261128"){if(run("node_modules/tsx/dist/cli.mjs",["scripts/verify-traveller-hub.ts"])!==0)process.exit(1);}
   process.exit(run("node_modules/next/dist/bin/next", ["build"]));
 }
 

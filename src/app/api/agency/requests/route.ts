@@ -1,3 +1,4 @@
+import {hubEnabled,passportKey,civilDate} from "@/lib/traveller-hub-policy";
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { and, eq, sql } from "drizzle-orm";
@@ -16,7 +17,7 @@ import { readRequestBodyLimited } from "@/lib/http-body";
 
 export const runtime = "nodejs";
 const submission = z.object({ locale: z.enum(["en","fr","ar"]).optional(), attempt: z.string().uuid(), visaTypeId: z.string().uuid(), countryId: z.string().uuid(),
-  fullName: z.string().max(200), nationality: z.string().max(80), notes: z.string().max(1000), tokens: z.array(z.string()).max(60), expectedFee: z.string().max(32).regex(/^\d+(?:\.\d+)?$/).optional(), expectedCatalogue: z.string().regex(/^[a-f0-9]{64}$/).optional() });
+  passportNumber:z.string().max(20).optional(),passportExpiry:z.string().max(10).optional(),fullName: z.string().max(200), nationality: z.string().max(80), notes: z.string().max(1000), tokens: z.array(z.string()).max(60), expectedFee: z.string().max(32).regex(/^\d+(?:\.\d+)?$/).optional(), expectedCatalogue: z.string().regex(/^[a-f0-9]{64}$/).optional() });
 const preflight = z.object({ expectedCatalogue:z.string().regex(/^[a-f0-9]{64}$/).optional(), action: z.literal("preflight"), visaTypeId: z.string().uuid(), countryId: z.string().uuid(), fullName: z.string().trim().min(1).max(200), nationality: z.string().trim().min(1).max(80) });
 
 export async function POST(request: Request) {
@@ -69,8 +70,9 @@ export async function POST(request: Request) {
     const id=await coalesceVisaSubmission(actor,input.attempt,async()=>{
     const [existing] = await db.select({ id: applications.id }).from(applications)
       .where(and(eq(applications.idempotencyKey, input.attempt), eq(applications.agencyId, actor.agencyId)));
+    if(!existing&&hubEnabled()&&((input.passportNumber&&!passportKey(input.passportNumber))||(input.passportExpiry&&!civilDate(input.passportExpiry))))throw new AppError("VALIDATION","Invalid passport information.");
     const committedId = existing?.id ?? (await submitVisaRequest({ actor, idempotencyKey: input.attempt, countryId: input.countryId,
-      visaTypeId: input.visaTypeId, expectedFee: input.expectedFee, expectedCatalogue:input.expectedCatalogue, agencyNotes: input.notes, travellers: [{ fullName: input.fullName, nationality: input.nationality }],
+      visaTypeId: input.visaTypeId, expectedFee: input.expectedFee, expectedCatalogue:input.expectedCatalogue, agencyNotes: input.notes, travellers: [{ fullName: input.fullName, nationality: input.nationality,...(hubEnabled()?{passportNumber:passportKey(input.passportNumber)||null,passportExpiryDate:civilDate(input.passportExpiry)}:{}) }],
       documents: await resolveRequestUploads(actor, input.attempt, input.visaTypeId, input.tokens) })).applicationId;
     await clearRequestUploads(actor, input.attempt).catch(() => {});
     return committedId;

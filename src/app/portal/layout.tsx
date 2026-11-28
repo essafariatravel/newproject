@@ -1,3 +1,4 @@
+import {hubEnabled} from "@/lib/traveller-hub-policy";
 import "./agency-v2.css";
 import { AgencyCommand } from "./applications/agency-command";
 import { hasPermission } from "@/lib/rbac";
@@ -52,6 +53,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
       items: [
         { href: "/portal", label: tr("Dashboard")},
         { href: "/portal/applications", label: tr("Applications")},
+        ...(hubEnabled()&&hasPermission(user,"applicants.view.all")?[{href:"/portal/applicants",label:tr("Applicants")}]:[]),
         { href: "/portal/applications/new", label: tr("New Application")},
       ],
     },

@@ -51,6 +51,7 @@ export function automaticDatabaseChangesForbidden(branch: string | null | undefi
     ref.startsWith("codex/legal-readiness-rc-") ||
     ref.startsWith("codex/master-go-live-rc-") ||
     ref.startsWith("codex/phase2a-") ||
+    ref.startsWith("codex/phase2d-") ||
     ref.startsWith("codex/essafaria-autonomous-completion-") ||
     ref.startsWith("release/essafaria-prod-candidate-") ||
     (AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES as readonly string[]).includes(ref);

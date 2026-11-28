@@ -1,3 +1,6 @@
+import {hubEnabled,uuid} from "@/lib/traveller-hub-policy";
+import {repeatSource} from "@/lib/traveller-hub";
+import {notFound} from "next/navigation";
 import { configName, configDescription } from "@/lib/config-localization";
 import { portalPageUser } from "@/lib/page-auth";
 import { activeVisaOptions } from "@/lib/queries";
@@ -34,6 +37,8 @@ export default async function NewApplicationPage({
   const user = await portalPageUser();
   const [prefs,locale]=await Promise.all([readAgencyPrefs(user.id),getUiLocale(sp)]);
   const ct = contentT(locale);
+  const hub=hubEnabled();const source=hub&&typeof sp.traveller==="string"?uuid(sp.traveller)?await repeatSource(user,sp.traveller):null:null;
+  if(hub&&typeof sp.traveller==="string"&&!source)notFound();
 
   const load = await coreTimed("agency.booking.read",()=>Promise.all([
     activeVisaOptions(),
@@ -156,6 +161,8 @@ export default async function NewApplicationPage({
         subtitle={ct("Three steps: choose the destination and visa, upload the documents, preview and submit. Nothing is saved before the final confirmation.")}
       />
       <RequestWizard
+        travellerHub={hub}
+        travellerSource={source}
         parallelStaging={process.env.VERCEL_ENV==="preview" && process.env.ESSAFARIA_PARALLEL_STAGING!=="false"}
         catalogueFingerprints={catalogueFingerprints}
         today={algeriaToday()}
