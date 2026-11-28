@@ -1,3 +1,4 @@
+import { groupEnabled } from "@/lib/group-policy";
 import { LiveNotifications } from "@/components/live-notifications";
 import { contentT } from "@/lib/i18n-content";
 import { redirect } from "next/navigation";
@@ -42,6 +43,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       title: tr("Operations"),
       items: [
         { href: "/admin/applications", label: tr("Applications")},
+        ...(groupEnabled()&&hasPermission(user,"applications.view.all")&&hasPermission(user,"applicants.view.all")?[{href:"/admin/applications/groups",label:{fr:"Groupes",en:"Groups",ar:"المجموعات"}[locale]}]:[]),
         { href: "/admin/communications", label: tr("Communications")},
       ],
     },
