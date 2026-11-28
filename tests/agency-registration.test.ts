@@ -377,6 +377,14 @@ describe("public registration action — anti-automation & safe errors", () => {
     expect(await countRegistrations()).toBe(before);
   });
 
+  it("requires a family name and nine national digits on a new public request", async () => {
+    const before = await countRegistrations();
+    const result = await submitRegistrationAction({}, actionFormData({ locale: "fr", contactLastName: "", phone: "55012345" }));
+    expect(result.fieldErrors?.contactLastName).toBe("Ce champ est obligatoire.");
+    expect(result.fieldErrors?.phone).toBe("Vérifiez le numéro de téléphone.");
+    expect(await countRegistrations()).toBe(before);
+  });
+
   it("rejects invalid contact names and phone length before persisting a public request", async () => {
     const before = await countRegistrations();
     const result = await submitRegistrationAction({}, actionFormData({

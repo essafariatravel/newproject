@@ -19,6 +19,8 @@ import {
   type IndexablePublicSeoPage,
 } from "@/lib/seo-manifest";
 import "../public-interiors.css";
+import "../public-front.css";
+import "@/components/public-information/information.css";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +46,10 @@ export default async function PublicLayout({ children }: { children: ReactNode }
     SEO_INDEXABLE_PUBLIC_ENTRIES.find((entry) => entry.key === headerPage)?.key;
   const tr = chromeT(locale);
   const ct = contentT(locale);
+  const homeTagline = "Visa management, built for travel agencies.";
+  const footerTagline = !tagline || tagline === homeTagline
+    ? { en: homeTagline, fr: "Gestion des visas pour les agences de voyages.", ar: "منصة لإدارة طلبات التأشيرة لوكالات السفر." }[locale]
+    : ct(tagline);
   const legalLinks = {
     fr: ["Mentions légales", "Politique de cookies", "Conditions commerciales B2B"],
     en: ["Legal notice", "Cookie policy", "B2B commercial terms"],
@@ -61,6 +67,8 @@ export default async function PublicLayout({ children }: { children: ReactNode }
       <PublicMotion />
       <a className="public-skip" href="#public-main">{tr("Skip to content")}</a>
       <PublicHeader
+        key={locale}
+        locale={locale}
         brandName={brandName}
         homeHref={seoLocalizedPublicPath("home", locale)}
         tagline={tagline}
@@ -85,30 +93,37 @@ export default async function PublicLayout({ children }: { children: ReactNode }
       <main id="public-main" tabIndex={-1} className="flex-1">{children}</main>
 
       <footer className="border-t border-white/10 bg-navy-950 text-white">
-        <div className={`ess-container grid grid-cols-1 gap-8 py-8 sm:grid-cols-2 ${hasContact ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
+        <div className={`public-footer-grid ess-container grid grid-cols-1 gap-8 py-8 sm:grid-cols-2 ${hasContact ? "with-contact lg:grid-cols-4" : "lg:grid-cols-3"}`}>
           <div>
             <p className="text-lg font-semibold text-white">{brandName}</p>
-            <p className="mt-2 max-w-xs text-base leading-relaxed text-white/65">{ct(tagline)}</p>
+            <p className="mt-2 max-w-xs text-base leading-relaxed text-white/65">{footerTagline}</p>
           </div>
           <div>
             <p className="text-base font-semibold text-white">{tr("Platform")}</p>
             <ul className="mt-4 space-y-2 text-base">
               <li><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("b2b", locale)}>{tr("For Agencies")}</Link></li>
-              <li><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("faq", locale)}>{ct("FAQ")}</Link></li>
               <li><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("resources", locale)}>{PUBLIC_RESOURCE_COPY[locale].nav}</Link></li>
-              <li><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href="/login">{tr("Sign in")}</Link></li>
-              <li><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href="/agency/register">{tr("Register your agency")}</Link></li>
+              <li><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href={`/login?lang=${locale}`}>{tr("Sign in")}</Link></li>
+              <li><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href={`/agency/register?lang=${locale}`}>{tr("Register your agency")}</Link></li>
             </ul>
           </div>
-          <div>
-            <p className="text-base font-semibold text-white">{tr("Company")}</p>
-            <ul className="mt-4 space-y-2 text-base">
-              <li><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("about", locale)}>{ct("About ESSAFARIA VISA")}</Link></li>
-              <li><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("contact", locale)}>{ct("Contact")}</Link></li>
-              <li><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href="/privacy">{ct("Privacy Notice")}</Link></li>
-              <li><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href="/terms">{ct("Terms of Service")}</Link></li>
-              {(["legal-notice", "cookies", "commercial"] as const).map((document, index) => <li key={document}><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href={`/legal/${document}?lang=${locale}`}>{legalLinks[index]}</Link></li>)}
-            </ul>
+          <div className="public-footer-directory">
+            <div>
+              <p className="text-base font-semibold text-white">{tr("Company")}</p>
+              <ul className="mt-4 space-y-2 text-base">
+                <li><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("about", locale)}>{ct("About ESSAFARIA VISA")}</Link></li>
+                <li className="public-footer-extra"><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("faq", locale)}>{ct("FAQ")}</Link></li>
+                <li><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href={seoLocalizedPublicPath("contact", locale)}>{ct("Contact")}</Link></li>
+              </ul>
+            </div>
+            <div>
+              <p className="public-footer-extra text-base font-semibold text-white">{{fr:"Informations légales", en:"Legal information", ar:"معلومات قانونية"}[locale]}</p>
+              <ul className="public-footer-legal space-y-2 text-base">
+                <li><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href={`/privacy?lang=${locale}`}>{ct("Privacy Notice")}</Link></li>
+                <li><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href={`/terms?lang=${locale}`}>{ct("Terms of Service")}</Link></li>
+                {(["legal-notice", "cookies", "commercial"] as const).map((document, index) => <li key={document}><Link prefetch={false} className="text-white/70 transition-colors hover:text-white" href={`/legal/${document}?lang=${locale}`}>{legalLinks[index]}</Link></li>)}
+              </ul>
+            </div>
           </div>
           {hasContact ? <div>
             <p className="text-base font-semibold text-white">{ct("Contact")}</p>

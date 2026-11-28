@@ -1,0 +1,87 @@
+/* Shared by the public homepage and agency sign-in. */
+.public-site {
+  --public-ink: #071a33;
+  --public-hover: #173552;
+  --public-muted: #435465;
+  --public-field-edge: #748593;
+  --public-divider: #cbd4dc;
+  --public-focus: #926a1c;
+  --public-gold: #d5a539;
+  --public-ease: cubic-bezier(.2,.75,.25,1);
+  --public-gutter: clamp(1.25rem,5vw,5rem);
+  --public-width: min(80rem, calc(100% - 2 * var(--public-gutter)));
+  --public-header-height: 5rem;
+  --public-action-height: 3.125rem;
+  --public-field-height: 3rem;
+  --public-radius: .5rem;
+  --public-logo-width: 8.5rem;
+  --public-logo-gap: .75rem;
+  --public-logo-rule: 1.625rem;
+  --public-product-size: 1.25rem;
+}
+@media (min-width:681px) and (max-width:1023px) {
+  .public-site { --public-gutter: 2rem; }
+}
+@media (max-width:680px) {
+  .public-site {
+    --public-gutter: 1.25rem;
+    --public-header-height: 4.25rem;
+    --public-action-height: 3rem;
+    --public-logo-width: 4rem;
+    --public-logo-gap: .5rem;
+    --public-logo-rule: 1.25rem;
+    --public-product-size: 1rem;
+  }
+}
+@media (max-width:359px) {
+  .public-site {
+    --public-gutter: .75rem;
+    --public-logo-width: 3rem;
+    --public-logo-gap: .3125rem;
+    --public-product-size: .9375rem;
+  }
+}
+
+.home-brand-name b, .login-brand span {
+  font-family: var(--font-sans);
+  color: var(--public-ink);
+  font-size: var(--public-product-size);
+  font-weight: 600;
+  line-height: 1.16;
+  letter-spacing: -.035em;
+  white-space: nowrap;
+}
+.home-header .ui-locale-menu > summary, .login-languages-small .ui-locale-menu > summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  min-width: 44px;
+  padding-inline: 9px;
+  border: 1px solid var(--public-divider);
+  border-radius: var(--public-radius);
+  background: white;
+  color: var(--public-ink);
+  font-size: .9375rem;
+  font-weight: 600;
+}
+.public-action-label[aria-busy="true"] {
+  text-decoration: underline dotted;
+  text-underline-offset: .3em;
+  cursor: progress;
+}
+@layer base {
+  .public-site .intake-search input:focus-visible, .premium-login .input:focus-visible {
+    outline: 2px solid var(--public-focus) !important;
+    outline-offset: 2px !important;
+  }
+  .home-header :is(a,button,summary):focus-visible, .premium-login :is(a,button,summary):focus-visible,
+  .intake-enlarge:focus-visible, .access-links a:focus-visible {
+    outline: 2px solid var(--public-ink) !important;
+    outline-offset: 3px !important;
+  }
+  .platform-hero a:focus-visible, .public-site:has(.platform-home) footer a:focus-visible {
+    outline-color: white !important;
+  }
+}

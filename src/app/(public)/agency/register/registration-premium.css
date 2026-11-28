@@ -1,0 +1,537 @@
+/* Hallmark · ESSAFARIA · partner intake · one working dossier, one receipt. */
+/* The application name belongs to the applicant; the receipt identifies an actual submission when its reference is present. */
+
+:root {
+  --registration-surface: var(--color-white);
+  --registration-paper: #fbfcfd;
+  --registration-folder: #0b2648;
+  --registration-folder-edge: #45637a;
+  --registration-paper-edge: #b5c2ce;
+  --registration-orbit: #57758b;
+  --registration-orbit-gold: #c3a551;
+  --registration-folder-label: #d9e3eb;
+  --registration-error: #8b382e;
+  --registration-disabled: #e4e9ed;
+  --registration-quiet: #f2f6f9;
+}
+
+.public-front-page:is(.front-register, .front-receipt) {
+  background: var(--registration-surface);
+  color: var(--public-ink);
+}
+
+:is(.front-register, .front-receipt) .registration-spread-inner {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.12fr);
+  align-items: start;
+  gap: clamp(3rem, 7.6vw, 7.5rem);
+  width: var(--public-width);
+  margin-inline: auto;
+  padding-block: clamp(2.8125rem, 5.1vw, 4.875rem) clamp(4.5rem, 7.8vw, 7.375rem);
+}
+
+:is(.front-register, .front-receipt) h1 {
+  min-width: 0;
+  max-width: 10ch;
+  margin: 0;
+  color: var(--public-ink);
+  font-size: clamp(2.875rem, 5.1vw, 4.875rem);
+  font-weight: 600;
+  line-height: 1.04;
+  letter-spacing: -.05em;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+}
+
+:is(.front-register, .front-receipt) .registration-intro-text {
+  max-width: 39ch;
+  margin-block: 1.125rem 0;
+  color: var(--public-muted);
+  font-size: clamp(1.125rem, 1.5vw, 1.375rem);
+  line-height: 1.5;
+}
+
+:is(.front-register, .front-receipt) .registration-access {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 .5rem;
+  margin-block: 1rem 0;
+  color: var(--public-muted);
+  font-size: 1rem;
+}
+
+.registration-access a, .registration-check a {
+  color: var(--public-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: .2em;
+}
+
+.registration-access a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+}
+
+.registration-access a:hover, .registration-check a:hover { text-decoration-thickness: 2px; }
+.front-register .registration-intro { position: sticky; top: calc(var(--public-header-height) + 1.5rem); min-width: 0; }
+.front-register .registration-sheet { min-width: 0; }
+
+.registration-folder {
+  position: relative;
+  isolation: isolate;
+  width: min(100%, 26.375rem);
+  height: 13.125rem;
+  margin-block-start: 2.0625rem;
+  pointer-events: none;
+}
+.registration-folder-back {
+  position: absolute;
+  inset: .4375rem .0625rem 0 .4375rem;
+  background: var(--registration-folder-edge);
+  clip-path: polygon(0 0,35% 0,42% 12%,100% 12%,100% 100%,0 100%);
+}
+.registration-leaf {
+  position: absolute;
+  inset: 1.5rem .75rem .75rem 1.0625rem;
+  border: 1px solid var(--registration-paper-edge);
+  background: var(--registration-paper);
+  transform: rotate(-2deg);
+  transform-origin: bottom center;
+  transition: transform 220ms var(--public-ease);
+}
+.registration-leaf::before, .registration-leaf::after {
+  content: "";
+  display: block;
+  width: 56%;
+  height: 1px;
+  margin: .5625rem 1.1875rem;
+  background: var(--public-divider);
+}
+.registration-leaf::after { width: 42%; margin-block-start: -.1875rem; }
+.registration-folder-cover {
+  position: absolute;
+  inset: 2.5rem 0 0;
+  overflow: clip;
+  border-radius: .1875rem .375rem .375rem .3125rem;
+  background: var(--registration-folder);
+  color: var(--registration-surface);
+  clip-path: polygon(0 2%,36% 2%,41% 10%,100% 10%,100% 100%,0 100%);
+}
+.registration-folder-cover::after {
+  content: "";
+  position: absolute;
+  inset-inline: 1.4375rem 1.3125rem;
+  inset-block-end: 1.0625rem;
+  height: 1px;
+  background: var(--registration-folder-edge);
+}
+.registration-folder-label {
+  position: absolute;
+  inset-inline: 1.4375rem 1.125rem;
+  inset-block: 27% 15%;
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  justify-content: space-between;
+}
+.registration-folder-label span { font-size: .9375rem; color: var(--registration-folder-label); }
+.registration-folder-label b {
+  display: -webkit-box;
+  overflow: hidden;
+  max-inline-size: 82%;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-size: 1.875rem;
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -.025em;
+  overflow-wrap: anywhere;
+}
+.registration-orbit {
+  position: absolute;
+  inset-inline-end: -31%;
+  inset-block-start: -55%;
+  width: 95%;
+  height: 195%;
+  max-width: none;
+  color: var(--registration-orbit);
+  stroke-width: 1.05;
+  transition: transform 240ms var(--public-ease);
+}
+.registration-orbit-gold { stroke: var(--registration-orbit-gold); stroke-width: 1.35; }
+.registration-folder[data-section="contact"] .registration-orbit { transform: translateY(3px); }
+.registration-folder[data-section="consent"] .registration-orbit { transform: translateY(7px); }
+.front-register:has(.registration-input:focus-visible) .registration-leaf { transform: translateY(-2px) rotate(-2deg); }
+
+.registration-index {
+  margin-block-end: 1.125rem;
+  border-block-end: 1px solid var(--public-divider);
+}
+.registration-index ol {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: clamp(.5rem,2vw,1.25rem);
+}
+.registration-index li { min-inline-size: 0; }
+.registration-index a {
+  display: flex;
+  position: relative;
+  align-items: center;
+  gap: .5rem;
+  min-height: 2.9375rem;
+  padding-inline: .1875rem;
+  color: var(--public-muted);
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.registration-index a span {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border: 1px solid var(--public-divider);
+  border-radius: 50%;
+  font-size: .8125rem;
+  font-variant-numeric: tabular-nums;
+}
+.registration-index a[aria-current] span {
+  background: var(--public-ink);
+  color: var(--registration-surface);
+  border-color: var(--public-ink);
+}
+.registration-index a:first-child { padding-inline-start: 0; }
+.registration-index a::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: -1px;
+  height: 3px;
+  background: var(--public-gold);
+  transform: scaleX(0);
+  transition: transform 150ms var(--public-ease);
+}
+.registration-index a:hover, .registration-index a[aria-current] { color: var(--public-ink); }
+.registration-index a[aria-current]::after { transform: scaleX(1); }
+
+.registration-form .registration-required {
+  margin-block: 0 1.125rem;
+  color: var(--public-muted);
+  font-size: .875rem;
+}
+.registration-mark, .registration-required span { color: var(--public-focus); }
+.registration-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0 0 1.875rem;
+  border: 0;
+  scroll-margin-block-start: calc(var(--public-header-height) + 1rem);
+}
+.registration-fieldset + .registration-fieldset { padding-block-start: 1.5rem; border-block-start: 1px solid var(--public-divider); }
+.registration-form[data-step="company"] .registration-fieldset:not(#registration-company),
+.registration-form[data-step="contact"] .registration-fieldset:not(#registration-contact),
+.registration-form[data-step="consent"] .registration-fieldset:not(#registration-consent) { display: none; }
+.registration-fieldset legend {
+  float: inline-start;
+  width: 100%;
+  padding: 0;
+  color: var(--public-ink);
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -.033em;
+}
+.registration-fieldset .registration-hint {
+  clear: both;
+  margin: 0;
+  padding-block: .375rem 1rem;
+  color: var(--public-muted);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+.registration-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.registration-field-wide { grid-column: 1 / -1; }
+.registration-fields label { display: block; margin-block-end: .375rem; font-size: 1rem; font-weight: 600; line-height: 1.35; }
+.registration-optional { margin-inline-start: .4375rem; color: var(--public-muted); font-size: .875rem; font-weight: 400; }
+.registration-fields .registration-input {
+  display: block;
+  inline-size: 100%;
+  min-width: 0;
+  height: var(--public-field-height);
+  padding: .5rem .75rem;
+  border: 1px solid var(--public-field-edge);
+  border-radius: var(--public-radius);
+  background: var(--registration-surface);
+  color: var(--public-ink);
+  font-size: 1.0625rem;
+}
+.registration-fields .registration-input:hover { border-color: var(--public-ink); }
+.registration-fields .registration-input[aria-invalid="true"] { border-color: var(--registration-error); }
+.registration-fields select {
+  appearance: auto;
+  text-overflow: ellipsis;
+}
+.registration-field-message {
+  min-height: 1.3em;
+  margin-block-start: .25rem;
+  color: var(--public-muted);
+  font-size: .9375rem;
+  line-height: 1.4;
+}
+.registration-field-message:empty { min-height: 0; margin-block-start: 0; }
+.registration-field-message.has-error { color: var(--registration-error); }
+.registration-phone {
+  display: grid;
+  grid-template-columns: minmax(0,.9fr) minmax(0,1fr);
+  align-items: end;
+  gap: .125rem .75rem;
+}
+.registration-email-suggestion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .25rem .5rem;
+  min-height: 2.75rem;
+  max-width: 100%;
+  padding-inline: .625rem;
+  border-inline-start: 2px solid var(--public-focus);
+  background: var(--registration-quiet);
+  color: var(--public-ink);
+  font-weight: 600;
+  text-align: start;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.registration-email-suggestion:hover { text-decoration: underline; }
+.registration-stage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: .5rem 1rem;
+  margin-block-start: 1.125rem;
+}
+.registration-stage-actions > .registration-action:last-child { margin-inline-start: auto; }
+.registration-submit .registration-stage-actions { width: 100%; margin-block-start: 0; }
+.registration-back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--public-ink);
+  font-weight: 600;
+  cursor: pointer;
+}
+.registration-back:hover { text-decoration: underline; text-underline-offset: .2em; }
+.registration-review {
+  padding-block: .125rem .875rem;
+  border-block: 1px solid var(--public-divider);
+}
+.registration-review-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-block-start: .375rem;
+}
+.registration-review-heading h2 { font-size: 1.0625rem; font-weight: 600; }
+.registration-review p { color: var(--public-muted); overflow-wrap: anywhere; }
+.registration-consents { padding-block: .75rem; }
+.registration-form[data-enhanced="true"] fieldset:not([hidden]) {
+  animation: registration-stage-in 160ms var(--public-ease);
+}
+@keyframes registration-stage-in {
+  from { opacity: .7; transform: translateY(.1875rem); }
+  to { opacity: 1; transform: none; }
+}
+.registration-check {
+  display: flex;
+  align-items: flex-start;
+  gap: .75rem;
+  min-height: 2.75rem;
+  padding-block: .4375rem;
+  color: var(--public-ink);
+  font-size: 1rem;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.registration-check input { flex: none; width: 1.1875rem; height: 1.1875rem; margin-block: .2rem; accent-color: var(--public-ink); }
+.registration-submit { display: flex; flex-direction: column; align-items: flex-start; gap: .875rem; }
+.registration-submit > [data-status] { width: min(100%, 22rem); }
+.registration-submit > p, .registration-submit [role="status"] { max-width: 60ch; margin: 0; font-size: .9375rem; font-variant-numeric: tabular-nums; line-height: 1.5; color: var(--public-muted); }
+.registration-error-summary, .registration-unavailable {
+  margin-block: 0 1.25rem;
+  padding: .875rem 1rem;
+  border: 1px solid;
+  border-radius: var(--public-radius);
+  color: var(--registration-error);
+  line-height: 1.5;
+}
+.registration-unavailable { border-color: var(--public-gold); color: var(--public-muted); }
+
+:is(.front-register, .front-receipt) .registration-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .625rem;
+  min-height: var(--public-action-height);
+  padding: .625rem 1.3125rem;
+  border: 1px solid var(--public-ink);
+  border-radius: var(--public-radius);
+  background: var(--public-ink);
+  box-shadow: none;
+  color: var(--registration-surface);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.35;
+  text-decoration: none;
+  transition: background-color 140ms var(--public-ease), transform 100ms var(--public-ease);
+}
+:is(.front-register, .front-receipt) .registration-action:hover:not(:disabled) { background: var(--public-hover); }
+:is(.front-register, .front-receipt) .registration-action:active:not(:disabled) { transform: translateY(1px); }
+.front-register .registration-action:disabled {
+  background: var(--registration-disabled);
+  border-color: var(--public-divider);
+  color: var(--public-muted);
+  opacity: 1;
+  cursor: not-allowed;
+}
+.front-register .registration-action[aria-busy="true"] { cursor: progress; }
+@media (max-width: 374px) {
+  .front-register .registration-submit .registration-action { padding-inline: .375rem; font-size: 1rem; }
+}
+:is(.front-register, .front-receipt) :is(a, input, select, button, [tabindex="-1"]):focus-visible {
+  outline: 2px solid var(--public-focus);
+  outline-offset: 3px;
+}
+
+.front-receipt h1 { max-width: 11ch; }
+.front-receipt .receipt-intro .registration-action { margin-block-start: 1.5rem; }
+.registration-receipt {
+  min-width: 0;
+  padding: clamp(1.375rem, 2.5vw, 2.1875rem);
+  border: 1px solid var(--public-divider);
+  border-block-start: 4px solid var(--public-ink);
+  background: var(--registration-surface);
+}
+.receipt-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .75rem; }
+.receipt-head img { display: block; width: 8rem; height: 2.625rem; object-fit: contain; }
+.receipt-head h2 { margin: 0; color: var(--public-muted); font-size: .9375rem; font-weight: 600; }
+.receipt-reference, .receipt-no-reference { margin: 0; padding-block: 2rem 1.5rem; border-block-end: 1px dashed var(--public-field-edge); }
+.receipt-reference p, .receipt-no-reference { margin: 0; color: var(--public-muted); font-size: 1rem; line-height: 1.5; }
+.receipt-reference bdi {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: .375rem 0 .75rem;
+  color: var(--public-ink);
+  font-family: var(--font-sans);
+  font-size: clamp(1.375rem, 2.5vw, 2.375rem);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.32;
+  overflow-wrap: anywhere;
+}
+.receipt-reference button {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: .5rem;
+  padding: .375rem .75rem;
+  border: 1px solid var(--public-field-edge);
+  border-radius: var(--public-radius);
+  color: var(--public-ink);
+  background: var(--registration-surface);
+  font-weight: 600;
+}
+.receipt-reference button:hover { border-color: var(--public-ink); }
+.receipt-reference button svg { width: 1.125rem; height: 1.125rem; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.receipt-reference p[role="status"]:not(:empty) { margin-block-start: .5rem; }
+.receipt-next { margin: 1.5rem 0 .875rem; font-size: 1.4375rem; font-weight: 600; line-height: 1.25; }
+.receipt-steps { margin: 0; padding: 0; list-style: none; }
+.receipt-steps li { position: relative; padding-inline-start: 1.4375rem; padding-block-end: 1rem; color: var(--public-muted); font-size: 1rem; line-height: 1.55; }
+.receipt-steps li:last-child { padding-block-end: 0; }
+.receipt-steps li::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: .55em;
+  width: .5rem; height: .5rem;
+  border: 1.5px solid var(--public-focus);
+  border-radius: 50%;
+}
+.receipt-steps li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: .21875rem;
+  inset-block: calc(.55em + .5rem) -.55em;
+  width: 1px;
+  background: var(--public-divider);
+}
+
+.front-register:lang(ar) :is(h1, legend, .registration-folder-label b), .front-receipt:lang(ar) h1 {
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+.front-register:dir(rtl) .registration-orbit { scale: -1 1; }
+.front-register:dir(rtl) .registration-folder-back { clip-path: polygon(100% 0,65% 0,58% 12%,0 12%,0 100%,100% 100%); }
+.front-register:dir(rtl) .registration-folder-cover { clip-path: polygon(100% 2%,64% 2%,59% 10%,0 10%,0 100%,100% 100%); }
+
+@media (max-width: 1023px) {
+  .front-register .registration-spread-inner { grid-template-columns: minmax(0, 1fr); gap: 2rem; }
+  .front-register .registration-intro { position: static; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .9fr); gap: .5rem 2rem; align-items: center; }
+  .front-register .registration-intro h1 { max-width: none; }
+  .front-register .registration-folder { grid-column: 2; grid-row: 1 / 3; height: 11.25rem; margin: 0; }
+  .front-register .registration-access { margin-block: 0; }
+  .front-receipt .registration-spread-inner { gap: 2rem; }
+}
+@media (max-width: 680px) {
+  :is(.front-register, .front-receipt) .registration-spread-inner { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; padding-block: 1.875rem 3.375rem; }
+  :is(.front-register, .front-receipt) h1 { max-width: none; font-size: clamp(2.375rem, 10.6vw, 2.875rem); }
+  :is(.front-register, .front-receipt) .registration-intro-text { margin-block-start: .625rem; }
+  .front-register .registration-intro { display: block; }
+  .front-register .registration-folder { width: 100%; max-width: 26.375rem; height: 7.5rem; margin-block-start: 1rem; }
+  .registration-folder-back { inset: .0625rem .25rem 0; }
+  .registration-leaf { inset: .6875rem .75rem .3125rem; }
+  .registration-folder-cover { inset-block-start: 1.375rem; }
+  .registration-folder-label { inset-inline: 1.0625rem .625rem; inset-block: 20% 18%; }
+  .registration-folder-label span { font-size: .8125rem; }
+  .registration-folder-label b { -webkit-line-clamp: 1; font-size: 1.4375rem; }
+  .registration-folder-cover::after { inset-block-end: .625rem; inset-inline: 1.0625rem; }
+  .registration-index { margin-block-end: .875rem; }
+  .registration-index a { min-height: 2.75rem; }
+  .registration-fields { grid-template-columns: minmax(0, 1fr); gap: .875rem; }
+  .registration-fieldset { padding-block-end: 1.25rem; }
+  .registration-fieldset + .registration-fieldset { padding-block-start: 1.25rem; }
+  .registration-fieldset legend { font-size: 1.5625rem; }
+  .registration-fields .registration-input { font-size: 1rem; }
+  .registration-submit .registration-action { width: 100%; }
+  .receipt-head img { width: 6.125rem; height: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .registration-form[data-enhanced="true"] fieldset:not([hidden]) { animation: none; }
+  :is(.front-register, .front-receipt) .registration-action,
+  .registration-leaf, .registration-orbit, .registration-index a::after { transition: none; }
+  .front-register:has(.registration-input:focus-visible) .registration-leaf { transform: rotate(-2deg); }
+  .registration-folder[data-section] .registration-orbit,
+  :is(.front-register, .front-receipt) .registration-action:active:not(:disabled) { transform: none; }
+}
+@media (max-width: 600px) {
+  .front-register .registration-folder { height: 6.75rem; margin-block-start: 1.125rem; }
+  .front-register .registration-folder-cover { inset-block-start: 1.1875rem; }
+  .front-register .registration-leaf { inset-block-start: .8125rem; }
+  .front-register .registration-folder-label { inset-block: 22% 18%; }
+  .front-register .registration-folder-label b { font-size: 1.375rem; -webkit-line-clamp: 1; }
+  .front-register .registration-folder-label span { font-size: .875rem; }
+  .front-register .registration-folder-cover::after { inset-block-end: .625rem; }
+  .registration-index a { gap: .3rem; font-size: .9375rem; }
+  .registration-phone { grid-template-columns: minmax(0,1fr) minmax(0,1.05fr); }
+}
+@media print {
+  .front-receipt .registration-spread-inner { display: block; width: 100%; padding: 0; }
+  .receipt-intro .registration-action, .receipt-intro .registration-access, .receipt-reference button { display: none; }
+  .registration-receipt { margin-block-start: 1rem; break-inside: avoid; }
+}

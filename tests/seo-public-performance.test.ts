@@ -94,11 +94,12 @@ describe("public startup performance", () => {
     expect(layout).toContain('crossOrigin="anonymous"');
   });
   it("reserves responsive demonstration image dimensions before image decoding", () => {
-    const component = source("src/components/public-visa-chapters.tsx");
+    const component = source("src/components/public-information/intake-capture.tsx");
     const css = source("src/app/public-premium.css");
     expect(component).toContain("--proof-wide-ratio");
     expect(component).toContain("--proof-small-ratio");
     expect(component).toContain('media="(max-width: 639px)"');
+    expect(component).toContain("width={image.smallWidth} height={image.smallHeight}");
     expect(css).toContain("aspect-ratio: var(--proof-wide-ratio)");
     expect(css).toContain("aspect-ratio: var(--proof-small-ratio)");
   });

@@ -82,6 +82,16 @@ async function main() {
       return { ctx, page };
     }
     const ready = page => page.waitForFunction(() => Boolean(document.querySelector('[name="cf-turnstile-response"]')?.value));
+    const reviewRegistration = async (page, email) => {
+      await page.locator('form[data-enhanced="true"]').waitFor();
+      await page.locator('[name="legalName"]').fill('Agence fictive de recette');
+      await page.locator('#registration-company button.registration-action').click();
+      await page.locator('[name="contactFirstName"]').fill('Lina');
+      await page.locator('[name="contactLastName"]').fill('Benali');
+      await page.locator('[name="email"]').fill(email);
+      await page.locator('[name="phone"]').fill('+213555123456');
+      await page.locator('#registration-contact button.registration-action').click();
+    };
     const checkLayout = async (page, name) => {
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Overflow: ${name}`);
       evidence.push(name);
@@ -219,7 +229,9 @@ async function main() {
         ['/reset-access/' + accessToken, 'access_reset'],
         [`/activate/${activationToken}?lang=${locale}`, 'account_activation'],
       ]) {
-        const response = await page.goto(origin + pathname); await ready(page);
+        const response = await page.goto(origin + pathname);
+        if (action === "agency_registration") await reviewRegistration(page, 'partner@example.test');
+        await ready(page);
         assert.equal(response.status(), 200);
         assert.deepEqual(await page.evaluate(() => ({ action: window.qaWidgets[0].opts.action, language: window.qaWidgets[0].opts.language })), { action, language: locale });
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
@@ -228,11 +240,9 @@ async function main() {
     }
     evidence.push('authentication-forms-fr-en-ar-12-views');
     {
-      const { ctx, page } = await context('fr', 375); await page.goto(origin + '/agency/register?lang=fr'); await ready(page);
-      await page.locator('[name="legalName"]').fill('Agence fictive de recette');
-      await page.locator('[name="contactFirstName"]').fill('Lina'); await page.locator('[name="contactLastName"]').fill('Benali');
-      await page.locator('[name="email"]').fill('partner@example.test');
-      await page.locator('[name="phone"]').fill('+213555123456');
+      const { ctx, page } = await context('fr', 375); await page.goto(origin + '/agency/register?lang=fr');
+      await reviewRegistration(page, 'partner@example.test');
+      await ready(page);
       for (const name of ['terms', 'privacy', 'accuracy']) await page.locator(`[name="${name}"]`).check();
       await checkLayout(page, 'registration-fr-375'); await page.waitForTimeout(1600);
       await page.locator('form:has([name="cf-turnstile-response"]) button[type="submit"]').click(); await page.waitForURL('**/agency/register/success?**'); await ctx.close();

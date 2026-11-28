@@ -7,6 +7,9 @@ import { seoLocalizedPublicPath } from "@/lib/seo-manifest";
 import { PARTNER_PUBLIC_GUIDE } from "@/lib/public-partner-guide";
 import { PublicOperationalEvidence } from "@/components/public-operational-evidence";
 import { PublicAgencyReadiness } from "@/components/public-agency-discovery";
+import { PartnerRoles } from "@/components/public-information/partner-roles";
+import { PUBLIC_OPERATIONAL_EVIDENCE } from "@/lib/public-operational-evidence";
+import { PublicActionLabel } from "@/components/public-action-label";
 import { PUBLIC_RESOURCE_COPY } from "@/lib/public-resources";
 
 export const dynamic = "force-dynamic";
@@ -41,41 +44,31 @@ export default async function B2BPage() {
   const desk = partnership[locale];
   const guide = PARTNER_PUBLIC_GUIDE[locale];
   return (
-    <div className="public-interior partner-interior">
-      <section className="partner-lead" aria-labelledby="partner-heading">
-        <div className="interior-width partner-lead-grid">
-          <div className="partner-lead-copy">
+    <div className="public-front-page info-page">
+      <section className="info-width info-hero-pair" aria-labelledby="partner-heading">
+          <div className="info-hero-copy">
             <h1 id="partner-heading">{copy.agenciesTitle}</h1>
-            <p className="interior-lede">{copy.agenciesBody}</p>
-            <div className="interior-actions">
-              <Link href="/agency/register" className="interior-button">{copy.partner}</Link>
-              <Link href="/login" className="interior-link">{copy.signIn}</Link>
+            <p className="info-lead">{copy.agenciesBody}</p>
+            <div className="info-actions">
+              <Link href={`/agency/register?lang=${locale}`} className="info-primary"><PublicActionLabel locale={locale}>{copy.partner}</PublicActionLabel></Link>
+              <Link href={`/login?lang=${locale}`} className="info-link">{copy.signIn}</Link>
             </div>
           </div>
-          <div className="interior-media partner-photo">
-            <img data-cinematic-frame src="/images/travel/st-gallen.webp"
-              srcSet="/images/travel/st-gallen-small.webp 720w, /images/travel/st-gallen.webp 1680w"
-              sizes="(max-width: 767px) 90vw, (max-width: 1440px) 48vw, 685px"
-              alt="" width="1680" height="1121" fetchPriority="high" />
-          </div>
-        </div>
+          <PartnerRoles locale={locale} title={desk.desk} alt={PUBLIC_OPERATIONAL_EVIDENCE[locale].screenshotAlt}
+            roles={[
+              { title: desk.agency, detail: desk.agencyText },
+              { title: desk.staff, detail: desk.staffText },
+              { title: desk.finance, detail: desk.financeText },
+            ]} />
       </section>
-      <section className="interior-width partner-desk" aria-labelledby="desk-title">
-        <h2 id="desk-title">{desk.desk}</h2>
-        <dl className="partner-roles">
-          <div><dt>{desk.agency}</dt><dd>{desk.agencyText}</dd></div>
-          <div><dt>{desk.staff}</dt><dd>{desk.staffText}</dd></div>
-          <div><dt>{desk.finance}</dt><dd>{desk.financeText}</dd></div>
-        </dl>
-      </section>
-      <section className="partner-guide" aria-labelledby="partner-guide-title">
-        <div className="interior-width partner-guide-intro">
+      <section className="info-width info-row" aria-labelledby="partner-guide-title">
+        <header>
           <h2 id="partner-guide-title">{guide.audienceTitle}</h2>
           <p>{guide.audienceBody}</p>
-        </div>
-        <div className="interior-width partner-guide-process">
+        </header>
+        <div>
           <h2>{guide.stepsTitle}</h2>
-          <ol className="partner-guide-steps">
+          <ol className="info-lines">
             {guide.steps.map((step) => (
               <li key={step.title}>
                 <h3>{step.title}</h3>
@@ -84,28 +77,28 @@ export default async function B2BPage() {
             ))}
           </ol>
         </div>
-        <PublicAgencyReadiness locale={locale} />
-        <PublicOperationalEvidence locale={locale} />
-        <div className="interior-width partner-guide-limits">
-          <h2>{guide.limitationsTitle}</h2>
-          <div>
-            <p>{guide.limitationsBody}</p>
-            <nav className="interior-actions" aria-label={guide.stepsTitle}>
-              <Link href={seoLocalizedPublicPath("faq", locale)} className="interior-link">{guide.faqLink}</Link>
-              <Link prefetch={false} href={seoLocalizedPublicPath("resources", locale)} className="interior-link">{PUBLIC_RESOURCE_COPY[locale].nav}</Link>
-              <Link href={seoLocalizedPublicPath("contact", locale)} className="interior-link">{guide.contactLink}</Link>
-            </nav>
-          </div>
-        </div>
       </section>
-      <section id="partner" className="partner-invitation">
-        <div className="interior-width partner-invitation-grid">
+      <PublicAgencyReadiness locale={locale} />
+      <PublicOperationalEvidence locale={locale} />
+      <section className="info-width info-row">
+        <header>
+          <h2>{guide.limitationsTitle}</h2>
+          <p>{guide.limitationsBody}</p>
+        </header>
+        <nav className="info-actions" aria-label={guide.limitationsTitle}>
+          <Link href={seoLocalizedPublicPath("faq", locale)} className="info-link">{guide.faqLink}</Link>
+          <Link prefetch={false} href={seoLocalizedPublicPath("resources", locale)} className="info-link">{PUBLIC_RESOURCE_COPY[locale].nav}</Link>
+          <Link href={seoLocalizedPublicPath("contact", locale)} className="info-link">{guide.contactLink}</Link>
+        </nav>
+      </section>
+      <section id="partner" className="info-width info-row">
+        <header>
           <h2>{copy.applyTitle}</h2>
-          <div>
-            <p>{copy.applyBody}</p>
-            <Link href="/agency/register" className="interior-link">{copy.partner}</Link>
-            <p className="interior-note">{copy.review}</p>
-          </div>
+          <p>{copy.applyBody}</p>
+        </header>
+        <div>
+          <Link href={`/agency/register?lang=${locale}`} className="info-primary"><PublicActionLabel locale={locale}>{copy.partner}</PublicActionLabel></Link>
+          <p className="info-note">{copy.review}</p>
         </div>
       </section>
     </div>

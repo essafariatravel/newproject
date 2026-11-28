@@ -14,6 +14,7 @@ export function PasswordField(props: {
   name: string;
   label: string;
   required?: boolean;
+  showRequiredMark?: boolean;
   minLength?: number;
   maxLength?: number;
   autoComplete?: string;
@@ -30,7 +31,7 @@ export function PasswordField(props: {
     <div className={props.className}>
       <label className="label" htmlFor={props.id}>
         {props.label}
-        {props.required ? " *" : ""}
+        {props.required && props.showRequiredMark !== false ? " *" : ""}
       </label>
       <div className="relative">
         <input

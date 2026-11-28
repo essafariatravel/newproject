@@ -1,0 +1,281 @@
+/* Hallmark · ESSAFARIA · public visa tour · itinerary, documents and confirmation */
+/* The active marker follows the agency wizard; the sample actions teach the workflow. */
+:root {
+  --tour-white: var(--premium-white);
+  --tour-wash: #f2f6f9;
+  --tour-track: #9baaba;
+  --tour-shade: rgb(7 26 51 / .65);
+  --tour-elevation: rgb(7 26 51 / .13);
+}
+
+.visa-tour {
+  --tour-pad: clamp(1.0625rem, 3vw, 2rem);
+  color: var(--public-ink);
+  scroll-margin-block-start: 1rem;
+}
+
+.visa-tour-rail {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 clamp(.375rem, 2vw, 1.5rem);
+  min-inline-size: 0;
+  padding-inline: var(--tour-pad);
+}
+.visa-tour-stop { position: relative; min-width: 0; grid-row: 1; }
+.visa-tour-stop:not(:nth-of-type(3))::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 1.125rem;
+  inset-inline: 2.875rem -.35rem;
+  border-block-start: 1px dashed var(--tour-track);
+  pointer-events: none;
+}
+.visa-tour-stop:has(~ .visa-tour-stop input:checked)::after {
+  border-block-start-style: solid;
+  border-color: var(--public-focus);
+}
+.visa-tour-stop input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  clip-path: inset(50%);
+}
+.visa-tour-stop label {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: .4375rem;
+  min-height: 4.75rem;
+  padding-block-end: .8125rem;
+  color: var(--public-muted);
+  line-height: 1.25;
+  cursor: pointer;
+}
+.visa-tour-marker {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  border: 1px solid var(--public-field-edge);
+  background: var(--tour-white);
+  color: var(--public-ink);
+  font-variant-numeric: tabular-nums;
+  transition: background-color 150ms var(--public-ease), color 150ms var(--public-ease);
+}
+.visa-tour-marker svg,
+.visa-tour-stop input:checked + label .visa-tour-number { display: none; }
+.visa-tour-stop input:checked + label .visa-tour-marker svg { display: block; }
+.visa-tour-stop input:checked + label { color: var(--public-ink); font-weight: 600; }
+.visa-tour-stop input:checked + label .visa-tour-marker {
+  border-color: var(--public-ink);
+  color: var(--tour-white);
+  background: var(--public-ink);
+  box-shadow: 0 0 0 3px var(--tour-wash);
+}
+.visa-tour-stop label:hover .visa-tour-marker { border-color: var(--public-focus); }
+.visa-tour-stop input:focus + label,
+.public-site .visa-tour-stop input:focus-visible + label {
+  outline: 2px solid var(--public-focus);
+  outline-offset: .1875rem;
+  border-radius: var(--public-radius);
+}
+@media (min-width: 681px) {
+  .visa-tour-stop label {
+    flex-direction: row;
+    align-items: center;
+    gap: .625rem;
+    min-height: 3.5625rem;
+  }
+  .visa-tour-stop:not(:nth-of-type(3))::after { inset-block-start: auto; inset-block-end: .3125rem; inset-inline-start: 0; }
+  .visa-tour-marker { flex: none; }
+}
+
+.visa-tour-pane {
+  grid-area: 2 / 1 / 3 / -1;
+  display: none;
+  grid-template-columns: minmax(0,1.5fr) minmax(0,1fr);
+  gap: clamp(1.375rem,5vw,4rem);
+  align-content: start;
+  align-items: start;
+  padding-block: var(--tour-pad);
+  border-block-start: 1px solid var(--public-divider);
+}
+.visa-tour-rail:has(#visa-chapter-0:checked) #visa-explanation-0,
+.visa-tour-rail:has(#visa-chapter-1:checked) #visa-explanation-1,
+.visa-tour-rail:has(#visa-chapter-2:checked) #visa-explanation-2 { display: grid; animation: visa-tour-enter 190ms var(--public-ease); }
+@keyframes visa-tour-enter {
+  from { opacity: .65; transform: translateY(.1875rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.visa-tour-pane h3 {
+  color: var(--public-ink);
+  font-size: clamp(1.25rem,2vw,1.5rem);
+  min-width: 0;
+  overflow-wrap: break-word;
+  text-wrap: balance;
+  line-height: 1.25;
+}
+.visa-tour-pane p { color: var(--public-muted); font-size: 1rem; line-height: 1.5; }
+.visa-tour-summary {
+  min-width: 0;
+  padding-inline-start: var(--tour-pad);
+  border-inline-start: 1px solid var(--public-divider);
+}
+.visa-tour-summary h3 + p { margin-block-start: .625rem; }
+.visa-tour-record { margin-block: .6875rem .875rem; }
+.visa-tour-record > div, .visa-tour-country {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .3125rem .875rem;
+  min-height: 2.625rem;
+  padding-block: .375rem;
+  border-block-end: 1px solid var(--public-divider);
+}
+.visa-tour-record dt { color: var(--public-muted); }
+.visa-tour-record dd, .visa-tour-country strong {
+  display: flex;
+  align-items: center;
+  gap: .4375rem;
+  color: var(--public-ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.visa-tour-flag {
+  display: block;
+  width: 1.5rem;
+  height: 1.125rem;
+  border: 1px solid var(--public-divider);
+  border-radius: .1875rem;
+  object-fit: cover;
+}
+.visa-tour-picker, .visa-tour-country { margin-block-start: .9375rem; }
+.visa-tour-picker { position: relative; }
+.visa-tour-suggestions {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(100% + .375rem);
+  z-index: 3;
+  padding: .3125rem;
+  border: 1px solid var(--public-divider);
+  border-radius: var(--public-radius);
+  background: var(--tour-white);
+  box-shadow: 0 8px 22px var(--tour-elevation);
+}
+.visa-tour-suggestions p { padding: .45rem .6875rem; font-size: .9375rem; }
+.visa-tour-suggestions li {
+  display: flex;
+  align-items: center;
+  gap: .625rem;
+  min-height: 44px;
+  padding-inline: .6875rem;
+  border-radius: .3125rem;
+  cursor: pointer;
+}
+.visa-tour-suggestions li:is(:hover,[aria-selected="true"]) { background: var(--tour-wash); }
+.visa-tour-shortcuts { margin-block-start: 1rem; }
+.visa-tour-shortcuts ul { display: flex; flex-wrap: wrap; gap: .5rem .625rem; margin-block-start: .5rem; }
+.visa-tour-shortcuts button {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  min-height: 44px;
+  padding: .375rem .75rem;
+  border: 1px solid var(--public-divider);
+  border-radius: var(--public-radius);
+  cursor: pointer;
+}
+.visa-tour-shortcuts button:is(:hover,:active) { border-color: var(--public-field-edge); background: var(--tour-wash); }
+.visa-tour-country { padding-inline: .875rem; border: 1px solid var(--public-divider); border-radius: var(--public-radius); }
+.visa-tour-tools { display: flex; flex-wrap: wrap; column-gap: 1.125rem; margin-block-start: .5rem; }
+.visa-tour :is(.visa-tour-text,.visa-tour-country button,.intake-enlarge) {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  min-height: 44px;
+  color: var(--public-ink);
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+.visa-tour :is(.visa-tour-text,.visa-tour-country button,.intake-enlarge):hover { text-decoration: underline; text-underline-offset: .22em; }
+.visa-tour-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--public-action-height);
+  margin-block-start: .9375rem;
+  padding: .625rem 1rem;
+  border: 1px solid var(--public-ink);
+  border-radius: var(--public-radius);
+  background: var(--public-ink);
+  color: var(--tour-white);
+  line-height: 1.25;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 150ms var(--public-ease), transform 100ms var(--public-ease);
+}
+.visa-tour-action:hover:not(:disabled) { background: var(--public-hover); }
+.visa-tour-action:active:not(:disabled) { transform: translateY(1px); }
+.visa-tour-action:disabled {
+  border-color: var(--public-divider);
+  background: var(--tour-wash);
+  color: var(--public-muted);
+  cursor: not-allowed;
+}
+.visa-tour-doc-list { margin-block-start: .75rem; border-block-start: 1px solid var(--public-divider); }
+.visa-tour-doc-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .375rem 1rem; }
+.visa-tour-doc-heading p { font-variant-numeric: tabular-nums; }
+.visa-tour-pane .visa-tour-readiness { font-weight: 600; color: var(--public-ink); }
+.visa-tour-doc-list button {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .375rem .75rem;
+  width: 100%;
+  min-height: 3.25rem;
+  padding: .5625rem .6875rem;
+  border-block-end: 1px solid var(--public-divider);
+  border-inline-start: 3px solid transparent;
+  color: var(--public-ink);
+  text-align: start;
+  cursor: pointer;
+}
+.visa-tour-doc-list button:hover, .visa-tour-doc-list [aria-pressed="true"] { background: var(--tour-wash); }
+.visa-tour-doc-list [aria-pressed="true"] { border-inline-start-color: var(--public-focus); font-weight: 600; }
+.visa-tour-doc-list small { color: var(--public-muted); font-size: .875rem; }
+.visa-tour-planning { margin-block-start: .625rem; }
+.visa-tour-file { margin-block-start: .75rem; }
+.visa-tour-history { grid-column: 1 / -1; border-block-start: 1px solid var(--public-divider); }
+.visa-tour-history summary { width: fit-content; padding-block: .6875rem; cursor: pointer; font-weight: 600; }
+.visa-tour-history-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 1rem 2rem; }
+.visa-tour-history-grid .card { padding: .375rem 0; border: 0; box-shadow: none; }
+.visa-tour-history-grid .badge { border-radius: .3125rem; font-size: .875rem; }
+.visa-tour-history-grid .text-xs { font-size: .875rem; color: var(--public-muted); }
+.visa-tour .proof-record > div {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem 1rem;
+  padding: .6875rem 0;
+  border-block-end: 1px solid var(--public-divider);
+}
+.visa-tour .proof-record dt { color: var(--public-muted); }
+.visa-tour .proof-record dd { font-weight: 600; }
+.visa-tour .intake-dialog::backdrop { background: var(--tour-shade); }
+
+@media (max-width: 680px) {
+  .visa-tour-stop label { font-size: .9375rem; }
+  .visa-tour-stop:not(:nth-of-type(3))::after { inset-inline-end: .3125rem; }
+  .visa-tour-pane, .visa-tour-history-grid { grid-template-columns: minmax(0,1fr); }
+  .visa-tour-summary { padding-inline-start: 0; padding-block-start: 1rem; border-inline-start: 0; border-block-start: 1px solid var(--public-divider); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .visa-tour * { animation: none !important; transition: none !important; }
+  .visa-tour-action:active:not(:disabled) { transform: none; }
+}

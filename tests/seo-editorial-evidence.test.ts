@@ -30,8 +30,8 @@ describe("professional editorial SEO and public safety", () => {
   it("uses the existing demo capture and never accesses live user data", () => {
     for (const locale of SEO_PUBLIC_LOCALES) {
       const markup = renderToStaticMarkup(createElement(PublicOperationalEvidence, { locale }));
-      expect(markup).toContain(`/images/workflow/intake-${locale}.webp`);
-      expect(markup).toContain(`/images/workflow/intake-${locale}-small.webp`);
+      expect(markup).toContain(`/images/workflow/visa-v2-${locale}.webp`);
+      expect(markup).toContain(`/images/workflow/visa-v2-${locale}-small.webp`);
       expect(markup).toContain('loading="lazy"');
       expect(markup).toContain("<figcaption>");
       expect(markup).toContain("<h2");

@@ -1,0 +1,113 @@
+/* Opt in per approved screen. Existing portal surfaces keep their own theme. */
+.premium-ui {
+  --surface: #fff;
+  --ink: #071a33;
+  --ink-hover: #173552;
+  --muted: #43536a;
+  --rule: #c2cad4;
+  --field-edge: #8391a3;
+  --accent: #a77628;
+  --error: #973a40;
+  --success: #226648;
+  --radius-control: .5rem;
+  --space-1: .25rem;
+  --space-2: .5rem;
+  --space-3: .75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --control-height: 3rem;
+  --motion-control: 160ms;
+  --ease-out: cubic-bezier(.2,.65,.25,1);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  color: var(--ink);
+  background: var(--surface);
+  text-align: start;
+}
+
+.premium-ui:lang(ar) { font-family: "Plex Arabic", "Segoe UI", Tahoma, sans-serif; }
+.premium-ui :is(a, button, input, summary):focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+.premium-ui .label {
+  display: block;
+  margin: 0 0 var(--space-2);
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.premium-ui .input {
+  width: 100%;
+  min-height: var(--control-height);
+  padding-block: .65rem;
+  padding-inline: 1rem;
+  border: 1px solid var(--field-edge);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: none;
+  font: inherit;
+  line-height: 1.4;
+  transition: border-color var(--motion-control);
+}
+.premium-ui .input::placeholder { color: #606c7b; opacity: 1; }
+.premium-ui .input:focus {
+  border-color: var(--ink);
+  outline: 1px solid var(--ink);
+  outline-offset: 0;
+}
+.premium-ui .premium-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 3.125rem;
+  padding: .65rem var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background-color var(--motion-control), transform var(--motion-control) var(--ease-out);
+}
+@media (hover: hover) {
+  .premium-ui .premium-button:enabled:hover { background: var(--ink-hover); }
+  .premium-ui a:hover { color: var(--muted); }
+}
+.premium-ui .premium-button:enabled:active { transform: translateY(1px); }
+.premium-ui .premium-button:disabled { background: #344b63; cursor: default; }
+.premium-ui .premium-notice {
+  border-inline-start: 2px solid var(--accent);
+  padding: var(--space-2) var(--space-3);
+  color: var(--ink);
+  font-size: .9375rem;
+  line-height: 1.5;
+}
+.premium-ui .premium-notice[data-tone="error"] { border-color: var(--error); color: var(--error); }
+.premium-ui .premium-notice[data-tone="success"] { border-color: var(--success); }
+.premium-ui .premium-panel,
+.premium-ui .premium-dialog {
+  padding: var(--space-6);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+}
+.premium-ui .premium-dialog { max-inline-size: min(32rem, calc(100% - 2rem)); margin: auto; }
+.premium-ui .premium-dialog::backdrop { background: rgb(7 26 51 / 32%); }
+.premium-ui .premium-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.premium-ui .premium-table :is(th, td) { padding: var(--space-3); border-block-end: 1px solid var(--rule); text-align: start; }
+.premium-ui .premium-table th { color: var(--muted); font-weight: 600; }
+.premium-ui .premium-nav { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4); }
+.premium-ui .premium-nav [aria-current] { text-decoration: underline; text-underline-offset: .35em; }
+@media (prefers-reduced-motion: reduce) {
+  .premium-ui { --motion-control: 0ms; }
+  .premium-ui .premium-button:enabled:active { transform: none; }
+}

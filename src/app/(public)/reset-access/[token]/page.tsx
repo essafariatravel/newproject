@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { PublicAccessPage } from "@/components/public-documents/access-page";
 import { getUiLocale } from "@/lib/ui-i18n";
 import { identityT } from "@/lib/identity-copy";
 import { resolveAccessToken } from "@/lib/account-recovery";
@@ -8,16 +8,26 @@ import { publicTurnstileConfig } from "@/lib/turnstile-config";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Set password", robots: { index: false, follow: false }, referrer: "no-referrer" as const };
 
-export default async function ResetAccessPage({ params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params, locale = await getUiLocale(), t = identityT(locale);
+export default async function ResetAccessPage({ params, searchParams }: {
+  params: Promise<{ token: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { token } = await params;
+  const locale = await getUiLocale(await searchParams);
+  const t = identityT(locale);
   const account = await resolveAccessToken(token);
-  return <div className="mx-auto max-w-md px-4 py-8">
-    <h1 className="font-serif text-[32px] text-navy-900">{t("Set a new password")}</h1>
-    {account ? <>
-      <p className="mt-4 text-base text-slate-500">{account.name} · <span dir="ltr">{account.email}</span></p>
-      <p className="mt-2 text-base text-slate-500">{t("Existing sessions will be signed out. Sign in with your new password.")}</p>
-      <ResetAccessForm token={token} locale={locale} botConfig={publicTurnstileConfig()} />
-    </> : <p className="mt-4 text-base text-red-700" role="alert">{t("This access link is invalid or has expired.")}</p>}
-    <Link href="/login" className="mt-6 block text-base text-iris-700 underline">{t("Back to sign in")}</Link>
-  </div>;
+  return (
+    <PublicAccessPage locale={locale} title={t("Set a new password")}>
+      {account ? (
+        <>
+          <p className="access-intro">{t("Existing sessions will be signed out. Sign in with your new password.")}</p>
+          <div className="access-identity">
+            <strong dir="auto">{account.name}</strong>
+            <bdi dir="ltr">{account.email}</bdi>
+          </div>
+          <ResetAccessForm token={token} locale={locale} botConfig={publicTurnstileConfig()} />
+        </>
+      ) : <p className="access-notice" role="alert">{t("This access link is invalid or has expired.")}</p>}
+    </PublicAccessPage>
+  );
 }

@@ -24,8 +24,9 @@ describe("§50 — public header at mobile", () => {
   });
 
   it("has exactly ONE register CTA in the header markup", () => {
-    const ctas = HEADER.split('href="/agency/register"').length - 1;
-    expect(ctas).toBe(1);
+    const ctas = HEADER.match(/href=(?:"|\{`)(\/agency\/register)(?=["?`])/g) ?? [];
+    expect(ctas).toHaveLength(1);
+    expect(HEADER).toContain('href={`/agency/register?lang=${locale}`}');
     // …and the opened menu never repeats it.
     const menuSection = HEADER.slice(HEADER.indexOf("Mobile / tablet navigation panel"));
     expect(menuSection).not.toContain("/agency/register");

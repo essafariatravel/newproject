@@ -23,8 +23,7 @@ export function isUiRtl(locale: UiLocale): boolean {
 
 /** The current interface locale: ?lang= wins, then the cookie, then EN. */
 export async function getUiLocale(search?: Record<string, unknown>): Promise<UiLocale> {
-  // The public SEO proxy sets this only for the approved indexable routes.
-  // Their language must be determined by the URL, never by a visitor cookie.
+  // Shared by the root document and public page for an explicit URL locale.
   const publicLocale = pickUiLocale((await headers()).get("x-essafaria-public-locale"));
   if (publicLocale) return publicLocale;
   const viaQuery = getUiLocaleFromSearch(search);

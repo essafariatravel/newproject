@@ -10,6 +10,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { pickUiLocale, UI_LOCALE_COOKIE } from "@/lib/ui-i18n";
 import { safeLocalRedirectPath } from "@/lib/navigation-security";
+import { supportsPublicLanguageQuery } from "@/lib/public-locale";
 
 export async function setUiLocaleAction(formData: FormData): Promise<void> {
   const locale = pickUiLocale(formData.get("locale"));
@@ -37,5 +38,13 @@ export async function setUiLocaleAction(formData: FormData): Promise<void> {
       back = null;
     }
   }
-  redirect(safeLocalRedirectPath(back) ?? "/");
+  const safeBack = safeLocalRedirectPath(back) ?? "/";
+  const destination = new URL(safeBack, "https://essafaria.invalid");
+  // Next can render the redirect in the action response before the browser
+  // sends its new cookie. Carry the chosen language on that request as well.
+  if (supportsPublicLanguageQuery(destination.pathname)) {
+    destination.searchParams.set("lang", locale);
+    redirect(safeLocalRedirectPath(destination.pathname + destination.search + destination.hash) ?? "/");
+  }
+  redirect(safeBack);
 }

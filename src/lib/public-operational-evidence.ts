@@ -17,8 +17,8 @@ export const PUBLIC_OPERATIONAL_EVIDENCE: Record<UiLocale, {
     kicker: "Inside the professional workspace",
     title: "From an agency file to a documented follow-up",
     intro: "Here is how the same professional workflow helps an agency prepare a request, respond to a document query and follow the information available for a case. The illustration below uses a fictional demonstration file.",
-    screenshotCaption: "Illustrative screenshot of the existing agency interface. Demo file only; no traveller or partner records are shown.",
-    screenshotAlt: "Demonstration of the agency visa intake form, with the service selection and traveller details steps.",
+    screenshotCaption: "New application in the agency portal. This example shows the form before an agency chooses a visa programme or enters a traveller’s details.",
+    screenshotAlt: "The Trip and traveller step is open, with a destination search and blank traveller fields. Documents and Confirmation follow.",
     scenarios: [
       {
         title: "When a document is missing or unclear",
@@ -39,8 +39,8 @@ export const PUBLIC_OPERATIONAL_EVIDENCE: Record<UiLocale, {
     kicker: "Au sein de l’espace professionnel",
     title: "Du dossier préparé par l’agence au suivi documenté",
     intro: "Voici comment le parcours professionnel permet à une agence de préparer une demande, de répondre à une question documentaire et de consulter les informations de suivi disponibles. L’illustration utilise uniquement un dossier fictif de démonstration.",
-    screenshotCaption: "Capture illustrative de l’interface agence existante. Dossier de démonstration uniquement, sans données de voyageurs ni de partenaires.",
-    screenshotAlt: "Démonstration du formulaire agence pour préparer une demande de visa, avec les étapes de sélection du service et de saisie du voyageur.",
+    screenshotCaption: "Nouvelle demande dans l’espace agence. Cet exemple présente le formulaire avant le choix du programme de visa et la saisie des données du voyageur.",
+    screenshotAlt: "L’étape Voyage et voyageur affiche la recherche de destination et les champs du voyageur encore vides. Viennent ensuite Documents et Confirmation.",
     scenarios: [
       {
         title: "Lorsqu’une pièce manque ou doit être clarifiée",
@@ -61,8 +61,8 @@ export const PUBLIC_OPERATIONAL_EVIDENCE: Record<UiLocale, {
     kicker: "داخل المساحة المهنية",
     title: "من إعداد ملف الوكالة إلى متابعة موثّقة",
     intro: "يوضح هذا المثال كيف تُحضّر الوكالة الطلب، وتستجيب لطلب وثيقة إضافية، وتراجع معلومات المتابعة المتاحة في حسابها المهني. الصورة مأخوذة من واجهة توضيحية لملف افتراضي فقط.",
-    screenshotCaption: "لقطة توضيحية من واجهة الوكالات الحالية، باستخدام ملف تجريبي من دون أي بيانات حقيقية للمسافرين أو الشركاء.",
-    screenshotAlt: "واجهة تجريبية لإعداد طلب تأشيرة في حساب الوكالة، تتضمن اختيار الخدمة وإدخال بيانات المسافر.",
+    screenshotCaption: "طلب جديد في بوابة الوكالات. يعرض المثال الاستمارة قبل اختيار برنامج التأشيرة وإدخال بيانات المسافر.",
+    screenshotAlt: "في خطوة «الرحلة والمسافر» يظهر البحث عن الوجهة وحقول المسافر الفارغة. تليها خطوتا «الوثائق» و«التأكيد».",
     scenarios: [
       {
         title: "عند نقص وثيقة أو الحاجة إلى توضيح",

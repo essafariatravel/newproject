@@ -1,9 +1,10 @@
-import Link from "next/link";
 import type { Metadata } from "next";
+import { PublicAccessPage } from "@/components/public-documents/access-page";
 import ActivationForm from "./activation-form";
 import { resolveActivation } from "@/lib/registrations";
 import { registrationCopy, resolveLocale } from "@/lib/i18n";
 import { publicTurnstileConfig } from "@/lib/turnstile-config";
+import { getUiLocale, getUiLocaleFromSearch } from "@/lib/ui-i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -24,60 +25,30 @@ export default async function ActivateAccountPage({
   } catch {
     info = null;
   }
-  // Locale: explicit ?lang= wins, then the registration locale of the account.
-  const locale = resolveLocale(
-    typeof sp.lang === "string" ? sp.lang : (info?.locale ?? undefined),
-  );
+  const locale = getUiLocaleFromSearch(sp) ?? (info?.locale ? resolveLocale(info.locale) : await getUiLocale());
   const copy = registrationCopy(locale);
 
   return (
-    <div dir={copy.dir} lang={locale} className="ess-container flex flex-col items-center py-8 sm:py-8">
-      <div className="card w-full max-w-md overflow-hidden">
-        <div className="relative bg-navy-900 px-8 py-8 text-center">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background:
-                "radial-gradient(360px 180px at 85% -20%, rgb(255 255 255 / 0.12), transparent 60%), radial-gradient(260px 150px at 5% 120%, rgb(203 178 135 / 0.22), transparent 60%)",
-            }}
+    <PublicAccessPage locale={locale} title={info ? copy.activation.title : copy.activation.invalidTitle}
+      backLabel={copy.activation.backToLogin}>
+      {info ? (
+        <>
+          <p className="access-intro">{copy.activation.subtitle}</p>
+          <div className="access-identity">
+            <strong dir="auto">{info.name}</strong>
+            <bdi dir="ltr">{info.email}</bdi>
+            {info.agencyName ? <span dir="auto">{info.agencyName}</span> : null}
+          </div>
+          <ActivationForm
+            token={token}
+            locale={locale}
+            botConfig={publicTurnstileConfig()}
+            copy={copy}
+            showLabel={copy.activation.showPassword}
+            hideLabel={copy.activation.hidePassword}
           />
-          <p className="relative text-xs font-semibold uppercase tracking-[0.24em] text-gold-400">
-            ESSAFARIA VISA OS
-          </p>
-          <h1 className="relative mt-4 font-serif text-2xl leading-snug text-white">
-            {info ? copy.activation.title : copy.activation.invalidTitle}
-          </h1>
-        </div>
-
-        <div className="px-8 py-8">
-          {info ? (
-            <>
-              <p className="text-base leading-relaxed text-slate-600">{copy.activation.subtitle}</p>
-              <div className="mt-4 rounded-2xl border border-line bg-ivory-50 px-4 py-4 text-base">
-                <p className="font-semibold text-navy-900">{info.name}</p>
-                <p className="text-xs text-slate-400">{info.email}</p>
-                {info.agencyName ? <p className="mt-1 text-xs text-slate-500">{info.agencyName}</p> : null}
-              </div>
-              <ActivationForm
-                token={token}
-                locale={locale}
-                botConfig={publicTurnstileConfig()}
-                copy={copy}
-                showLabel={copy.activation.showPassword}
-                hideLabel={copy.activation.hidePassword}
-              />
-            </>
-          ) : (
-            <>
-              <p className="text-base leading-relaxed text-slate-600">{copy.activation.invalidBody}</p>
-              <Link href="/login" className="btn-secondary mt-6 w-full px-6 py-2">
-                {copy.activation.backToLogin}
-              </Link>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+        </>
+      ) : <p role="status" className="access-notice">{copy.activation.invalidBody}</p>}
+    </PublicAccessPage>
   );
 }

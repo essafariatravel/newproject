@@ -1,40 +1,57 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import RegistrationForm from "./registration-form";
+import { RegistrationSpread } from "./registration-spread";
 import { registrationCopy, resolveLocale } from "@/lib/i18n";
 import { getUiLocale, pickUiLocale } from "@/lib/ui-i18n";
 import { readPublishedLegal } from "@/lib/legal";
 import { publicBrandCopy } from "@/lib/public-brand-copy";
 import { publicTurnstileConfig } from "@/lib/turnstile-config";
-import { registrationPhoneOptions } from "@/lib/registration-contact";
+import { registrationPhoneCountries } from "@/lib/registration-contact";
+import { DEFAULT_REGISTRATION_PHONE_COUNTRY } from "@/lib/registration-draft";
+import "./registration-premium.css";
+
 export const dynamic = "force-dynamic";
-export async function generateMetadata({searchParams}: {searchParams: Promise<Record<string,string|string[]|undefined>>}): Promise<Metadata> {
-  const sp = await searchParams;
-  return {title: registrationCopy(resolveLocale(pickUiLocale(sp.lang) ?? await getUiLocale())).metaTitle,robots:{index:false,follow:false}};
+
+type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
+
+export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
+  const { lang } = await searchParams;
+  const locale = resolveLocale(pickUiLocale(lang) ?? await getUiLocale());
+  return { title: registrationCopy(locale).metaTitle, robots: { index: false, follow: false } };
 }
-export default async function AgencyRegisterPage({searchParams}: {searchParams: Promise<Record<string,string|string[]|undefined>>}) {
-  const sp = await searchParams;
-  const locale = resolveLocale(pickUiLocale(sp.lang) ?? await getUiLocale());
+
+export default async function AgencyRegisterPage({ searchParams }: PageProps) {
+  const { lang } = await searchParams;
+  const locale = resolveLocale(pickUiLocale(lang) ?? await getUiLocale());
   const copy = registrationCopy(locale);
-  const legal = await Promise.all([readPublishedLegal("terms",locale),readPublishedLegal("privacy",locale)]);
+  const [terms, privacy] = await Promise.all([
+    readPublishedLegal("terms", locale),
+    readPublishedLegal("privacy", locale),
+  ]);
+
+  if (!terms || !privacy) {
+    return <RegistrationSpread locale={locale}
+      title={copy.title} introduction={copy.subtitle} alreadyPartner={copy.alreadyPartner} signIn={copy.signIn}>
+      <p role="status" className="registration-unavailable">{publicBrandCopy(locale).legalMissing}</p>
+    </RegistrationSpread>;
+  }
+
+  // Reuse the server's labels and ordering across hydration, regardless of the browser's ICU version.
+  const countryNames = new Intl.DisplayNames([locale], { type: "region" });
+  const countryOrder = new Intl.Collator(locale);
+  const phoneOptions = registrationPhoneCountries.map(item => ({
+    ...item, name: countryNames.of(item.country) ?? item.country,
+  })).sort((a, b) => {
+    if (a.country === DEFAULT_REGISTRATION_PHONE_COUNTRY) return -1;
+    if (b.country === DEFAULT_REGISTRATION_PHONE_COUNTRY) return 1;
+    return countryOrder.compare(a.name, b.name);
+  });
+
   return (
-    <section dir={copy.dir} lang={locale} className="public-interior registration-interior" aria-labelledby="register-title">
-      <div className="interior-width registration-spread">
-        <header className="registration-heading">
-          <h1 id="register-title">{copy.title}</h1>
-          <p className="interior-lede">{copy.subtitle}</p>
-          <p className="registration-sign-in">{copy.alreadyPartner} <Link href="/login" className="interior-link">{copy.signIn}</Link></p>
-        </header>
-        <div className="registration-paper">
-          {legal.every(Boolean) ? (
-            <RegistrationForm locale={locale} copy={copy} phoneOptions={registrationPhoneOptions(locale)}
-              botConfig={publicTurnstileConfig()} renderedAt={Date.now()} legalVersions={{
-              terms:{id:legal[0]!.id,version:legal[0]!.version},
-              privacy:{id:legal[1]!.id,version:legal[1]!.version},
-            }} />
-          ) : <p role="status" className="interior-lede">{publicBrandCopy(locale).legalMissing}</p>}
-        </div>
-      </div>
-    </section>
+    <RegistrationForm locale={locale} copy={copy} phoneOptions={phoneOptions} botConfig={publicTurnstileConfig()}
+      renderedAt={Date.now()} legalVersions={{
+        terms: { id: terms.id, version: terms.version },
+        privacy: { id: privacy.id, version: privacy.version },
+      }} />
   );
 }

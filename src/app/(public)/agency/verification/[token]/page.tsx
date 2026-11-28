@@ -1,13 +1,34 @@
 import { resolveRegistrationFollowup } from "@/lib/registration-followup";
-import { registrationReviewCopy,resolveLocale } from "@/lib/i18n";
-import { getUiLocale } from "@/lib/ui-i18n";
+import { registrationReviewCopy, resolveLocale } from "@/lib/i18n";
+import { getUiLocale, getUiLocaleFromSearch } from "@/lib/ui-i18n";
 import { RegistrationUploadForm } from "@/components/registration-upload-form";
+import { PublicAccessPage } from "@/components/public-documents/access-page";
+
 export const dynamic = "force-dynamic";
-export const metadata = {robots:{index:false,follow:false},referrer:"no-referrer" as const};
-export default async function AgencyVerificationPage({params}: {params:Promise<{token:string}>}) {
-  const {token} = await params;
+export const metadata = { robots: { index: false, follow: false }, referrer: "no-referrer" as const };
+
+export default async function AgencyVerificationPage({ params, searchParams }: {
+  params: Promise<{ token: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { token } = await params;
   const resolved = await resolveRegistrationFollowup(token);
-  const locale = resolved ? resolveLocale(resolved.locale) : await getUiLocale();
+  const locale = getUiLocaleFromSearch(await searchParams) ?? (resolved ? resolveLocale(resolved.locale) : await getUiLocale());
   const copy = registrationReviewCopy(locale);
-  return <section className="ess-container max-w-2xl py-8" dir={locale === "ar" ? "rtl" : "ltr"}><p className="travel-eyebrow text-gold-700">ESSAFARIA</p><h1 className="mt-4 font-serif text-[32px] text-navy-900">{copy.uploadTitle}</h1>{resolved ? <><p className="mt-2 text-xs text-slate-500"><bdi>{resolved.reference}</bdi></p><p className="mt-6 whitespace-pre-line text-base leading-relaxed text-slate-700">{resolved.note}</p><p className="my-6 text-xs text-slate-500">{copy.uploadHint}</p><RegistrationUploadForm token={token} locale={locale} slots={resolved.slots}/></> : <p className="mt-6 text-base leading-relaxed text-slate-600">{copy.invalid}</p>}</section>;
+  return (
+    <PublicAccessPage locale={locale} title={copy.uploadTitle}>
+      {resolved ? (
+        <>
+          <div className="access-file-note">
+            <bdi dir="ltr">{resolved.reference}</bdi>
+            <p dir="auto">{resolved.note}</p>
+          </div>
+          <p className="access-file-hint">{copy.uploadHint}</p>
+          <div className="access-uploads">
+            <RegistrationUploadForm token={token} locale={locale} slots={resolved.slots} />
+          </div>
+        </>
+      ) : <p role="status" className="access-notice">{copy.invalid}</p>}
+    </PublicAccessPage>
+  );
 }

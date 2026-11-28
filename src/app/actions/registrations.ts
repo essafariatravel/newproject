@@ -27,10 +27,9 @@ import { safeErrorCode } from "@/lib/safe-error";
 import { assertPublicBotProtection, publicClientIp } from "@/lib/bot-protection";
 import { botProtectionError } from "@/lib/bot-protection-copy";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
-import {
-  assessRegistrationPhone, contactFields, normalizeRegistrationName, registrationContactError,
-  registrationContactProblems, type ContactDraft,
-} from "@/lib/registration-contact";
+import { assessRegistrationPhone, normalizeRegistrationEmail, normalizeRegistrationName, registrationProblems } from "@/lib/registration-contact";
+import { registrationFields, type RegistrationDraft } from "@/lib/registration-draft";
+import { registrationProblemText } from "@/app/(public)/agency/register/registration-ui";
 
 
 export interface RegistrationFormState {
@@ -102,28 +101,31 @@ export async function submitRegistrationAction(
   }
 
   // Strict whitelisted input — privileged keys simply do not exist here.
-  const contact = Object.fromEntries(contactFields.map(name => [name, field(formData, name) ?? ""])) as ContactDraft;
-  const phone = assessRegistrationPhone(contact.phone, contact.phoneCountry);
-  const issues = registrationContactProblems(contact, phone);
-  const contactErrors: Record<string, string> = {};
-  for (const name of contactFields) {
+  const draft = Object.fromEntries(registrationFields.map(name => [name, field(formData, name) ?? ""])) as RegistrationDraft;
+  const phone = assessRegistrationPhone(draft.phone, draft.phoneCountry);
+  const issues = registrationProblems(draft, phone);
+  const fieldErrors: Record<string, string> = {};
+  for (const name of registrationFields) {
     const problem = issues[name];
-    if (problem) contactErrors[name] = registrationContactError(locale, copy.errors, problem);
+    if (problem) fieldErrors[name] = registrationProblemText(locale, copy.errors, problem);
   }
+  const firstError = Object.values(fieldErrors)[0];
+  if (firstError) return { error: firstError, fieldErrors };
+
   const schema = registrationFormSchema(copy.errors);
   const parsed = schema.safeParse({
-    legalName: field(formData, "legalName"),
-    contactFirstName: normalizeRegistrationName(contact.contactFirstName),
-    contactLastName: normalizeRegistrationName(contact.contactLastName),
-    city: field(formData, "city"),
-    phone: phone.status === "valid" ? phone.e164 : field(formData, "phone"),
-    email: field(formData, "email"),
+    legalName: draft.legalName,
+    contactFirstName: normalizeRegistrationName(draft.contactFirstName),
+    contactLastName: normalizeRegistrationName(draft.contactLastName),
+    city: draft.city,
+    phone: phone.status === "valid" ? phone.e164 : undefined,
+    email: normalizeRegistrationEmail(draft.email),
     terms: field(formData, "terms"),
     privacy: field(formData, "privacy"),
     accuracy: field(formData, "accuracy"),
   });
-  if (!parsed.success || Object.keys(contactErrors).length) {
-    const fieldErrors = { ...(parsed.success ? {} : fieldErrorsFrom(parsed.error)), ...contactErrors };
+  if (!parsed.success) {
+    const fieldErrors = fieldErrorsFrom(parsed.error);
     return { error: Object.values(fieldErrors)[0] ?? copy.errors.required, fieldErrors };
   }
 

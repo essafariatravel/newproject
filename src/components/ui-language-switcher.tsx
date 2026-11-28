@@ -1,12 +1,11 @@
-import { pickUiLocale, UI_LOCALES, UI_LOCALE_NAMES, type UiLocale } from "@/lib/ui-i18n";
+import { pickUiLocale, UI_LOCALES, UI_LOCALE_NAMES, type UiLocale } from "@/lib/ui-locale-values";
 import { setUiLocaleAction } from "@/app/actions/ui-locale";
 import { seoLocalizedPublicPath, type IndexablePublicSeoPage } from "@/lib/seo-manifest";
+import { RegistrationLanguageLink } from "@/app/(public)/agency/register/registration-language-link";
 
 /**
- * Global language switcher (EN / FR / AR). Pure server component: one small
- * form per locale posting to the cookie-writing server action via progressive
- * enhancement — hidden inputs only, so it works without client JS (approach
- * already proven by the host verification harness).
+ * Locale forms also work before hydration. On one-time access links, a
+ * relative query changes the language without putting the token in form data.
  */
 export function UiLanguageSwitcher({
   locale,
@@ -14,12 +13,18 @@ export function UiLanguageSwitcher({
   publicPage,
   onDark = false,
   compact = false,
+  login = false,
+  sameDocument = false,
+  receiptReference,
 }: {
   locale: UiLocale | string;
   nextPath?: string;
   publicPage?: IndexablePublicSeoPage;
   onDark?: boolean;
   compact?: boolean;
+  login?: boolean;
+  sameDocument?: boolean;
+  receiptReference?: string;
 }) {
   const current = pickUiLocale(locale) ?? "en";
   const base = onDark
@@ -27,7 +32,20 @@ export function UiLanguageSwitcher({
     : "bg-white border-line/80 text-slate-500";
   const active = onDark ? "bg-white text-navy-900 shadow-sm" : "bg-navy-900 text-white shadow-sm";
   const languageLabel = "English / Français / العربية";
-  const options = UI_LOCALES.map((l) => (
+  const locales = login ? (["fr", "en", "ar"] as const) : UI_LOCALES;
+  const shortLabel = (l: UiLocale) => l === "ar" ? (login ? UI_LOCALE_NAMES.ar : "ع") : l.toUpperCase();
+  const options = locales.map((l) => nextPath === "/agency/register" ? (
+    <RegistrationLanguageLink key={l} locale={l} current={l === current}
+      className={`flex min-h-11 items-center rounded-md px-4 text-base font-semibold ${l === current ? active : ""}`}>
+      {UI_LOCALE_NAMES[l]}
+    </RegistrationLanguageLink>
+  ) : sameDocument ? (
+    <a key={l} href={`?lang=${l}${receiptReference ? `&ref=${receiptReference}` : ""}`} referrerPolicy="no-referrer" lang={l}
+      aria-current={l === current ? "true" : undefined}
+      className={`flex min-h-11 items-center rounded-md px-4 text-base font-semibold ${l === current ? active : ""}`}>
+      {UI_LOCALE_NAMES[l]}
+    </a>
+  ) : (
     <form key={l} action={setUiLocaleAction} className="contents">
       <input type="hidden" name="locale" value={l} />
       {publicPage || nextPath ? (
@@ -39,9 +57,10 @@ export function UiLanguageSwitcher({
           compact ? "w-full text-start text-base" : "text-xs"
         } ${l === current ? active : "hover:bg-ivory-50 hover:text-navy-900"}`}
         aria-current={l === current ? "true" : undefined}
+        lang={l}
         title={UI_LOCALE_NAMES[l]}
       >
-        {compact ? UI_LOCALE_NAMES[l] : l === "ar" ? "ع" : l.toUpperCase()}
+        {compact ? UI_LOCALE_NAMES[l] : shortLabel(l)}
       </button>
     </form>
   ));
@@ -54,7 +73,7 @@ export function UiLanguageSwitcher({
           title={languageLabel}
           className={`grid h-11 min-w-11 place-items-center rounded-lg border text-xs font-semibold ${base}`}
         >
-          {current === "ar" ? "ع" : current.toUpperCase()}
+          {shortLabel(current)}
         </summary>
         <div className="ui-locale-menu-panel">{options}</div>
       </details>

@@ -62,12 +62,24 @@ describe("Task 2/3 — CTA + registration submit button share the polished butto
 });
 
 describe("Task 4 — registration success readability tokens", () => {
-  it("success screen uses high-contrast text on the dark panel", () => {
-    const s = readFileSync("src/app/(public)/agency/register/success/page.tsx", "utf8");
-    expect(s).toContain("text-white");
-    expect(s).toContain("text-shadow");
-    expect(s).toContain("text-gold-400");
-    expect(s).not.toMatch(/text-gold-(200|300|800|900)\b/);
-    expect(s).toContain("registrationCopy(locale)");
+  it("keeps the title and secondary text legible on the white registration receipt", () => {
+    const receipt = readFileSync("src/app/(public)/agency/register/success/page.tsx", "utf8");
+    const rules = readFileSync("src/app/(public)/agency/register/registration-premium.css", "utf8");
+    const tokens = readFileSync("src/app/public-design.css", "utf8");
+    expect(receipt).toContain('className="registration-receipt"');
+    expect(receipt).toContain("registrationCopy(locale)");
+    expect(rules).toMatch(/\.registration-receipt\s*\{[^}]*background: var\(--registration-surface\)/);
+    expect(rules).toContain("--registration-surface: var(--color-white)");
+    expect(rules).toMatch(/\.receipt-steps li\s*\{[^}]*color: var\(--public-muted\)/);
+    for (const token of ["public-ink", "public-muted"]) {
+      const hex = tokens.match(new RegExp(`--${token}: #([a-f0-9]{6});`, "i"))?.[1] ?? "";
+      expect(hex).toHaveLength(6);
+      const channel = (offset: number) => {
+        const value = parseInt(hex.slice(offset, offset + 2), 16) / 255;
+        return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
+      };
+      const luminance = .2126 * channel(0) + .7152 * channel(2) + .0722 * channel(4);
+      expect(1.05 / (luminance + .05)).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });
