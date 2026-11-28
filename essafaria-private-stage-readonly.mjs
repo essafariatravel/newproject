@@ -93,6 +93,15 @@ try {
  assert.equal(checks.length,tables.length);for(const row of checks){assert.equal(row.rls,true);assert.equal(row.anon_access,false);assert.equal(row.authenticated_access,false);assert.equal(row.service_access,false);assert.equal(row.app_read,true)}
  const groupScope=(await client.query(`select exists(select 1 from pg_index i join pg_class c on c.oid=i.indexrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='visa_os' and c.relname='visa_request_groups_id_global_uq' and i.indisunique and i.indisvalid) ok`)).rows[0];assert.equal(groupScope.ok,true);
  console.log("GROUP_RELEASE_PRIVATE_SCHEMA_PASS (10 tables, RLS, public denial and global group identity)");
+ gateStage="LIVE_CATALOGUE_PARITY";
+ const {canonicalPersonalCode,personalCode,tripSpecificDocument}=await import("./src/lib/traveller-hub-policy.ts");
+ const {sharedDocumentCode}=await import("./src/lib/group-policy.ts");
+ const liveCodes=(await client.query("select code from visa_os.document_types where active and agency_uploadable")).rows.map(r=>r.code);
+ assert.ok(liveCodes.some(code=>personalCode(code)&&canonicalPersonalCode(code)==="PASSPORT"));
+ assert.ok(liveCodes.some(code=>personalCode(code)&&canonicalPersonalCode(code)==="PHOTO"));
+ for(const code of liveCodes){if(sharedDocumentCode(code)){assert.equal(personalCode(code),false);assert.equal(tripSpecificDocument(code),true)}if(personalCode(code))assert.equal(sharedDocumentCode(code),false);}
+ console.log("PRODUCTION_LIVE_CATALOGUE_PARITY_PASS (passport/photo available; personal and collective types separated)");
+
  }
  await client.query("rollback");
  console.log("ESSAFARIA_PRIVATE_STAGE_TLS_READONLY_LEDGER39_CANCELLATION_REGISTRATION_EMAIL_STAFF_PUSH_OWNER_GATE_PASS");
