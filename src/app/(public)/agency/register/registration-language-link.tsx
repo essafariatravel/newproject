@@ -3,10 +3,10 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { UI_LOCALE_COOKIE, type UiLocale } from "@/lib/ui-locale-values";
+import { registrationFields, type RegistrationDraft } from "@/lib/registration-draft";
+import { registrationSections, type RegistrationSection } from "./registration-ui";
 
-const fields = ["legalName", "city", "contactFirstName", "email", "phone"] as const;
-type Field = typeof fields[number];
-type Transfer = { to: UiLocale; values: Partial<Record<Field, string>>; accuracy: boolean };
+type Transfer = { to: UiLocale; values: RegistrationDraft; section: RegistrationSection; accuracy: boolean };
 let transfer: Transfer | undefined;
 let expiry: ReturnType<typeof setTimeout> | undefined;
 
@@ -19,27 +19,34 @@ function prepareTransfer(to: UiLocale) {
   clearTransfer();
   const form = document.querySelector<HTMLFormElement>(".front-register form.registration-form");
   if (!form) return;
-  const values: Partial<Record<Field, string>> = {};
-  for (const name of fields) {
-    const input = form.elements.namedItem(name);
-    if (input instanceof HTMLInputElement) values[name] = input.value;
-  }
+  const values = readRegistrationDraft(form);
+  const section = registrationSections.find(item => item === form.dataset.step) ?? "company";
   const accuracy = form.elements.namedItem("accuracy");
-  transfer = { to, values, accuracy: accuracy instanceof HTMLInputElement && accuracy.checked };
+  transfer = { to, values, section, accuracy: accuracy instanceof HTMLInputElement && accuracy.checked };
   // Only a language selection creates a transfer. It exists in this JS
   // document alone and expires even if navigation is interrupted.
   expiry = setTimeout(clearTransfer, 30_000);
 }
 
+export function readRegistrationDraft(form: HTMLFormElement): RegistrationDraft {
+  return Object.fromEntries(registrationFields.map(name => {
+    const control = form.elements.namedItem(name);
+    return [name, control instanceof HTMLInputElement || control instanceof HTMLSelectElement ? control.value : ""];
+  })) as RegistrationDraft;
+}
+
 export function restoreRegistrationLanguage(form: HTMLFormElement, locale: UiLocale, finished: boolean) {
   if (transfer?.to !== locale) return;
-  for (const name of fields) {
+  const { values, section, accuracy: confirmed } = transfer;
+  for (const name of registrationFields) {
     const input = form.elements.namedItem(name);
-    if (input instanceof HTMLInputElement && !input.value) input.value = transfer.values[name] ?? "";
+    if (input instanceof HTMLInputElement && !input.value) input.value = values[name];
+    if (input instanceof HTMLSelectElement && values[name]) input.value = values[name];
   }
   const accuracy = form.elements.namedItem("accuracy");
-  if (accuracy instanceof HTMLInputElement && transfer.accuracy) accuracy.checked = true;
+  if (accuracy instanceof HTMLInputElement && confirmed) accuracy.checked = true;
   if (finished) clearTransfer();
+  return section;
 }
 
 export function RegistrationLanguageLink({ locale, current, className, children }: {

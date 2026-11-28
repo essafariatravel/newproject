@@ -28,6 +28,7 @@
 .public-site:has(.public-front-page) footer :is(a, summary):focus-visible { outline: 2px solid var(--public-gold); outline-offset: 3px; }
 .public-site:has(.public-front-page) .travel-photo-credits ul { display: grid; gap: .375rem; }
 .public-site:has(.public-front-page) .travel-photo-credits li { line-height: 1.6; }
+.public-site .travel-photo-credits li a:not([rel="license"]) { white-space: normal; overflow-wrap: anywhere; }
 @media (min-width: 1024px) {
   .public-site:has(.public-front-page) .public-footer-grid { grid-template-columns: minmax(0,1.35fr) minmax(0,1fr) minmax(0,.9fr) minmax(0,1.2fr); }
   .public-site:has(.public-front-page) .public-footer-grid.with-contact { grid-template-columns: repeat(5,minmax(0,1fr)); }

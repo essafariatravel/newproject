@@ -7,9 +7,6 @@ import { buildPublicMetadata } from "@/lib/seo";
 import { PublicVisaChapters } from "@/components/public-visa-chapters";
 import { PublicActionLabel } from "@/components/public-action-label";
 import { seoLocalizedPublicPath } from "@/lib/seo-manifest";
-import photos from "../../../public/images/travel/credits.json";
-
-const airportPhoto = photos.find(photo => photo.variants.some(variant => variant.file === "dulles-terminal.webp"));
 
 export const dynamic = "force-dynamic";
 
@@ -18,13 +15,12 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 const entry = {
-  en: { partnership: "Partner with ESSAFARIA", details: "Partnership details", contact: "Contact the visa desk", airport: "Washington Dulles, USA" },
-  fr: { partnership: "Devenez partenaire ESSAFARIA", details: "Le partenariat", contact: "Contacter le service visas", airport: "Washington-Dulles, États-Unis" },
-  ar: { partnership: "انضمّوا إلى شركاء ESSAFARIA", details: "تفاصيل الشراكة", contact: "تواصلوا مع مكتب التأشيرات", airport: "مطار واشنطن دالاس، الولايات المتحدة" },
+  en: { partnership: "Partner with ESSAFARIA", details: "Partnership details", contact: "Contact the visa desk", demo: "Try the visa workflow" },
+  fr: { partnership: "Devenez partenaire ESSAFARIA", details: "Le partenariat", contact: "Contacter le service visas", demo: "Essayer le parcours visa" },
+  ar: { partnership: "انضمّوا إلى شركاء ESSAFARIA", details: "تفاصيل الشراكة", contact: "تواصلوا مع مكتب التأشيرات", demo: "جرّبوا مسار طلب التأشيرة" },
 } as const;
 
 export default async function HomePage() {
-  if (!airportPhoto) throw new Error("Missing photo credit for the Dulles terminal");
   const locale = await getUiLocale();
   const copy = publicBrandCopy(locale);
   const labels = entry[locale];
@@ -45,11 +41,13 @@ export default async function HomePage() {
               <svg aria-hidden="true" className="directional-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 12h15m-6-6 6 6-6 6" /></svg>
             </Link>
             <Link href={`/login?lang=${locale}`} className="platform-secondary"><PublicActionLabel locale={locale}>{copy.signIn}</PublicActionLabel></Link>
+            <a href="#visa-services" className="hero-demo-link">
+              {labels.demo}
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <path d="M10 3v13m-5-5 5 5 5-5" />
+              </svg>
+            </a>
           </div>
-          <small className="hero-credit">
-            {labels.airport} · <a href={airportPhoto.source}><bdi>{airportPhoto.photographer}</bdi></a>
-            {" · "}<a href={airportPhoto.licenseURL} rel="license"><bdi>{airportPhoto.license}</bdi></a>
-          </small>
         </div>
       </section>
       <PublicVisaChapters locale={locale} />

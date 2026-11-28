@@ -173,7 +173,7 @@ describe("Turnstile server boundary", () => {
   });
   it("normalizes registration identities across different IPs without a permanent lockout", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ ...valid(), action: "agency_registration" })));
-    const values = { locale: "en", legalName: "Synthetic Partner", contactFirstName: "Lina", phone: "+213555123456", terms: "true", privacy: "true", accuracy: "true" };
+    const values = { locale: "en", legalName: "Synthetic Partner", contactFirstName: "Lina", contactLastName: "Benali", phoneCountry: "DZ", phone: "555123456", terms: "true", privacy: "true", accuracy: "true" };
     const limited = registrationCopy("en").errors.rateLimited;
     for (let index = 0; index < 6; index++) {
       request.headers.set("x-forwarded-for", `192.0.2.${30 + index}`);

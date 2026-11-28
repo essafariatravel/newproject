@@ -11,6 +11,7 @@
 .visa-tour {
   --tour-pad: clamp(1.0625rem, 3vw, 2rem);
   color: var(--public-ink);
+  scroll-margin-block-start: 1rem;
 }
 
 .visa-tour-rail {
@@ -92,8 +93,7 @@
 
 .visa-tour-pane {
   grid-area: 2 / 1 / 3 / -1;
-  display: grid;
-  visibility: hidden;
+  display: none;
   grid-template-columns: minmax(0,1.5fr) minmax(0,1fr);
   gap: clamp(1.375rem,5vw,4rem);
   align-content: start;
@@ -103,7 +103,7 @@
 }
 .visa-tour-rail:has(#visa-chapter-0:checked) #visa-explanation-0,
 .visa-tour-rail:has(#visa-chapter-1:checked) #visa-explanation-1,
-.visa-tour-rail:has(#visa-chapter-2:checked) #visa-explanation-2 { visibility: visible; z-index: 1; animation: visa-tour-enter 190ms var(--public-ease); }
+.visa-tour-rail:has(#visa-chapter-2:checked) #visa-explanation-2 { display: grid; animation: visa-tour-enter 190ms var(--public-ease); }
 @keyframes visa-tour-enter {
   from { opacity: .65; transform: translateY(.1875rem); }
   to { opacity: 1; transform: translateY(0); }
@@ -189,7 +189,7 @@
 }
 .visa-tour-shortcuts button:is(:hover,:active) { border-color: var(--public-field-edge); background: var(--tour-wash); }
 .visa-tour-country { padding-inline: .875rem; border: 1px solid var(--public-divider); border-radius: var(--public-radius); }
-.visa-tour-tools { margin-block-start: .5rem; }
+.visa-tour-tools { display: flex; flex-wrap: wrap; column-gap: 1.125rem; margin-block-start: .5rem; }
 .visa-tour :is(.visa-tour-text,.visa-tour-country button,.intake-enlarge) {
   display: inline-flex;
   align-items: center;
@@ -227,6 +227,9 @@
   cursor: not-allowed;
 }
 .visa-tour-doc-list { margin-block-start: .75rem; border-block-start: 1px solid var(--public-divider); }
+.visa-tour-doc-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .375rem 1rem; }
+.visa-tour-doc-heading p { font-variant-numeric: tabular-nums; }
+.visa-tour-pane .visa-tour-readiness { font-weight: 600; color: var(--public-ink); }
 .visa-tour-doc-list button {
   display: flex;
   flex-wrap: wrap;

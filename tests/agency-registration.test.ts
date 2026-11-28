@@ -272,6 +272,8 @@ describe("public registration action — anti-automation & safe errors", () => {
     const form = new FormData();
     for (const [k, v] of Object.entries({
       ...data,
+      phoneCountry: "DZ",
+      phone: "550123456",
       locale: "en",
       renderedAt: String(Date.now() - 10_000),
       termsVersion: "1",
@@ -307,6 +309,14 @@ describe("public registration action — anti-automation & safe errors", () => {
     const result = await submitRegistrationAction({}, form);
     expect(result.fieldErrors?.legalName).toBe("Ce champ est obligatoire.");
     expect(result.fieldErrors?.email).toBeTruthy();
+    expect(await countRegistrations()).toBe(before);
+  });
+
+  it("requires a family name and nine national digits on a new public request", async () => {
+    const before = await countRegistrations();
+    const result = await submitRegistrationAction({}, actionFormData({ locale: "fr", contactLastName: "", phone: "55012345" }));
+    expect(result.fieldErrors?.contactLastName).toBe("Ce champ est obligatoire.");
+    expect(result.fieldErrors?.phone).toContain("neuf chiffres");
     expect(await countRegistrations()).toBe(before);
   });
 

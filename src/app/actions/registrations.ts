@@ -27,6 +27,9 @@ import { safeErrorCode } from "@/lib/safe-error";
 import { assertPublicBotProtection, publicClientIp } from "@/lib/bot-protection";
 import { botProtectionError } from "@/lib/bot-protection-copy";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
+import { assessRegistrationPhone, normalizeRegistrationEmail, registrationProblems } from "@/lib/registration-contact";
+import { registrationFields, type RegistrationDraft } from "@/lib/registration-draft";
+import { registrationProblemText } from "@/app/(public)/agency/register/registration-ui";
 
 
 export interface RegistrationFormState {
@@ -98,13 +101,25 @@ export async function submitRegistrationAction(
   }
 
   // Strict whitelisted input — privileged keys simply do not exist here.
+  const draft = Object.fromEntries(registrationFields.map(name => [name, field(formData, name) ?? ""])) as RegistrationDraft;
+  const phone = assessRegistrationPhone(draft.phone, draft.phoneCountry);
+  const issues = registrationProblems(draft, phone);
+  const fieldErrors: Record<string, string> = {};
+  for (const name of registrationFields) {
+    const problem = issues[name];
+    if (problem) fieldErrors[name] = registrationProblemText(locale, copy.errors, problem);
+  }
+  const firstError = Object.values(fieldErrors)[0];
+  if (firstError) return { error: firstError, fieldErrors };
+
   const schema = registrationFormSchema(copy.errors);
   const parsed = schema.safeParse({
-    legalName: field(formData, "legalName"),
-    contactFirstName: field(formData, "contactFirstName"),
-    city: field(formData, "city"),
-    phone: field(formData, "phone"),
-    email: field(formData, "email"),
+    legalName: draft.legalName,
+    contactFirstName: draft.contactFirstName,
+    contactLastName: draft.contactLastName,
+    city: draft.city,
+    phone: phone.status === "valid" ? phone.e164 : undefined,
+    email: normalizeRegistrationEmail(draft.email),
     terms: field(formData, "terms"),
     privacy: field(formData, "privacy"),
     accuracy: field(formData, "accuracy"),

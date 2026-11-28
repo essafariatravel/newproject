@@ -132,7 +132,9 @@ describe("integrated legal authorization and atomic registration audits", () => 
   it.each(["fr","ar"] as const)("returns %s legal-change feedback when publication changes after public form validation", async locale => {
     const consent=await approvedConsent(locale), data=registrationData({locale,legalConsentVersions:consent});
     const form=new FormData();
-    for(const field of ["legalName","contactFirstName","city","phone","email","terms","privacy","accuracy","locale"] as const) form.set(field,data[field]!);
+    for(const field of ["legalName","contactFirstName","contactLastName","city","email","terms","privacy","accuracy","locale"] as const) form.set(field,data[field]!);
+    form.set("phoneCountry", "DZ");
+    form.set("phone", "550123456");
     form.set("renderedAt",String(Date.now()-30_000));
     form.set("termsVersionId",consent.terms.id); form.set("termsVersion",String(consent.terms.version));
     form.set("privacyVersionId",consent.privacy.id); form.set("privacyVersion",String(consent.privacy.version));

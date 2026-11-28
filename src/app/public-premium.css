@@ -80,8 +80,8 @@
 .hero-airport::after { content: ""; position: absolute; inset: 0; background: linear-gradient(var(--hero-direction,90deg),#071a33,rgb(7 26 51 / .89) 18%,rgb(7 26 51 / .39) 47%,transparent 77%); }
 [dir="rtl"] .platform-home { --hero-direction: 270deg; }
 .hero-content { padding-block: clamp(3.875rem,5vw,5.125rem) clamp(5.625rem,6.8vw,7rem); }
-.hero-credit { position: absolute; inset-inline-end: var(--home-gutter); bottom: 2.45rem; padding: .17rem .45rem; background: var(--home-navy); color: white; font-size: .8125rem; line-height: 1.45; }
-.hero-credit a { color: inherit; text-decoration: underline; text-underline-offset: .15em; }
+.hero-demo-link { display: inline-flex; align-items: center; gap: .5rem; min-height: 44px; padding-inline: .5rem; font-weight: 600; color: var(--premium-white); text-decoration: underline; text-underline-offset: .25em; }
+.hero-demo-link:hover { text-decoration-thickness: 2px; }
 .hero-content h1 { max-width: min(58%,40.625rem); font-size: clamp(2.75rem,4.45vw,4rem); line-height: 1.035; letter-spacing: -.039em; }
 .hero-content > p { max-width: min(53%,33.125rem); margin-block-start: 1.1875rem; font-size: clamp(1.0625rem,1.32vw,1.1875rem); line-height: 1.58; color: #f0f4f7; text-wrap: pretty; }
 .hero-actions, .access-links { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; margin-block-start: 1.5625rem; }
@@ -147,10 +147,9 @@
   .hero-airport img { object-position: 61% 41%; }
   .hero-airport::after { background: linear-gradient(to top,#071a33 0%,rgb(7 26 51 / .94) 29%,rgb(7 26 51 / .75) 60%,rgb(7 26 51 / .12)); }
   .hero-content { padding-block: clamp(4.5rem,20vw,6.625rem) 3.5rem; }
-  .hero-credit { bottom: 1.4rem; max-width: calc(100% - 2 * var(--home-gutter)); font-size: .75rem; }
   .hero-content h1 { max-width: 100%; font-size: clamp(2.125rem,8.3vw,2.875rem); letter-spacing: -.034em; line-height: 1.06; }
   .hero-content > p { max-width: 45ch; font-size: 1.0625rem; margin-block-start: .8125rem; line-height: 1.55; }
-  .hero-actions { flex-wrap: nowrap; align-items: stretch; gap: .5rem; margin-block-start: 1.1875rem; }
+  .hero-actions { flex-wrap: wrap; align-items: center; gap: .5rem; margin-block-start: 1.1875rem; }
   .hero-actions a { min-width: 0; }
   .platform-home :is(.platform-primary,.platform-secondary) { padding-inline: .8125rem; font-size: 1rem; gap: .5rem; }
   .workspace-tour { margin-block: -1.1875rem 2.25rem; border-radius: .625rem; }

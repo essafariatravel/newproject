@@ -94,12 +94,15 @@ export function PublicVisaIntake({ locale, children }: { locale: UiLocale; child
   const [documentIndex,setDocumentIndex] = useState(0);
   const [attached,setAttached] = useState([false,false]);
   const count = attached.filter(Boolean).length;
+  const complete = country !== null && count === copy.requirements.length;
+  const nextIncomplete = attached.findIndex(value => !value);
   const numbers = new Intl.NumberFormat(locale);
   const progress = numbers.format(count)+" / "+numbers.format(2);
   function goTo(index:number) {
     const radio = rail.current?.querySelectorAll<HTMLInputElement>('input[type="radio"]')[index];
     radio?.click();
     radio?.focus({preventScroll:true});
+    radio?.closest(".visa-tour-stop")?.scrollIntoView({block:"nearest"});
   }
   const destination = country === null ? copy.select : copy.countries[country];
   const summary = <dl className="visa-tour-record">
@@ -107,7 +110,7 @@ export function PublicVisaIntake({ locale, children }: { locale: UiLocale; child
     <div><dt>{copy.traveller}</dt><dd>{copy.exampleTraveller}</dd></div>
     <div><dt>{copy.docsSummary}</dt><dd aria-live="polite"><bdi dir="ltr">{progress}</bdi></dd></div>
   </dl>;
-  return <section id="visa-services" className="platform-width workspace-tour visa-tour" aria-labelledby="chapter-title">
+  return <section id="visa-services" className="platform-width workspace-tour visa-tour" aria-labelledby="chapter-title" tabIndex={-1}>
     <header className="tour-heading"><h2 id="chapter-title">{copy.title}</h2>
       <p className="sample-reference">{copy.sample}</p>
     </header>
@@ -133,7 +136,12 @@ export function PublicVisaIntake({ locale, children }: { locale: UiLocale; child
         </div>
       </section>
       <section id="visa-explanation-1" className="visa-tour-pane">
-        <div><h3>{copy.docs}</h3><div className="visa-tour-doc-list">
+        <div>
+          <div className="visa-tour-doc-heading">
+            <h3>{copy.docs}</h3>
+            <p role="status"><bdi dir="ltr">{progress}</bdi> {copy.docsSummary}</p>
+          </div>
+          <div className="visa-tour-doc-list">
           {copy.requirements.map((label,i)=><button type="button" key={i} aria-pressed={documentIndex===i} onClick={()=>setDocumentIndex(i)}>
             <span>{label}</span><small>{attached[i]?copy.selected:copy.pending}</small>
           </button>)}
@@ -142,12 +150,31 @@ export function PublicVisaIntake({ locale, children }: { locale: UiLocale; child
           {attached[documentIndex] && <p className="visa-tour-file"><bdi dir="ltr">{exampleFiles[documentIndex]}</bdi></p>}
           <div className="visa-tour-tools"><button className="visa-tour-text" type="button" onClick={()=>setAttached(files=>files.map((v,i)=>i===documentIndex?!v:v))}>
             {attached[documentIndex]?copy.remove:copy.selectFile}
-          </button></div>
+          </button>
+            {attached[documentIndex] && nextIncomplete >= 0 &&
+              <button className="visa-tour-text" type="button" onClick={() => setDocumentIndex(nextIncomplete)}>{copy.nextDocument}</button>}
+          </div>
           <button type="button" className="visa-tour-action" disabled={count < copy.requirements.length} onClick={()=>goTo(2)}>{copy.review}</button>
         </div>
       </section>
       <section id="visa-explanation-2" className="visa-tour-pane">
-        <div><h3>{copy.recap}</h3>{summary}<button className="visa-tour-text" type="button" onClick={()=>goTo(0)}>{copy.change}</button></div>
+        <div>
+          <h3>{copy.recap}</h3>
+          {summary}
+          <p className="visa-tour-readiness" role="status">
+            {complete ? copy.dossierReady : country === null ? copy.destinationMissing : copy.documentsMissing}
+          </p>
+          <div className="visa-tour-tools">
+            {!complete && <button className="visa-tour-text" type="button"
+              onClick={() => goTo(country === null ? 0 : 1)}>
+              {country === null ? copy.select : copy.next}
+            </button>}
+            {(country !== null || count > 0) && <button className="visa-tour-text" type="button"
+              onClick={() => { setCountry(null); setAttached([false, false]); setDocumentIndex(0); goTo(0); }}>
+              {copy.restart}
+            </button>}
+          </div>
+        </div>
         <div className="visa-tour-summary"><h3>{copy.payment}</h3><p>{copy.wallet}</p>
           <p className="visa-tour-planning">{copy.planning}</p>
           <Link className="visa-tour-action" href={"/login?lang="+locale}>{copy.signIn}</Link>

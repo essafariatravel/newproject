@@ -18,11 +18,12 @@ const locations: Record<string, Record<UiLocale, string>> = {
 export function TravelPhotoCredits({ locale }: { locale: UiLocale }) {
   const labels = copy[locale];
   return (
-    <details className="travel-photo-credits">
+    <details id="photo-sources" className="travel-photo-credits">
       <summary>{labels.title}</summary>
       <ul>{photos.map((photo) => (
         <li key={photo.source}>
-          <span>{locations[photo.variants[0]?.file ?? ""]?.[locale] ?? photo.title}</span>{", "}<a href={photo.source}><bdi>{photo.photographer}</bdi></a>{" ("}
+          <a href={photo.source}>{locations[photo.variants[0]?.file ?? ""]?.[locale] ?? photo.title}</a>{", "}
+          <bdi>{photo.photographer}</bdi>{" ("}
           <a href={photo.licenseURL} rel="license"><bdi>{photo.license}</bdi></a>
           {")"}
         </li>

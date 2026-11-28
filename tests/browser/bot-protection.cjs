@@ -228,10 +228,15 @@ async function main() {
     }
     evidence.push('authentication-forms-fr-en-ar-12-views');
     {
-      const { ctx, page } = await context('fr', 375); await page.goto(origin + '/agency/register?lang=fr'); await ready(page);
+      const { ctx, page } = await context('fr', 375); await page.goto(origin + '/agency/register?lang=fr');
+      await page.locator('form[data-enhanced="true"]').waitFor();
       await page.locator('[name="legalName"]').fill('Agence fictive de recette');
+      await page.locator('#registration-company button.registration-action').click();
       await page.locator('[name="contactFirstName"]').fill('Lina'); await page.locator('[name="email"]').fill('partner@example.test');
+      await page.locator('[name="contactLastName"]').fill('Benali');
       await page.locator('[name="phone"]').fill('+213555123456');
+      await page.locator('#registration-contact button.registration-action').click();
+      await ready(page);
       for (const name of ['terms', 'privacy', 'accuracy']) await page.locator(`[name="${name}"]`).check();
       await checkLayout(page, 'registration-fr-375'); await page.waitForTimeout(1600);
       await page.locator('form:has([name="cf-turnstile-response"]) button[type="submit"]').click(); await page.waitForURL('**/agency/register/success?**'); await ctx.close();
