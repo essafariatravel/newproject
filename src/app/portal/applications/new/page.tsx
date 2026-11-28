@@ -1,7 +1,6 @@
 import {GroupWizard} from "./group-wizard";
-import {groupEnabled} from "@/lib/group-policy";
+import {canAccessGroups} from "@/lib/group-access";
 import {groupCopy} from "@/lib/group-copy";
-import {hasPermission} from "@/lib/rbac";
 import Link from "next/link";
 import {hubEnabled,uuid} from "@/lib/traveller-hub-policy";
 import {repeatSource} from "@/lib/traveller-hub";
@@ -159,15 +158,18 @@ export default async function NewApplicationPage({
 
   const uiLocale = locale === "ar" ? "ar" : locale === "fr" ? "fr" : "en";
 
-  const group=groupEnabled()&&hasPermission(user,"applications.create")&&hasPermission(user,"documents.upload.own")&&hasPermission(user,"applications.view.all");
-  if(group&&sp.mode==="group")return <GroupWizard locale={uiLocale} today={algeriaToday()} countries={countries} nationalities={NATIONALITIES.map(n=>({code:n.code,label:nationalityLabel(n.code,uiLocale)}))} requirementsByVisaType={requirementMaps} defaultNationality={prefs.nationality} walletBalance={wallet.balance} catalogueFingerprints={catalogueFingerprints} recoveryKey={"essafaria-group-attempt:"+user.id}/>;
+  const group=canAccessGroups(user);
+  const groupedMode=sp.mode==="group";
+  if(groupedMode&&!group)notFound();
+  const modes=group?<nav className="group-mode-selector" aria-label={ct("New visa request")}><Link href="/portal/applications/new" aria-current={!groupedMode?"page":undefined}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>{groupCopy[uiLocale].single}</Link><Link href="/portal/applications/new?mode=group" aria-current={groupedMode?"page":undefined}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="9" cy="7" r="3.5"/><path d="M2 21v-2a7 7 0 0 1 14 0v2M16 4a3.5 3.5 0 0 1 0 7m2 3a6 6 0 0 1 4 5v2"/></svg>{groupCopy[uiLocale].group}</Link></nav>:null;
+  if(groupedMode)return <>{modes}<GroupWizard locale={uiLocale} today={algeriaToday()} countries={countries} nationalities={NATIONALITIES.map(n=>({code:n.code,label:nationalityLabel(n.code,uiLocale)}))} requirementsByVisaType={requirementMaps} defaultNationality={prefs.nationality} walletBalance={wallet.balance} catalogueFingerprints={catalogueFingerprints} recoveryKey={"essafaria-group-attempt:"+user.id}/></>;
   return (
     <>
-      {group?<div className="group-mode-link"><Link className="btn-secondary" href="/portal/applications/new?mode=group">{groupCopy[uiLocale].group} →</Link></div>:null}
       <PageHeader
         title={ct("New visa request")}
         subtitle={ct("Three steps: choose the destination and visa, upload the documents, preview and submit. Nothing is saved before the final confirmation.")}
       />
+      {modes}
       <RequestWizard
         documentIntelligence={process.env.VERCEL_ENV==="preview"&&process.env.VERCEL_GIT_COMMIT_REF==="codex/phase2c-document-intelligence-20261126"}
         travellerHub={hub}

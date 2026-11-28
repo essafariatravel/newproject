@@ -1,6 +1,6 @@
-import {groupEnabled,groupWithinBudget,distinctGroupIdentities,groupDocumentConflict} from "@/lib/group-policy";
+import {canAccessGroups} from "@/lib/group-access";
+import {groupWithinBudget,distinctGroupIdentities,groupDocumentConflict} from "@/lib/group-policy";
 import {uuid} from "@/lib/traveller-hub-policy";
-import {hasPermission} from "@/lib/rbac";
 import {linkTravellerInSubmission} from "@/lib/traveller-profile-write";
 import {algeriaToday} from "@/lib/travel-deadline";
 import {hubEnabled,passportKey,civilDate,validApplicationPassport} from "@/lib/traveller-hub-policy";
@@ -671,7 +671,7 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
  * No group row, application or charge becomes visible until every member succeeds. */
 export async function submitVisaGroup(actorInput:AuthUser,groupId:string,manifest:string,inputs:SubmitVisaRequestInput[]):Promise<SubmitVisaRequestResult[]> {
  const agencyId=actorInput.agencyId;
- if(!groupEnabled()||databaseSchema()!=="visa_os_preview"||!agencyId||!isAgencyRole(actorInput.role)||!hasPermission(actorInput,"applications.create")||!hasPermission(actorInput,"documents.upload.own")||actorInput.mustChangePassword)throw new AppError("FORBIDDEN","Group unavailable");
+ if(!canAccessGroups(actorInput)||databaseSchema()!=="visa_os_preview"||!agencyId)throw new AppError("FORBIDDEN","Group unavailable");
  const input=inputs[0];if(!input||!uuid(groupId)||!/^[a-f0-9]{64}$/.test(manifest)||!groupWithinBudget(inputs.length,inputs.reduce((n,x)=>n+x.documents.length,0),inputs.reduce((n,x)=>n+x.documents.reduce((a,d)=>a+d.file.data.length,0),0))||!distinctGroupIdentities(inputs.map(x=>x.travellers[0]??{passportNumber:null}))||new Set(inputs.map(x=>x.idempotencyKey)).size!==inputs.length||inputs.some(x=>x.travellers.length!==1||x.visaTypeId!==input.visaTypeId||x.countryId!==input.countryId||x.expectedFee!==input.expectedFee||x.expectedCatalogue!==input.expectedCatalogue||!uuid(x.idempotencyKey)||!x.expectedCatalogue||x.expectedFee===undefined||!validApplicationPassport(x.travellers[0]!.passportNumber,x.travellers[0]!.passportExpiryDate,algeriaToday())))throw new AppError("VALIDATION","Invalid group");
  await db.transaction(async tx=>{await currentOperationActor(tx,actorInput)});
   const cfgRows = await db
@@ -729,7 +729,7 @@ export async function submitVisaGroup(actorInput:AuthUser,groupId:string,manifes
  try{
  await client.query("begin");await client.query(`set local search_path to "${databaseSchema().replaceAll('"','""')}"`);
  const actor=await currentOperationActorPg(client,actorInput);
- if(actor.agencyId!==agencyId||!hasPermission(actor,"applications.create")||!hasPermission(actor,"documents.upload.own"))throw new AppError("FORBIDDEN","Group unavailable");
+ if(actor.agencyId!==agencyId||!canAccessGroups(actor))throw new AppError("FORBIDDEN","Group unavailable");
  const submittedId=submitted[0]?.id;if(!submittedId||!cfg)throw new AppError("CONFIG_ERROR","Workflow unavailable");
  const agency=await client.query<{status:string}>(`select status from ${qualifiedTable("agencies")} where id=$1 for update`,[agencyId]);
  if(agency.rows[0]?.status!=="ACTIVE")throw new AppError("FORBIDDEN","Agency unavailable");

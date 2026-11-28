@@ -24,3 +24,19 @@ assert.equal(groupDocumentConflict([{member:1,code:"PASSPORT",sha256:"x"},{membe
 assert.equal(groupDocumentConflict([{member:1,code:"HOTEL_RESERVATION",sha256:"x"},{member:2,code:"HOTEL_RESERVATION",sha256:"x"}]),false);
 assert.equal(groupDocumentConflict([{member:1,code:"PASSPORT",sha256:"x"},{member:2,code:"PASSPORT",sha256:"y"}]),false);
 console.log("[group-booking] Scope, monetary arithmetic, caps, identities and shared-file conflict PASS (22 assertions)");
+
+import {canAccessGroups} from "../src/lib/group-access";
+import type {AuthUser} from "../src/lib/types";
+const preview={VERCEL_ENV:"preview",VERCEL_GIT_COMMIT_REF:CONSOLIDATED_BRANCH,DATABASE_SCHEMA:"visa_os_preview"};
+const actor:AuthUser={id:"fixture-user",email:"fixture@example.invalid",name:"Fixture",role:"AGENCY_USER",agencyId:"fixture-agency",userStatus:"ACTIVE",agencyStatus:"ACTIVE",agencyName:"Fixture"};
+assert.equal(canAccessGroups(actor,preview),true);
+assert.equal(canAccessGroups({...actor,role:"AGENCY_ADMIN"},preview),true);
+assert.equal(canAccessGroups({...actor,role:"SUPER_ADMIN"},preview),false);
+assert.equal(canAccessGroups({...actor,agencyId:null},preview),false);
+assert.equal(canAccessGroups({...actor,userStatus:"SUSPENDED"},preview),false);
+assert.equal(canAccessGroups({...actor,agencyStatus:"SUSPENDED"},preview),false);
+assert.equal(canAccessGroups({...actor,mustChangePassword:true},preview),false);
+assert.equal(canAccessGroups({...actor,mfaPending:true},preview),false);
+assert.equal(canAccessGroups(actor,{...preview,VERCEL_ENV:"production"}),false);
+assert.equal(canAccessGroups(actor,{...preview,DATABASE_SCHEMA:"visa_os"}),false);
+console.log("[group-access] Agency user/admin allowed; staff, disabled actors and Production denied PASS (10 assertions)");

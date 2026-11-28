@@ -1,7 +1,7 @@
 import {NextResponse} from "next/server";
 import {z} from "zod";
 import {requireAgencyUser} from "@/lib/auth";
-import {hasPermission} from "@/lib/rbac";
+import {canAccessGroups} from "@/lib/group-access";
 import {pool,db} from "@/lib/db";
 import {qualifiedTable as qt} from "@/lib/database-schema";
 import {currentOperationActor} from "@/lib/operation-identity";
@@ -26,7 +26,7 @@ async function receipt(agency:string,id:string,manifest?:string){
 }
 export async function POST(request:Request){
  if(!groupEnabled()||request.headers.get("origin")!==new URL(request.url).origin)return reply({error:"Unavailable"},404);
- try{const actor=await requireAgencyUser();if(!hasPermission(actor,"applications.create")||!hasPermission(actor,"documents.upload.own")||!hasPermission(actor,"applications.view.all"))throw new AppError("FORBIDDEN","Unavailable");
+ try{const actor=await requireAgencyUser();if(!canAccessGroups(actor))throw new AppError("FORBIDDEN","Unavailable");
  await db.transaction(async tx=>{await currentOperationActor(tx,actor,"read")});
  const raw=JSON.parse((await readRequestBodyLimited(request,65536)).toString("utf8"));
  if(raw?.action==="receipt"){const id=uuid.parse(raw.id);return reply({applications:await receipt(actor.agencyId,id)})}
