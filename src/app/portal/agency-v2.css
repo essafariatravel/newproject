@@ -842,3 +842,38 @@ html[lang="ar"] .workspace-agency.workspace-agency.workspace-agency.workspace-ag
   .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .comm-compose-tools{flex-wrap:wrap}
   .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .comm-send{min-height:44px}
 }
+
+
+/* Mobile Experience 2.0 — agency only; keep intentional scroll regions intact. */
+@media(max-width:1023px){
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency{--agency-mobile-nav-clearance:calc(86px + env(safe-area-inset-bottom,0px));min-width:0}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency .agency-bottom-navigation{inset-inline:12px;bottom:max(8px,env(safe-area-inset-bottom,0px));background:#fff;backdrop-filter:none;border-radius:14px;box-shadow:0 4px 16px #0b1c3010}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency .agency-bottom-navigation a{min-width:0;min-height:56px;border-radius:10px;touch-action:manipulation}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency .agency-bottom-navigation a>span:last-of-type:not(.sr-only){max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main{padding-block-end:calc(var(--agency-mobile-nav-clearance) + 24px);scroll-margin-block-start:72px}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency[data-mobile-keyboard=true] .agency-bottom-navigation{display:none}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency[data-mobile-keyboard=true] #workspace-main{padding-block-end:24px}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .booking-experience .booking-footer[data-step]:not([data-step="3"]){bottom:var(--agency-mobile-nav-clearance);scroll-margin-block-end:var(--agency-mobile-nav-clearance)}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency[data-mobile-keyboard=true] #workspace-main .booking-footer{position:static;inset:auto}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(input:not([type=checkbox],[type=radio],[type=file],[type=hidden]),textarea,select){font-size:16px;max-width:100%;scroll-margin-block:80px 120px}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.case-quick-dialog,.wallet-drawer,.sn-signature,.comm-context-dialog){max-inline-size:100%;overscroll-behavior:contain}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.case-quick-dialog,.wallet-drawer,.sn-signature) :is(header,.wallet-drawer-head){padding-block-start:max(16px,env(safe-area-inset-top,0px))}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.case-quick-dialog,.wallet-drawer,.sn-signature) :is(.case-quick-body,.wallet-drawer-body,.sn-preview-body){padding-block-end:max(24px,env(safe-area-inset-bottom,0px))}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.case-table-scroll,.table-scroll,.th-table-scroll){max-inline-size:100%;overscroll-behavior-inline:contain}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.booking-grid,.booking-main,.booking-side,.comm-workspace,.comm-inbox,.comm-detail,.th-hub,.dossier-workspace,.essafaria-wallet,.essafaria-notifications,.essafaria-cases){min-inline-size:0;max-inline-size:100%}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.booking-grid,.checkout-review,.wallet-drawer-body,.comm-context-panel,.th-profile-form) :is(p,dd,bdi){overflow-wrap:anywhere}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency .workspace-menu{min-inline-size:44px;min-block-size:44px;flex-shrink:0}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency .workspace-drawer{max-inline-size:100%;max-block-size:100dvh;overscroll-behavior:contain}
+}
+@media(max-width:480px){
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency .agency-bottom-navigation{inset-inline:8px}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency .agency-bottom-navigation a{font-size:13px;gap:3px}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.booking-footer,.wallet-control-actions,.th-header-actions,.comm-compose-tools){flex-wrap:wrap}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.booking-footer,.wallet-control-actions,.th-header-actions) :is(.btn-primary,.btn-secondary){max-inline-size:100%;white-space:normal}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.td-directory .td-icon-action,.comm-refresh,.comm-send,.wallet-close,.sn-copy-reference button){min-inline-size:44px;min-block-size:44px}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .td-directory .td-person{padding-inline-end:94px}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.case-viewer-dialog,.booking-review-dialog){max-inline-size:calc(100vw - 16px)}
+}
+@media(pointer:coarse){
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.case-action,.booking-link,.comm-text-action,.wallet-clear,.th-back){min-block-size:44px}
+}
