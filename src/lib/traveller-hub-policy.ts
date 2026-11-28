@@ -13,7 +13,7 @@ export function normalizedQuery(v:unknown){return typeof v==="string"?v.trim().s
 export function pageNumber(v:unknown){const n=Number(v);return Number.isSafeInteger(n)&&n>=1?Math.min(n,10000):1}
 export type TravellerIdentity={name:string;nationality:string;passport:string;expiry:string};
 export function identityMatches(a:TravellerIdentity,b:TravellerIdentity){return Boolean(passportKey(a.passport)&&passportKey(a.passport)===passportKey(b.passport)&&nameKey(a.name)===nameKey(b.name)&&a.nationality.trim().toUpperCase()===b.nationality.trim().toUpperCase()&&civilDate(a.expiry)&&a.expiry===b.expiry)}
-export type ReuseFile={id:string;typeId:string;code:string;name:string;mime:string;size:number;sourceReference:string;createdAt:string;programmeId:string;tripSpecific:boolean};
+export type ReuseFile={id:string;typeId:string;code:string;name:string;mime:string;size:number;sourceReference:string;createdAt:string;programmeId:string;tripSpecific:boolean;vault?:boolean;automatic?:boolean};
 export function reusablePassport(input:{code:string;status:string;size:number;mime:string;sha256:string|null;expiry:string|null;today:string;latest:boolean;openRequest:boolean;attributable:boolean}){
  return input.code==="PASSPORT"&&input.status==="ACCEPTED"&&input.size>0&&input.size<=2*1024*1024&&["application/pdf","image/jpeg","image/png","image/webp"].includes(input.mime)&&/^[a-f0-9]{64}$/i.test(input.sha256??"")&&expiryState(input.expiry,input.today)==="valid"&&input.latest&&!input.openRequest&&input.attributable
 }
@@ -39,4 +39,22 @@ export function reusableDocument(input:Parameters<typeof reusablePassport>[0]&{u
 export function renewalStage(expiry:string|null,today:string):"RENEW"|"URGENT"|"EXPIRED"|null{
  const state=expiryState(expiry,today);if(state==="expired")return "EXPIRED";if(state!=="renew"||!expiry)return null;
  return (Date.parse(expiry+"T00:00:00Z")-Date.parse(today+"T00:00:00Z"))/86400000<=30?"URGENT":"RENEW";
+}
+
+/** The independent vault is only activated on the consolidated branch. */
+export function vaultEnabled(env:Record<string,string|undefined>=process.env){return env.VERCEL_ENV==="preview"&&env.VERCEL_GIT_COMMIT_REF===CONSOLIDATED_BRANCH}
+export const PERSONAL_CODES=["PASSPORT","PHOTO","BANK_STATEMENT","EMPLOYMENT_CERT","MARRIAGE_CERT"] as const;
+export function personalCode(code:string){return PERSONAL_CODES.some(c=>c===code)}
+export function autoEligible(input:Parameters<typeof reusablePassport>[0]&{issuedAt:string|null;uploadedAt:string;vault:boolean}){
+ if(!personalCode(input.code)||!["UPLOADED","ACCEPTED"].includes(input.status)||!input.latest||input.openRequest||!input.attributable||input.size<=0||input.size>2*1024*1024||!/^[a-f0-9]{64}$/i.test(input.sha256??""))return false;
+ if(input.code==="PASSPORT")return reusablePassport({...input,status:"ACCEPTED"});
+ // Never infer freshness for time-sensitive documents from upload time.
+ const date=input.issuedAt;
+ if(!civilDate(date))return false;
+ return reusableDocument({...input,status:"ACCEPTED",uploadedAt:date!});
+}
+export function autoPlan(options:ReuseFile[],required:string[],excluded:string[]=[]){
+ const result:ReuseFile[]=[];
+ for(const typeId of new Set(required)){if(excluded.includes(typeId))continue;const candidates=options.filter(d=>d.typeId===typeId&&d.automatic&&!d.tripSpecific).sort((a,b)=>Number(Boolean(b.vault))-Number(Boolean(a.vault))||b.createdAt.localeCompare(a.createdAt)||a.id.localeCompare(b.id));if(candidates[0])result.push(candidates[0])}
+ return result;
 }

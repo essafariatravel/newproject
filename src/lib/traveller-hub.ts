@@ -4,6 +4,8 @@ import {qualifiedTable as qt} from "@/lib/database-schema";
 import {hasPermission} from "@/lib/rbac";
 import {isAgencyRole,type AuthUser} from "@/lib/types";
 import {uuid,passportKey,normalizedQuery,pageNumber,minimumExpiry,reusableDocument,tripSpecificDocument,hubEnabled,nameKey,type ReuseFile} from "./traveller-hub-policy";
+import {vaultOptions} from "./traveller-vault";
+import {autoEligible,vaultEnabled} from "./traveller-hub-policy";
 import {algeriaToday} from "./travel-deadline";
 export type Actor=AuthUser&{agencyId:string};
 export function scope(user:Actor){if(!hubEnabled()||!isAgencyRole(user.role)||!uuid(user.agencyId)||user.userStatus!=="ACTIVE"||user.agencyStatus!=="ACTIVE"||user.mustChangePassword||!hasPermission(user,"applicants.view.all"))throw Error("Traveller access denied");return user.agencyId}
@@ -38,15 +40,16 @@ export async function travellerDocuments(user:Actor,profile:NonNullable<Awaited<
  join ${qt("applicants")} t on t.application_id=a.id
  join ${qt("traveller_profile_links")} l on l.applicant_id=t.id and l.agency_id=a.agency_id and l.profile_id=$2::uuid
  join ${qt("document_types")} dt on dt.id=d.document_type_id
- where a.agency_id=$1::uuid and (d.applicant_id=t.id or (d.applicant_id is null and (select count(*) from ${qt("applicants")} other where other.application_id=a.id)=1))
+ where a.agency_id=$1::uuid and not exists(select 1 from ${qt("statuses")} s where s.id=a.status_id and s.is_draft) and (d.applicant_id=t.id or (d.applicant_id is null and (select count(*) from ${qt("applicants")} other where other.application_id=a.id)=1))
  order by d.created_at desc,d.id desc limit 100`,[agency,profile.anchor.id]);
  const today=algeriaToday();
- return r.rows.map(({sha256,passport,expiry,latest,open_request,name,nationality,...d})=>({...d,reusable:Boolean(passportKey(passport)&&passportKey(passport)===passportKey(profile.anchor.passport)&&expiry===profile.anchor.expiry&&nameKey(name)===nameKey(profile.anchor.name)&&nationality.trim().toUpperCase()===profile.anchor.nationality&&reusableDocument({code:d.code,status:d.status,size:d.size,mime:d.mime,sha256,expiry,today,latest,openRequest:open_request,attributable:true,uploadedAt:d.created_at.toISOString()}))}));
+ return r.rows.map(({sha256,passport,expiry,latest,open_request,name,nationality,...d})=>{const identity=Boolean(passportKey(passport)&&passportKey(passport)===passportKey(profile.anchor.passport)&&expiry===profile.anchor.expiry&&nameKey(name)===nameKey(profile.anchor.name)&&nationality.trim().toUpperCase()===profile.anchor.nationality);const auto=Boolean(vaultEnabled()&&identity&&autoEligible({code:d.code,status:d.status,size:d.size,mime:d.mime,sha256,expiry,today,latest,openRequest:open_request,attributable:true,issuedAt:null,uploadedAt:d.created_at.toISOString(),vault:false}));return {...d,automatic:auto,reusable:auto||Boolean(passportKey(passport)&&passportKey(passport)===passportKey(profile.anchor.passport)&&expiry===profile.anchor.expiry&&nameKey(name)===nameKey(profile.anchor.name)&&nationality.trim().toUpperCase()===profile.anchor.nationality&&reusableDocument({code:d.code,status:d.status,size:d.size,mime:d.mime,sha256,expiry,today,latest,openRequest:open_request,attributable:true,uploadedAt:d.created_at.toISOString()}))}});
 }
 export async function repeatSource(user:Actor,id:string){
  const profile=await travellerProfile(user,id);if(!profile||!hasPermission(user,"applications.create"))return null;
  const a=profile.anchor;
  const documents=hasPermission(user,"documents.upload.own")?await travellerDocuments(user,profile):[];
- const reusable:ReuseFile[]=documents.filter(d=>d.reusable).slice(0,40).map(d=>({id:d.id,typeId:d.type_id,code:d.code,name:d.filename,mime:d.mime,size:d.size,sourceReference:d.reference,createdAt:d.created_at.toISOString(),programmeId:d.programme_id,tripSpecific:tripSpecificDocument(d.code)}));
+ const reusable:ReuseFile[]=documents.filter(d=>d.reusable).slice(0,40).map(d=>({id:d.id,typeId:d.type_id,code:d.code,name:d.filename,mime:d.mime,size:d.size,sourceReference:d.reference,createdAt:d.created_at.toISOString(),programmeId:d.programme_id,tripSpecific:tripSpecificDocument(d.code),automatic:d.automatic}));
+ if(vaultEnabled()&&hasPermission(user,"documents.upload.own")&&hasPermission(user,"documents.view.all"))reusable.unshift(...await vaultOptions(user,a.id));
  return {id:a.id,name:a.name,nationality:a.nationality,passport:passportKey(a.passport),expiry:a.expiry??"",reference:a.reference,reusable};
 }
