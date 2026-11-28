@@ -2,7 +2,10 @@ import {GroupWizard} from "./group-wizard";
 import {canAccessGroups} from "@/lib/group-access";
 import {groupCopy} from "@/lib/group-copy";
 import Link from "next/link";
-import {hubEnabled,uuid} from "@/lib/traveller-hub-policy";
+import {hubEnabled,uuid,type TravellerSource} from "@/lib/traveller-hub-policy";
+import {groupReuseReady} from "@/lib/group-policy";
+import {pool} from "@/lib/db";
+import {qualifiedTable as qt} from "@/lib/database-schema";
 import {repeatSource} from "@/lib/traveller-hub";
 import {notFound} from "next/navigation";
 import { configName, configDescription } from "@/lib/config-localization";
@@ -161,8 +164,20 @@ export default async function NewApplicationPage({
   const group=canAccessGroups(user);
   const groupedMode=sp.mode==="group";
   if(groupedMode&&!group)notFound();
+  let initialRoster:TravellerSource[]|undefined,rosterUnavailable=false;
+  const repeatId=typeof sp.repeatGroup==="string"?sp.repeatGroup:undefined;
+  if(groupedMode&&group&&repeatId){
+    if(!uuid(repeatId))notFound();
+    const roster=await pool.query<{member_count:number;profile_id:string|null}>(`select g.member_count,l.profile_id from ${qt("visa_request_groups")} g join ${qt("visa_request_group_members")} m on m.group_id=g.id and m.agency_id=g.agency_id join ${qt("applications")} a on a.id=m.application_id and a.agency_id=m.agency_id left join ${qt("applicants")} t on t.application_id=a.id left join ${qt("traveller_profile_links")} l on l.applicant_id=t.id and l.agency_id=g.agency_id where g.id=$1 and g.agency_id=$2 order by m.position`,[repeatId,user.agencyId]);
+    if(!roster.rows.length)notFound();
+    const ids=roster.rows.map(r=>r.profile_id);
+    if(groupReuseReady(ids,roster.rows[0]!.member_count)){
+      const sources=await Promise.all(ids.map(id=>repeatSource(user,id!))).catch(()=>null);
+      if(sources&&sources.every((x):x is TravellerSource=>Boolean(x)))initialRoster=sources;else rosterUnavailable=true;
+    }else rosterUnavailable=true;
+  }
   const modes=group?<nav className="group-mode-selector" aria-label={ct("New visa request")}><Link href="/portal/applications/new" aria-current={!groupedMode?"page":undefined}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>{groupCopy[uiLocale].single}</Link><Link href="/portal/applications/new?mode=group" aria-current={groupedMode?"page":undefined}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="9" cy="7" r="3.5"/><path d="M2 21v-2a7 7 0 0 1 14 0v2M16 4a3.5 3.5 0 0 1 0 7m2 3a6 6 0 0 1 4 5v2"/></svg>{groupCopy[uiLocale].group}</Link></nav>:null;
-  if(groupedMode)return <><PageHeader title={ct("New visa request")}/>{modes}<GroupWizard locale={uiLocale} today={algeriaToday()} countries={countries} nationalities={NATIONALITIES.map(n=>({code:n.code,label:nationalityLabel(n.code,uiLocale)}))} requirementsByVisaType={requirementMaps} defaultNationality={prefs.nationality} walletBalance={wallet.balance} catalogueFingerprints={catalogueFingerprints} recoveryKey={"essafaria-group-attempt:"+user.id}/></>;
+  if(groupedMode)return <><PageHeader title={ct("New visa request")}/>{modes}<GroupWizard key={repeatId??"new"} initialRoster={initialRoster} rosterUnavailable={rosterUnavailable} locale={uiLocale} today={algeriaToday()} countries={countries} nationalities={NATIONALITIES.map(n=>({code:n.code,label:nationalityLabel(n.code,uiLocale)}))} requirementsByVisaType={requirementMaps} defaultNationality={prefs.nationality} walletBalance={wallet.balance} catalogueFingerprints={catalogueFingerprints} recoveryKey={"essafaria-group-attempt:"+user.id}/></>;
   return (
     <>
       <PageHeader
