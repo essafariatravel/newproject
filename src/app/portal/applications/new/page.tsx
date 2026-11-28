@@ -1,3 +1,8 @@
+import {GroupWizard} from "./group-wizard";
+import {groupEnabled} from "@/lib/group-policy";
+import {groupCopy} from "@/lib/group-copy";
+import {hasPermission} from "@/lib/rbac";
+import Link from "next/link";
 import {hubEnabled,uuid} from "@/lib/traveller-hub-policy";
 import {repeatSource} from "@/lib/traveller-hub";
 import {notFound} from "next/navigation";
@@ -154,8 +159,11 @@ export default async function NewApplicationPage({
 
   const uiLocale = locale === "ar" ? "ar" : locale === "fr" ? "fr" : "en";
 
+  const group=groupEnabled()&&hasPermission(user,"applications.create")&&hasPermission(user,"documents.upload.own")&&hasPermission(user,"applications.view.all");
+  if(group&&sp.mode==="group")return <GroupWizard locale={uiLocale} today={algeriaToday()} countries={countries} nationalities={NATIONALITIES.map(n=>({code:n.code,label:nationalityLabel(n.code,uiLocale)}))} requirementsByVisaType={requirementMaps} defaultNationality={prefs.nationality} walletBalance={wallet.balance} catalogueFingerprints={catalogueFingerprints} recoveryKey={"essafaria-group-attempt:"+user.id}/>;
   return (
     <>
+      {group?<div className="group-mode-link"><Link className="btn-secondary" href="/portal/applications/new?mode=group">{groupCopy[uiLocale].group} →</Link></div>:null}
       <PageHeader
         title={ct("New visa request")}
         subtitle={ct("Three steps: choose the destination and visa, upload the documents, preview and submit. Nothing is saved before the final confirmation.")}
