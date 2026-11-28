@@ -3,7 +3,7 @@ import { qualifiedTable } from "@/lib/database-schema";
 import { requirePermission } from "@/lib/rbac";
 import type { AuthUser } from "@/lib/types";
 export interface InboxThread { applicationId:string;reference:string;traveller:string;destination:string;destinationIso:string|null;visa:string;agencyName:string;body:string;createdAt:Date;unread:boolean;needsReply:boolean;visibility:string }
-export async function conversationInbox(actor:AuthUser,input:{q?:string;filter?:string;page?:number;agencyWorkspace?:boolean;thread?:string;applicationIds?:string[]}={}):Promise<InboxThread[]>{
+export async function conversationInbox(actor:AuthUser,input:{q?:string;filter?:string;page?:number;agencyWorkspace?:boolean;thread?:string;applicationIds?:string[];priority?:boolean}={}):Promise<InboxThread[]>{
   requirePermission(actor,actor.agencyId ? "communications.post.agency" : "communications.view.all");
   const t=qualifiedTable;
   const agencyWorkspace=Boolean(actor.agencyId&&input.agencyWorkspace);
@@ -29,6 +29,6 @@ export async function conversationInbox(actor:AuthUser,input:{q?:string;filter?:
     where message.position=1
   ) select * from threads where ($3='' or concat_ws(' ',traveller,reference,"agencyName",destination,visa) ilike $3 or ($7::boolean and exists(select 1 from visible hit where hit.application_id=threads."applicationId" and hit.body ilike $3)))
     and ($4='all' or ($4='unread' and unread) or ($4='reply' and "needsReply"))
-    order by "createdAt" desc,"applicationId" limit 100 offset $5`,[actor.agencyId,actor.id,input.q?.trim()?`%${input.q.trim().slice(0,160)}%`:"",["unread","reply"].includes(input.filter??"")?input.filter:"all",(Math.max(1,Math.min(10000,input.page??1))-1)*100,thread,agencyWorkspace,applicationIds]);
+    order by case when $9::boolean then case when unread and "needsReply" then 0 when unread then 1 when "needsReply" then 2 else 3 end else 0 end, "createdAt" desc,"applicationId" limit 100 offset $5`,[actor.agencyId,actor.id,input.q?.trim()?`%${input.q.trim().slice(0,160)}%`:"",["unread","reply"].includes(input.filter??"")?input.filter:"all",(Math.max(1,Math.min(10000,input.page??1))-1)*100,thread,agencyWorkspace,applicationIds,agencyWorkspace&&input.priority===true]);
   return result.rows;
 }
