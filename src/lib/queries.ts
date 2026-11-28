@@ -1,6 +1,6 @@
 import { caseDateBoundary } from "@/app/portal/applications/case-workspace";
 import type { ReportFilters } from "@/lib/report-filters";
-import { agencyAttentionCondition } from "@/lib/attention";
+import { agencyAttentionCondition, activeAgencyAttentionCondition } from "@/lib/attention";
 import { usableCurrentCaseDocument } from "./case-document-read-model";
 import { qualifiedTable } from "./database-schema";
 
@@ -174,7 +174,7 @@ export async function buildApplicationConditions(user: AuthUser, filters: Applic
   // §27 — an OPEN staff document request is waiting on the agency.
   if (filters.documents === "requested") {
     conditions.push(
-      agencyAttentionCondition(),
+      user.agencyId ? activeAgencyAttentionCondition() : agencyAttentionCondition(),
     );
   }
   // §27 — a required, still-active checklist item without a usable upload.
@@ -255,7 +255,7 @@ export async function searchApplications(user: AuthUser, filters: ApplicationFil
   const order = user.agencyId && filters.caseSort === "recent" ? [desc(agencyCaseActivity),desc(applications.id)]
     : user.agencyId && filters.caseSort === "submitted" ? [desc(sql`coalesce(${applications.submittedAt},${applications.createdAt})`),desc(applications.id)]
     : user.agencyId && filters.caseSort === "oldest" ? [asc(applications.createdAt),asc(applications.id)]
-    : user.agencyId && filters.caseSort === "priority" ? [desc(sql`case when ${agencyAttentionCondition()} then 1 else 0 end`),desc(agencyCaseActivity),desc(applications.id)]
+     : user.agencyId && filters.caseSort === "priority" ? [desc(sql`case when ${activeAgencyAttentionCondition()} then 1 else 0 end`),desc(agencyCaseActivity),desc(applications.id)]
     : [desc(applications.createdAt),desc(applications.id)];
   // Bound the page before evaluating dossier details. A wide OFFSET query
   // otherwise runs correlated detail reads for every discarded row.
@@ -460,7 +460,7 @@ export async function agencyDashboard(agencyId: string, userId: string) {
       active: sql<number>`count(*) filter (where ${statuses.code} not in ('APPROVED','COMPLETED','CANCELLED','REJECTED','REFUSED') and ${statuses.code} <> 'DRAFT')::int`,
       completed: sql<number>`count(*) filter (where ${statuses.code} in ('APPROVED','COMPLETED'))::int`,
       refused: sql<number>`count(*) filter (where ${statuses.code} in ('REJECTED','REFUSED'))::int`,
-      actionRequired: sql<number>`count(*) filter (where ${agencyAttentionCondition()})::int`,
+      actionRequired: sql<number>`count(*) filter (where ${activeAgencyAttentionCondition()})::int`,
       drafts: sql<number>`count(*) filter (where ${statuses.code} = 'DRAFT')::int`,
     })
     .from(applications)
@@ -475,7 +475,7 @@ export async function agencyDashboard(agencyId: string, userId: string) {
   const needsAttention = await db.select({...applicationSelection,requestId:sql<string | null>`(select r.id::text from ${sql.raw(qualifiedTable("document_requests"))} r where r.application_id=applications.id and r.status='OPEN' order by r.created_at,r.id limit 1)`,requestDocument:sql<{name:string;nameFr:string|null;nameAr:string|null;code:string}|null>`(select json_build_object('name',dt.name,'nameFr',dt.name_fr,'nameAr',dt.name_ar,'code',dt.code) from ${sql.raw(qualifiedTable("document_requests"))} r join ${sql.raw(qualifiedTable("document_types"))} dt on dt.id=r.document_type_id where r.application_id=applications.id and r.status='OPEN' order by r.created_at,r.id limit 1)`}).from(applications)
     .innerJoin(statuses, eq(applications.statusId, statuses.id))
     .innerJoin(priorities, eq(applications.priorityId, priorities.id))
-    .where(and(eq(applications.agencyId, agencyId), agencyAttentionCondition()))
+    .where(and(eq(applications.agencyId, agencyId), activeAgencyAttentionCondition()))
     .orderBy(asc(agencyCaseActivity),asc(applications.id)).limit(5);
 
   const recentTx = await db
