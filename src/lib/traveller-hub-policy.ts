@@ -41,7 +41,7 @@ export function safeLookupTerm(q:unknown){const term=normalizedQuery(q);return t
 export function sameDeclaredIdentity(a:TravellerIdentity,b:TravellerIdentity){return nameKey(a.name)===nameKey(b.name)&&a.nationality.trim().toUpperCase()===b.nationality.trim().toUpperCase()&&passportKey(a.passport)===passportKey(b.passport)&&a.expiry===b.expiry}
 
 const REUSE_AGE_DAYS:Record<string,number>={PHOTO:180,PASSPORT_PHOTO:180,BANK_STATEMENT:30,EMPLOYMENT_CERT:30,MARRIAGE_CERT:90,MARRIAGE_CERTIFICATE:90,ACCOMMODATION_PROOF:30,FLIGHT_RESERVATION:30,HOTEL_RESERVATION:30,INSURANCE:30,INVITATION_LETTER:30};
-export function tripSpecificDocument(code:string){return ["ACCOMMODATION_PROOF","FLIGHT_RESERVATION","HOTEL_RESERVATION","INSURANCE","INVITATION_LETTER"].includes(code)}
+export function tripSpecificDocument(code:string){return ["ACCOMMODATION_PROOF","FLIGHT_RESERVATION","HOTEL_RESERVATION","INSURANCE","INVITATION_LETTER","LEGACY-4b8e7617dd7309fd040d63f2814f33fd","LEGACY-8626bc732ffa233f4e105ee5e1002c16","LEGACY-d42cf2b07d29646d145578d1740bf6d3","LEGACY-ee25dc3ac5f96746f7a664765d716072","LEGACY-6ecc4576d9d85815e76f40a247f33a25"].includes(code)}
 export function reusableDocument(input:Parameters<typeof reusablePassport>[0]&{uploadedAt:string}){
  const code=canonicalPersonalCode(input.code);
  if(code==="PASSPORT")return reusablePassport(input);
