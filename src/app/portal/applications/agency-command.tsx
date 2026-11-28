@@ -112,7 +112,7 @@ export function AgencyCommand({ locale, canCreate, canUpload, canWallet }: { loc
     <dialog ref={dialog} className="agency-command-dialog" aria-labelledby={uid + "-title"} dir={locale === "ar" ? "rtl" : "ltr"} onClose={() => { setOpen(false); setQ(""); setRemote(null); if (previous.current?.isConnected) previous.current.focus({ preventScroll: true }); }} onClick={e => { if (e.target === e.currentTarget) dialog.current?.close(); }}>
       <div className="agency-command-inner">
         <header><h2 id={uid + "-title"}>{t.title}</h2><button type="button" aria-label={t.close} onClick={() => dialog.current?.close()}>×</button></header>
-        <input ref={input} value={q} onChange={e => { setQ(e.target.value); setActive(0); setRemote(null); }} placeholder={t.search} aria-label={t.search} role="combobox" autoComplete="off" aria-autocomplete="list" aria-expanded={open} aria-controls={uid + "-results"} aria-activedescendant={items[selected] ? uid + "-" + selected : undefined} onKeyDown={e => {
+        <input ref={input} value={q} onChange={e => { const next=e.target.value; if(next.trim()!==q.trim()){setActive(0);setRemote(null);}setQ(next); }} placeholder={t.search} aria-label={t.search} role="combobox" autoComplete="off" aria-autocomplete="list" aria-expanded={open} aria-controls={uid + "-results"} aria-activedescendant={items[selected] ? uid + "-" + selected : undefined} onKeyDown={e => {
           if (e.nativeEvent.isComposing) return;
           if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); move(selected + (e.key === "ArrowDown" ? 1 : -1)); }
           if (e.key === "Enter" && items[selected]) { e.preventDefault(); choose(items[selected]!); }
