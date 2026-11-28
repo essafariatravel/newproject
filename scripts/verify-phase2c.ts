@@ -1,6 +1,6 @@
 /** Preview qualification: retained document checks only; no database or external calls. */
 import assert from "node:assert/strict";
-import {passportValidity,photoRatioDifference,duplicateGroups,imageSignals,documentKind,visualIssues,signatureKind,expectedSignature,differenceHash,probablySimilar,expiryAssessment,minimumPassportExpiry,passportMeetsPolicy,guardTechnical,classifyVisual,documentLayout,type GuardImage} from "../src/lib/document-intelligence";
+import {passportValidity,photoRatioDifference,duplicateGroups,imageSignals,documentKind,visualIssues,signatureKind,expectedSignature,differenceHash,probablySimilar,expiryAssessment,minimumPassportExpiry,passportMeetsPolicy,guardTechnical,classifyVisual,documentLayout,guardStatus,blankPdfPage,pdfPagePlan,pdfPageIssues,type GuardImage} from "../src/lib/document-intelligence";
 assert.equal(passportValidity("2032-04-15","2032-04-01"),14);
 assert.equal(passportValidity("2032-04-01","2032-04-01"),0);
 assert.equal(passportValidity("2032-03-31","2032-04-01"),-1);
@@ -57,8 +57,28 @@ const portraitDocument:GuardImage={...portrait,faces:[{x:.1,y:.1,width:.16,heigh
 assert.equal(classifyVisual(portraitDocument),"document");
 assert.ok(visualIssues("photo",portraitDocument).includes("documentInPhoto"));
 assert.ok(visualIssues("bank",{...portrait,faces:null,layout:{textRows:0,outsideTextRows:0,edgeDensity:.02}}).includes("typeUncertain"));
-assert.equal(classifyVisual(passport),"document");
+assert.equal(classifyVisual(passport),"uncertain");
 assert.equal(documentLayout(new Uint8ClampedArray(100*100*4).fill(255),100,100,null).textRows,0);
 assert.equal(expiryAssessment("2027-06-28","2026-11-28","2027-01-01").minimum,"2027-06-28");
 assert.equal(passportMeetsPolicy("2027-06-27","2026-11-28","2027-01-01"),false);
 console.log("[phase2c] Visual classification and fixed application-date policy PASS (12 assertions)");
+
+assert.equal(guardStatus(["limited"]),"limited");
+assert.equal(guardStatus(["typeUncertain"]),"limited");
+assert.equal(guardStatus(["invalidFile","duplicate"]),"invalid");
+assert.equal(guardStatus(["pdfPartial"]),"limited");
+assert.equal(guardStatus([]),"clear");
+assert.equal(guardStatus([],false,false),"missing");
+assert.equal(guardStatus([],true),"checking");
+assert.deepEqual(pdfPagePlan(10),[1,4,7,10]);
+assert.deepEqual(pdfPagePlan(2),[1,2]);
+assert.deepEqual(pdfPagePlan(0),[]);
+const blank:GuardImage={...passport,signals:{...passport.signals,contrast:0,mean:255}};
+assert.equal(blankPdfPage(blank.signals),true);
+assert.ok(pdfPageIssues([blank],2).includes("pdfBlank"));
+assert.ok(pdfPageIssues([blank],2).includes("pdfPartial"));
+assert.ok(pdfPageIssues([portrait,portrait],2).includes("pdfRepeated"));
+assert.equal(visualIssues("photo",{...portrait,faceSharpness:40}).includes("blur"),false);
+assert.equal(visualIssues("photo",{...portrait,faceSharpness:5}).includes("blur"),true);
+assert.equal(visualIssues("bank",{...portrait,isPdfPage:true,signals:{...portrait.signals,width:150,height:150}}).includes("lowResolution"),false);
+console.log("[phase2c] R11 review states, PDF sampling and conservative sharpness PASS (17 assertions)");

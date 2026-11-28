@@ -1,7 +1,7 @@
 "use client";
-import {useEffect,useState} from "react";
+import {useEffect,useState,useRef} from "react";
 import {DatePicker} from "@/components/date-picker";
-import {expiryAssessment,guardTechnical,documentKind,classifyVisual,type GuardIssue} from "@/lib/document-intelligence";
+import {expiryAssessment,guardTechnical,documentKind,classifyVisual,guardStatus,type GuardIssue} from "@/lib/document-intelligence";
 import {inspectDocuments,type GuardResult,type GuardFileReport} from "@/lib/document-guard-browser";
 type Locale="fr"|"en"|"ar";
 export const guardCopy={
@@ -44,7 +44,11 @@ export const guardCopy={
       "duplicate": "Fichier identique réutilisé dans le dossier.",
       "similar": "Image très similaire à une autre pièce du dossier.",
       "documentInPhoto": "Document probable au lieu d’une photo d’identité. Remplacez la photo.",
-      "typeUncertain": "Type de document non confirmé par le contrôle visuel."
+      "typeUncertain": "Type de document non confirmé par le contrôle visuel.",
+      "pdfProtected": "PDF protégé par mot de passe : fournissez une copie accessible.",
+      "pdfBlank": "Une page analysée semble vide.",
+      "pdfRepeated": "Pages visuellement similaires : vérifiez les répétitions.",
+      "pdfPartial": "Seule une partie des pages a pu être analysée."
     },
     "insufficient": "Validité insuffisante : 7 mois minimum requis.",
     "minimum": "Expiration minimale",
@@ -68,13 +72,28 @@ export const guardCopy={
     "block": "Validité du passeport insuffisante : corrigez la date avant de continuer.",
     "photoRisk": "Cette photo risque de ne pas être acceptée. Remplacez-la de préférence.",
     "docRisk": "Ce fichier risque de ne pas correspondre à la pièce demandée.",
-    "shortClear": "Contrôlé",
+    "shortClear": "Contrôles satisfaisants",
     "shortChecking": "Analyse…",
     "shortLimited": "Contrôle partiel",
     "typeLabel": "Type visuel probable",
     "typePortrait": "Photo portrait",
     "typeDocument": "Document",
-    "typeUncertain": "Type indéterminé"
+    "typeUncertain": "Type indéterminé",
+    "invalidStatus": "Fichier invalide",
+    "warnStatus": "À vérifier",
+    "reviewTitle": "Vérification finale",
+    "pages": "Pages analysées",
+    "details": "Détails techniques",
+    "ok": "Satisfaisant",
+    "fixPiece": "Corriger",
+    "traveller": "Voyageur",
+    "validity": "Passeport",
+    "documents": "Pièces obligatoires",
+    "wallet": "Solde",
+    "duplicate": "Doublons de fichiers",
+    "photoReview": "Photo d’identité",
+    "unavailableCheck": "Non confirmé",
+    "noPhoto": "Non requise"
   },
   "en": {
     "expiry": "Passport expiry date",
@@ -115,7 +134,11 @@ export const guardCopy={
       "duplicate": "Identical file reused in the application.",
       "similar": "Image very similar to another document in the application.",
       "documentInPhoto": "Likely document instead of an identity photo. Replace the photo.",
-      "typeUncertain": "Document type could not be confirmed by visual analysis."
+      "typeUncertain": "Document type could not be confirmed by visual analysis.",
+      "pdfProtected": "Password-protected PDF: provide an accessible copy.",
+      "pdfBlank": "An analysed page appears blank.",
+      "pdfRepeated": "Visually similar pages: check repetitions.",
+      "pdfPartial": "Only some pages could be analysed."
     },
     "insufficient": "Insufficient validity: at least 7 months required.",
     "minimum": "Earliest acceptable expiry",
@@ -139,13 +162,28 @@ export const guardCopy={
     "block": "Insufficient passport validity: correct the date before continuing.",
     "photoRisk": "This photo may not be accepted. Replace it if possible.",
     "docRisk": "This file may not match the required document.",
-    "shortClear": "Checked",
+    "shortClear": "Checks satisfactory",
     "shortChecking": "Checking…",
     "shortLimited": "Partial check",
     "typeLabel": "Likely visual type",
     "typePortrait": "Portrait photo",
     "typeDocument": "Document",
-    "typeUncertain": "Uncertain type"
+    "typeUncertain": "Uncertain type",
+    "invalidStatus": "Invalid file",
+    "warnStatus": "Review",
+    "reviewTitle": "Final review",
+    "pages": "Pages analysed",
+    "details": "Technical details",
+    "ok": "Satisfactory",
+    "fixPiece": "Correct",
+    "traveller": "Traveller",
+    "validity": "Passport",
+    "documents": "Required documents",
+    "wallet": "Balance",
+    "duplicate": "Duplicate files",
+    "photoReview": "Identity photo",
+    "unavailableCheck": "Unconfirmed",
+    "noPhoto": "Not required"
   },
   "ar": {
     "expiry": "تاريخ انتهاء صلاحية جواز السفر",
@@ -186,7 +224,11 @@ export const guardCopy={
       "duplicate": "ملف مطابق مكرر في الطلب.",
       "similar": "صورة مشابهة جداً لوثيقة أخرى في الطلب.",
       "documentInPhoto": "وثيقة محتملة بدلاً من صورة الهوية. استبدلوا الصورة.",
-      "typeUncertain": "لم يتم تأكيد نوع الوثيقة بالفحص المرئي."
+      "typeUncertain": "لم يتم تأكيد نوع الوثيقة بالفحص المرئي.",
+      "pdfProtected": "ملف PDF محمي بكلمة مرور: قدموا نسخة متاحة.",
+      "pdfBlank": "تبدو إحدى الصفحات المفحوصة فارغة.",
+      "pdfRepeated": "صفحات متشابهة بصرياً: تحققوا من التكرار.",
+      "pdfPartial": "تم فحص جزء من الصفحات فقط."
     },
     "insufficient": "الصلاحية غير كافية: سبعة أشهر على الأقل.",
     "minimum": "أقرب تاريخ انتهاء مقبول",
@@ -210,20 +252,36 @@ export const guardCopy={
     "block": "صلاحية الجواز غير كافية: صححوا التاريخ قبل المتابعة.",
     "photoRisk": "قد لا تُقبل هذه الصورة. يفضل استبدالها.",
     "docRisk": "قد لا يطابق هذا الملف الوثيقة المطلوبة.",
-    "shortClear": "تم الفحص",
+    "shortClear": "الفحوص مرضية",
     "shortChecking": "جارٍ الفحص…",
     "shortLimited": "فحص جزئي",
     "typeLabel": "النوع المرئي المحتمل",
     "typePortrait": "صورة شخصية",
     "typeDocument": "وثيقة",
-    "typeUncertain": "نوع غير محدد"
+    "typeUncertain": "نوع غير محدد",
+    "invalidStatus": "ملف غير صالح",
+    "warnStatus": "للمراجعة",
+    "reviewTitle": "المراجعة النهائية",
+    "pages": "الصفحات المفحوصة",
+    "details": "التفاصيل التقنية",
+    "ok": "مرضٍ",
+    "fixPiece": "تصحيح",
+    "traveller": "المسافر",
+    "validity": "جواز السفر",
+    "documents": "الوثائق المطلوبة",
+    "wallet": "الرصيد",
+    "duplicate": "الملفات المكررة",
+    "photoReview": "صورة الهوية",
+    "unavailableCheck": "غير مؤكد",
+    "noPhoto": "غير مطلوبة"
   }
 } as const;
 type Requirement={documentTypeId:string;name:string;code:string};
-export function useDocumentGuard(enabled:boolean,files:Record<string,File[]>,requirements:readonly Requirement[]){
+export function useDocumentGuard(enabled:boolean,files:Record<string,File[]>,requirements:readonly Requirement[],priority=""){
+ const priorityRef=useRef(priority);priorityRef.current=priority;
  const [result,setResult]=useState<{files:Record<string,File[]>;requirements:readonly Requirement[];value:GuardResult}|null>(null);
  const hasFiles=enabled&&requirements.some(r=>(files[r.documentTypeId]??[]).length>0);
- useEffect(()=>{if(!hasFiles)return;let live=true;void inspectDocuments(files,requirements,()=>live).then(value=>{if(live)setResult({files,requirements,value})}).catch(()=>{if(live)setResult({files,requirements,value:{byId:Object.fromEntries(requirements.filter(r=>(files[r.documentTypeId]??[]).length).map(r=>[r.documentTypeId,["limited"] as GuardIssue[]])),reports:new Map(),checked:0,total:0}})});return()=>{live=false}},[hasFiles,files,requirements]);
+ useEffect(()=>{if(!hasFiles)return;let live=true;void inspectDocuments(files,requirements,()=>live,()=>priorityRef.current).then(value=>{if(live)setResult({files,requirements,value})}).catch(()=>{if(live)setResult({files,requirements,value:{byId:Object.fromEntries(requirements.filter(r=>(files[r.documentTypeId]??[]).length).map(r=>[r.documentTypeId,["limited"] as GuardIssue[]])),reports:new Map(),checked:0,total:0}})});return()=>{live=false}},[hasFiles,files,requirements]);
  const current=hasFiles&&result?.files===files&&result.requirements===requirements?result.value:null;
  return {result:current,checking:hasFiles&&!current};
 }
@@ -238,34 +296,38 @@ export function PassportValiditySummary({locale,today,departure,value}:{locale:L
  const t=guardCopy[locale],a=expiryAssessment(value,today,departure);
  const message=a.state==="missing"?t.missing:a.state==="invalid"?t.invalid:a.state==="expired"?t.expired:a.state==="insufficient"?t.insufficient:t.valid;
  const format=(v:string)=>new Intl.DateTimeFormat(locale,{day:"2-digit",month:"2-digit",year:"numeric",timeZone:"UTC",calendar:"gregory"}).format(new Date(v+"T00:00:00Z"));
- return <div className="di-validity-result" data-risk={a.state!=="valid"} role="status"><strong>{message}</strong>{a.minimum?<small>{t.minimum}: <bdi>{format(a.minimum)}</bdi> · {t.reference}: <bdi>{format(a.reference)}</bdi></small>:null}{value&&a.days!==null?<small>{t.expiry}: <bdi>{format(value)}</bdi>{a.days>=0?<> · <bdi>{a.days}</bdi> {t.days}</>:null}</small>:null}<small>{t.rules}</small></div>
+ return <div className="di-validity-result" data-risk={a.state!=="valid"} role="status"><strong>{message}</strong>{a.minimum?<small>{t.minimum}: <bdi>{format(a.minimum)}</bdi> · {t.rules}</small>:null}</div>
 }
-export function GuardSummary({locale,checking,issues,onFix}:{locale:Locale;checking:boolean;issues:{name:string;messages:string[]}[];onFix?:()=>void}){
+export function GuardSummary({locale,checking,issues,onFix}:{locale:Locale;checking:boolean;issues:{id?:string;name:string;messages:string[]}[];onFix?:(id?:string)=>void}){
  const t=guardCopy[locale];
  if(checking)return <p role="status" className="booking-muted">{t.checking}</p>;
  if(!issues.length)return null;
- return <section className="di-guard-summary" role="status"><strong>{t.risk} · <bdi>{issues.length}</bdi></strong>{issues.map((r,i)=><div key={i}><strong>{r.name}</strong><ul>{r.messages.map(m=><li key={m}>{m}</li>)}</ul></div>)}<small>{t.riskNote}</small>{onFix?<button type="button" className="booking-link" onClick={onFix}>{t.fix}</button>:null}</section>
+ return <section className="di-guard-summary" role="status"><strong>{t.risk} · <bdi>{issues.length}</bdi></strong>{issues.map((r,i)=><div key={i}><strong>{r.name}</strong>{onFix?<button type="button" className="booking-link" onClick={()=>onFix(r.id)}>{t.fixPiece}</button>:null}<ul>{r.messages.map(m=><li key={m}>{m}</li>)}</ul></div>)}<small>{t.riskNote}</small></section>
 }
 
 export function FileGuardReport({locale,requirement,report,checking,issues}:{locale:Locale;requirement:Requirement;report:GuardFileReport|undefined;checking:boolean;issues:GuardIssue[]}){
  const t=guardCopy[locale],photo=documentKind(requirement.code,requirement.name)==="photo",image=report?.image;
  const all=[...new Set([...(report?.issues??[]),...issues])];
- const partial=all.includes("limited")||all.includes("faceUnavailable")||all.includes("typeUncertain")||!report;
- const warnings=all.filter(k=>k!=="limited"&&k!=="faceUnavailable"&&k!=="typeUncertain");
+ const partial=all.some(k=>["limited","faceUnavailable","typeUncertain","pdfPartial"].includes(k))||!report;
+ const warnings=all.filter(k=>!["limited","faceUnavailable","typeUncertain","pdfPartial"].includes(k));
  const technical=warnings.some(guardTechnical);
- const state=checking?"checking":warnings.length?"warning":partial?"limited":"clear";
+ const state=guardStatus(partial&&!all.length?["limited"]:all,checking);
  const visualType=image?classifyVisual(image):"uncertain";
  const qualityIssues=all.some(k=>["lowResolution","photoTooSmall","blur","contrast","exposure"].includes(k));
  return <section className="di-file-report" data-state={state} aria-live="polite">
- <div className="di-report-heading"><strong>{photo?t.photoTitle:t.docTitle}</strong><span className="di-report-status"><i aria-hidden="true"/>{checking?t.shortChecking:state==="warning"?t.warning:state==="limited"?t.limitedResult:t.done}</span></div>
+ <div className="di-report-heading"><strong>{photo?t.photoTitle:t.docTitle}</strong><span className="di-report-status"><i aria-hidden="true"/>{checking?t.shortChecking:state==="invalid"?t.invalidStatus:state==="warning"?t.warnStatus:state==="limited"?t.limitedResult:t.shortClear}</span></div>
  {checking?<small>{t.checking}</small>:<>
- <div className="di-report-metrics">
- <div><small>{t.format}</small><strong>{report&&!technical?t.fileOk:t.notChecked}</strong></div>
- {image?<><div><small>{t.typeLabel}</small><strong>{visualType==="portrait"?t.typePortrait:visualType==="document"?t.typeDocument:t.typeUncertain}</strong></div><div><small>{t.dimensions}</small><strong><bdi>{image.signals.width} × {image.signals.height} px</bdi></strong></div><div><small>{t.quality}</small><strong>{qualityIssues?t.qualityRisk:t.qualityOk}</strong></div>
- {<><div><small>{t.orientation}</small><strong>{image.signals.ratio>1.08?t.landscape:t.portrait}</strong></div><div><small>{t.faces}</small><strong><bdi>{image.faces===null?t.notChecked:image.faces.length}</bdi></strong></div></>}</>:null}
- </div>
  {all.length?<ul>{all.map(k=><li key={k}>{t.issues[k]}</li>)}</ul>:<small>{report?t.clear:t.unavailable}</small>}
  {warnings.length?<p>{technical?t.technical:photo?t.photoRisk:t.docRisk}</p>:null}
- <small>{t.riskNote}</small></>}
+ <details className="di-report-detail"><summary>{t.details}</summary><div className="di-report-metrics">
+ {report?.pdf?<div><small>{t.pages}</small><strong><bdi>{report.pdf.analysed}/{report.pdf.total||"—"}</bdi></strong></div>:null}
+ <div><small>{t.format}</small><strong>{report&&!technical?t.fileOk:t.notChecked}</strong></div>
+ {image?<><div><small>{t.typeLabel}</small><strong>{visualType==="portrait"?t.typePortrait:visualType==="document"?t.typeDocument:t.typeUncertain}</strong></div>{!report?.pdf?<div><small>{t.dimensions}</small><strong><bdi>{image.signals.width} × {image.signals.height} px</bdi></strong></div>:null}<div><small>{t.quality}</small><strong>{qualityIssues?t.qualityRisk:t.qualityOk}</strong></div>
+ {<><div><small>{t.orientation}</small><strong>{image.signals.ratio>1.08?t.landscape:t.portrait}</strong></div><div><small>{t.faces}</small><strong><bdi>{image.faces===null?t.notChecked:image.faces.length}</bdi></strong></div></>}</>:null}
+ </div><small>{t.riskNote}</small></details></>}
  </section>
+}
+
+export function FinalGuardReview({locale,rows}:{locale:Locale;rows:{label:string;state:"clear"|"warning"|"limited"|"invalid"|"checking"|"missing";fix?:()=>void;detail?:string}[]}){
+ const t=guardCopy[locale];return <section className="di-final-review"><h3>{t.reviewTitle}</h3>{rows.map((row,i)=><div key={i} className="di-final-row" data-state={row.state}><span><i aria-hidden="true"/>{row.label}</span><strong>{row.detail??(row.state==="clear"?t.ok:row.state==="checking"?t.shortChecking:row.state==="limited"?t.shortLimited:row.state==="invalid"?t.invalidStatus:t.warnStatus)}</strong>{row.fix&&row.state!=="clear"?<button type="button" className="booking-link" onClick={row.fix}>{t.fixPiece}</button>:null}</div>)}</section>
 }

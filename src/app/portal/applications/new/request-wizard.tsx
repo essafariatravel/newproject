@@ -21,8 +21,8 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import { assessTravelDeadline,algeriaToday } from "@/lib/travel-deadline";
 import { operationalCopy } from "@/lib/operational-copy";
 import { TravelDeparture,TravelTiming } from "./travel-departure";
-import { PassportValidity,PassportValiditySummary,GuardSummary,FileGuardReport,guardCopy,useDocumentGuard } from "./document-studio";
-import {expiryAssessment,guardTechnical} from "@/lib/document-intelligence";
+import { PassportValidity,PassportValiditySummary,GuardSummary,FileGuardReport,FinalGuardReview,guardCopy,useDocumentGuard } from "./document-studio";
+import {expiryAssessment,guardTechnical,guardStatus,documentKind} from "@/lib/document-intelligence";
 import { runBoundedUploads } from "@/lib/bounded-upload";
 import { stagingReceiptKey,reusableStagingToken,type StagedReceipt } from "@/lib/request-upload-retry";
 import { contentT } from "@/lib/i18n-content";
@@ -336,7 +336,7 @@ export function RequestWizard(props: Props) {
   const expectedCatalogue=props.catalogueFingerprints?.[visaTypeId];
   const requirements = useMemo(() => (visaTypeId ? (props.requirementsByVisaType[visaTypeId] ?? []) : []), [props.requirementsByVisaType, visaTypeId]);
 
-  const guard=useDocumentGuard(Boolean(props.documentIntelligence),files,requirements);
+  const guard=useDocumentGuard(Boolean(props.documentIntelligence),files,requirements,activeDoc);
   const guardText=guardCopy[props.locale];
   const expiry=expiryAssessment(passportExpiry,props.today??algeriaToday(),departure);
   const expiryBlocked=Boolean(props.documentIntelligence&&expiry.state!=="valid");
@@ -360,8 +360,9 @@ export function RequestWizard(props: Props) {
     return [...new Set([...(mismatch?[smart.mismatch]:[]),...(localWarnings[r.documentTypeId]??[]).map(k=>k==="portrait"||k==="format"?checkout[k]:smart[k]),...(guard.result?.byId[r.documentTypeId]??[]).map(k=>guardText.issues[k])])];
   }
   const flaggedRequirements=requirements.filter(r=>warningMessages(r).length>0);
-  const guardIssues=flaggedRequirements.map(r=>({name:r.name,messages:warningMessages(r)}));
+  const guardIssues=flaggedRequirements.map(r=>({id:r.documentTypeId,name:r.name,messages:warningMessages(r)}));
   const requiresRisk=Boolean(props.documentIntelligence&&flaggedRequirements.length);
+  function documentStatus(r:WizardRequirement){const attached=(files[r.documentTypeId]??[]).length>0;const state=guardStatus(guard.result?.byId[r.documentTypeId]??[],guard.checking,attached);return {state,label:state==="invalid"?guardText.invalidStatus:state==="warning"?guardText.warnStatus:state==="limited"?guardText.shortLimited:state==="checking"?guardText.shortChecking:state==="clear"?guardText.shortClear:ui.empty};}
   const checkoutFiles=requirements.flatMap(r=>files[r.documentTypeId]??[]);
   const checkoutFileIndex=reviewFile?checkoutFiles.indexOf(reviewFile):-1;
   const checkoutCategory=/^(tourist|tourism|tourisme|touristique|سياحة)$/i.test(visa?.categoryName.trim()??"")?checkout.tourist:visa?.categoryName;
@@ -879,11 +880,11 @@ export function RequestWizard(props: Props) {
           <div className="booking-doc-list" role="group" aria-label={t.summaryDocuments} hidden={requirements.length===1&&batch.length===0}>
             <label className="booking-batch btn-secondary"><span>＋ {assist.batch}</span><input className="sr-only" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" onChange={e=>{const incoming=Array.from(e.currentTarget.files??[]);if(incoming.length){setBatch(prev=>[...prev,...incoming]);setDirty(true)}e.currentTarget.value=""}}/></label>
             {batch.length?<div className="booking-inbox"><strong>{assist.unassigned} ({batch.length})</strong><small>{assist.batchHint}</small>{batch.map((f,i)=><div className="booking-batch-row" key={i}><span>{f.name}</span><button type="button" className="booking-link" disabled={!selectedRequirement} aria-label={assist.assign+" "+f.name+" → "+selectedRequirement?.name} onClick={()=>{if(selectedRequirement&&onFileChange(selectedRequirement.documentTypeId,[...(files[selectedRequirement.documentTypeId]??[]),f]))setBatch(prev=>prev.filter((_,j)=>j!==i))}}>{assist.assign}</button><button type="button" className="booking-link" aria-label={t.remove+" "+f.name} onClick={()=>setBatch(prev=>prev.filter((_,j)=>j!==i))}>×</button></div>)}</div>:null}
-            {requirements.map(r=><button type="button" key={r.documentTypeId} className="booking-doc-row" aria-pressed={selectedRequirement?.documentTypeId===r.documentTypeId} onClick={()=>selectDoc(r.documentTypeId)}><span className="booking-doc-icon" aria-hidden>▤</span><span><strong>{r.name}</strong><small>{r.required?t.required:ui.optional}</small></span><span className={(files[r.documentTypeId]??[]).length?"booking-success":"booking-muted"}>{warningMessages(r).length?<span className="booking-warning">• {smart.inspect}</span>:(files[r.documentTypeId]??[]).length?(guard.checking?guardText.shortChecking:props.documentIntelligence?guardText.shortClear:"✓ "+smart.selected):ui.empty}</span></button>)}
+            {requirements.map(r=><button type="button" key={r.documentTypeId} className="booking-doc-row" aria-pressed={selectedRequirement?.documentTypeId===r.documentTypeId} onClick={()=>selectDoc(r.documentTypeId)}><span className="booking-doc-icon" aria-hidden>▤</span><span><strong>{r.name}</strong><small>{r.required?t.required:ui.optional}</small></span><span className={(files[r.documentTypeId]??[]).length?"booking-success":"booking-muted"}>{props.documentIntelligence?<span className="di-inline-status" data-state={documentStatus(r).state}>{documentStatus(r).label}</span>:warningMessages(r).length?<span className="booking-warning">• {smart.inspect}</span>:(files[r.documentTypeId]??[]).length?"✓ "+smart.selected:ui.empty}</span></button>)}
           </div>
           {selectedRequirement?<div className="booking-doc-panel">
-            <div className="booking-doc-head"><h3>{selectedRequirement.name}</h3>{selectedFiles.length?<span className={warningMessages(selectedRequirement).length?"booking-warning":guard.checking?"booking-muted":"booking-success"}>{warningMessages(selectedRequirement).length?checkout.check:guard.checking?guardText.shortChecking:props.documentIntelligence?guardText.shortClear:ui.selected}</span>:null}</div>
-            {selectedRequirement.notes?<p className="booking-muted">{selectedRequirement.notes}</p>:null}{warningMessages(selectedRequirement).length?<div role="status" className="booking-warning">{warningMessages(selectedRequirement).map(message=><p key={message}>{message}</p>)}<small>{smart.noValidation}</small></div>:null}
+            <div className="booking-doc-head"><h3>{selectedRequirement.name}</h3>{selectedFiles.length?<span className={warningMessages(selectedRequirement).length?"booking-warning":guard.checking?"booking-muted":"booking-success"}>{props.documentIntelligence?<span className="di-inline-status" data-state={documentStatus(selectedRequirement).state}>{documentStatus(selectedRequirement).label}</span>:warningMessages(selectedRequirement).length?checkout.check:ui.selected}</span>:null}</div>
+            {selectedRequirement.notes?<p className="booking-muted">{selectedRequirement.notes}</p>:null}{!props.documentIntelligence&&warningMessages(selectedRequirement).length?<div role="status" className="booking-warning">{warningMessages(selectedRequirement).map(message=><p key={message}>{message}</p>)}<small>{smart.noValidation}</small></div>:null}
             <label className={selectedFiles.length?"booking-file-replace":"booking-drop"} data-dragging={dragging} onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={e=>{e.preventDefault();setDragging(false);onFileChange(selectedRequirement.documentTypeId,e.dataTransfer.files)}}>
               {!selectedFiles.length?<><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5"/></svg><strong>{ui.drop}</strong></>:null}
               <span className={selectedFiles.length?"btn-secondary":"btn-primary"}>{selectedFiles.length?ui.replace:ui.browse}</span>
@@ -917,7 +918,7 @@ export function RequestWizard(props: Props) {
             <div className="checkout-doc-heading"><h3>{t.summaryDocuments}</h3><span className="checkout-count"><bdi>{completedDocs}/{requiredDocs.length}</bdi> {checkout.selected}</span><button type="button" className="checkout-edit" disabled={pending} onClick={()=>editStep(2)} aria-label={ui.edit+" · "+t.summaryDocuments}><CheckoutIcon kind="edit"/><span>{ui.edit}</span></button></div>
             {fileError?<p role="alert" className="booking-warning" data-testid="checkout-file-error">{fileError}</p>:null}
             {!props.documentIntelligence&&flaggedRequirements.length?<details className="checkout-attention"><summary><span className="checkout-attention-dot" aria-hidden="true"/><span>{checkout.attention} · <bdi>{flaggedRequirements.length}</bdi></span></summary><small>{smart.noValidation}</small></details>:null}
-            {props.documentIntelligence?<GuardSummary locale={props.locale} checking={guard.checking} issues={guardIssues} onFix={()=>editStep(2)}/>:null}
+            {props.documentIntelligence?<GuardSummary locale={props.locale} checking={guard.checking} issues={guardIssues} onFix={id=>{if(id)selectDoc(id);editStep(2)}}/>:null}
             {requirements.length===0?<p className="booking-muted">{t.noDocumentsRequired}</p>:<div className="checkout-gallery" data-single={requirements.length===1} role="group" aria-label={t.summaryDocuments}>
               {requirements.map(r=>{
                 const attached=files[r.documentTypeId]??[];
@@ -926,7 +927,7 @@ export function RequestWizard(props: Props) {
                 return <div className="checkout-document" key={r.documentTypeId} data-flagged={flagged}>
                   <div className="checkout-document-label">
                     <strong>{r.name}</strong>
-                    <span className={flagged?"booking-warning":"booking-muted"}><span className="checkout-status-dot" aria-hidden="true"/>{flagged?checkout.check:attached.length?(props.documentIntelligence?(guard.checking?guardText.shortChecking:guardText.shortClear):checkout.selectedShort):r.required?checkout.missing:ui.optional}</span>
+                    <span className={flagged?"booking-warning":"booking-muted"}><span className="checkout-status-dot" aria-hidden="true"/>{attached.length&&props.documentIntelligence?<span className="di-inline-status" data-state={documentStatus(r).state}>{documentStatus(r).label}</span>:flagged?checkout.check:attached.length?checkout.selectedShort:r.required?checkout.missing:ui.optional}</span>
                   </div>
                   {attached.length?attached.map((f,i)=><button key={i} type="button" className="checkout-document-preview" disabled={pending} onClick={()=>setReviewFile(f)} aria-label={ui.preview+" · "+r.name+" · "+f.name}><CheckoutThumbnail file={f} active={step===3}/><span className="checkout-file-caption"><span title={f.name} dir="auto">{f.name}</span><CheckoutIcon kind="expand"/></span></button>):<div className="checkout-missing"><CheckoutIcon kind="file"/><span>{r.required?checkout.missing:ui.optional}</span></div>}
                   {flagged&&!props.documentIntelligence?<details className="checkout-document-warning"><summary>{smart.inspect} ({warnings.length})</summary>{warnings.map(message=><p key={message}>{message}</p>)}</details>:null}
@@ -937,7 +938,7 @@ export function RequestWizard(props: Props) {
                 </div>;
               })}
             </div>}
-            <small className="checkout-verify">{ux.verify}</small>
+            <small className="checkout-verify">{props.documentIntelligence?ux.local:ux.verify}</small>
           </div>
         </div>
         <aside className="booking-side checkout-payment">
@@ -947,7 +948,14 @@ export function RequestWizard(props: Props) {
           <div className="booking-preflight" aria-live="polite">
             {!reviewCheck||reviewCheck.status==="checking"?<p className="booking-muted">{preflightText.checking}</p>:reviewCheck.status==="unavailable"?<div className="booking-line"><p className="booking-warning">{preflightText.unavailable}</p><button type="button" className="booking-link" disabled={pending} onClick={()=>{setPreflight(null);setPreflightRetry(n=>n+1)}}>{preflightText.retry}</button></div>:quoteChanged?<div><p className="booking-warning">{reviewCheck.catalogueChanged?ops.changed:preflightText.changed}</p><button type="button" className="booking-link" disabled={pending} onClick={()=>window.location.reload()}>{preflightText.refresh}</button></div>:<><p className="booking-success">✓ {expectedCatalogue?ops.checklist:preflightText.checked}</p></>}
           </div>
-          <details className="ops-review"><summary>{ops.decision}</summary><p>{ops.traveller}: {applicantReady?"✓":"—"}</p><p>{ops.documents}: <bdi>{completedDocs}/{requiredDocs.length}</bdi></p><small>{ops.notReviewed}</small></details>
+          {props.documentIntelligence?<FinalGuardReview locale={props.locale} rows={[
+ {label:guardText.traveller,state:applicantReady?"clear":"missing",fix:()=>editStep(1)},
+ {label:guardText.validity,state:expiryBlocked?"invalid":"clear",detail:expiryBlocked?guardText.block:undefined,fix:()=>editStep(1)},
+ {label:guardText.documents,state:completedDocs===requiredDocs.length?"clear":"missing",detail:completedDocs+"/"+requiredDocs.length,fix:()=>editStep(2)},
+ {label:guardText.duplicate,state:guard.checking?"checking":!guard.result?"limited":Object.values(guard.result.byId).flat().some(k=>k==="duplicate"||k==="similar")?"warning":Object.values(guard.result.byId).flat().includes("limited")?"limited":"clear",fix:()=>{const r=requirements.find(r=>(guard.result?.byId[r.documentTypeId]??[]).some(k=>k==="duplicate"||k==="similar"));if(r)selectDoc(r.documentTypeId);editStep(2)}},
+ ...requirements.filter(r=>documentKind(r.code,r.name)==="photo").map(r=>({label:r.name,state:documentStatus(r).state,fix:()=>{selectDoc(r.documentTypeId);editStep(2)}})),
+ {label:guardText.wallet,state:!reviewReady?"checking":canAfford?"clear":"warning"}
+ ]}/>:<details className="ops-review"><summary>{ops.decision}</summary><p>{ops.traveller}: {applicantReady?"✓":"—"}</p><p>{ops.documents}: <bdi>{completedDocs}/{requiredDocs.length}</bdi></p><small>{ops.notReviewed}</small></details>}
           {pending&&transfer?<div className="agency-v2-submit-progress" role="status" aria-live="polite"><strong>{transfer.phase==="files"?`${progressCopy.files}: ${transfer.done} / ${transfer.total}`:progressCopy.confirm}</strong>{transfer.phase==="files"&&transfer.total>0?<progress aria-label={progressCopy.files} value={transfer.done} max={transfer.total}/>:null}{transfer.phase==="files"?<details className="core-transfer-details"><summary>{t.documents}</summary>{requirements.filter(r=>(files[r.documentTypeId]??[]).length>0).map(r=><div key={r.documentTypeId}><span>{r.name}</span><bdi>{transferItems[r.documentTypeId]??0}/{(files[r.documentTypeId]??[]).length}</bdi></div>)}</details>:null}<p>{progressCopy.notice}</p></div>:null}
           {expiryBlocked?<p className="booking-warning" role="alert">{guardText.block} <button type="button" className="booking-link" onClick={()=>editStep(1)}>{ui.edit}</button></p>:null}
           {props.documentIntelligence&&requiresRisk&&!expiryBlocked&&!technicalError&&!guard.checking?<label className="di-risk-ack"><input type="checkbox" checked={accepted} disabled={pending} onChange={e=>setAcceptedRisk(e.currentTarget.checked?{result:guard.result,expiry:passportExpiry,departure,visa:visaTypeId}:null)}/><span>{guardText.ack}</span></label>:null}

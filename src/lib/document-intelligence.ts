@@ -27,9 +27,9 @@ export function photoRatioDifference(width:number,height:number,targetWidth:numb
 }
 
 export type GuardKind="photo"|"passport"|"bank"|"other";
-export type GuardIssue="invalidFile"|"unreadable"|"limited"|"landscape"|"photoShape"|"photoTooSmall"|"lowResolution"|"blur"|"exposure"|"contrast"|"noFace"|"multipleFaces"|"faceSize"|"facePosition"|"background"|"faceUnavailable"|"portraitInDocument"|"documentInPhoto"|"typeUncertain"|"duplicate"|"similar";
+export type GuardIssue="invalidFile"|"unreadable"|"limited"|"landscape"|"photoShape"|"photoTooSmall"|"lowResolution"|"blur"|"exposure"|"contrast"|"noFace"|"multipleFaces"|"faceSize"|"facePosition"|"background"|"faceUnavailable"|"portraitInDocument"|"documentInPhoto"|"typeUncertain"|"pdfProtected"|"pdfBlank"|"pdfRepeated"|"pdfPartial"|"duplicate"|"similar";
 export type FaceBox={x:number;y:number;width:number;height:number};
-export type GuardImage={signals:ImageSignals;fingerprint:string;edgeVariation:number;faces:FaceBox[]|null;layout?:DocumentLayout};
+export type GuardImage={signals:ImageSignals;fingerprint:string;edgeVariation:number;faces:FaceBox[]|null;layout?:DocumentLayout;faceSharpness?:number;isPdfPage?:boolean};
 export function documentKind(code:string,name:string):GuardKind{
  const s=(code+" "+name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
  if(/passport|passeport|جواز/.test(s))return "passport";
@@ -69,15 +69,15 @@ export function classifyVisual(image:GuardImage):VisualType{
  // A prominent centered face overrides aspect ratio; small embedded faces do not.
  if(faces?.length===1&&centered&&substantial&&!(layout&&layout.outsideTextRows>=11))return "portrait";
  if(layout&&(layout.outsideTextRows>=11||(!largest&&layout.textRows>=12)))return "document";
- if(s.ratio>1.08&&(!largest||!substantial||!centered))return "document";
+ if(s.ratio>1.08&&layout&&layout.textRows>=6&&(!largest||!substantial||!centered))return "document";
  if(largest&&(!substantial||!centered)&&layout&&layout.outsideTextRows>=6)return "document";
  return "uncertain";
 }
 
 export function visualIssues(kind:GuardKind,image:GuardImage):GuardIssue[]{
  const s=image.signals,issues:GuardIssue[]=[],type=classifyVisual(image);
- if(Math.min(s.width,s.height)<300)issues.push(kind==="photo"?"photoTooSmall":"lowResolution");
- if(s.sharpness<60)issues.push("blur");
+ if(!image.isPdfPage&&Math.min(s.width,s.height)<300)issues.push(kind==="photo"?"photoTooSmall":"lowResolution");
+ if((kind==="photo"?image.faceSharpness??s.sharpness:s.sharpness)<(kind==="photo"?22:35))issues.push("blur");
  if(s.mean<45||s.mean>240)issues.push("exposure");
  if(s.contrast<18)issues.push("contrast");
  if(kind==="photo"){
@@ -85,12 +85,13 @@ export function visualIssues(kind:GuardKind,image:GuardImage):GuardIssue[]{
   if(s.ratio>1.08)issues.push("landscape");
   else if(s.ratio<.55)issues.push("photoShape");
   if(image.edgeVariation>36)issues.push("background");
-  if(image.faces===null){if(type!=="document")issues.push("faceUnavailable");}
+  if(image.faces===null){if(type!=="document"&&s.ratio<=1.08)issues.push("faceUnavailable");}
   else if(image.faces.length===0)issues.push("noFace");
   else if(image.faces.length>1)issues.push("multipleFaces");
   else {const f=image.faces[0]!;if(f.height<.28||f.height>.88||f.width<.2||f.width>.88)issues.push("faceSize");if(Math.abs(f.x+f.width/2-.5)>.18||f.y+f.height/2<.22||f.y+f.height/2>.75)issues.push("facePosition")}
  }else if(type==="portrait")issues.push("portraitInDocument");
  else if(type==="uncertain")issues.push("typeUncertain");
+ if(kind==="photo"&&type==="uncertain"&&s.ratio<=1.08&&!issues.includes("typeUncertain"))issues.push("typeUncertain");
  return issues;
 }
 export function signatureKind(bytes:Uint8Array):"pdf"|"jpeg"|"png"|"webp"|"doc"|"zip"|"unknown"{
@@ -135,4 +136,26 @@ export function expiryAssessment(expiry:string,today:string,_departure:string){
 }
 export function passportMeetsPolicy(expiry:string,today:string,departure:string):boolean{
  return expiryAssessment(expiry,today,departure).state==="valid";
+}
+
+export function guardStatus(issues:readonly GuardIssue[],checking=false,attached=true):"missing"|"checking"|"invalid"|"warning"|"limited"|"clear"{
+ if(!attached)return "missing";
+ if(checking)return "checking";
+ if(issues.some(guardTechnical))return "invalid";
+ if(issues.some(k=>!["limited","faceUnavailable","typeUncertain","pdfPartial"].includes(k)))return "warning";
+ return issues.length?"limited":"clear";
+}
+export function blankPdfPage(s:ImageSignals):boolean{return s.contrast<3&&s.mean>247}
+export function pdfPagePlan(total:number,limit=4):number[]{
+ if(!Number.isSafeInteger(total)||total<1||!Number.isSafeInteger(limit)||limit<1)return [];
+ const count=Math.min(total,limit);
+ if(count===1)return [1];
+ return Array.from({length:count},(_,i)=>1+Math.round(i*(total-1)/(count-1)));
+}
+export function pdfPageIssues(pages:readonly GuardImage[],total:number):GuardIssue[]{
+ const issues:GuardIssue[]=[];
+ if(pages.length<total)issues.push("pdfPartial");
+ if(pages.some(p=>blankPdfPage(p.signals)))issues.push("pdfBlank");
+ if(pages.some((p,i)=>!blankPdfPage(p.signals)&&pages.slice(0,i).some(q=>probablySimilar(p,q))))issues.push("pdfRepeated");
+ return issues;
 }

@@ -66,3 +66,5 @@ ESSAFARIA-SYNTHETIC-*.manifest.json
 
 # Generated pinned Preview face-detection assets
 /public/document-guard/face-v1/
+
+/public/document-guard/pdf-v1/
