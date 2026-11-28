@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import {pathToFileURL} from "node:url";
 import {Worker} from "node:worker_threads";
 const branch="codex/phase2c-document-intelligence-20261126";
-if(process.env.VERCEL!=="1"||process.env.VERCEL_ENV!=="preview"||process.env.VERCEL_GIT_COMMIT_REF!==branch)throw Error("Preview-only worker assets");
+if(process.env.VERCEL!=="1"||!(process.env.VERCEL_ENV==="preview"||process.env.VERCEL_ENV==="production"&&process.env.DATABASE_SCHEMA==="visa_os")||process.env.VERCEL_GIT_COMMIT_REF!==branch)throw Error("Preview-only worker assets");
 const root=join(process.cwd(),"public","document-guard","analysis-v1");
 await rm(root,{recursive:true,force:true});await mkdir(root,{recursive:true});
 const source=await readFile(join(process.cwd(),"src","lib","document-intelligence.ts"),"utf8");
