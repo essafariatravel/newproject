@@ -81,3 +81,14 @@ assert.equal(parseSavedGroups("invalid","user-a","agency-a").length,0);
 assert.equal(parseSavedGroups(JSON.stringify({user:"u",agency:"a",groups:[saved,saved]}),"u","a").length,1);
 assert.equal(SAVED_GROUP_MAX,6);
 console.log("[saved-groups] Bounded roster, duplicate validation, account and agency scope PASS (10 assertions)");
+
+
+import {groupFinancialTotals} from "../src/lib/group-policy";
+const debit={charged:"120.00",surcharge:"15.25",discount:"5.25",refund:"30.00",net:"100.00",valid:true};
+assert.deepEqual(groupFinancialTotals([debit,debit],2),{charged:24000,surcharge:3050,discount:1050,refund:6000,net:20000});
+assert.equal(groupFinancialTotals([debit],2),null);
+assert.equal(groupFinancialTotals([debit,{...debit,net:"99.99"}],2),null);
+assert.equal(groupFinancialTotals([debit,{...debit,valid:false}],2),null);
+assert.equal(groupFinancialTotals([debit,{...debit,refund:"30.001"}],2),null);
+assert.equal(groupFinancialTotals([debit,{...debit,net:"-1"}],2),null);
+console.log("[group-finance] Exact cents, refunds, discounts, reconciliation and incomplete-ledger denial PASS (6 assertions)");
