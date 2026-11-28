@@ -3,7 +3,8 @@ import Link from "next/link";
 import { portalPageUser } from "@/lib/page-auth";
 import { hasPermission } from "@/lib/rbac";
 import { getBalance } from "@/lib/wallet";
-import { listWalletTransactions } from "@/lib/queries";
+import { listWalletTransactions, activeVisaOptions } from "@/lib/queries";
+import { capacity } from "../dashboard-smart";
 import { listTopupRequestsForAgency, TOPUP_STATUSES, type TopupStatus } from "@/lib/topup";
 import { requestTopupAction } from "@/app/actions/topup";
 import { flashFrom } from "@/lib/action-helpers";
@@ -21,8 +22,6 @@ import { WalletDrawer, WalletFilters, WalletCopy, WalletViewport, WalletReceipt 
 
 export const dynamic = "force-dynamic";
 
-/** Balance below which we proactively suggest a top-up (a typical visa fee). */
-const LOW_BALANCE_HINT_DZD = 15000;
 
 export default async function PortalWalletPage({
   searchParams,
@@ -58,7 +57,7 @@ export default async function PortalWalletPage({
   const rechargeStatus=TOPUP_STATUSES.includes(sp.rs as TopupStatus)?sp.rs as TopupStatus:undefined;
   const rechargeRange=resolveLedgerPeriod({period:"custom",from:sp.rf,to:sp.rt});
   const rechargeSize=25;
-  const [balance, initialLedger, rechargeRows, pendingRows, bankAccounts] = await Promise.all([
+  const [balance, initialLedger, rechargeRows, pendingRows, bankAccounts, availableProgrammes] = await Promise.all([
     getBalance(user.agencyId),
     tab==="transactions"?listWalletTransactions({
       agencyId: user.agencyId, // tenant scope from the session only
@@ -72,13 +71,15 @@ export default async function PortalWalletPage({
     tab==="recharges"?listTopupRequestsForAgency(user.agencyId,rechargeSize+1,{offset:(rechargePage-1)*rechargeSize,status:rechargeStatus,reference:rechargeReference,from:rechargeRange.from,to:rechargeRange.to}):Promise.resolve([]),
     listTopupRequestsForAgency(user.agencyId,1,{status:"PENDING"}),
     listBankAccounts(user),
+    activeVisaOptions().catch(()=>null),
   ]);
 
   const ledger=initialLedger.page>initialLedger.pageCount?await listWalletTransactions({agencyId:user.agencyId,type:typeFilter,q,from:range.from,to:range.to,page:initialLedger.pageCount,pageSize:per}):initialLedger;
   const topups=rechargeRows.slice(0,rechargeSize);
   const pendingTopup=pendingRows[0]??null;
-  const balanceValue = Number(balance.balance);
-  const lowBalance = balanceValue < LOW_BALANCE_HINT_DZD;
+  const bookingCapacity=availableProgrammes?capacity(balance.balance,availableProgrammes.map(p=>p.fee)):null;
+  const freeProgramme=availableProgrammes?.some(p=>Number(p.fee)===0)??false;
+  const fundingCopy={fr:{capacity:"Capacité indicative de réservation",minimum:"Tarif payant le plus bas",count:"dossiers à ce tarif",shortfall:"Complément pour atteindre ce tarif",note:"Estimation au tarif affiché, hors ajustements. Le solde et le tarif sont revérifiés au Checkout.",free:"Des programmes gratuits sont également disponibles.",linked:"Voir le crédit associé",find:"Voir la recharge associée"},en:{capacity:"Estimated booking capacity",minimum:"Lowest paid programme fee",count:"applications at this fee",shortfall:"Additional amount to reach this fee",note:"Estimate using the listed fee, before adjustments. Balance and fee are rechecked at checkout.",free:"Free programmes are also available.",linked:"View linked credit",find:"View linked top-up"},ar:{capacity:"القدرة التقديرية للحجز",minimum:"أقل سعر لبرنامج مدفوع",count:"طلبات بهذا السعر",shortfall:"المبلغ الإضافي المطلوب لهذا السعر",note:"تقدير وفق السعر المعروض قبل التعديلات. يعاد التحقق من الرصيد والسعر عند التأكيد.",free:"تتوفر أيضاً برامج مجانية.",linked:"عرض الرصيد المرتبط",find:"عرض طلب الشحن المرتبط"}}[uiLocale];
   const query: Record<string, string | undefined> = {
     period: sp.period,
     from: sp.from,
@@ -123,14 +124,14 @@ export default async function PortalWalletPage({
     return <><div className="wallet-detail-hero"><small>{finish.requested}</small><strong><bdi>{formatAmount(t.amount,"DZD",uiLocale)}</bdi></strong><small className="wallet-status" data-status={t.status}>● {ct(topupStatusLabel(t.status))}</small><small><bdi>{t.reference}</bdi></small></div>
       <ol className="wallet-timeline"><li data-state="done"><strong>{finish.received}</strong><small>{localDateTime(t.createdAt)}</small></li><li data-state={pending?"pending":processed?"done":"closed"}><strong>{pending||processed?finish.review:finish.closed}</strong><small>{pending?finish.waiting:t.processedAt?localDateTime(t.processedAt):ct(topupStatusLabel(t.status))}</small></li><li data-state={processed&&t.walletReference?"done":"idle"}><strong>{finish.credited}</strong><small>{processed&&t.walletReference?<bdi>{t.walletReference}</bdi>:pending?finish.after:finish.noCredit}</small></li></ol>
       {t.note||t.decisionNote?<dl className="wallet-detail-list">{t.note?<div><dt>{finish.note}</dt><dd dir="auto">{t.note}</dd></div>:null}{t.decisionNote?<div><dt>{finish.decision}</dt><dd dir="auto">{decisionLabel(t.decisionNote)}</dd></div>:null}</dl>:null}
-      {t.proofFilename?<section className="wallet-receipt-section"><h3>{finish.receipt}</h3><small dir="auto">{t.proofFilename}</small>{receipt(t.id)}</section>:null}<WalletCopy value={t.reference} label={smart.copy} done={smart.copied} failed={smart.failed}/><small>{finish.local}</small></>;
+      {processed&&t.walletReference?<Link className="btn-secondary" href={walletUrl({q:t.walletReference,type:undefined,period:undefined,from:undefined,to:undefined,page:undefined})}>{fundingCopy.linked} <span aria-hidden="true">→</span></Link>:null}{t.proofFilename?<section className="wallet-receipt-section"><h3>{finish.receipt}</h3><small dir="auto">{t.proofFilename}</small>{receipt(t.id)}</section>:null}<WalletCopy value={t.reference} label={smart.copy} done={smart.copied} failed={smart.failed}/><small>{finish.local}</small></>;
   };
   const pager=<div className="wallet-ledger-pagination"><small><bdi>{firstResult}–{lastResult}</bdi> {smart.of} <bdi>{ledger.total}</bdi></small>{ledger.pageCount>1?<nav aria-label={ct("page")}><span>{ledger.page}/{ledger.pageCount}</span>{ledger.page>1?<Link href={pageLink(ledger.page-1)} scroll={false} aria-label={ct("Previous")} className="wallet-page-button"><span className="directional">‹</span></Link>:<span className="wallet-page-button" aria-disabled="true">‹</span>}{ledger.page<ledger.pageCount?<Link href={pageLink(ledger.page+1)} scroll={false} aria-label={ct("Next")} className="wallet-page-button"><span className="directional">›</span></Link>:<span className="wallet-page-button" aria-disabled="true">›</span>}</nav>:null}</div>;
   return <section id="wallet" className="essafaria-wallet" dir={uiLocale==="ar"?"rtl":"ltr"}>
     <style>{walletCss+rechargeFilterCss}</style>
     <div className="wallet-title-line"><h1>{copy.title}</h1><WalletDrawer id="wallet-help" title={finish.help} trigger={<span aria-label={finish.help}>ⓘ</span>} close={copy.close} className="wallet-help-button"><p>{ct("Your wallet is prepaid and denominated in Algerian dinars (DZD) only. Every movement is written to an immutable ledger with a numbered reference, a before/after balance and a reason — nothing can be edited or deleted, corrections are made with compensating entries.")}</p><p className="wallet-muted">{finish.local} · {finish.utc}</p></WalletDrawer></div>
     <Flash {...flash}/>
-    <div className="wallet-overview" data-pending={Boolean(pendingTopup)}><div className="wallet-balance"><div><p>{ct("Available balance")}</p><strong><bdi>{formatAmount(balance.balance,"DZD",uiLocale)}</bdi></strong>{lowBalance?<small className="wallet-warning" title={ct("Your wallet balance may be insufficient for a new application.")}>● {smart.low}</small>:null}</div>
+    <div className="wallet-overview" data-pending={Boolean(pendingTopup)}><div className="wallet-balance"><div><p>{ct("Available balance")}</p><strong><bdi>{formatAmount(balance.balance,"DZD",uiLocale)}</bdi></strong>{bookingCapacity&&bookingCapacity.shortfall>0&&!freeProgramme?<small className="wallet-warning">{fundingCopy.shortfall} : <bdi>{formatAmount(String(bookingCapacity.shortfall),"DZD",uiLocale)}</bdi></small>:null}</div>
       {pendingTopup?null:user.role==="AGENCY_ADMIN"?<WalletDrawer id="topup" title={copy.fund} trigger={copy.fund} close={copy.close} openFromHash>
         <p className="wallet-muted">{ct("Tell ESSAFARIA how much you need in your wallet. Your balance is credited once the funds are confirmed — no online payment is taken here.")}</p>
         <BankAccountDirectory accounts={bankAccounts} locale={uiLocale} smart/>
@@ -166,6 +167,7 @@ export default async function PortalWalletPage({
       </WalletDrawer>:<small>{copy.adminOnly}</small>}
     </div>
     {pendingTopup?<div id="topup" className="wallet-pending"><div><small className="wallet-warning">● {copy.pending}</small><strong className="wallet-pending-amount"><bdi>{formatAmount(pendingTopup.amount,"DZD",uiLocale)}</bdi></strong><small><bdi>{pendingTopup.reference}</bdi> · {localDateTime(pendingTopup.createdAt)}</small></div><div><small>{copy.notCredited}</small><WalletDrawer id={"pending-"+pendingTopup.id} title={copy.track} trigger={copy.track} close={copy.close}>{rechargeDetail(pendingTopup)}</WalletDrawer></div></div>:null}</div>
+    {bookingCapacity?<details className="wallet-capacity"><summary><span>{fundingCopy.capacity}</span><strong><bdi>{new Intl.NumberFormat(uiLocale).format(bookingCapacity.count)}</bdi> {fundingCopy.count}</strong></summary><div><p><span>{fundingCopy.minimum}</span><strong><bdi>{formatAmount(String(bookingCapacity.minimum),"DZD",uiLocale)}</bdi></strong></p>{bookingCapacity.shortfall>0?<p><span>{fundingCopy.shortfall}</span><strong><bdi>{formatAmount(String(bookingCapacity.shortfall),"DZD",uiLocale)}</bdi></strong></p>:null}<small>{fundingCopy.note}</small>{freeProgramme?<small>{fundingCopy.free}</small>:null}</div></details>:freeProgramme?<p className="wallet-muted">{fundingCopy.free}</p>:null}
     <nav className="wallet-tabs" aria-label={copy.title}>{tabs.map(([key,label])=><Link key={key} href={walletUrl({tab:key==="transactions"?undefined:key})} aria-current={tab===key?"page":undefined}>{label}</Link>)}</nav>
     {tab==="transactions"?<>
       <WalletFilters q={q??""} type={typeFilter??""} period={range.period} from={sp.from??""} to={sp.to??""} types={[{value:"",label:ct("All")},...typeFilterOptions(ct,uiLocale)]} periods={periodOptions} locale={uiLocale} labels={{search:copy.search,type:ct("Type"),period:copy.period,reset:ct("Reset"),from:ct("From"),to:ct("To"),apply:ct("Filter"),loading:smart.loading,all:copy.all,more:smart.more}} exportControl={<WalletDrawer id="wallet-exports" title={copy.export} trigger={copy.export+" ↓"} close={copy.close} className="btn-secondary">
@@ -201,7 +203,7 @@ export default async function PortalWalletPage({
           <WalletDrawer id={"tx-"+tx.id} openFromHash title={copy.details} close={copy.close} className="wallet-ledger-trigger" trigger={<><span className="wallet-movement" data-credit={creditEffect} aria-hidden="true">{creditEffect?"↓":"↑"}</span><span className="wallet-ledger-title"><strong>{typeLabel}</strong><small><bdi>{tx.reference??"—"}</bdi> · {timeLabel(tx.createdAt)}</small></span><span className="wallet-ledger-context" title={reason}><strong><bdi>{applicationReference??topupReference??reason}</bdi></strong></span><span className="wallet-ledger-values"><strong className="wallet-money" data-credit={creditEffect}><bdi>{amount}</bdi></strong><small><bdi>{formatAmount(tx.balanceAfter,"DZD",uiLocale)}</bdi></small></span><span className="wallet-ledger-chevron" aria-hidden="true">›</span></>}>
             <div className="wallet-detail-hero"><small>{typeLabel}</small><strong className="wallet-money" data-credit={creditEffect}><bdi>{amount}</bdi></strong><small>{smart.recorded} · {localDateTime(tx.createdAt)}</small></div>
             <dl className="wallet-detail-list"><div><dt>{ct("Reference")}</dt><dd><bdi>{tx.reference??"—"}</bdi></dd></div><div><dt>{copy.before}</dt><dd><bdi>{formatAmount(tx.balanceBefore,"DZD",uiLocale)}</bdi></dd></div><div><dt>{copy.after}</dt><dd><bdi>{formatAmount(tx.balanceAfter,"DZD",uiLocale)}</bdi></dd></div><div><dt>{ct("Reason")}</dt><dd>{reason}</dd></div>{applicationReference||topupReference?<div><dt>{smart.linked}</dt><dd><bdi>{applicationReference??topupReference}</bdi></dd></div>:null}</dl>
-            {applicationReference&&tx.applicationId?<Link className="btn-primary" href={"/portal/applications/"+tx.applicationId}>{smart.view} · {applicationReference}</Link>:null}{topupRequestId?<section className="wallet-receipt-section"><h3>{finish.receipt}</h3>{receipt(topupRequestId)}</section>:null}{tx.reference?<WalletCopy value={tx.reference} label={smart.copy} done={smart.copied} failed={smart.failed}/>:null}
+            {applicationReference&&tx.applicationId?<Link className="btn-primary" href={"/portal/applications/"+tx.applicationId}>{smart.view} · {applicationReference}</Link>:null}{topupRequestId?<>{topupReference?<Link className="btn-secondary" href={walletUrl({tab:"recharges",rq:topupReference})+"#recharge-"+encodeURIComponent(topupRequestId)}>{fundingCopy.find} <span aria-hidden="true">→</span></Link>:null}<section className="wallet-receipt-section"><h3>{finish.receipt}</h3>{receipt(topupRequestId)}</section></>:null}{tx.reference?<WalletCopy value={tx.reference} label={smart.copy} done={smart.copied} failed={smart.failed}/>:null}
           </WalletDrawer></div>
         })}</div>
 
