@@ -1,6 +1,6 @@
-import {CONSOLIDATED_BRANCH,passportKey} from "./traveller-hub-policy";
+import {CONSOLIDATED_BRANCH,passportKey,consolidatedProductionEnabled} from "./traveller-hub-policy";
 export const GROUP_MIN=2,GROUP_MAX=5,GROUP_FILES_MAX=30,GROUP_BYTES_MAX=24*1024*1024;
-export function groupEnabled(env:Record<string,string|undefined>=process.env){return env.VERCEL_ENV==="preview"&&env.VERCEL_GIT_COMMIT_REF===CONSOLIDATED_BRANCH&&env.DATABASE_SCHEMA==="visa_os_preview"}
+export function groupEnabled(env:Record<string,string|undefined>=process.env){return consolidatedProductionEnabled(env)||env.VERCEL_ENV==="preview"&&env.VERCEL_GIT_COMMIT_REF===CONSOLIDATED_BRANCH&&env.DATABASE_SCHEMA==="visa_os_preview"}
 export function distinctGroupIdentities(rows:readonly {passportNumber?:string|null;travellerProfileId?:string}[]){
  const passports=rows.map(r=>passportKey(r.passportNumber)),ids=rows.flatMap(r=>r.travellerProfileId?[r.travellerProfileId]:[]);
  return passports.every(Boolean)&&new Set(passports).size===rows.length&&new Set(ids).size===ids.length;
