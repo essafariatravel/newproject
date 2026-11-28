@@ -8,7 +8,7 @@ import {AppError,type AuthUser} from "@/lib/types";
 import {fileNameProblem} from "@/lib/filename";
 import {validateDocumentFormat} from "@/lib/upload-validation";
 import {sha256Hex,assertStoredFileIntegrity} from "@/lib/file-integrity";
-import {vaultEnabled,uuid,personalCode,passportKey,civilDate,nameKey,autoEligible,type ReuseFile} from "./traveller-hub-policy";
+import {vaultEnabled,uuid,personalCode,canonicalPersonalCode,passportKey,civilDate,nameKey,autoEligible,type ReuseFile} from "./traveller-hub-policy";
 import {algeriaToday} from "./travel-deadline";
 type Actor=AuthUser&{agencyId:string};
 function authorize(u:Actor,write=false){if(!vaultEnabled()||!uuid(u.agencyId)||u.mustChangePassword||u.userStatus!=="ACTIVE"||u.agencyStatus!=="ACTIVE"||!["AGENCY_ADMIN","AGENCY_USER"].includes(u.role)||!hasPermission(u,"applicants.view.all")||!hasPermission(u,"documents.view.all")||(write&&(!hasPermission(u,"documents.upload.own")||!hasPermission(u,"applications.create"))))throw new AppError("FORBIDDEN","Vault access denied");return u.agencyId}
@@ -35,7 +35,7 @@ export async function vaultSave(user:Actor,id:string,typeId:string,version:numbe
  const c=await pool.connect();try{await c.query("begin");const actor=await currentOperationActorPg(c,user);if(actor.agencyId!==agency)throw new AppError("FORBIDDEN","Vault access denied");authorize({...actor,agencyId:agency},true);
  const profile=await c.query<{full_name:string;nationality:string;passport_number:string;passport_expiry:string}>(`select full_name,nationality,passport_number,passport_expiry::text from ${qt("traveller_profiles")} where id=$1 and agency_id=$2 and version=$3 and archived_at is null for update`,[id,agency,version]);
  const a=profile.rows[0];if(!a||!passportKey(a.passport_number)||!civilDate(a.passport_expiry))throw new AppError("TRAVELLER_CHANGED","Complete or refresh passport details");
- const t=await c.query<{code:string}>(`select code from ${qt("document_types")} where id=$1 and active and agency_uploadable`,[typeId]);const code=t.rows[0]?.code;if(!code||!personalCode(code)||(code!=="PASSPORT"&&!date))throw new AppError("VALIDATION","Invalid type");
+ const t=await c.query<{code:string}>(`select code from ${qt("document_types")} where id=$1 and active and agency_uploadable`,[typeId]);const code=t.rows[0]?.code;if(!code||!personalCode(code)||(canonicalPersonalCode(code)!=="PASSPORT"&&!date))throw new AppError("VALIDATION","Invalid type");
  const sha=sha256Hex(file.data);
  const prior=await c.query<{id:string;version:number;sha256:string;issued_at:string|null;identity_passport:string;identity_expiry:string;identity_name:string;identity_nationality:string}>(`select id,version,sha256,issued_at::text,identity_passport,identity_expiry::text,identity_name,identity_nationality from ${qt("traveller_vault_files")} where agency_id=$1 and profile_id=$2 and type_id=$3 order by version desc limit 1`,[agency,id,typeId]);
  const old=prior.rows[0];if(old&&old.sha256===sha&&old.issued_at===date&&old.identity_passport===passportKey(a.passport_number)&&old.identity_expiry===a.passport_expiry&&old.identity_name===a.full_name&&old.identity_nationality===a.nationality){await c.query("commit");return old.id}
@@ -62,6 +62,6 @@ export async function vaultDirectorySummary(user:Actor,ids:string[]){
  const result:Record<string,{stored:number;eligible:number;passport:boolean;photo:boolean}>={};
  if(!keys.length)return result;
  const r=await pool.query<Row>(projection().replace("v.profile_id=$2","v.profile_id=any($2::uuid[])")+` and not exists(select 1 from ${qt("traveller_vault_files")} n where n.agency_id=v.agency_id and n.profile_id=v.profile_id and n.type_id=v.type_id and n.version>v.version)`,[agency,keys]);
- for(const row of r.rows){const item=result[row.profile_id]??={stored:0,eligible:0,passport:false,photo:false};item.stored++;if(eligible(row)){item.eligible++;if(row.code==="PASSPORT")item.passport=true;if(row.code==="PHOTO")item.photo=true}}
+ for(const row of r.rows){const item=result[row.profile_id]??={stored:0,eligible:0,passport:false,photo:false};item.stored++;if(eligible(row)){item.eligible++;if(canonicalPersonalCode(row.code)==="PASSPORT")item.passport=true;if(canonicalPersonalCode(row.code)==="PHOTO")item.photo=true}}
  return result;
 }
