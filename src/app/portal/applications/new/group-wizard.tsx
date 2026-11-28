@@ -14,7 +14,7 @@ import {TravellerLookup} from "./traveller-lookup";
 import {fetchTravellerFile,travellerFileReference} from "./traveller-file-fetch";
 import {autoPlan,validApplicationPassport,passportKey,expiryState,type TravellerSource} from "@/lib/traveller-hub-policy";
 import {groupCopy} from "@/lib/group-copy";
-import {GROUP_MAX,GROUP_FILES_MAX,GROUP_BYTES_MAX,groupMoney,groupWithinBudget,distinctGroupIdentities,sharedDocumentCode,groupDocumentConflict,groupRosterCapacity} from "@/lib/group-policy";
+import {GROUP_MAX,GROUP_FILES_MAX,GROUP_BYTES_MAX,canRestartRejectedGroup,groupMoney,groupWithinBudget,distinctGroupIdentities,sharedDocumentCode,groupDocumentConflict,groupRosterCapacity} from "@/lib/group-policy";
 import {inspectDocuments,type GuardResult} from "@/lib/document-guard-browser";
 import {guardTechnical} from "@/lib/document-intelligence";
 import {guardCopy} from "./document-studio";
@@ -72,7 +72,7 @@ export function GroupWizard({locale,today,countries,nationalities,requirementsBy
  async function checkPrevious(){if(busy||!previous)return;setBusy(true);setError("");try{if(!await check(previous))setError(t.notFound)}catch{setError(t.unknown)}finally{setBusy(false)}}
  async function submit(){
  if(submitting.current||!visa||!identityOK||!members.every(ready)||!within||!enough||!analysed||technical||conflict||warnings&&ack!==members||previous)return;
- submitting.current=true;setBusy(true);setError("");setTransfer({done:0,total:allFiles.length,confirm:false});let sent=locked;
+ submitting.current=true;setBusy(true);setError("");setTransfer({done:0,total:allFiles.length,confirm:false});let sent=locked,definitiveRejection=false;
  try{
  const a=attempt.current??={id:crypto.randomUUID(),keys:Object.fromEntries(members.map(m=>[m.key,crypto.randomUUID()]))};
  if(locked&&await check(a.id))return;
@@ -87,8 +87,8 @@ export function GroupWizard({locale,today,countries,nationalities,requirementsBy
  const body={id:a.id,visaTypeId:visa.id,countryId:countryId,expectedFee:visa.fee,expectedCatalogue:catalogueFingerprints[visa.id],members:rows};
  // Persist only the opaque attempt identifier, never passport data or files.
  try{sessionStorage.setItem(recoveryKey,a.id)}catch{}
- sent=true;setLocked(true);setTransfer(prev=>prev?{...prev,confirm:true}:prev);const d=await json("/api/agency/groups",body);if(!d.applications?.length)throw Error(t.unknown);setReceipt(d.applications);try{sessionStorage.removeItem(recoveryKey)}catch{}
- }catch(e){setError((e instanceof Error?e.message:t.error)+(sent?" · "+t.unknown:""));if(!sent){attempt.current=null}}finally{setBusy(false);setTransfer(null);submitting.current=false}
+ sent=true;setLocked(true);setTransfer(prev=>prev?{...prev,confirm:true}:prev);const response=await fetch("/api/agency/groups",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),cache:"no-store"});const d=await response.json();if(!response.ok){definitiveRejection=canRestartRejectedGroup(locked,response.status,d.code);throw Error(d.error||t.error)}if(!Array.isArray(d.applications)||d.applications.length!==members.length)throw Error(t.unknown);setReceipt(d.applications);try{sessionStorage.removeItem(recoveryKey)}catch{}
+ }catch(e){setError((e instanceof Error?e.message:t.error)+(sent&&!definitiveRejection?" · "+t.unknown:""));if(definitiveRejection){setLocked(false);attempt.current=null;try{sessionStorage.removeItem(recoveryKey)}catch{}setStep(1);router.refresh()}else if(!sent){attempt.current=null}}finally{setBusy(false);setTransfer(null);submitting.current=false}
  }
  if(receipt)return <section className="group-wizard"><h2>{t.done}</h2><p>{t.notice}</p><div className="group-list">{receipt.map(r=><div className="group-receipt-row" key={r.applicationId}><bdi>{r.reference}</bdi><Link className="booking-link" href={"/portal/applications/"+r.applicationId}>{t.open} →</Link></div>)}</div><Link className="btn-primary" href="/portal/applications/groups">{t.groups}</Link></section>;
  if(previous)return <section className="group-wizard"><h2>{t.group}</h2><p role="alert">{t.recovery}</p>{error?<p role="alert" className="booking-warning">{error}</p>:null}<div className="group-actions"><button className="btn-primary" disabled={busy} onClick={()=>void checkPrevious()}>{t.receipt}</button><Link className="btn-secondary" href="/portal/applications/groups">{t.groups}</Link><button className="booking-link" disabled={busy} onClick={()=>{if(window.confirm(t.dismissConfirm)){try{sessionStorage.removeItem(recoveryKey)}catch{}setPrevious(null);setError("")}}}>{t.dismiss}</button></div></section>;
