@@ -1,7 +1,5 @@
 "use client";
-import {imageSignals,duplicateGroups,uniqueVerifiedOcr} from "./document-intelligence";
-import {rectifiedSize,rectifyPixels,type Quad} from "./document-geometry";
-import {portableOcrAvailable,portablePassportOcr} from "./document-ocr-portable";
+import {imageSignals,duplicateGroups} from "./document-intelligence";
 export const LOCAL_FILE_LIMIT=2*1024*1024;
 export function localImage(file:File):boolean{return file.size>0&&file.size<=LOCAL_FILE_LIMIT&&/^image\/(jpeg|png|webp)$/.test(file.type)}
 async function bitmap(file:File):Promise<ImageBitmap>{
@@ -15,58 +13,6 @@ export async function inspectImage(file:File){
  const b=await bitmap(file);
  try{const scale=Math.min(1,384/Math.max(b.width,b.height));const w=Math.max(3,Math.round(b.width*scale)),h=Math.max(3,Math.round(b.height*scale));const {c,ctx}=canvas(w,h);try{ctx.drawImage(b,0,0,w,h);return imageSignals(ctx.getImageData(0,0,w,h).data,w,h,b.width,b.height)}finally{c.width=c.height=0}}finally{b.close()}
 }
-type Detector={detect:(source:ImageBitmap|HTMLCanvasElement)=>Promise<{rawValue?:string}[]>};
-function detectorConstructor(){return (globalThis as unknown as {TextDetector?:new()=>Detector}).TextDetector}
-export function nativeOcrAvailable(){return typeof detectorConstructor()==="function"}
-export function localOcrAvailable(){return nativeOcrAvailable()||portableOcrAvailable()}
-/** Experimental browser-native OCR only; no external service or model fetch. */
-async function nativePassportOcr(file:File):Promise<string>{
- const Detector=detectorConstructor();if(!Detector)throw Error("Native OCR unavailable");
- const detector=new Detector();
- const b=await bitmap(file);
- const readings:string[]=[];
- const deadline=performance.now()+12000;
- async function detect(source:ImageBitmap|HTMLCanvasElement):Promise<string>{
-  const remaining=deadline-performance.now();
-  if(remaining<=0)throw Error("OCR timeout");
-  let timer:ReturnType<typeof setTimeout>|undefined;
-  try{
-   const result=await Promise.race([
-    detector.detect(source),
-    new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(Error("OCR timeout")),remaining)})
-   ]);
-   return result.slice(0,100).map(r=>(r.rawValue??"").slice(0,2048)).join("\n");
-  }finally{if(timer!==undefined)clearTimeout(timer)}
- }
- try{
-  // First read the original. Then try the lower portion at bounded resolution
-  // because passport MRZ lines are usually located near the lower edge.
-  try{readings.push(await detect(b))}catch{ /* Try the bounded crop if time remains. */ }
-  if(performance.now()>=deadline)throw Error("OCR timeout");
-  const sy=Math.floor(b.height*.45),sh=b.height-sy;
-  const scale=Math.min(1,1800/b.width,1200/sh);
-  const {c,ctx}=canvas(Math.max(1,Math.round(b.width*scale)),Math.max(1,Math.round(sh*scale)));
-  try{ctx.fillStyle="#fff";ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(b,0,sy,b.width,sh,0,0,c.width,c.height);readings.push(await detect(c))}
-  catch{ /* A failed second pass must not invalidate a complete first pass. */ }
-  finally{c.width=c.height=0}
-  const result=uniqueVerifiedOcr(readings);
-  if(!result)throw Error("OCR incomplete or ambiguous");
-  return result;
- }finally{b.close()}
-}
-export async function localPassportOcr(file:File):Promise<string>{
- if(nativeOcrAvailable()){try{return await nativePassportOcr(file)}catch{/* Fall back to bundled engine. */}}
- if(!portableOcrAvailable())throw Error("Local OCR unavailable");
- const b=await bitmap(file);
- try{
-  const sy=Math.floor(b.height*.45),sh=b.height-sy,scale=Math.min(1,2000/b.width,1400/sh);
-  const {c,ctx}=canvas(Math.max(3,Math.round(b.width*scale)),Math.max(3,Math.round(sh*scale)));
-  try{ctx.fillStyle="#fff";ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(b,0,sy,b.width,sh,0,0,c.width,c.height);
-   const image=await new Promise<Blob>((resolve,reject)=>c.toBlob(v=>v?resolve(v):reject(Error("OCR input unavailable")),"image/png"));
-   return await portablePassportOcr(image);
-  }finally{c.width=c.height=0}
- }finally{b.close()}
-}
 const digests=new WeakMap<File,Promise<string>>();
 async function hash(file:File){
  if(file.size<=0||file.size>LOCAL_FILE_LIMIT||!globalThis.crypto?.subtle)throw Error("Hash unavailable");
@@ -77,33 +23,4 @@ export async function findLocalDuplicates<T extends {file:File}>(items:readonly 
  const rows:{item:T;hash:string}[]=[];let skipped=0;
  for(const item of items.slice(0,60)){try{rows.push({item,hash:await hash(item.file)})}catch{skipped++}}
  return {groups:duplicateGroups(rows),skipped:skipped+Math.max(0,items.length-60)};
-}
-/** Manual, non-destructive uniform edge crop and quarter-turn. No retouching. */
-export async function scanCopy(file:File,turn:number,crop:number,pdf:boolean,corners?:Quad):Promise<Blob>{
- const b=await bitmap(file);
- let rectified:HTMLCanvasElement|undefined;
- try{
-  if(corners){
-   const s=Math.min(1,2400/Math.max(b.width,b.height)),sw=Math.max(3,Math.round(b.width*s)),sh=Math.max(3,Math.round(b.height*s));
-   const {c:source,ctx}=canvas(sw,sh);
-   try{
-    ctx.fillStyle="#fff";ctx.fillRect(0,0,sw,sh);ctx.drawImage(b,0,0,sw,sh);
-    const size=rectifiedSize(corners,sw,sh);
-    const target=canvas(size.width,size.height);rectified=target.c;
-    const result=target.ctx.createImageData(size.width,size.height);
-    result.data.set(rectifyPixels(ctx.getImageData(0,0,sw,sh).data,sw,sh,corners,size.width,size.height));
-    target.ctx.putImageData(result,0,0);
-   }finally{source.width=source.height=0}
-  }
-  const input=rectified??b;
-  const inset=Math.min(.2,Math.max(0,crop/100));const sx=Math.floor(input.width*inset),sy=Math.floor(input.height*inset),sw=input.width-2*sx,sh=input.height-2*sy;
-  const scale=Math.min(1,2000/Math.max(sw,sh)),w=Math.max(1,Math.round(sw*scale)),h=Math.max(1,Math.round(sh*scale)),r=((Math.round(turn/90)%4)+4)%4;
-  const {c,ctx}=canvas(r%2?h:w,r%2?w:h);
-  try{
-   ctx.fillStyle="#fff";ctx.fillRect(0,0,c.width,c.height);ctx.translate(c.width/2,c.height/2);ctx.rotate(r*Math.PI/2);ctx.drawImage(input,sx,sy,sw,sh,-w/2,-h/2,w,h);
-   const jpg=await new Promise<Blob>((resolve,reject)=>c.toBlob(v=>v?resolve(v):reject(Error("Export failed")),"image/jpeg",.9));
-   if(!pdf)return jpg;
-   const {PDFDocument}=await import("pdf-lib");const doc=await PDFDocument.create();const image=await doc.embedJpg(await jpg.arrayBuffer());const p=doc.addPage([image.width,image.height]);p.drawImage(image,{x:0,y:0,width:image.width,height:image.height});const bytes=await doc.save();return new Blob([new Uint8Array(bytes)],{type:"application/pdf"});
-  }finally{c.width=c.height=0}
- }finally{if(rectified)rectified.width=rectified.height=0;b.close()}
 }

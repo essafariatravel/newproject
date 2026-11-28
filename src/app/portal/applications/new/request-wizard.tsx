@@ -21,7 +21,7 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import { assessTravelDeadline,algeriaToday } from "@/lib/travel-deadline";
 import { operationalCopy } from "@/lib/operational-copy";
 import { TravelDeparture,TravelTiming } from "./travel-departure";
-import { PassportAssistant,DuplicateNotice,DocumentStudio } from "./document-studio";
+import { PassportValidity,DuplicateNotice,DocumentStudio } from "./document-studio";
 import { runBoundedUploads } from "@/lib/bounded-upload";
 import { stagingReceiptKey,reusableStagingToken,type StagedReceipt } from "@/lib/request-upload-retry";
 import { contentT } from "@/lib/i18n-content";
@@ -814,7 +814,7 @@ export function RequestWizard(props: Props) {
         {/* Applicant — one traveler, minimal data (§12) */}
         <div className="booking-traveller space-y-4">
           <h2>{ux.traveller}</h2>
-          {props.documentIntelligence&&step===1?<PassportAssistant locale={props.locale} today={props.today??algeriaToday()} departure={departure} nationalities={props.nationalities} onApply={(name,nat)=>{setNameDraft(name);if(nat)setNationalityDraft(nat);setDirty(true);setClientError("")}}/>:null}
+          {props.documentIntelligence&&step===1?<PassportValidity locale={props.locale} today={props.today??algeriaToday()} departure={departure}/>:null}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor="t0_fullName">{t.fullName} *</label>

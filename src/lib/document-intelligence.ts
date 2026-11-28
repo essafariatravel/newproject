@@ -1,31 +1,4 @@
 /** Pure local document analysis. No network, logging, persistence or authority decision. */
-export function mrzCheckDigit(value:string):number{
- return [...value].reduce((sum,c,i)=>sum+(c==="<"?0:c>="0"&&c<="9"?Number(c):c.charCodeAt(0)-55)*[7,3,1][i%3]!,0)%10;
-}
-function mrzDate(value:string):boolean{
- if(!/^\d{6}$/.test(value))return false;
- const y=2000+Number(value.slice(0,2)),m=Number(value.slice(2,4)),d=Number(value.slice(4,6));
- const date=new Date(Date.UTC(y,m-1,d));
- return date.getUTCMonth()===m-1&&date.getUTCDate()===d;
-}
-export type PassportRead={name:string;nationality:string;expiryRaw:string;checksPassed:boolean};
-export function readTd3(input:string):PassportRead|null{
- const lines=input.toUpperCase().split(/\r?\n/).map(s=>s.replace(/\s/g,"")).filter(Boolean);
- let a="",b="";
- for(let i=0;i<lines.length-1;i++){if(/^P[A-Z<][A-Z<]{3}[A-Z<]{39}$/.test(lines[i]!)&&/^[A-Z0-9<]{44}$/.test(lines[i+1]!)){a=lines[i]!;b=lines[i+1]!;break}}
- if(!a||!b)return null;
- const name=a.slice(5).replace(/<+/g," ").trim();
- if(!name||!b.slice(0,9).replace(/</g,"")||!mrzDate(b.slice(13,19))||!mrzDate(b.slice(21,27))||!(/^[A-Z]{1,3}<{0,2}$/.test(b.slice(10,13))))return null;
- const check=(v:string,c:string)=>/^\d$/.test(c)&&mrzCheckDigit(v)===Number(c);
- const optional=b.slice(28,42);
- const checksPassed=check(b.slice(0,9),b[9]!)&&check(b.slice(13,19),b[19]!)&&check(b.slice(21,27),b[27]!)&&(check(optional,b[42]!)||(/^<+$/.test(optional)&&b[42]==="<"))&&check(b.slice(0,10)+b.slice(13,20)+b.slice(21,43),b[43]!);
- return {name,nationality:b.slice(10,13).replace(/<+$/,""),expiryRaw:b.slice(21,27),checksPassed};
-}
-export function expiryCandidates(raw:string,today:string):string[]{
- if(!mrzDate(raw)||!/^\d{4}-\d{2}-\d{2}$/.test(today))return [];
- const century=Math.floor(Number(today.slice(0,4))/100)*100;
- return [century-100,century,century+100].map(c=>String(c+Number(raw.slice(0,2)))+"-"+raw.slice(2,4)+"-"+raw.slice(4,6)).filter(s=>Number.isFinite(Date.parse(s+"T00:00:00Z"))&&new Date(s+"T00:00:00Z").toISOString().slice(0,10)===s);
-}
 export function passportValidity(expiry:string,reference:string):number|null{
  const parse=(s:string)=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(s))return NaN;const d=Date.parse(s+"T00:00:00Z");return Number.isFinite(d)&&new Date(d).toISOString().slice(0,10)===s?d:NaN};
  const days=(parse(expiry)-parse(reference))/86400000;
@@ -47,33 +20,8 @@ export function duplicateGroups<T>(rows:readonly {item:T;hash:string}[]):T[][]{
  return [...groups.values()].filter(group=>group.length>1);
 }
 
-/** Recover only complete TD3 pairs from noisy OCR. Never substitute O/0, I/1,
- * invent check digits or resolve conflicting valid readings automatically. */
-export function verifiedOcrCandidates(input:string):string[]{
- const lines=input.slice(0,8192).toUpperCase().split(/\r?\n/).map(s=>s.replace(/\s/g,"")).filter(Boolean);
- const candidates=new Set<string>();
- const add=(a:string,b:string)=>{
-  if(a.length!==44||b.length!==44)return;
-  const pair=a+"\n"+b;
-  if(readTd3(pair)?.checksPassed)candidates.add(pair);
- };
- for(let i=0;i<lines.length;i++){
-  const line=lines[i]!;
-  if(line.length===88)add(line.slice(0,44),line.slice(44));
-  if(i+1<lines.length)add(line,lines[i+1]!);
- }
- return [...candidates];
-}
-export function uniqueVerifiedOcr(readings:readonly string[]):string|null{
- const candidates=new Set(readings.flatMap(verifiedOcrCandidates));
- return candidates.size===1?[...candidates][0]!:null;
-}
-
 /** Technical framing comparison against a user-selected reference, never consular validation. */
 export function photoRatioDifference(width:number,height:number,targetWidth:number,targetHeight:number):number|null{
  if(![width,height,targetWidth,targetHeight].every(n=>Number.isFinite(n)&&n>0))return null;
  return Math.abs((width/height)/(targetWidth/targetHeight)-1)*100;
-}
-export function expiryMatchesMrz(expiry:string,raw:string):boolean{
- return passportValidity(expiry,expiry)===0&&/^\d{6}$/.test(raw)&&expiry.slice(2).replace(/-/g,"")===raw;
 }
