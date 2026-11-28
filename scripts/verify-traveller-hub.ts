@@ -65,3 +65,26 @@ assert.equal(hubEnabled({VERCEL_ENV:"preview",VERCEL_GIT_COMMIT_REF:CONSOLIDATED
 assert.equal(hubEnabled({VERCEL_ENV:"production",VERCEL_GIT_COMMIT_REF:CONSOLIDATED_BRANCH}),false);
 assert.equal(automaticDatabaseChangesForbidden(CONSOLIDATED_BRANCH),true);
 console.log("[consolidation] Combined Preview scope PASS (3 assertions)");
+
+import {vaultEnabled,autoEligible,autoPlan} from "../src/lib/traveller-hub-policy";
+const automaticInput={...file,status:"UPLOADED",issuedAt:null,uploadedAt:"2026-11-01",vault:false};
+assert.equal(autoEligible(automaticInput),true);
+assert.equal(autoEligible({...automaticInput,status:"REJECTED"}),false);
+assert.equal(autoEligible({...automaticInput,code:"BANK_STATEMENT"}),false);
+assert.equal(autoEligible({...automaticInput,code:"BANK_STATEMENT",issuedAt:"2026-11-10",vault:true}),true);
+assert.equal(autoEligible({...automaticInput,code:"BANK_STATEMENT",issuedAt:"2026-10-01",vault:true}),false);
+assert.equal(autoEligible({...automaticInput,code:"HOTEL_RESERVATION",issuedAt:"2026-11-10"}),false);
+assert.equal(vaultEnabled({VERCEL_ENV:"production",VERCEL_GIT_COMMIT_REF:CONSOLIDATED_BRANCH}),false);
+const opt={id:"one",typeId:"passport",code:"PASSPORT",name:"p.pdf",mime:"application/pdf",size:100,sourceReference:"case",createdAt:"2026-11-01",programmeId:"",tripSpecific:false,automatic:true};
+assert.equal(autoPlan([opt,{...opt,id:"two",vault:true}],["passport"])[0]?.id,"two");
+assert.equal(autoPlan([opt],["passport"],["passport"]).length,0);
+assert.equal(autoPlan([{...opt,tripSpecific:true}],["passport"]).length,0);
+console.log("[vault] Independent vault and automatic selection policy PASS (10 assertions)");
+
+assert.equal(autoEligible({...automaticInput,code:"PHOTO",issuedAt:"2026-11-20",vault:true}),true);
+assert.equal(autoEligible({...automaticInput,code:"PHOTO",issuedAt:"2026-12-20",vault:true}),false);
+assert.equal(autoEligible({...automaticInput,latest:false}),false);
+assert.equal(autoEligible({...automaticInput,openRequest:true}),false);
+assert.equal(autoEligible({...automaticInput,attributable:false}),false);
+assert.equal(autoPlan([opt,{...opt,id:"two",createdAt:"2026-11-02"}],["passport","passport"]).length,1);
+console.log("[vault] Freshness, identity and single-selection regressions PASS (6 assertions)");

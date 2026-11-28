@@ -23,6 +23,8 @@ import { operationalCopy } from "@/lib/operational-copy";
 import { TravelDeparture,TravelTiming } from "./travel-departure";
 import {hubCopy} from "@/lib/traveller-hub-copy";
 import {passportKey,identityMatches,sameDeclaredIdentity,expiryState,minimumExpiry,validApplicationPassport,type TravellerSource} from "@/lib/traveller-hub-policy";
+import {fetchTravellerFile} from "./traveller-file-fetch";
+import {autoPlan} from "@/lib/traveller-hub-policy";
 import {TravellerReuse} from "./traveller-reuse";
 import {TravellerLookup} from "./traveller-lookup";
 import { PassportValidity,PassportValiditySummary,GuardSummary,FileGuardReport,FinalGuardReview,guardCopy,useDocumentGuard } from "./document-studio";
@@ -259,10 +261,11 @@ export function RequestWizard(props: Props) {
     ar:{nationality:"البحث عن الجنسية",batch:"إضافة عدة ملفات",batchHint:"اختاروا الوثيقة ثم خصصوا الملف المناسب.",assign:"تخصيص",unassigned:"ملفات غير مخصصة",fit:"ملاءمة",leave:"مغادرة الطلب دون حفظ؟",noNationality:"لا نتائج.",ready:"تم تحديد جميع الوثائق الإلزامية.",download:"فتح الملف"}
   }[props.locale];
   const [files, setFiles] = useState<Record<string, File[]>>({});
+  const autoAttempt=useRef("");const autoSuppress=useRef(new Set<string>());const [autoBusy,setAutoBusy]=useState(false);const [autoFailed,setAutoFailed]=useState(false);const [,setAutoCount]=useState(0);
   const reused=useRef(new WeakSet<File>());
   const sourceMatches=Boolean(travellerSource&&identityMatches({name:nameDraft,nationality:nationalityDraft,passport:passportDraft,expiry:passportExpiry},travellerSource));
   const profileMismatch=Boolean(travellerSource&&!sameDeclaredIdentity({name:nameDraft,nationality:nationalityDraft,passport:passportDraft,expiry:passportExpiry},travellerSource));
-  function clearReused(){if(Object.values(files).some(list=>list.some(f=>reused.current.has(f)))){setFiles(prev=>Object.fromEntries(Object.entries(prev).map(([id,list])=>[id,list.filter(f=>!reused.current.has(f))])));setFileError(hubText.reuseChanged)}}
+  function clearReused(){autoSuppress.current.clear();autoAttempt.current="";setAutoCount(0);if(Object.values(files).some(list=>list.some(f=>reused.current.has(f)))){setFiles(prev=>Object.fromEntries(Object.entries(prev).map(([id,list])=>[id,list.filter(f=>!reused.current.has(f))])));setFileError(hubText.reuseChanged)}}
   const smart = {
     fr:{mismatch:"Le nom du fichier suggère un autre type de document. Vérifiez son contenu.",identical:"Un fichier au contenu identique est associé à plusieurs pièces.",small:"Image de faible résolution : vérifiez sa lisibilité.",checks:"Points à vérifier avant l’envoi",inspect:"Vérifier cette pièce",ready:"Toutes les pièces requises sont sélectionnées",remaining:"Pièces obligatoires restantes",selected:"Sélectionné",programmeDocs:"pièces requises",noValidation:"Ces contrôles locaux ne valident ni le contenu ni l’authenticité du document."},
     en:{mismatch:"The filename suggests another document type. Check its contents.",identical:"An identical file is assigned to multiple requirements.",small:"Low-resolution image: check readability.",checks:"Items to check before submitting",inspect:"Review this document",ready:"All required documents are selected",remaining:"Required documents remaining",selected:"Selected",programmeDocs:"required documents",noValidation:"These local checks do not validate document contents or authenticity."},
@@ -351,6 +354,14 @@ export function RequestWizard(props: Props) {
   const expectedCatalogue=props.catalogueFingerprints?.[visaTypeId];
   const requirements = useMemo(() => (visaTypeId ? (props.requirementsByVisaType[visaTypeId] ?? []) : []), [props.requirementsByVisaType, visaTypeId]);
 
+  useEffect(()=>{
+    if(step!==2||!props.travellerHub||!sourceMatches||!travellerSource||!visaTypeId)return;
+    const key=travellerSource.id+":"+visaTypeId;if(autoAttempt.current===key)return;autoAttempt.current=key;
+    const chosen=autoPlan(travellerSource.reusable,requirements.filter(r=>r.required).map(r=>r.documentTypeId),[...autoSuppress.current,...Object.keys(files).filter(k=>files[k]?.length)]);
+    if(!chosen.length){setAutoBusy(false);return;}const c=new AbortController();setAutoBusy(true);setAutoFailed(false);
+    void (async()=>{let n=0,failed=false;for(const d of chosen){if(c.signal.aborted)break;try{const file=await fetchTravellerFile(travellerSource.id,visaTypeId,d,c.signal);if(c.signal.aborted)break;reused.current.add(file);setFiles(prev=>prev[d.typeId]?.length||autoSuppress.current.has(d.typeId)?prev:{...prev,[d.typeId]:[file]});n++}catch{if(!c.signal.aborted)failed=true}}if(!c.signal.aborted){setAutoCount(n);setAutoFailed(failed);setAutoBusy(false);setDirty(true)}})();
+    return()=>{c.abort();autoAttempt.current="";setAutoBusy(false)};
+  },[step,props.travellerHub,sourceMatches,travellerSource,visaTypeId,requirements]);
   const guard=useDocumentGuard(Boolean(props.documentIntelligence),files,requirements,activeDoc);
   const guardText=guardCopy[props.locale];
   const expiry=expiryAssessment(passportExpiry,props.today??algeriaToday(),departure);
@@ -360,6 +371,7 @@ export function RequestWizard(props: Props) {
   const accepted=acceptedRisk?.result===guard.result&&acceptedRisk?.expiry===passportExpiry&&acceptedRisk?.departure===departure&&acceptedRisk?.visa===visaTypeId;
   const requiredDocs=requirements.filter(r=>r.required);
   const completedDocs=requiredDocs.filter(r=>(files[r.documentTypeId]??[]).length>0).length;
+  const autoCount=Object.values(files).flat().filter(f=>reused.current.has(f)).length;
   const selectedRequirement=requirements.find(r=>r.documentTypeId===activeDoc)??requirements.find(r=>r.required&&!(files[r.documentTypeId]??[]).length)??requirements[0];
   const selectedFiles=selectedRequirement?files[selectedRequirement.documentTypeId]??[]:[];
   const selectedFile=selectedFiles[previewIndex]??selectedFiles[0];
@@ -383,10 +395,10 @@ export function RequestWizard(props: Props) {
   const checkoutCategory=/^(tourist|tourism|tourisme|touristique|سياحة)$/i.test(visa?.categoryName.trim()??"")?checkout.tourist:visa?.categoryName;
   const genericProgramme=Boolean(visa&&country&&[normalize(country.name),normalize("Visa "+country.name),normalize(country.name+" Visa"),normalize("تأشيرة "+country.name)].includes(normalize(visa.name)));
   useEffect(()=>{if(!selectedFile){setPreviewUrl("");return;}const url=URL.createObjectURL(selectedFile);setPreviewUrl(url);return ()=>URL.revokeObjectURL(url);},[selectedFile]);
-  function chooseTraveller(source:TravellerSource){if(pending||step!==1)return false;if((Object.values(files).some(a=>a.length)||batch.length)&&!window.confirm(hubText.selectWarning))return false;setFiles({});setBatch([]);setActiveDoc("");setPreviewIndex(0);setFileError("");setClientError("");setTravellerSource(source);setNameDraft(source.name);setNationalityDraft(props.nationalities.some(n=>n.code===source.nationality)?source.nationality:"");setPassportDraft(source.passport);setPassportExpiry(source.expiry);setPickerRevision(n=>n+1);setDirty(true);return true;}
+  function chooseTraveller(source:TravellerSource){if(pending||step!==1)return false;if((Object.values(files).some(a=>a.length)||batch.length)&&!window.confirm(hubText.selectWarning))return false;autoSuppress.current.clear();autoAttempt.current="";setAutoCount(0);setAutoFailed(false);setFiles({});setBatch([]);setActiveDoc("");setPreviewIndex(0);setFileError("");setClientError("");setTravellerSource(source);setNameDraft(source.name);setNationalityDraft(props.nationalities.some(n=>n.code===source.nationality)?source.nationality:"");setPassportDraft(source.passport);setPassportExpiry(source.expiry);setPickerRevision(n=>n+1);setDirty(true);return true;}
   function selectDoc(id:string){setActiveDoc(id);setPreviewIndex(0);setFileError("");}
-  function clearForProgrammeChange(){if((Object.values(files).some(a=>a.length)||batch.length)&&!window.confirm(ui.changeWarning))return false;setFiles({});setBatch([]);setActiveDoc("");setPreviewIndex(0);setFileError("");return true;}
-  function changeProgramme(id:string){if(id===visaTypeId)return;if(!clearForProgrammeChange())return;setVisaTypeId(id);setDirty(true);}
+  function clearForProgrammeChange(){if((Object.values(files).some(a=>a.length)||batch.length)&&!window.confirm(ui.changeWarning))return false;autoSuppress.current.clear();autoAttempt.current="";setAutoCount(0);setAutoFailed(false);setFiles({});setBatch([]);setActiveDoc("");setPreviewIndex(0);setFileError("");return true;}
+  function changeProgramme(id:string){if(id===visaTypeId)return;if(!props.travellerHub){if(!clearForProgrammeChange())return;setVisaTypeId(id);setDirty(true);return;}const next=props.requirementsByVisaType[id]??[];const compatible=new Set(next.filter(r=>requirements.some(old=>old.documentTypeId===r.documentTypeId)&&["PASSPORT","PHOTO","BANK_STATEMENT","EMPLOYMENT_CERT","MARRIAGE_CERT"].includes(r.code)).map(r=>r.documentTypeId));const retained=Object.fromEntries(Object.entries(files).filter(([k])=>compatible.has(k)));if((Object.keys(files).some(k=>files[k]?.length&&!compatible.has(k))||batch.length)&&!window.confirm(ui.changeWarning))return;autoSuppress.current.clear();autoAttempt.current="";setAutoCount(0);setAutoFailed(false);setFiles(retained);setBatch([]);setActiveDoc("");setPreviewIndex(0);setFileError("");setVisaTypeId(id);setDirty(true);}
   function editStep(n:number){if(submittingRef.current||pending||n>=step)return;setClientError("");setWizardDirection("back");setStep(n);}
   // All destinations with a bookable programme remain visible without typing.
   const availableDestinations = useMemo(() =>
@@ -470,6 +482,7 @@ export function RequestWizard(props: Props) {
     }
     if (n === 2) {
       if(batch.length){setClientError(assist.batchHint);return false;}
+      if(autoBusy)return false;
       if(props.documentIntelligence&&(guard.checking||technicalError)){setClientError(guard.checking?guardText.checking:guardText.technical);return false;}
       for (const r of requirements) {
         if (r.required && (files[r.documentTypeId] ?? []).length === 0) {
@@ -529,6 +542,7 @@ export function RequestWizard(props: Props) {
   }
 
   function removeFile(documentTypeId: string, index: number) {
+    autoSuppress.current.add(documentTypeId);
     setFiles((prev) => ({ ...prev, [documentTypeId]: (prev[documentTypeId] ?? []).filter((_, i) => i !== index) }));
   }
 
@@ -893,6 +907,7 @@ export function RequestWizard(props: Props) {
       <section data-wizard-section="2" hidden={step!==2} className="wizard-panel booking-docs" data-direction={wizardDirection}>
         <div className="booking-doc-head"><div><h2>{t.documents}</h2><small>{country?.name} · {visa?.name} · <bdi>{visa?formatDZD(visa.fee):"—"}</bdi></small></div><div className="booking-doc-progress" role="status"><strong>{completedDocs}/{requiredDocs.length}</strong> <span>{progressCopy.selected}</span>{requiredDocs.length>0?<progress value={completedDocs} max={requiredDocs.length} aria-label={progressCopy.selected}/>:null}</div></div>
         {fileError?<p role="alert" className="booking-warning" data-testid="wizard-file-error">{fileError}</p>:null}
+        {step===2&&props.travellerHub&&(autoBusy||autoFailed||autoCount>0)?<p className="th-note" role="status">{autoBusy?({fr:"Récupération automatique des documents…",en:"Retrieving saved documents…",ar:"جارٍ استرجاع الوثائق المحفوظة…"}[props.locale]):autoFailed?({fr:"Certaines pièces sont indisponibles. Complétez les pièces manquantes.",en:"Some files are unavailable. Add missing files.",ar:"بعض الوثائق غير متاحة. أضيفوا الوثائق الناقصة."}[props.locale]):({fr:"Pièces récupérées automatiquement : ",en:"Automatically retrieved files: ",ar:"الوثائق المسترجعة تلقائياً: "}[props.locale])+autoCount}</p>:null}
         {props.documentIntelligence&&step===2?<GuardSummary locale={props.locale} checking={guard.checking} issues={guardIssues}/>:null}
         {requirements.length===0?<p>{t.noDocumentsRequired}</p>:<div className="booking-doc-grid" data-single={requirements.length===1&&batch.length===0}>
           <div className="booking-doc-list" role="group" aria-label={t.summaryDocuments} hidden={requirements.length===1&&batch.length===0}>
@@ -912,6 +927,7 @@ export function RequestWizard(props: Props) {
             </label>
             {selectedFiles.length?<><div className="booking-files">{selectedFiles.map((f,i)=><div key={i} className="booking-line"><button type="button" className="booking-file-name" aria-pressed={i===previewIndex} onClick={()=>setPreviewIndex(i)}>{f.name} <small>{Math.ceil(f.size/1024)} KB</small></button><button type="button" className="booking-link" onClick={()=>{removeFile(selectedRequirement.documentTypeId,i);setPreviewIndex(0)}}>{t.remove}</button></div>)}</div>
             {selectedFile&&previewUrl?<div className="booking-preview">{/^image\/(jpeg|png|webp)$/.test(selectedFile.type)?<button type="button" className="booking-preview-image" onClick={()=>setReviewFile(selectedFile)} aria-label={ux.full}><img src={previewUrl} alt={selectedFile.name}/></button>:selectedFile.type==="application/pdf"?<iframe title={selectedFile.name} src={previewUrl}/>:<p>{ui.unavailable}</p>}</div>:null}</>:null}
+            {selectedFile&&reused.current.has(selectedFile)?<p className="th-note">{({fr:"Document repris du profil · à contrôler dans cette demande",en:"Retrieved from profile · check for this application",ar:"وثيقة مسترجعة من الملف · للتحقق في هذا الطلب"}[props.locale])}</p>:null}
             {props.documentIntelligence&&selectedFile?<FileGuardReport locale={props.locale} requirement={selectedRequirement} report={guard.result?.reports.get(selectedFile)} checking={guard.checking} issues={guard.result?.byId[selectedRequirement.documentTypeId]??[]}/>:null}
             <div className="booking-line"><small>{props.documentIntelligence?ux.local:ux.verify}</small>{selectedFile?<button type="button" className="booking-link" onClick={()=>setReviewFile(selectedFile)}>{ux.full}</button>:null}{requirements.some(r=>r.documentTypeId!==selectedRequirement.documentTypeId&&r.required&&!(files[r.documentTypeId]??[]).length)?<button type="button" className="btn-secondary" onClick={()=>{const next=requirements.find(r=>r.documentTypeId!==selectedRequirement.documentTypeId&&r.required&&!(files[r.documentTypeId]??[]).length);if(next)selectDoc(next.documentTypeId)}}>{ui.nextDoc} →</button>:null}</div>
           </div>:null}
@@ -990,7 +1006,7 @@ export function RequestWizard(props: Props) {
         </button>
         <small aria-live="polite">{step===2?(batch.length?assist.batchHint:completedDocs<requiredDocs.length?smart.remaining+" : "+(requiredDocs.length-completedDocs):smart.ready+" · "+ux.local):step===1?ui.noDebit:""}</small>
         {step < 3 ? (
-          <button type="button" onClick={goNext} disabled={pending||(step===1?(!visa||!applicantReady||deadline.state==="invalid"||expiryBlocked||hubPassportBlocked||profileMismatch):completedDocs<requiredDocs.length||batch.length>0||Boolean(props.documentIntelligence&&(guard.checking||technicalError)))} className="btn-primary">
+          <button type="button" onClick={goNext} disabled={pending||autoBusy||(step===1?(!visa||!applicantReady||deadline.state==="invalid"||expiryBlocked||hubPassportBlocked||profileMismatch):completedDocs<requiredDocs.length||batch.length>0||Boolean(props.documentIntelligence&&(guard.checking||technicalError)))} className="btn-primary">
             {step===1?ui.continue:ui.review} <span className="directional" aria-hidden>→</span>
           </button>
         ) : null}
