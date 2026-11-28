@@ -30,7 +30,16 @@ try{
  await writeFile(join(root,"bridge.mjs"),"import * as api from './face-api.mjs';\nwindow.__essafariaFaceDetector=api;\n");
  await writeFile(join(root,"NOTICE.txt"),"Face-api 1.7.15, MIT, Vladimir Mandic; bundled TensorFlow.js, Apache-2.0. Source revision: "+rev+"\nhttps://github.com/vladmandic/face-api\nOnly TinyFaceDetector used.\n");
  console.log("[guard] Pinned local face detector assets verified");
- const api=await import(pathToFileURL(join(root,"face-api.mjs")).href);
+ // The exact browser bundle selects a browser platform, not its Node shim.
+ // This isolated CPU tensor test requires no real canvas or client image.
+ const originalProcess=globalThis.process;
+ const originals=new Map();
+ const set=(key,value)=>{originals.set(key,Object.getOwnPropertyDescriptor(globalThis,key));Object.defineProperty(globalThis,key,{configurable:true,writable:true,value})};
+ try{
+  set("window",globalThis);set("document",{createElement:()=>({getContext:()=>null,style:{}})});
+  for(const key of ["HTMLImageElement","HTMLCanvasElement","HTMLVideoElement","ImageData","CanvasRenderingContext2D"])set(key,class {});
+  set("process",undefined);
+  const api=await import(pathToFileURL(join(root,"face-api.mjs")).href);
  assert.equal(await api.tf.setBackend("cpu"),true);
  await api.tf.ready();
  const manifest=JSON.parse(await readFile(join(root,"tiny_face_detector_model-weights_manifest.json"),"utf8"));
@@ -43,5 +52,6 @@ try{
   assert.equal(found.length,0,"Blank synthetic image must not produce a face");
   console.log("[guard] CPU model inference on blank synthetic image PASS");
  }finally{blank.dispose();api.nets.tinyFaceDetector.dispose()}
+ }finally{for(const [key,descriptor] of [...originals].reverse()){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key]} if(globalThis.process!==originalProcess)throw Error("Test environment cleanup failed")}
 
 }catch(error){await rm(root,{recursive:true,force:true});throw error}
