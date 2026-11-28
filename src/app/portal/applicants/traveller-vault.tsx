@@ -13,7 +13,7 @@ export function TravellerVault({locale,id,version,types,typesUnavailable=false,r
  function open(typeId=""){if(dialog.current?.open)return;setType(typeId);setIssued("");setFile(null);setMessage("");setRevision(n=>n+1);dialog.current?.showModal()}
  async function save(e:FormEvent<HTMLFormElement>){e.preventDefault();if(busy||!file||!type)return;if(canonicalPersonalCode(current?.code??"")!=="PASSPORT"&&!issued){setMessage(t.issuedRequired);return;}setBusy(true);setMessage("");try{
  const params=new URLSearchParams({type,version:String(version)});if(issued)params.set("issued",issued);
- const r=await fetch("/api/agency/travellers/"+id+"/vault?"+params,{method:"POST",headers:{"Content-Type":file.type,"X-File-Name":encodeURIComponent(file.name)},body:file,cache:"no-store"});if(!r.ok)throw Error("Save");
+ const r=await fetch("/api/agency/travellers/"+id+"/vault?"+params,{method:"POST",headers:{"Content-Type":file.type,"X-File-Name":encodeURIComponent(file.name)},body:file,cache:"no-store"});if(!r.ok){const result=await r.json().catch(()=>null);setMessage(result?.code==="VAULT_CAPACITY"?t.capacity:t.error);return;}
  dialog.current?.close();setMessage(t.saved);router.refresh();
  }catch{setMessage(t.error)}finally{setBusy(false)}}
  const href=(r:Row)=>"/api/agency/travellers/"+id+"/vault/"+r.id;
