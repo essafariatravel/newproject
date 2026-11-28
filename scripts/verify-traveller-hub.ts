@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {hubEnabled,HUB_BRANCH,uuid,passportKey,nameKey,civilDate,minimumExpiry,expiryState,maskPassport,normalizedQuery,pageNumber,identityMatches,reusablePassport,validApplicationPassport,safeLookupTerm} from "../src/lib/traveller-hub-policy";
+import {hubEnabled,HUB_BRANCH,uuid,passportKey,nameKey,civilDate,minimumExpiry,expiryState,maskPassport,normalizedQuery,pageNumber,identityMatches,reusablePassport,validApplicationPassport,safeLookupTerm,reusableDocument,tripSpecificDocument,sameDeclaredIdentity} from "../src/lib/traveller-hub-policy";
 import {automaticDatabaseChangesForbidden} from "./lib/build-policy";
 assert.equal(hubEnabled({VERCEL_ENV:"production",VERCEL_GIT_COMMIT_REF:HUB_BRANCH}),false);
 assert.equal(hubEnabled({VERCEL_ENV:"preview",VERCEL_GIT_COMMIT_REF:HUB_BRANCH}),true);
@@ -39,3 +39,17 @@ console.log("[traveller-hub] Mandatory expiry policy PASS (4 assertions)");
 
 assert.equal(safeLookupTerm("x"),"");assert.equal(safeLookupTerm(" AB "),"AB");assert.equal(safeLookupTerm({}),"");
 console.log("[traveller-hub] Bounded lookup PASS (3 assertions)");
+
+const current={...file,uploadedAt:"2026-11-01T00:00:00Z"};
+assert.equal(reusableDocument({...current,code:"BANK_STATEMENT"}),true);
+assert.equal(reusableDocument({...current,code:"BANK_STATEMENT",uploadedAt:"2026-10-01"}),false);
+assert.equal(reusableDocument({...current,code:"PHOTO"}),true);
+assert.equal(reusableDocument({...current,code:"MARRIAGE_CERT"}),true);
+assert.equal(reusableDocument({...current,code:"DECISION_VISA_APPROVAL"}),false);
+assert.equal(reusableDocument({...current,code:"UNKNOWN"}),false);
+assert.equal(reusableDocument({...current,code:"BANK_STATEMENT",openRequest:true}),false);
+assert.equal(tripSpecificDocument("HOTEL_RESERVATION"),true);
+assert.equal(tripSpecificDocument("PHOTO"),false);
+assert.equal(sameDeclaredIdentity({...identity,passport:""},{...identity,passport:""}),true);
+assert.equal(sameDeclaredIdentity(identity,{...identity,expiry:"2031-01-01"}),false);
+console.log("[traveller-hub] Expanded controlled reuse and profile identity PASS (11 assertions)");

@@ -12,7 +12,7 @@ export function normalizedQuery(v:unknown){return typeof v==="string"?v.trim().s
 export function pageNumber(v:unknown){const n=Number(v);return Number.isSafeInteger(n)&&n>=1?Math.min(n,10000):1}
 export type TravellerIdentity={name:string;nationality:string;passport:string;expiry:string};
 export function identityMatches(a:TravellerIdentity,b:TravellerIdentity){return Boolean(passportKey(a.passport)&&passportKey(a.passport)===passportKey(b.passport)&&nameKey(a.name)===nameKey(b.name)&&a.nationality.trim().toUpperCase()===b.nationality.trim().toUpperCase()&&civilDate(a.expiry)&&a.expiry===b.expiry)}
-export type ReuseFile={id:string;typeId:string;code:string;name:string;mime:string;size:number;sourceReference:string;createdAt:string};
+export type ReuseFile={id:string;typeId:string;code:string;name:string;mime:string;size:number;sourceReference:string;createdAt:string;programmeId:string;tripSpecific:boolean};
 export function reusablePassport(input:{code:string;status:string;size:number;mime:string;sha256:string|null;expiry:string|null;today:string;latest:boolean;openRequest:boolean;attributable:boolean}){
  return input.code==="PASSPORT"&&input.status==="ACCEPTED"&&input.size>0&&input.size<=2*1024*1024&&["application/pdf","image/jpeg","image/png","image/webp"].includes(input.mime)&&/^[a-f0-9]{64}$/i.test(input.sha256??"")&&expiryState(input.expiry,input.today)==="valid"&&input.latest&&!input.openRequest&&input.attributable
 }
@@ -24,3 +24,13 @@ export type TravellerMatch={id:string;name:string;nationality:string;reference:s
 export function safeLookupTerm(q:unknown){const term=normalizedQuery(q);return term.length>=2?term:""}
 
 export function sameDeclaredIdentity(a:TravellerIdentity,b:TravellerIdentity){return nameKey(a.name)===nameKey(b.name)&&a.nationality.trim().toUpperCase()===b.nationality.trim().toUpperCase()&&passportKey(a.passport)===passportKey(b.passport)&&a.expiry===b.expiry}
+
+const REUSE_AGE_DAYS:Record<string,number>={PHOTO:180,PASSPORT_PHOTO:180,BANK_STATEMENT:30,EMPLOYMENT_CERT:30,MARRIAGE_CERT:90,MARRIAGE_CERTIFICATE:90,ACCOMMODATION_PROOF:30,FLIGHT_RESERVATION:30,HOTEL_RESERVATION:30,INSURANCE:30,INVITATION_LETTER:30};
+export function tripSpecificDocument(code:string){return ["ACCOMMODATION_PROOF","FLIGHT_RESERVATION","HOTEL_RESERVATION","INSURANCE","INVITATION_LETTER"].includes(code)}
+export function reusableDocument(input:Parameters<typeof reusablePassport>[0]&{uploadedAt:string}){
+ if(input.code==="PASSPORT")return reusablePassport(input);
+ if(input.status!=="ACCEPTED"||!input.latest||input.openRequest||!input.attributable||input.size<=0||input.size>2*1024*1024||!/^[a-f0-9]{64}$/i.test(input.sha256??"")||!["application/pdf","image/jpeg","image/png","image/webp","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document"].includes(input.mime))return false;
+ if(!Object.prototype.hasOwnProperty.call(REUSE_AGE_DAYS,input.code))return false;
+ const age=(Date.parse(input.today+"T00:00:00Z")-Date.parse(input.uploadedAt.slice(0,10)+"T00:00:00Z"))/86400000;
+ return Number.isFinite(age)&&age>=0&&age<=REUSE_AGE_DAYS[input.code]!;
+}

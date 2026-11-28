@@ -3,7 +3,7 @@ import {pool} from "@/lib/db";
 import {qualifiedTable as qt} from "@/lib/database-schema";
 import {hasPermission} from "@/lib/rbac";
 import {isAgencyRole,type AuthUser} from "@/lib/types";
-import {uuid,passportKey,normalizedQuery,pageNumber,minimumExpiry,reusablePassport,hubEnabled,nameKey,type ReuseFile} from "./traveller-hub-policy";
+import {uuid,passportKey,normalizedQuery,pageNumber,minimumExpiry,reusableDocument,tripSpecificDocument,hubEnabled,nameKey,type ReuseFile} from "./traveller-hub-policy";
 import {algeriaToday} from "./travel-deadline";
 export type Actor=AuthUser&{agencyId:string};
 export function scope(user:Actor){if(!hubEnabled()||!isAgencyRole(user.role)||!uuid(user.agencyId)||user.userStatus!=="ACTIVE"||user.agencyStatus!=="ACTIVE"||user.mustChangePassword||!hasPermission(user,"applicants.view.all"))throw Error("Traveller access denied");return user.agencyId}
@@ -26,11 +26,11 @@ export async function travellerProfile(user:Actor,id:string){
  const candidates=await pool.query<Pick<TravellerRow,"id"|"name"|"reference"|"activity_at"|"passport">>(`select id,name,reference,activity_at,passport from (${profileView()}) v where id<>$2::uuid and lower(regexp_replace(trim(name),'[[:space:]]+',' ','g'))=$3 and nationality=$4 order by activity_at desc,id desc limit 10`,[agency,anchor.id,nameKey(anchor.name),anchor.nationality]);
  return {anchor,latest:history.rows[0]??null,history:history.rows,candidates:candidates.rows};
 }
-type DocRow={id:string;type_id:string;code:string;label:string;filename:string;mime:string;size:number;sha256:string|null;status:string;reference:string;created_at:Date;expiry:string|null;passport:string;latest:boolean;open_request:boolean};
+type DocRow={id:string;type_id:string;code:string;label:string;filename:string;mime:string;size:number;sha256:string|null;status:string;reference:string;created_at:Date;expiry:string|null;passport:string;name:string;nationality:string;programme_id:string;latest:boolean;open_request:boolean};
 export async function travellerDocuments(user:Actor,profile:NonNullable<Awaited<ReturnType<typeof travellerProfile>>>){
  const agency=scope(user);if(!hasPermission(user,"documents.view.all"))return [];
 
- const r=await pool.query<DocRow>(`select d.id,d.document_type_id type_id,dt.code,dt.name label,d.original_filename filename,d.mime_type mime,d.size_bytes size,d.sha256,d.status,a.reference,d.created_at,t.passport_expiry_date::text expiry,t.passport_number passport,
+ const r=await pool.query<DocRow>(`select d.id,d.document_type_id type_id,dt.code,dt.name label,d.original_filename filename,d.mime_type mime,d.size_bytes size,d.sha256,d.status,a.reference,d.created_at,t.passport_expiry_date::text expiry,t.passport_number passport,coalesce(nullif(t.full_name,''),concat_ws(' ',t.first_name,t.middle_name,t.last_name)) name,t.nationality,a.visa_type_id programme_id,
  not exists(select 1 from ${qt("documents")} newer where newer.application_id=d.application_id and newer.document_type_id=d.document_type_id and (newer.version,newer.created_at,newer.id)>(d.version,d.created_at,d.id)) latest,
  exists(select 1 from ${qt("document_requests")} rq where rq.application_id=a.id and rq.status='OPEN' and (rq.document_type_id=d.document_type_id or rq.checklist_item_id=d.checklist_item_id)) open_request
  from ${qt("documents")} d join ${qt("applications")} a on a.id=d.application_id
@@ -41,12 +41,12 @@ export async function travellerDocuments(user:Actor,profile:NonNullable<Awaited<
  where a.agency_id=$1::uuid and (d.applicant_id=t.id or (d.applicant_id is null and (select count(*) from ${qt("applicants")} other where other.application_id=a.id)=1))
  order by d.created_at desc,d.id desc limit 100`,[agency,profile.anchor.id]);
  const today=algeriaToday();
- return r.rows.map(({sha256,passport,expiry,latest,open_request,...d})=>({...d,reusable:Boolean(passportKey(passport)&&passportKey(passport)===passportKey(profile.anchor.passport)&&expiry===profile.anchor.expiry&&reusablePassport({code:d.code,status:d.status,size:d.size,mime:d.mime,sha256,expiry,today,latest,openRequest:open_request,attributable:true}))}));
+ return r.rows.map(({sha256,passport,expiry,latest,open_request,name,nationality,...d})=>({...d,reusable:Boolean(passportKey(passport)&&passportKey(passport)===passportKey(profile.anchor.passport)&&expiry===profile.anchor.expiry&&nameKey(name)===nameKey(profile.anchor.name)&&nationality.trim().toUpperCase()===profile.anchor.nationality&&reusableDocument({code:d.code,status:d.status,size:d.size,mime:d.mime,sha256,expiry,today,latest,openRequest:open_request,attributable:true,uploadedAt:d.created_at.toISOString()}))}));
 }
 export async function repeatSource(user:Actor,id:string){
  const profile=await travellerProfile(user,id);if(!profile||!hasPermission(user,"applications.create"))return null;
  const a=profile.anchor;
  const documents=hasPermission(user,"documents.upload.own")?await travellerDocuments(user,profile):[];
- const reusable:ReuseFile[]=documents.filter(d=>d.reusable).slice(0,5).map(d=>({id:d.id,typeId:d.type_id,code:d.code,name:d.filename,mime:d.mime,size:d.size,sourceReference:d.reference,createdAt:d.created_at.toISOString()}));
+ const reusable:ReuseFile[]=documents.filter(d=>d.reusable).slice(0,40).map(d=>({id:d.id,typeId:d.type_id,code:d.code,name:d.filename,mime:d.mime,size:d.size,sourceReference:d.reference,createdAt:d.created_at.toISOString(),programmeId:d.programme_id,tripSpecific:tripSpecificDocument(d.code)}));
  return {id:a.id,name:a.name,nationality:a.nationality,passport:passportKey(a.passport),expiry:a.expiry??"",reference:a.reference,reusable};
 }
