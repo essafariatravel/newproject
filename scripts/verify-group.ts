@@ -40,3 +40,10 @@ assert.equal(canAccessGroups({...actor,mfaPending:true},preview),false);
 assert.equal(canAccessGroups(actor,{...preview,VERCEL_ENV:"production"}),false);
 assert.equal(canAccessGroups(actor,{...preview,DATABASE_SCHEMA:"visa_os"}),false);
 console.log("[group-access] Agency user/admin allowed; staff, disabled actors and Production denied PASS (10 assertions)");
+
+import {groupRosterCapacity} from "../src/lib/group-policy";
+assert.equal(groupRosterCapacity([{untouched:true},{untouched:true}]),5);
+assert.equal(groupRosterCapacity([{untouched:false},{untouched:true}]),4);
+assert.equal(groupRosterCapacity(Array.from({length:5},()=>({untouched:false}))),0);
+assert.equal(groupRosterCapacity(Array.from({length:5},(_,i)=>({untouched:i===4}))),1);
+console.log("[group-roster] Capacity respects partially entered travellers PASS (4 assertions)");

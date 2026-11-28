@@ -10,3 +10,6 @@ export function groupWithinBudget(count:number,files:number,bytes:number){return
 export function groupMoney(value:string|number,count:number){const s=String(value);if(!/^\d{1,12}(?:\.\d{1,2})?$/.test(s)||!Number.isSafeInteger(count)||count<0||count>GROUP_MAX)return null;const [a,b=""]=s.split(".");return Number(a)*100*count+Number(b.padEnd(2,"0"))*count}
 
 export function groupDocumentConflict(files:readonly {member:number;code:string;sha256:string}[]){const groups=new Map<string,{members:Set<number>;personal:boolean}>();for(const f of files){const g=groups.get(f.sha256)??{members:new Set<number>(),personal:false};g.members.add(f.member);if(!sharedDocumentCode(f.code))g.personal=true;groups.set(f.sha256,g)}return [...groups.values()].some(g=>g.personal&&g.members.size>1)}
+
+/** Capacity includes untouched placeholder rows, not a partially entered traveller. */
+export function groupRosterCapacity(rows:readonly {untouched:boolean}[]){return Math.max(0,GROUP_MAX-rows.length+rows.filter(r=>r.untouched).length)}
