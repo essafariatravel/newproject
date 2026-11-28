@@ -788,3 +788,39 @@ html[lang="ar"] .workspace-agency.workspace-agency.workspace-agency.workspace-ag
   .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .wallet-capacity summary strong {padding-inline-start:17px;}
   .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main dialog.wallet-drawer {width:100vw;max-width:100vw;}
 }
+
+/* Traveller Directory R03 — align to the shared operational workspace. */
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency:has(.td-directory) #workspace-main{max-width:1600px;width:100%;padding-inline:clamp(20px,3.2vw,64px);padding-block-start:24px}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .td-directory{gap:16px}
+.td-directory .td-heading{min-height:48px}
+.td-directory .td-tabs>a{font-size:16px;gap:8px;padding-block:12px}
+.td-directory .td-count{font-size:15px;color:#647182}
+.td-directory .td-tabs>a[aria-current] .td-count{color:#0b1c30;font-weight:500}
+.td-toolbar{display:flex;gap:12px;align-items:center;min-width:0}
+.td-toolbar .td-search{flex:1;min-width:0}
+.td-search-main>kbd{font:inherit;font-size:13px;color:#647182;white-space:nowrap}
+.td-search-submit{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px!important;font-size:16px}
+.td-search-submit svg{width:19px;height:19px;flex:none}
+.td-sort{display:flex;align-items:center;gap:8px;min-height:48px;font-size:15px;color:#647182;white-space:nowrap}
+.td-sort select{border:1px solid #b7c0ca;border-radius:6px;background:white;color:#0b1c30;min-height:48px;padding-inline:10px;max-width:210px;font:inherit}
+.td-directory .td-row{grid-template-columns:minmax(0,1.32fr) minmax(0,1.13fr) minmax(0,1.08fr) 82px minmax(0,1.24fr) 88px;gap:16px}
+.td-directory .td-no-vault .td-row{grid-template-columns:minmax(0,1.4fr) minmax(0,1.2fr) 82px minmax(0,1.3fr) 88px}
+.td-directory .td-labels{position:sticky;inset-block-start:68px;z-index:8;background:white;border-block:1px solid #e2e5e9;padding-block:11px;font-size:15px;line-height:1.4}
+.td-directory .td-record{min-height:76px;padding-block:10px}
+.td-directory .td-stack{gap:4px;font-size:16px;line-height:1.35}
+.td-directory .td-stack small{font-size:15px;line-height:1.4}
+.td-directory .td-person-link strong{font-size:16px;font-weight:600;line-height:1.4}
+.td-directory .td-avatar{width:40px;height:40px;border-radius:9px;background:#edf1f5;color:#0b1c30;font-size:14px;letter-spacing:.02em}
+.td-passport-main{display:flex;align-items:baseline;flex-wrap:wrap;gap:0;min-width:0;font-variant-numeric:tabular-nums}
+.td-neutral{color:#647182}
+.td-doc-count{font-variant-numeric:tabular-nums}
+.td-directory .td-case-link{font-size:16px;font-weight:600}
+.td-directory .td-actions-label{text-align:end}
+.td-directory .td-icon-action{width:40px;height:40px}
+.td-directory .td-repeat{opacity:.75}
+.td-directory .td-record:hover .td-repeat,.td-directory .td-record:focus-within .td-repeat{opacity:1}
+.td-directory .td-icon-action:focus-visible{outline:2px solid #24486d;outline-offset:2px}
+@media(min-width:1024px) and (max-width:1599px){.td-directory .td-labels{inset-block-start:116px}}
+@media(min-width:761px) and (max-width:1100px){.td-directory .td-row{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr) 64px minmax(0,1fr) 82px;gap:10px}.td-directory .td-no-vault .td-row{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) 64px minmax(0,1.1fr) 82px}.td-directory .td-avatar{width:32px;height:32px}.td-sort>span{display:none}}
+@media(max-width:900px){.td-toolbar{flex-wrap:wrap}.td-toolbar .td-search{flex-basis:100%}.td-sort{min-height:40px}.td-sort select{min-height:40px}}
+@media(max-width:760px){.workspace-agency.workspace-agency.workspace-agency.workspace-agency:has(.td-directory) #workspace-main{padding-inline:16px;padding-block-start:20px}.td-directory .td-tabs>a{font-size:15px}.td-directory .td-row.td-record{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px 16px;padding:16px 4px}.td-directory .td-labels{display:none}.td-directory .td-search-main>kbd,.td-search-submit svg{display:none}.td-directory .td-search-submit{font-size:15px}.td-directory .td-actions{gap:2px}.td-directory .td-person{padding-inline-end:86px}.td-directory .td-icon-action{width:40px;height:40px}.td-directory .td-repeat{opacity:1}.td-directory .td-stack small{font-size:14px}.td-directory .td-mobile-label{font-size:13px}.td-directory .td-numeric{text-align:start}}

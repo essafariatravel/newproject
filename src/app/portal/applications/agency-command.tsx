@@ -63,7 +63,7 @@ export function AgencyCommand({ locale, canCreate, canUpload, canWallet }: { loc
       if (e.defaultPrevented || e.isComposing || e.repeat || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
       if (document.querySelector("dialog[open]") && !dialog.current?.open) return;
       e.preventDefault(); e.stopPropagation();
-      if (dialog.current?.open) dialog.current.close(); else show();
+      if (dialog.current?.open) dialog.current.close(); else { const local=document.querySelector<HTMLInputElement>("[data-directory-shortcut]"); if(local){local.focus();local.select();return;} show(); }
     }
     document.addEventListener("keydown", key, true);
     return () => document.removeEventListener("keydown", key, true);

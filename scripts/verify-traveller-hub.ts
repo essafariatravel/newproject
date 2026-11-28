@@ -95,3 +95,6 @@ assert.equal(canConsolidate({...identity,dob:null,expiry:""},{...identity,dob:nu
 assert.equal(canConsolidate({...identity,dob:"1990-01-01"},{...identity,dob:"1991-01-01"}),false);
 assert.equal(canConsolidate({...identity,dob:null},{...identity,dob:null,passport:""}),false);
 console.log("[traveller-hub] Explicit corroborated merge policy PASS (4 assertions)");
+
+import {directorySort} from "../src/lib/traveller-hub-policy";
+assert.equal(directorySort("name"),"name");assert.equal(directorySort("expiry"),"expiry");assert.equal(directorySort("recent"),"recent");assert.equal(directorySort("expiry;drop table"),"recent");assert.equal(directorySort(undefined),"recent");console.log("[traveller-directory] Safe server-side sort PASS (5 assertions)");

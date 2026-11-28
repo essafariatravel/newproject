@@ -3,7 +3,7 @@ import {pool} from "@/lib/db";
 import {qualifiedTable as qt} from "@/lib/database-schema";
 import {hasPermission} from "@/lib/rbac";
 import {isAgencyRole,type AuthUser} from "@/lib/types";
-import {uuid,passportKey,normalizedQuery,pageNumber,minimumExpiry,reusableDocument,tripSpecificDocument,hubEnabled,nameKey,type ReuseFile} from "./traveller-hub-policy";
+import {directorySort,uuid,passportKey,normalizedQuery,pageNumber,minimumExpiry,reusableDocument,tripSpecificDocument,hubEnabled,nameKey,type ReuseFile} from "./traveller-hub-policy";
 import {vaultOptions,vaultList} from "./traveller-vault";
 import {autoEligible,vaultEnabled} from "./traveller-hub-policy";
 import {algeriaToday} from "./travel-deadline";
@@ -20,11 +20,12 @@ export async function directoryCounts(user:Actor,q:unknown){
  const r=await pool.query<{all:number;renew:number;unknown:number;archived:number}>(`with profiles as (${profileView()}) select count(*) filter(where archived_at is null)::int "all",count(*) filter(where archived_at is null and expiry is not null and expiry<$3)::int renew,count(*) filter(where archived_at is null and expiry is null)::int unknown,count(*) filter(where archived_at is not null)::int archived from profiles where ${directoryMatch()}`,[agency,term,minimum]);
  return r.rows[0]??{all:0,renew:0,unknown:0,archived:0};
 }
-export async function directory(user:Actor,q:unknown,page:unknown,filter:unknown){
+export async function directory(user:Actor,q:unknown,page:unknown,filter:unknown,sort:unknown="recent"){
  const agency=scope(user),term=normalizedQuery(q),p=pageNumber(page),f:"all"|"renew"|"unknown"|"archived"=filter==="renew"||filter==="unknown"||vaultEnabled()&&filter==="archived"?filter:"all",minimum=minimumExpiry(algeriaToday())!;
+ const order=directorySort(sort),ordering={recent:"activity_at desc,id desc",name:"lower(name) asc,id asc",expiry:"expiry asc nulls last,id asc"}[order];
  const result=await pool.query<TravellerRow&{total:number}>(`with profiles as (${profileView()})
- select *,count(*) over()::int total from profiles where ${directoryMatch()} and (($3='archived' and archived_at is not null) or (archived_at is null and ($3='all' or ($3='renew' and expiry is not null and expiry<$4) or ($3='unknown' and expiry is null)))) order by activity_at desc,id desc limit 21 offset $5`,[agency,term,f,minimum,(p-1)*20]);
- return {rows:result.rows.slice(0,20),hasNext:result.rows.length>20,page:p,q:term,filter:f,total:result.rows[0]?.total??0};
+ select *,count(*) over()::int total from profiles where ${directoryMatch()} and (($3='archived' and archived_at is not null) or (archived_at is null and ($3='all' or ($3='renew' and expiry is not null and expiry<$4) or ($3='unknown' and expiry is null)))) order by ${ordering} limit 21 offset $5`,[agency,term,f,minimum,(p-1)*20]);
+ return {rows:result.rows.slice(0,20),hasNext:result.rows.length>20,page:p,q:term,filter:f,sort:order,total:result.rows[0]?.total??0};
 }
 export async function travellerProfile(user:Actor,id:string){
  const agency=scope(user);if(!uuid(id))return null;
@@ -58,4 +59,12 @@ export async function repeatSource(user:Actor,id:string){
  const reusable:ReuseFile[]=documents.filter(d=>d.reusable).slice(0,40).map(d=>({id:d.id,typeId:d.type_id,code:d.code,name:d.filename,mime:d.mime,size:d.size,sourceReference:d.reference,createdAt:d.created_at.toISOString(),programmeId:d.programme_id,tripSpecific:tripSpecificDocument(d.code),automatic:d.automatic}));
  if(vaultEnabled()&&hasPermission(user,"documents.upload.own")&&hasPermission(user,"documents.view.all")){const stored=await vaultList(user,a.id);const current=new Set(stored.filter(d=>d.latest).map(d=>d.type_id));const direct=await vaultOptions(user,a.id);return {id:a.id,name:a.name,nationality:a.nationality,passport:passportKey(a.passport),expiry:a.expiry??"",reference:a.reference,reusable:[...direct,...reusable.filter(d=>!current.has(d.typeId))]};}
  return {id:a.id,name:a.name,nationality:a.nationality,passport:passportKey(a.passport),expiry:a.expiry??"",reference:a.reference,reusable};
+}
+
+/** Count attributable historical input pieces for the visible directory page, without reading bytes or filenames. */
+export async function directoryHistoricalDocuments(user:Actor,ids:string[]){
+ const agency=scope(user);if(!hasPermission(user,"documents.view.all"))throw Error("Document access denied");
+ const keys=[...new Set(ids.filter(uuid))].slice(0,20);if(!keys.length)return {} as Record<string,number>;
+ const r=await pool.query<{profile_id:string;count:number}>(`select l.profile_id,count(distinct d.id)::int count from ${qt("traveller_profile_links")} l join ${qt("applicants")} t on t.id=l.applicant_id join ${qt("applications")} a on a.id=t.application_id and a.agency_id=l.agency_id join ${qt("statuses")} s on s.id=a.status_id and not s.is_draft join ${qt("documents")} d on d.application_id=a.id join ${qt("document_types")} dt on dt.id=d.document_type_id where l.agency_id=$1::uuid and l.profile_id=any($2::uuid[]) and dt.code not like 'DECISION_%' and (d.applicant_id=t.id or (d.applicant_id is null and (select count(*) from ${qt("applicants")} other where other.application_id=a.id)=1)) group by l.profile_id`,[agency,keys]);
+ return Object.fromEntries(r.rows.map(x=>[x.profile_id,x.count])) as Record<string,number>;
 }

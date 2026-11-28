@@ -64,3 +64,5 @@ export function canConsolidate(a:TravellerIdentity&{dob:string|null},b:Traveller
  if(a.dob&&b.dob&&a.dob!==b.dob||a.expiry&&b.expiry&&a.expiry!==b.expiry)return false;
  return Boolean((civilDate(a.dob)&&a.dob===b.dob)||(civilDate(a.expiry)&&a.expiry===b.expiry));
 }
+
+export const directorySort=(v:unknown):"recent"|"name"|"expiry"=>v==="name"||v==="expiry"?v:"recent";
