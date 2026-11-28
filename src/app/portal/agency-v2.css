@@ -575,3 +575,102 @@ html[lang="ar"] .workspace-agency.workspace-agency.workspace-agency.workspace-ag
 
 /* Traveller Hub 2.0: compact editorial hierarchy, native accessible drawers. */
 .workspace-agency .th-hub{gap:18px}.workspace-agency .th-header-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.workspace-agency .th-header-actions .th-profile-editor{display:block}.workspace-agency .th-table-head,.workspace-agency .th-table-row{padding-block:11px}.workspace-agency .th-table-row small{font-size:14px}.workspace-agency .th-search{max-width:none;position:relative}.workspace-agency .th-search input{min-height:44px}.workspace-agency .th-search button{background:#0b1c30;color:white}.workspace-agency .th-section-head{display:flex;align-items:center;justify-content:space-between;gap:16px}.workspace-agency .th-section-head h2{margin:0;font-size:20px;font-weight:600}.workspace-agency .th-vault{display:grid;gap:12px;border-block:1px solid #e2e5e9;padding-block:18px}.workspace-agency .th-vault-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 16px;padding:12px 0;border-block-end:1px solid #e2e5e9}.workspace-agency .th-vault-row>div:first-child{display:grid;gap:4px;min-width:0;overflow-wrap:anywhere}.workspace-agency .th-row-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.workspace-agency .th-version-history{grid-column:1/-1;flex-basis:100%;font-size:14px;color:#647182}.workspace-agency .th-old-version{display:flex;justify-content:space-between;gap:12px;padding-block:8px;overflow-wrap:anywhere}.workspace-agency .th-doc{flex-wrap:wrap}.workspace-agency .th-drawer:not([open]){display:none!important}.workspace-agency .th-drawer[open]{position:fixed;inset-block:0;inset-inline-start:auto;inset-inline-end:0;margin:0;width:min(100%,520px);height:100%;max-height:100%;max-width:100%;padding:24px;border:0;background:white;color:#0b1c30;overflow-y:auto;box-shadow:-12px 0 36px #0b1c3012}.workspace-agency .th-drawer::backdrop{background:#0b1c3060}.workspace-agency .th-drawer .th-section-head{position:sticky;top:0;background:white;z-index:2;padding-block-end:16px;border-block-end:1px solid #e2e5e9}.workspace-agency .th-drawer-form{display:grid;gap:16px;padding-block:20px}.workspace-agency .th-drawer-form label,.workspace-agency .th-drawer-form>div{display:grid;gap:6px;font-size:15px}.workspace-agency .th-drawer-form .date-picker{max-width:none;width:100%}.workspace-agency .th-drawer-form small{color:#647182}.workspace-agency .th-drawer-form>.btn-primary{justify-self:start}@media(max-width:720px){.workspace-agency .th-vault-row{grid-template-columns:1fr}.workspace-agency .th-drawer[open]{padding:18px}.workspace-agency .th-header-actions{width:100%}}
+
+
+/* UX ULTIMATE 4.0 — overlays and date controls.
+   Native dialogs retain browser focus trapping and top-layer stacking.
+   Scope the treatment to agency components, including nested viewers. */
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency :is(dialog.case-viewer-dialog,dialog.booking-review-dialog,dialog.agency-command-dialog,dialog.fluid-filter-dialog) {
+  color:var(--one-ink);background:var(--one-canvas);font-family:inherit;
+  border:1px solid var(--one-rule);border-radius:var(--one-panel-radius);
+  overscroll-behavior:contain;box-shadow:0 16px 48px #0b1c301c;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency :is(dialog.case-viewer-dialog,dialog.booking-review-dialog,dialog.agency-command-dialog,dialog.fluid-filter-dialog,dialog.case-quick-dialog)::backdrop {background:#0b1c3050;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main dialog.case-quick-dialog {
+  position:fixed;inset-block:0;inset-inline-start:auto;inset-inline-end:0;
+  margin:0;width:min(560px,100vw);max-width:100vw;
+  height:100dvh;max-height:100dvh;padding:var(--one-space-8);
+  border:0;border-inline-start:1px solid var(--one-rule);border-radius:0;
+  background:var(--one-canvas);color:var(--one-ink);overflow:auto;overscroll-behavior:contain;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-quick-dialog .case-dialog-header {
+  display:flex;align-items:center;justify-content:space-between;gap:var(--one-space-4);
+  min-width:0;border-block-end:1px solid var(--one-rule);padding-block-end:var(--one-space-3);
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.case-dialog-header,.booking-dialog-head) :is(h2,strong) {min-width:0;overflow-wrap:anywhere;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-dialog-close {
+  display:grid;place-items:center;flex:none;min-width:var(--one-hit);min-height:var(--one-hit);
+  border-radius:var(--one-radius);font-size:24px;color:var(--one-ink);background:transparent;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-dialog-close:hover {background:var(--one-hover);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main dialog.case-viewer-dialog {
+  position:fixed;inset:0;margin:auto;width:min(1120px,calc(100vw - 32px));max-width:calc(100vw - 32px);
+  max-height:calc(100dvh - 32px);padding:var(--one-space-6);overflow:auto;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main dialog.case-viewer-expanded[open] {
+  display:flex;flex-direction:column;width:calc(100vw - 24px);max-width:calc(100vw - 24px);
+  height:calc(100dvh - 24px);max-height:calc(100dvh - 24px);
+  padding:var(--one-space-4);overflow:hidden;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-viewer-dialog .case-dialog-header {
+  display:flex;align-items:center;justify-content:space-between;gap:var(--one-space-4);flex-shrink:0;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-viewer-dialog .case-dialog-header h2 {font-size:var(--one-section);font-weight:600;line-height:1.3;overflow-wrap:anywhere;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-viewer-toolbar {
+  display:flex;align-items:center;flex-wrap:wrap;gap:var(--one-space-2);
+  margin-block:var(--one-space-3);padding-block-end:var(--one-space-3);
+  border-block-end:1px solid var(--one-rule);flex-shrink:0;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-viewer-position {font-variant-numeric:tabular-nums;font-size:var(--one-secondary);color:var(--one-muted);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-viewer-zoom {display:flex;align-items:center;gap:var(--one-space-2);flex-wrap:wrap;min-width:0;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-viewer-zoom label {display:flex;align-items:center;gap:var(--one-space-2);font-size:var(--one-secondary);color:var(--one-muted);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-viewer-zoom input {accent-color:var(--one-ink);max-width:100px;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-viewer-stage {
+  min-height:120px;max-height:65dvh;overflow:auto;overscroll-behavior:contain;
+  background:var(--one-hover);border:1px solid var(--one-rule);border-radius:var(--one-radius);
+  text-align:center;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-viewer-expanded .case-viewer-stage {flex:1;min-height:0;max-height:none;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-viewer-stage iframe {display:block;width:100%;height:65dvh;border:0;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-viewer-expanded .case-viewer-stage iframe {height:100%;min-height:0;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-viewer-stage :is([role="alert"],[role="status"]) {padding:var(--one-space-6);overflow-wrap:anywhere;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-viewer-file-info {font-size:var(--one-secondary);color:var(--one-muted);flex-shrink:0;overflow-wrap:anywhere;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-viewer-file-info summary {min-height:var(--one-hit);display:flex;align-items:center;cursor:pointer;color:var(--one-ink);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main :is(.case-quick-neighbours,.r091-navigation) button {min-width:var(--one-hit);min-height:var(--one-hit);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .r09-inline-preview {border-radius:var(--one-radius);overscroll-behavior:contain;}
+/* Calendar: same control and selection treatment in all agency flows.
+   The existing picker retains its own positioning, date bounds and keyboard logic. */
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency .date-picker {min-width:0;max-width:100%;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .date-picker-control {
+  display:flex;align-items:center;min-height:var(--one-field);
+  border:1px solid var(--one-control);border-radius:var(--one-radius);background:var(--one-canvas);
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .date-picker-control input.input {flex:1;min-width:0;border:0;box-shadow:none;background:transparent;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .date-picker-control>button {min-width:var(--one-hit);min-height:var(--one-hit);border:0;border-radius:var(--one-radius);background:transparent;color:var(--one-muted);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .date-picker-control>button:hover {background:var(--one-hover);color:var(--one-ink);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .date-picker-control>button[aria-expanded="true"] {background:var(--one-ink);color:white;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .date-picker-control:focus-within {border-color:var(--one-focus);outline:2px solid var(--one-focus);outline-offset:2px;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .date-picker-panel {
+  width:min(22rem,calc(100vw - 24px));max-width:calc(100vw - 24px);
+  max-height:calc(100dvh - 24px);overflow:auto;overscroll-behavior:contain;
+  border:1px solid var(--one-rule);border-radius:var(--one-panel-radius);
+  background:var(--one-canvas);color:var(--one-ink);box-shadow:0 12px 32px #0b1c301a;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .date-picker-heading {background:var(--one-canvas);color:var(--one-ink);border-block-end:1px solid var(--one-rule);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .date-picker-heading button {min-height:var(--one-hit);color:var(--one-ink);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .date-picker-panel button[aria-pressed="true"] {background:var(--one-ink);color:white;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .date-picker-panel [aria-current="date"]:not([aria-pressed="true"]) {box-shadow:inset 0 0 0 1px var(--one-muted);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .date-picker-panel button:focus-visible {outline:2px solid var(--one-focus);outline-offset:-2px;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .date-picker-footer button {min-height:var(--one-hit);font-size:var(--one-secondary);}
+@media(max-width:767px) {
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main dialog.case-quick-dialog {width:100vw;max-width:100vw;padding:var(--one-space-4);border:0;}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main dialog.case-viewer-dialog,.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main dialog.case-viewer-expanded[open] {width:calc(100vw - 16px);max-width:calc(100vw - 16px);padding:var(--one-space-3);max-height:calc(100dvh - 16px);}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-viewer-dialog .case-dialog-header h2 {font-size:var(--one-subsection);}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-viewer-toolbar {gap:var(--one-space-2);}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-viewer-zoom {width:100%;}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .case-viewer-download {margin-inline-start:0;}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency .agency-command-inner {padding:var(--one-space-4);}
+}
+@media(prefers-reduced-motion:reduce) {
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency :is(dialog.case-viewer-dialog,dialog.case-quick-dialog,dialog.booking-review-dialog,dialog.agency-command-dialog,dialog.fluid-filter-dialog)[open] {animation:none;transition:none;}
+}
