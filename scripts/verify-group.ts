@@ -64,3 +64,20 @@ assert.equal(groupReuseReady(["a",null],2),false);
 assert.equal(groupReuseReady(["a","b"],3),false);
 assert.equal(groupReuseReady(["a"],1),false);
 console.log("[group-tracking] Progress, closed-case attention, filters, bounded paging and complete distinct roster PASS (14 assertions)");
+
+
+import {cleanSavedGroup,parseSavedGroups,savedGroupPayload,SAVED_GROUP_MAX} from "../src/lib/saved-group-policy";
+const ids=["00000000-0000-4000-8000-000000000001","00000000-0000-4000-8000-000000000002"];
+const saved={id:"00000000-0000-4000-8000-000000000003",label:"  Group  A  ",profiles:ids};
+assert.equal(cleanSavedGroup(saved)?.label,"Group A");
+assert.equal(cleanSavedGroup({...saved,profiles:[ids[0],ids[0]]}),null);
+assert.equal(cleanSavedGroup({...saved,profiles:["invalid",ids[0]]}),null);
+assert.equal(cleanSavedGroup({...saved,label:"x".repeat(41)}),null);
+const stored=savedGroupPayload("user-a","agency-a",[cleanSavedGroup(saved)!]);
+assert.equal(parseSavedGroups(stored,"user-a","agency-a").length,1);
+assert.equal(parseSavedGroups(stored,"user-b","agency-a").length,0);
+assert.equal(parseSavedGroups(stored,"user-a","agency-b").length,0);
+assert.equal(parseSavedGroups("invalid","user-a","agency-a").length,0);
+assert.equal(parseSavedGroups(JSON.stringify({user:"u",agency:"a",groups:[saved,saved]}),"u","a").length,1);
+assert.equal(SAVED_GROUP_MAX,6);
+console.log("[saved-groups] Bounded roster, duplicate validation, account and agency scope PASS (10 assertions)");
