@@ -1,5 +1,5 @@
 "use client";
-import {documentKind,visualIssues,signatureKind,expectedSignature,differenceHash,probablySimilar,imageSignals,type GuardIssue,type GuardImage,type FaceBox} from "./document-intelligence";
+import {documentKind,visualIssues,signatureKind,expectedSignature,differenceHash,probablySimilar,imageSignals,documentLayout,type GuardIssue,type GuardImage,type FaceBox} from "./document-intelligence";
 import {localFaces} from "./document-face-local";
 type Requirement={documentTypeId:string;code:string;name:string};
 type NativeFace={boundingBox:{x:number;y:number;width:number;height:number}};
@@ -24,7 +24,8 @@ async function visual(file:File):Promise<GuardImage>{
  const fingerprint=differenceHash(Array.from({length:72},(_,i)=>.299*t[i*4]!+.587*t[i*4+1]!+.114*t[i*4+2]!));
  let n=0,sum=0,sq=0;for(let y=0;y<h;y++)for(let x=0;x<w;x++){if(y>h*.12||!(x<w*.14||x>w*.86))continue;const i=(y*w+x)*4,v=.299*pixels[i]!+.587*pixels[i+1]!+.114*pixels[i+2]!;n++;sum+=v;sq+=v*v}
  const edgeVariation=n?Math.sqrt(Math.max(0,sq/n-(sum/n)**2)):0;
- return {signals,fingerprint,edgeVariation,faces:signals.ratio>=.55&&signals.ratio<=1.08?await faces(c):null};
+ const detected=await faces(c);
+ return {signals,fingerprint,edgeVariation,faces:detected,layout:documentLayout(pixels,w,h,detected)};
  }finally{c.width=c.height=tiny.c.width=tiny.c.height=0}
  }finally{b.close()}
 }

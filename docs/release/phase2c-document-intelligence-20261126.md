@@ -18,3 +18,6 @@ Preview build pins source files to upstream git blob hashes and sizes. Same-orig
 
 ## R09 — mandatory internal seven-month rule and visible reports
 Both calendars share the existing departure date styling. Expiry mandatory in the Preview wizard, seven calendar months (month-end clamping) from future departure or today; no warning override. Same rule checked before final API submission on this Preview branch, preserving committed idempotent retries. Dates are self-reported and not extracted from documents or persisted. Each selected file shows automatic analysis status, resolution and available quality/face signals, including partial/unavailable checks; no claim of consular approval. No OCR or scanner.
+
+## R10 — application-date policy and visual classification
+Seven calendar months exclusively from Algeria current application date; departure does not influence validity. Local visual classification uses detected face geometry and repeated horizontal texture bands (no OCR), all image assignments including bank/passport/other. Reports show probable portrait/document/uncertain separately from technical quality. Uncertain classifications are explicit, never treated as confirmed. PDF/DOC content classification remains unavailable; no new external model or biometric identity matching. Synthetic tests only; real image accuracy remains to be qualified.

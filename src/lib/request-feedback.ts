@@ -22,7 +22,7 @@ const CATALOGUE = new Set(["VISA_TYPE_INVALID","COUNTRY_INVALID","PRIORITY_INVAL
 const STORAGE_ERRORS = new Set(["STORAGE_MISCONFIGURED", "STORAGE_WRITE_FAILED", "STORAGE_READ_FAILED", "STORAGE_DELETE_FAILED"]);
 class RequestFailure extends Error { constructor(readonly code: string) {super(code);} }
 export function requestErrorMessage(code: string, locale: UiLocale): string {
-  if(code==="PASSPORT_VALIDITY")return ({fr:"Le passeport doit être valide au moins 7 mois à partir du départ prévu ou de la date actuelle. Corrigez la date.",en:"The passport must be valid for at least 7 months from planned departure or today. Correct the date.",ar:"يجب أن يكون جواز السفر صالحاً لمدة سبعة أشهر على الأقل من موعد السفر المتوقع أو من اليوم. صححوا التاريخ."}[locale]);
+  if(code==="PASSPORT_VALIDITY")return ({fr:"Le passeport doit être valide au moins 7 mois à partir de la date de la demande. Corrigez la date.",en:"The passport must be valid for at least 7 months from the application date. Correct the date.",ar:"يجب أن يكون جواز السفر صالحاً لمدة سبعة أشهر على الأقل من تاريخ الطلب. صححوا التاريخ."}[locale]);
   if (STORAGE_ERRORS.has(code)) return locale === "en" ? "Documents are temporarily unavailable. Please try again later or contact ESSAFARIA." : contentT(locale)("request.error.STORAGE_UNAVAILABLE");
   const known = EN[code] ? code : "INTERNAL";
   const ct=contentT(locale);

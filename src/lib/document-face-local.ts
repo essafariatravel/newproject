@@ -29,7 +29,7 @@ export async function localFaces(canvas:HTMLCanvasElement):Promise<FaceBox[]|nul
  ctx.drawImage(canvas,0,0);active=true;
  let timer:ReturnType<typeof setTimeout>|undefined;
  const task=(async()=>{try{
-  const model=await api();const found=await model.detectAllFaces(copy,new model.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.6}));
+  const model=await api();const found=await model.detectAllFaces(copy,new model.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.48}));
   return found.map(({box:b})=>({x:b.x/width,y:b.y/height,width:b.width/width,height:b.height/height}));
  }finally{copy.width=copy.height=0;active=false}})();
  try{return await Promise.race([task,new Promise<null>(resolve=>{timer=setTimeout(()=>resolve(null),15000)})])}catch{return null}finally{if(timer!==undefined)clearTimeout(timer)}

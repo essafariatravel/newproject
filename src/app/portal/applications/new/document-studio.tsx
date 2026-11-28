@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useState} from "react";
 import {DatePicker} from "@/components/date-picker";
-import {expiryAssessment,guardTechnical,documentKind,type GuardIssue} from "@/lib/document-intelligence";
+import {expiryAssessment,guardTechnical,documentKind,classifyVisual,type GuardIssue} from "@/lib/document-intelligence";
 import {inspectDocuments,type GuardResult,type GuardFileReport} from "@/lib/document-guard-browser";
 type Locale="fr"|"en"|"ar";
 export const guardCopy={
@@ -13,8 +13,8 @@ export const guardCopy={
     "invalid": "Date d’expiration invalide.",
     "missing": "Renseignez la date d’expiration du passeport.",
     "days": "jours restants",
-    "reference": "Date de référence",
-    "rules": "Règle interne ESSAFARIA : 7 mois calendaires à compter du départ prévu, ou d’aujourd’hui si aucun départ n’est renseigné.",
+    "reference": "Date de la demande",
+    "rules": "7 mois calendaires à compter de la date de la demande.",
     "checking": "Analyse automatique des documents…",
     "clear": "Aucune anomalie détectée par les contrôles disponibles",
     "risk": "Documents à vérifier",
@@ -40,9 +40,11 @@ export const guardCopy={
       "facePosition": "Visage probablement mal centré.",
       "background": "Arrière-plan potentiellement irrégulier.",
       "faceUnavailable": "Analyse du visage indisponible sur cet appareil.",
-      "portraitInDocument": "Portrait probable au lieu du document demandé.",
+      "portraitInDocument": "Photo portrait probable au lieu du document demandé. Remplacez ce fichier.",
       "duplicate": "Fichier identique réutilisé dans le dossier.",
-      "similar": "Image très similaire à une autre pièce du dossier."
+      "similar": "Image très similaire à une autre pièce du dossier.",
+      "documentInPhoto": "Document probable au lieu d’une photo d’identité. Remplacez la photo.",
+      "typeUncertain": "Type de document non confirmé par le contrôle visuel."
     },
     "insufficient": "Validité insuffisante : 7 mois minimum requis.",
     "minimum": "Expiration minimale",
@@ -65,10 +67,14 @@ export const guardCopy={
     "warning": "À vérifier",
     "block": "Validité du passeport insuffisante : corrigez la date avant de continuer.",
     "photoRisk": "Cette photo risque de ne pas être acceptée. Remplacez-la de préférence.",
-    "docRisk": "Ce document risque de ne pas être accepté.",
+    "docRisk": "Ce fichier risque de ne pas correspondre à la pièce demandée.",
     "shortClear": "Contrôlé",
     "shortChecking": "Analyse…",
-    "shortLimited": "Contrôle partiel"
+    "shortLimited": "Contrôle partiel",
+    "typeLabel": "Type visuel probable",
+    "typePortrait": "Photo portrait",
+    "typeDocument": "Document",
+    "typeUncertain": "Type indéterminé"
   },
   "en": {
     "expiry": "Passport expiry date",
@@ -78,8 +84,8 @@ export const guardCopy={
     "invalid": "Invalid expiry date.",
     "missing": "Enter the passport expiry date.",
     "days": "days remaining",
-    "reference": "Reference date",
-    "rules": "ESSAFARIA internal rule: 7 calendar months from planned departure, or today if no departure is entered.",
+    "reference": "Application date",
+    "rules": "7 calendar months from the application date.",
     "checking": "Automatically checking documents…",
     "clear": "No issue detected by available checks",
     "risk": "Documents to review",
@@ -105,9 +111,11 @@ export const guardCopy={
       "facePosition": "Face may be poorly centred.",
       "background": "Potentially uneven background.",
       "faceUnavailable": "Face analysis unavailable on this device.",
-      "portraitInDocument": "Likely portrait instead of the requested document.",
+      "portraitInDocument": "Likely portrait photo instead of the requested document. Replace this file.",
       "duplicate": "Identical file reused in the application.",
-      "similar": "Image very similar to another document in the application."
+      "similar": "Image very similar to another document in the application.",
+      "documentInPhoto": "Likely document instead of an identity photo. Replace the photo.",
+      "typeUncertain": "Document type could not be confirmed by visual analysis."
     },
     "insufficient": "Insufficient validity: at least 7 months required.",
     "minimum": "Earliest acceptable expiry",
@@ -130,10 +138,14 @@ export const guardCopy={
     "warning": "Review",
     "block": "Insufficient passport validity: correct the date before continuing.",
     "photoRisk": "This photo may not be accepted. Replace it if possible.",
-    "docRisk": "This document may not be accepted.",
+    "docRisk": "This file may not match the required document.",
     "shortClear": "Checked",
     "shortChecking": "Checking…",
-    "shortLimited": "Partial check"
+    "shortLimited": "Partial check",
+    "typeLabel": "Likely visual type",
+    "typePortrait": "Portrait photo",
+    "typeDocument": "Document",
+    "typeUncertain": "Uncertain type"
   },
   "ar": {
     "expiry": "تاريخ انتهاء صلاحية جواز السفر",
@@ -143,8 +155,8 @@ export const guardCopy={
     "invalid": "تاريخ انتهاء غير صالح.",
     "missing": "أدخلوا تاريخ انتهاء صلاحية جواز السفر.",
     "days": "أيام متبقية",
-    "reference": "التاريخ المرجعي",
-    "rules": "قاعدة السفارية الداخلية: سبعة أشهر تقويمية من موعد السفر المتوقع أو من اليوم إذا لم يحدد موعد السفر.",
+    "reference": "تاريخ الطلب",
+    "rules": "سبعة أشهر تقويمية من تاريخ الطلب.",
     "checking": "جارٍ فحص الوثائق تلقائياً…",
     "clear": "لم ترصد الفحوص المتاحة مشكلة",
     "risk": "وثائق تحتاج إلى مراجعة",
@@ -170,9 +182,11 @@ export const guardCopy={
       "facePosition": "الوجه غير متمركز على الأرجح.",
       "background": "خلفية غير متجانسة محتملة.",
       "faceUnavailable": "فحص الوجه غير متاح على هذا الجهاز.",
-      "portraitInDocument": "صورة شخصية محتملة بدلاً من الوثيقة المطلوبة.",
+      "portraitInDocument": "صورة شخصية محتملة بدلاً من الوثيقة المطلوبة. استبدلوا الملف.",
       "duplicate": "ملف مطابق مكرر في الطلب.",
-      "similar": "صورة مشابهة جداً لوثيقة أخرى في الطلب."
+      "similar": "صورة مشابهة جداً لوثيقة أخرى في الطلب.",
+      "documentInPhoto": "وثيقة محتملة بدلاً من صورة الهوية. استبدلوا الصورة.",
+      "typeUncertain": "لم يتم تأكيد نوع الوثيقة بالفحص المرئي."
     },
     "insufficient": "الصلاحية غير كافية: سبعة أشهر على الأقل.",
     "minimum": "أقرب تاريخ انتهاء مقبول",
@@ -195,10 +209,14 @@ export const guardCopy={
     "warning": "للمراجعة",
     "block": "صلاحية الجواز غير كافية: صححوا التاريخ قبل المتابعة.",
     "photoRisk": "قد لا تُقبل هذه الصورة. يفضل استبدالها.",
-    "docRisk": "قد لا تُقبل هذه الوثيقة.",
+    "docRisk": "قد لا يطابق هذا الملف الوثيقة المطلوبة.",
     "shortClear": "تم الفحص",
     "shortChecking": "جارٍ الفحص…",
-    "shortLimited": "فحص جزئي"
+    "shortLimited": "فحص جزئي",
+    "typeLabel": "النوع المرئي المحتمل",
+    "typePortrait": "صورة شخصية",
+    "typeDocument": "وثيقة",
+    "typeUncertain": "نوع غير محدد"
   }
 } as const;
 type Requirement={documentTypeId:string;name:string;code:string};
@@ -232,18 +250,19 @@ export function GuardSummary({locale,checking,issues,onFix}:{locale:Locale;check
 export function FileGuardReport({locale,requirement,report,checking,issues}:{locale:Locale;requirement:Requirement;report:GuardFileReport|undefined;checking:boolean;issues:GuardIssue[]}){
  const t=guardCopy[locale],photo=documentKind(requirement.code,requirement.name)==="photo",image=report?.image;
  const all=[...new Set([...(report?.issues??[]),...issues])];
- const partial=all.includes("limited")||all.includes("faceUnavailable")||!report;
- const warnings=all.filter(k=>k!=="limited"&&k!=="faceUnavailable");
+ const partial=all.includes("limited")||all.includes("faceUnavailable")||all.includes("typeUncertain")||!report;
+ const warnings=all.filter(k=>k!=="limited"&&k!=="faceUnavailable"&&k!=="typeUncertain");
  const technical=warnings.some(guardTechnical);
  const state=checking?"checking":warnings.length?"warning":partial?"limited":"clear";
+ const visualType=image?classifyVisual(image):"uncertain";
  const qualityIssues=all.some(k=>["lowResolution","photoTooSmall","blur","contrast","exposure"].includes(k));
  return <section className="di-file-report" data-state={state} aria-live="polite">
  <div className="di-report-heading"><strong>{photo?t.photoTitle:t.docTitle}</strong><span className="di-report-status"><i aria-hidden="true"/>{checking?t.shortChecking:state==="warning"?t.warning:state==="limited"?t.limitedResult:t.done}</span></div>
  {checking?<small>{t.checking}</small>:<>
  <div className="di-report-metrics">
  <div><small>{t.format}</small><strong>{report&&!technical?t.fileOk:t.notChecked}</strong></div>
- {image?<><div><small>{t.dimensions}</small><strong><bdi>{image.signals.width} × {image.signals.height} px</bdi></strong></div><div><small>{t.quality}</small><strong>{qualityIssues?t.qualityRisk:t.qualityOk}</strong></div>
- {photo?<><div><small>{t.orientation}</small><strong>{image.signals.ratio>1.08?t.landscape:t.portrait}</strong></div><div><small>{t.faces}</small><strong><bdi>{image.faces===null?t.notChecked:image.faces.length}</bdi></strong></div></>:null}</>:null}
+ {image?<><div><small>{t.typeLabel}</small><strong>{visualType==="portrait"?t.typePortrait:visualType==="document"?t.typeDocument:t.typeUncertain}</strong></div><div><small>{t.dimensions}</small><strong><bdi>{image.signals.width} × {image.signals.height} px</bdi></strong></div><div><small>{t.quality}</small><strong>{qualityIssues?t.qualityRisk:t.qualityOk}</strong></div>
+ {<><div><small>{t.orientation}</small><strong>{image.signals.ratio>1.08?t.landscape:t.portrait}</strong></div><div><small>{t.faces}</small><strong><bdi>{image.faces===null?t.notChecked:image.faces.length}</bdi></strong></div></>}</>:null}
  </div>
  {all.length?<ul>{all.map(k=><li key={k}>{t.issues[k]}</li>)}</ul>:<small>{report?t.clear:t.unavailable}</small>}
  {warnings.length?<p>{technical?t.technical:photo?t.photoRisk:t.docRisk}</p>:null}

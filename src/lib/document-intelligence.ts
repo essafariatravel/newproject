@@ -27,9 +27,9 @@ export function photoRatioDifference(width:number,height:number,targetWidth:numb
 }
 
 export type GuardKind="photo"|"passport"|"bank"|"other";
-export type GuardIssue="invalidFile"|"unreadable"|"limited"|"landscape"|"photoShape"|"photoTooSmall"|"lowResolution"|"blur"|"exposure"|"contrast"|"noFace"|"multipleFaces"|"faceSize"|"facePosition"|"background"|"faceUnavailable"|"portraitInDocument"|"duplicate"|"similar";
+export type GuardIssue="invalidFile"|"unreadable"|"limited"|"landscape"|"photoShape"|"photoTooSmall"|"lowResolution"|"blur"|"exposure"|"contrast"|"noFace"|"multipleFaces"|"faceSize"|"facePosition"|"background"|"faceUnavailable"|"portraitInDocument"|"documentInPhoto"|"typeUncertain"|"duplicate"|"similar";
 export type FaceBox={x:number;y:number;width:number;height:number};
-export type GuardImage={signals:ImageSignals;fingerprint:string;edgeVariation:number;faces:FaceBox[]|null};
+export type GuardImage={signals:ImageSignals;fingerprint:string;edgeVariation:number;faces:FaceBox[]|null;layout?:DocumentLayout};
 export function documentKind(code:string,name:string):GuardKind{
  const s=(code+" "+name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
  if(/passport|passeport|جواز/.test(s))return "passport";
@@ -37,21 +37,60 @@ export function documentKind(code:string,name:string):GuardKind{
  if(/bank|bancaire|بنكي|بنك/.test(s))return "bank";
  return "other";
 }
+
+export type DocumentLayout={textRows:number;outsideTextRows:number;edgeDensity:number};
+export type VisualType="portrait"|"document"|"uncertain";
+/** Counts repeated horizontal high-frequency bands, without reading characters.
+ * Face boxes are only geometric regions; no identity matching or recognition. */
+export function documentLayout(pixels:Uint8ClampedArray,w:number,h:number,faces:FaceBox[]|null):DocumentLayout{
+ if(w<3||h<3||pixels.length!==w*h*4)throw Error("Invalid layout sample");
+ const g=new Float32Array(w*h);for(let i=0;i<g.length;i++){const p=i*4;g[i]=.299*pixels[p]!+.587*pixels[p+1]!+.114*pixels[p+2]!}
+ let edges=0,n=0,rows=0,outsideRows=0,prior=false,priorOutside=false;
+ for(let y=2;y<h-2;y++){
+  let transitions=0,outside=0,available=0,previous=false,previousOut=false;
+  for(let x=2;x<w-2;x++){
+   const i=y*w+x,d=Math.abs(g[i+1]!-g[i-1]!)>26;
+   const inside=(faces??[]).some(f=>x/w>=f.x-.06&&x/w<=f.x+f.width+.06&&y/h>=f.y-.08&&y/h<=f.y+f.height+.08);
+   n++;if(d)edges++;
+   if(d&&!previous)transitions++;previous=d;
+   if(!inside){available++;if(d&&!previousOut)outside++;previousOut=d}else previousOut=false;
+  }
+  const band=transitions>=Math.max(7,w*.038),outBand=available>w*.32&&outside>=Math.max(6,w*.032);
+  if(band&&!prior)rows++;if(outBand&&!priorOutside)outsideRows++;
+  prior=band;priorOutside=outBand;
+ }
+ return {textRows:rows,outsideTextRows:outsideRows,edgeDensity:n?edges/n:0};
+}
+export function classifyVisual(image:GuardImage):VisualType{
+ const s=image.signals,faces=image.faces,layout=image.layout;
+ const largest=faces?.slice().sort((a,b)=>b.width*b.height-a.width*a.height)[0];
+ const centered=largest&&Math.abs(largest.x+largest.width/2-.5)<=.23;
+ const substantial=largest&&largest.width>=.20&&largest.height>=.25&&largest.width*largest.height>=.065;
+ // A prominent centered face overrides aspect ratio; small embedded faces do not.
+ if(faces?.length===1&&centered&&substantial&&!(layout&&layout.outsideTextRows>=11))return "portrait";
+ if(layout&&(layout.outsideTextRows>=11||(!largest&&layout.textRows>=12)))return "document";
+ if(s.ratio>1.08&&(!largest||!substantial||!centered))return "document";
+ if(largest&&(!substantial||!centered)&&layout&&layout.outsideTextRows>=6)return "document";
+ return "uncertain";
+}
+
 export function visualIssues(kind:GuardKind,image:GuardImage):GuardIssue[]{
- const s=image.signals,issues:GuardIssue[]=[];
+ const s=image.signals,issues:GuardIssue[]=[],type=classifyVisual(image);
  if(Math.min(s.width,s.height)<300)issues.push(kind==="photo"?"photoTooSmall":"lowResolution");
  if(s.sharpness<60)issues.push("blur");
  if(s.mean<45||s.mean>240)issues.push("exposure");
  if(s.contrast<18)issues.push("contrast");
  if(kind==="photo"){
+  if(type==="document"&&s.ratio<=1.08)issues.push("documentInPhoto");
   if(s.ratio>1.08)issues.push("landscape");
   else if(s.ratio<.55)issues.push("photoShape");
   if(image.edgeVariation>36)issues.push("background");
-  if(image.faces===null){if(s.ratio>=.55&&s.ratio<=1.08)issues.push("faceUnavailable");}
+  if(image.faces===null){if(type!=="document")issues.push("faceUnavailable");}
   else if(image.faces.length===0)issues.push("noFace");
   else if(image.faces.length>1)issues.push("multipleFaces");
   else {const f=image.faces[0]!;if(f.height<.28||f.height>.88||f.width<.2||f.width>.88)issues.push("faceSize");if(Math.abs(f.x+f.width/2-.5)>.18||f.y+f.height/2<.22||f.y+f.height/2>.75)issues.push("facePosition")}
- }else if((kind==="bank"||kind==="passport")&&s.ratio>=.55&&s.ratio<=1.05&&image.faces?.some(f=>f.height>.48&&f.width>.3))issues.push("portraitInDocument");
+ }else if(type==="portrait")issues.push("portraitInDocument");
+ else if(type==="uncertain")issues.push("typeUncertain");
  return issues;
 }
 export function signatureKind(bytes:Uint8Array):"pdf"|"jpeg"|"png"|"webp"|"doc"|"zip"|"unknown"{
@@ -88,12 +127,12 @@ export function minimumPassportExpiry(reference:string):string|null{
  first.setUTCDate(Math.min(d!,last));
  return first.toISOString().slice(0,10);
 }
-export function expiryAssessment(expiry:string,today:string,departure:string){
- const departureDays=passportValidity(departure,today),reference=departureDays!==null&&departureDays>=0?departure:today;
+export function expiryAssessment(expiry:string,today:string,_departure:string){
+ const reference=today;
  const minimum=minimumPassportExpiry(reference),days=passportValidity(expiry,reference);
  const state=!expiry?"missing":days===null||!minimum?"invalid":days<=0?"expired":expiry<minimum?"insufficient":"valid";
  return {reference,days,minimum,state} as const;
 }
 export function passportMeetsPolicy(expiry:string,today:string,departure:string):boolean{
- return (!departure||(passportValidity(departure,today)??-1)>=0)&&expiryAssessment(expiry,today,departure).state==="valid";
+ return expiryAssessment(expiry,today,departure).state==="valid";
 }
