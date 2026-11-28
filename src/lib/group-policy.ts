@@ -13,3 +13,14 @@ export function groupDocumentConflict(files:readonly {member:number;code:string;
 
 /** Capacity includes untouched placeholder rows, not a partially entered traveller. */
 export function groupRosterCapacity(rows:readonly {untouched:boolean}[]){return Math.max(0,GROUP_MAX-rows.length+rows.filter(r=>r.untouched).length)}
+
+/** Read-model only. Individual case statuses remain authoritative. */
+export type GroupTrackingRow={terminal:boolean;status:string;attention:boolean};
+export function groupProgress(rows:readonly GroupTrackingRow[],expected:number){
+ const closed=rows.filter(r=>r.terminal||["APPROVED","COMPLETED","CANCELLED","REJECTED","REFUSED"].includes(r.status)).length;
+ const action=rows.filter(r=>!r.terminal&&!["APPROVED","COMPLETED","CANCELLED","REJECTED","REFUSED"].includes(r.status)&&r.attention).length;
+ return {closed,action,active:rows.length-closed,complete:expected>=GROUP_MIN&&rows.length===expected&&closed===expected,consistent:expected>=GROUP_MIN&&expected<=GROUP_MAX&&rows.length===expected};
+}
+export function groupTrackingFilter(v:unknown):"all"|"attention"|"active"|"closed"{return v==="attention"||v==="active"||v==="closed"?v:"all"}
+export function groupTrackingPage(v:unknown){const n=typeof v==="string"&&/^\d{1,5}$/.test(v)?Number(v):1;return Math.max(1,Math.min(10000,n))}
+export function groupReuseReady(ids:readonly (string|null)[],expected:number){return expected>=GROUP_MIN&&expected<=GROUP_MAX&&ids.length===expected&&ids.every(id=>Boolean(id))&&new Set(ids).size===expected}
