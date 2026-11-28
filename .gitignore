@@ -63,3 +63,6 @@ ESSAFARIA-PROD-*.manifest.json
 ESSAFARIA-SYNTHETIC-*.manifest.json
 *.dr-key
 
+
+# Generated pinned Preview face-detection assets
+/public/document-guard/face-v1/

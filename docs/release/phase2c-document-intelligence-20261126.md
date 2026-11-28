@@ -12,3 +12,6 @@ No migrations, dependency changes, external OCR downloads, or Production activat
 
 ## R07 — shared document guard
 Uses the existing DatePicker, parent-held expiry estimate, automatic file-signature/image-quality inspection for all assigned files, approximate portrait checks, native FaceDetector if supported, SHA-256 and conservative visual difference hash, and persistent warnings at confirmation. Acknowledgement is tied to the exact current result/date/programme. Invalid file signatures or unreadable images prevent progression. PDF/DOC/DOCX signature-only; unsupported face detection is explicitly signalled. No OCR, scanner, external model, consular rule invention, biometric identity matching or migration. Expiry estimate remains local, not persisted. Browser and mobile qualification still required.
+
+## R08 — portable local face detection
+Preview build pins source files to upstream git blob hashes and sizes. Same-origin lazy module, CPU backend, TinyFaceDetector only, no identity matching, descriptors, age, gender or emotion, no runtime CDN or client upload. Native detection remains first choice. Clearly landscape images already flagged do not invoke face inference. Model inference in the actual browser must be qualified before Production. The model is approximate and cannot guarantee a document type or consular acceptance.
