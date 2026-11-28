@@ -15,3 +15,6 @@ Uses the existing DatePicker, parent-held expiry estimate, automatic file-signat
 
 ## R08 — portable local face detection
 Preview build pins source files to upstream git blob hashes and sizes. Same-origin lazy module, CPU backend, TinyFaceDetector only, no identity matching, descriptors, age, gender or emotion, no runtime CDN or client upload. Native detection remains first choice. Clearly landscape images already flagged do not invoke face inference. Model inference in the actual browser must be qualified before Production. The model is approximate and cannot guarantee a document type or consular acceptance.
+
+## R09 — mandatory internal seven-month rule and visible reports
+Both calendars share the existing departure date styling. Expiry mandatory in the Preview wizard, seven calendar months (month-end clamping) from future departure or today; no warning override. Same rule checked before final API submission on this Preview branch, preserving committed idempotent retries. Dates are self-reported and not extracted from documents or persisted. Each selected file shows automatic analysis status, resolution and available quality/face signals, including partial/unavailable checks; no claim of consular approval. No OCR or scanner.

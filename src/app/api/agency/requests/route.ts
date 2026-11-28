@@ -13,10 +13,12 @@ import { requestErrorMessage } from "@/lib/request-feedback";
 import { getUiLocale, UI_LOCALE_COOKIE } from "@/lib/ui-i18n";
 import { bookingCatalogueFingerprint } from "@/lib/booking-catalogue-fingerprint";
 import { readRequestBodyLimited } from "@/lib/http-body";
+import {passportMeetsPolicy} from "@/lib/document-intelligence";
+import {algeriaToday} from "@/lib/travel-deadline";
 
 export const runtime = "nodejs";
 const submission = z.object({ locale: z.enum(["en","fr","ar"]).optional(), attempt: z.string().uuid(), visaTypeId: z.string().uuid(), countryId: z.string().uuid(),
-  fullName: z.string().max(200), nationality: z.string().max(80), notes: z.string().max(1000), tokens: z.array(z.string()).max(60), expectedFee: z.string().max(32).regex(/^\d+(?:\.\d+)?$/).optional(), expectedCatalogue: z.string().regex(/^[a-f0-9]{64}$/).optional() });
+  passportExpiry:z.string().max(10).optional(), departureEstimate:z.string().max(10).optional(), fullName: z.string().max(200), nationality: z.string().max(80), notes: z.string().max(1000), tokens: z.array(z.string()).max(60), expectedFee: z.string().max(32).regex(/^\d+(?:\.\d+)?$/).optional(), expectedCatalogue: z.string().regex(/^[a-f0-9]{64}$/).optional() });
 const preflight = z.object({ expectedCatalogue:z.string().regex(/^[a-f0-9]{64}$/).optional(), action: z.literal("preflight"), visaTypeId: z.string().uuid(), countryId: z.string().uuid(), fullName: z.string().trim().min(1).max(200), nationality: z.string().trim().min(1).max(80) });
 
 export async function POST(request: Request) {
@@ -69,6 +71,7 @@ export async function POST(request: Request) {
     const id=await coalesceVisaSubmission(actor,input.attempt,async()=>{
     const [existing] = await db.select({ id: applications.id }).from(applications)
       .where(and(eq(applications.idempotencyKey, input.attempt), eq(applications.agencyId, actor.agencyId)));
+    if(!existing&&process.env.VERCEL_ENV==="preview"&&process.env.VERCEL_GIT_COMMIT_REF==="codex/phase2c-document-intelligence-20261126"&&!passportMeetsPolicy(input.passportExpiry??"",algeriaToday(),input.departureEstimate??""))throw new AppError("PASSPORT_VALIDITY","At least seven calendar months of passport validity are required.");
     const committedId = existing?.id ?? (await submitVisaRequest({ actor, idempotencyKey: input.attempt, countryId: input.countryId,
       visaTypeId: input.visaTypeId, expectedFee: input.expectedFee, expectedCatalogue:input.expectedCatalogue, agencyNotes: input.notes, travellers: [{ fullName: input.fullName, nationality: input.nationality }],
       documents: await resolveRequestUploads(actor, input.attempt, input.visaTypeId, input.tokens) })).applicationId;

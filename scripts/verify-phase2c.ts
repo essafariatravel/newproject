@@ -1,6 +1,6 @@
 /** Preview qualification: retained document checks only; no database or external calls. */
 import assert from "node:assert/strict";
-import {passportValidity,photoRatioDifference,duplicateGroups,imageSignals,documentKind,visualIssues,signatureKind,expectedSignature,differenceHash,probablySimilar,expiryAssessment,guardTechnical,type GuardImage} from "../src/lib/document-intelligence";
+import {passportValidity,photoRatioDifference,duplicateGroups,imageSignals,documentKind,visualIssues,signatureKind,expectedSignature,differenceHash,probablySimilar,expiryAssessment,minimumPassportExpiry,passportMeetsPolicy,guardTechnical,type GuardImage} from "../src/lib/document-intelligence";
 assert.equal(passportValidity("2032-04-15","2032-04-01"),14);
 assert.equal(passportValidity("2032-04-01","2032-04-01"),0);
 assert.equal(passportValidity("2032-03-31","2032-04-01"),-1);
@@ -33,3 +33,16 @@ assert.equal(guardTechnical("landscape"),false);
 assert.ok(visualIssues("photo",{...passport,faces:[]}).includes("noFace"));
 assert.ok(visualIssues("photo",{...passport,faces:[{x:.2,y:.2,width:.1,height:.1}]}).includes("faceSize"));
 console.log("[phase2c] Shared document guard checks PASS (18 assertions)");
+
+assert.equal(minimumPassportExpiry("2026-11-28"),"2027-06-28");
+assert.equal(minimumPassportExpiry("2026-12-18"),"2027-07-18");
+assert.equal(minimumPassportExpiry("2026-07-31"),"2027-02-28");
+assert.equal(minimumPassportExpiry("2023-07-31"),"2024-02-29");
+assert.equal(expiryAssessment("2026-12-17","2026-11-28","").state,"insufficient");
+assert.equal(expiryAssessment("2027-06-27","2026-11-28","").state,"insufficient");
+assert.equal(expiryAssessment("2027-06-28","2026-11-28","").state,"valid");
+assert.equal(expiryAssessment("2027-06-28","2026-11-28","2026-12-18").state,"insufficient");
+assert.equal(passportMeetsPolicy("2027-07-18","2026-11-28","2026-12-18"),true);
+assert.equal(passportMeetsPolicy("","2026-11-28",""),false);
+assert.equal(passportMeetsPolicy("2027-12-18","2026-11-28","2026-02-30"),false);
+console.log("[phase2c] Seven-month passport gate PASS (11 assertions)");

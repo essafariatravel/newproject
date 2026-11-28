@@ -4,7 +4,8 @@ import {localFaces} from "./document-face-local";
 type Requirement={documentTypeId:string;code:string;name:string};
 type NativeFace={boundingBox:{x:number;y:number;width:number;height:number}};
 type FaceApi=new(options:{maxDetectedFaces:number;fastMode:boolean})=>{detect:(source:HTMLCanvasElement)=>Promise<NativeFace[]>};
-export type GuardResult={byId:Record<string,GuardIssue[]>;checked:number;total:number};
+export type GuardFileReport={image:GuardImage|null;issues:GuardIssue[]};
+export type GuardResult={byId:Record<string,GuardIssue[]>;reports:Map<File,GuardFileReport>;checked:number;total:number};
 const cache=new WeakMap<File,Promise<{hash:string|null;image:GuardImage|null;issues:GuardIssue[]}>>();
 function canvas(w:number,h:number){const c=document.createElement("canvas");c.width=w;c.height=h;const ctx=c.getContext("2d",{willReadFrequently:true});if(!ctx)throw Error("Canvas unavailable");return {c,ctx}}
 async function faces(c:HTMLCanvasElement):Promise<FaceBox[]|null>{
@@ -40,22 +41,23 @@ async function inspect(file:File){
 }
 function cached(file:File){let p=cache.get(file);if(!p){p=inspect(file);cache.set(file,p)}return p}
 export async function inspectDocuments(files:Record<string,File[]>,requirements:readonly Requirement[],active:()=>boolean):Promise<GuardResult>{
- const entries=requirements.flatMap(r=>(files[r.documentTypeId]??[]).map(file=>({r,file}))),byId:Record<string,GuardIssue[]>={};
+ const entries=requirements.flatMap(r=>(files[r.documentTypeId]??[]).map(file=>({r,file}))),byId:Record<string,GuardIssue[]>={},reports=new Map<File,GuardFileReport>();
  const add=(id:string,issue:GuardIssue)=>{const list=byId[id]??(byId[id]=[]);if(!list.includes(issue))list.push(issue)};
  const seen:{id:string;hash:string|null;image:GuardImage|null}[]=[];
  for(const {r,file} of entries.slice(0,60)){
   if(!active())break;
   const id=r.documentTypeId;const result=await cached(file).catch(()=>({hash:null,image:null,issues:["limited"] as GuardIssue[]}));
-  for(const issue of result.issues)add(id,issue);
-  const kind=documentKind(r.code,r.name);
-  if(result.image)for(const issue of visualIssues(kind,result.image))add(id,issue);
-  else if(kind==="photo"&&!result.issues.includes("invalidFile")&&!result.issues.includes("unreadable"))add(id,"photoShape");
+  const kind=documentKind(r.code,r.name),issues=[...result.issues];
+  if(result.image)issues.push(...visualIssues(kind,result.image));
+  else if(kind==="photo"&&!issues.includes("invalidFile")&&!issues.includes("unreadable"))issues.push("photoShape");
+  reports.set(file,{image:result.image,issues});
+  for(const issue of issues)add(id,issue);
   for(const prior of seen){
    if(result.hash&&prior.hash===result.hash){add(prior.id,"duplicate");add(id,"duplicate")}
    else if(result.image&&prior.image&&probablySimilar(result.image,prior.image)){add(prior.id,"similar");add(id,"similar")}
   }
   seen.push({id,hash:result.hash,image:result.image});
  }
- for(const {r} of entries.slice(60))add(r.documentTypeId,"limited");
- return {byId,checked:Math.min(entries.length,60),total:entries.length};
+ for(const {r,file} of entries.slice(60)){add(r.documentTypeId,"limited");reports.set(file,{image:null,issues:["limited"]})}
+ return {byId,reports,checked:Math.min(entries.length,60),total:entries.length};
 }

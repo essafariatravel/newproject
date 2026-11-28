@@ -79,8 +79,21 @@ export function probablySimilar(a:GuardImage,b:GuardImage):boolean{
  return d<=4;
 }
 export function guardTechnical(issue:GuardIssue):boolean{return issue==="invalidFile"||issue==="unreadable"}
+/** ESSAFARIA internal rule: seven calendar months, clamped at month end. */
+export function minimumPassportExpiry(reference:string):string|null{
+ if(passportValidity(reference,reference)!==0)return null;
+ const [y,m,d]=reference.split("-").map(Number);
+ const first=new Date(Date.UTC(y!,m!-1+7,1));
+ const last=new Date(Date.UTC(first.getUTCFullYear(),first.getUTCMonth()+1,0)).getUTCDate();
+ first.setUTCDate(Math.min(d!,last));
+ return first.toISOString().slice(0,10);
+}
 export function expiryAssessment(expiry:string,today:string,departure:string){
  const departureDays=passportValidity(departure,today),reference=departureDays!==null&&departureDays>=0?departure:today;
- const days=passportValidity(expiry,reference);
- return {reference,days,state:!expiry?"missing":days===null?"invalid":days<=0?"expired":"valid"} as const;
+ const minimum=minimumPassportExpiry(reference),days=passportValidity(expiry,reference);
+ const state=!expiry?"missing":days===null||!minimum?"invalid":days<=0?"expired":expiry<minimum?"insufficient":"valid";
+ return {reference,days,minimum,state} as const;
+}
+export function passportMeetsPolicy(expiry:string,today:string,departure:string):boolean{
+ return (!departure||(passportValidity(departure,today)??-1)>=0)&&expiryAssessment(expiry,today,departure).state==="valid";
 }
