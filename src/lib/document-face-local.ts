@@ -4,7 +4,7 @@ type Detection={box:{x:number;y:number;width:number;height:number}};
 type FaceApi={tf:{setBackend:(name:string)=>Promise<boolean>;ready:()=>Promise<void>};nets:{tinyFaceDetector:{loadFromUri:(url:string)=>Promise<void>}};TinyFaceDetectorOptions:new(o:{inputSize:number;scoreThreshold:number})=>unknown;detectAllFaces:(c:HTMLCanvasElement,o:unknown)=>PromiseLike<Detection[]>};
 const ROOT="/document-guard/face-v1";
 let loading:Promise<FaceApi>|undefined;
-let queue:Promise<unknown>=Promise.resolve();
+let active=false;
 function api():Promise<FaceApi>{
  if(loading)return loading;
  loading=new Promise<FaceApi>((resolve,reject)=>{
@@ -23,9 +23,14 @@ function api():Promise<FaceApi>{
  return loading;
 }
 export async function localFaces(canvas:HTMLCanvasElement):Promise<FaceBox[]|null>{
- const width=canvas.width,height=canvas.height;
- const task=queue.then(async()=>{const model=await api();const found=await model.detectAllFaces(canvas,new model.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.6}));return found.map(({box:b})=>({x:b.x/width,y:b.y/height,width:b.width/width,height:b.height/height}))});
- queue=task.catch(()=>{});
- // Don't cancel or release the source canvas while inference is executing.
- try{return await task}catch{return null}
+ if(active)return null;
+ const width=canvas.width,height=canvas.height,copy=document.createElement("canvas");
+ copy.width=width;copy.height=height;const ctx=copy.getContext("2d");if(!ctx)return null;
+ ctx.drawImage(canvas,0,0);active=true;
+ let timer:ReturnType<typeof setTimeout>|undefined;
+ const task=(async()=>{try{
+  const model=await api();const found=await model.detectAllFaces(copy,new model.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.6}));
+  return found.map(({box:b})=>({x:b.x/width,y:b.y/height,width:b.width/width,height:b.height/height}));
+ }finally{copy.width=copy.height=0;active=false}})();
+ try{return await Promise.race([task,new Promise<null>(resolve=>{timer=setTimeout(()=>resolve(null),15000)})])}catch{return null}finally{if(timer!==undefined)clearTimeout(timer)}
 }

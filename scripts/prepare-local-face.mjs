@@ -1,7 +1,9 @@
 /** Build-only, pinned same-origin face-detection assets. No uploads or runtime CDN. */
 import {createHash} from "node:crypto";
-import {mkdir,rm,writeFile} from "node:fs/promises";
+import {mkdir,rm,writeFile,readFile} from "node:fs/promises";
 import {join} from "node:path";
+import {pathToFileURL} from "node:url";
+import assert from "node:assert/strict";
 const branch="codex/phase2c-document-intelligence-20261126";
 if(process.env.VERCEL!=="1"||process.env.VERCEL_ENV!=="preview"||process.env.VERCEL_GIT_COMMIT_REF!==branch)throw Error("Preview-only face assets");
 const root=join(process.cwd(),"public","document-guard","face-v1");
@@ -28,4 +30,18 @@ try{
  await writeFile(join(root,"bridge.mjs"),"import * as api from './face-api.mjs';\nwindow.__essafariaFaceDetector=api;\n");
  await writeFile(join(root,"NOTICE.txt"),"Face-api 1.7.15, MIT, Vladimir Mandic; bundled TensorFlow.js, Apache-2.0. Source revision: "+rev+"\nhttps://github.com/vladmandic/face-api\nOnly TinyFaceDetector used.\n");
  console.log("[guard] Pinned local face detector assets verified");
+ const api=await import(pathToFileURL(join(root,"face-api.mjs")).href);
+ assert.equal(await api.tf.setBackend("cpu"),true);
+ await api.tf.ready();
+ const manifest=JSON.parse(await readFile(join(root,"tiny_face_detector_model-weights_manifest.json"),"utf8"));
+ const weights=await readFile(join(root,"tiny_face_detector_model.bin"));
+ const map=api.tf.io.decodeWeights(weights.buffer.slice(weights.byteOffset,weights.byteOffset+weights.byteLength),manifest.flatMap(g=>g.weights));
+ api.nets.tinyFaceDetector.loadFromWeightMap(map);
+ const blank=api.tf.zeros([160,160,3],"int32");
+ try{
+  const found=await api.nets.tinyFaceDetector.locateFaces(blank,new api.TinyFaceDetectorOptions({inputSize:160,scoreThreshold:.6}));
+  assert.equal(found.length,0,"Blank synthetic image must not produce a face");
+  console.log("[guard] CPU model inference on blank synthetic image PASS");
+ }finally{blank.dispose();api.nets.tinyFaceDetector.dispose()}
+
 }catch(error){await rm(root,{recursive:true,force:true});throw error}

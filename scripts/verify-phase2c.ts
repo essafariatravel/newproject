@@ -15,7 +15,7 @@ console.log("[phase2c] Retained validity, quality, photo and duplicate checks PA
 
 const passport:GuardImage={signals:{width:625,height:446,ratio:625/446,mean:130,contrast:45,sharpness:200},fingerprint:"01".repeat(32),edgeVariation:12,faces:null};
 assert.ok(visualIssues("photo",passport).includes("landscape"));
-assert.ok(visualIssues("photo",passport).includes("faceUnavailable"));
+assert.ok(visualIssues("photo",{...passport,signals:{...passport.signals,ratio:.78,width:350,height:450}}).includes("faceUnavailable"));
 assert.equal(documentKind("PHOTO","Photo d’identité"),"photo");
 assert.equal(documentKind("PASSPORT","Passeport"),"passport");
 assert.equal(documentKind("BANK_STATEMENT","Relevé bancaire"),"bank");

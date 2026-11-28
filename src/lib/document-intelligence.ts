@@ -47,7 +47,7 @@ export function visualIssues(kind:GuardKind,image:GuardImage):GuardIssue[]{
   if(s.ratio>1.08)issues.push("landscape");
   else if(s.ratio<.55)issues.push("photoShape");
   if(image.edgeVariation>36)issues.push("background");
-  if(image.faces===null)issues.push("faceUnavailable");
+  if(image.faces===null){if(s.ratio>=.55&&s.ratio<=1.08)issues.push("faceUnavailable");}
   else if(image.faces.length===0)issues.push("noFace");
   else if(image.faces.length>1)issues.push("multipleFaces");
   else {const f=image.faces[0]!;if(f.height<.28||f.height>.88||f.width<.2||f.width>.88)issues.push("faceSize");if(Math.abs(f.x+f.width/2-.5)>.18||f.y+f.height/2<.22||f.y+f.height/2>.75)issues.push("facePosition")}
