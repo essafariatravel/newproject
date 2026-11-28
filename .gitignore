@@ -68,3 +68,5 @@ ESSAFARIA-SYNTHETIC-*.manifest.json
 /public/document-guard/face-v1/
 
 /public/document-guard/pdf-v1/
+
+/public/document-guard/analysis-v1/

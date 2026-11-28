@@ -118,7 +118,7 @@ export function probablySimilar(a:GuardImage,b:GuardImage):boolean{
  let d=0;for(let i=0;i<64;i++)if(a.fingerprint[i]!==b.fingerprint[i])d++;
  return d<=4;
 }
-export function guardTechnical(issue:GuardIssue):boolean{return issue==="invalidFile"||issue==="unreadable"}
+export function guardTechnical(issue:GuardIssue):boolean{return issue==="invalidFile"||issue==="unreadable"||issue==="pdfProtected"}
 /** ESSAFARIA internal rule: seven calendar months, clamped at month end. */
 export function minimumPassportExpiry(reference:string):string|null{
  if(passportValidity(reference,reference)!==0)return null;
@@ -158,4 +158,17 @@ export function pdfPageIssues(pages:readonly GuardImage[],total:number):GuardIss
  if(pages.some(p=>blankPdfPage(p.signals)))issues.push("pdfBlank");
  if(pages.some((p,i)=>!blankPdfPage(p.signals)&&pages.slice(0,i).some(q=>probablySimilar(p,q))))issues.push("pdfRepeated");
  return issues;
+}
+
+export type PixelAnalysisInput={pixels:Uint8ClampedArray;w:number;h:number;originalWidth:number;originalHeight:number;fingerprint:string;faces:FaceBox[]|null};
+export function analyseGuardPixels(input:PixelAnalysisInput):GuardImage{
+ const {pixels,w,h,originalWidth,originalHeight,fingerprint,faces}=input;
+ if(w>480||h>480||w<3||h<3)throw Error("Analysis dimensions out of range");
+ const signals=imageSignals(pixels,w,h,originalWidth,originalHeight);
+ let n=0,sum=0,sq=0;
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){if(y>h*.12||!(x<w*.14||x>w*.86))continue;const i=(y*w+x)*4,v=.299*pixels[i]!+.587*pixels[i+1]!+.114*pixels[i+2]!;n++;sum+=v;sq+=v*v}
+ const edgeVariation=n?Math.sqrt(Math.max(0,sq/n-(sum/n)**2)):0;
+ const f=faces?.length===1?faces[0]:undefined;let faceSharpness:number|undefined;
+ if(f){const x=Math.max(0,Math.floor(f.x*w)),y=Math.max(0,Math.floor(f.y*h)),fw=Math.min(w-x,Math.floor(f.width*w)),fh=Math.min(h-y,Math.floor(f.height*h));if(fw>=12&&fh>=12){const region=new Uint8ClampedArray(fw*fh*4);for(let j=0;j<fh;j++){const start=((y+j)*w+x)*4;region.set(pixels.subarray(start,start+fw*4),j*fw*4)}faceSharpness=imageSignals(region,fw,fh).sharpness}}
+ return {signals,fingerprint,edgeVariation,faces,layout:documentLayout(pixels,w,h,faces),faceSharpness};
 }

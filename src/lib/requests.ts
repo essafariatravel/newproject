@@ -546,8 +546,8 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
         `insert into ${qualifiedTable("applicants")}
            (application_id, first_name, last_name, full_name, date_of_birth, nationality,
             passport_number, passport_issue_date, passport_expiry_date, email, phone)
-         values ($1,$2,'',$3,null,$4,null,null,null,null,null)`,
-        [applicationId, fullName, fullName, t.nationality.trim().toUpperCase()],
+         values ($1,$2,'',$3,null,$4,null,null,$5::date,null,null)`,
+        [applicationId, fullName, fullName, t.nationality.trim().toUpperCase(), process.env.VERCEL_ENV==="preview"&&process.env.VERCEL_GIT_COMMIT_REF==="codex/phase2c-document-intelligence-20261126"?t.passportExpiryDate??null:null],
       );
 
       // Document records (blobs are already in storage).

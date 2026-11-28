@@ -1,6 +1,6 @@
 /** Preview qualification: retained document checks only; no database or external calls. */
 import assert from "node:assert/strict";
-import {passportValidity,photoRatioDifference,duplicateGroups,imageSignals,documentKind,visualIssues,signatureKind,expectedSignature,differenceHash,probablySimilar,expiryAssessment,minimumPassportExpiry,passportMeetsPolicy,guardTechnical,classifyVisual,documentLayout,guardStatus,blankPdfPage,pdfPagePlan,pdfPageIssues,type GuardImage} from "../src/lib/document-intelligence";
+import {passportValidity,photoRatioDifference,duplicateGroups,imageSignals,documentKind,visualIssues,signatureKind,expectedSignature,differenceHash,probablySimilar,expiryAssessment,minimumPassportExpiry,passportMeetsPolicy,guardTechnical,classifyVisual,documentLayout,guardStatus,blankPdfPage,pdfPagePlan,pdfPageIssues,analyseGuardPixels,type GuardImage} from "../src/lib/document-intelligence";
 assert.equal(passportValidity("2032-04-15","2032-04-01"),14);
 assert.equal(passportValidity("2032-04-01","2032-04-01"),0);
 assert.equal(passportValidity("2032-03-31","2032-04-01"),-1);
@@ -82,3 +82,10 @@ assert.equal(visualIssues("photo",{...portrait,faceSharpness:40}).includes("blur
 assert.equal(visualIssues("photo",{...portrait,faceSharpness:5}).includes("blur"),true);
 assert.equal(visualIssues("bank",{...portrait,isPdfPage:true,signals:{...portrait.signals,width:150,height:150}}).includes("lowResolution"),false);
 console.log("[phase2c] R11 review states, PDF sampling and conservative sharpness PASS (17 assertions)");
+
+const workerSample=analyseGuardPixels({pixels:new Uint8ClampedArray(64*64*4).fill(255),w:64,h:64,originalWidth:640,originalHeight:640,fingerprint:"0".repeat(64),faces:[]});
+assert.equal(workerSample.signals.width,640);
+assert.equal(workerSample.layout?.textRows,0);
+assert.equal(guardTechnical("pdfProtected"),true);
+assert.equal(guardStatus(["pdfProtected"]),"invalid");
+console.log("[phase2c] Worker analysis and protected PDF gate PASS (4 assertions)");

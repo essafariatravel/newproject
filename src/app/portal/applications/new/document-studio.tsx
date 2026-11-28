@@ -296,7 +296,7 @@ export function PassportValiditySummary({locale,today,departure,value}:{locale:L
  const t=guardCopy[locale],a=expiryAssessment(value,today,departure);
  const message=a.state==="missing"?t.missing:a.state==="invalid"?t.invalid:a.state==="expired"?t.expired:a.state==="insufficient"?t.insufficient:t.valid;
  const format=(v:string)=>new Intl.DateTimeFormat(locale,{day:"2-digit",month:"2-digit",year:"numeric",timeZone:"UTC",calendar:"gregory"}).format(new Date(v+"T00:00:00Z"));
- return <div className="di-validity-result" data-risk={a.state!=="valid"} role="status"><strong>{message}</strong>{a.minimum?<small>{t.minimum}: <bdi>{format(a.minimum)}</bdi> · {t.rules}</small>:null}</div>
+ return <div className="di-validity-result" data-risk={a.state!=="valid"} role="status"><strong>{message}</strong>{value&&a.days!==null?<small>{t.expiry}: <bdi>{format(value)}</bdi></small>:null}{a.minimum?<small>{t.minimum}: <bdi>{format(a.minimum)}</bdi> · {t.rules}</small>:null}</div>
 }
 export function GuardSummary({locale,checking,issues,onFix}:{locale:Locale;checking:boolean;issues:{id?:string;name:string;messages:string[]}[];onFix?:(id?:string)=>void}){
  const t=guardCopy[locale];

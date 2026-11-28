@@ -1,7 +1,8 @@
 "use client";
-import {documentKind,visualIssues,signatureKind,expectedSignature,differenceHash,probablySimilar,imageSignals,documentLayout,pdfPageIssues,blankPdfPage,classifyVisual,type GuardIssue,type GuardImage,type FaceBox} from "./document-intelligence";
+import {documentKind,visualIssues,signatureKind,expectedSignature,differenceHash,probablySimilar,pdfPageIssues,blankPdfPage,classifyVisual,type GuardIssue,type GuardImage,type FaceBox} from "./document-intelligence";
 import {localFaces} from "./document-face-local";
 import {inspectPdf,type PdfReport} from "./document-pdf-local";
+import {analyseInWorker} from "./document-analysis-worker-client";
 type Requirement={documentTypeId:string;code:string;name:string};
 type NativeFace={boundingBox:{x:number;y:number;width:number;height:number}};
 type FaceApi=new(options:{maxDetectedFaces:number;fastMode:boolean})=>{detect:(source:HTMLCanvasElement)=>Promise<NativeFace[]>};
@@ -20,15 +21,13 @@ async function analyseCanvas(c:HTMLCanvasElement,originalWidth=c.width,originalH
  const w=c.width,h=c.height,ctx=c.getContext("2d",{willReadFrequently:true});if(!ctx)throw Error("Canvas unavailable");
  const tiny=canvas(9,8);
  try{
- const pixels=ctx.getImageData(0,0,w,h).data,signals=imageSignals(pixels,w,h,originalWidth,originalHeight);
+ const pixels=ctx.getImageData(0,0,w,h).data;
  tiny.ctx.drawImage(c,0,0,9,8);const t=tiny.ctx.getImageData(0,0,9,8).data;
  const fingerprint=differenceHash(Array.from({length:72},(_,i)=>.299*t[i*4]!+.587*t[i*4+1]!+.114*t[i*4+2]!));
- let n=0,sum=0,sq=0;for(let y=0;y<h;y++)for(let x=0;x<w;x++){if(y>h*.12||!(x<w*.14||x>w*.86))continue;const i=(y*w+x)*4,v=.299*pixels[i]!+.587*pixels[i+1]!+.114*pixels[i+2]!;n++;sum+=v;sq+=v*v}
- const edgeVariation=n?Math.sqrt(Math.max(0,sq/n-(sum/n)**2)):0;
- const detected=blankPdfPage(signals)?[]:await faces(c);
- const f=detected?.length===1?detected[0]:undefined;let faceSharpness:number|undefined;
- if(f){const x=Math.max(0,Math.floor(f.x*w)),y=Math.max(0,Math.floor(f.y*h)),fw=Math.min(w-x,Math.floor(f.width*w)),fh=Math.min(h-y,Math.floor(f.height*h));if(fw>=12&&fh>=12)faceSharpness=imageSignals(ctx.getImageData(x,y,fw,fh).data,fw,fh).sharpness}
- return {signals,fingerprint,edgeVariation,faces:detected,layout:documentLayout(pixels,w,h,detected),faceSharpness};
+ // Cheap white-page screen avoids unnecessary face inference; final metrics run in the worker.
+ let white=true;for(let i=0;i<t.length;i+=4){if(Math.min(t[i]!,t[i+1]!,t[i+2]!)<245){white=false;break}}
+ const detected=white?[]:await faces(c);
+ return await analyseInWorker({pixels,w,h,originalWidth,originalHeight,fingerprint,faces:detected});
  }finally{tiny.c.width=tiny.c.height=0}
 }
 async function visual(file:File):Promise<GuardImage>{

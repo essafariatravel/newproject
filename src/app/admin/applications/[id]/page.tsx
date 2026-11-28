@@ -185,7 +185,7 @@ export default async function AdminApplicationDetailPage({
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Applicant")}</p>
                   <p className="mt-1 font-semibold text-navy-900">{applicant?.fullName || `${applicant?.firstName ?? ""} ${applicant?.lastName ?? ""}`.trim() || "—"}</p>
-                  <p className="text-xs text-slate-500">{ct("Nationality")}: {applicant ? nationalityLabel(applicant.nationality, uiLocale) : "—"}</p>
+                  <p className="text-xs text-slate-500">{ct("Nationality")}: {applicant ? nationalityLabel(applicant.nationality, uiLocale) : "—"}</p>{process.env.VERCEL_ENV==="preview"&&process.env.VERCEL_GIT_COMMIT_REF==="codex/phase2c-document-intelligence-20261126"&&applicant?.passportExpiryDate?<p className="text-xs text-slate-500">{({fr:"Expiration du passeport (déclarée)",en:"Passport expiry (declared)",ar:"انتهاء جواز السفر (مصرح به)"}[uiLocale])}: <bdi>{new Intl.DateTimeFormat(uiLocale,{day:"2-digit",month:"2-digit",year:"numeric",timeZone:"UTC",calendar:"gregory"}).format(new Date(String(applicant.passportExpiryDate).slice(0,10)+"T00:00:00Z"))}</bdi></p>:null}
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ct("Agency")}</p>

@@ -73,7 +73,7 @@ export async function POST(request: Request) {
       .where(and(eq(applications.idempotencyKey, input.attempt), eq(applications.agencyId, actor.agencyId)));
     if(!existing&&process.env.VERCEL_ENV==="preview"&&process.env.VERCEL_GIT_COMMIT_REF==="codex/phase2c-document-intelligence-20261126"&&!passportMeetsPolicy(input.passportExpiry??"",algeriaToday(),input.departureEstimate??""))throw new AppError("PASSPORT_VALIDITY","At least seven calendar months of passport validity are required.");
     const committedId = existing?.id ?? (await submitVisaRequest({ actor, idempotencyKey: input.attempt, countryId: input.countryId,
-      visaTypeId: input.visaTypeId, expectedFee: input.expectedFee, expectedCatalogue:input.expectedCatalogue, agencyNotes: input.notes, travellers: [{ fullName: input.fullName, nationality: input.nationality }],
+      visaTypeId: input.visaTypeId, expectedFee: input.expectedFee, expectedCatalogue:input.expectedCatalogue, agencyNotes: input.notes, travellers: [{ fullName: input.fullName, nationality: input.nationality, ...(process.env.VERCEL_ENV==="preview"&&process.env.VERCEL_GIT_COMMIT_REF==="codex/phase2c-document-intelligence-20261126"?{passportExpiryDate:input.passportExpiry}:{}) }],
       documents: await resolveRequestUploads(actor, input.attempt, input.visaTypeId, input.tokens) })).applicationId;
     await clearRequestUploads(actor, input.attempt).catch(() => {});
     return committedId;
