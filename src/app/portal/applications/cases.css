@@ -314,3 +314,7 @@ html[lang="ar"] .workspace-agency.workspace-agency:has(.essafaria-cases){font-fa
 @media(max-width:767px){.smart-focus-bar>div{display:grid;gap:4px}.case-range-grid button{min-height:44px}}
 
 .fluid-case-list[data-density="compact"] .case-row td{height:56px;padding-block:6px}.fluid-case-list[data-density="compact"] .case-mobile-record{padding-block:10px}
+
+/* Native dialogs must not render after dismissal, including nested decision previews. */
+.essafaria-cases :is(.case-quick-dialog,.case-viewer-dialog):not([open]){display:none!important}
+.essafaria-cases .case-quick-dialog .case-dialog-header{position:sticky;inset-block-start:0;background:white;z-index:1}
