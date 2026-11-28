@@ -8,7 +8,7 @@ import {AppError,type AuthUser} from "@/lib/types";
 import {fileNameProblem} from "@/lib/filename";
 import {validateDocumentFormat} from "@/lib/upload-validation";
 import {sha256Hex,assertStoredFileIntegrity} from "@/lib/file-integrity";
-import {vaultEnabled,uuid,personalCode,canonicalPersonalCode,passportKey,civilDate,nameKey,autoEligible,type ReuseFile} from "./traveller-hub-policy";
+import {vaultEnabled,uuid,personalCode,canonicalPersonalCode,vaultStorageFits,passportKey,civilDate,nameKey,autoEligible,type ReuseFile} from "./traveller-hub-policy";
 import {algeriaToday} from "./travel-deadline";
 type Actor=AuthUser&{agencyId:string};
 function authorize(u:Actor,write=false){if(!vaultEnabled()||!uuid(u.agencyId)||u.mustChangePassword||u.userStatus!=="ACTIVE"||u.agencyStatus!=="ACTIVE"||!["AGENCY_ADMIN","AGENCY_USER"].includes(u.role)||!hasPermission(u,"applicants.view.all")||!hasPermission(u,"documents.view.all")||(write&&(!hasPermission(u,"documents.upload.own")||!hasPermission(u,"applications.create"))))throw new AppError("FORBIDDEN","Vault access denied");return u.agencyId}
@@ -39,9 +39,9 @@ export async function vaultSave(user:Actor,id:string,typeId:string,version:numbe
  const sha=sha256Hex(file.data);
  const prior=await c.query<{id:string;version:number;sha256:string;issued_at:string|null;identity_passport:string;identity_expiry:string;identity_name:string;identity_nationality:string}>(`select id,version,sha256,issued_at::text,identity_passport,identity_expiry::text,identity_name,identity_nationality from ${qt("traveller_vault_files")} where agency_id=$1 and profile_id=$2 and type_id=$3 order by version desc limit 1`,[agency,id,typeId]);
  const old=prior.rows[0];if(old&&old.sha256===sha&&old.issued_at===date&&old.identity_passport===passportKey(a.passport_number)&&old.identity_expiry===a.passport_expiry&&old.identity_name===a.full_name&&old.identity_nationality===a.nationality){await c.query("commit");return old.id}
- // Bound Preview storage and history; do not silently delete any version.
- await c.query("select pg_advisory_xact_lock(hashtextextended($1,0))",["traveller-vault-budget"]);const budget=await c.query<{n:number}>(`select coalesce(sum(size_bytes),0)::int n from ${qt("traveller_vault_files")}`);if((budget.rows[0]?.n??0)+file.data.length>20*1024*1024)throw new AppError("VALIDATION","Preview vault budget reached");
- const cap=await c.query<{n:number}>(`select count(*)::int n from ${qt("traveller_vault_files")} where agency_id=$1 and profile_id=$2`,[agency,id]);if((cap.rows[0]?.n??0)>=50)throw new AppError("VALIDATION","Vault limit reached");
+ // Bound storage and history in both environments; do not silently delete any version.
+ await c.query("select pg_advisory_xact_lock(hashtextextended($1,0))",["traveller-vault-budget"]);const budget=await c.query<{global:string;agency:string;database:string}>(`select coalesce(sum(size_bytes),0)::text "global",coalesce(sum(size_bytes) filter(where agency_id=$1),0)::text agency,pg_database_size(current_database())::text "database" from ${qt("traveller_vault_files")}`,[agency]);const usage=budget.rows[0];if(!usage||!vaultStorageFits({global:Number(usage.global),agency:Number(usage.agency),database:Number(usage.database)},file.data.length))throw new AppError("VAULT_CAPACITY","Vault storage capacity reached");
+ const cap=await c.query<{n:number}>(`select count(*)::int n from ${qt("traveller_vault_files")} where agency_id=$1 and profile_id=$2`,[agency,id]);if((cap.rows[0]?.n??0)>=50)throw new AppError("VAULT_CAPACITY","Vault limit reached");
  const result=await c.query<{id:string}>(`insert into ${qt("traveller_vault_files")}(agency_id,profile_id,type_id,version,original_filename,mime_type,size_bytes,sha256,data,issued_at,identity_name,identity_nationality,identity_passport,identity_expiry) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::date,$11,$12,$13,$14::date) returning id`,[agency,id,typeId,(old?.version??0)+1,file.name,file.type,file.data.length,sha,file.data,date,a.full_name,a.nationality,passportKey(a.passport_number),a.passport_expiry]);
  const key=result.rows[0]!.id;await recordAuditPg(c,{actor,agencyId:agency,action:"TRAVELLER_VAULT_SAVED",entity:"traveller_vault",entityId:key,metadata:{profileId:id,typeId}});await c.query("commit");return key;
  }catch(e){await c.query("rollback");throw e}finally{c.release()}
