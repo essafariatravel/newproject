@@ -17,7 +17,7 @@ export async function changeTravellerLifecycle(user:Actor,input:{id:string;versi
  if(input.action==="merge"){
  const source=r.rows.find(x=>x.id===input.sourceId);if(!source||source.archived_at||target.archived_at||source.version!==input.sourceVersion||!canConsolidate(target,source))throw new AppError("TRAVELLER_CHANGED","Insufficient corroboration");
  // No merge when independent source documents or prior merged aliases exist; preserve every version and historical trail.
- const protectedSource=await c.query(`select 1 from ${qt("traveller_vault_files")} where agency_id=$1 and profile_id=$2 union all select 1 from ${qt("traveller_profiles")} where agency_id=$1 and merged_into=$2 limit 1`,[agency,source.id]);if(protectedSource.rowCount)throw new AppError("TRAVELLER_CHANGED","Source has independent records");
+ const protectedSource=await c.query(`select 1 from ${qt("traveller_vault_files")} where agency_id=$1 and profile_id=$2 union all select 1 from ${qt("traveller_profiles")} where agency_id=$1 and merged_into=$2 union all select 1 from ${qt("traveller_visa_dates")} where agency_id=$1 and profile_id=$2 limit 1`,[agency,source.id]);if(protectedSource.rowCount)throw new AppError("TRAVELLER_CHANGED","Source has independent records");
  await c.query(`update ${qt("traveller_profile_links")} set profile_id=$3 where agency_id=$1 and profile_id=$2`,[agency,source.id,target.id]);
  await c.query(`update ${qt("traveller_profiles")} set archived_at=now(),merged_into=$3,version=version+1,updated_at=now() where agency_id=$1 and id=$2`,[agency,source.id,target.id]);
  await c.query(`update ${qt("traveller_profiles")} set version=version+1,updated_at=now() where agency_id=$1 and id=$2`,[agency,target.id]);

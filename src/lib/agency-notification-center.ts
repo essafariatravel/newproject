@@ -16,10 +16,12 @@ export async function listAgencyNotifications(userId: string, limit: number, fil
   const table = (name: string) => sql.raw(qualifiedTable(name));
   if (filter === "messages") conditions.push(eq(notifications.type, "MESSAGE_POSTED"));
   if (filter === "wallet") conditions.push(sql`(${notifications.type} like '%WALLET%' or ${notifications.type} = 'TOPUP_REQUESTED')`);
-  if (filter === "applications") conditions.push(sql`(${notifications.applicationId} is not null or ${notifications.type} like 'TRAVELLER_PASSPORT_%') and ${notifications.type} <> 'MESSAGE_POSTED' and ${notifications.type} not like '%WALLET%'`);
+  if (filter === "applications") conditions.push(sql`(${notifications.applicationId} is not null or ${notifications.type} like 'TRAVELLER_PASSPORT_%' or ${notifications.type} like 'TRAVELLER_VISA_%') and ${notifications.type} <> 'MESSAGE_POSTED' and ${notifications.type} not like '%WALLET%'`);
   // Agency action projection: the request must still be open, or the latest public message awaits a reply.
   const renewalAction=hubEnabled()?sql`(${notifications.type} like 'TRAVELLER_PASSPORT_%' and exists(select 1 from ${table("traveller_renewal_events")} e join ${table("traveller_profiles")} p on p.id=e.profile_id and p.agency_id=e.agency_id where e.notification_id=${notifications.id} and e.agency_id=${options.agencyId} and e.user_id=${userId} and ${vaultEnabled()?sql`p.archived_at is null`:sql`true`} and p.passport_expiry=e.expiry and p.passport_expiry<((now() at time zone 'Africa/Algiers')::date+interval '7 months')::date and e.stage=case when p.passport_expiry<=(now() at time zone 'Africa/Algiers')::date then 'EXPIRED' when p.passport_expiry<=(now() at time zone 'Africa/Algiers')::date+30 then 'URGENT' else 'RENEW' end))`:sql`false`;
+  const visaAction=vaultEnabled()?sql`(${notifications.type} like 'TRAVELLER_VISA_%' and exists(select 1 from ${table("traveller_visa_renewal_events")} e join ${table("traveller_visa_dates")} v on v.document_id=e.document_id join ${table("traveller_profiles")} p on p.id=v.profile_id and p.agency_id=v.agency_id and p.archived_at is null where e.notification_id=${notifications.id} and e.user_id=${userId} and v.agency_id=${options.agencyId} and v.valid_until=e.expiry and v.valid_until<=(now() at time zone 'Africa/Algiers')::date+30 and e.stage=case when v.valid_until<(now() at time zone 'Africa/Algiers')::date then 'EXPIRED' else 'URGENT' end))`:sql`false`;
   const actionCondition=sql`(
+    ${visaAction} or
     ${renewalAction} or
     (${notifications.type} in ('DOCUMENT_REQUESTED','DOCUMENT_REJECTED','RESUBMISSION_REQUIRED') and exists (
       select 1 from ${table("applications")} dossier join ${table("statuses")} state on state.id=dossier.status_id
