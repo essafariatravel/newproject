@@ -758,3 +758,33 @@ html[lang="ar"] .workspace-agency.workspace-agency.workspace-agency.workspace-ag
 @media(min-width:761px){.td-no-vault .td-row{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(60px,.42fr) minmax(0,1.1fr) 76px}}
 @media(max-width:760px){.td-no-vault .td-row.td-record{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.td-directory .td-actions .td-icon-action{width:36px;height:36px}}
 .td-directory .td-search-main>input:focus-visible{outline:none!important}.td-directory .td-search:focus-within{outline:2px solid #24486d;outline-offset:2px}
+
+
+/* Smart Wallet 4.0 — capacity and funding controls. */
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .wallet-capacity {
+  border-block:1px solid var(--one-rule);color:var(--one-ink);
+  min-width:0;font-size:var(--one-secondary);
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .wallet-capacity summary {
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 16px;
+  min-height:48px;cursor:pointer;padding-block:10px;list-style:none;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .wallet-capacity summary::-webkit-details-marker {display:none;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .wallet-capacity summary>span {display:inline-flex;align-items:center;gap:10px;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .wallet-capacity summary>span::before {content:"";display:block;width:7px;height:7px;border-inline-end:1.5px solid currentColor;border-block-end:1.5px solid currentColor;transform:rotate(-45deg);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .wallet-capacity[dir="rtl"] summary>span::before,[dir="rtl"] .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .wallet-capacity summary>span::before {transform:rotate(135deg);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .wallet-capacity[open] summary>span::before {transform:rotate(45deg);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .wallet-capacity summary strong {font-weight:500;font-variant-numeric:tabular-nums;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .wallet-capacity>div {display:grid;gap:10px;padding-block:0 16px;max-width:100%;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .wallet-capacity>div p {display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .wallet-capacity>div small {font-size:var(--one-secondary);color:var(--one-muted);line-height:1.5;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .wallet-capacity bdi {font-variant-numeric:tabular-nums;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main dialog.wallet-drawer {max-width:100vw;overscroll-behavior:contain;border-radius:0;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .wallet-drawer .wallet-close {min-width:44px;min-height:44px;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .wallet-drawer-body {overflow-wrap:anywhere;}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .wallet-drawer-body>a.btn-secondary {display:inline-flex;align-items:center;gap:8px;min-height:44px;margin-block:8px;}
+@media(max-width:767px) {
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .wallet-capacity summary {align-items:flex-start;flex-direction:column;}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .wallet-capacity summary strong {padding-inline-start:17px;}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main dialog.wallet-drawer {width:100vw;max-width:100vw;}
+}
