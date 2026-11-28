@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  assessRegistrationPhone, isRegistrationEmail, registrationCallingCode, registrationProblems, suggestRegistrationEmail,
+  assessRegistrationPhone, isRegistrationEmail, normalizeRegistrationName, registrationCallingCode, registrationPhoneEntry,
+  registrationProblems, suggestRegistrationEmail,
 } from "@/lib/registration-contact";
 import type { RegistrationDraft } from "@/lib/registration-draft";
 
@@ -39,5 +40,25 @@ describe("guided public registration validation", () => {
   it("requires the two name fields separately and accepts a valid draft", () => {
     expect(registrationProblems(draft)).toEqual({});
     expect(registrationProblems({ ...draft, contactLastName: " " })).toEqual({ contactLastName: "required" });
+  });
+
+  it("only accepts letters and internal name separators in the contact names", () => {
+    for (const name of ["123", "Lina2", "Amine@", "👤", "-Lina", "Anne--Marie", "O''Neil"]) {
+      expect(registrationProblems({ ...draft, contactFirstName: name, contactLastName: name })).toMatchObject({
+        contactFirstName: "invalidName", contactLastName: "invalidName",
+      });
+    }
+    expect(registrationProblems({ ...draft, legalName: "Voyages 24", contactFirstName: "Anne-Marie", contactLastName: "O’Neil" })).toEqual({});
+    expect(registrationProblems({ ...draft, contactFirstName: "أمينة", contactLastName: "بن يحيى" })).toEqual({});
+    expect(normalizeRegistrationName("  E\u0301lodie\u00a0  Anne ")).toBe("Élodie Anne");
+  });
+
+  it("limits the visible phone entry while retaining valid formatted numbers", () => {
+    expect(registrationPhoneEntry("٥٥٠ ١٢", "DZ")).toEqual({ country: "DZ", national: "55012" });
+    expect(registrationPhoneEntry("550123456", "DZ")).toEqual({ country: "DZ", national: "550123456" });
+    expect(registrationPhoneEntry("5501234567", "DZ")).toBeUndefined();
+    expect(registrationPhoneEntry("5501a23456", "DZ")).toBeUndefined();
+    expect(registrationPhoneEntry("0550123456", "DZ")).toEqual({ country: "DZ", national: "550123456" });
+    expect(registrationPhoneEntry("0033 6 12 34 56 78", "DZ")).toEqual({ country: "FR", national: "612345678" });
   });
 });

@@ -46,10 +46,12 @@ export function suggestRegistrationEmail(value: string) {
   return isRegistrationEmail(suggestion) ? suggestion : undefined;
 }
 
-export function registrationPhoneDigits(value: string) {
-  return value.normalize("NFKC").replace(/[\u0660-\u0669\u06F0-\u06F9]/g, digit =>
-    String(digit.charCodeAt(0) - (digit.charCodeAt(0) < 0x6f0 ? 0x660 : 0x6f0)),
-  );
+function compactRegistrationPhone(value: string) {
+  return value.normalize("NFKC")
+    .replace(/[\u0660-\u0669\u06F0-\u06F9]/g, digit =>
+      String(digit.charCodeAt(0) - (digit.charCodeAt(0) < 0x6f0 ? 0x660 : 0x6f0)),
+    )
+    .replace(/[\s().-]/g, "");
 }
 
 type ValidPhone = { status: "valid"; country: CountryCode; national: string; e164: string };
@@ -58,7 +60,7 @@ const phoneProblems = { empty: "required", length: "phoneLength", invalid: "inva
 
 export function assessRegistrationPhone(value: string, selected: string): PhoneAssessment {
   if (!value.trim()) return { status: "empty" };
-  const compact = registrationPhoneDigits(value).replace(/[\s().-]/g, "").replace(/^00/, "+");
+  const compact = compactRegistrationPhone(value).replace(/^00/, "+");
   if (value.length > 40 || !/^\+?\d+$/.test(compact)) return { status: "invalid" };
 
   const international = compact.startsWith("+");
@@ -75,17 +77,40 @@ export function assessRegistrationPhone(value: string, selected: string): PhoneA
   return { status: "valid", country: parsed.country, national: parsed.nationalNumber, e164: parsed.number };
 }
 
-export type RegistrationProblem = "required" | "tooShort" | "tooLong" | "invalidEmail" | "phoneCountry" | "phoneLength" | "invalidPhone";
+export function registrationPhoneEntry(value: string, country: string) {
+  const digits = compactRegistrationPhone(value);
+  if (digits.length <= REGISTRATION_PHONE_DIGITS && /^\d*$/.test(digits)) {
+    return { country, national: digits };
+  }
+  const complete = assessRegistrationPhone(value, country);
+  if (complete.status === "valid") return { country: complete.country, national: complete.national };
+}
+
+export function normalizeRegistrationName(value: string) {
+  return value.normalize("NFC").trim().replace(/[ \u00a0\u202f]+/g, " ");
+}
+
+const personName = /^\p{L}[\p{L}\p{M}]*(?:[ '’‐‑-]\p{L}[\p{L}\p{M}]*)*$/u;
+
+export function hasInvalidRegistrationNameCharacters(value: string) {
+  return /[^\p{L}\p{M} '’‐‑-]/u.test(normalizeRegistrationName(value));
+}
+
+export type RegistrationProblem = "required" | "tooShort" | "tooLong" | "invalidName" | "invalidEmail" | "phoneCountry" | "phoneLength" | "invalidPhone";
 export type RegistrationProblems = Partial<Record<RegistrationField, RegistrationProblem>>;
 
 export function registrationProblems(draft: RegistrationDraft, phone = assessRegistrationPhone(draft.phone, draft.phoneCountry)): RegistrationProblems {
   const errors: RegistrationProblems = {};
-  const names = [["legalName", 160, 2], ["contactFirstName", 160, 2], ["contactLastName", 80, 1]] as const;
-  for (const [field, max, min] of names) {
-    const length = draft[field].trim().length;
-    if (!length) errors[field] = "required";
-    else if (length < min) errors[field] = "tooShort";
-    else if (length > max) errors[field] = "tooLong";
+  const names = [
+    ["legalName", draft.legalName.trim(), 160, 2],
+    ["contactFirstName", normalizeRegistrationName(draft.contactFirstName), 160, 2],
+    ["contactLastName", normalizeRegistrationName(draft.contactLastName), 80, 1],
+  ] as const;
+  for (const [field, value, max, min] of names) {
+    if (!value) errors[field] = "required";
+    else if (value.length > max) errors[field] = "tooLong";
+    else if (field !== "legalName" && !personName.test(value)) errors[field] = "invalidName";
+    else if (value.length < min) errors[field] = "tooShort";
   }
   if (draft.city.trim().length > 80) errors.city = "tooLong";
   if (!draft.email.trim()) errors.email = "required";

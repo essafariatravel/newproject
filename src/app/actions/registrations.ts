@@ -27,7 +27,7 @@ import { safeErrorCode } from "@/lib/safe-error";
 import { assertPublicBotProtection, publicClientIp } from "@/lib/bot-protection";
 import { botProtectionError } from "@/lib/bot-protection-copy";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
-import { assessRegistrationPhone, normalizeRegistrationEmail, registrationProblems } from "@/lib/registration-contact";
+import { assessRegistrationPhone, normalizeRegistrationEmail, normalizeRegistrationName, registrationProblems } from "@/lib/registration-contact";
 import { registrationFields, type RegistrationDraft } from "@/lib/registration-draft";
 import { registrationProblemText } from "@/app/(public)/agency/register/registration-ui";
 
@@ -115,8 +115,8 @@ export async function submitRegistrationAction(
   const schema = registrationFormSchema(copy.errors);
   const parsed = schema.safeParse({
     legalName: draft.legalName,
-    contactFirstName: draft.contactFirstName,
-    contactLastName: draft.contactLastName,
+    contactFirstName: normalizeRegistrationName(draft.contactFirstName),
+    contactLastName: normalizeRegistrationName(draft.contactLastName),
     city: draft.city,
     phone: phone.status === "valid" ? phone.e164 : undefined,
     email: normalizeRegistrationEmail(draft.email),

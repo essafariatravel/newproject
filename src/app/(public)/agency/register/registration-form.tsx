@@ -8,8 +8,8 @@ import { TurnstileField, useProtectedAction } from "@/components/turnstile-field
 import { botProtectionCopy } from "@/lib/bot-protection-copy";
 import type { RegistrationCopy, RegistrationLocale } from "@/lib/i18n";
 import {
-  assessRegistrationPhone, normalizeRegistrationEmail,
-  registrationPhoneDigits, registrationProblems, suggestRegistrationEmail,
+  assessRegistrationPhone, hasInvalidRegistrationNameCharacters, normalizeRegistrationEmail, normalizeRegistrationName,
+  registrationPhoneEntry, registrationProblems, suggestRegistrationEmail,
 } from "@/lib/registration-contact";
 import { DEFAULT_REGISTRATION_PHONE_COUNTRY, registrationFields, type RegistrationDraft, type RegistrationField } from "@/lib/registration-draft";
 import type { TurnstilePublicConfig } from "@/lib/turnstile-config";
@@ -41,12 +41,14 @@ function TextField({ name, label, optional, error, note, autoComplete, maxLength
   type?: "text" | "email";
 }) {
   const feedback = "reg-" + name + "-feedback";
+  const contactName = name === "contactFirstName" || name === "contactLastName";
   return <div>
     <label htmlFor={"reg-" + name}>{label}{optional
       ? <span className="registration-optional">{optional}</span>
       : <span aria-hidden="true" className="registration-mark"> *</span>}</label>
     <input id={"reg-" + name} name={name} type={type} autoComplete={autoComplete} maxLength={maxLength}
-      dir={type === "email" ? "ltr" : undefined} className="registration-input"
+      dir={type === "email" ? "ltr" : contactName ? "auto" : undefined} className="registration-input"
+      autoCapitalize={contactName ? "words" : undefined} spellCheck={contactName ? false : undefined}
       required={!optional} aria-invalid={Boolean(error)} aria-describedby={error || note ? feedback : undefined} />
     <FieldMessage id={feedback} error={error} note={note} />
   </div>;
@@ -123,8 +125,10 @@ export default function RegistrationForm({ locale, copy, phoneOptions, botConfig
   }
 
   function errorFor(name: FieldName) {
-    const problem = problems[name as RegistrationField];
-    if (problem && touched.has(name)) return registrationProblemText(locale, copy.errors, problem);
+    const field = name as RegistrationField;
+    const problem = problems[field];
+    const invalidCharacters = problem === "invalidName" && hasInvalidRegistrationNameCharacters(draft[field]);
+    if (problem && (invalidCharacters || touched.has(name))) return registrationProblemText(locale, copy.errors, problem);
     if (invalidConsents.has(name as ConsentName)) return copy.errors.consentRequired;
     return edited ? undefined : state.fieldErrors?.[name];
   }
@@ -163,18 +167,41 @@ export default function RegistrationForm({ locale, copy, phoneOptions, botConfig
     if (accuracy instanceof HTMLInputElement) accuracy.checked = false;
   }
 
-  function setPhoneFromPaste(form: HTMLFormElement, input: HTMLInputElement) {
-    const digits = registrationPhoneDigits(input.value);
-    if (digits !== input.value) input.value = digits;
-    if (!/^(?:\+|00)/.test(input.value.trim())) return;
+  function acceptPhoneEdit(form: HTMLFormElement, input: HTMLInputElement, pasted?: string) {
     const country = form.elements.namedItem("phoneCountry");
-    if (!(country instanceof HTMLSelectElement)) return;
-    const result = assessRegistrationPhone(input.value, country.value);
-    if (result.status === "valid") {
-      country.value = result.country;
-      input.value = result.national;
+    if (!(country instanceof HTMLSelectElement)) return false;
+    let value = input.value;
+    let cursor = input.selectionStart ?? value.length;
+    if (pasted !== undefined) {
+      const complete = assessRegistrationPhone(pasted, country.value);
+      if (complete.status === "valid") {
+        value = complete.national;
+        country.value = complete.country;
+        cursor = value.length;
+      } else {
+        value = value.slice(0, cursor) + pasted + value.slice(input.selectionEnd ?? cursor);
+        cursor += pasted.length;
+      }
+    }
+    const entry = registrationPhoneEntry(value, country.value);
+    const displayed = entry?.national ?? draft.phone;
+    if (input.value !== displayed) {
+      input.value = displayed;
+      const position = Math.min(displayed.length, Math.max(0, cursor - (value.length - displayed.length)));
+      input.setSelectionRange(position, position);
+    }
+    if (!entry) return false;
+    country.value = entry.country;
+    if (entry.country !== draft.phoneCountry) {
       markTouched(["phone", "phoneCountry"]);
     }
+    return true;
+  }
+
+  function syncEditedDraft(form: HTMLFormElement) {
+    clearAccuracy(form);
+    setDraft(readRegistrationDraft(form));
+    setEdited(true);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -207,9 +234,7 @@ export default function RegistrationForm({ locale, copy, phoneOptions, botConfig
     const input = form?.elements.namedItem("email");
     if (!form || !(input instanceof HTMLInputElement)) return;
     input.value = address;
-    clearAccuracy(form);
-    setDraft(readRegistrationDraft(form));
-    setEdited(true);
+    syncEditedDraft(form);
     input.focus();
   }
 
@@ -247,9 +272,9 @@ export default function RegistrationForm({ locale, copy, phoneOptions, botConfig
           const form = event.currentTarget;
           const name = control.name as FieldName;
           if (registrationFields.includes(name as RegistrationField)) {
-            if (name === "phone" && control instanceof HTMLInputElement) setPhoneFromPaste(form, control);
-            clearAccuracy(form);
-            setDraft(readRegistrationDraft(form));
+            if (name === "phone" && control instanceof HTMLInputElement && !acceptPhoneEdit(form, control)) return;
+            syncEditedDraft(form);
+            return;
           } else if (consentNames.includes(name as ConsentName) && control instanceof HTMLInputElement && control.checked) {
             setInvalidConsents(previous => {
               const remaining = new Set(previous);
@@ -266,10 +291,7 @@ export default function RegistrationForm({ locale, copy, phoneOptions, botConfig
           if (!registrationFields.includes(name)) return;
           const form = event.currentTarget;
           if (name === "email") control.value = normalizeRegistrationEmail(control.value);
-          if (name === "phone") {
-            const display = assessRegistrationPhone(control.value, readRegistrationDraft(form).phoneCountry);
-            if (display.status === "valid") control.value = display.national;
-          }
+          if (name === "contactFirstName" || name === "contactLastName") control.value = normalizeRegistrationName(control.value);
           markTouched([name]);
           setDraft(readRegistrationDraft(form));
         }}>
@@ -327,11 +349,18 @@ export default function RegistrationForm({ locale, copy, phoneOptions, botConfig
               <div>
                 <label htmlFor="reg-phone">{text.nationalNumber}<span aria-hidden="true" className="registration-mark"> *</span></label>
                 <input id="reg-phone" name="phone" type="tel" inputMode="numeric" autoComplete="tel-national" dir="ltr"
-                  className="registration-input" maxLength={40} required aria-invalid={Boolean(errorFor("phone"))}
-                  aria-describedby="reg-phone-feedback" />
+                  className="registration-input" required aria-invalid={Boolean(errorFor("phone"))}
+                  aria-describedby="reg-phone-feedback"
+                  onPaste={event => {
+                    const input = event.currentTarget;
+                    const form = input.form;
+                    if (!form) return;
+                    event.preventDefault();
+                    if (acceptPhoneEdit(form, input, event.clipboardData.getData("text"))) syncEditedDraft(form);
+                  }} />
               </div>
               <div className="registration-field-wide">
-                <FieldMessage id="reg-phone-feedback" error={errorFor("phoneCountry") ?? errorFor("phone")} note={text.phoneHint} />
+                <FieldMessage id="reg-phone-feedback" error={errorFor("phoneCountry") ?? errorFor("phone")} />
               </div>
             </div>
           </div>
