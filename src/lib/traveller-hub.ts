@@ -21,7 +21,7 @@ export async function directoryCounts(user:Actor,q:unknown){
  return r.rows[0]??{all:0,renew:0,unknown:0,archived:0};
 }
 export async function directory(user:Actor,q:unknown,page:unknown,filter:unknown){
- const agency=scope(user),term=normalizedQuery(q),p=pageNumber(page),f=filter==="renew"||filter==="unknown"||vaultEnabled()&&filter==="archived"?filter:"all",minimum=minimumExpiry(algeriaToday())!;
+ const agency=scope(user),term=normalizedQuery(q),p=pageNumber(page),f:"all"|"renew"|"unknown"|"archived"=filter==="renew"||filter==="unknown"||vaultEnabled()&&filter==="archived"?filter:"all",minimum=minimumExpiry(algeriaToday())!;
  const result=await pool.query<TravellerRow&{total:number}>(`with profiles as (${profileView()})
  select *,count(*) over()::int total from profiles where ${directoryMatch()} and (($3='archived' and archived_at is not null) or (archived_at is null and ($3='all' or ($3='renew' and expiry is not null and expiry<$4) or ($3='unknown' and expiry is null)))) order by activity_at desc,id desc limit 21 offset $5`,[agency,term,f,minimum,(p-1)*20]);
  return {rows:result.rows.slice(0,20),hasNext:result.rows.length>20,page:p,q:term,filter:f,total:result.rows[0]?.total??0};
