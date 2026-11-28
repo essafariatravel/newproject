@@ -756,3 +756,5 @@ html[lang="ar"] .workspace-agency.workspace-agency.workspace-agency.workspace-ag
 @media(prefers-reduced-motion:reduce){.td-record,.td-search{transition:none}}
 
 @media(min-width:761px){.td-no-vault .td-row{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(60px,.42fr) minmax(0,1.1fr) 76px}}
+@media(max-width:760px){.td-no-vault .td-row.td-record{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.td-directory .td-actions .td-icon-action{width:36px;height:36px}}
+.td-directory .td-search-main>input:focus-visible{outline:none!important}.td-directory .td-search:focus-within{outline:2px solid #24486d;outline-offset:2px}
