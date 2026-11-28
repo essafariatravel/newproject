@@ -582,13 +582,29 @@ export function RequestWizard(props: Props) {
   const missing = canAfford ? 0 : Math.max(0, feeNumber - balanceNumber);
   const topupHref = `${props.topupPath ?? "/portal/wallet"}#topup`;
 
+  // One explanation for each disabled action; no additional network or persistence.
+  const guidance = {
+    fr:{choose:"Choisissez une destination et un programme.",identity:"Renseignez le nom et la nationalité du voyageur.",reuse:"Récupération des documents du voyageur…",ready:"Vous pouvez confirmer votre demande.",readyNext:"Vous pouvez passer à l’étape suivante.",balance:"Rechargez le portefeuille pour continuer.",session:"Reconnectez-vous pour reprendre une nouvelle demande.",progress:"Vérification avant confirmation",fix:"Corriger",refresh:"Actualiser",remaining:"À compléter",keep:"Les informations et les fichiers restent dans cette page tant qu’elle est ouverte.",editFiles:"Revoir les documents",review:"Contrôles locaux terminés ; la décision appartient à ESSAFARIA et aux autorités compétentes."},
+    en:{choose:"Choose a destination and programme.",identity:"Enter the traveller’s name and nationality.",reuse:"Retrieving traveller documents…",ready:"You can confirm your application.",readyNext:"You can continue to the next step.",balance:"Top up your wallet to continue.",session:"Sign in again to start a new application.",progress:"Checks before confirmation",fix:"Correct",refresh:"Refresh",remaining:"To complete",keep:"Information and files stay on this page while it remains open.",editFiles:"Review documents",review:"Local checks complete; final review remains with ESSAFARIA and the relevant authorities."},
+    ar:{choose:"اختاروا وجهة وبرنامجاً.",identity:"أدخلوا اسم المسافر وجنسيته.",reuse:"جارٍ استرجاع وثائق المسافر…",ready:"يمكنكم تأكيد الطلب.",readyNext:"يمكنكم الانتقال إلى الخطوة التالية.",balance:"اشحنوا المحفظة للمتابعة.",session:"سجلوا الدخول مجدداً لبدء طلب جديد.",progress:"التحقق قبل التأكيد",fix:"تصحيح",refresh:"تحديث",remaining:"مطلوب استكماله",keep:"تبقى المعلومات والملفات في هذه الصفحة ما دامت مفتوحة.",editFiles:"مراجعة الوثائق",review:"اكتملت الفحوص المحلية؛ تبقى المراجعة النهائية لدى ESSAFARIA والجهات المختصة."}
+  }[props.locale];
+  const identityBlock = !countryId||!visa ? guidance.choose : !applicantReady ? guidance.identity : deadline.state==="invalid" ? ops.invalid : hubPassportBlocked ? hubText.badPassport : profileMismatch ? hubText.profileChanged : expiryBlocked ? (expiry.state==="missing"?guardText.missing:expiry.state==="invalid"?guardText.invalid:guardText.block) : "";
+  const missingRequirement = requiredDocs.find(r=>!(files[r.documentTypeId]??[]).length);
+  const documentsBlock = autoBusy ? guidance.reuse : batch.length ? assist.batchHint : props.documentIntelligence&&guard.checking ? guardText.checking : props.documentIntelligence&&technicalError ? guardText.technical : missingRequirement ? t.missingPrefix+": "+missingRequirement.name : "";
+  const paymentBlock = sessionRecovery ? guidance.session : catalogueRecovery||quoteChanged ? preflightText.changed : !reviewCheck||reviewCheck.status==="checking" ? preflightText.checking : reviewCheck.status==="unavailable" ? preflightText.unavailable : !canAfford ? guidance.balance : "";
+  const riskBlock = props.documentIntelligence&&requiresRisk&&!accepted ? guardText.ack : "";
+  const checkoutGuidance = identityBlock || documentsBlock || paymentBlock || riskBlock;
+  const nextBlock = step===1 ? identityBlock : documentsBlock;
+
   function processingLabel(v: { minDays: number; maxDays: number }): string {
     return formatProcessingDays(v.minDays,v.maxDays,props.locale);
   }
 
 
   async function submit(form: HTMLFormElement) {
-    if (step !== 3 || submittingRef.current || !reviewReady || !canAfford || catalogueRecovery || sessionRecovery || !validateStep(1) || !validateStep(2)) return;
+    if (step !== 3 || submittingRef.current) return;
+    if (checkoutGuidance) { setClientError(checkoutGuidance); return; }
+    if (!reviewReady || !canAfford || catalogueRecovery || sessionRecovery || !validateStep(1) || !validateStep(2)) return;
     if(props.documentIntelligence&&(guard.checking||technicalError||(requiresRisk&&!accepted))){setClientError(guard.checking?guardText.checking:technicalError?guardText.technical:guardText.ack);return;}
     submittingRef.current = true;
     setPending(true);
@@ -649,7 +665,7 @@ export function RequestWizard(props: Props) {
   }
 
   return (
-    <form ref={formRef} className="agency-v2-wizard booking-experience" onChange={()=>setDirty(true)} onSubmit={(event) => { event.preventDefault(); void submit(event.currentTarget); }}>
+    <form ref={formRef} className="agency-v2-wizard booking-experience" aria-busy={pending} onChange={()=>setDirty(true)} onSubmit={(event) => { event.preventDefault(); void submit(event.currentTarget); }}>
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       {countryId ? <input type="hidden" name="countryId" value={countryId} /> : null}
       <input type="hidden" name="locale" value={props.locale} />
@@ -667,7 +683,7 @@ export function RequestWizard(props: Props) {
       </ol>
 
       {props.serverError ? (
-        <p className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700">{props.serverError}</p>
+        <p role="alert" className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700">{props.serverError}</p>
       ) : null}
       {clientError ? (
         <div ref={feedbackRef} tabIndex={-1} role="alert" className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700"><p>{clientError}</p>{catalogueRecovery ? <button type="button" className="btn-secondary mt-4" onClick={() => window.location.reload()}>{contentT(props.locale)("Refresh catalogue and choose again")}</button> : null}{sessionRecovery ? <a className="btn-secondary mt-4" href="/login?reason=session-expired">{contentT(props.locale)("Sign in")}</a> : null}</div>
@@ -892,7 +908,7 @@ export function RequestWizard(props: Props) {
           {props.documentIntelligence?<PassportValidity key={pickerRevision} locale={props.locale} today={props.today??algeriaToday()} departure={departure} value={passportExpiry} onChange={v=>{clearReused();setPassportExpiry(v);setDirty(true)}} disabled={pending||step!==1}/>:null}
           <TravelDeparture locale={props.locale} today={props.today??algeriaToday()} value={departure} programme={visa} disabled={pending||step!==1} onChange={value=>{setDeparture(value);setDirty(true);if(clientError===ops.invalid)setClientError("")}}/>
           </div>
-          <details className="booking-notes"><summary>{ui.notes}</summary><label className="label sr-only" htmlFor="agencyNotes">{t.notes}</label><textarea id="agencyNotes" name="agencyNotes" rows={2} className="input mt-3" placeholder={t.notesPlaceholder} /></details>
+          <details className="booking-notes"><summary>{ui.notes}</summary><label className="label sr-only" htmlFor="agencyNotes">{t.notes}</label><textarea id="agencyNotes" name="agencyNotes" rows={2} readOnly={pending} className="input mt-3" placeholder={t.notesPlaceholder} /></details>
         </div>
         </div>
         <aside className="booking-side">
@@ -943,7 +959,7 @@ export function RequestWizard(props: Props) {
             <button type="button" className="checkout-edit" disabled={pending} onClick={()=>editStep(1)} aria-label={ui.edit+" · "+t.sectionVisa}><CheckoutIcon kind="edit"/><span>{ui.edit}</span></button>
           </div>
           <div className="checkout-traveller">
-            <div className="checkout-traveller-info" data-testid="wizard-applicant-summary"><small>{t.sectionApplicant}</small><strong>{nameDraft||"—"}</strong><span>{t.nationality}: {props.nationalities.find(n=>n.code===nationalityDraft)?.label??nationalityDraft}</span></div>
+            <div className="checkout-traveller-info" data-testid="wizard-applicant-summary"><small>{t.sectionApplicant}</small><strong><bdi>{nameDraft||"—"}</bdi></strong><span>{t.nationality}: {props.nationalities.find(n=>n.code===nationalityDraft)?.label??nationalityDraft}</span></div>
             <button type="button" className="checkout-edit" disabled={pending} onClick={()=>editStep(1)} aria-label={ui.edit+" · "+t.sectionApplicant}><CheckoutIcon kind="edit"/><span>{ui.edit}</span></button>
           </div>
           {props.documentIntelligence?<PassportValiditySummary locale={props.locale} today={props.today??algeriaToday()} departure={departure} value={passportExpiry}/>:null}
@@ -995,7 +1011,8 @@ export function RequestWizard(props: Props) {
           {expiryBlocked?<p className="booking-warning" role="alert">{guardText.block} <button type="button" className="booking-link" onClick={()=>editStep(1)}>{ui.edit}</button></p>:null}
           {props.documentIntelligence&&requiresRisk&&!expiryBlocked&&!technicalError&&!guard.checking?<label className="di-risk-ack"><input type="checkbox" checked={accepted} disabled={pending} onChange={e=>setAcceptedRisk(e.currentTarget.checked?{result:guard.result,expiry:passportExpiry,departure,visa:visaTypeId}:null)}/><span>{guardText.ack}</span></label>:null}
           {props.documentIntelligence&&technicalError?<p role="alert" className="booking-warning">{guardText.technical}</p>:null}
-          {canAfford||!reviewReady?<button type="submit" className="btn-primary w-full" disabled={pending||!reviewReady||catalogueRecovery||sessionRecovery||hubPassportBlocked||profileMismatch||Boolean(props.documentIntelligence&&(expiryBlocked||guard.checking||technicalError||(requiresRisk&&!accepted)))} data-testid="wizard-submit">{pending?t.submitting:<>{t.submitApplication} — <bdi>{visa?formatDZD(visa.fee):"—"}</bdi></>}</button>:<><p className="booking-warning">{t.insufficientTitle} · <bdi>{formatDZD(missing)}</bdi></p><a href={topupHref} className="btn-primary" data-testid="wizard-topup-cta">{t.requestTopup}</a></>}
+          {!pending?<div className="checkout-guidance" id="checkout-guidance" role="status" aria-live="polite" data-ready={!checkoutGuidance}><strong>{checkoutGuidance?guidance.remaining:guidance.ready}</strong>{checkoutGuidance?<p>{checkoutGuidance}</p>:<p>{guidance.review}</p>}{identityBlock?<button type="button" className="booking-link" onClick={()=>editStep(1)}>{guidance.fix}</button>:documentsBlock?<button type="button" className="booking-link" onClick={()=>{if(missingRequirement)selectDoc(missingRequirement.documentTypeId);editStep(2)}}>{guidance.editFiles}</button>:null}</div>:null}
+          {canAfford||!reviewReady?<button type="submit" className="btn-primary w-full" disabled={pending||Boolean(checkoutGuidance)||!reviewReady||!canAfford} aria-describedby="checkout-guidance" data-testid="wizard-submit">{pending?t.submitting:<>{t.submitApplication} — <bdi>{visa?formatDZD(visa.fee):"—"}</bdi></>}</button>:<><p className="booking-warning">{t.insufficientTitle} · <bdi>{formatDZD(missing)}</bdi></p><a href={topupHref} className="btn-primary" data-testid="wizard-topup-cta">{t.requestTopup}</a></>}
         </aside>
       </section>
 
@@ -1004,9 +1021,9 @@ export function RequestWizard(props: Props) {
         <button type="button" onClick={goBack} hidden={step===1} disabled={step === 1 || pending} className="btn-secondary">
           <span className="directional" aria-hidden>←</span> {t.back}
         </button>
-        <small aria-live="polite">{step===2?(batch.length?assist.batchHint:completedDocs<requiredDocs.length?smart.remaining+" : "+(requiredDocs.length-completedDocs):smart.ready+" · "+ux.local):step===1?ui.noDebit:""}</small>
+        <small id="wizard-step-guidance" aria-live="polite" className="wizard-step-guidance" data-ready={!nextBlock}>{step<3?(nextBlock||guidance.readyNext):""}</small>
         {step < 3 ? (
-          <button type="button" onClick={goNext} disabled={pending||autoBusy||(step===1?(!visa||!applicantReady||deadline.state==="invalid"||expiryBlocked||hubPassportBlocked||profileMismatch):completedDocs<requiredDocs.length||batch.length>0||Boolean(props.documentIntelligence&&(guard.checking||technicalError)))} className="btn-primary">
+          <button type="button" onClick={goNext} disabled={pending||autoBusy||Boolean(nextBlock)} aria-describedby="wizard-step-guidance" className="btn-primary">
             {step===1?ui.continue:ui.review} <span className="directional" aria-hidden>→</span>
           </button>
         ) : null}
@@ -1070,6 +1087,15 @@ function CheckoutThumbnail({file,active}:{file:File;active:boolean}){
   return <span className="checkout-thumb" aria-hidden="true">{image&&url?<img src={url} alt="" loading="lazy" decoding="async"/>:<span className="checkout-file-glyph"><svg viewBox="0 0 48 60" width="42" height="52" fill="none"><path d="M7 2h24l10 10v46H7z" fill="#fff" stroke="#a9b8c5" strokeWidth="1.4"/><path d="M31 2v11h10M14 23h20M14 30h20M14 37h16" stroke="#a9b8c5" strokeWidth="1.4" strokeLinecap="round"/></svg><span>{extension||"FILE"}</span></span>}</span>;
 }
 const checkoutCss = `
+/* Intelligent Checkout 4.0 — one explanation for each disabled action. */
+.booking-experience .checkout-guidance{display:grid;gap:6px;border-block-start:1px solid var(--one-rule,#e2e5e9);padding-block:14px;font-size:15px;line-height:1.5;color:var(--one-muted,#647182)}
+.booking-experience .checkout-guidance strong{color:var(--one-ink,#0b1c30);font-weight:600}
+.booking-experience .checkout-guidance[data-ready=true] strong{color:#23685c}
+.booking-experience .checkout-guidance p{margin:0;overflow-wrap:anywhere}
+.booking-experience .checkout-guidance .booking-link{justify-self:start;min-height:44px;text-decoration:underline;text-underline-offset:3px}
+.booking-experience .wizard-step-guidance{min-width:0;max-width:100%;overflow-wrap:anywhere;line-height:1.4;color:var(--one-muted,#647182);font-size:15px}
+@media(max-width:640px){.booking-experience .wizard-step-guidance{flex-basis:100%;order:-1}}
+
 .booking-experience .checkout-review{gap:14px;align-content:start}
 .booking-experience .checkout-heading{display:grid;gap:3px}
 .booking-experience .checkout-heading h2{font-size:clamp(22px,2vw,29px)!important;line-height:1.25;letter-spacing:-.025em}
