@@ -671,7 +671,7 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
  * No group row, application or charge becomes visible until every member succeeds. */
 export async function submitVisaGroup(actorInput:AuthUser,groupId:string,manifest:string,inputs:SubmitVisaRequestInput[]):Promise<SubmitVisaRequestResult[]> {
  const agencyId=actorInput.agencyId;
- if(!canAccessGroups(actorInput)||databaseSchema()!=="visa_os_preview"||!agencyId)throw new AppError("FORBIDDEN","Group unavailable");
+ if(!canAccessGroups(actorInput)||!["visa_os_preview","visa_os"].includes(databaseSchema())||!agencyId)throw new AppError("FORBIDDEN","Group unavailable");
  const input=inputs[0];if(!input||!uuid(groupId)||!/^[a-f0-9]{64}$/.test(manifest)||!groupWithinBudget(inputs.length,inputs.reduce((n,x)=>n+x.documents.length,0),inputs.reduce((n,x)=>n+x.documents.reduce((a,d)=>a+d.file.data.length,0),0))||!distinctGroupIdentities(inputs.map(x=>x.travellers[0]??{passportNumber:null}))||new Set(inputs.map(x=>x.idempotencyKey)).size!==inputs.length||inputs.some(x=>x.travellers.length!==1||x.visaTypeId!==input.visaTypeId||x.countryId!==input.countryId||x.expectedFee!==input.expectedFee||x.expectedCatalogue!==input.expectedCatalogue||!uuid(x.idempotencyKey)||!x.expectedCatalogue||x.expectedFee===undefined||!validApplicationPassport(x.travellers[0]!.passportNumber,x.travellers[0]!.passportExpiryDate,algeriaToday())))throw new AppError("VALIDATION","Invalid group");
  await db.transaction(async tx=>{await currentOperationActor(tx,actorInput)});
   const cfgRows = await db
