@@ -1,3 +1,4 @@
+import {canAccessGroups} from "@/lib/group-access";
 import {saveVisaDates} from "@/lib/traveller-visa-dates";
 import {changeTravellerLifecycle} from "@/lib/traveller-lifecycle";
 import {saveTraveller} from "@/lib/traveller-profile-write";
@@ -17,6 +18,7 @@ export async function POST(request:Request){
  const user=await requireAgencyUser();if(!hasPermission(user,"applicants.view.all"))return reply({error:"Forbidden"},403);
  const data=JSON.parse((await readRequestBodyLimited(request,2048)).toString("utf8"));
  if(data?.action!=="directorySearch"&&!hasPermission(user,"applications.create"))return reply({error:"Forbidden"},403);
+ if(data?.action==="groupDirectory"){if(!canAccessGroups(user))return reply({error:"Forbidden"},403);const q=typeof data.q==="string"?data.q.slice(0,100):"";const page=Number.isSafeInteger(data.page)&&data.page>0?Math.min(data.page,100):1;const result=await directory(user,q,page,"all");return reply({hasNext:result.hasNext,rows:result.rows.map(r=>({id:r.id,name:r.name,nationality:r.nationality,reference:r.reference,passport:maskPassport(r.passport),expiry:r.expiry}))})}
  if(data?.action==="directorySearch"){const q=safeLookupTerm(data.q);if(!q)return reply({rows:[]});const result=await directory(user,q,1,data.filter,data.sort);return reply({rows:result.rows.slice(0,6).map(r=>({id:r.id,name:r.name,nationality:r.nationality,reference:r.reference,passport:maskPassport(r.passport)}))})}
  if(data?.action==="visaDates"){const f=z.object({profileId:z.string().uuid(),documentId:z.string().uuid(),from:z.string().max(10),until:z.string().max(10),version:z.number().int().min(0)}).parse(data);await saveVisaDates(user,f);return reply({id:f.documentId});}
  if(["archive","restore","merge"].includes(data?.action)){const f=z.object({action:z.enum(["archive","restore","merge"]),id:z.string().uuid(),version:z.number().int().positive(),sourceId:z.string().uuid().optional(),sourceVersion:z.number().int().positive().optional()}).parse(data);return reply({id:await changeTravellerLifecycle(user,f)});}

@@ -162,7 +162,7 @@ export default async function NewApplicationPage({
   const groupedMode=sp.mode==="group";
   if(groupedMode&&!group)notFound();
   const modes=group?<nav className="group-mode-selector" aria-label={ct("New visa request")}><Link href="/portal/applications/new" aria-current={!groupedMode?"page":undefined}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>{groupCopy[uiLocale].single}</Link><Link href="/portal/applications/new?mode=group" aria-current={groupedMode?"page":undefined}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="9" cy="7" r="3.5"/><path d="M2 21v-2a7 7 0 0 1 14 0v2M16 4a3.5 3.5 0 0 1 0 7m2 3a6 6 0 0 1 4 5v2"/></svg>{groupCopy[uiLocale].group}</Link></nav>:null;
-  if(groupedMode)return <>{modes}<GroupWizard locale={uiLocale} today={algeriaToday()} countries={countries} nationalities={NATIONALITIES.map(n=>({code:n.code,label:nationalityLabel(n.code,uiLocale)}))} requirementsByVisaType={requirementMaps} defaultNationality={prefs.nationality} walletBalance={wallet.balance} catalogueFingerprints={catalogueFingerprints} recoveryKey={"essafaria-group-attempt:"+user.id}/></>;
+  if(groupedMode)return <><PageHeader title={ct("New visa request")}/>{modes}<GroupWizard locale={uiLocale} today={algeriaToday()} countries={countries} nationalities={NATIONALITIES.map(n=>({code:n.code,label:nationalityLabel(n.code,uiLocale)}))} requirementsByVisaType={requirementMaps} defaultNationality={prefs.nationality} walletBalance={wallet.balance} catalogueFingerprints={catalogueFingerprints} recoveryKey={"essafaria-group-attempt:"+user.id}/></>;
   return (
     <>
       <PageHeader

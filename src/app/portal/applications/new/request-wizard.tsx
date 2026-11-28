@@ -1,4 +1,5 @@
 "use client";
+import {BookingStepRail} from "./booking-step-rail";
 import { CountryFlag } from "@/components/country-flag";
 import { useAgencyPopover } from "@/components/agency-popover-controller";
 
@@ -323,7 +324,7 @@ export function RequestWizard(props: Props) {
   }, [dirty,pending]);
   useEffect(()=>{
     if(!dirty&&!pending)return;
-    const guard=(e:MouseEvent)=>{if(leavingAfterSuccess.current||e.defaultPrevented||e.button!==0||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;const a=(e.target instanceof Element?e.target.closest("a[href]"):null) as HTMLAnchorElement|null;if(!a||a.target==="_blank"||a.download||a.origin!==location.origin||a.pathname===location.pathname)return;if(pending||!window.confirm(assist.leave)){e.preventDefault();e.stopPropagation();}};
+    const guard=(e:MouseEvent)=>{if(leavingAfterSuccess.current||e.defaultPrevented||e.button!==0||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;const a=(e.target instanceof Element?e.target.closest("a[href]"):null) as HTMLAnchorElement|null;if(!a||a.target==="_blank"||a.download||a.origin!==location.origin||(a.pathname===location.pathname&&a.search===location.search))return;if(pending||!window.confirm(assist.leave)){e.preventDefault();e.stopPropagation();}};
     document.addEventListener("click",guard,true);return()=>document.removeEventListener("click",guard,true);
   },[dirty,pending,assist.leave]);
   const [transferItems,setTransferItems]=useState<Record<string,number>>({});
@@ -671,16 +672,7 @@ export function RequestWizard(props: Props) {
       <input type="hidden" name="locale" value={props.locale} />
 
       <style>{bookingCss+bookingRefinementCss+bookingAssistCss+smartBookingCss+checkoutCss}</style>
-      <ol ref={stepHeadingRef} tabIndex={-1} className="booking-rail" data-testid="wizard-steps">
-        {[ui.travel,ui.documents,ui.confirm].map((label,i)=>(
-          <li key={label} aria-current={step===i+1?"step":undefined} data-state={step===i+1?"active":step>i+1?"complete":"pending"}>
-            <button type="button" disabled={step<=i+1||pending} onClick={()=>editStep(i+1)}>
-              <span className="booking-marker">{step>i+1?"✓":step===i+1?<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 10 21 3l-7 18-4-7-7-4Zm7 4L21 3"/></svg>:i+1}</span>
-              <span>{label}</span>
-            </button>
-          </li>
-        ))}
-      </ol>
+      <BookingStepRail labels={[ui.travel,ui.documents,ui.confirm]} step={step} pending={pending} onStep={editStep} headingRef={stepHeadingRef}/>
 
       {props.serverError ? (
         <p role="alert" className="form-feedback rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-base text-rose-700">{props.serverError}</p>
