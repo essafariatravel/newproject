@@ -23,7 +23,9 @@ export default async function PortalCommunicationsPage({searchParams}:{searchPar
  const page=Math.max(1,Math.min(10000,Math.trunc(typeof sp.page==="string"?Number(sp.page)||1:1)));
  const filter=typeof sp.filter==="string"&&["unread","reply"].includes(sp.filter)?sp.filter:"all";
  const q=typeof sp.q==="string"?sp.q.slice(0,160):"";
- const threads=await conversationInbox(user,{q,filter,page,agencyWorkspace:true});
+ const priority=sp.sort==="priority";
+ const sortCopy={fr:{priority:"Prioritaires",recent:"Plus récentes",sort:"Trier les conversations"},en:{priority:"Priority",recent:"Most recent",sort:"Sort conversations"},ar:{priority:"الأولوية",recent:"الأحدث",sort:"ترتيب المحادثات"}}[locale];
+ const threads=await conversationInbox(user,{q,filter,page,agencyWorkspace:true,priority});
  let selected=threads.find(t=>t.applicationId===sp.thread);
  // Preserve the selected case when read status changes or the inbox is re-ordered.
  // The fallback remains constrained by the session's agency and AGENCY visibility.
@@ -33,7 +35,7 @@ export default async function PortalCommunicationsPage({searchParams}:{searchPar
  }
  const validThread=typeof sp.thread==="string"&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(sp.thread)?sp.thread:null;
  const detail=user.agencyId&&validThread?await getApplicationDetail(validThread,user):null;
- const active:CommCase|null=detail&&detail.app.agencyId===user.agencyId?{id:detail.app.id,name:detail.applicantSummary||detail.app.reference,country:countryName({name:detail.app.countryName,iso2:detail.countryIso2},locale),reference:detail.app.reference,visa:configName({name:detail.app.visaTypeName,nameFr:detail.visaNameFr,nameAr:detail.visaNameAr},locale),status:localizedStatusName(detail.statusCode,detail.statusName,locale),requested:detail.agencyNextAction==="Upload requested documents",terminal:detail.isTerminal,unread:selected?.unread??false,needsReply:selected?.needsReply??false,documentCount:Number(detail.documentCount??0)}:null;
+ const active:CommCase|null=detail&&detail.app.agencyId===user.agencyId?{id:detail.app.id,name:detail.applicantSummary||detail.app.reference,country:countryName({name:detail.app.countryName,iso2:detail.countryIso2},locale),reference:detail.app.reference,visa:configName({name:detail.app.visaTypeName,nameFr:detail.visaNameFr,nameAr:detail.visaNameAr},locale),status:localizedStatusName(detail.statusCode,detail.statusName,locale),requested:!detail.isTerminal&&detail.agencyNextAction==="Upload requested documents",terminal:detail.isTerminal,unread:selected?.unread??false,needsReply:selected?.needsReply??false,documentCount:Number(detail.documentCount??0)}:null;
  const messages=active?(await listCommunications(active.id,user,sp.messagesBefore)).filter(r=>r.message.applicationId===active.id&&r.message.visibility==="AGENCY"):[];
  const compose=sp.compose==="1"&&!active;
  const caseQ=typeof sp.caseQ==="string"?sp.caseQ.slice(0,160):"";
@@ -49,8 +51,8 @@ export default async function PortalCommunicationsPage({searchParams}:{searchPar
  const older=typeof sp.messagesBefore==="string"&&Boolean(sp.messagesBefore);
  const flash=flashFrom(sp);
 
- const url=(thread?:string,nextPage=page,nextFilter=filter)=>{
-   const p=new URLSearchParams();if(q)p.set("q",q);if(nextFilter!=="all")p.set("filter",nextFilter);if(nextPage>1)p.set("page",String(nextPage));if(thread)p.set("thread",thread);return "/portal/communications"+(p.size?"?"+p.toString():"");
+ const url=(thread?:string,nextPage=page,nextFilter=filter,nextPriority=priority)=>{
+   const p=new URLSearchParams();if(q)p.set("q",q);if(nextPriority)p.set("sort","priority");if(nextFilter!=="all")p.set("filter",nextFilter);if(nextPage>1)p.set("page",String(nextPage));if(thread)p.set("thread",thread);return "/portal/communications"+(p.size?"?"+p.toString():"");
  };
  const dayKey=(d:Date)=>new Intl.DateTimeFormat("sv-SE",{timeZone:"Africa/Algiers",year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
  const clock=(d:Date)=>new Intl.DateTimeFormat(locale,{timeZone:"Africa/Algiers",hour:"2-digit",minute:"2-digit",hour12:false}).format(d);
@@ -65,7 +67,7 @@ export default async function PortalCommunicationsPage({searchParams}:{searchPar
  {flash.error?<Flash error={flash.error}/>:null}
  <WorkspaceFit/><div className="comm-workspace" data-selected={Boolean(active)||compose}>
  <section className="comm-inbox" aria-label={copy.inbox}>
- <div className="comm-inbox-head"><h2>{copy.inbox}</h2><InboxSearch locale={locale} q={q} filter={filter}/>
+ <div className="comm-inbox-head"><h2>{copy.inbox}</h2><InboxSearch locale={locale} q={q} filter={filter}/><nav className="comm-sort" aria-label={sortCopy.sort}><Link href={url(active?.id,1,filter,false)} scroll={false} prefetch={false} aria-current={!priority?"true":undefined}>{sortCopy.recent}</Link><Link href={url(active?.id,1,filter,true)} scroll={false} prefetch={false} aria-current={priority?"true":undefined}>{sortCopy.priority}</Link></nav>
  <nav className="comm-filters" aria-label={ct("Filter")}>{([["all",copy.all],["unread",copy.unread],["reply",copy.reply]] as const).map(([key,label])=><Link key={key} href={url(undefined,1,key)} scroll={false} prefetch={false} aria-current={filter===key?"page":undefined}>{label}{filter==="all"&&page===1&&!q&&threads.length<100&&key!=="all"&&(key==="unread"?countUnread:countReply)>0?<span className="comm-filter-count">{key==="unread"?countUnread:countReply}</span>:null}</Link>)}</nav></div>
  <div className="comm-inbox-scroll">{threads.length?<ol className="comm-threads">{threads.map(t=><li key={t.applicationId}><Link className="comm-row" href={url(t.applicationId)} scroll={false} prefetch={false} aria-current={active?.id===t.applicationId?"page":undefined} data-unread={t.unread} title={t.needsReply?polish.lastIn:polish.lastOut}>
  <span className="comm-row-line"><strong><bdi><Highlight value={t.traveller||t.reference} q={q}/></bdi></strong><time dateTime={t.createdAt.toISOString()} title={finalCopy.draftTime} aria-label={finalCopy.last+": "+short(t.createdAt)+" · "+copy.time}>{short(t.createdAt)}</time>{t.unread?<span className="comm-unread" aria-label={copy.unread}/>:null}</span>
