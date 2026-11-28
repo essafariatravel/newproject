@@ -676,3 +676,25 @@ html[lang="ar"] .workspace-agency.workspace-agency.workspace-agency.workspace-ag
 }
 
 .workspace-agency .th-lifecycle,.workspace-agency .th-visa-list{display:grid;gap:12px;border-block-start:1px solid #e2e5e9;padding-block:16px}.th-lifecycle>.btn-secondary{justify-self:start}.th-merge-compare{padding-block:14px;border-block-end:1px solid #e2e5e9}.th-merge-compare>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-block-end:12px}.th-merge-compare>div>div,.th-visa-row .th-section-head>div:first-child{display:grid;gap:4px;min-width:0;overflow-wrap:anywhere}.th-visa-row{padding-block:12px;border-block-end:1px solid #e2e5e9}@media(max-width:720px){.th-visa-row .th-section-head{align-items:flex-start;flex-direction:column}}
+
+
+/* Smart Workflow 4.0 — follow-up views. Text links, not another card grid. */
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .smart-workflow-shortcuts {
+  display:flex;align-items:center;flex-wrap:wrap;gap:4px 24px;
+  padding-block:0 8px;border-block-end:1px solid var(--one-rule);
+  min-width:0;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .smart-workflow-shortcuts>a {
+  display:inline-flex;align-items:center;min-height:44px;
+  color:var(--one-muted);font-size:var(--one-secondary);font-weight:500;
+  border-block-end:2px solid transparent;white-space:normal;line-height:1.4;
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .smart-workflow-shortcuts>a:hover {color:var(--one-ink);}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .smart-workflow-shortcuts>a[aria-current="true"] {
+  color:var(--one-ink);font-weight:600;border-block-end-color:var(--one-ink);
+}
+.workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .smart-workflow-count {font-size:var(--one-secondary);font-weight:400;color:var(--one-muted);font-variant-numeric:tabular-nums;}
+@media(max-width:767px) {
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .smart-workflow-shortcuts {flex-wrap:nowrap;overflow-x:auto;gap:16px;scrollbar-width:thin;}
+  .workspace-agency.workspace-agency.workspace-agency.workspace-agency #workspace-main .smart-workflow-shortcuts>a {flex-shrink:0;white-space:nowrap;}
+}
