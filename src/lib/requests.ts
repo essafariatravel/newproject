@@ -1,3 +1,6 @@
+import {groupEnabled,groupWithinBudget,distinctGroupIdentities,sharedDocumentCode} from "@/lib/group-policy";
+import {uuid} from "@/lib/traveller-hub-policy";
+import {hasPermission} from "@/lib/rbac";
 import {linkTravellerInSubmission} from "@/lib/traveller-profile-write";
 import {algeriaToday} from "@/lib/travel-deadline";
 import {hubEnabled,passportKey,civilDate,validApplicationPassport} from "@/lib/traveller-hub-policy";
@@ -662,4 +665,224 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
     console.error("request-submit-notification-failed", error);
   }
   return result;
+}
+
+/** Group commit shares the existing single-case validation, checklist and ledger model.
+ * No group row, application or charge becomes visible until every member succeeds. */
+export async function submitVisaGroup(actorInput:AuthUser,groupId:string,manifest:string,inputs:SubmitVisaRequestInput[]):Promise<SubmitVisaRequestResult[]> {
+ const agencyId=actorInput.agencyId;
+ if(!groupEnabled()||databaseSchema()!=="visa_os_preview"||!agencyId||!isAgencyRole(actorInput.role)||!hasPermission(actorInput,"applications.create")||!hasPermission(actorInput,"documents.upload.own")||actorInput.mustChangePassword)throw new AppError("FORBIDDEN","Group unavailable");
+ const input=inputs[0];if(!input||!uuid(groupId)||!/^[a-f0-9]{64}$/.test(manifest)||!groupWithinBudget(inputs.length,inputs.reduce((n,x)=>n+x.documents.length,0),inputs.reduce((n,x)=>n+x.documents.reduce((a,d)=>a+d.file.data.length,0),0))||!distinctGroupIdentities(inputs.map(x=>x.travellers[0]??{passportNumber:null}))||new Set(inputs.map(x=>x.idempotencyKey)).size!==inputs.length||inputs.some(x=>x.travellers.length!==1||x.visaTypeId!==input.visaTypeId||x.countryId!==input.countryId||x.expectedFee!==input.expectedFee||x.expectedCatalogue!==input.expectedCatalogue||!uuid(x.idempotencyKey)||!validApplicationPassport(x.travellers[0]!.passportNumber,x.travellers[0]!.passportExpiryDate,algeriaToday())))throw new AppError("VALIDATION","Invalid group");
+ await db.transaction(async tx=>{await currentOperationActor(tx,actorInput)});
+  const cfgRows = await db
+    .select({
+      visaTypeId: visaTypes.id,
+      visaTypeName: visaTypes.name,
+      visaTypeCode: visaTypes.code,
+      categoryName: visaCategories.name,
+      countryId: countries.id,
+      countryName: countries.name,
+      fee: visaTypes.fee,
+      currency: visaTypes.currency,
+      processingMinDays: visaTypes.processingMinDays,
+      processingMaxDays: visaTypes.processingMaxDays,
+    })
+    .from(visaTypes)
+    .innerJoin(countries, eq(visaTypes.countryId, countries.id))
+    .innerJoin(visaCategories, eq(visaTypes.categoryId, visaCategories.id))
+    .where(
+      and(
+        eq(visaTypes.id, input.visaTypeId),
+        eq(visaTypes.active, true),
+        eq(countries.active, true),
+        eq(visaCategories.active, true),
+        // Operations are DZD-only (§7). A programme priced in another currency
+        // is not bookable until staff re-price it in DZD — no silent conversion.
+        eq(visaTypes.currency, "DZD"),
+      ),
+    )
+    .limit(1);
+  const cfg = cfgRows[0];
+  if (cfg && input.expectedFee !== undefined && (!Number.isFinite(Number(input.expectedFee)) || Number(input.expectedFee) !== Number(cfg.fee))) {
+    throw new AppError("VISA_TYPE_INVALID", "The displayed price has changed. Reopen the request preview before confirming.");
+  }
+
+  const requirements = cfg ? await listRequirementsForVisaType(cfg.visaTypeId) : [];
+  if(input.expectedCatalogue!==undefined&&(!cfg||bookingCatalogueFingerprint({fee:cfg.fee,minDays:cfg.processingMinDays,maxDays:cfg.processingMaxDays},requirements)!==input.expectedCatalogue))throw new AppError("VISA_TYPE_INVALID","The catalogue changed. Review the programme again before confirming.");
+
+  const priorityRow = await db
+    .select({ id: priorities.id, code: priorities.code })
+    .from(priorities)
+    .where(and(eq(priorities.code, "STANDARD"), eq(priorities.active, true)))
+    .limit(1);
+  const priorityOk = (!input.priorityCode || input.priorityCode === "STANDARD") && !!priorityRow[0];
+
+
+ const prepared=inputs.map(x=>({input:x,applicationId:randomUUID(),docRows:validateRequest(x,cfg,requirements,priorityOk).map(d=>({...d,id:randomUUID(),sha256:sha256Hex(d.file.data)}))}));
+ const hashes=new Map<string,number>();const kinds=new Map(requirements.map(r=>[r.documentTypeId,r.code]));
+ for(let i=0;i<prepared.length;i++)for(const d of prepared[i]!.docRows){if(!sharedDocumentCode(kinds.get(d.documentTypeId)??"")){const old=hashes.get(d.sha256);if(old!==undefined&&old!==i)throw new AppError("VALIDATION","Personal document repeated across travellers");hashes.set(d.sha256,i);}}
+ // Also reject a personal file reused in another traveller's shared slot.
+ for(let i=0;i<prepared.length;i++)for(const d of prepared[i]!.docRows){const old=hashes.get(d.sha256);if(old!==undefined&&old!==i)throw new AppError("VALIDATION","Personal document repeated across travellers");}
+ const writtenKeys:string[]=[];let committed=false,uncertain=false;
+ try{
+ for(const m of prepared)for(const d of m.docRows){const key=buildStorageKey(m.applicationId,d.id);await storageProvider().put(key,d.file.data,d.file.type);writtenKeys.push(key);}
+ const submitted=await db.select({id:statuses.id}).from(statuses).where(eq(statuses.code,"SUBMITTED")).limit(1);
+ const client=await pool.connect();let results:SubmitVisaRequestResult[]=[];
+ try{
+ await client.query("begin");await client.query(`set local search_path to "${databaseSchema().replaceAll('"','""')}"`);
+ const actor=await currentOperationActorPg(client,actorInput);
+ if(actor.agencyId!==agencyId||!hasPermission(actor,"applications.create")||!hasPermission(actor,"documents.upload.own"))throw new AppError("FORBIDDEN","Group unavailable");
+ const submittedId=submitted[0]?.id;if(!submittedId||!cfg)throw new AppError("CONFIG_ERROR","Workflow unavailable");
+ const agency=await client.query<{status:string}>(`select status from ${qualifiedTable("agencies")} where id=$1 for update`,[agencyId]);
+ if(agency.rows[0]?.status!=="ACTIVE")throw new AppError("FORBIDDEN","Agency unavailable");
+ const existing=await client.query<{manifest:string}>(`select manifest from ${qualifiedTable("visa_request_groups")} where agency_id=$1 and id=$2`,[agencyId,groupId]);
+ if(existing.rows[0]){if(existing.rows[0].manifest!==manifest)throw new AppError("VALIDATION","Group attempt already used");const old=await client.query<{id:string;reference:string}>(`select a.id,a.reference from ${qualifiedTable("visa_request_group_members")} m join ${qualifiedTable("applications")} a on a.id=m.application_id and a.agency_id=m.agency_id where m.agency_id=$1 and m.group_id=$2 order by m.position`,[agencyId,groupId]);if(old.rows.length!==inputs.length)throw new AppError("INTERNAL","Group receipt incomplete");await client.query("rollback");return old.rows.map(r=>({applicationId:r.id,reference:r.reference,reused:true,charge:{balanceBefore:"0",balanceAfter:"0",transactionId:""}}));}
+ const enough=await client.query<{ok:boolean}>(`select balance >= $2::numeric*$3::int as ok from ${qualifiedTable("agencies")} where id=$1`,[agencyId,cfg.fee,inputs.length]);if(!enough.rows[0]?.ok)throw new AppError("INSUFFICIENT_FUNDS","Insufficient group balance");
+ const currentPriority=await client.query<{id:string}>(`select id from ${qualifiedTable("priorities")} where id=$1 and code='STANDARD' and active for share`,[priorityRow[0]!.id]);if(!currentPriority.rows[0])throw new AppError("PRIORITY_INVALID","Priority unavailable");
+      const current = await client.query<VisaConfigRow>(
+        `select visa.id as "visaTypeId", visa.name as "visaTypeName", visa.code as "visaTypeCode",
+                category.name as "categoryName", country.id as "countryId", country.name as "countryName",
+                visa.fee::text as fee, visa.currency, visa.processing_min_days as "processingMinDays", visa.processing_max_days as "processingMaxDays"
+           from ${qualifiedTable("visa_types")} visa
+           join ${qualifiedTable("countries")} country on country.id=visa.country_id
+           join ${qualifiedTable("visa_categories")} category on category.id=visa.category_id
+          where visa.id=$1 and visa.active and country.active and category.active and visa.currency='DZD'
+          for share of visa, country, category`, [cfg.visaTypeId],
+      );
+      const latest = current.rows[0];
+      if (!latest || (Object.keys(cfg) as (keyof VisaConfigRow)[]).some((key) => latest[key] !== cfg[key])) {
+        throw new AppError("VISA_TYPE_INVALID", "This programme changed while preparing your request. Reopen the request preview before confirming.");
+      }
+      const currentRequirements = await client.query<RequirementRow>(
+        `select type.id as "documentTypeId", type.name, type.name_fr as "nameFr", type.name_ar as "nameAr", type.code,
+                requirement.required, requirement.sort_order as "sortOrder", requirement.notes
+           from ${qualifiedTable("visa_requirements")} requirement
+           join ${qualifiedTable("document_types")} type on type.id=requirement.document_type_id
+          where requirement.visa_type_id=$1 and requirement.active and type.active
+          order by requirement.sort_order, requirement.id for share of requirement, type`, [cfg.visaTypeId],
+      );
+      const requirementSnapshot = (rows: RequirementRow[]) => JSON.stringify(rows.map((row) => [row.documentTypeId, row.name, row.nameFr ?? null, row.nameAr ?? null, row.code, row.required, row.sortOrder, row.notes]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
+      if (requirementSnapshot(requirements) !== requirementSnapshot(currentRequirements.rows)) {
+        throw new AppError("VISA_TYPE_INVALID", "The document checklist changed. Reopen the request preview before confirming.");
+      }
+
+
+ await client.query(`insert into ${qualifiedTable("visa_request_groups")}(id,agency_id,created_by,manifest,member_count) values($1,$2,$3,$4,$5)`,[groupId,agencyId,actor.id,manifest,prepared.length]);
+ for(const [position,m] of prepared.entries()){
+ const {input,applicationId,docRows}=m;
+ let reference=generateReference(),inserted=false;
+ for(let attempt=0;attempt<5;attempt++){
+          const insertedRow=await client.query(
+            `insert into ${qualifiedTable("applications")}
+               (id, reference, agency_id, country_id, visa_type_id, status_id, priority_id,
+                visa_type_name, visa_type_code, category_name, country_name,
+                fee, currency, processing_min_days, processing_max_days,
+                agency_notes, created_by, idempotency_key,
+                submitted_at, submitted_price, submitted_currency, effective_price)
+             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::numeric,$13,$14,$15,$16,$17,$18, now(), $12::numeric, $13, $12::numeric) on conflict (reference) do nothing returning id`,
+            [
+              applicationId, reference, agencyId, cfg.countryId, cfg.visaTypeId, submittedId,
+              priorityRow[0]!.id, cfg.visaTypeName, cfg.visaTypeCode, cfg.categoryName, cfg.countryName,
+              cfg.fee, "DZD", cfg.processingMinDays, cfg.processingMaxDays,
+              input.agencyNotes?.trim() || null, actor.id, input.idempotencyKey,
+            ],
+          );
+
+ if(insertedRow.rowCount===1){inserted=true;break}reference=generateReference();
+ }
+ if(!inserted)throw new AppError("INTERNAL","Reference unavailable");
+      // Checklist snapshot from the visa configuration.
+      for (const req of requirements) {
+        await client.query(
+          `insert into ${qualifiedTable("checklist_items")}
+             (application_id, document_type_id, document_type_name, document_type_code, required, sort_order, notes)
+           values ($1,$2,$3,$4,$5,$6,$7)
+           on conflict do nothing`,
+          [applicationId, req.documentTypeId, req.name, req.code, req.required, req.sortOrder, req.notes],
+        );
+      }
+      const checklist = await client.query<{ id: string; document_type_id: string }>(
+        `select id, document_type_id from ${qualifiedTable("checklist_items")} where application_id = $1`,
+        [applicationId],
+      );
+      const itemByType = new Map(checklist.rows.map((r) => [r.document_type_id, r.id]));
+
+      // The single applicant (full name + nationality code).
+      const t = input.travellers[0]!;
+      const fullName = (t.fullName ?? `${t.firstName ?? ""} ${t.lastName ?? ""}`).trim();
+      if(hubEnabled()&&!validApplicationPassport(t.passportNumber,t.passportExpiryDate,algeriaToday()))throw new AppError("PASSPORT_VALIDITY","At least seven months of passport validity are required.");
+      const insertedApplicant=await client.query<{id:string}>(
+        `insert into ${qualifiedTable("applicants")}
+           (application_id, first_name, last_name, full_name, date_of_birth, nationality,
+            passport_number, passport_issue_date, passport_expiry_date, email, phone)
+         values ($1,$2,'',$3,null,$4,$5,null,$6::date,null,null) returning id`,
+        [applicationId, fullName, fullName, t.nationality.trim().toUpperCase(),hubEnabled()?passportKey(t.passportNumber)||null:null,hubEnabled()?civilDate(t.passportExpiryDate):null],
+      );
+
+      if(hubEnabled())await linkTravellerInSubmission(client,actor,insertedApplicant.rows[0]!.id,{name:fullName,nationality:t.nationality,passport:t.passportNumber??"",expiry:t.passportExpiryDate??""},t.travellerProfileId);
+      // Document records (blobs are already in storage).
+      for (const d of docRows) {
+        await client.query(
+          `insert into ${qualifiedTable("documents")}
+             (id, application_id, checklist_item_id, document_type_id, original_filename,
+              mime_type, size_bytes, sha256, storage_key, status, uploaded_by)
+           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'UPLOADED',$10)`,
+          [
+            d.id, applicationId, itemByType.get(d.documentTypeId) ?? null, d.documentTypeId,
+            d.file.name.slice(0, 200), d.file.type, d.file.data.length, d.sha256,
+            buildStorageKey(applicationId, d.id), actor.id,
+          ],
+        );
+      }
+
+      // Wallet debit — the agencies row lock serializes concurrent spenders.
+      const upd = await client.query<{ balance_after: string; balance_before: string }>(
+        `update ${qualifiedTable("agencies")}
+           set balance = balance - $2::numeric, updated_at = now()
+         where id = $1 and balance >= $2::numeric
+         returning balance::text as balance_after, (balance + $2::numeric)::text as balance_before`,
+        [agencyId, cfg.fee],
+      );
+      if (!upd.rows[0]) {
+        throw new AppError("INSUFFICIENT_FUNDS", "Wallet balance is too low for this request.");
+      }
+      const { balance_before, balance_after } = upd.rows[0];
+
+      const txRes = await client.query<{ id: string }>(
+        `insert into ${qualifiedTable("wallet_transactions")}
+           (agency_id, application_id, type, amount, currency, balance_before, balance_after, reason, actor_id)
+         values ($1,$2,'APPLICATION_CHARGE',$3,$4,$5,$6,$7,$8)
+         returning id`,
+        [agencyId, applicationId, cfg.fee, "DZD", balance_before, balance_after, `Visa application ${reference}`, actor.id],
+      );
+
+      await client.query(
+        `insert into ${qualifiedTable("application_status_history")}
+           (application_id, from_status_id, to_status_id, changed_by, reason)
+         values ($1, null, $2, $3, 'Request submitted')`,
+        [applicationId, submittedId, actor.id],
+      );
+
+      await client.query(
+        `insert into ${qualifiedTable("audit_logs")}
+           (actor_id, actor_email, actor_role, agency_id, action, entity, entity_id, metadata, ip_address)
+         values ($1,$2,$3,$4,'APPLICATION_SUBMITTED','application',$5,$6,$7)`,
+        [
+          actor.id, actor.email, actor.role, agencyId, applicationId,
+          JSON.stringify({ reference, visaTypeCode: cfg.visaTypeCode, fee: cfg.fee, currency: "DZD", source: "three-step-request",
+            actorName: actor.name, actorUsername: actor.username }),
+          input.ipAddress ?? null,
+        ],
+      );
+
+
+ await client.query(`insert into ${qualifiedTable("visa_request_group_members")}(agency_id,group_id,application_id,position) values($1,$2,$3,$4)`,[agencyId,groupId,applicationId,position+1]);
+ results.push({applicationId,reference,reused:false,charge:{balanceBefore:balance_before,balanceAfter:balance_after,transactionId:txRes.rows[0]!.id}});
+ }
+ await storageReferenceCommitted(client,writtenKeys);
+ uncertain=true;await client.query("commit");committed=true;uncertain=false;
+ }catch(e){await client.query("rollback").catch(()=>{});throw e}finally{client.release()}
+ try{const {staffUserIds,agencyUserIds,notifyUsers}=await import("@/lib/notifications");const [staff,agencyUsers]=await Promise.all([staffUserIds(),agencyUserIds(agencyId)]);for(const r of results){await notifyUsers(staff,{type:"APPLICATION_SUBMITTED",title:`Application ${r.reference} submitted`,body:`${cfg!.visaTypeName} (${cfg!.countryName})`,link:`/admin/applications/${r.applicationId}`,agencyId,applicationId:r.applicationId});await notifyUsers(agencyUsers,{type:"APPLICATION_SUBMITTED",title:`Application ${r.reference} submitted`,body:`Your wallet was charged ${cfg!.fee} DZD.`,link:`/portal/applications/${r.applicationId}`,agencyId,applicationId:r.applicationId});}}catch(e){console.error("group-notification-failed",e)}
+ return results;
+ }finally{if(!committed&&!uncertain)await Promise.allSettled(writtenKeys.map(k=>storageProvider().delete(k)))}
 }
