@@ -1,7 +1,8 @@
 /** Conservative Traveller Hub policy; pure, no database or external services. */
 export const HUB_BRANCH="codex/phase2d-traveller-hub-20261128";
 export const CONSOLIDATED_BRANCH="codex/phase2c-document-intelligence-20261126";
-export function hubEnabled(env:Record<string,string|undefined>=process.env){return env.VERCEL_ENV==="preview"&&(env.VERCEL_GIT_COMMIT_REF===HUB_BRANCH||env.VERCEL_GIT_COMMIT_REF===CONSOLIDATED_BRANCH)}
+export function consolidatedProductionEnabled(env:Record<string,string|undefined>=process.env){return env.VERCEL_ENV==="production"&&env.DATABASE_SCHEMA==="visa_os"&&env.VERCEL_GIT_COMMIT_REF===CONSOLIDATED_BRANCH}
+export function hubEnabled(env:Record<string,string|undefined>=process.env){return consolidatedProductionEnabled(env)||env.VERCEL_ENV==="preview"&&(env.VERCEL_GIT_COMMIT_REF===HUB_BRANCH||env.VERCEL_GIT_COMMIT_REF===CONSOLIDATED_BRANCH)}
 export const uuid=(v:unknown):v is string=>typeof v==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 export const nameKey=(v:string)=>v.trim().replace(/\s+/g," ").toLowerCase();
 export const passportKey=(v:string|null|undefined)=>{const s=(v??"").trim().toUpperCase();return /^[A-Z0-9]{6,20}$/.test(s)&&/[0-9]/.test(s)&&!/^([A-Z0-9])\1+$/.test(s)?s:""};
@@ -42,7 +43,7 @@ export function renewalStage(expiry:string|null,today:string):"RENEW"|"URGENT"|"
 }
 
 /** The independent vault is only activated on the consolidated branch. */
-export function vaultEnabled(env:Record<string,string|undefined>=process.env){return env.VERCEL_ENV==="preview"&&env.VERCEL_GIT_COMMIT_REF===CONSOLIDATED_BRANCH}
+export function vaultEnabled(env:Record<string,string|undefined>=process.env){return consolidatedProductionEnabled(env)||env.VERCEL_ENV==="preview"&&env.VERCEL_GIT_COMMIT_REF===CONSOLIDATED_BRANCH}
 export const PERSONAL_CODES=["PASSPORT","PHOTO","BANK_STATEMENT","EMPLOYMENT_CERT","MARRIAGE_CERT"] as const;
 export function personalCode(code:string){return PERSONAL_CODES.some(c=>c===code)}
 export function autoEligible(input:Parameters<typeof reusablePassport>[0]&{issuedAt:string|null;uploadedAt:string;vault:boolean}){
