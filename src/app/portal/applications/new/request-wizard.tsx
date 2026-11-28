@@ -1,7 +1,8 @@
 "use client";
 import {hubCopy} from "@/lib/traveller-hub-copy";
-import {passportKey,identityMatches,expiryState,minimumExpiry,validApplicationPassport,type ReuseFile} from "@/lib/traveller-hub-policy";
+import {passportKey,identityMatches,expiryState,minimumExpiry,validApplicationPassport,type TravellerSource} from "@/lib/traveller-hub-policy";
 import {TravellerReuse} from "./traveller-reuse";
+import {TravellerLookup} from "./traveller-lookup";
 import {DatePicker} from "@/components/date-picker";
 import { CountryFlag } from "@/components/country-flag";
 import { useAgencyPopover } from "@/components/agency-popover-controller";
@@ -127,7 +128,7 @@ export interface WizardLabels {
 
 interface Props {
   travellerHub?:boolean;
-  travellerSource?:{id:string;name:string;nationality:string;passport:string;expiry:string;reference:string;reusable:ReuseFile[]}|null;
+  travellerSource?:TravellerSource|null;
   catalogueFingerprints?: Record<string,string>;
   today?:string;
   parallelStaging?: boolean;
@@ -223,6 +224,8 @@ export function RequestWizard(props: Props) {
   const [previewIndex,setPreviewIndex]=useState(0);
   const [previewUrl,setPreviewUrl]=useState("");
   const [dragging,setDragging]=useState(false);
+  const [travellerSource,setTravellerSource]=useState(props.travellerSource??null);
+  const [pickerRevision,setPickerRevision]=useState(0);
   const [nameDraft,setNameDraft]=useState(props.travellerSource?.name??"");
   const [passportDraft,setPassportDraft]=useState(props.travellerSource?.passport??"");
   const [expiryDraft,setExpiryDraft]=useState(props.travellerSource?.expiry??"");
@@ -255,7 +258,7 @@ export function RequestWizard(props: Props) {
   }[props.locale];
   const [files, setFiles] = useState<Record<string, File[]>>({});
   const reused=useRef(new WeakSet<File>());
-  const sourceMatches=Boolean(props.travellerSource&&identityMatches({name:nameDraft,nationality:nationalityDraft,passport:passportDraft,expiry:expiryDraft},props.travellerSource));
+  const sourceMatches=Boolean(travellerSource&&identityMatches({name:nameDraft,nationality:nationalityDraft,passport:passportDraft,expiry:expiryDraft},travellerSource));
   function clearReused(){if(Object.values(files).some(list=>list.some(f=>reused.current.has(f)))){setFiles(prev=>Object.fromEntries(Object.entries(prev).map(([id,list])=>[id,list.filter(f=>!reused.current.has(f))])));setFileError(hubText.reuseChanged)}}
   const smart = {
     fr:{mismatch:"Le nom du fichier suggère un autre type de document. Vérifiez son contenu.",identical:"Un fichier au contenu identique est associé à plusieurs pièces.",small:"Image de faible résolution : vérifiez sa lisibilité.",checks:"Points à vérifier avant l’envoi",inspect:"Vérifier cette pièce",ready:"Toutes les pièces requises sont sélectionnées",remaining:"Pièces obligatoires restantes",selected:"Sélectionné",programmeDocs:"pièces requises",noValidation:"Ces contrôles locaux ne valident ni le contenu ni l’authenticité du document."},
@@ -366,6 +369,7 @@ export function RequestWizard(props: Props) {
   const checkoutCategory=/^(tourist|tourism|tourisme|touristique|سياحة)$/i.test(visa?.categoryName.trim()??"")?checkout.tourist:visa?.categoryName;
   const genericProgramme=Boolean(visa&&country&&[normalize(country.name),normalize("Visa "+country.name),normalize(country.name+" Visa"),normalize("تأشيرة "+country.name)].includes(normalize(visa.name)));
   useEffect(()=>{if(!selectedFile){setPreviewUrl("");return;}const url=URL.createObjectURL(selectedFile);setPreviewUrl(url);return ()=>URL.revokeObjectURL(url);},[selectedFile]);
+  function chooseTraveller(source:TravellerSource){if(pending||step!==1)return false;if((Object.values(files).some(a=>a.length)||batch.length)&&!window.confirm(hubText.selectWarning))return false;setFiles({});setBatch([]);setActiveDoc("");setPreviewIndex(0);setFileError("");setClientError("");setTravellerSource(source);setNameDraft(source.name);setNationalityDraft(props.nationalities.some(n=>n.code===source.nationality)?source.nationality:"");setPassportDraft(source.passport);setExpiryDraft(source.expiry);setPickerRevision(n=>n+1);setDirty(true);return true;}
   function selectDoc(id:string){setActiveDoc(id);setPreviewIndex(0);setFileError("");}
   function clearForProgrammeChange(){if((Object.values(files).some(a=>a.length)||batch.length)&&!window.confirm(ui.changeWarning))return false;setFiles({});setBatch([]);setActiveDoc("");setPreviewIndex(0);setFileError("");return true;}
   function changeProgramme(id:string){if(id===visaTypeId)return;if(!clearForProgrammeChange())return;setVisaTypeId(id);setDirty(true);}
@@ -852,7 +856,7 @@ export function RequestWizard(props: Props) {
               </div>
             </div>
           </div>
-          {props.travellerHub?<div className="th-wizard-fields">{props.travellerSource?<p className="th-note">{hubText.prefilled} · <bdi>{props.travellerSource.reference}</bdi></p>:<a className="booking-link" href="/portal/applicants">{hubText.lookup}</a>}<div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><label>{hubText.number}<input className="input" autoComplete="off" maxLength={20} value={passportDraft} onChange={e=>{clearReused();setPassportDraft(e.target.value);setDirty(true)}}/></label><label>{hubText.date}<DatePicker name="hubPassportExpiry" locale={props.locale} defaultValue={expiryDraft} displayDayFirst todayValue={hubToday} min="1900-01-01" max="2100-12-31" ariaLabel={hubText.date} required disabled={pending||step!==1} invalid={Boolean(expiryDraft&&hubExpiryState!=="valid")} onValueChange={v=>{clearReused();setExpiryDraft(v);setDirty(true)}}/><small className="th-status" data-state={hubExpiryState}>{hubExpiryState==="valid"?hubText.valid:hubExpiryState==="expired"?hubText.expired:hubExpiryState==="renew"?hubText.renewState:hubText.unknownState} · {hubText.expiry} ≥ <bdi>{minimumExpiry(hubToday)?.split("-").reverse().join("/")}</bdi></small></label></div></div>:null}
+          {props.travellerHub?<div className="th-wizard-fields">{travellerSource?<p className="th-note">{hubText.prefilled} · <bdi>{travellerSource.reference}</bdi></p>:null}{step===1?<TravellerLookup locale={props.locale} onChoose={chooseTraveller} disabled={pending}/>:null}<div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><label>{hubText.number}<input className="input" autoComplete="off" maxLength={20} value={passportDraft} onChange={e=>{clearReused();setPassportDraft(e.target.value);setDirty(true)}}/></label><div><label className="label" htmlFor="hub-passport-expiry">{hubText.date}</label><DatePicker key={pickerRevision} id="hub-passport-expiry" name="hubPassportExpiry" locale={props.locale} defaultValue={expiryDraft} displayDayFirst todayValue={hubToday} min="1900-01-01" max="2100-12-31" ariaLabel={hubText.date} required disabled={pending||step!==1} invalid={Boolean(expiryDraft&&hubExpiryState!=="valid")} onValueChange={v=>{clearReused();setExpiryDraft(v);setDirty(true)}}/><small className="th-status" data-state={hubExpiryState}>{hubExpiryState==="valid"?hubText.valid:hubExpiryState==="expired"?hubText.expired:hubExpiryState==="renew"?hubText.renewState:hubText.unknownState} · {hubText.expiry} ≥ <bdi>{minimumExpiry(hubToday)?.split("-").reverse().join("/")}</bdi></small></div></div></div>:null}
           <TravelDeparture locale={props.locale} today={props.today??algeriaToday()} value={departure} programme={visa} disabled={pending||step!==1} onChange={value=>{setDeparture(value);setDirty(true);if(clientError===ops.invalid)setClientError("")}}/>
           <details className="booking-notes"><summary>{ui.notes}</summary><label className="label sr-only" htmlFor="agencyNotes">{t.notes}</label><textarea id="agencyNotes" name="agencyNotes" rows={2} className="input mt-3" placeholder={t.notesPlaceholder} /></details>
         </div>
@@ -877,7 +881,7 @@ export function RequestWizard(props: Props) {
           </div>
           {selectedRequirement?<div className="booking-doc-panel">
             <div className="booking-doc-head"><h3>{selectedRequirement.name}</h3>{selectedFiles.length?<span className="booking-success">✓ {ui.selected}</span>:null}</div>
-            {props.travellerHub&&step===2&&sourceMatches&&!selectedFiles.length&&props.travellerSource?<TravellerReuse key={selectedRequirement.documentTypeId} sourceId={props.travellerSource.id} locale={props.locale} options={props.travellerSource.reusable.filter(d=>d.typeId===selectedRequirement.documentTypeId)} onFile={file=>{if(onFileChange(selectedRequirement.documentTypeId,[file])){reused.current.add(file);return true}return false}}/>:null}
+            {props.travellerHub&&step===2&&sourceMatches&&!selectedFiles.length&&travellerSource?<TravellerReuse key={travellerSource.id+":"+selectedRequirement.documentTypeId} sourceId={travellerSource.id} locale={props.locale} options={travellerSource.reusable.filter(d=>d.typeId===selectedRequirement.documentTypeId)} onFile={file=>{if(onFileChange(selectedRequirement.documentTypeId,[file])){reused.current.add(file);return true}return false}}/>:null}
             {selectedRequirement.notes?<p className="booking-muted">{selectedRequirement.notes}</p>:null}{warningMessages(selectedRequirement).length?<div role="status" className="booking-warning">{warningMessages(selectedRequirement).map(message=><p key={message}>{message}</p>)}<small>{smart.noValidation}</small></div>:null}
             <label className={selectedFiles.length?"booking-file-replace":"booking-drop"} data-dragging={dragging} onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={e=>{e.preventDefault();setDragging(false);onFileChange(selectedRequirement.documentTypeId,e.dataTransfer.files)}}>
               {!selectedFiles.length?<><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5"/></svg><strong>{ui.drop}</strong></>:null}

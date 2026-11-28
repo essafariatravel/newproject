@@ -36,7 +36,7 @@ export async function travellerProfile(user:Actor,id:string){
  select k.*,count(*) over()::int case_count from keyed k join target t using(identity_key) order by (k.id=$2::uuid) desc,activity_at desc,id desc limit 100`,[agency,id]);
  const anchor=result.rows.find(r=>r.id===id);
  if(!result.rows.length)return null;
- // If an older anchor lies outside the 100 most recent results, reject rather than silently changing identity.
+ // The explicit anchor is retained even when the bounded history is full.
  if(!anchor)return null;
  result.rows.sort((a,b)=>b.activity_at.getTime()-a.activity_at.getTime()||b.id.localeCompare(a.id));
  const candidates=await pool.query<Pick<TravellerRow,"id"|"name"|"reference"|"activity_at"|"passport">>(cte()+` select k.id,k.name,k.reference,k.activity_at,k.passport from keyed k join keyed a on a.id=$2::uuid and k.identity_key<>a.identity_key and k.name_key=a.name_key and k.nationality=a.nationality where a.name_key<>'' order by k.activity_at desc,k.id desc limit 10`,[agency,id]);

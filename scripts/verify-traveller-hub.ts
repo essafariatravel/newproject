@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {hubEnabled,HUB_BRANCH,uuid,passportKey,nameKey,civilDate,minimumExpiry,expiryState,maskPassport,normalizedQuery,pageNumber,identityMatches,reusablePassport,validApplicationPassport} from "../src/lib/traveller-hub-policy";
+import {hubEnabled,HUB_BRANCH,uuid,passportKey,nameKey,civilDate,minimumExpiry,expiryState,maskPassport,normalizedQuery,pageNumber,identityMatches,reusablePassport,validApplicationPassport,safeLookupTerm} from "../src/lib/traveller-hub-policy";
 import {automaticDatabaseChangesForbidden} from "./lib/build-policy";
 assert.equal(hubEnabled({VERCEL_ENV:"production",VERCEL_GIT_COMMIT_REF:HUB_BRANCH}),false);
 assert.equal(hubEnabled({VERCEL_ENV:"preview",VERCEL_GIT_COMMIT_REF:HUB_BRANCH}),true);
@@ -36,3 +36,6 @@ assert.equal(validApplicationPassport("","2027-06-27","2026-11-28"),false);
 assert.equal(validApplicationPassport("","", "2026-11-28"),false);
 assert.equal(validApplicationPassport("00000000","2030-01-01","2026-11-28"),false);
 console.log("[traveller-hub] Mandatory expiry policy PASS (4 assertions)");
+
+assert.equal(safeLookupTerm("x"),"");assert.equal(safeLookupTerm(" AB "),"AB");assert.equal(safeLookupTerm({}),"");
+console.log("[traveller-hub] Bounded lookup PASS (3 assertions)");

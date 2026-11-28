@@ -18,3 +18,7 @@ export function reusablePassport(input:{code:string;status:string;size:number;mi
 }
 
 export function validApplicationPassport(number:string|null|undefined,expiry:string|null|undefined,today:string){return (!(number??"").trim()||Boolean(passportKey(number)))&&expiryState(expiry??null,today)==="valid"}
+
+export type TravellerSource=TravellerIdentity&{id:string;reference:string;reusable:ReuseFile[]};
+export type TravellerMatch={id:string;name:string;nationality:string;reference:string;passport:string};
+export function safeLookupTerm(q:unknown){const term=normalizedQuery(q);return term.length>=2?term:""}
