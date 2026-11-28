@@ -88,3 +88,10 @@ assert.equal(autoEligible({...automaticInput,openRequest:true}),false);
 assert.equal(autoEligible({...automaticInput,attributable:false}),false);
 assert.equal(autoPlan([opt,{...opt,id:"two",createdAt:"2026-11-02"}],["passport","passport"]).length,1);
 console.log("[vault] Freshness, identity and single-selection regressions PASS (6 assertions)");
+
+import {canConsolidate} from "../src/lib/traveller-hub-policy";
+assert.equal(canConsolidate({...identity,dob:null},{...identity,dob:null}),true);
+assert.equal(canConsolidate({...identity,dob:null,expiry:""},{...identity,dob:null,expiry:""}),false);
+assert.equal(canConsolidate({...identity,dob:"1990-01-01"},{...identity,dob:"1991-01-01"}),false);
+assert.equal(canConsolidate({...identity,dob:null},{...identity,dob:null,passport:""}),false);
+console.log("[traveller-hub] Explicit corroborated merge policy PASS (4 assertions)");

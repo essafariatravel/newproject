@@ -58,3 +58,9 @@ export function autoPlan(options:ReuseFile[],required:string[],excluded:string[]
  for(const typeId of new Set(required)){if(excluded.includes(typeId))continue;const candidates=options.filter(d=>d.typeId===typeId&&d.automatic&&!d.tripSpecific).sort((a,b)=>Number(Boolean(b.vault))-Number(Boolean(a.vault))||b.createdAt.localeCompare(a.createdAt)||a.id.localeCompare(b.id));if(candidates[0])result.push(candidates[0])}
  return result;
 }
+
+export function canConsolidate(a:TravellerIdentity&{dob:string|null},b:TravellerIdentity&{dob:string|null}){
+ if(!passportKey(a.passport)||passportKey(a.passport)!==passportKey(b.passport)||nameKey(a.name)!==nameKey(b.name)||a.nationality!==b.nationality)return false;
+ if(a.dob&&b.dob&&a.dob!==b.dob||a.expiry&&b.expiry&&a.expiry!==b.expiry)return false;
+ return Boolean((civilDate(a.dob)&&a.dob===b.dob)||(civilDate(a.expiry)&&a.expiry===b.expiry));
+}
