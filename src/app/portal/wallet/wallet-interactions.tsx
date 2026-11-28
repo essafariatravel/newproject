@@ -1,6 +1,5 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { verifiedPreviewBlob } from "../applications/document-preview-blob";
 import { useEffect, useRef, useState, useTransition, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 
 export function WalletDrawer({id,title,trigger,close,children,className="btn-primary",openFromHash=false}:{id:string;title:string;trigger:ReactNode;close:string;children:ReactNode;className?:string;openFromHash?:boolean}){
@@ -84,7 +83,7 @@ export function WalletReceipt({href,preview,download,loading,error,close}:{href:
  useEffect(()=>{const dialog=root.current?.closest("dialog");const closed=()=>clear();dialog?.addEventListener("close",closed);return()=>{dialog?.removeEventListener("close",closed);request.current?.abort();if(object.current)URL.revokeObjectURL(object.current)}},[]);
  async function open(){
   clear();const controller=new AbortController();request.current=controller;setStatus(loading);
-  try{const response=await fetch(href,{credentials:"same-origin",cache:"no-store",signal:controller.signal});const mime=(response.headers.get("Content-Type")??"").split(";")[0].trim();if(!["application/pdf","image/jpeg","image/png"].includes(mime))throw Error("Unsupported");const blob=await verifiedPreviewBlob(response,mime);if(controller.signal.aborted)return;const url=URL.createObjectURL(blob);object.current=url;setAsset({url,type:blob.type});setStatus("")}catch{if(!controller.signal.aborted)setStatus(error)}
+  try{const response=await fetch(href,{credentials:"same-origin",cache:"no-store",signal:controller.signal});if(!response.ok)throw Error("Receipt unavailable");const blob=await response.blob();if(!["application/pdf","image/jpeg","image/png"].includes(blob.type)||blob.size===0)throw Error("Unsupported");if(blob.type==="application/pdf"){const bytes=new Uint8Array(await blob.slice(0,5).arrayBuffer());if(bytes.length!==5||![37,80,68,70,45].every((byte,index)=>bytes[index]===byte))throw Error("Invalid PDF")}if(controller.signal.aborted)return;const url=URL.createObjectURL(blob);object.current=url;setAsset({url,type:blob.type});setStatus("")}catch{if(!controller.signal.aborted)setStatus(error)}
  }
  return <div ref={root} className="wallet-receipt"><div className="wallet-export-links"><button type="button" className="btn-secondary" onClick={asset?clear:open}>{asset?close:preview}</button><a className="btn-secondary" href={href}>{download}</a></div>{status?<small role={status===error?"alert":"status"}>{status}</small>:null}{asset?asset.type==="application/pdf"?<iframe title={preview} src={asset.url} className="wallet-receipt-frame" sandbox=""/>:<img src={asset.url} alt={preview} className="wallet-receipt-image" onError={()=>{clear();setStatus(error)}}/>:null}</div>;
 }
