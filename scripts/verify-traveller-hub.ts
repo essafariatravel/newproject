@@ -103,3 +103,18 @@ assert.equal(hubEnabled({VERCEL_ENV:"production",VERCEL_GIT_COMMIT_REF:CONSOLIDA
 assert.equal(vaultEnabled({VERCEL_ENV:"production",VERCEL_GIT_COMMIT_REF:CONSOLIDATED_BRANCH,DATABASE_SCHEMA:"visa_os"}),true);
 assert.equal(hubEnabled({VERCEL_ENV:"production",VERCEL_GIT_COMMIT_REF:CONSOLIDATED_BRANCH,DATABASE_SCHEMA:"visa_os_preview"}),false);
 console.log("[hub-release] Production exact schema boundary PASS (3 assertions)");
+
+
+import {canonicalPersonalCode,personalCode} from "../src/lib/traveller-hub-policy";
+const productionAliases=[["COD-PASS","PASSPORT"],["DOC-ID-PHOTO","PHOTO"],["DOC-UZB-ICAO-PHOTO","PHOTO"],["DOC-REL","BANK_STATEMENT"],["LEGACY-0987407aa51fe6db448d256a55321a9b","BANK_STATEMENT"],["DOC-EMPLOYMENT-OR-BUSINESS","EMPLOYMENT_CERT"],["LEGACY-455880d5b685eb5f7a3598ab704d90fc","EMPLOYMENT_CERT"]];
+for(const [code,canonical] of productionAliases){assert.equal(canonicalPersonalCode(code!),canonical);assert.equal(personalCode(code!),true);}
+for(const code of ["DOC-GROUP-PASSPORTS","DECISION_VISA_APPROVAL","DOC-SUPPORTING-VISA","EGY_STICKER_SHIPMENT_PROOF","LEGACY-4b8e7617dd7309fd040d63f2814f33fd","UNKNOWN"]){assert.equal(personalCode(code),false);}
+assert.equal(reusablePassport({...file,code:"COD-PASS"}),true);
+assert.equal(autoEligible({...automaticInput,code:"COD-PASS"}),true);
+assert.equal(autoEligible({...automaticInput,code:"COD-PASS",expiry:"2027-01-01"}),false);
+assert.equal(autoEligible({...automaticInput,code:"DOC-ID-PHOTO",issuedAt:null}),false);
+assert.equal(autoEligible({...automaticInput,code:"DOC-ID-PHOTO",issuedAt:"2026-11-20"}),true);
+assert.equal(autoEligible({...automaticInput,code:"DOC-REL",issuedAt:"2026-10-01"}),false);
+assert.equal(autoEligible({...automaticInput,code:"DOC-REL",issuedAt:"2026-11-20"}),true);
+assert.equal(autoPlan([{...opt,code:"DOC-UZB-ICAO-PHOTO",typeId:"icao"}],["standard-photo"]).length,0);
+console.log("[vault-catalogue] Production aliases, freshness, forbidden types and exact type-ID reuse PASS (28 assertions)");
