@@ -17,14 +17,14 @@ const profileView=()=>`select p.id,p.full_name name,p.nationality,coalesce(p.pas
 const directoryMatch=()=>`(strpos(lower(name),lower($2))>0 or strpos(lower(passport),lower($2))>0 or strpos(lower(reference),lower($2))>0 or exists(select 1 ${linkedCases()} and l.profile_id=profiles.id and (strpos(lower(a.reference),lower($2))>0 or strpos(lower(a.country_name),lower($2))>0 or strpos(lower(a.visa_type_name),lower($2))>0)))`;
 export async function directoryCounts(user:Actor,q:unknown){
  const agency=scope(user),term=normalizedQuery(q),minimum=minimumExpiry(algeriaToday())!;
- const r=await pool.query<{all:number;renew:number;unknown:number;archived:number}>(`with profiles as (${profileView()}) select count(*) filter(where archived_at is null)::int "all",count(*) filter(where archived_at is null and expiry is not null and expiry<$3)::int renew,count(*) filter(where archived_at is null and expiry is null)::int unknown,count(*) filter(where archived_at is not null)::int archived from profiles where ${directoryMatch()}`,[agency,term,minimum]);
+ const r=await pool.query<{all:number;renew:number;unknown:number;archived:number}>(`with profiles as (${profileView()}) select count(*) filter(where archived_at is null)::int "all",count(*) filter(where archived_at is null and expiry is not null and expiry<$3)::int renew,count(*) filter(where archived_at is null and (expiry is null or passport is null or btrim(passport)=''))::int unknown,count(*) filter(where archived_at is not null)::int archived from profiles where ${directoryMatch()}`,[agency,term,minimum]);
  return r.rows[0]??{all:0,renew:0,unknown:0,archived:0};
 }
 export async function directory(user:Actor,q:unknown,page:unknown,filter:unknown,sort:unknown="recent"){
  const agency=scope(user),term=normalizedQuery(q),p=pageNumber(page),f:"all"|"renew"|"unknown"|"archived"=filter==="renew"||filter==="unknown"||vaultEnabled()&&filter==="archived"?filter:"all",minimum=minimumExpiry(algeriaToday())!;
  const order=directorySort(sort),ordering={recent:"activity_at desc,id desc",name:"lower(name) asc,id asc",expiry:"expiry asc nulls last,id asc"}[order];
  const result=await pool.query<TravellerRow&{total:number}>(`with profiles as (${profileView()})
- select *,count(*) over()::int total from profiles where ${directoryMatch()} and (($3='archived' and archived_at is not null) or (archived_at is null and ($3='all' or ($3='renew' and expiry is not null and expiry<$4) or ($3='unknown' and expiry is null)))) order by ${ordering} limit 21 offset $5`,[agency,term,f,minimum,(p-1)*20]);
+ select *,count(*) over()::int total from profiles where ${directoryMatch()} and (($3='archived' and archived_at is not null) or (archived_at is null and ($3='all' or ($3='renew' and expiry is not null and expiry<$4) or ($3='unknown' and (expiry is null or passport is null or btrim(passport)=''))))) order by ${ordering} limit 21 offset $5`,[agency,term,f,minimum,(p-1)*20]);
  return {rows:result.rows.slice(0,20),hasNext:result.rows.length>20,page:p,q:term,filter:f,sort:order,total:result.rows[0]?.total??0};
 }
 export async function travellerProfile(user:Actor,id:string){
