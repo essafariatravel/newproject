@@ -34,3 +34,8 @@ export function reusableDocument(input:Parameters<typeof reusablePassport>[0]&{u
  const age=(Date.parse(input.today+"T00:00:00Z")-Date.parse(input.uploadedAt.slice(0,10)+"T00:00:00Z"))/86400000;
  return Number.isFinite(age)&&age>=0&&age<=REUSE_AGE_DAYS[input.code]!;
 }
+
+export function renewalStage(expiry:string|null,today:string):"RENEW"|"URGENT"|"EXPIRED"|null{
+ const state=expiryState(expiry,today);if(state==="expired")return "EXPIRED";if(state!=="renew"||!expiry)return null;
+ return (Date.parse(expiry+"T00:00:00Z")-Date.parse(today+"T00:00:00Z"))/86400000<=30?"URGENT":"RENEW";
+}

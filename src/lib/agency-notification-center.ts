@@ -1,3 +1,4 @@
+import {hubEnabled} from "./traveller-hub-policy";
 import {and,desc,eq,getTableColumns,isNull,sql} from "drizzle-orm";
 import {db} from "@/lib/db";
 import {notifications,applications,countries,visaTypes} from "@/db/schema";
@@ -15,9 +16,11 @@ export async function listAgencyNotifications(userId: string, limit: number, fil
   const table = (name: string) => sql.raw(qualifiedTable(name));
   if (filter === "messages") conditions.push(eq(notifications.type, "MESSAGE_POSTED"));
   if (filter === "wallet") conditions.push(sql`(${notifications.type} like '%WALLET%' or ${notifications.type} = 'TOPUP_REQUESTED')`);
-  if (filter === "applications") conditions.push(sql`${notifications.applicationId} is not null and ${notifications.type} <> 'MESSAGE_POSTED' and ${notifications.type} not like '%WALLET%'`);
+  if (filter === "applications") conditions.push(sql`(${notifications.applicationId} is not null or ${notifications.type} like 'TRAVELLER_PASSPORT_%') and ${notifications.type} <> 'MESSAGE_POSTED' and ${notifications.type} not like '%WALLET%'`);
   // Agency action projection: the request must still be open, or the latest public message awaits a reply.
+  const renewalAction=hubEnabled()?sql`(${notifications.type} like 'TRAVELLER_PASSPORT_%' and exists(select 1 from ${table("traveller_renewal_events")} e join ${table("traveller_profiles")} p on p.id=e.profile_id and p.agency_id=e.agency_id where e.notification_id=${notifications.id} and e.agency_id=${options.agencyId} and e.user_id=${userId} and p.passport_expiry=e.expiry and p.passport_expiry<((now() at time zone 'Africa/Algiers')::date+interval '7 months')::date and e.stage=case when p.passport_expiry<=(now() at time zone 'Africa/Algiers')::date then 'EXPIRED' when p.passport_expiry<=(now() at time zone 'Africa/Algiers')::date+30 then 'URGENT' else 'RENEW' end))`:sql`false`;
   const actionCondition=sql`(
+    ${renewalAction} or
     (${notifications.type} in ('DOCUMENT_REQUESTED','DOCUMENT_REJECTED','RESUBMISSION_REQUIRED') and exists (
       select 1 from ${table("applications")} dossier join ${table("statuses")} state on state.id=dossier.status_id
       join ${table("document_requests")} requested on requested.application_id=dossier.id
@@ -118,7 +121,7 @@ export async function listAgencyNotifications(userId: string, limit: number, fil
       currentStatusFr:options.detail?sql<string|null>`(select st.name_fr from ${table("statuses")} st where st.id=${applications.statusId})`:sql<string|null>`null`,
       currentStatusAr:options.detail?sql<string|null>`(select st.name_ar from ${table("statuses")} st where st.id=${applications.statusId})`:sql<string|null>`null`,
       pendingDocumentCount:options.detail?sql<number|null>`case when ${applications.id} is not null then (select count(*)::int from ${table("document_requests")} req join ${table("applications")} app on app.id=req.application_id join ${table("statuses")} st on st.id=app.status_id where req.application_id=${applications.id} and app.agency_id=${options.agencyId} and req.status='OPEN' and not st.is_terminal) else null end`:sql<number|null>`null`,
-      travellerName: sql<string | null>`(select coalesce(traveller.full_name, concat_ws(' ',traveller.first_name,traveller.last_name)) from ${table("applicants")} traveller where traveller.application_id = ${table("notifications")}.application_id limit 1)`,
+      travellerName: sql<string | null>`coalesce(${hubEnabled()?sql`(select p.full_name from ${table("traveller_renewal_events")} e join ${table("traveller_profiles")} p on p.id=e.profile_id and p.agency_id=e.agency_id where e.notification_id=${notifications.id} and e.agency_id=${options.agencyId} and e.user_id=${userId} limit 1)`:sql`null`},(select coalesce(traveller.full_name, concat_ws(' ',traveller.first_name,traveller.last_name)) from ${table("applicants")} traveller where traveller.application_id = ${table("notifications")}.application_id limit 1))`,
       destination: applications.countryName,
       countryIso2: countries.iso2,
       visaName: applications.visaTypeName,

@@ -1,3 +1,4 @@
+import {safeTravellerRenewals} from "@/lib/traveller-renewals";
 import {hubEnabled} from "@/lib/traveller-hub-policy";
 import "./agency-v2.css";
 import { AgencyCommand } from "./applications/agency-command";
@@ -37,6 +38,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
   const financial=hasPermission(user,"wallet.view.own")&&hasPermission(user,"transactions.view.own");
   const scope=process.env.VERCEL_ENV==="preview"&&process.env.ESSAFARIA_NOTIFICATION_SHARING!=="false"?agencyNotificationScope(user,locale,financial):null;
   const tr=chromeT(locale);
+  await safeTravellerRenewals(user);
   const [unread,initialEvents,agencyRows,platformBranding]=await coreTimed("agency.shell.read",()=>Promise.all([
     unreadNotificationCount(user.id),
     agencyBellEvents(user.id,agencyId,locale,financial),

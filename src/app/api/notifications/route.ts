@@ -1,3 +1,4 @@
+import {safeTravellerRenewals} from "@/lib/traveller-renewals";
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { notificationBellEventsForUser, unreadNotificationCount } from "@/lib/queries";
@@ -22,6 +23,7 @@ export async function GET(request?:Request) {
     const scope=agencyNotificationScope(user,locale,financial);
     if((expected!==null&&expected!==undefined&&(!scope||expected!==scope))||(probe&&(!scope||expected!==scope)))return NextResponse.json({code:"FORBIDDEN"},{status:403,headers:{"Cache-Control":"private, no-store"}});
     if(probe)return NextResponse.json({scope},{headers:{"Cache-Control":"private, no-store"}});
+    await safeTravellerRenewals(user);
     const [events,unread]=await coreTimed("agency.notifications.read",()=>Promise.all([agencyBellEvents(user.id,user.agencyId!,locale,financial),unreadNotificationCount(user.id)]));
     return NextResponse.json({unread,events},{headers:{"Cache-Control":"private, no-store"}});
   }

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {hubEnabled,HUB_BRANCH,uuid,passportKey,nameKey,civilDate,minimumExpiry,expiryState,maskPassport,normalizedQuery,pageNumber,identityMatches,reusablePassport,validApplicationPassport,safeLookupTerm,reusableDocument,tripSpecificDocument,sameDeclaredIdentity} from "../src/lib/traveller-hub-policy";
+import {hubEnabled,HUB_BRANCH,uuid,passportKey,nameKey,civilDate,minimumExpiry,expiryState,maskPassport,normalizedQuery,pageNumber,identityMatches,reusablePassport,validApplicationPassport,safeLookupTerm,reusableDocument,tripSpecificDocument,sameDeclaredIdentity,renewalStage} from "../src/lib/traveller-hub-policy";
 import {automaticDatabaseChangesForbidden} from "./lib/build-policy";
 assert.equal(hubEnabled({VERCEL_ENV:"production",VERCEL_GIT_COMMIT_REF:HUB_BRANCH}),false);
 assert.equal(hubEnabled({VERCEL_ENV:"preview",VERCEL_GIT_COMMIT_REF:HUB_BRANCH}),true);
@@ -53,3 +53,10 @@ assert.equal(tripSpecificDocument("PHOTO"),false);
 assert.equal(sameDeclaredIdentity({...identity,passport:""},{...identity,passport:""}),true);
 assert.equal(sameDeclaredIdentity(identity,{...identity,expiry:"2031-01-01"}),false);
 console.log("[traveller-hub] Expanded controlled reuse and profile identity PASS (11 assertions)");
+
+assert.equal(renewalStage("2027-06-28","2026-11-28"),null);
+assert.equal(renewalStage("2027-03-01","2026-11-28"),"RENEW");
+assert.equal(renewalStage("2026-12-10","2026-11-28"),"URGENT");
+assert.equal(renewalStage("2026-11-28","2026-11-28"),"EXPIRED");
+assert.equal(renewalStage(null,"2026-11-28"),null);
+console.log("[traveller-hub] Renewal stages PASS (5 assertions)");
