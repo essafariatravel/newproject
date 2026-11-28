@@ -24,3 +24,19 @@ export function groupProgress(rows:readonly GroupTrackingRow[],expected:number){
 export function groupTrackingFilter(v:unknown):"all"|"attention"|"active"|"closed"{return v==="attention"||v==="active"||v==="closed"?v:"all"}
 export function groupTrackingPage(v:unknown){const n=typeof v==="string"&&/^\d{1,5}$/.test(v)?Number(v):1;return Math.max(1,Math.min(10000,n))}
 export function groupReuseReady(ids:readonly (string|null)[],expected:number){return expected>=GROUP_MIN&&expected<=GROUP_MAX&&ids.length===expected&&ids.every(id=>Boolean(id))&&new Set(ids).size===expected}
+
+/** Money is a read-only ledger projection, validated in integer cents. */
+export type GroupLedgerAmounts={charged:string;surcharge:string;discount:string;refund:string;net:string;valid:boolean};
+const ledgerKeys=["charged","surcharge","discount","refund","net"] as const;
+export function groupFinancialTotals(rows:readonly GroupLedgerAmounts[],expected:number){
+ if(!Number.isInteger(expected)||expected<GROUP_MIN||expected>GROUP_MAX||rows.length!==expected||!rows.every(r=>r.valid))return null;
+ const totals={charged:0,surcharge:0,discount:0,refund:0,net:0};
+ for(const row of rows){
+ const cents=ledgerKeys.map(k=>{const v=row[k];if(!/^-?\d{1,12}(?:\.\d{1,2})?$/.test(v))return NaN;const negative=v.startsWith("-"),[whole,fraction=""]=v.replace(/^-/,"").split(".");return (Number(whole)*100+Number(fraction.padEnd(2,"0")))*(negative?-1:1)});
+ if(cents.some(v=>!Number.isSafeInteger(v)||v<0))return null;
+ const [charge,extra,discount,refund,net]=cents as [number,number,number,number,number];
+ if(charge+extra-discount-refund!==net)return null;
+ for(const [i,k] of ledgerKeys.entries()){totals[k]+=cents[i]!;if(!Number.isSafeInteger(totals[k]))return null}
+ }
+ return totals;
+}
