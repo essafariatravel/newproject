@@ -21,7 +21,8 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import { assessTravelDeadline,algeriaToday } from "@/lib/travel-deadline";
 import { operationalCopy } from "@/lib/operational-copy";
 import { TravelDeparture,TravelTiming } from "./travel-departure";
-import { PassportValidity,DuplicateNotice,DocumentStudio } from "./document-studio";
+import { PassportValidity,PassportValiditySummary,GuardSummary,guardCopy,useDocumentGuard } from "./document-studio";
+import {expiryAssessment,guardTechnical} from "@/lib/document-intelligence";
 import { runBoundedUploads } from "@/lib/bounded-upload";
 import { stagingReceiptKey,reusableStagingToken,type StagedReceipt } from "@/lib/request-upload-retry";
 import { contentT } from "@/lib/i18n-content";
@@ -221,6 +222,7 @@ export function RequestWizard(props: Props) {
   const [dragging,setDragging]=useState(false);
   const [nameDraft,setNameDraft]=useState("");
   const [departure,setDeparture]=useState("");
+  const [passportExpiry,setPassportExpiry]=useState("");
   const ops=operationalCopy[props.locale];
   const [nationalityDraft,setNationalityDraft]=useState(props.defaultNationality);
   // Controlled state is the single source of truth for the gate and the submitted payload.
@@ -256,6 +258,7 @@ export function RequestWizard(props: Props) {
   useEffect(()=>{
     let active=true;
     setLocalWarnings({});
+    if(props.documentIntelligence)return;
     const entries=Object.entries(files).flatMap(([id,list])=>list.map(file=>({id,file})));
     if(!entries.length)return;
     void (async()=>{
@@ -285,7 +288,7 @@ export function RequestWizard(props: Props) {
       if(active)setLocalWarnings(warnings);
     })();
     return()=>{active=false};
-  },[files,props.requirementsByVisaType,visaTypeId]);
+  },[files,props.requirementsByVisaType,visaTypeId,props.documentIntelligence]);
   const [pending, setPending] = useState(false);
   const submittingRef = useRef(false);
   const leavingAfterSuccess = useRef(false);
@@ -333,6 +336,13 @@ export function RequestWizard(props: Props) {
   const expectedCatalogue=props.catalogueFingerprints?.[visaTypeId];
   const requirements = useMemo(() => (visaTypeId ? (props.requirementsByVisaType[visaTypeId] ?? []) : []), [props.requirementsByVisaType, visaTypeId]);
 
+  const guard=useDocumentGuard(Boolean(props.documentIntelligence),files,requirements);
+  const guardText=guardCopy[props.locale];
+  const expiry=expiryAssessment(passportExpiry,props.today??algeriaToday(),departure);
+  const expiryWarning=Boolean(props.documentIntelligence&&passportExpiry&&(expiry.state==="invalid"||expiry.state==="expired"));
+  const technicalError=Boolean(guard.result&&Object.values(guard.result.byId).some(list=>list.some(guardTechnical)));
+  const [acceptedRisk,setAcceptedRisk]=useState<{result:typeof guard.result;expiry:string;departure:string;visa:string}|null>(null);
+  const accepted=acceptedRisk?.result===guard.result&&acceptedRisk?.expiry===passportExpiry&&acceptedRisk?.departure===departure&&acceptedRisk?.visa===visaTypeId;
   const requiredDocs=requirements.filter(r=>r.required);
   const completedDocs=requiredDocs.filter(r=>(files[r.documentTypeId]??[]).length>0).length;
   const selectedRequirement=requirements.find(r=>r.documentTypeId===activeDoc)??requirements.find(r=>r.required&&!(files[r.documentTypeId]??[]).length)??requirements[0];
@@ -347,9 +357,11 @@ export function RequestWizard(props: Props) {
       if(checkoutBankRequirement(r))return checkoutBankFilenameMismatch(name);
       return false;
     });
-    return [...(mismatch?[smart.mismatch]:[]),...(localWarnings[r.documentTypeId]??[]).map(k=>k==="portrait"||k==="format"?checkout[k]:smart[k])];
+    return [...new Set([...(mismatch?[smart.mismatch]:[]),...(localWarnings[r.documentTypeId]??[]).map(k=>k==="portrait"||k==="format"?checkout[k]:smart[k]),...(guard.result?.byId[r.documentTypeId]??[]).map(k=>guardText.issues[k])])];
   }
   const flaggedRequirements=requirements.filter(r=>warningMessages(r).length>0);
+  const guardIssues=flaggedRequirements.map(r=>({name:r.name,messages:warningMessages(r)}));
+  const requiresRisk=Boolean(props.documentIntelligence&&(flaggedRequirements.length||expiryWarning));
   const checkoutFiles=requirements.flatMap(r=>files[r.documentTypeId]??[]);
   const checkoutFileIndex=reviewFile?checkoutFiles.indexOf(reviewFile):-1;
   const checkoutCategory=/^(tourist|tourism|tourisme|touristique|سياحة)$/i.test(visa?.categoryName.trim()??"")?checkout.tourist:visa?.categoryName;
@@ -432,6 +444,7 @@ export function RequestWizard(props: Props) {
         return false;
       }
       if(deadline.state==="invalid"){setClientError(ops.invalid);return false;}
+      if(props.documentIntelligence&&expiry.state==="invalid"){setClientError(guardText.invalid);return false;}
       if (!applicantReady) {
         setClientError(t.validationApplicant);
         return false;
@@ -439,6 +452,7 @@ export function RequestWizard(props: Props) {
     }
     if (n === 2) {
       if(batch.length){setClientError(assist.batchHint);return false;}
+      if(props.documentIntelligence&&(guard.checking||technicalError)){setClientError(guard.checking?guardText.checking:guardText.technical);return false;}
       for (const r of requirements) {
         if (r.required && (files[r.documentTypeId] ?? []).length === 0) {
           selectDoc(r.documentTypeId);setClientError(`${t.missingPrefix}: ${r.name}`);
@@ -543,6 +557,7 @@ export function RequestWizard(props: Props) {
 
   async function submit(form: HTMLFormElement) {
     if (step !== 3 || submittingRef.current || !reviewReady || !canAfford || catalogueRecovery || sessionRecovery || !validateStep(1) || !validateStep(2)) return;
+    if(props.documentIntelligence&&(guard.checking||technicalError||(requiresRisk&&!accepted))){setClientError(guard.checking?guardText.checking:technicalError?guardText.technical:guardText.ack);return;}
     submittingRef.current = true;
     setPending(true);
     const fields = new FormData(form);
@@ -814,7 +829,6 @@ export function RequestWizard(props: Props) {
         {/* Applicant — one traveler, minimal data (§12) */}
         <div className="booking-traveller space-y-4">
           <h2>{ux.traveller}</h2>
-          {props.documentIntelligence&&step===1?<PassportValidity locale={props.locale} today={props.today??algeriaToday()} departure={departure}/>:null}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor="t0_fullName">{t.fullName} *</label>
@@ -841,6 +855,7 @@ export function RequestWizard(props: Props) {
               </div>
             </div>
           </div>
+          {props.documentIntelligence?<PassportValidity locale={props.locale} today={props.today??algeriaToday()} departure={departure} value={passportExpiry} onChange={v=>{setPassportExpiry(v);setDirty(true)}} disabled={pending||step!==1}/>:null}
           <TravelDeparture locale={props.locale} today={props.today??algeriaToday()} value={departure} programme={visa} disabled={pending||step!==1} onChange={value=>{setDeparture(value);setDirty(true);if(clientError===ops.invalid)setClientError("")}}/>
           <details className="booking-notes"><summary>{ui.notes}</summary><label className="label sr-only" htmlFor="agencyNotes">{t.notes}</label><textarea id="agencyNotes" name="agencyNotes" rows={2} className="input mt-3" placeholder={t.notesPlaceholder} /></details>
         </div>
@@ -857,15 +872,15 @@ export function RequestWizard(props: Props) {
       <section data-wizard-section="2" hidden={step!==2} className="wizard-panel booking-docs" data-direction={wizardDirection}>
         <div className="booking-doc-head"><div><h2>{t.documents}</h2><small>{country?.name} · {visa?.name} · <bdi>{visa?formatDZD(visa.fee):"—"}</bdi></small></div><div className="booking-doc-progress" role="status"><strong>{completedDocs}/{requiredDocs.length}</strong> <span>{progressCopy.selected}</span>{requiredDocs.length>0?<progress value={completedDocs} max={requiredDocs.length} aria-label={progressCopy.selected}/>:null}</div></div>
         {fileError?<p role="alert" className="booking-warning" data-testid="wizard-file-error">{fileError}</p>:null}
-        {props.documentIntelligence&&step===2?<DuplicateNotice items={files} locale={props.locale}/>:null}
+        {props.documentIntelligence&&step===2?<GuardSummary locale={props.locale} checking={guard.checking} issues={guardIssues}/>:null}
         {requirements.length===0?<p>{t.noDocumentsRequired}</p>:<div className="booking-doc-grid" data-single={requirements.length===1&&batch.length===0}>
           <div className="booking-doc-list" role="group" aria-label={t.summaryDocuments} hidden={requirements.length===1&&batch.length===0}>
             <label className="booking-batch btn-secondary"><span>＋ {assist.batch}</span><input className="sr-only" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" onChange={e=>{const incoming=Array.from(e.currentTarget.files??[]);if(incoming.length){setBatch(prev=>[...prev,...incoming]);setDirty(true)}e.currentTarget.value=""}}/></label>
             {batch.length?<div className="booking-inbox"><strong>{assist.unassigned} ({batch.length})</strong><small>{assist.batchHint}</small>{batch.map((f,i)=><div className="booking-batch-row" key={i}><span>{f.name}</span><button type="button" className="booking-link" disabled={!selectedRequirement} aria-label={assist.assign+" "+f.name+" → "+selectedRequirement?.name} onClick={()=>{if(selectedRequirement&&onFileChange(selectedRequirement.documentTypeId,[...(files[selectedRequirement.documentTypeId]??[]),f]))setBatch(prev=>prev.filter((_,j)=>j!==i))}}>{assist.assign}</button><button type="button" className="booking-link" aria-label={t.remove+" "+f.name} onClick={()=>setBatch(prev=>prev.filter((_,j)=>j!==i))}>×</button></div>)}</div>:null}
-            {requirements.map(r=><button type="button" key={r.documentTypeId} className="booking-doc-row" aria-pressed={selectedRequirement?.documentTypeId===r.documentTypeId} onClick={()=>selectDoc(r.documentTypeId)}><span className="booking-doc-icon" aria-hidden>▤</span><span><strong>{r.name}</strong><small>{r.required?t.required:ui.optional}</small></span><span className={(files[r.documentTypeId]??[]).length?"booking-success":"booking-muted"}>{warningMessages(r).length?<span className="booking-warning">• {smart.inspect}</span>:(files[r.documentTypeId]??[]).length?"✓ "+smart.selected:ui.empty}</span></button>)}
+            {requirements.map(r=><button type="button" key={r.documentTypeId} className="booking-doc-row" aria-pressed={selectedRequirement?.documentTypeId===r.documentTypeId} onClick={()=>selectDoc(r.documentTypeId)}><span className="booking-doc-icon" aria-hidden>▤</span><span><strong>{r.name}</strong><small>{r.required?t.required:ui.optional}</small></span><span className={(files[r.documentTypeId]??[]).length?"booking-success":"booking-muted"}>{warningMessages(r).length?<span className="booking-warning">• {smart.inspect}</span>:(files[r.documentTypeId]??[]).length?(guard.checking?guardText.checking:"✓ "+smart.selected):ui.empty}</span></button>)}
           </div>
           {selectedRequirement?<div className="booking-doc-panel">
-            <div className="booking-doc-head"><h3>{selectedRequirement.name}</h3>{selectedFiles.length?<span className="booking-success">✓ {ui.selected}</span>:null}</div>
+            <div className="booking-doc-head"><h3>{selectedRequirement.name}</h3>{selectedFiles.length?<span className={warningMessages(selectedRequirement).length?"booking-warning":guard.checking?"booking-muted":"booking-success"}>{warningMessages(selectedRequirement).length?checkout.check:guard.checking?guardText.checking:ui.selected}</span>:null}</div>
             {selectedRequirement.notes?<p className="booking-muted">{selectedRequirement.notes}</p>:null}{warningMessages(selectedRequirement).length?<div role="status" className="booking-warning">{warningMessages(selectedRequirement).map(message=><p key={message}>{message}</p>)}<small>{smart.noValidation}</small></div>:null}
             <label className={selectedFiles.length?"booking-file-replace":"booking-drop"} data-dragging={dragging} onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={e=>{e.preventDefault();setDragging(false);onFileChange(selectedRequirement.documentTypeId,e.dataTransfer.files)}}>
               {!selectedFiles.length?<><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5"/></svg><strong>{ui.drop}</strong></>:null}
@@ -875,7 +890,6 @@ export function RequestWizard(props: Props) {
             </label>
             {selectedFiles.length?<><div className="booking-files">{selectedFiles.map((f,i)=><div key={i} className="booking-line"><button type="button" className="booking-file-name" aria-pressed={i===previewIndex} onClick={()=>setPreviewIndex(i)}>{f.name} <small>{Math.ceil(f.size/1024)} KB</small></button><button type="button" className="booking-link" onClick={()=>{removeFile(selectedRequirement.documentTypeId,i);setPreviewIndex(0)}}>{t.remove}</button></div>)}</div>
             {selectedFile&&previewUrl?<div className="booking-preview">{/^image\/(jpeg|png|webp)$/.test(selectedFile.type)?<button type="button" className="booking-preview-image" onClick={()=>setReviewFile(selectedFile)} aria-label={ux.full}><img src={previewUrl} alt={selectedFile.name}/></button>:selectedFile.type==="application/pdf"?<iframe title={selectedFile.name} src={previewUrl}/>:<p>{ui.unavailable}</p>}</div>:null}</>:null}
-            {props.documentIntelligence&&step===2&&selectedFile?<DocumentStudio key={selectedRequirement.documentTypeId+":"+previewIndex+":"+selectedFile.name+":"+selectedFile.lastModified} file={selectedFile} locale={props.locale} photo={/photo|portrait|picture/i.test(selectedRequirement.code)} />:null}
             <div className="booking-line"><small>{ux.verify}</small>{selectedFile?<button type="button" className="booking-link" onClick={()=>setReviewFile(selectedFile)}>{ux.full}</button>:null}{requirements.some(r=>r.documentTypeId!==selectedRequirement.documentTypeId&&r.required&&!(files[r.documentTypeId]??[]).length)?<button type="button" className="btn-secondary" onClick={()=>{const next=requirements.find(r=>r.documentTypeId!==selectedRequirement.documentTypeId&&r.required&&!(files[r.documentTypeId]??[]).length);if(next)selectDoc(next.documentTypeId)}}>{ui.nextDoc} →</button>:null}</div>
           </div>:null}
         </div>}
@@ -893,12 +907,14 @@ export function RequestWizard(props: Props) {
             <div className="checkout-traveller-info" data-testid="wizard-applicant-summary"><small>{t.sectionApplicant}</small><strong>{nameDraft||"—"}</strong><span>{t.nationality}: {props.nationalities.find(n=>n.code===nationalityDraft)?.label??nationalityDraft}</span></div>
             <button type="button" className="checkout-edit" disabled={pending} onClick={()=>editStep(1)} aria-label={ui.edit+" · "+t.sectionApplicant}><CheckoutIcon kind="edit"/><span>{ui.edit}</span></button>
           </div>
+          {props.documentIntelligence?<PassportValiditySummary locale={props.locale} today={props.today??algeriaToday()} departure={departure} value={passportExpiry}/>:null}
           {departure?<TravelTiming locale={props.locale} today={props.today??algeriaToday()} value={departure} programme={visa} onEdit={pending?undefined:()=>editStep(1)}/>:null}
           {reviewReady&&reviewCheck?.status==="ready"&&reviewCheck.possibleDuplicate?<div className="booking-duplicate-note" role="status"><div><strong>{({fr:"Dossier similaire détecté",en:"Similar application found",ar:"تم العثور على طلب مشابه"}[props.locale])}</strong><p>{({fr:"Vérifiez s’il s’agit du même voyageur ou d’un homonyme.",en:"Check whether this is the same traveller or a different person with the same name.",ar:"تحققوا مما إذا كان المسافر نفسه أو شخصاً آخر يحمل الاسم نفسه."}[props.locale])}</p></div>{typeof reviewCheck.similarApplicationId==="string"&&/^[0-9a-f-]{36}$/i.test(reviewCheck.similarApplicationId)?<a className="booking-link" href={`/portal/applications/${encodeURIComponent(reviewCheck.similarApplicationId)}`} target="_blank" rel="noopener noreferrer">{({fr:"Consulter le dossier ↗",en:"View application ↗",ar:"عرض الطلب ↗"}[props.locale])}</a>:null}</div>:null}
           <div className="checkout-documents">
             <div className="checkout-doc-heading"><h3>{t.summaryDocuments}</h3><span className="checkout-count"><bdi>{completedDocs}/{requiredDocs.length}</bdi> {checkout.selected}</span><button type="button" className="checkout-edit" disabled={pending} onClick={()=>editStep(2)} aria-label={ui.edit+" · "+t.summaryDocuments}><CheckoutIcon kind="edit"/><span>{ui.edit}</span></button></div>
             {fileError?<p role="alert" className="booking-warning" data-testid="checkout-file-error">{fileError}</p>:null}
-            {flaggedRequirements.length?<details className="checkout-attention"><summary><span className="checkout-attention-dot" aria-hidden="true"/><span>{checkout.attention} · <bdi>{flaggedRequirements.length}</bdi></span></summary><small>{smart.noValidation}</small></details>:null}
+            {!props.documentIntelligence&&flaggedRequirements.length?<details className="checkout-attention"><summary><span className="checkout-attention-dot" aria-hidden="true"/><span>{checkout.attention} · <bdi>{flaggedRequirements.length}</bdi></span></summary><small>{smart.noValidation}</small></details>:null}
+            {props.documentIntelligence?<GuardSummary locale={props.locale} checking={guard.checking} issues={guardIssues} onFix={()=>editStep(2)}/>:null}
             {requirements.length===0?<p className="booking-muted">{t.noDocumentsRequired}</p>:<div className="checkout-gallery" data-single={requirements.length===1} role="group" aria-label={t.summaryDocuments}>
               {requirements.map(r=>{
                 const attached=files[r.documentTypeId]??[];
@@ -910,7 +926,7 @@ export function RequestWizard(props: Props) {
                     <span className={flagged?"booking-warning":"booking-muted"}><span className="checkout-status-dot" aria-hidden="true"/>{flagged?checkout.check:attached.length?checkout.selectedShort:r.required?checkout.missing:ui.optional}</span>
                   </div>
                   {attached.length?attached.map((f,i)=><button key={i} type="button" className="checkout-document-preview" disabled={pending} onClick={()=>setReviewFile(f)} aria-label={ui.preview+" · "+r.name+" · "+f.name}><CheckoutThumbnail file={f} active={step===3}/><span className="checkout-file-caption"><span title={f.name} dir="auto">{f.name}</span><CheckoutIcon kind="expand"/></span></button>):<div className="checkout-missing"><CheckoutIcon kind="file"/><span>{r.required?checkout.missing:ui.optional}</span></div>}
-                  {flagged?<details className="checkout-document-warning"><summary>{smart.inspect} ({warnings.length})</summary>{warnings.map(message=><p key={message}>{message}</p>)}</details>:null}
+                  {flagged&&!props.documentIntelligence?<details className="checkout-document-warning"><summary>{smart.inspect} ({warnings.length})</summary>{warnings.map(message=><p key={message}>{message}</p>)}</details>:null}
                   <label className="checkout-replace" data-disabled={pending}>
                     <CheckoutIcon kind="edit"/><span>{attached.length>1?checkout.replaceAll:attached.length?checkout.replace:checkout.add}</span>
                     <input className="sr-only" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" disabled={pending} aria-label={(attached.length>1?checkout.replaceAll:attached.length?checkout.replace:checkout.add)+" · "+r.name} onChange={e=>{if(!submittingRef.current&&!pending)onFileChange(r.documentTypeId,e.currentTarget.files);e.currentTarget.value=""}}/>
@@ -930,7 +946,9 @@ export function RequestWizard(props: Props) {
           </div>
           <details className="ops-review"><summary>{ops.decision}</summary><p>{ops.traveller}: {applicantReady?"✓":"—"}</p><p>{ops.documents}: <bdi>{completedDocs}/{requiredDocs.length}</bdi></p><small>{ops.notReviewed}</small></details>
           {pending&&transfer?<div className="agency-v2-submit-progress" role="status" aria-live="polite"><strong>{transfer.phase==="files"?`${progressCopy.files}: ${transfer.done} / ${transfer.total}`:progressCopy.confirm}</strong>{transfer.phase==="files"&&transfer.total>0?<progress aria-label={progressCopy.files} value={transfer.done} max={transfer.total}/>:null}{transfer.phase==="files"?<details className="core-transfer-details"><summary>{t.documents}</summary>{requirements.filter(r=>(files[r.documentTypeId]??[]).length>0).map(r=><div key={r.documentTypeId}><span>{r.name}</span><bdi>{transferItems[r.documentTypeId]??0}/{(files[r.documentTypeId]??[]).length}</bdi></div>)}</details>:null}<p>{progressCopy.notice}</p></div>:null}
-          {canAfford||!reviewReady?<button type="submit" className="btn-primary w-full" disabled={pending||!reviewReady||catalogueRecovery||sessionRecovery} data-testid="wizard-submit">{pending?t.submitting:<>{t.submitApplication} — <bdi>{visa?formatDZD(visa.fee):"—"}</bdi></>}</button>:<><p className="booking-warning">{t.insufficientTitle} · <bdi>{formatDZD(missing)}</bdi></p><a href={topupHref} className="btn-primary" data-testid="wizard-topup-cta">{t.requestTopup}</a></>}
+          {props.documentIntelligence&&requiresRisk&&!technicalError&&!guard.checking?<label className="di-risk-ack"><input type="checkbox" checked={accepted} disabled={pending} onChange={e=>setAcceptedRisk(e.currentTarget.checked?{result:guard.result,expiry:passportExpiry,departure,visa:visaTypeId}:null)}/><span>{guardText.ack}</span></label>:null}
+          {props.documentIntelligence&&technicalError?<p role="alert" className="booking-warning">{guardText.technical}</p>:null}
+          {canAfford||!reviewReady?<button type="submit" className="btn-primary w-full" disabled={pending||!reviewReady||catalogueRecovery||sessionRecovery||Boolean(props.documentIntelligence&&(guard.checking||technicalError||(requiresRisk&&!accepted)))} data-testid="wizard-submit">{pending?t.submitting:<>{t.submitApplication} — <bdi>{visa?formatDZD(visa.fee):"—"}</bdi></>}</button>:<><p className="booking-warning">{t.insufficientTitle} · <bdi>{formatDZD(missing)}</bdi></p><a href={topupHref} className="btn-primary" data-testid="wizard-topup-cta">{t.requestTopup}</a></>}
         </aside>
       </section>
 
@@ -941,7 +959,7 @@ export function RequestWizard(props: Props) {
         </button>
         <small aria-live="polite">{step===2?(batch.length?assist.batchHint:completedDocs<requiredDocs.length?smart.remaining+" : "+(requiredDocs.length-completedDocs):smart.ready+" · "+ux.local):step===1?ui.noDebit:""}</small>
         {step < 3 ? (
-          <button type="button" onClick={goNext} disabled={pending||(step===1?(!visa||!applicantReady||deadline.state==="invalid"):completedDocs<requiredDocs.length||batch.length>0)} className="btn-primary">
+          <button type="button" onClick={goNext} disabled={pending||(step===1?(!visa||!applicantReady||deadline.state==="invalid"):completedDocs<requiredDocs.length||batch.length>0||Boolean(props.documentIntelligence&&(guard.checking||technicalError)))} className="btn-primary">
             {step===1?ui.continue:ui.review} <span className="directional" aria-hidden>→</span>
           </button>
         ) : null}

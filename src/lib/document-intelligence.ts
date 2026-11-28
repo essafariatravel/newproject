@@ -25,3 +25,62 @@ export function photoRatioDifference(width:number,height:number,targetWidth:numb
  if(![width,height,targetWidth,targetHeight].every(n=>Number.isFinite(n)&&n>0))return null;
  return Math.abs((width/height)/(targetWidth/targetHeight)-1)*100;
 }
+
+export type GuardKind="photo"|"passport"|"bank"|"other";
+export type GuardIssue="invalidFile"|"unreadable"|"limited"|"landscape"|"photoShape"|"photoTooSmall"|"lowResolution"|"blur"|"exposure"|"contrast"|"noFace"|"multipleFaces"|"faceSize"|"facePosition"|"background"|"faceUnavailable"|"portraitInDocument"|"duplicate"|"similar";
+export type FaceBox={x:number;y:number;width:number;height:number};
+export type GuardImage={signals:ImageSignals;fingerprint:string;edgeVariation:number;faces:FaceBox[]|null};
+export function documentKind(code:string,name:string):GuardKind{
+ const s=(code+" "+name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+ if(/passport|passeport|جواز/.test(s))return "passport";
+ if(/photo|portrait|picture|صورة/.test(s))return "photo";
+ if(/bank|bancaire|بنكي|بنك/.test(s))return "bank";
+ return "other";
+}
+export function visualIssues(kind:GuardKind,image:GuardImage):GuardIssue[]{
+ const s=image.signals,issues:GuardIssue[]=[];
+ if(Math.min(s.width,s.height)<300)issues.push(kind==="photo"?"photoTooSmall":"lowResolution");
+ if(s.sharpness<60)issues.push("blur");
+ if(s.mean<45||s.mean>240)issues.push("exposure");
+ if(s.contrast<18)issues.push("contrast");
+ if(kind==="photo"){
+  if(s.ratio>1.08)issues.push("landscape");
+  else if(s.ratio<.55)issues.push("photoShape");
+  if(image.edgeVariation>36)issues.push("background");
+  if(image.faces===null)issues.push("faceUnavailable");
+  else if(image.faces.length===0)issues.push("noFace");
+  else if(image.faces.length>1)issues.push("multipleFaces");
+  else {const f=image.faces[0]!;if(f.height<.28||f.height>.88||f.width<.2||f.width>.88)issues.push("faceSize");if(Math.abs(f.x+f.width/2-.5)>.18||f.y+f.height/2<.22||f.y+f.height/2>.75)issues.push("facePosition")}
+ }else if((kind==="bank"||kind==="passport")&&s.ratio>=.55&&s.ratio<=1.05&&image.faces?.some(f=>f.height>.48&&f.width>.3))issues.push("portraitInDocument");
+ return issues;
+}
+export function signatureKind(bytes:Uint8Array):"pdf"|"jpeg"|"png"|"webp"|"doc"|"zip"|"unknown"{
+ const at=(offset:number,expected:number[])=>expected.every((v,i)=>bytes[offset+i]===v);
+ if(at(0,[37,80,68,70,45]))return "pdf";
+ if(at(0,[255,216,255]))return "jpeg";
+ if(at(0,[137,80,78,71,13,10,26,10]))return "png";
+ if(at(0,[82,73,70,70])&&at(8,[87,69,66,80]))return "webp";
+ if(at(0,[208,207,17,224,161,177,26,225]))return "doc";
+ if(at(0,[80,75,3,4]))return "zip";
+ return "unknown";
+}
+export function expectedSignature(name:string):ReturnType<typeof signatureKind>{
+ const ext=name.toLowerCase().split(".").pop();
+ return ext==="jpg"||ext==="jpeg"?"jpeg":ext==="docx"?"zip":ext==="pdf"||ext==="png"||ext==="webp"||ext==="doc"?ext:"unknown";
+}
+export function differenceHash(gray:readonly number[]):string{
+ if(gray.length!==72)throw Error("Invalid fingerprint sample");
+ let bits="";for(let y=0;y<8;y++)for(let x=0;x<8;x++)bits+=gray[y*9+x]!>gray[y*9+x+1]!?"1":"0";return bits;
+}
+export function probablySimilar(a:GuardImage,b:GuardImage):boolean{
+ if(a.fingerprint.length!==64||b.fingerprint.length!==64||a.signals.contrast<18||b.signals.contrast<18)return false;
+ if(Math.abs(a.signals.ratio/b.signals.ratio-1)>.035||Math.abs(a.signals.mean-b.signals.mean)>20||Math.abs(a.signals.contrast-b.signals.contrast)>22)return false;
+ let d=0;for(let i=0;i<64;i++)if(a.fingerprint[i]!==b.fingerprint[i])d++;
+ return d<=4;
+}
+export function guardTechnical(issue:GuardIssue):boolean{return issue==="invalidFile"||issue==="unreadable"}
+export function expiryAssessment(expiry:string,today:string,departure:string){
+ const departureDays=passportValidity(departure,today),reference=departureDays!==null&&departureDays>=0?departure:today;
+ const days=passportValidity(expiry,reference);
+ return {reference,days,state:!expiry?"missing":days===null?"invalid":days<=0?"expired":"valid"} as const;
+}

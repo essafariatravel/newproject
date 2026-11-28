@@ -1,6 +1,6 @@
 /** Preview qualification: retained document checks only; no database or external calls. */
 import assert from "node:assert/strict";
-import {passportValidity,photoRatioDifference,duplicateGroups,imageSignals} from "../src/lib/document-intelligence";
+import {passportValidity,photoRatioDifference,duplicateGroups,imageSignals,documentKind,visualIssues,signatureKind,expectedSignature,differenceHash,probablySimilar,expiryAssessment,guardTechnical,type GuardImage} from "../src/lib/document-intelligence";
 assert.equal(passportValidity("2032-04-15","2032-04-01"),14);
 assert.equal(passportValidity("2032-04-01","2032-04-01"),0);
 assert.equal(passportValidity("2032-03-31","2032-04-01"),-1);
@@ -12,3 +12,24 @@ assert.deepEqual(duplicateGroups([{item:1,hash:"a"},{item:2,hash:"a"},{item:3,ha
 assert.ok(imageSignals(new Uint8ClampedArray(100).fill(255),5,5).contrast<.001);
 assert.throws(()=>imageSignals(new Uint8ClampedArray(4),5,5));
 console.log("[phase2c] Retained validity, quality, photo and duplicate checks PASS (10 assertions)");
+
+const passport:GuardImage={signals:{width:625,height:446,ratio:625/446,mean:130,contrast:45,sharpness:200},fingerprint:"01".repeat(32),edgeVariation:12,faces:null};
+assert.ok(visualIssues("photo",passport).includes("landscape"));
+assert.ok(visualIssues("photo",passport).includes("faceUnavailable"));
+assert.equal(documentKind("PHOTO","Photo d’identité"),"photo");
+assert.equal(documentKind("PASSPORT","Passeport"),"passport");
+assert.equal(documentKind("BANK_STATEMENT","Relevé bancaire"),"bank");
+assert.equal(signatureKind(new Uint8Array([37,80,68,70,45])),"pdf");
+assert.equal(signatureKind(new Uint8Array([255,216,255])),"jpeg");
+assert.equal(signatureKind(new Uint8Array([0,1,2])),"unknown");
+assert.equal(expectedSignature("x.DOCX"),"zip");
+assert.equal(differenceHash(Array(72).fill(100)).length,64);
+assert.ok(probablySimilar(passport,{...passport,signals:{...passport.signals,width:1250,height:892}}));
+assert.equal(probablySimilar(passport,{...passport,fingerprint:"10".repeat(32)}),false);
+assert.equal(expiryAssessment("2026-11-28","2026-11-28","2026-12-17").state,"expired");
+assert.equal(expiryAssessment("2026-12-18","2026-11-28","2026-12-17").days,1);
+assert.equal(guardTechnical("invalidFile"),true);
+assert.equal(guardTechnical("landscape"),false);
+assert.ok(visualIssues("photo",{...passport,faces:[]}).includes("noFace"));
+assert.ok(visualIssues("photo",{...passport,faces:[{x:.2,y:.2,width:.1,height:.1}]}).includes("faceSize"));
+console.log("[phase2c] Shared document guard checks PASS (18 assertions)");
