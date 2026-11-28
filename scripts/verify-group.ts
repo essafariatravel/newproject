@@ -104,3 +104,8 @@ assert.equal(canRestartRejectedGroup(false,400,"INTERNAL"),false);
 assert.equal(canRestartRejectedGroup(false,403,"FORBIDDEN"),false);
 assert.equal(canRestartRejectedGroup(false,400,undefined),false);
 console.log("[group-recovery] Definitive rejection unlocks only first attempts; uncertain submissions keep receipt identity PASS (8 assertions)");
+
+assert.equal(groupEnabled({...preview,VERCEL_ENV:"production",DATABASE_SCHEMA:"visa_os"}),true);
+assert.equal(groupEnabled({...preview,VERCEL_ENV:"production",DATABASE_SCHEMA:"visa_os",VERCEL_GIT_COMMIT_REF:"main"}),false);
+assert.equal(canAccessGroups(actor,{...preview,VERCEL_ENV:"production",DATABASE_SCHEMA:"visa_os"}),true);
+console.log("[group-release] Exact Production branch/schema and agency scope PASS (3 assertions)");
