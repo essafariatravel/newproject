@@ -80,3 +80,11 @@ assert.equal(autoPlan([opt,{...opt,id:"two",vault:true}],["passport"])[0]?.id,"t
 assert.equal(autoPlan([opt],["passport"],["passport"]).length,0);
 assert.equal(autoPlan([{...opt,tripSpecific:true}],["passport"]).length,0);
 console.log("[vault] Independent vault and automatic selection policy PASS (10 assertions)");
+
+assert.equal(autoEligible({...automaticInput,code:"PHOTO",issuedAt:"2026-11-20",vault:true}),true);
+assert.equal(autoEligible({...automaticInput,code:"PHOTO",issuedAt:"2026-12-20",vault:true}),false);
+assert.equal(autoEligible({...automaticInput,latest:false}),false);
+assert.equal(autoEligible({...automaticInput,openRequest:true}),false);
+assert.equal(autoEligible({...automaticInput,attributable:false}),false);
+assert.equal(autoPlan([opt,{...opt,id:"two",createdAt:"2026-11-02"}],["passport","passport"]).length,1);
+console.log("[vault] Freshness, identity and single-selection regressions PASS (6 assertions)");
