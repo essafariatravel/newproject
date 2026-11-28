@@ -50,9 +50,18 @@ with raw as (
  select t.id,a.agency_id,left(coalesce(nullif(trim(t.full_name),''),nullif(trim(concat_ws(' ',t.first_name,t.middle_name,t.last_name)),''),'—'),200) full_name,
  left(coalesce(nullif(upper(trim(t.nationality)),''),'—'),80) nationality,
  nullif(upper(trim(t.passport_number)),'' ) passport_number,t.passport_expiry_date,t.date_of_birth,t.created_at,t.updated_at
- from visa_os_preview.applicants t join visa_os_preview.applications a on a.id=t.application_id join visa_os_preview.statuses s on s.id=a.status_id where not s.is_draft
+ from visa_os_preview.applicants t join visa_os_preview.applications a on a.id=t.application_id join visa_os_preview.statuses s on s.id=a.status_id where not s.is_draft and not exists(select 1 from visa_os_preview.traveller_profile_links l where l.applicant_id=t.id)
 ), keyed as (
- select *,case when passport_number ~ '^[A-Z0-9]{6,20}$' and passport_number ~ '[0-9]' and full_name<>'—' and nationality<>'—' and (passport_expiry_date is not null or date_of_birth is not null)
+ select *,case when passport_number ~ '^[A-Z0-9]{6,20}$' and passport_number ~ '[0-9]' and passport_number !~ '^([A-Z0-9])\1+<>'—' and nationality<>'—' and (passport_expiry_date is not null or date_of_birth is not null)
+ then jsonb_build_array(passport_number,nationality,lower(regexp_replace(trim(full_name),'[[:space:]]+',' ','g')),date_of_birth,passport_expiry_date)::text else id::text end identity_key from raw
+)
+select *,first_value(id) over(partition by agency_id,identity_key order by created_at,id) profile_id from keyed;
+insert into visa_os_preview.traveller_profiles(id,agency_id,full_name,nationality,passport_number,passport_expiry,date_of_birth,created_at,updated_at)
+select id,agency_id,full_name,nationality,passport_number,passport_expiry_date,date_of_birth,created_at,updated_at from th_backfill where id=profile_id on conflict(id) do nothing;
+insert into visa_os_preview.traveller_profile_links(applicant_id,agency_id,profile_id)
+select b.id,b.agency_id,b.profile_id from th_backfill b join visa_os_preview.traveller_profiles p on p.id=b.profile_id and p.agency_id=b.agency_id on conflict(applicant_id) do nothing;
+commit;
+ and full_name<>'—' and nationality<>'—' and (passport_expiry_date is not null or date_of_birth is not null)
  then jsonb_build_array(passport_number,nationality,lower(regexp_replace(trim(full_name),'[[:space:]]+',' ','g')),date_of_birth,passport_expiry_date)::text else id::text end identity_key from raw
 )
 select *,first_value(id) over(partition by agency_id,identity_key order by created_at,id) profile_id from keyed;
