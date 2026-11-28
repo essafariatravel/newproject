@@ -33,11 +33,12 @@ export async function directory(user:Actor,q:unknown,page:unknown,filter:unknown
 export async function travellerProfile(user:Actor,id:string){
  const agency=scope(user);if(!uuid(id))return null;
  const result=await pool.query<TravellerRow>(cte()+`, target as (select identity_key from keyed where id=$2::uuid)
- select k.*,count(*) over()::int case_count from keyed k join target t using(identity_key) order by activity_at desc,id desc limit 100`,[agency,id]);
+ select k.*,count(*) over()::int case_count from keyed k join target t using(identity_key) order by (k.id=$2::uuid) desc,activity_at desc,id desc limit 100`,[agency,id]);
  const anchor=result.rows.find(r=>r.id===id);
  if(!result.rows.length)return null;
  // If an older anchor lies outside the 100 most recent results, reject rather than silently changing identity.
  if(!anchor)return null;
+ result.rows.sort((a,b)=>b.activity_at.getTime()-a.activity_at.getTime()||b.id.localeCompare(a.id));
  const candidates=await pool.query<Pick<TravellerRow,"id"|"name"|"reference"|"activity_at"|"passport">>(cte()+` select k.id,k.name,k.reference,k.activity_at,k.passport from keyed k join keyed a on a.id=$2::uuid and k.identity_key<>a.identity_key and k.name_key=a.name_key and k.nationality=a.nationality where a.name_key<>'' order by k.activity_at desc,k.id desc limit 10`,[agency,id]);
  return {anchor,latest:result.rows[0]!,history:result.rows,candidates:candidates.rows};
 }
@@ -55,7 +56,7 @@ export async function travellerDocuments(user:Actor,profile:NonNullable<Awaited<
  where a.agency_id=$1::uuid and (d.applicant_id=t.id or (d.applicant_id is null and (select count(*) from ${qt("applicants")} other where other.application_id=a.id)=1))
  order by d.created_at desc,d.id desc limit 100`,[agency,ids]);
  const today=algeriaToday();
- return r.rows.map(d=>({...d,reusable:Boolean(passportKey(d.passport)&&passportKey(d.passport)===passportKey(profile.anchor.passport)&&d.expiry===profile.anchor.expiry&&reusablePassport({code:d.code,status:d.status,size:d.size,mime:d.mime,sha256:d.sha256,expiry:d.expiry,today,latest:d.latest,openRequest:d.open_request,attributable:true}))}));
+ return r.rows.map(({sha256,passport,expiry,latest,open_request,...d})=>({...d,reusable:Boolean(passportKey(passport)&&passportKey(passport)===passportKey(profile.anchor.passport)&&expiry===profile.anchor.expiry&&reusablePassport({code:d.code,status:d.status,size:d.size,mime:d.mime,sha256,expiry,today,latest,openRequest:open_request,attributable:true}))}));
 }
 export async function repeatSource(user:Actor,id:string){
  const profile=await travellerProfile(user,id);if(!profile||!hasPermission(user,"applications.create"))return null;

@@ -1,4 +1,5 @@
-import {hubEnabled,passportKey,civilDate} from "@/lib/traveller-hub-policy";
+import {algeriaToday} from "@/lib/travel-deadline";
+import {hubEnabled,passportKey,civilDate,validApplicationPassport} from "@/lib/traveller-hub-policy";
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { and, eq, sql } from "drizzle-orm";
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
     const id=await coalesceVisaSubmission(actor,input.attempt,async()=>{
     const [existing] = await db.select({ id: applications.id }).from(applications)
       .where(and(eq(applications.idempotencyKey, input.attempt), eq(applications.agencyId, actor.agencyId)));
-    if(!existing&&hubEnabled()&&((input.passportNumber&&!passportKey(input.passportNumber))||(input.passportExpiry&&!civilDate(input.passportExpiry))))throw new AppError("VALIDATION","Invalid passport information.");
+    if(!existing&&hubEnabled()&&!validApplicationPassport(input.passportNumber,input.passportExpiry,algeriaToday()))throw new AppError("PASSPORT_VALIDITY","At least seven months of passport validity are required.");
     const committedId = existing?.id ?? (await submitVisaRequest({ actor, idempotencyKey: input.attempt, countryId: input.countryId,
       visaTypeId: input.visaTypeId, expectedFee: input.expectedFee, expectedCatalogue:input.expectedCatalogue, agencyNotes: input.notes, travellers: [{ fullName: input.fullName, nationality: input.nationality,...(hubEnabled()?{passportNumber:passportKey(input.passportNumber)||null,passportExpiryDate:civilDate(input.passportExpiry)}:{}) }],
       documents: await resolveRequestUploads(actor, input.attempt, input.visaTypeId, input.tokens) })).applicationId;

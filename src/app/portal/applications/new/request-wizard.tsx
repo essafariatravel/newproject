@@ -1,7 +1,8 @@
 "use client";
 import {hubCopy} from "@/lib/traveller-hub-copy";
-import {passportKey,civilDate,identityMatches,type ReuseFile} from "@/lib/traveller-hub-policy";
+import {passportKey,identityMatches,expiryState,minimumExpiry,validApplicationPassport,type ReuseFile} from "@/lib/traveller-hub-policy";
 import {TravellerReuse} from "./traveller-reuse";
+import {DatePicker} from "@/components/date-picker";
 import { CountryFlag } from "@/components/country-flag";
 import { useAgencyPopover } from "@/components/agency-popover-controller";
 
@@ -226,9 +227,10 @@ export function RequestWizard(props: Props) {
   const [passportDraft,setPassportDraft]=useState(props.travellerSource?.passport??"");
   const [expiryDraft,setExpiryDraft]=useState(props.travellerSource?.expiry??"");
   const hubText=hubCopy[props.locale];
+  const hubToday=props.today??algeriaToday(),hubExpiryState=expiryState(expiryDraft,hubToday),hubPassportBlocked=Boolean(props.travellerHub&&!validApplicationPassport(passportDraft,expiryDraft,hubToday));
   const [departure,setDeparture]=useState("");
   const ops=operationalCopy[props.locale];
-  const [nationalityDraft,setNationalityDraft]=useState(()=>props.travellerSource&&props.nationalities.some(n=>n.code===props.travellerSource!.nationality)?props.travellerSource.nationality:props.defaultNationality);
+  const [nationalityDraft,setNationalityDraft]=useState(()=>props.travellerSource&&props.nationalities.some(n=>n.code===props.travellerSource!.nationality)?props.travellerSource.nationality:props.travellerSource?"":props.defaultNationality);
   // Controlled state is the single source of truth for the gate and the submitted payload.
   const applicantReady = Boolean(nameDraft.trim() && props.nationalities.some(n => n.code === nationalityDraft));
   const checkout = {
@@ -441,7 +443,7 @@ export function RequestWizard(props: Props) {
         return false;
       }
       if(deadline.state==="invalid"){setClientError(ops.invalid);return false;}
-      if(props.travellerHub&&((passportDraft.trim()&&!passportKey(passportDraft))||(expiryDraft&&!civilDate(expiryDraft)))){setClientError(hubText.badPassport);return false;}
+      if(hubPassportBlocked){setClientError(hubText.badPassport);return false;}
       if (!applicantReady) {
         setClientError(t.validationApplicant);
         return false;
@@ -850,7 +852,7 @@ export function RequestWizard(props: Props) {
               </div>
             </div>
           </div>
-          {props.travellerHub?<div className="th-wizard-fields">{props.travellerSource?<p className="th-note">{hubText.prefilled} · <bdi>{props.travellerSource.reference}</bdi></p>:<a className="booking-link" href="/portal/applicants">{hubText.lookup}</a>}<div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><label>{hubText.number}<input className="input" autoComplete="off" maxLength={20} value={passportDraft} onChange={e=>{clearReused();setPassportDraft(e.target.value);setDirty(true)}}/></label><label>{hubText.date}<input className="input" type="date" value={expiryDraft} onChange={e=>{clearReused();setExpiryDraft(e.target.value);setDirty(true)}}/></label></div></div>:null}
+          {props.travellerHub?<div className="th-wizard-fields">{props.travellerSource?<p className="th-note">{hubText.prefilled} · <bdi>{props.travellerSource.reference}</bdi></p>:<a className="booking-link" href="/portal/applicants">{hubText.lookup}</a>}<div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><label>{hubText.number}<input className="input" autoComplete="off" maxLength={20} value={passportDraft} onChange={e=>{clearReused();setPassportDraft(e.target.value);setDirty(true)}}/></label><label>{hubText.date}<DatePicker name="hubPassportExpiry" locale={props.locale} defaultValue={expiryDraft} displayDayFirst todayValue={hubToday} min="1900-01-01" max="2100-12-31" ariaLabel={hubText.date} required disabled={pending||step!==1} invalid={Boolean(expiryDraft&&hubExpiryState!=="valid")} onValueChange={v=>{clearReused();setExpiryDraft(v);setDirty(true)}}/><small className="th-status" data-state={hubExpiryState}>{hubExpiryState==="valid"?hubText.valid:hubExpiryState==="expired"?hubText.expired:hubExpiryState==="renew"?hubText.renewState:hubText.unknownState} · {hubText.expiry} ≥ <bdi>{minimumExpiry(hubToday)?.split("-").reverse().join("/")}</bdi></small></label></div></div>:null}
           <TravelDeparture locale={props.locale} today={props.today??algeriaToday()} value={departure} programme={visa} disabled={pending||step!==1} onChange={value=>{setDeparture(value);setDirty(true);if(clientError===ops.invalid)setClientError("")}}/>
           <details className="booking-notes"><summary>{ui.notes}</summary><label className="label sr-only" htmlFor="agencyNotes">{t.notes}</label><textarea id="agencyNotes" name="agencyNotes" rows={2} className="input mt-3" placeholder={t.notesPlaceholder} /></details>
         </div>
@@ -875,7 +877,7 @@ export function RequestWizard(props: Props) {
           </div>
           {selectedRequirement?<div className="booking-doc-panel">
             <div className="booking-doc-head"><h3>{selectedRequirement.name}</h3>{selectedFiles.length?<span className="booking-success">✓ {ui.selected}</span>:null}</div>
-            {props.travellerHub&&step===2&&sourceMatches&&!selectedFiles.length&&props.travellerSource?<TravellerReuse key={selectedRequirement.documentTypeId} locale={props.locale} options={props.travellerSource.reusable.filter(d=>d.typeId===selectedRequirement.documentTypeId)} onFile={file=>{if(onFileChange(selectedRequirement.documentTypeId,[file])){reused.current.add(file);return true}return false}}/>:null}
+            {props.travellerHub&&step===2&&sourceMatches&&!selectedFiles.length&&props.travellerSource?<TravellerReuse key={selectedRequirement.documentTypeId} sourceId={props.travellerSource.id} locale={props.locale} options={props.travellerSource.reusable.filter(d=>d.typeId===selectedRequirement.documentTypeId)} onFile={file=>{if(onFileChange(selectedRequirement.documentTypeId,[file])){reused.current.add(file);return true}return false}}/>:null}
             {selectedRequirement.notes?<p className="booking-muted">{selectedRequirement.notes}</p>:null}{warningMessages(selectedRequirement).length?<div role="status" className="booking-warning">{warningMessages(selectedRequirement).map(message=><p key={message}>{message}</p>)}<small>{smart.noValidation}</small></div>:null}
             <label className={selectedFiles.length?"booking-file-replace":"booking-drop"} data-dragging={dragging} onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={e=>{e.preventDefault();setDragging(false);onFileChange(selectedRequirement.documentTypeId,e.dataTransfer.files)}}>
               {!selectedFiles.length?<><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5"/></svg><strong>{ui.drop}</strong></>:null}
@@ -899,7 +901,7 @@ export function RequestWizard(props: Props) {
             <button type="button" className="checkout-edit" disabled={pending} onClick={()=>editStep(1)} aria-label={ui.edit+" · "+t.sectionVisa}><CheckoutIcon kind="edit"/><span>{ui.edit}</span></button>
           </div>
           <div className="checkout-traveller">
-            <div className="checkout-traveller-info" data-testid="wizard-applicant-summary"><small>{t.sectionApplicant}</small><strong>{nameDraft||"—"}</strong><span>{t.nationality}: {props.nationalities.find(n=>n.code===nationalityDraft)?.label??nationalityDraft}</span></div>
+            <div className="checkout-traveller-info" data-testid="wizard-applicant-summary"><small>{t.sectionApplicant}</small><strong>{nameDraft||"—"}</strong><span>{t.nationality}: {props.nationalities.find(n=>n.code===nationalityDraft)?.label??nationalityDraft}</span>{props.travellerHub?<span>{hubText.expiry}: <bdi>{expiryDraft.split("-").reverse().join("/")}</bdi> · {hubText.valid}</span>:null}</div>
             <button type="button" className="checkout-edit" disabled={pending} onClick={()=>editStep(1)} aria-label={ui.edit+" · "+t.sectionApplicant}><CheckoutIcon kind="edit"/><span>{ui.edit}</span></button>
           </div>
           {departure?<TravelTiming locale={props.locale} today={props.today??algeriaToday()} value={departure} programme={visa} onEdit={pending?undefined:()=>editStep(1)}/>:null}
@@ -950,7 +952,7 @@ export function RequestWizard(props: Props) {
         </button>
         <small aria-live="polite">{step===2?(batch.length?assist.batchHint:completedDocs<requiredDocs.length?smart.remaining+" : "+(requiredDocs.length-completedDocs):smart.ready+" · "+ux.local):step===1?ui.noDebit:""}</small>
         {step < 3 ? (
-          <button type="button" onClick={goNext} disabled={pending||(step===1?(!visa||!applicantReady||deadline.state==="invalid"):completedDocs<requiredDocs.length||batch.length>0)} className="btn-primary">
+          <button type="button" onClick={goNext} disabled={pending||(step===1?(!visa||!applicantReady||deadline.state==="invalid"||hubPassportBlocked):completedDocs<requiredDocs.length||batch.length>0)} className="btn-primary">
             {step===1?ui.continue:ui.review} <span className="directional" aria-hidden>→</span>
           </button>
         ) : null}

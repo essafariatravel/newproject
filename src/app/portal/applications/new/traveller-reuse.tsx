@@ -2,11 +2,11 @@
 import {useEffect,useRef,useState} from "react";
 import {hubCopy} from "@/lib/traveller-hub-copy";
 import type {ReuseFile} from "@/lib/traveller-hub-policy";
-export function TravellerReuse({locale,options,onFile}:{locale:"fr"|"en"|"ar";options:ReuseFile[];onFile:(file:File)=>boolean}){
+export function TravellerReuse({locale,sourceId,options,onFile}:{sourceId:string;locale:"fr"|"en"|"ar";options:ReuseFile[];onFile:(file:File)=>boolean}){
  const t=hubCopy[locale],controller=useRef<AbortController|null>(null),[busy,setBusy]=useState(false),[message,setMessage]=useState("");
  useEffect(()=>()=>controller.current?.abort(),[]);
  async function load(d:ReuseFile){if(controller.current||!window.confirm(t.confirmReuse))return;const c=new AbortController();controller.current=c;setBusy(true);setMessage("");try{
- const response=await fetch("/api/documents/"+d.id,{cache:"no-store",signal:c.signal,headers:{"X-Document-Intent":"preview"}});
+ const response=await fetch("/api/agency/travellers/"+sourceId+"/passport/"+d.id,{cache:"no-store",signal:c.signal,headers:{"X-Document-Intent":"download"}});
  if(!response.ok||Number(response.headers.get("content-length"))!==d.size)throw Error("Unavailable");
  const blob=await response.blob();if(c.signal.aborted)return;
  if(blob.size!==d.size||blob.type.toLowerCase()!==d.mime.toLowerCase())throw Error("Unavailable");

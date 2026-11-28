@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {hubEnabled,HUB_BRANCH,uuid,passportKey,nameKey,civilDate,minimumExpiry,expiryState,maskPassport,normalizedQuery,pageNumber,identityMatches,reusablePassport} from "../src/lib/traveller-hub-policy";
+import {hubEnabled,HUB_BRANCH,uuid,passportKey,nameKey,civilDate,minimumExpiry,expiryState,maskPassport,normalizedQuery,pageNumber,identityMatches,reusablePassport,validApplicationPassport} from "../src/lib/traveller-hub-policy";
 import {automaticDatabaseChangesForbidden} from "./lib/build-policy";
 assert.equal(hubEnabled({VERCEL_ENV:"production",VERCEL_GIT_COMMIT_REF:HUB_BRANCH}),false);
 assert.equal(hubEnabled({VERCEL_ENV:"preview",VERCEL_GIT_COMMIT_REF:HUB_BRANCH}),true);
@@ -30,3 +30,9 @@ const file={code:"PASSPORT",status:"ACCEPTED",size:123,mime:"application/pdf",sh
 assert.equal(reusablePassport(file),true);
 for(const patch of [{code:"BANK_STATEMENT"},{code:"DECISION_VISA_APPROVAL"},{status:"REJECTED"},{sha256:null},{size:3000000},{expiry:null},{expiry:"2027-01-01"},{latest:false},{openRequest:true},{attributable:false}])assert.equal(reusablePassport({...file,...patch}),false);
 console.log("[traveller-hub] Policy, identity, expiry, reusable-document and isolated build checks PASS (35 assertions)");
+
+assert.equal(validApplicationPassport("","2027-06-28","2026-11-28"),true);
+assert.equal(validApplicationPassport("","2027-06-27","2026-11-28"),false);
+assert.equal(validApplicationPassport("","", "2026-11-28"),false);
+assert.equal(validApplicationPassport("00000000","2030-01-01","2026-11-28"),false);
+console.log("[traveller-hub] Mandatory expiry policy PASS (4 assertions)");

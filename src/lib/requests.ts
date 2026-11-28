@@ -1,4 +1,5 @@
-import {hubEnabled,passportKey,civilDate} from "@/lib/traveller-hub-policy";
+import {algeriaToday} from "@/lib/travel-deadline";
+import {hubEnabled,passportKey,civilDate,validApplicationPassport} from "@/lib/traveller-hub-policy";
 import { bookingCatalogueFingerprint } from "@/lib/booking-catalogue-fingerprint";
 import { validateDocumentFormat } from "@/lib/upload-validation";
 /* ------------------------------------------------------------------ */
@@ -543,6 +544,7 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
       // The single applicant (full name + nationality code).
       const t = input.travellers[0]!;
       const fullName = (t.fullName ?? `${t.firstName ?? ""} ${t.lastName ?? ""}`).trim();
+      if(hubEnabled()&&!validApplicationPassport(t.passportNumber,t.passportExpiryDate,algeriaToday()))throw new AppError("PASSPORT_VALIDITY","At least seven months of passport validity are required.");
       await client.query(
         `insert into ${qualifiedTable("applicants")}
            (application_id, first_name, last_name, full_name, date_of_birth, nationality,

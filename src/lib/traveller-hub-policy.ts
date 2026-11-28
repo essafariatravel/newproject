@@ -16,3 +16,5 @@ export type ReuseFile={id:string;typeId:string;code:string;name:string;mime:stri
 export function reusablePassport(input:{code:string;status:string;size:number;mime:string;sha256:string|null;expiry:string|null;today:string;latest:boolean;openRequest:boolean;attributable:boolean}){
  return input.code==="PASSPORT"&&input.status==="ACCEPTED"&&input.size>0&&input.size<=2*1024*1024&&["application/pdf","image/jpeg","image/png","image/webp"].includes(input.mime)&&/^[a-f0-9]{64}$/i.test(input.sha256??"")&&expiryState(input.expiry,input.today)==="valid"&&input.latest&&!input.openRequest&&input.attributable
 }
+
+export function validApplicationPassport(number:string|null|undefined,expiry:string|null|undefined,today:string){return (!(number??"").trim()||Boolean(passportKey(number)))&&expiryState(expiry??null,today)==="valid"}
