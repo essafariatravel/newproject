@@ -24,7 +24,7 @@ import { caseLink, queueFilters, caseSort, detailLink, caseTabLink, processingDu
 import { CaseQuickView, CaseQuickViewProvider } from "./case-quick-view";
 import { CaseSelectionProvider, CaseSelect, CaseSelectAll, CaseSelectionToolbar } from "./case-selection";
 import { CaseListMemory } from "./case-navigation";
-import { agencyAttentionCondition } from "@/lib/attention";
+import { activeAgencyAttentionCondition } from "@/lib/attention";
 import { readAgencyPrefs } from "@/lib/agency-preferences";
 import "./cases.css";
 
@@ -53,7 +53,7 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
  const toFilters=(key:CaseQueue):ApplicationFilters=>({...filters,...queueFilters(key)});
  const [result,statuses,aggregate,countryRows]=await Promise.all([
  searchApplications(user,{...toFilters(queue),page,pageSize:per}),listStatuses(true),
- buildApplicationConditions(user,filters).then(conditions=>db.select({all:count(),active:sql<number>`count(*) filter(where not ${statusTable.isTerminal})::int`,attention:sql<number>`count(*) filter(where ${agencyAttentionCondition()})::int`,completed:sql<number>`count(*) filter(where ${statusTable.isTerminal})::int`}).from(applications).innerJoin(statusTable,eq(applications.statusId,statusTable.id)).where(and(...conditions))),
+ buildApplicationConditions(user,filters).then(conditions=>db.select({all:count(),active:sql<number>`count(*) filter(where not ${statusTable.isTerminal})::int`,attention:sql<number>`count(*) filter(where ${activeAgencyAttentionCondition()})::int`,completed:sql<number>`count(*) filter(where ${statusTable.isTerminal})::int`}).from(applications).innerJoin(statusTable,eq(applications.statusId,statusTable.id)).where(and(...conditions))),
  db.selectDistinct({id:applications.countryId,name:applications.countryName}).from(applications).where(eq(applications.agencyId,user.agencyId))
  ]);
  const counts=queues.map(key=>key===queue?result.total:Number(aggregate[0]?.[key]??0));
@@ -73,7 +73,7 @@ export default async function PortalApplicationsPage({searchParams}:{searchParam
    const base=detailLink(r.app.id,caseLink({...query,page:String(result.page)}));
    const returnContext=caseLink({...query,page:String(result.page)});
    const requested=r.agencyNextAction==="Upload requested documents";
-   const action=caseAction(r.statusCode,requested,pendingIds.has(r.app.id));
+   const action=caseAction(r.statusCode,requested&&!r.isTerminal,pendingIds.has(r.app.id)&&!r.isTerminal);
    const actionHref=action==="documents"?caseTabLink(r.app.id,returnContext,"documents"):action==="cancellation"||action==="cancelled"?base+"#cancellation":base;
    const actionText=action==="documents"?(canUpload?copy.documents:copy.openDocuments):action==="view"?r.isTerminal?copy.decision:null:copy[action];
    const p=checklists.get(r.app.id);
