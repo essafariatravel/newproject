@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useRef,useState,type ReactNode,type KeyboardEvent} from "react";
 import {DocumentPreviewButton} from "./document-viewer";
+import {supportsDocumentPreview,verifiedPreviewBlob} from "./document-preview-blob";
 type Locale="fr"|"en"|"ar";
 type FileInfo={id:string;name:string;mime:string;version:number;size:string;date:string};
 export type DocumentWorkspaceEntry={key:string;group:"required"|"other"|"decision"|"action";title:string;filename:string;statusCode:string;status:string;priority?:boolean;file?:FileInfo;content?:ReactNode;requestKey?:string;aliases?:string[];required?:boolean;uploadable?:boolean};
@@ -13,9 +14,9 @@ const labels={
 const fileIcon=<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M6 3h8l4 4v14H6zM14 3v5h4M9 13h6m-6 4h6"/></svg>;
 function InlinePreview({file,locale}:{file:FileInfo;locale:Locale}){
  const t=labels[locale],[url,setUrl]=useState(""),[error,setError]=useState(false),[retry,setRetry]=useState(0);
- const supported=["application/pdf","image/jpeg","image/png","image/webp"].includes(file.mime);
+ const supported=supportsDocumentPreview(file.mime);
  useEffect(()=>{setUrl("");setError(false);if(!supported)return;const a=new AbortController();let objectUrl="";
- void (async()=>{try{const r=await fetch("/api/documents/"+encodeURIComponent(file.id),{cache:"no-store",signal:a.signal,headers:{"X-Document-Intent":"preview"}});if(!r.ok)throw Error("preview");const b=await r.blob();if(b.type.split(";")[0]!==file.mime)throw Error("mime");if(a.signal.aborted)return;objectUrl=URL.createObjectURL(b);setUrl(objectUrl)}catch{if(!a.signal.aborted)setError(true)}})();
+ void (async()=>{try{const r=await fetch("/api/documents/"+encodeURIComponent(file.id),{cache:"no-store",signal:a.signal,headers:{"X-Document-Intent":"preview"}});const b=await verifiedPreviewBlob(r,file.mime);if(a.signal.aborted)return;objectUrl=URL.createObjectURL(b);setUrl(objectUrl)}catch{if(!a.signal.aborted)setError(true)}})();
  return()=>{a.abort();if(objectUrl)URL.revokeObjectURL(objectUrl)}},[file.id,file.mime,supported,retry]);
  return <div className="r09-inline-preview" aria-busy={supported&&!url&&!error}>{!supported?<p>{t.unsupported}</p>:error?<div role="alert"><p>{t.error}</p><button type="button" className="btn-secondary btn-sm" onClick={()=>setRetry(v=>v+1)}>{t.retry}</button></div>:!url?<p role="status">{t.loading}</p>:file.mime==="application/pdf"?<iframe title={file.name} src={url} sandbox=""/>:<img alt={file.name} src={url} onError={()=>setError(true)}/>}</div>
 }
@@ -23,12 +24,12 @@ export function DocumentWorkspace({terminal,locale,entries,summary,complete,miss
  const t=labels[locale],defaultEntry=entries.find(e=>e.group==="action")??entries.find(e=>e.priority)??entries.find(e=>e.group==="decision")??entries[0];
  const [selected,setSelected]=useState(defaultEntry?.key??""),[filter,setFilter]=useState<"all"|"action"|"required"|"other"|"decision">("all"),[query,setQuery]=useState(""),[preview,setPreview]=useState(Boolean(defaultEntry?.file&&!defaultEntry.priority)),[showHistory,setShowHistory]=useState(false);
  const list=useRef<HTMLDivElement>(null),inspector=useRef<HTMLElement>(null);
- const current=entries.find(e=>e.key===selected)??defaultEntry;
+ const current=entries.find(e=>e.key===selected);
  const groups=["action","decision","required","other"] as const;
  const ordered=groups.flatMap(g=>entries.filter(e=>e.group===g).sort((a,b)=>Number(Boolean(b.priority))-Number(Boolean(a.priority))));
  const visible=ordered.filter(e=>(filter==="all"||(filter==="action"?e.group==="action"||e.priority:filter==="required"?e.required:e.group===filter))&&(!query.trim()||(e.title+" "+e.filename+" "+e.status).toLocaleLowerCase(locale).includes(query.trim().toLocaleLowerCase(locale))));
  function choose(key:string,show=true){const entry=entries.find(e=>e.key===key);if(!entry)return;setSelected(key);setPreview(Boolean(show&&entry.file&&!entry.priority));setShowHistory(false)}
- function changeFilter(next:typeof filter){setFilter(next);setQuery("");const first=ordered.find(e=>next==="all"||(next==="action"?e.group==="action"||e.priority:next==="required"?e.required:e.group===next));if(first)choose(first.key)}
+ function changeFilter(next:typeof filter){setFilter(next);setQuery("");const first=ordered.find(e=>next==="all"||(next==="action"?e.group==="action"||e.priority:next==="required"?e.required:e.group===next));if(first)choose(first.key);else{setSelected("");setPreview(false);setShowHistory(false)}}
  function selectRow(key:string){choose(key);if(window.matchMedia("(max-width: 999px)").matches)inspector.current?.scrollIntoView({block:"start",behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"})}
  useEffect(()=>{const hash=()=>{const key=window.location.hash.slice(1);const entry=entries.find(e=>e.key===key||e.aliases?.includes(key));if(entry){setSelected(entry.key);setFilter("all");setShowHistory(false);setPreview(Boolean(entry.file&&!entry.priority))}};hash();window.addEventListener("hashchange",hash);return()=>window.removeEventListener("hashchange",hash)},[entries]);
  function keydown(e:KeyboardEvent<HTMLButtonElement>,key:string){const i=visible.findIndex(x=>x.key===key);if(e.key==="ArrowDown"||e.key==="ArrowUp"||e.key==="Home"||e.key==="End"){e.preventDefault();const next=visible[e.key==="Home"?0:e.key==="End"?visible.length-1:Math.max(0,Math.min(visible.length-1,i+(e.key==="ArrowDown"?1:-1)))];if(next){choose(next.key);list.current?.querySelector<HTMLButtonElement>('[data-entry="'+next.key+'"]')?.focus()}}else if(e.key==="Escape"){setPreview(false)}else if(e.key==="Enter"&&current?.key===key&&current.file){e.preventDefault();setPreview(true)}}
