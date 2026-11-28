@@ -23,7 +23,7 @@ import { operationalCopy } from "@/lib/operational-copy";
 import { TravelDeparture,TravelTiming } from "./travel-departure";
 import {hubCopy} from "@/lib/traveller-hub-copy";
 import {passportKey,identityMatches,sameDeclaredIdentity,expiryState,minimumExpiry,validApplicationPassport,type TravellerSource} from "@/lib/traveller-hub-policy";
-import {fetchTravellerFile} from "./traveller-file-fetch";
+import {fetchTravellerFile,travellerFileReference} from "./traveller-file-fetch";
 import {autoPlan} from "@/lib/traveller-hub-policy";
 import {TravellerReuse} from "./traveller-reuse";
 import {TravellerLookup} from "./traveller-lookup";
@@ -611,10 +611,10 @@ export function RequestWizard(props: Props) {
           let token=reusableStagingToken(stagingReceipts.current.get(key),file,expectedToken);
           if(token===null){
             stagingReceipts.current.delete(key);
-            const body = new FormData();
-            body.set("attempt", idempotencyKey); body.set("visaTypeId", visaTypeId);
-            body.set("documentTypeId", requirement.documentTypeId); body.set("slot", String(slot)); body.set("file", file);
-            const response = await fetch("/api/agency/requests", { method: "POST", body });
+            const reference=await travellerFileReference(file,travellerSource?.id);
+            let response:Response;
+            if(reference){response=await fetch("/api/agency/requests",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"stageTravellerReference",...reference,attempt:idempotencyKey,visaTypeId,documentTypeId:requirement.documentTypeId,slot})});}
+            else{const body = new FormData();body.set("attempt", idempotencyKey);body.set("visaTypeId", visaTypeId);body.set("documentTypeId", requirement.documentTypeId);body.set("slot", String(slot));body.set("file", file);response=await fetch("/api/agency/requests",{method:"POST",body});}
             const data = await readRequestResponse<{token:string}>(response,props.locale);
             if(data.token!==expectedToken)throw Error("Invalid staging receipt");
             token=data.token;

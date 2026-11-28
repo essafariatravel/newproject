@@ -5,6 +5,7 @@ import {currentOperationActorPg} from "@/lib/operation-identity";
 import {recordAuditPg} from "@/lib/audit";
 import {hasPermission} from "@/lib/rbac";
 import {AppError,type AuthUser} from "@/lib/types";
+import {fileNameProblem} from "@/lib/filename";
 import {validateDocumentFormat} from "@/lib/upload-validation";
 import {sha256Hex,assertStoredFileIntegrity} from "@/lib/file-integrity";
 import {vaultEnabled,uuid,personalCode,passportKey,civilDate,nameKey,autoEligible,type ReuseFile} from "./traveller-hub-policy";
@@ -29,7 +30,7 @@ export async function vaultOptions(user:Actor,id:string):Promise<ReuseFile[]>{
 }
 export async function vaultTypes(user:Actor){authorize(user,true);const r=await pool.query<{id:string;code:string;name:string;name_fr:string|null;name_ar:string|null}>(`select id,code,name,name_fr,name_ar from ${qt("document_types")} where active and agency_uploadable order by sort_order,name`);return r.rows.filter(x=>personalCode(x.code))}
 export async function vaultSave(user:Actor,id:string,typeId:string,version:number,file:{name:string;type:string;data:Buffer},issuedAt:string|null){
- const agency=authorize(user,true);if(!uuid(id)||!uuid(typeId)||!Number.isSafeInteger(version)||version<1||file.data.length<1||file.data.length>2097152||!file.name||file.name.length>240||/[\x00-\x1f]/.test(file.name))throw new AppError("VALIDATION","Invalid document");
+ const agency=authorize(user,true);if(!uuid(id)||!uuid(typeId)||!Number.isSafeInteger(version)||version<1||file.data.length<1||file.data.length>2097152||!file.name||file.name.length>200||Boolean(fileNameProblem(file.name))||/[\x00-\x1f]/.test(file.name))throw new AppError("VALIDATION","Invalid document");
  validateDocumentFormat(file);const date=civilDate(issuedAt);if(issuedAt&&(!date||date>algeriaToday()))throw new AppError("VALIDATION","Invalid issue date");
  const c=await pool.connect();try{await c.query("begin");const actor=await currentOperationActorPg(c,user);if(actor.agencyId!==agency)throw new AppError("FORBIDDEN","Vault access denied");authorize({...actor,agencyId:agency},true);
  const profile=await c.query<{full_name:string;nationality:string;passport_number:string;passport_expiry:string}>(`select full_name,nationality,passport_number,passport_expiry::text from ${qt("traveller_profiles")} where id=$1 and agency_id=$2 and version=$3 for update`,[id,agency,version]);

@@ -1,3 +1,4 @@
+import {stageTravellerReference} from "@/lib/traveller-reference-stage";
 import {algeriaToday} from "@/lib/travel-deadline";
 import {hubEnabled,passportKey,civilDate,validApplicationPassport} from "@/lib/traveller-hub-policy";
 import { NextResponse } from "next/server";
@@ -19,6 +20,7 @@ import { readRequestBodyLimited } from "@/lib/http-body";
 export const runtime = "nodejs";
 const submission = z.object({ locale: z.enum(["en","fr","ar"]).optional(), attempt: z.string().uuid(), visaTypeId: z.string().uuid(), countryId: z.string().uuid(),
   travellerProfileId:z.string().uuid().optional(),passportNumber:z.string().max(20).optional(),passportExpiry:z.string().max(10).optional(),fullName: z.string().max(200), nationality: z.string().max(80), notes: z.string().max(1000), tokens: z.array(z.string()).max(60), expectedFee: z.string().max(32).regex(/^\d+(?:\.\d+)?$/).optional(), expectedCatalogue: z.string().regex(/^[a-f0-9]{64}$/).optional() });
+const stageReference=z.object({action:z.literal("stageTravellerReference"),profileId:z.string().uuid(),documentId:z.string().uuid(),vault:z.boolean(),sha256:z.string().regex(/^[a-f0-9]{64}$/),attempt:z.string().uuid(),visaTypeId:z.string().uuid(),documentTypeId:z.string().uuid(),slot:z.number().int().min(0).max(2)});
 const preflight = z.object({ expectedCatalogue:z.string().regex(/^[a-f0-9]{64}$/).optional(), action: z.literal("preflight"), visaTypeId: z.string().uuid(), countryId: z.string().uuid(), fullName: z.string().trim().min(1).max(200), nationality: z.string().trim().min(1).max(80) });
 
 export async function POST(request: Request) {
@@ -46,6 +48,7 @@ export async function POST(request: Request) {
     } catch {
       throw new AppError("VALIDATION", "Invalid request.");
     }
+    if(typeof json==="object"&&json!==null&&"action" in json&&json.action==="stageTravellerReference"){const input=stageReference.parse(json);const token=await stageTravellerReference(actor,input);return NextResponse.json({token},{headers:{"Cache-Control":"no-store"}});}
     if (typeof json === "object" && json !== null && "action" in json && json.action === "preflight") {
       const input = preflight.parse(json);
       const [programmes, wallet, matching, requirements] = await Promise.all([
