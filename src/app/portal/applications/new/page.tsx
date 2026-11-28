@@ -2,7 +2,7 @@ import {GroupWizard} from "./group-wizard";
 import {canAccessGroups} from "@/lib/group-access";
 import {groupCopy} from "@/lib/group-copy";
 import Link from "next/link";
-import {hubEnabled,consolidatedProductionEnabled,uuid,type TravellerSource} from "@/lib/traveller-hub-policy";
+import {hubEnabled,consolidatedProductionEnabled,parallelStagingEnabled,uuid,type TravellerSource} from "@/lib/traveller-hub-policy";
 import {groupReuseReady} from "@/lib/group-policy";
 import {pool} from "@/lib/db";
 import {qualifiedTable as qt} from "@/lib/database-schema";
@@ -189,7 +189,7 @@ export default async function NewApplicationPage({
         documentIntelligence={consolidatedProductionEnabled()||process.env.VERCEL_ENV==="preview"&&process.env.VERCEL_GIT_COMMIT_REF==="codex/phase2c-document-intelligence-20261126"}
         travellerHub={hub}
         travellerSource={source}
-        parallelStaging={process.env.VERCEL_ENV==="preview" && process.env.ESSAFARIA_PARALLEL_STAGING!=="false"}
+        parallelStaging={parallelStagingEnabled()}
         catalogueFingerprints={catalogueFingerprints}
         today={algeriaToday()}
         countries={countries}
