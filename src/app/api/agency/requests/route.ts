@@ -18,7 +18,7 @@ import { readRequestBodyLimited } from "@/lib/http-body";
 
 export const runtime = "nodejs";
 const submission = z.object({ locale: z.enum(["en","fr","ar"]).optional(), attempt: z.string().uuid(), visaTypeId: z.string().uuid(), countryId: z.string().uuid(),
-  passportNumber:z.string().max(20).optional(),passportExpiry:z.string().max(10).optional(),fullName: z.string().max(200), nationality: z.string().max(80), notes: z.string().max(1000), tokens: z.array(z.string()).max(60), expectedFee: z.string().max(32).regex(/^\d+(?:\.\d+)?$/).optional(), expectedCatalogue: z.string().regex(/^[a-f0-9]{64}$/).optional() });
+  travellerProfileId:z.string().uuid().optional(),passportNumber:z.string().max(20).optional(),passportExpiry:z.string().max(10).optional(),fullName: z.string().max(200), nationality: z.string().max(80), notes: z.string().max(1000), tokens: z.array(z.string()).max(60), expectedFee: z.string().max(32).regex(/^\d+(?:\.\d+)?$/).optional(), expectedCatalogue: z.string().regex(/^[a-f0-9]{64}$/).optional() });
 const preflight = z.object({ expectedCatalogue:z.string().regex(/^[a-f0-9]{64}$/).optional(), action: z.literal("preflight"), visaTypeId: z.string().uuid(), countryId: z.string().uuid(), fullName: z.string().trim().min(1).max(200), nationality: z.string().trim().min(1).max(80) });
 
 export async function POST(request: Request) {
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
       .where(and(eq(applications.idempotencyKey, input.attempt), eq(applications.agencyId, actor.agencyId)));
     if(!existing&&hubEnabled()&&!validApplicationPassport(input.passportNumber,input.passportExpiry,algeriaToday()))throw new AppError("PASSPORT_VALIDITY","At least seven months of passport validity are required.");
     const committedId = existing?.id ?? (await submitVisaRequest({ actor, idempotencyKey: input.attempt, countryId: input.countryId,
-      visaTypeId: input.visaTypeId, expectedFee: input.expectedFee, expectedCatalogue:input.expectedCatalogue, agencyNotes: input.notes, travellers: [{ fullName: input.fullName, nationality: input.nationality,...(hubEnabled()?{passportNumber:passportKey(input.passportNumber)||null,passportExpiryDate:civilDate(input.passportExpiry)}:{}) }],
+      visaTypeId: input.visaTypeId, expectedFee: input.expectedFee, expectedCatalogue:input.expectedCatalogue, agencyNotes: input.notes, travellers: [{ fullName: input.fullName, nationality: input.nationality,...(hubEnabled()?{passportNumber:passportKey(input.passportNumber)||null,passportExpiryDate:civilDate(input.passportExpiry),travellerProfileId:input.travellerProfileId}:{}) }],
       documents: await resolveRequestUploads(actor, input.attempt, input.visaTypeId, input.tokens) })).applicationId;
     await clearRequestUploads(actor, input.attempt).catch(() => {});
     return committedId;

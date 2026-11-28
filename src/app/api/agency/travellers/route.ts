@@ -1,3 +1,6 @@
+import {saveTraveller} from "@/lib/traveller-profile-write";
+import {z} from "zod";
+import {AppError} from "@/lib/types";
 import {NextResponse} from "next/server";
 import {requireAgencyUser} from "@/lib/auth";
 import {hasPermission} from "@/lib/rbac";
@@ -11,8 +14,9 @@ export async function POST(request:Request){
  try{
  const user=await requireAgencyUser();if(!hasPermission(user,"applicants.view.all")||!hasPermission(user,"applications.create"))return reply({error:"Forbidden"},403);
  const data=JSON.parse((await readRequestBodyLimited(request,2048)).toString("utf8"));
+ if(data?.action==="create"||data?.action==="update"){const f=z.object({name:z.string().max(200),nationality:z.string().max(80),passport:z.string().max(20).optional(),expiry:z.string().max(10).optional(),dob:z.string().max(10).optional(),id:z.string().uuid().optional(),version:z.number().int().positive().optional()}).parse(data);if(data.action==="update"&&(!f.id||!f.version))return reply({error:"Invalid request"},400);return reply({id:await saveTraveller(user,f,data.action==="update"?f.id:undefined,f.version)});}
  if(data?.action==="search"){const q=safeLookupTerm(data.q);if(!q)return reply({rows:[]});const result=await directory(user,q,1,"all");return reply({rows:result.rows.slice(0,10).map(r=>({id:r.id,name:r.name,nationality:r.nationality,reference:r.reference,passport:maskPassport(r.passport)}))})}
  if(data?.action==="select"&&uuid(data.id)){const source=await repeatSource(user,data.id);return source?reply({source}):reply({error:"Not found"},404)}
  return reply({error:"Invalid request"},400);
- }catch{return reply({error:"Unavailable"},400)}
+ }catch(e){return reply({error:"Unavailable",code:e instanceof AppError?e.code:"VALIDATION"},400)}
 }

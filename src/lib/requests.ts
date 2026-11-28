@@ -1,3 +1,4 @@
+import {linkTravellerInSubmission} from "@/lib/traveller-profile-write";
 import {algeriaToday} from "@/lib/travel-deadline";
 import {hubEnabled,passportKey,civilDate,validApplicationPassport} from "@/lib/traveller-hub-policy";
 import { bookingCatalogueFingerprint } from "@/lib/booking-catalogue-fingerprint";
@@ -79,6 +80,7 @@ export async function coalesceVisaSubmission(actor:AuthUser,attempt:string,submi
  * the simplified flow never sends them.
  */
 export interface RequestTraveller {
+  travellerProfileId?:string;
   fullName?: string;
   firstName?: string;
   lastName?: string;
@@ -545,14 +547,15 @@ export async function submitVisaRequest(input: SubmitVisaRequestInput): Promise<
       const t = input.travellers[0]!;
       const fullName = (t.fullName ?? `${t.firstName ?? ""} ${t.lastName ?? ""}`).trim();
       if(hubEnabled()&&!validApplicationPassport(t.passportNumber,t.passportExpiryDate,algeriaToday()))throw new AppError("PASSPORT_VALIDITY","At least seven months of passport validity are required.");
-      await client.query(
+      const insertedApplicant=await client.query<{id:string}>(
         `insert into ${qualifiedTable("applicants")}
            (application_id, first_name, last_name, full_name, date_of_birth, nationality,
             passport_number, passport_issue_date, passport_expiry_date, email, phone)
-         values ($1,$2,'',$3,null,$4,$5,null,$6::date,null,null)`,
+         values ($1,$2,'',$3,null,$4,$5,null,$6::date,null,null) returning id`,
         [applicationId, fullName, fullName, t.nationality.trim().toUpperCase(),hubEnabled()?passportKey(t.passportNumber)||null:null,hubEnabled()?civilDate(t.passportExpiryDate):null],
       );
 
+      if(hubEnabled())await linkTravellerInSubmission(client,actor,insertedApplicant.rows[0]!.id,{name:fullName,nationality:t.nationality,passport:t.passportNumber??"",expiry:t.passportExpiryDate??""},t.travellerProfileId);
       // Document records (blobs are already in storage).
       for (const d of docRows) {
         await client.query(
