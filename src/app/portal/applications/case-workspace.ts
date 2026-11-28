@@ -39,6 +39,11 @@ export function detailLink(id:string,returnTo:string){
  const base="/portal/applications/"+encodeURIComponent(id),safe=safeCaseReturn(returnTo);
  return base+(safe==="/portal/applications"?"":"?returnTo="+encodeURIComponent(safe));
 }
+/** Preserve the list return context and append the tab before any fragment. */
+export function caseTabLink(id:string,returnTo:string,tab:string,fragment?:string){
+ const base=detailLink(id,returnTo);
+ return base+(base.includes("?")?"&":"?")+"tab="+encodeURIComponent(tab)+(fragment?"#"+encodeURIComponent(fragment):"");
+}
 export function processingDuration(submitted:Date|string|null|undefined,decision:Date|string|null|undefined,closed:Date|string|null|undefined,terminal:boolean,now:Date=new Date()){
  if(!submitted)return null;const start=new Date(submitted).getTime(),stop=terminal?(decision??closed):now;
  if(!stop)return null;const end=new Date(stop).getTime();if(!Number.isFinite(start)||!Number.isFinite(end)||end<start)return null;
