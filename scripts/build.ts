@@ -72,6 +72,7 @@ function main(): void {
     if (run("scripts/prepare-local-analysis.mjs", []) !== 0) process.exit(1);
     if (run("node_modules/tsx/dist/cli.mjs", ["scripts/verify-phase2c.ts"]) !== 0) process.exit(1);
   }
+  if(isVercelPreview&&[ "codex/phase2c-document-intelligence-20261126", "codex/phase2d-traveller-hub-20261128"].includes(process.env.VERCEL_GIT_COMMIT_REF??"")){if(run("node_modules/tsx/dist/cli.mjs",["scripts/verify-traveller-hub.ts"])!==0)process.exit(1);}
   process.exit(run("node_modules/next/dist/bin/next", ["build"]));
 }
 

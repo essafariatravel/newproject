@@ -7,6 +7,10 @@ on:
       - seo/legal-metadata-from-gsc-20261114
       - seo/b2b-algeria-relevance-20261118
       - design/agency-identity-home-20261118
+      - seo/v2-live-production-20261124
+      - seo/v2-resources-20261124
+      - seo/production-recovery-20261126
+      - seo/mobile-performance-20261126
 
 permissions:
   contents: read
@@ -38,8 +42,26 @@ jobs:
       - name: Public SEO and isolation tests
         run: npx vitest run tests/seo-editorial-evidence.test.ts tests/seo-company-identity.test.ts tests/seo-indexation.test.ts tests/seo-partner-content.test.ts tests/seo-public-performance.test.ts tests/seo-route-policy.test.ts tests/build-preview-guard.test.ts
       - name: B2B relevance, localized links and privacy tests
-        run: npx vitest run tests/seo-commercial-intent.test.ts
+        run: npx vitest run tests/seo-commercial-intent.test.ts tests/seo-v2-discovery.test.ts tests/seo-public-links.test.ts tests/seo-locale-routing.test.ts tests/seo-metadata-safety.test.ts tests/seo-private-resources.test.ts tests/seo-resource-hub.test.ts
+      - name: Document viewer regression tests
+        if: github.ref == 'refs/heads/seo/production-recovery-20261126' || github.ref == 'refs/heads/seo/mobile-performance-20261126'
+        run: npx vitest run tests/document-action-model.test.ts tests/document-preview-blob.test.ts
       - name: Typecheck
         run: npm run typecheck
       - name: Lint
         run: npm run lint
+      - name: Local build without database credentials
+        if: github.ref == 'refs/heads/seo/v2-resources-20261124' || github.ref == 'refs/heads/seo/production-recovery-20261126' || github.ref == 'refs/heads/seo/mobile-performance-20261126'
+        run: npm run build
+      - name: Local HTTP qualification of public routes and privacy
+        if: github.ref == 'refs/heads/seo/v2-resources-20261124' || github.ref == 'refs/heads/seo/production-recovery-20261126' || github.ref == 'refs/heads/seo/mobile-performance-20261126'
+        shell: bash
+        run: |
+          node node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3100 > /tmp/essafaria-seo-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3100/robots.txt >/dev/null; then break; fi
+            sleep 1
+          done
+          SEO_VERIFY_BASE_URL=http://127.0.0.1:3100 SEO_VERIFY_MODE=preview npx tsx scripts/verify-seo-runtime.ts

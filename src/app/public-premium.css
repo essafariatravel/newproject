@@ -66,7 +66,11 @@
 .proof-intro h3 { font-size: clamp(1.35rem, 2vw, 1.85rem); line-height: 1.18; letter-spacing: -.02em; }
 .proof-intro p { margin-block-start: .65rem; max-width: 35ch; color: var(--home-muted); font-size: 1rem; line-height: 1.55; }
 .proof-screen { display: block; overflow: hidden; border: 1px solid var(--home-line); border-radius: 6px; }
-.proof-screen img { display: block; width: 100%; height: auto; }
+.proof-screen img { display: block; width: 100%; height: auto; aspect-ratio: var(--proof-wide-ratio); }
+/* Match the picture source breakpoint so the mobile capture keeps its final space before decoding. */
+@media (max-width: 639px) {
+  .proof-screen img { aspect-ratio: var(--proof-small-ratio); }
+}
 .tour-selector:has(#visa-chapter-0:checked) #visa-explanation-0,
 .tour-selector:has(#visa-chapter-1:checked) #visa-explanation-1,
 .tour-selector:has(#visa-chapter-2:checked) #visa-explanation-2 { display: grid; animation: panel-in 160ms ease-out; }

@@ -120,6 +120,11 @@ async function verifyPublicPages() {
     assert(htmlAttribute(body, "dir") === (locale === "ar" ? "rtl" : "ltr"), `${path} has the wrong text direction`);
     const localizedB2b = seoLocalizedPublicPath("b2b", locale);
     assert(body.includes(`href="${localizedB2b}"`), `${path} navigation does not preserve its public locale`);
+    const resourcesPath = seoLocalizedPublicPath("resources", locale);
+    assert(body.includes(`href="${resourcesPath}"`), `${path} lacks a localized resource link`);
+    if (entry.key === "resources") assert(body.includes('id="resource-document-check"'), `${path} lacks guide content`);
+    const headingFont = locale === "ar" ? "/fonts/IBMPlexSansArabic-SemiBold.ttf" : "/fonts/Barlow-SemiBold.ttf";
+    assert((body.split("</head>", 1)[0] ?? "").includes(`href="${headingFont}"`), `${path} lacks an early heading font hint`);
     const forbidden = forbiddenMetadataHost(body);
     assert(!forbidden, `${path} leaked non-Production metadata host ${forbidden}`);
 

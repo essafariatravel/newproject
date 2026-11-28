@@ -1,0 +1,67 @@
+import assert from "node:assert/strict";
+import {hubEnabled,HUB_BRANCH,CONSOLIDATED_BRANCH,uuid,passportKey,nameKey,civilDate,minimumExpiry,expiryState,maskPassport,normalizedQuery,pageNumber,identityMatches,reusablePassport,validApplicationPassport,safeLookupTerm,reusableDocument,tripSpecificDocument,sameDeclaredIdentity,renewalStage} from "../src/lib/traveller-hub-policy";
+import {automaticDatabaseChangesForbidden} from "./lib/build-policy";
+assert.equal(hubEnabled({VERCEL_ENV:"production",VERCEL_GIT_COMMIT_REF:HUB_BRANCH}),false);
+assert.equal(hubEnabled({VERCEL_ENV:"preview",VERCEL_GIT_COMMIT_REF:HUB_BRANCH}),true);
+assert.equal(hubEnabled({VERCEL_ENV:"preview",VERCEL_GIT_COMMIT_REF:"other"}),false);
+assert.equal(automaticDatabaseChangesForbidden(HUB_BRANCH),true);
+assert.equal(uuid("not-an-id"),false);
+assert.equal(passportKey(" a1234567 "),"A1234567");
+assert.equal(passportKey("00000000"),"");
+assert.equal(passportKey("UNKNOWN"),"");
+assert.equal(nameKey(" A  B "),"a b");
+assert.equal(civilDate("2026-02-30"),null);
+assert.equal(minimumExpiry("2026-11-28"),"2027-06-28");
+assert.equal(minimumExpiry("2026-07-31"),"2027-02-28");
+assert.equal(expiryState("2027-06-27","2026-11-28"),"renew");
+assert.equal(expiryState("2027-06-28","2026-11-28"),"valid");
+assert.equal(expiryState(null,"2026-11-28"),"unknown");
+assert.equal(maskPassport("A1234567"),"•••• 4567");
+assert.equal(normalizedQuery("x".repeat(200)).length,100);
+assert.equal(pageNumber(-1),1);
+assert.equal(pageNumber(Infinity),1);
+const identity={name:"Synthetic Traveller",nationality:"DZA",passport:"A1234567",expiry:"2030-01-01"};
+assert.equal(identityMatches(identity,identity),true);
+assert.equal(identityMatches(identity,{...identity,passport:""}),false);
+assert.equal(identityMatches(identity,{...identity,name:"Other"}),false);
+assert.equal(identityMatches(identity,{...identity,nationality:"MAR"}),false);
+assert.equal(identityMatches(identity,{...identity,expiry:"2031-01-01"}),false);
+const file={code:"PASSPORT",status:"ACCEPTED",size:123,mime:"application/pdf",sha256:"a".repeat(64),expiry:"2030-01-01",today:"2026-11-28",latest:true,openRequest:false,attributable:true};
+assert.equal(reusablePassport(file),true);
+for(const patch of [{code:"BANK_STATEMENT"},{code:"DECISION_VISA_APPROVAL"},{status:"REJECTED"},{sha256:null},{size:3000000},{expiry:null},{expiry:"2027-01-01"},{latest:false},{openRequest:true},{attributable:false}])assert.equal(reusablePassport({...file,...patch}),false);
+console.log("[traveller-hub] Policy, identity, expiry, reusable-document and isolated build checks PASS (35 assertions)");
+
+assert.equal(validApplicationPassport("","2027-06-28","2026-11-28"),true);
+assert.equal(validApplicationPassport("","2027-06-27","2026-11-28"),false);
+assert.equal(validApplicationPassport("","", "2026-11-28"),false);
+assert.equal(validApplicationPassport("00000000","2030-01-01","2026-11-28"),false);
+console.log("[traveller-hub] Mandatory expiry policy PASS (4 assertions)");
+
+assert.equal(safeLookupTerm("x"),"");assert.equal(safeLookupTerm(" AB "),"AB");assert.equal(safeLookupTerm({}),"");
+console.log("[traveller-hub] Bounded lookup PASS (3 assertions)");
+
+const current={...file,uploadedAt:"2026-11-01T00:00:00Z"};
+assert.equal(reusableDocument({...current,code:"BANK_STATEMENT"}),true);
+assert.equal(reusableDocument({...current,code:"BANK_STATEMENT",uploadedAt:"2026-10-01"}),false);
+assert.equal(reusableDocument({...current,code:"PHOTO"}),true);
+assert.equal(reusableDocument({...current,code:"MARRIAGE_CERT"}),true);
+assert.equal(reusableDocument({...current,code:"DECISION_VISA_APPROVAL"}),false);
+assert.equal(reusableDocument({...current,code:"UNKNOWN"}),false);
+assert.equal(reusableDocument({...current,code:"BANK_STATEMENT",openRequest:true}),false);
+assert.equal(tripSpecificDocument("HOTEL_RESERVATION"),true);
+assert.equal(tripSpecificDocument("PHOTO"),false);
+assert.equal(sameDeclaredIdentity({...identity,passport:""},{...identity,passport:""}),true);
+assert.equal(sameDeclaredIdentity(identity,{...identity,expiry:"2031-01-01"}),false);
+console.log("[traveller-hub] Expanded controlled reuse and profile identity PASS (11 assertions)");
+
+assert.equal(renewalStage("2027-06-28","2026-11-28"),null);
+assert.equal(renewalStage("2027-03-01","2026-11-28"),"RENEW");
+assert.equal(renewalStage("2026-12-10","2026-11-28"),"URGENT");
+assert.equal(renewalStage("2026-11-28","2026-11-28"),"EXPIRED");
+assert.equal(renewalStage(null,"2026-11-28"),null);
+console.log("[traveller-hub] Renewal stages PASS (5 assertions)");
+
+assert.equal(hubEnabled({VERCEL_ENV:"preview",VERCEL_GIT_COMMIT_REF:CONSOLIDATED_BRANCH}),true);
+assert.equal(hubEnabled({VERCEL_ENV:"production",VERCEL_GIT_COMMIT_REF:CONSOLIDATED_BRANCH}),false);
+assert.equal(automaticDatabaseChangesForbidden(CONSOLIDATED_BRANCH),true);
+console.log("[consolidation] Combined Preview scope PASS (3 assertions)");

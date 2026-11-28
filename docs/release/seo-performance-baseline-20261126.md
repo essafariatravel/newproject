@@ -1,0 +1,5 @@
+# SEO performance baseline — 2026-11-26
+Production baseline: 0df8a8e00c1bfc784ec05554ec3c9028a11116f2.
+OpenSEO audit ffea826e-0aa6-41dd-a2e5-5bb16eb1468a: 20 Lighthouse synthetic runs, 10 URLs across mobile and desktop. No field INP data. Mobile /ar/b2b 80, LCP 3399 ms, CLS 0.233; / 90, LCP 2063 ms, CLS 0.190; /ar 88, LCP 3034 ms, CLS 0.128; /about 94, LCP 2803 ms, CLS 0.041. Desktop scores 98–100.
+Candidate: early discovery of one locale-specific heading font, explicit matching desktop/mobile aspect ratios on the demonstration capture, no automatic public-header/footer link prefetch. These target avoidable resource contention and late layout changes; they are hypotheses to retest, not measured improvements. Preserve all no-store/security controls and original typography/imagery. Do not remove privacy controls to improve bfcache.
+Re-run Lighthouse on identical URLs and devices after release, compare medians if repeat measurements are available. Keep the previous production deployment as rollback reference; confirm all 18 public URLs, all language alternates, and Document Viewer tests.

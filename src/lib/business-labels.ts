@@ -1,6 +1,9 @@
 import type { UiLocale } from "@/lib/ui-i18n";
 
 const labels: Record<string, [string, string, string]> = {
+  TRAVELLER_PASSPORT_RENEW:["Passport renewal reminder","Passeport à renouveler","تذكير بتجديد الجواز"],
+  TRAVELLER_PASSPORT_URGENT:["Passport expires within 30 days","Passeport : expiration sous 30 jours","انتهاء الجواز خلال 30 يوماً"],
+  TRAVELLER_PASSPORT_EXPIRED:["Passport expired","Passeport expiré","جواز سفر منتهي الصلاحية"],
   APPLICATION_DECISION_RECORDED: ["Decision recorded", "Décision enregistrée", "تم تسجيل القرار"],
   DOCUMENT_REPLACEMENT_REQUESTED: ["Replacement requested", "Remplacement demandé", "طُلب مستند بديل"],
   DOCUMENT_ADDITIONAL_REQUESTED: ["Additional document requested", "Document complémentaire demandé", "طُلب مستند إضافي"],

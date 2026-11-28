@@ -1,4 +1,4 @@
-import {and,desc,eq,gte,inArray,isNull,sql} from "drizzle-orm";
+import {and,desc,gte,inArray,isNull,sql} from "drizzle-orm";
 import {db} from "@/lib/db";
 import {auditLogs} from "@/db/schema";
 import {requireAgencyUser} from "@/lib/auth";

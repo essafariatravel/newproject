@@ -26,6 +26,11 @@ export const AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES = [
   "seo/legal-metadata-from-gsc-20261114",
   "seo/b2b-algeria-relevance-20261118",
   "design/agency-identity-home-20261118",
+  "seo/v2-algeria-20261124",
+  "seo/v2-live-production-20261124",
+  "seo/v2-resources-20261124",
+  "seo/production-recovery-20261126",
+  "seo/mobile-performance-20261126",
   // Agency UX branch: no migration or seed even without environment overrides.
   "codex/agency-experience-2-0-preview-20261124",
   "codex/phase2a-intelligent-core-20261126",
@@ -47,6 +52,7 @@ export function automaticDatabaseChangesForbidden(branch: string | null | undefi
     ref.startsWith("codex/legal-readiness-rc-") ||
     ref.startsWith("codex/master-go-live-rc-") ||
     ref.startsWith("codex/phase2a-") ||
+    ref.startsWith("codex/phase2d-") ||
     ref.startsWith("codex/essafaria-autonomous-completion-") ||
     ref.startsWith("release/essafaria-prod-candidate-") ||
     (AUTOMATIC_DATABASE_CHANGE_PROTECTED_BRANCHES as readonly string[]).includes(ref);

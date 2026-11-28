@@ -3,7 +3,7 @@ import {
   seoIndexablePageForPath,
 } from "@/lib/seo-manifest";
 
-// Limit rewrites to the five approved marketing pages. Authentication, portal,
+// Limit rewrites to the approved marketing pages. Authentication, portal,
 // admin, token and API routes never pass through this localization proxy.
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -29,7 +29,7 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/", "/b2b", "/about", "/contact", "/faq",
+    "/", "/b2b", "/about", "/contact", "/faq", "/resources",
     "/fr/:path*", "/ar/:path*",
   ],
 };

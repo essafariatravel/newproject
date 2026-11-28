@@ -111,7 +111,7 @@ describe("sitemap and robots", () => {
         SEO_PUBLIC_LOCALES.map((locale) => publicCanonicalUrl(entry.key, locale)),
       ),
     );
-    expect(map).toHaveLength(15);
+    expect(map).toHaveLength(18);
     for (const entry of map) {
       const url = new URL(entry.url);
       expect(url.protocol).toBe("https:");
@@ -127,10 +127,16 @@ describe("sitemap and robots", () => {
 
   it("marks only verifiably updated public content with stable lastmod dates", () => {
     const map = buildPublicSitemap(production);
-    for (const route of ["about", "faq"] as const) {
+    for (const route of ["about"] as const) {
       for (const locale of SEO_PUBLIC_LOCALES) {
         const url = publicCanonicalUrl(route, locale);
         expect(map.find((page) => page.url === url)?.lastModified).toBe("2026-11-14");
+      }
+    }
+    for (const locale of SEO_PUBLIC_LOCALES) {
+      for (const page of ["faq", "resources"] as const) {
+        const url = publicCanonicalUrl(page, locale);
+        expect(map.find((entry) => entry.url === url)?.lastModified).toBe("2026-11-24");
       }
     }
     // Do not invent dates for content without verified significant updates.
@@ -146,7 +152,7 @@ describe("sitemap and robots", () => {
         expect(map.find((page) => page.url === url)?.lastModified).toBeUndefined();
       }
     }
-    expect(map).toHaveLength(15);
+    expect(map).toHaveLength(18);
   });
 
   it("publishes no sitemap URLs outside Production", () => {

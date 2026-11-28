@@ -4,5 +4,7 @@ export async function coreTimed<T>(operation:CoreOperation,run:()=>Promise<T>):P
  if(process.env.ESSAFARIA_CORE_TIMING!=="true")return run();
  const started=performance.now();let success=false;
  try{const result=await run();success=true;return result}
+ // Opt-in server timing intentionally emits a structured, non-sensitive info event.
+ // eslint-disable-next-line no-console
  finally{console.info(JSON.stringify({event:"essafaria.core.timing",operation,durationMs:Math.round(performance.now()-started),success}))}
 }

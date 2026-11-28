@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { ActivityTimeline } from "@/components/application-detail";
 import { DocStatusBadge } from "@/components/badges";
 import { Progress } from "@/components/ui";
@@ -83,9 +84,9 @@ export function PublicVisaChapters({ locale }: { locale: UiLocale }) {
                 <h3>{labels.file}</h3>
                 <p>{labels.tabs[0][1]}</p>
               </div>
-              <picture className="proof-screen">
+              <picture className="proof-screen" style={{ "--proof-wide-ratio": `1344 / ${wideHeight}`, "--proof-small-ratio": `686 / ${smallHeight}` } as CSSProperties}>
                 <source media="(max-width: 639px)" srcSet={`/images/workflow/intake-${locale}-small.webp`} width="686" height={smallHeight} />
-                <img src={`/images/workflow/intake-${locale}.webp`} alt={labels.intakeImage} width="1344" height={wideHeight} loading="lazy" />
+                <img src={`/images/workflow/intake-${locale}.webp`} alt={labels.intakeImage} width="1344" height={wideHeight} loading="lazy" decoding="async" />
               </picture>
             </section>
             <section id="visa-explanation-1" className="proof-pane">

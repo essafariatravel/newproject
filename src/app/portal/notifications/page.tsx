@@ -1,3 +1,4 @@
+import {safeTravellerRenewals} from "@/lib/traveller-renewals";
 import Link from "next/link";
 import { operationalCopy } from "@/lib/operational-copy";
 import {portalPageUser} from "@/lib/page-auth";
@@ -24,6 +25,7 @@ export default async function PortalNotificationsPage({searchParams}:{searchPara
  const filter=filters.find(x=>x===sp.filter)??"all",q=typeof sp.q==="string"?sp.q.trim().slice(0,160):"";
  const page=Math.max(1,Math.min(5000,Math.floor(Number(sp.page)||1))),size=Math.max(3,Math.min(16,Math.floor(Number(sp.size)||7)));
  const financial=hasPermission(user,"wallet.view.own")&&hasPermission(user,"transactions.view.own");
+ await safeTravellerRenewals(user);
  const [unread,rows,attention]=await Promise.all([unreadNotificationCount(user.id),listNotificationsForUser(user.id,size+1,filter==="unread"?"all":filter as NotificationFilter,{agencyId:user.agencyId,unread:filter==="unread",q,financial,detail:true,groupPage:{page,size},excludeAction:filter==="all"&&!q}),listNotificationsForUser(user.id,3,"action",{agencyId:user.agencyId,financial,detail:true})]);
  const actionTotal=attention[0]?.matchingTotal??0,showPriority=filter==="all"&&!q&&page===1;
  const total=rows[0]?.matchingTotal??0,next=page*size<total,visible=rows;
@@ -46,8 +48,8 @@ export default async function PortalNotificationsPage({searchParams}:{searchPara
  function documentName(n:Row){if(!n.requestName)return null;const configured=locale==="fr"?n.requestNameFr:locale==="ar"?n.requestNameAr:null;return configured?.trim()||localizedDocTypeName(n.requestCode??"",n.requestName,locale)}
  function age(n:Row){const m=notificationAgeMinutes(n.createdAt,new Date());if(m===null)return null;return m>=1440?`${Math.floor(m/1440)} ${t.days}`:m>=60?`${Math.floor(m/60)} ${t.hours}`:`${m} ${t.minutes}`}
  function transition(n:Row){const value=notificationStatusChange(n.type,n.title,n.body,n.reference);if(!value)return null;const label=(s:string)=>localizedStatusName(notificationStatusCodes[s.toLowerCase()]??"",s,locale);return <div className="sn-signature-change"><small>{t.statusChange}</small><div><span>{label(value.from)}</span><span className="directional-arrow" aria-hidden="true">→</span><strong>{label(value.to)}</strong></div></div>}
- function row(n:Row){const target=href(n),title=titleFor(n),body=["MESSAGE_POSTED","DOCUMENT_REQUESTED","DOCUMENT_REJECTED","RESUBMISSION_REQUIRED","CANCELLATION_REQUESTED","CANCELLATION_APPROVED","CANCELLATION_REFUSED"].includes(n.type)?n.body:null;
- const action=n.type==="MESSAGE_POSTED"?(n.actionRequired?t.replyNow:t.reply):isWallet(n)?t.wallet:((n.type==="APPLICATION_DECISION"||n.type==="APPLICATION_COMPLETED")&&n.decisionAvailable)?t.decision:n.actionRequired?t.provide:n.type.startsWith("DOCUMENT_")?t.documents:t.open;
+ function row(n:Row){const target=href(n),title=titleFor(n),body=n.type.startsWith("TRAVELLER_PASSPORT_")?({fr:"Expiration déclarée : ",en:"Declared expiry: ",ar:"انتهاء الصلاحية المصرح به: "}[locale])+n.body:["MESSAGE_POSTED","DOCUMENT_REQUESTED","DOCUMENT_REJECTED","RESUBMISSION_REQUIRED","CANCELLATION_REQUESTED","CANCELLATION_APPROVED","CANCELLATION_REFUSED"].includes(n.type)?n.body:null;
+ const action=n.type.startsWith("TRAVELLER_PASSPORT_")?t.open:n.type==="MESSAGE_POSTED"?(n.actionRequired?t.replyNow:t.reply):isWallet(n)?t.wallet:((n.type==="APPLICATION_DECISION"||n.type==="APPLICATION_COMPLETED")&&n.decisionAvailable)?t.decision:n.actionRequired?t.provide:n.type.startsWith("DOCUMENT_")?t.documents:t.open;
  const money=financial?(n.ledgerAmount!==null?formatAmount(n.ledgerAmount,"DZD",locale):n.type==="WALLET_TOPUP_DECIDED"&&n.creditedAmount!==null&&n.topupStatus==="PROCESSED"?formatAmount(n.creditedAmount,"DZD",locale):n.topupAmount!==null&&n.topupCurrency==="DZD"?formatAmount(n.topupAmount,"DZD",locale):null):null;
  const credit=n.ledgerDirection==="in"&&n.ledgerAmount!==null||n.type==="WALLET_TOPUP_DECIDED"&&n.creditedAmount!==null&&n.topupStatus==="PROCESSED";
  const debit=n.ledgerDirection==="out"&&n.ledgerAmount!==null;

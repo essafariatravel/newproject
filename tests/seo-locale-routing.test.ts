@@ -11,15 +11,17 @@ import {
 const host = "https://visa.essafariavoyages.com";
 
 describe("stable public locale URLs", () => {
-  it("exposes only the approved five pages in each of three languages", () => {
+  it("exposes only the approved six pages in each of three languages", () => {
     const paths = SEO_INDEXABLE_PUBLIC_ENTRIES.flatMap((entry) =>
       SEO_PUBLIC_LOCALES.map((locale) => seoLocalizedPublicPath(entry.key, locale)),
     );
-    expect(paths).toHaveLength(15);
-    expect(new Set(paths).size).toBe(15);
+    expect(paths).toHaveLength(18);
+    expect(new Set(paths).size).toBe(18);
     expect(paths).toContain("/");
     expect(paths).toContain("/fr/faq");
     expect(paths).toContain("/ar/contact");
+    expect(paths).toContain("/fr/resources");
+    expect(paths).toContain("/ar/resources");
     expect(paths).not.toContain("/fr/portal");
   });
 
@@ -28,6 +30,8 @@ describe("stable public locale URLs", () => {
       ["/fr", "fr", "home"],
       ["/ar/b2b", "ar", "b2b"],
       ["/fr/contact", "fr", "contact"],
+      ["/ar/resources", "ar", "resources"],
+      ["/fr/resources", "fr", "resources"],
     ]) {
       const response = proxy(new NextRequest(`${host}${path}`));
       expect(response.headers.get("x-middleware-rewrite")).toBeNull();

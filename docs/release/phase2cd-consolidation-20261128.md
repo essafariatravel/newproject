@@ -1,0 +1,2 @@
+# Consolidated Preview
+Original II-C alias retained, two-parent merge of ec5b7ba587f9a209fc58c9722bdf51028348c41d and f67464a056f267e536ac0b5e508e65ca0b92f25c. Latest production SEO baseline from II-D retained. II-C document guard and II-D persistent traveller hub run together, single expiry state, existing calendar, reuse pipeline and document checks, atomic profile linkage. Both feature-specific checks run on the consolidated branch. No new migrations, no Production changes. II-D backup branch remains intact. Real authenticated browser qualification remains required.

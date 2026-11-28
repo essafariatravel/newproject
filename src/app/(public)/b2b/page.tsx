@@ -7,6 +7,7 @@ import { seoLocalizedPublicPath } from "@/lib/seo-manifest";
 import { PARTNER_PUBLIC_GUIDE } from "@/lib/public-partner-guide";
 import { PublicOperationalEvidence } from "@/components/public-operational-evidence";
 import { PublicAgencyReadiness } from "@/components/public-agency-discovery";
+import { PUBLIC_RESOURCE_COPY } from "@/lib/public-resources";
 
 export const dynamic = "force-dynamic";
 
@@ -91,6 +92,7 @@ export default async function B2BPage() {
             <p>{guide.limitationsBody}</p>
             <nav className="interior-actions" aria-label={guide.stepsTitle}>
               <Link href={seoLocalizedPublicPath("faq", locale)} className="interior-link">{guide.faqLink}</Link>
+              <Link prefetch={false} href={seoLocalizedPublicPath("resources", locale)} className="interior-link">{PUBLIC_RESOURCE_COPY[locale].nav}</Link>
               <Link href={seoLocalizedPublicPath("contact", locale)} className="interior-link">{guide.contactLink}</Link>
             </nav>
           </div>

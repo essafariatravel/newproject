@@ -21,6 +21,10 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import { assessTravelDeadline,algeriaToday } from "@/lib/travel-deadline";
 import { operationalCopy } from "@/lib/operational-copy";
 import { TravelDeparture,TravelTiming } from "./travel-departure";
+import {hubCopy} from "@/lib/traveller-hub-copy";
+import {passportKey,identityMatches,sameDeclaredIdentity,expiryState,minimumExpiry,validApplicationPassport,type TravellerSource} from "@/lib/traveller-hub-policy";
+import {TravellerReuse} from "./traveller-reuse";
+import {TravellerLookup} from "./traveller-lookup";
 import { PassportValidity,PassportValiditySummary,GuardSummary,FileGuardReport,FinalGuardReview,guardCopy,useDocumentGuard } from "./document-studio";
 import {expiryAssessment,guardTechnical,guardStatus,documentKind} from "@/lib/document-intelligence";
 import { runBoundedUploads } from "@/lib/bounded-upload";
@@ -125,6 +129,8 @@ export interface WizardLabels {
 
 interface Props {
   documentIntelligence?:boolean;
+  travellerHub?:boolean;
+  travellerSource?:TravellerSource|null;
   catalogueFingerprints?: Record<string,string>;
   today?:string;
   parallelStaging?: boolean;
@@ -220,11 +226,16 @@ export function RequestWizard(props: Props) {
   const [previewIndex,setPreviewIndex]=useState(0);
   const [previewUrl,setPreviewUrl]=useState("");
   const [dragging,setDragging]=useState(false);
-  const [nameDraft,setNameDraft]=useState("");
+  const [travellerSource,setTravellerSource]=useState(props.travellerSource??null);
+  const [pickerRevision,setPickerRevision]=useState(0);
+  const [nameDraft,setNameDraft]=useState(props.travellerSource?.name??"");
+  const [passportDraft,setPassportDraft]=useState(props.travellerSource?.passport??"");
+  const hubText=hubCopy[props.locale];
   const [departure,setDeparture]=useState("");
-  const [passportExpiry,setPassportExpiry]=useState("");
+  const [passportExpiry,setPassportExpiry]=useState(props.travellerSource?.expiry??"");
+  const hubPassportBlocked=Boolean(props.travellerHub&&!validApplicationPassport(passportDraft,passportExpiry,props.today??algeriaToday()));
   const ops=operationalCopy[props.locale];
-  const [nationalityDraft,setNationalityDraft]=useState(props.defaultNationality);
+  const [nationalityDraft,setNationalityDraft]=useState(()=>props.travellerSource&&props.nationalities.some(n=>n.code===props.travellerSource!.nationality)?props.travellerSource.nationality:props.travellerSource?"":props.defaultNationality);
   // Controlled state is the single source of truth for the gate and the submitted payload.
   const applicantReady = Boolean(nameDraft.trim() && props.nationalities.some(n => n.code === nationalityDraft));
   const checkout = {
@@ -248,6 +259,10 @@ export function RequestWizard(props: Props) {
     ar:{nationality:"البحث عن الجنسية",batch:"إضافة عدة ملفات",batchHint:"اختاروا الوثيقة ثم خصصوا الملف المناسب.",assign:"تخصيص",unassigned:"ملفات غير مخصصة",fit:"ملاءمة",leave:"مغادرة الطلب دون حفظ؟",noNationality:"لا نتائج.",ready:"تم تحديد جميع الوثائق الإلزامية.",download:"فتح الملف"}
   }[props.locale];
   const [files, setFiles] = useState<Record<string, File[]>>({});
+  const reused=useRef(new WeakSet<File>());
+  const sourceMatches=Boolean(travellerSource&&identityMatches({name:nameDraft,nationality:nationalityDraft,passport:passportDraft,expiry:passportExpiry},travellerSource));
+  const profileMismatch=Boolean(travellerSource&&!sameDeclaredIdentity({name:nameDraft,nationality:nationalityDraft,passport:passportDraft,expiry:passportExpiry},travellerSource));
+  function clearReused(){if(Object.values(files).some(list=>list.some(f=>reused.current.has(f)))){setFiles(prev=>Object.fromEntries(Object.entries(prev).map(([id,list])=>[id,list.filter(f=>!reused.current.has(f))])));setFileError(hubText.reuseChanged)}}
   const smart = {
     fr:{mismatch:"Le nom du fichier suggère un autre type de document. Vérifiez son contenu.",identical:"Un fichier au contenu identique est associé à plusieurs pièces.",small:"Image de faible résolution : vérifiez sa lisibilité.",checks:"Points à vérifier avant l’envoi",inspect:"Vérifier cette pièce",ready:"Toutes les pièces requises sont sélectionnées",remaining:"Pièces obligatoires restantes",selected:"Sélectionné",programmeDocs:"pièces requises",noValidation:"Ces contrôles locaux ne valident ni le contenu ni l’authenticité du document."},
     en:{mismatch:"The filename suggests another document type. Check its contents.",identical:"An identical file is assigned to multiple requirements.",small:"Low-resolution image: check readability.",checks:"Items to check before submitting",inspect:"Review this document",ready:"All required documents are selected",remaining:"Required documents remaining",selected:"Selected",programmeDocs:"required documents",noValidation:"These local checks do not validate document contents or authenticity."},
@@ -368,6 +383,7 @@ export function RequestWizard(props: Props) {
   const checkoutCategory=/^(tourist|tourism|tourisme|touristique|سياحة)$/i.test(visa?.categoryName.trim()??"")?checkout.tourist:visa?.categoryName;
   const genericProgramme=Boolean(visa&&country&&[normalize(country.name),normalize("Visa "+country.name),normalize(country.name+" Visa"),normalize("تأشيرة "+country.name)].includes(normalize(visa.name)));
   useEffect(()=>{if(!selectedFile){setPreviewUrl("");return;}const url=URL.createObjectURL(selectedFile);setPreviewUrl(url);return ()=>URL.revokeObjectURL(url);},[selectedFile]);
+  function chooseTraveller(source:TravellerSource){if(pending||step!==1)return false;if((Object.values(files).some(a=>a.length)||batch.length)&&!window.confirm(hubText.selectWarning))return false;setFiles({});setBatch([]);setActiveDoc("");setPreviewIndex(0);setFileError("");setClientError("");setTravellerSource(source);setNameDraft(source.name);setNationalityDraft(props.nationalities.some(n=>n.code===source.nationality)?source.nationality:"");setPassportDraft(source.passport);setPassportExpiry(source.expiry);setPickerRevision(n=>n+1);setDirty(true);return true;}
   function selectDoc(id:string){setActiveDoc(id);setPreviewIndex(0);setFileError("");}
   function clearForProgrammeChange(){if((Object.values(files).some(a=>a.length)||batch.length)&&!window.confirm(ui.changeWarning))return false;setFiles({});setBatch([]);setActiveDoc("");setPreviewIndex(0);setFileError("");return true;}
   function changeProgramme(id:string){if(id===visaTypeId)return;if(!clearForProgrammeChange())return;setVisaTypeId(id);setDirty(true);}
@@ -445,6 +461,7 @@ export function RequestWizard(props: Props) {
         return false;
       }
       if(deadline.state==="invalid"){setClientError(ops.invalid);return false;}
+      if(hubPassportBlocked){setClientError(hubText.badPassport);return false;}if(profileMismatch){setClientError(hubText.profileChanged);return false;}
       if(expiryBlocked){setClientError(expiry.state==="missing"?guardText.missing:expiry.state==="invalid"?guardText.invalid:guardText.block);return false;}
       if (!applicantReady) {
         setClientError(t.validationApplicant);
@@ -598,7 +615,7 @@ export function RequestWizard(props: Props) {
       finalAttemptStarted=true;
       const response = await fetch("/api/agency/requests", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ locale:props.locale, attempt: idempotencyKey, countryId, visaTypeId, expectedFee: visa?.fee, expectedCatalogue, tokens,
-          fullName: nameDraft.trim(), nationality: nationalityDraft, notes: String(fields.get("agencyNotes") ?? ""), ...(props.documentIntelligence?{passportExpiry,departureEstimate:departure}:{}) }) });
+          fullName: nameDraft.trim(), nationality: nationalityDraft, notes: String(fields.get("agencyNotes") ?? ""), ...(props.travellerHub?{passportNumber:passportKey(passportDraft),passportExpiry,travellerProfileId:travellerSource?.id}:props.documentIntelligence?{passportExpiry}:{}) }) });
       const data = await readRequestResponse<{applicationId:string}>(response,props.locale);
       leavingAfterSuccess.current = true;
       window.location.assign(`/portal/applications/${data.applicationId}?submitted=1`);
@@ -840,7 +857,7 @@ export function RequestWizard(props: Props) {
                 autoComplete="off"
                 className="input"
                 data-testid="wizard-full-name"
-                value={nameDraft} onChange={e=>{setNameDraft(e.target.value);if(clientError===t.validationApplicant)setClientError("")}}
+                value={nameDraft} onChange={e=>{clearReused();setNameDraft(e.target.value);if(clientError===t.validationApplicant)setClientError("")}}
                 placeholder={t.fullNamePlaceholder}
               />
             </div>
@@ -851,13 +868,14 @@ export function RequestWizard(props: Props) {
                 <button type="button" id="wizard-nationality-trigger" ref={nationalityTriggerRef} className="input booking-line" data-testid="wizard-nationality" aria-expanded={nationalityOpen} aria-controls="booking-nationality-options" onClick={()=>{setNationalitySearch("");setNationalityOpen(v=>!v)}}>{props.nationalities.find(n=>n.code===nationalityDraft)?.label??nationalityDraft}<span aria-hidden>⌄</span></button>
                 {nationalityOpen?<div className="booking-nationality-pop" data-placement={nationalityMenu.above?"above":"below"} id="booking-nationality-options" onKeyDown={e=>{if(e.key==="Escape"){setNationalityOpen(false);document.getElementById("wizard-nationality-trigger")?.focus()}}}>
                   <input ref={nationalitySearchRef} type="search" className="input" aria-label={assist.nationality} placeholder={assist.nationality} value={nationalitySearch} onChange={e=>setNationalitySearch(e.target.value)}/>
-                  <div className="booking-nationality-list" style={{maxHeight:nationalityMenu.listHeight}}>{props.nationalities.filter(n=>normalize(n.label+" "+n.code).includes(normalize(nationalitySearch))).map(n=><button key={n.code} type="button" aria-pressed={n.code===nationalityDraft} onClick={()=>{setNationalityDraft(n.code);if(clientError===t.validationApplicant)setClientError("");setDirty(true);setNationalityOpen(false);document.getElementById("wizard-nationality-trigger")?.focus()}}>{n.label}{n.code===nationalityDraft?" ✓":""}</button>)}{!props.nationalities.some(n=>normalize(n.label+" "+n.code).includes(normalize(nationalitySearch)))?<p className="booking-muted">{assist.noNationality}</p>:null}</div>
+                  <div className="booking-nationality-list" style={{maxHeight:nationalityMenu.listHeight}}>{props.nationalities.filter(n=>normalize(n.label+" "+n.code).includes(normalize(nationalitySearch))).map(n=><button key={n.code} type="button" aria-pressed={n.code===nationalityDraft} onClick={()=>{clearReused();setNationalityDraft(n.code);if(clientError===t.validationApplicant)setClientError("");setDirty(true);setNationalityOpen(false);document.getElementById("wizard-nationality-trigger")?.focus()}}>{n.label}{n.code===nationalityDraft?" ✓":""}</button>)}{!props.nationalities.some(n=>normalize(n.label+" "+n.code).includes(normalize(nationalitySearch)))?<p className="booking-muted">{assist.noNationality}</p>:null}</div>
                 </div>:null}
               </div>
             </div>
           </div>
+          {props.travellerHub?<div className="th-wizard-fields">{travellerSource?<div className="th-note"><p>{hubText.prefilled} · <bdi>{travellerSource.reference}</bdi></p>{profileMismatch?<p role="alert" className="booking-warning">{hubText.profileChanged} <a href={"/portal/applicants/"+travellerSource.id} target="_blank" rel="noopener noreferrer">{hubText.editProfile}</a></p>:null}<button type="button" className="booking-link" onClick={()=>{clearReused();setTravellerSource(null);setDirty(true)}}>{hubText.detach}</button></div>:null}{step===1?<TravellerLookup locale={props.locale} onChoose={chooseTraveller} disabled={pending}/>:null}<label>{hubText.number}<input className="input" autoComplete="off" maxLength={20} value={passportDraft} disabled={pending||step!==1} onChange={e=>{clearReused();setPassportDraft(e.target.value);setDirty(true)}}/></label></div>:null}
           <div className={props.documentIntelligence?"di-date-grid":undefined}>
-          {props.documentIntelligence?<PassportValidity locale={props.locale} today={props.today??algeriaToday()} departure={departure} value={passportExpiry} onChange={v=>{setPassportExpiry(v);setDirty(true)}} disabled={pending||step!==1}/>:null}
+          {props.documentIntelligence?<PassportValidity key={pickerRevision} locale={props.locale} today={props.today??algeriaToday()} departure={departure} value={passportExpiry} onChange={v=>{clearReused();setPassportExpiry(v);setDirty(true)}} disabled={pending||step!==1}/>:null}
           <TravelDeparture locale={props.locale} today={props.today??algeriaToday()} value={departure} programme={visa} disabled={pending||step!==1} onChange={value=>{setDeparture(value);setDirty(true);if(clientError===ops.invalid)setClientError("")}}/>
           </div>
           <details className="booking-notes"><summary>{ui.notes}</summary><label className="label sr-only" htmlFor="agencyNotes">{t.notes}</label><textarea id="agencyNotes" name="agencyNotes" rows={2} className="input mt-3" placeholder={t.notesPlaceholder} /></details>
@@ -884,6 +902,7 @@ export function RequestWizard(props: Props) {
           </div>
           {selectedRequirement?<div className="booking-doc-panel">
             <div className="booking-doc-head"><h3>{selectedRequirement.name}</h3>{selectedFiles.length?<span className={warningMessages(selectedRequirement).length?"booking-warning":guard.checking?"booking-muted":"booking-success"}>{props.documentIntelligence?<span className="di-inline-status" data-state={documentStatus(selectedRequirement).state}>{documentStatus(selectedRequirement).label}</span>:warningMessages(selectedRequirement).length?checkout.check:ui.selected}</span>:null}</div>
+            {props.travellerHub&&step===2&&sourceMatches&&!selectedFiles.length&&travellerSource?<TravellerReuse key={travellerSource.id+":"+selectedRequirement.documentTypeId} sourceId={travellerSource.id} programmeId={visaTypeId} locale={props.locale} options={travellerSource.reusable.filter(d=>d.typeId===selectedRequirement.documentTypeId&&(!d.tripSpecific||d.programmeId===visaTypeId))} onFile={file=>{if(onFileChange(selectedRequirement.documentTypeId,[file])){reused.current.add(file);return true}return false}}/>:null}
             {selectedRequirement.notes?<p className="booking-muted">{selectedRequirement.notes}</p>:null}{!props.documentIntelligence&&warningMessages(selectedRequirement).length?<div role="status" className="booking-warning">{warningMessages(selectedRequirement).map(message=><p key={message}>{message}</p>)}<small>{smart.noValidation}</small></div>:null}
             <label className={selectedFiles.length?"booking-file-replace":"booking-drop"} data-dragging={dragging} onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={e=>{e.preventDefault();setDragging(false);onFileChange(selectedRequirement.documentTypeId,e.dataTransfer.files)}}>
               {!selectedFiles.length?<><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5"/></svg><strong>{ui.drop}</strong></>:null}
@@ -949,8 +968,8 @@ export function RequestWizard(props: Props) {
             {!reviewCheck||reviewCheck.status==="checking"?<p className="booking-muted">{preflightText.checking}</p>:reviewCheck.status==="unavailable"?<div className="booking-line"><p className="booking-warning">{preflightText.unavailable}</p><button type="button" className="booking-link" disabled={pending} onClick={()=>{setPreflight(null);setPreflightRetry(n=>n+1)}}>{preflightText.retry}</button></div>:quoteChanged?<div><p className="booking-warning">{reviewCheck.catalogueChanged?ops.changed:preflightText.changed}</p><button type="button" className="booking-link" disabled={pending} onClick={()=>window.location.reload()}>{preflightText.refresh}</button></div>:<><p className="booking-success">✓ {expectedCatalogue?ops.checklist:preflightText.checked}</p></>}
           </div>
           {props.documentIntelligence?<FinalGuardReview locale={props.locale} rows={[
- {label:guardText.traveller,state:applicantReady?"clear":"missing",fix:()=>editStep(1)},
- {label:guardText.validity,state:expiryBlocked?"invalid":"clear",detail:expiryBlocked?guardText.block:undefined,fix:()=>editStep(1)},
+ {label:guardText.traveller,state:profileMismatch?"warning":applicantReady?"clear":"missing",fix:()=>editStep(1)},
+ {label:guardText.validity,state:expiryBlocked||hubPassportBlocked?"invalid":"clear",detail:expiryBlocked||hubPassportBlocked?guardText.block:undefined,fix:()=>editStep(1)},
  {label:guardText.documents,state:completedDocs===requiredDocs.length?"clear":"missing",detail:completedDocs+"/"+requiredDocs.length,fix:()=>editStep(2)},
  {label:guardText.duplicate,state:guard.checking?"checking":!guard.result?"limited":Object.values(guard.result.byId).flat().some(k=>k==="duplicate"||k==="similar")?"warning":Object.values(guard.result.byId).flat().includes("limited")?"limited":"clear",fix:()=>{const r=requirements.find(r=>(guard.result?.byId[r.documentTypeId]??[]).some(k=>k==="duplicate"||k==="similar"));if(r)selectDoc(r.documentTypeId);editStep(2)}},
  ...requirements.filter(r=>documentKind(r.code,r.name)==="photo").map(r=>({label:r.name,state:documentStatus(r).state,fix:()=>{selectDoc(r.documentTypeId);editStep(2)}})),
@@ -960,7 +979,7 @@ export function RequestWizard(props: Props) {
           {expiryBlocked?<p className="booking-warning" role="alert">{guardText.block} <button type="button" className="booking-link" onClick={()=>editStep(1)}>{ui.edit}</button></p>:null}
           {props.documentIntelligence&&requiresRisk&&!expiryBlocked&&!technicalError&&!guard.checking?<label className="di-risk-ack"><input type="checkbox" checked={accepted} disabled={pending} onChange={e=>setAcceptedRisk(e.currentTarget.checked?{result:guard.result,expiry:passportExpiry,departure,visa:visaTypeId}:null)}/><span>{guardText.ack}</span></label>:null}
           {props.documentIntelligence&&technicalError?<p role="alert" className="booking-warning">{guardText.technical}</p>:null}
-          {canAfford||!reviewReady?<button type="submit" className="btn-primary w-full" disabled={pending||!reviewReady||catalogueRecovery||sessionRecovery||Boolean(props.documentIntelligence&&(expiryBlocked||guard.checking||technicalError||(requiresRisk&&!accepted)))} data-testid="wizard-submit">{pending?t.submitting:<>{t.submitApplication} — <bdi>{visa?formatDZD(visa.fee):"—"}</bdi></>}</button>:<><p className="booking-warning">{t.insufficientTitle} · <bdi>{formatDZD(missing)}</bdi></p><a href={topupHref} className="btn-primary" data-testid="wizard-topup-cta">{t.requestTopup}</a></>}
+          {canAfford||!reviewReady?<button type="submit" className="btn-primary w-full" disabled={pending||!reviewReady||catalogueRecovery||sessionRecovery||hubPassportBlocked||profileMismatch||Boolean(props.documentIntelligence&&(expiryBlocked||guard.checking||technicalError||(requiresRisk&&!accepted)))} data-testid="wizard-submit">{pending?t.submitting:<>{t.submitApplication} — <bdi>{visa?formatDZD(visa.fee):"—"}</bdi></>}</button>:<><p className="booking-warning">{t.insufficientTitle} · <bdi>{formatDZD(missing)}</bdi></p><a href={topupHref} className="btn-primary" data-testid="wizard-topup-cta">{t.requestTopup}</a></>}
         </aside>
       </section>
 
@@ -971,7 +990,7 @@ export function RequestWizard(props: Props) {
         </button>
         <small aria-live="polite">{step===2?(batch.length?assist.batchHint:completedDocs<requiredDocs.length?smart.remaining+" : "+(requiredDocs.length-completedDocs):smart.ready+" · "+ux.local):step===1?ui.noDebit:""}</small>
         {step < 3 ? (
-          <button type="button" onClick={goNext} disabled={pending||(step===1?(!visa||!applicantReady||deadline.state==="invalid"||expiryBlocked):completedDocs<requiredDocs.length||batch.length>0||Boolean(props.documentIntelligence&&(guard.checking||technicalError)))} className="btn-primary">
+          <button type="button" onClick={goNext} disabled={pending||(step===1?(!visa||!applicantReady||deadline.state==="invalid"||expiryBlocked||hubPassportBlocked||profileMismatch):completedDocs<requiredDocs.length||batch.length>0||Boolean(props.documentIntelligence&&(guard.checking||technicalError)))} className="btn-primary">
             {step===1?ui.continue:ui.review} <span className="directional" aria-hidden>→</span>
           </button>
         ) : null}
