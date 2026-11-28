@@ -61,12 +61,3 @@ select id,agency_id,full_name,nationality,passport_number,passport_expiry_date,d
 insert into visa_os_preview.traveller_profile_links(applicant_id,agency_id,profile_id)
 select b.id,b.agency_id,b.profile_id from th_backfill b join visa_os_preview.traveller_profiles p on p.id=b.profile_id and p.agency_id=b.agency_id on conflict(applicant_id) do nothing;
 commit;
- and full_name<>'—' and nationality<>'—' and (passport_expiry_date is not null or date_of_birth is not null)
- then jsonb_build_array(passport_number,nationality,lower(regexp_replace(trim(full_name),'[[:space:]]+',' ','g')),date_of_birth,passport_expiry_date)::text else id::text end identity_key from raw
-)
-select *,first_value(id) over(partition by agency_id,identity_key order by created_at,id) profile_id from keyed;
-insert into visa_os_preview.traveller_profiles(id,agency_id,full_name,nationality,passport_number,passport_expiry,date_of_birth,created_at,updated_at)
-select id,agency_id,full_name,nationality,passport_number,passport_expiry_date,date_of_birth,created_at,updated_at from th_backfill where id=profile_id on conflict(id) do nothing;
-insert into visa_os_preview.traveller_profile_links(applicant_id,agency_id,profile_id)
-select b.id,b.agency_id,b.profile_id from th_backfill b join visa_os_preview.traveller_profiles p on p.id=b.profile_id and p.agency_id=b.agency_id on conflict(applicant_id) do nothing;
-commit;
