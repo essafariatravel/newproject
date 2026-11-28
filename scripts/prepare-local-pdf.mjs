@@ -5,7 +5,7 @@ import {join,dirname} from "node:path";
 import {tmpdir} from "node:os";
 import {spawnSync} from "node:child_process";
 const branch="codex/phase2c-document-intelligence-20261126";
-if(process.env.VERCEL!=="1"||process.env.VERCEL_ENV!=="preview"||process.env.VERCEL_GIT_COMMIT_REF!==branch)throw Error("Preview-only PDF assets");
+if(process.env.VERCEL!=="1"||!(process.env.VERCEL_ENV==="preview"||process.env.VERCEL_ENV==="production"&&process.env.DATABASE_SCHEMA==="visa_os")||process.env.VERCEL_GIT_COMMIT_REF!==branch)throw Error("Preview-only PDF assets");
 const root=join(process.cwd(),"public","document-guard","pdf-v1"),temp=await mkdtemp(join(tmpdir(),"essafaria-pdf-"));
 const url="https://github.com/mozilla/pdf.js/releases/download/v6.5.438/pdfjs-6.5.438-legacy-dist.zip";
 try{
