@@ -22,3 +22,5 @@ export function validApplicationPassport(number:string|null|undefined,expiry:str
 export type TravellerSource=TravellerIdentity&{id:string;reference:string;reusable:ReuseFile[]};
 export type TravellerMatch={id:string;name:string;nationality:string;reference:string;passport:string};
 export function safeLookupTerm(q:unknown){const term=normalizedQuery(q);return term.length>=2?term:""}
+
+export function sameDeclaredIdentity(a:TravellerIdentity,b:TravellerIdentity){return nameKey(a.name)===nameKey(b.name)&&a.nationality.trim().toUpperCase()===b.nationality.trim().toUpperCase()&&passportKey(a.passport)===passportKey(b.passport)&&a.expiry===b.expiry}
