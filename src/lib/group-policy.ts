@@ -40,3 +40,9 @@ export function groupFinancialTotals(rows:readonly GroupLedgerAmounts[],expected
  }
  return totals;
 }
+
+/** Only a definitive first-attempt application rejection permits an editable retry.
+ * Unknown network/commit outcomes and subsequent attempts must retain their receipt key. */
+export function canRestartRejectedGroup(wasLocked:boolean,status:number,code:unknown){
+ return !wasLocked&&status===400&&typeof code==="string"&&["VALIDATION","VISA_TYPE_INVALID","INSUFFICIENT_FUNDS","TRAVELLER_CHANGED","TRAVELLER_DUPLICATE","PASSPORT_VALIDITY","PRIORITY_INVALID","CONFIG_ERROR"].includes(code);
+}
