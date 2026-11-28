@@ -1,4 +1,4 @@
-import {hubEnabled} from "./traveller-hub-policy";
+import {hubEnabled,vaultEnabled} from "./traveller-hub-policy";
 import {and,desc,eq,getTableColumns,isNull,sql} from "drizzle-orm";
 import {db} from "@/lib/db";
 import {notifications,applications,countries,visaTypes} from "@/db/schema";
@@ -18,7 +18,7 @@ export async function listAgencyNotifications(userId: string, limit: number, fil
   if (filter === "wallet") conditions.push(sql`(${notifications.type} like '%WALLET%' or ${notifications.type} = 'TOPUP_REQUESTED')`);
   if (filter === "applications") conditions.push(sql`(${notifications.applicationId} is not null or ${notifications.type} like 'TRAVELLER_PASSPORT_%') and ${notifications.type} <> 'MESSAGE_POSTED' and ${notifications.type} not like '%WALLET%'`);
   // Agency action projection: the request must still be open, or the latest public message awaits a reply.
-  const renewalAction=hubEnabled()?sql`(${notifications.type} like 'TRAVELLER_PASSPORT_%' and exists(select 1 from ${table("traveller_renewal_events")} e join ${table("traveller_profiles")} p on p.id=e.profile_id and p.agency_id=e.agency_id where e.notification_id=${notifications.id} and e.agency_id=${options.agencyId} and e.user_id=${userId} and p.passport_expiry=e.expiry and p.passport_expiry<((now() at time zone 'Africa/Algiers')::date+interval '7 months')::date and e.stage=case when p.passport_expiry<=(now() at time zone 'Africa/Algiers')::date then 'EXPIRED' when p.passport_expiry<=(now() at time zone 'Africa/Algiers')::date+30 then 'URGENT' else 'RENEW' end))`:sql`false`;
+  const renewalAction=hubEnabled()?sql`(${notifications.type} like 'TRAVELLER_PASSPORT_%' and exists(select 1 from ${table("traveller_renewal_events")} e join ${table("traveller_profiles")} p on p.id=e.profile_id and p.agency_id=e.agency_id where e.notification_id=${notifications.id} and e.agency_id=${options.agencyId} and e.user_id=${userId} and ${vaultEnabled()?sql`p.archived_at is null`:sql`true`} and p.passport_expiry=e.expiry and p.passport_expiry<((now() at time zone 'Africa/Algiers')::date+interval '7 months')::date and e.stage=case when p.passport_expiry<=(now() at time zone 'Africa/Algiers')::date then 'EXPIRED' when p.passport_expiry<=(now() at time zone 'Africa/Algiers')::date+30 then 'URGENT' else 'RENEW' end))`:sql`false`;
   const actionCondition=sql`(
     ${renewalAction} or
     (${notifications.type} in ('DOCUMENT_REQUESTED','DOCUMENT_REJECTED','RESUBMISSION_REQUIRED') and exists (
