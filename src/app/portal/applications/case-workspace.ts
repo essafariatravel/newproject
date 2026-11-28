@@ -78,8 +78,8 @@ export function usableCaseDocument(status:string|undefined,requested:boolean){re
 export function caseDateBoundary(v:string,exclusiveEnd=false){const valid=validCaseDate(v);return valid?new Date(Date.parse(valid+"T00:00:00Z")-3600000+(exclusiveEnd?86400000:0)):undefined}
 export function caseResponsibility(status:string,terminal:boolean,requested:boolean,cancellation:boolean){
  if(terminal)return "closed";
- if(requested)return "agency";
  if(cancellation)return "cancellation";
+ if(requested)return "agency";
  if(status==="DRAFT")return "draft";
  if(status==="SUBMITTED")return "verification";
  if(status==="DOCUMENTS_CHECKING")return "checking";
