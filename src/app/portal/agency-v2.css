@@ -932,3 +932,16 @@ html[lang="ar"] .workspace-agency.workspace-agency.workspace-agency.workspace-ag
 .workspace-agency .group-history-entry .booking-link{min-height:44px;display:inline-flex;align-items:center;gap:6px;white-space:normal}
 .workspace-agency .group-roster-notice{color:#647182;font-size:15px;border-inline-start:2px solid #0b1c30;padding-inline-start:12px;margin:0}
 @media(max-width:600px){.workspace-agency .group-history-search input{flex-basis:100%}.workspace-agency .group-history-entry .group-review-row{flex-wrap:wrap}.workspace-agency .group-history-tabs{gap:4px 16px}}
+
+
+/* Named roster favorites — retain flat editorial workspace. */
+.workspace-agency .saved-group-dialog{max-inline-size:min(620px,calc(100vw - 24px));max-block-size:calc(100dvh - 32px);overflow:auto}
+.workspace-agency .saved-group-dialog:not([open]){display:none!important}
+.workspace-agency .saved-group-hint{font-size:15px;color:#647182;line-height:1.5}
+.workspace-agency .saved-group-list{display:grid;gap:0}
+.workspace-agency .saved-group-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-block-end:1px solid #e2e5e9;padding-block:12px;flex-wrap:wrap}
+.workspace-agency .saved-group-row>div:first-child{display:grid;gap:4px;min-width:0;overflow-wrap:anywhere}
+.workspace-agency .saved-group-form{display:grid;gap:8px;padding-block-start:16px}
+.workspace-agency .saved-group-form input{flex:1;min-inline-size:min(190px,100%);font-size:16px}
+.workspace-agency .saved-group-dialog button{min-height:44px}
+@media(max-width:600px){.workspace-agency .saved-group-form input{flex-basis:100%}.workspace-agency .saved-group-row>div:first-child{flex-basis:100%}}
