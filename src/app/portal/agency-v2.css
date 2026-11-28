@@ -897,3 +897,19 @@ html[lang="ar"] .workspace-agency.workspace-agency.workspace-agency.workspace-ag
 @media(max-width:1100px){.group-member-grid{grid-template-columns:1fr}.group-member-grid>nav{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));border-inline-end:0;padding:0}.group-member-grid>nav button{border-block-end:1px solid #e2e5e9}}@media(max-width:950px){.group-wizard .group-grid{grid-template-columns:1fr}.group-wizard .group-summary{position:static;border-inline-start:0;border-top:1px solid #e2e5e9;padding:16px 0 0}.group-wizard .booking-rail{max-width:100%}.group-footer{position:static}}@media(max-width:600px){.group-wizard .booking-rail{gap:7px}.group-wizard .booking-rail button{font-size:13px;gap:6px}.group-wizard .booking-marker{width:25px;height:25px}.group-wizard .group-fields{grid-template-columns:1fr}.group-picker-dialog{padding:16px}.group-picker-row>small{max-width:100px}.group-rail-row{display:grid}.group-wizard .group-heading{align-items:flex-start}.group-member-grid>nav{grid-template-columns:1fr 1fr}.group-picker-row small{font-size:13px}}@media(min-width:1024px) and (max-width:1599px){.group-wizard .group-summary{inset-block-start:130px}}
 
 .group-choice-pop[data-above=true]{top:auto;bottom:calc(100% + 4px)}.group-chosen{display:grid;gap:6px}.group-chosen>div{display:flex;flex-wrap:wrap;gap:6px}.group-chosen .btn-secondary{font-size:14px;min-height:32px;padding:5px 8px;max-width:100%;overflow-wrap:anywhere}.group-preview-dialog img{max-width:100%;max-height:65dvh;object-fit:contain;margin-inline:auto}.group-preview-dialog header strong{overflow-wrap:anywhere;min-width:0}.group-transfer{display:grid;gap:8px;color:#647182;padding-block:10px}.group-transfer progress{width:100%;height:6px;accent-color:#21684f}.group-file .group-actions{justify-content:flex-end;flex-shrink:0}@media(max-width:600px){.group-file{flex-wrap:wrap}.group-file .group-actions{flex-shrink:1}}
+
+
+/* Group Booking R03 — document readiness and confirmation. */
+.workspace-agency .group-wizard .group-review-state{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:14px;line-height:1.4;color:#647182}
+.workspace-agency .group-wizard .group-review-state::before{content:"";width:7px;height:7px;border-radius:50%;flex:none;background:currentColor}
+.workspace-agency .group-wizard .group-review-state[data-state=ready]{color:#21684f}
+.workspace-agency .group-wizard .group-review-state[data-state=invalid]{color:#9b3030}
+.workspace-agency .group-wizard .group-review-state:is([data-state=missing],[data-state=warning]){color:#87500d}
+.workspace-agency .group-wizard .group-review-state[data-state=checking]{color:#647182}
+.workspace-agency .group-wizard .group-budget{display:grid;gap:8px;border-block-start:1px solid #e2e5e9;padding-block-start:12px;font-size:14px;color:#647182}
+.workspace-agency .group-wizard .group-budget>span{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.workspace-agency .group-wizard .group-budget bdi{font-variant-numeric:tabular-nums;color:#0b1c30}
+.workspace-agency .group-wizard .group-review-edit{justify-self:start;text-align:start;min-height:44px}
+.workspace-agency .group-wizard .group-document-grid>nav button{min-height:56px;overflow-wrap:anywhere}
+.workspace-agency .group-wizard .group-footer-guidance{min-width:0;max-width:100%;overflow-wrap:anywhere}
+@media(max-width:950px){.workspace-agency .group-wizard .group-document-grid{grid-template-columns:1fr}.workspace-agency .group-wizard .group-document-grid>nav{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(140px,100%),1fr));border-inline-end:0;padding-inline:0}.workspace-agency .group-wizard .group-footer{flex-wrap:wrap}.workspace-agency .group-wizard .group-footer-guidance{flex-basis:100%;order:-1}}
