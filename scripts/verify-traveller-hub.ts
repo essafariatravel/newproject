@@ -118,3 +118,27 @@ assert.equal(autoEligible({...automaticInput,code:"DOC-REL",issuedAt:"2026-10-01
 assert.equal(autoEligible({...automaticInput,code:"DOC-REL",issuedAt:"2026-11-20"}),true);
 assert.equal(autoPlan([{...opt,code:"DOC-UZB-ICAO-PHOTO",typeId:"icao"}],["standard-photo"]).length,0);
 console.log("[vault-catalogue] Production aliases, freshness, forbidden types and exact type-ID reuse PASS (28 assertions)");
+
+
+import {vaultStorageLimits,vaultStorageFits,profileIdentityComplete,parallelStagingEnabled} from "../src/lib/traveller-hub-policy";
+import {sharedDocumentCode,groupDocumentConflict} from "../src/lib/group-policy";
+const prodParity={VERCEL_ENV:"production",DATABASE_SCHEMA:"visa_os",VERCEL_GIT_COMMIT_REF:CONSOLIDATED_BRANCH};
+const previewParity={...prodParity,VERCEL_ENV:"preview",DATABASE_SCHEMA:"visa_os_preview"};
+const MiB=1024*1024;
+assert.deepEqual(vaultStorageLimits(prodParity),{global:100*MiB,agency:25*MiB,database:400*MiB});
+assert.deepEqual(vaultStorageLimits(previewParity),{global:20*MiB,agency:20*MiB,database:null});
+assert.equal(vaultStorageFits({global:20*MiB,agency:0,database:282176659},2*MiB,prodParity),true);
+assert.equal(vaultStorageFits({global:20*MiB,agency:0,database:282176659},2*MiB,previewParity),false);
+assert.equal(vaultStorageFits({global:99*MiB,agency:0,database:282176659},2*MiB,prodParity),false);
+assert.equal(vaultStorageFits({global:24*MiB,agency:24*MiB,database:282176659},2*MiB,prodParity),false);
+assert.equal(vaultStorageFits({global:0,agency:0,database:399*MiB},2*MiB,prodParity),false);
+assert.equal(vaultStorageFits({global:NaN,agency:0,database:0},1,prodParity),false);
+assert.equal(profileIdentityComplete("", "2031-01-01"),false);
+assert.equal(profileIdentityComplete("A1234567",null),false);
+assert.equal(profileIdentityComplete("A1234567","2031-01-01"),true);
+assert.equal(parallelStagingEnabled(prodParity),true);
+assert.equal(parallelStagingEnabled({...prodParity,ESSAFARIA_PARALLEL_STAGING:"false"}),false);
+assert.equal(parallelStagingEnabled({...prodParity,DATABASE_SCHEMA:"visa_os_preview"}),false);
+for(const code of ["LEGACY-4b8e7617dd7309fd040d63f2814f33fd","LEGACY-8626bc732ffa233f4e105ee5e1002c16","LEGACY-d42cf2b07d29646d145578d1740bf6d3","LEGACY-ee25dc3ac5f96746f7a664765d716072"]){assert.equal(sharedDocumentCode(code),true);assert.equal(tripSpecificDocument(code),true);assert.equal(groupDocumentConflict([{member:1,code,sha256:"test"},{member:2,code,sha256:"test"}]),false);assert.equal(autoEligible({...automaticInput,code}),false)}
+for(const code of ["COD-PASS","DOC-ID-PHOTO","DOC-REL","DOC-GROUP-PASSPORTS","DOC-SUPPORTING-VISA","UNKNOWN"]){assert.equal(sharedDocumentCode(code),false);assert.equal(groupDocumentConflict([{member:1,code,sha256:"test"},{member:2,code,sha256:"test"}]),true)}
+console.log("[production-parity] Storage budgets, historic identity, bounded parallel uploads, real catalogue sharing and personal-file protection PASS (42 assertions)");
